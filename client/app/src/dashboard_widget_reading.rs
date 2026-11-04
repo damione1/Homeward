@@ -9,7 +9,7 @@ use crate::{
     environment_view::{Presentation, ProfileZone},
 };
 use home_client_cache::CachedView;
-use home_wire_contract::home::state::v1 as state;
+use home_wire_contract::home::api::v2 as wire;
 
 pub(crate) fn clock(
     zone: home_client_model::local_time::DisplayTimeZone,
@@ -56,78 +56,37 @@ pub(crate) fn clock(
 }
 
 impl Field {
+    pub fn binding(&self) -> home_client_model::dashboard::FieldBinding {
+        use home_client_model::dashboard::FieldKey as K;
+        let field = match self.key {
+            FieldKey::State => K::State,
+            FieldKey::Value => K::Value,
+            FieldKey::CurrentTemperature => K::CurrentTemperature,
+            FieldKey::Setpoint => K::Setpoint,
+            FieldKey::Measurement => K::Measurement,
+        };
+        home_client_model::dashboard::FieldBinding {
+            capability: self.capability.clone(),
+            field,
+        }
+    }
     pub fn reading(&self, view: Option<&CachedView>) -> Option<String> {
-        let entity = view?.get(&self.entity)?;
-        let observation = crate::dashboard_visibility::fresh(entity)?;
-        observation.value.as_ref()?;
+        let view = view?;
+        let capability = crate::dashboard_visibility::capability(view, &self.capability)?;
         match self.key {
-            FieldKey::State => match observation.value.as_ref()? {
-                state::observed_state::Value::Cover(value) => value
-                    .state
-                    .and_then(home_wire_contract::controls_contract::cover_state)
-                    .and_then(crate::control_text::cover_state)
-                    .map(|text| text.label.to_owned()),
-                state::observed_state::Value::Lock(value) => {
-                    Some(crate::control_text::lock(value).to_owned())
-                }
-                state::observed_state::Value::Alarm(value) => {
-                    Some(crate::control_text::alarm(value).to_owned())
-                }
-                state::observed_state::Value::SwitchOn(_)
-                | state::observed_state::Value::Measurement(_)
-                | state::observed_state::Value::Light(_)
-                | state::observed_state::Value::Fan(_)
-                | state::observed_state::Value::Climate(_)
-                | state::observed_state::Value::Helper(_)
-                | state::observed_state::Value::Solar(_)
-                | state::observed_state::Value::SolarEvent(_)
-                | state::observed_state::Value::Weather(_)
-                | state::observed_state::Value::Presence(_)
-                | state::observed_state::Value::PresenceDetails(_) => {
-                    crate::dashboard_visibility::literal(entity).map(str::to_owned)
-                }
-            },
-            FieldKey::Value => Some(value_text(observation)),
-            FieldKey::CurrentTemperature => {
-                if let state::observed_state::Value::Climate(value) = observation.value.as_ref()?
-                    && value.__buffa_unknown_fields.is_empty()
-                {
-                    value
-                        .current_temperature_celsius
-                        .filter(|v| v.is_finite())
-                        .map(number)
-                } else {
-                    None
-                }
-            }
-            FieldKey::Setpoint => {
-                if let state::observed_state::Value::Climate(value) = observation.value.as_ref()?
-                    && value.__buffa_unknown_fields.is_empty()
-                {
-                    match value.setpoint.as_ref()? {
-                        state::climate_value::Setpoint::SetpointCelsius(value)
-                            if value.is_finite() =>
-                        {
-                            Some(number(*value))
-                        }
-                        state::climate_value::Setpoint::SetpointCelsius(_)
-                        | state::climate_value::Setpoint::SetpointRangeCelsius(_) => None,
+            FieldKey::CurrentTemperature | FieldKey::Setpoint => {
+                match crate::dashboard_visibility::literal(view, &self.binding())? {
+                    home_client_model::dashboard::Literal::Number(value) => {
+                        Some(number(value.value()))
                     }
-                } else {
-                    None
+                    _ => None,
                 }
             }
-            FieldKey::Measurement => {
-                if let state::observed_state::Value::Measurement(value) =
-                    observation.value.as_ref()?
-                    && value.__buffa_unknown_fields.is_empty()
-                    && value.value.is_finite()
-                {
-                    Some(value_text(observation))
-                } else {
-                    None
-                }
-            }
+            FieldKey::Measurement => match capability.r#trait.as_ref()? {
+                wire::capability::Trait::NumericMeasurement(_) => Some(value_text(capability)),
+                _ => None,
+            },
+            FieldKey::State | FieldKey::Value => Some(value_text(capability)),
         }
     }
 }
@@ -300,8 +259,9 @@ impl Reading {
                 if let Some(weather) = weather {
                     reading.weather = crate::environment_view::project(
                         crate::device_view::capability::ObservationKind::Weather,
-                        view.and_then(|view| view.get(weather))
-                            .and_then(crate::dashboard_visibility::fresh),
+                        view.and_then(|view| {
+                            crate::dashboard_visibility::capability(view, weather)
+                        }),
                         ProfileZone::Known(*zone),
                         now,
                     );
@@ -311,7 +271,6 @@ impl Reading {
                 room,
                 temperature,
                 activity,
-                active_states,
             } => {
                 reading.room_title = if node.title.is_empty() {
                     layout
@@ -342,10 +301,11 @@ impl Reading {
                             String::new()
                         }
                     });
-                reading.active = activity.iter().any(|id| {
-                    view.and_then(|view| view.get(id))
-                        .and_then(crate::dashboard_visibility::literal)
-                        .is_some_and(|value| active_states.iter().any(|state| state == value))
+                reading.active = activity.iter().any(|item| {
+                    view.and_then(|view| {
+                        crate::dashboard_visibility::literal(view, &item.field.binding())
+                    })
+                    .is_some_and(|value| item.active_states.contains(&value))
                 });
             }
             Content::Thermostat {
@@ -354,26 +314,24 @@ impl Reading {
                 reading.value = current.reading(view).unwrap_or_else(|| "—".into());
                 reading.target = target.reading(view);
             }
-            Content::Security { entities } => {
-                reading.security = entities
+            Content::Security { capabilities } => {
+                reading.security = capabilities
                     .iter()
-                    .map(|id| {
-                        let entity = view.and_then(|view| view.get(id));
-                        let observation = entity.and_then(crate::dashboard_visibility::fresh);
-                        // Security is a read-only summary of the configured
-                        // entity's canonical observation. Capability rows may
-                        // describe several endpoints and cannot select it.
+                    .map(|name| {
+                        let entity = view.and_then(|view| view.get(&name.entity()));
+                        let capability = view
+                            .and_then(|view| crate::dashboard_visibility::capability(view, name));
                         CardRow {
                             title: entity
-                                .map(|entity| crate::cache_view::bounded(&entity.current_alias))
+                                .and_then(|entry| entry.entity.as_option())
+                                .map(|entity| crate::cache_view::bounded(&entity.display_name))
                                 .unwrap_or_else(|| widget.empty_label.clone())
                                 .into(),
-                            value: observation
+                            value: capability
                                 .map(value_text)
                                 .unwrap_or_else(|| "—".into())
                                 .into(),
-                            quality: entity
-                                .and_then(|entity| entity.state.as_option())
+                            quality: capability
                                 .map(crate::cache_view::quality_text)
                                 .unwrap_or_else(|| "Source unavailable".into())
                                 .into(),
@@ -388,11 +346,10 @@ impl Reading {
                     .map(|item| {
                         let value = item.field.reading(view);
                         let active = view
-                            .and_then(|view| view.get(&item.field.entity))
-                            .and_then(crate::dashboard_visibility::literal)
-                            .is_some_and(|value| {
-                                item.active_states.iter().any(|state| state == value)
-                            });
+                            .and_then(|view| {
+                                crate::dashboard_visibility::literal(view, &item.field.binding())
+                            })
+                            .is_some_and(|value| item.active_states.contains(&value));
                         ObservationReading {
                             title: item.label.clone(),
                             available: value.is_some(),

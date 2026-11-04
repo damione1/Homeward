@@ -2,9 +2,7 @@
 use crate::{ProAdminField, ProAdminFieldKind, administration::Refusal, configuration::Candidate};
 use buffa::EnumValue;
 use buffa_types::google::protobuf::Timestamp;
-use home_wire_contract::{
-    configuration_simulation_contract as contract, home::configurationsimulation::v1 as wire,
-};
+use home_wire_contract::{configuration_simulation_contract as contract, home::api::v2 as wire};
 use serde::Deserialize;
 use zeroize::Zeroizing;
 
@@ -100,18 +98,22 @@ enum Support {
     SceneTransition,
 }
 impl Support {
-    fn into_wire(self) -> wire::Support {
+    fn into_wire(self) -> wire::ConfigurationSimulationSupport {
         match self {
-            Self::ObserveState => wire::Support::ObserveState,
-            Self::ClimateSetpoint => wire::Support::ClimateSetpoint,
-            Self::SwitchTurnOn => wire::Support::SwitchTurnOn,
-            Self::LightTurnOn => wire::Support::LightTurnOn,
-            Self::LightTurnOff => wire::Support::LightTurnOff,
-            Self::LightBrightnessAbsolute => wire::Support::LightBrightnessAbsolute,
-            Self::LightBrightnessRelative => wire::Support::LightBrightnessRelative,
-            Self::LightTransition => wire::Support::LightTransition,
-            Self::SceneTurnOn => wire::Support::SceneTurnOn,
-            Self::SceneTransition => wire::Support::SceneTransition,
+            Self::ObserveState => wire::ConfigurationSimulationSupport::ObserveState,
+            Self::ClimateSetpoint => wire::ConfigurationSimulationSupport::ClimateSetpoint,
+            Self::SwitchTurnOn => wire::ConfigurationSimulationSupport::SwitchTurnOn,
+            Self::LightTurnOn => wire::ConfigurationSimulationSupport::LightTurnOn,
+            Self::LightTurnOff => wire::ConfigurationSimulationSupport::LightTurnOff,
+            Self::LightBrightnessAbsolute => {
+                wire::ConfigurationSimulationSupport::LightBrightnessAbsolute
+            }
+            Self::LightBrightnessRelative => {
+                wire::ConfigurationSimulationSupport::LightBrightnessRelative
+            }
+            Self::LightTransition => wire::ConfigurationSimulationSupport::LightTransition,
+            Self::SceneTurnOn => wire::ConfigurationSimulationSupport::SceneTurnOn,
+            Self::SceneTransition => wire::ConfigurationSimulationSupport::SceneTransition,
         }
     }
 }
@@ -123,14 +125,24 @@ impl Fixture {
             attributes: self
                 .attributes
                 .into_iter()
-                .map(|attribute| wire::Attribute {
+                .map(|attribute| wire::ConfigurationSimulationAttribute {
                     name: attribute.name,
                     value: Some(match attribute.value {
-                        Value::Text(value) => wire::attribute::Value::Text(value),
-                        Value::Boolean(value) => wire::attribute::Value::Boolean(value),
-                        Value::Integer(value) => wire::attribute::Value::Integer(value),
-                        Value::Number(value) => wire::attribute::Value::Number(value),
-                        Value::Null => wire::attribute::Value::NullValue(true),
+                        Value::Text(value) => {
+                            wire::configuration_simulation_attribute::Value::Text(value)
+                        }
+                        Value::Boolean(value) => {
+                            wire::configuration_simulation_attribute::Value::Boolean(value)
+                        }
+                        Value::Integer(value) => {
+                            wire::configuration_simulation_attribute::Value::Integer(value)
+                        }
+                        Value::Number(value) => {
+                            wire::configuration_simulation_attribute::Value::Number(value)
+                        }
+                        Value::Null => {
+                            wire::configuration_simulation_attribute::Value::NullValue(true)
+                        }
                     }),
                     ..Default::default()
                 })
@@ -151,7 +163,7 @@ pub(super) struct Simulation {
     limit: String,
     fixtures: Zeroizing<String>,
     events: Zeroizing<String>,
-    report: Option<wire::Report>,
+    report: Option<wire::ConfigurationSimulationReport>,
 }
 impl Default for Simulation {
     fn default() -> Self {
@@ -167,7 +179,7 @@ impl Default for Simulation {
 }
 impl Simulation {
     #[cfg(test)]
-    pub fn report(&self) -> Option<&wire::Report> {
+    pub fn report(&self) -> Option<&wire::ConfigurationSimulationReport> {
         self.report.as_ref()
     }
     pub fn clear(&mut self) {
@@ -214,14 +226,19 @@ impl Simulation {
         }
         self.clear();
     }
-    pub fn request(&self, candidate: &Candidate) -> Result<wire::SimulatePlanRequest, Refusal> {
+    pub fn request(
+        &self,
+        candidate: &Candidate,
+        home: &str,
+    ) -> Result<wire::SimulateConfigurationPlanRequest, Refusal> {
         if !candidate.family().simulatable() {
             return Err(Refusal::Unsupported);
         }
         let fixtures: Vec<Fixture> =
             serde_json::from_str(&self.fixtures).map_err(|_| Refusal::Invalid)?;
         let now = chrono::DateTime::parse_from_rfc3339(&self.now).map_err(|_| Refusal::Invalid)?;
-        let request = wire::SimulatePlanRequest {
+        let request = wire::SimulateConfigurationPlanRequest {
+            name: home.into(),
             candidate: candidate.to_wire().into(),
             fixtures: fixtures.into_iter().map(Fixture::into_wire).collect(),
             event_types: self
@@ -243,7 +260,7 @@ impl Simulation {
         contract::admit_simulation_request(&request).map_err(|_| Refusal::Invalid)?;
         Ok(request)
     }
-    pub fn accept(&mut self, response: wire::SimulatePlanResponse) -> bool {
+    pub fn accept(&mut self, response: wire::SimulateConfigurationPlanResponse) -> bool {
         if contract::admit_simulation_response(&response).is_err() {
             self.clear();
             return false;
@@ -261,12 +278,11 @@ impl Simulation {
         ];
         if let Some(report) = &self.report {
             let status = match report.status {
-                EnumValue::Known(wire::Status::Completed) => "Done",
-                EnumValue::Known(wire::Status::Partial) => "Partial",
-                EnumValue::Known(wire::Status::Failed) => "Failed",
-                EnumValue::Known(wire::Status::Unspecified) | EnumValue::Unknown(_) => {
-                    "Unsupported"
-                }
+                EnumValue::Known(wire::ConfigurationSimulationStatus::Completed) => "Done",
+                EnumValue::Known(wire::ConfigurationSimulationStatus::Partial) => "Partial",
+                EnumValue::Known(wire::ConfigurationSimulationStatus::Failed) => "Failed",
+                EnumValue::Known(wire::ConfigurationSimulationStatus::Unspecified)
+                | EnumValue::Unknown(_) => "Unsupported",
             };
             fields.push(field(Field::Report,format!("{} · {} virtual ms\nSimulation only; no physical device validated\n{} actions · {} steps · {} diagnostics",status,report.elapsed_millis,report.intents.len(),report.nodes.len(),report.diagnostics.len()),false));
             fields.push(field(
@@ -360,14 +376,14 @@ fn parameter<T: std::fmt::Display>(
         values.push(format!("{name} {value}{unit}"));
     }
 }
-fn parameters(value: Option<&wire::intent::Parameters>) -> String {
+fn parameters(value: Option<&wire::configuration_simulation_intent::Parameters>) -> String {
     let mut values = Vec::new();
     let kind = match value {
-        Some(wire::intent::Parameters::Switch(value)) => {
+        Some(wire::configuration_simulation_intent::Parameters::Switch(value)) => {
             values.push(power(value.on).into());
             "Switch"
         }
-        Some(wire::intent::Parameters::Light(value)) => {
+        Some(wire::configuration_simulation_intent::Parameters::Light(value)) => {
             if let Some(on) = value.on {
                 values.push(power(on).into());
             }
@@ -388,12 +404,12 @@ fn parameters(value: Option<&wire::intent::Parameters>) -> String {
             parameter(&mut values, "Transition", value.transition_seconds, " s");
             "Light"
         }
-        Some(wire::intent::Parameters::Climate(value)) => {
+        Some(wire::configuration_simulation_intent::Parameters::Climate(value)) => {
             parameter(&mut values, "Setpoint", value.temperature_celsius, " °C");
             if let Some(mode) = value.mode {
                 values.push(
                     match mode {
-                        EnumValue::Known(mode) => crate::device_view::mode_label(mode),
+                        EnumValue::Known(mode) => temperature_mode_label(mode),
                         EnumValue::Unknown(_) => "Unsupported mode",
                     }
                     .into(),
@@ -404,7 +420,7 @@ fn parameters(value: Option<&wire::intent::Parameters>) -> String {
             parameter(&mut values, "Preset", value.preset_mode.as_deref(), "");
             "Climate"
         }
-        Some(wire::intent::Parameters::Fan(value)) => {
+        Some(wire::configuration_simulation_intent::Parameters::Fan(value)) => {
             values.push(power(value.on).into());
             parameter(&mut values, "Speed", Some(value.percentage), " %");
             "Fan"
@@ -421,58 +437,71 @@ fn parameters(value: Option<&wire::intent::Parameters>) -> String {
         }
     )
 }
-fn position(value: &wire::Position) -> String {
+fn position(value: &wire::ConfigurationSimulationPosition) -> String {
     format!(
         "{}:{}:{} · {}",
         value.file, value.line, value.column, value.path
     )
 }
-fn diagnostic(value: EnumValue<wire::DiagnosticCode>) -> &'static str {
+fn diagnostic(value: EnumValue<wire::ConfigurationSimulationDiagnosticCode>) -> &'static str {
     match value {
-        EnumValue::Known(wire::DiagnosticCode::UnsupportedExtension) => "Unsupported extension",
-        EnumValue::Known(wire::DiagnosticCode::UnsupportedConcurrency) => "Unsupported concurrency",
-        EnumValue::Known(wire::DiagnosticCode::UnsupportedWait) => "Unsupported wait state",
-        EnumValue::Known(wire::DiagnosticCode::InvalidSource) => "Invalid source",
-        EnumValue::Known(wire::DiagnosticCode::MissingFixture) => "Synthetic state missing",
-        EnumValue::Known(wire::DiagnosticCode::FixtureRefused) => {
+        EnumValue::Known(wire::ConfigurationSimulationDiagnosticCode::UnsupportedExtension) => {
+            "Unsupported extension"
+        }
+        EnumValue::Known(wire::ConfigurationSimulationDiagnosticCode::UnsupportedConcurrency) => {
+            "Unsupported concurrency"
+        }
+        EnumValue::Known(wire::ConfigurationSimulationDiagnosticCode::UnsupportedWait) => {
+            "Unsupported wait state"
+        }
+        EnumValue::Known(wire::ConfigurationSimulationDiagnosticCode::InvalidSource) => {
+            "Invalid source"
+        }
+        EnumValue::Known(wire::ConfigurationSimulationDiagnosticCode::MissingFixture) => {
+            "Synthetic state missing"
+        }
+        EnumValue::Known(wire::ConfigurationSimulationDiagnosticCode::FixtureRefused) => {
             "Action rejected by the test double"
         }
-        EnumValue::Known(wire::DiagnosticCode::ExecutionFailed) => "Virtual execution failed",
-        EnumValue::Known(wire::DiagnosticCode::CapacityExceeded) => "Capacity exceeded",
-        EnumValue::Known(wire::DiagnosticCode::Unspecified) | EnumValue::Unknown(_) => {
-            "Unsupported diagnostic"
+        EnumValue::Known(wire::ConfigurationSimulationDiagnosticCode::ExecutionFailed) => {
+            "Virtual execution failed"
         }
+        EnumValue::Known(wire::ConfigurationSimulationDiagnosticCode::CapacityExceeded) => {
+            "Capacity exceeded"
+        }
+        EnumValue::Known(wire::ConfigurationSimulationDiagnosticCode::Unspecified)
+        | EnumValue::Unknown(_) => "Unsupported diagnostic",
     }
 }
-fn action(value: EnumValue<wire::ActionKind>) -> &'static str {
+fn action(value: EnumValue<wire::ConfigurationSimulationActionKind>) -> &'static str {
     match value {
-        EnumValue::Known(wire::ActionKind::Variables) => "Variables",
-        EnumValue::Known(wire::ActionKind::Sequence) => "Sequence",
-        EnumValue::Known(wire::ActionKind::Choose) => "Choose",
-        EnumValue::Known(wire::ActionKind::If) => "Condition",
-        EnumValue::Known(wire::ActionKind::Repeat) => "Repeat",
-        EnumValue::Known(wire::ActionKind::Parallel) => "Parallel Branches",
-        EnumValue::Known(wire::ActionKind::Wait) => "Wait",
-        EnumValue::Known(wire::ActionKind::Stop) => "Stop",
-        EnumValue::Known(wire::ActionKind::Call) => "Call",
-        EnumValue::Known(wire::ActionKind::Delay) => "Delay",
-        EnumValue::Known(wire::ActionKind::WaitTemplate) => "Waiting for expression",
-        EnumValue::Known(wire::ActionKind::Unspecified) | EnumValue::Unknown(_) => {
-            "Unsupported step"
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::Variables) => "Variables",
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::Sequence) => "Sequence",
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::Choose) => "Choose",
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::If) => "Condition",
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::Repeat) => "Repeat",
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::Parallel) => "Parallel Branches",
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::Wait) => "Wait",
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::Stop) => "Stop",
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::Call) => "Call",
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::Delay) => "Delay",
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::WaitTemplate) => {
+            "Waiting for expression"
         }
+        EnumValue::Known(wire::ConfigurationSimulationActionKind::Unspecified)
+        | EnumValue::Unknown(_) => "Unsupported step",
     }
 }
-fn stage(value: EnumValue<wire::NodeStage>) -> &'static str {
+fn stage(value: EnumValue<wire::ConfigurationSimulationNodeStage>) -> &'static str {
     match value {
-        EnumValue::Known(wire::NodeStage::Entered) => "Started",
-        EnumValue::Known(wire::NodeStage::Completed) => "Done",
-        EnumValue::Known(wire::NodeStage::Stopped) => "Stopped",
-        EnumValue::Known(wire::NodeStage::Cancelled) => "Cancelled",
-        EnumValue::Known(wire::NodeStage::Failed) => "Failed",
-        EnumValue::Known(wire::NodeStage::Waiting) => "Pending",
-        EnumValue::Known(wire::NodeStage::Unspecified) | EnumValue::Unknown(_) => {
-            "Unsupported state"
-        }
+        EnumValue::Known(wire::ConfigurationSimulationNodeStage::Entered) => "Started",
+        EnumValue::Known(wire::ConfigurationSimulationNodeStage::Completed) => "Done",
+        EnumValue::Known(wire::ConfigurationSimulationNodeStage::Stopped) => "Stopped",
+        EnumValue::Known(wire::ConfigurationSimulationNodeStage::Cancelled) => "Cancelled",
+        EnumValue::Known(wire::ConfigurationSimulationNodeStage::Failed) => "Failed",
+        EnumValue::Known(wire::ConfigurationSimulationNodeStage::Waiting) => "Pending",
+        EnumValue::Known(wire::ConfigurationSimulationNodeStage::Unspecified)
+        | EnumValue::Unknown(_) => "Unsupported state",
     }
 }
 fn field(field: Field, value: String, editable: bool) -> ProAdminField {
@@ -525,11 +554,11 @@ mod tests {
         )
         .unwrap()
     }
-    fn response() -> wire::SimulatePlanResponse {
-        wire::SimulatePlanResponse {
-            report: wire::Report {
+    fn response() -> wire::SimulateConfigurationPlanResponse {
+        wire::SimulateConfigurationPlanResponse {
+            report: wire::ConfigurationSimulationReport {
                 simulated: true,
-                status: wire::Status::Completed.into(),
+                status: wire::ConfigurationSimulationStatus::Completed.into(),
                 limitations: vec!["Synthetic simulation only".into()],
                 ..Default::default()
             }
@@ -544,35 +573,37 @@ mod tests {
             Field::Fixtures,
             r#"[{"alias":"synthetic.switch","supports":["switch_turn_on"]}]"#.into(),
         );
-        let request = settings.request(&candidate()).unwrap();
+        let request = settings.request(&candidate(), "homes/synthetic").unwrap();
         assert!(request.fixtures[0].state.is_none());
         assert_eq!(
             request.fixtures[0].supports,
-            vec![EnumValue::Known(wire::Support::SwitchTurnOn)]
+            vec![EnumValue::Known(
+                wire::ConfigurationSimulationSupport::SwitchTurnOn
+            )]
         );
         settings.edit(
             Field::Fixtures,
             r#"[{"alias":"synthetic.switch","supports":["physical_driver"]}]"#.into(),
         );
-        assert!(settings.request(&candidate()).is_err());
+        assert!(settings.request(&candidate(), "homes/synthetic").is_err());
         settings.edit(
             Field::Fixtures,
             r#"[{"alias":"synthetic.switch","state":"off","hidden":true}]"#.into(),
         );
-        assert!(settings.request(&candidate()).is_err());
+        assert!(settings.request(&candidate(), "homes/synthetic").is_err());
     }
     #[test]
     fn absent_observations_and_virtual_limits_are_admitted_before_any_rpc() {
         let mut settings = Simulation::default();
         settings.edit(Field::Fixtures,r#"[{"alias":"synthetic.switch","attributes":[{"name":"present","value":{"kind":"boolean","value":true}}]}]"#.into());
-        assert!(settings.request(&candidate()).is_err());
+        assert!(settings.request(&candidate(), "homes/synthetic").is_err());
         settings.edit(Field::Fixtures,r#"[{"alias":"synthetic.switch","state":"off","attributes":[{"name":"present","value":{"kind":"boolean","value":true}}]}]"#.into());
-        assert!(settings.request(&candidate()).is_ok());
+        assert!(settings.request(&candidate(), "homes/synthetic").is_ok());
         settings.edit(Field::Limit, "3600001".into());
-        assert!(settings.request(&candidate()).is_err());
+        assert!(settings.request(&candidate(), "homes/synthetic").is_err());
         settings.edit(Field::Limit, "1000".into());
         settings.edit(Field::Now, "2099-02-30T00:00:00Z".into());
-        assert!(settings.request(&candidate()).is_err());
+        assert!(settings.request(&candidate(), "homes/synthetic").is_err());
     }
     #[test]
     fn reports_cannot_claim_physical_validation_and_an_input_edit_retires_them() {
@@ -585,5 +616,18 @@ mod tests {
         invalid.report.as_option_mut().unwrap().hardware_validated = true;
         assert!(!settings.accept(invalid));
         assert!(settings.report.is_none());
+    }
+}
+/// Administration-local label for v2 simulation modes; device views own their
+/// separate registry vocabulary.
+fn temperature_mode_label(value: wire::TemperatureMode) -> &'static str {
+    match value {
+        wire::TemperatureMode::Unspecified => "Unspecified",
+        wire::TemperatureMode::Off => "Off",
+        wire::TemperatureMode::Heat => "Heat",
+        wire::TemperatureMode::Cool => "Cool",
+        wire::TemperatureMode::Auto => "Auto",
+        wire::TemperatureMode::Dry => "Dehumidification",
+        wire::TemperatureMode::FanOnly => "Fan Only",
     }
 }

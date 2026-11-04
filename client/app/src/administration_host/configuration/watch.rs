@@ -283,8 +283,11 @@ async fn subscription(
     if !loaded.authority.administrator() || loaded.section != Section::Configuration {
         return Err(Stop::Denied);
     }
-    let cursor = match &loaded.payload {
-        Ok(read::Payload::Configuration(value)) => value.root.resume_token().to_owned(),
+    let (cursor, parent) = match &loaded.payload {
+        Ok(read::Payload::Configuration(value)) => (
+            value.root.resume_token().to_owned(),
+            value.root.id().home().to_string(),
+        ),
         Ok(
             read::Payload::Personal { .. }
             | read::Payload::Sessions(_)
@@ -299,8 +302,7 @@ async fn subscription(
             | read::Payload::Health(_)
             | read::Payload::Metrics(_)
             | read::Payload::Logs(_)
-            | read::Payload::Audits(_)
-            | read::Payload::Logic(_),
+            | read::Payload::Audits(_),
         ) => return Err(Stop::Invalid),
         Err(value) => return Err(read_stop(*value)),
     };
@@ -315,6 +317,7 @@ async fn subscription(
         Duration::from_secs(4),
         api.watch(
             wire::WatchConfigurationRequest {
+                parent,
                 resume_token: cursor.clone(),
                 ..Default::default()
             },
@@ -460,11 +463,7 @@ mod tests {
                 Box::new(wire::ChangeBatch {
                     resume_token: "b".repeat(118),
                     changes: vec![wire::DocumentChange {
-                        id: wire::DocumentId {
-                            value: "operational.main".into(),
-                            ..Default::default()
-                        }
-                        .into(),
+                        name: "homes/test/configurationDocuments/operational".into(),
                         version: wire::DocumentVersion {
                             revision: 7,
                             source_sha256: vec![1; 32],

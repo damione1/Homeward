@@ -7,8 +7,8 @@ use super::{
 use home_client_session::{AccessLease, SessionCoordinator};
 use home_client_transport::{Connection, FailureKind, RpcCode};
 use home_wire_contract::{
-    auth_contract::AccountId,
-    home::{auth::v1 as auth, integrationadmin::v1 as integration},
+    auth_contract::AccountName,
+    home::{api::v2 as auth, api::v2 as integration},
 };
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
@@ -128,11 +128,10 @@ impl Draft {
     }
 }
 pub(in crate::administration_host) enum Operation {
-    Policy(auth::ReplacePolicyRequest),
-    Create(integration::CreateInstanceRequest),
-    Update(integration::UpdateInstanceRequest),
-    Delete(integration::DeleteInstanceRequest),
-    SetEnabled(integration::SetInstanceEnabledRequest),
+    Policy(auth::ReplaceAuthorizationPolicyRequest),
+    Create(integration::CreateIntegrationInstanceRequest),
+    Update(integration::UpdateIntegrationInstanceRequest),
+    Delete(integration::DeleteIntegrationInstanceRequest),
 }
 fn field(token: Field, label: &str, value: &str, multiline: bool, editable: bool) -> ProAdminField {
     ProAdminField {
@@ -174,6 +173,18 @@ pub(super) async fn execute(
                 Ok(value) => value,
                 Err(error) => {
                     let _ = session.observe_failure(lease.generation, &error).await;
+                    if let Ok(Some(failure)) = error.api_failure() {
+                        if matches!(
+                            failure.reason(),
+                            integration::ApiErrorReason::CommitOutcomeUnknown
+                                | integration::ApiErrorReason::EffectOutcomeUnknown
+                        ) {
+                            return Completion::state(MutationState::Uncertain);
+                        }
+                        if failure.reason() == integration::ApiErrorReason::EtagMismatch {
+                            return Completion::state(MutationState::Conflict);
+                        }
+                    }
                     return Completion::state(match error.kind() {
                         FailureKind::Rpc(code) => {
                             if matches!(code, RpcCode::Aborted | RpcCode::AlreadyExists) {
@@ -203,49 +214,27 @@ pub(super) async fn execute(
     }
     match operation {
         Operation::Policy(request) => {
-            let account = request.account_id.value.clone();
+            let account = request.name.clone();
             let submitted = sha2::Sha256::digest(&request.yaml_source);
-            let response = call!(connection.policies(), replace_policy, request);
+            let response = call!(connection.policies(), replace_authorization_policy, request);
             Completion::published(
                 home_wire_contract::authorization_contract::admit_replace_response(&response)
                     .is_ok()
-                    && response.policy.account_id.value == account
-                    && response.policy.version.source_sha256.as_slice() == &submitted[..]
-                    && response.policy.version.source_sha256.as_slice()
-                        == &sha2::Sha256::digest(&response.policy.yaml_source)[..],
+                    && response.policy.name == account
+                    && sha2::Sha256::digest(&response.policy.yaml_source) == submitted,
             )
         }
         Operation::Create(request) => {
             let response = call!(connection.integrations(), create_instance, request);
-            if response.__buffa_unknown_fields.is_empty() {
-                integrations::activation(&response.activation, &response.document)
-            } else {
-                Completion::state(MutationState::Uncertain)
-            }
+            integrations::operation(&response)
         }
         Operation::Update(request) => {
             let response = call!(connection.integrations(), update_instance, request);
-            if response.__buffa_unknown_fields.is_empty() {
-                integrations::activation(&response.activation, &response.document)
-            } else {
-                Completion::state(MutationState::Uncertain)
-            }
+            integrations::operation(&response)
         }
         Operation::Delete(request) => {
             let response = call!(connection.integrations(), delete_instance, request);
-            if response.__buffa_unknown_fields.is_empty() {
-                integrations::activation(&response.activation, &response.document)
-            } else {
-                Completion::state(MutationState::Uncertain)
-            }
-        }
-        Operation::SetEnabled(request) => {
-            let response = call!(connection.integrations(), set_instance_enabled, request);
-            if response.__buffa_unknown_fields.is_empty() {
-                integrations::activation(&response.activation, &response.document)
-            } else {
-                Completion::state(MutationState::Uncertain)
-            }
+            integrations::operation(&response)
         }
     }
 }

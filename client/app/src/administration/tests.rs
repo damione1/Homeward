@@ -4,21 +4,18 @@ use home_wire_contract::home::observability::v1 as observation;
 
 fn account(name: &str, role: auth::AccountRole) -> auth::Account {
     auth::Account {
-        id: auth::AccountId {
-            value: name.into(),
-            ..Default::default()
-        }
-        .into(),
+        name: format!("homes/h/accounts/{name}"),
+        etag: "opaque-cas".into(),
         login_name: name.into(),
         display_name: name.into(),
         role: role.into(),
-        status: auth::AccountStatus::Active.into(),
-        created_at: Timestamp {
+        state: auth::AccountState::Active.into(),
+        create_time: Timestamp {
             seconds: 1_700_000_000,
             ..Default::default()
         }
         .into(),
-        updated_at: Timestamp {
+        update_time: Timestamp {
             seconds: 1_700_000_000,
             ..Default::default()
         }
@@ -29,8 +26,11 @@ fn account(name: &str, role: auth::AccountRole) -> auth::Account {
 fn authority(name: &str, role: auth::AccountRole) -> Authority {
     Authority::admit(
         Identity {
-            account: AccountId::parse(name).unwrap(),
-            session: SessionId::parse(&format!("session-{name}")).unwrap(),
+            account: AccountName::try_from(format!("homes/h/accounts/{name}").as_str()).unwrap(),
+            session: SessionName::try_from(
+                format!("homes/h/accounts/{name}/sessions/session-{name}").as_str(),
+            )
+            .unwrap(),
         },
         account(name, role),
     )
@@ -375,8 +375,9 @@ fn received_accounts_are_atomic_bounded_and_bound_to_the_current_identity() {
     assert!(
         Authority::admit(
             Identity {
-                account: AccountId::parse("bob").unwrap(),
-                session: SessionId::parse("session-bob").unwrap()
+                account: AccountName::try_from("homes/h/accounts/bob").unwrap(),
+                session: SessionName::try_from("homes/h/accounts/bob/sessions/session-bob")
+                    .unwrap()
             },
             a.clone()
         )
@@ -396,8 +397,9 @@ fn received_accounts_are_atomic_bounded_and_bound_to_the_current_identity() {
 #[test]
 fn personal_settings_do_not_require_the_admin_only_account_service() {
     let identity = Identity {
-        account: AccountId::parse("ordinary-account").unwrap(),
-        session: SessionId::parse("native-session").unwrap(),
+        account: AccountName::try_from("homes/h/accounts/ordinary-account").unwrap(),
+        session: SessionName::try_from("homes/h/accounts/ordinary-account/sessions/native-session")
+            .unwrap(),
     };
     let mut state = PrivateState::<(), ()>::default();
     let context = state.install(Authority::session_only(identity)).unwrap();

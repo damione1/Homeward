@@ -347,7 +347,7 @@ async fn actual_camera_owner_private_pixels_viewport_and_revocation() {
     let (run, run_session, api, token) = (
         owner.clone(),
         session.clone(),
-        connection.cameras(),
+        connection.media(),
         cancel.clone(),
     );
     let task = tokio::spawn(async move {
@@ -603,7 +603,7 @@ async fn actual_camera_native_video_owner_lifecycle_and_private_frames() {
     let (run, source, api, token) = (
         owner.clone(),
         session.clone(),
-        connection.cameras(),
+        connection.media(),
         cancel.clone(),
     );
     let task = tokio::spawn(async move {

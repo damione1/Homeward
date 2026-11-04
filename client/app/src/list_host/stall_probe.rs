@@ -2,15 +2,19 @@
 //! Tokio and the isolated Go server keep running. No native rendering claim.
 use super::*;
 use crate::{cache_view, dashboard::ProjectionRequest, device_view::DeviceStore};
-use home_client_actions::{
-    ActionController, NoticeKind, SubmissionState, WriteAccess, write_access,
-};
+use home_client_actions::capabilities::CapabilityController;
+use home_client_actions::{WriteAccess, write_access};
 use home_client_cache::{CacheOwner, Filter};
-use home_client_model::EntityId;
+use home_client_model::api::{
+    CapabilityName, Command, Deadline, DefinitionEtag, EntityName, Intent, Power,
+};
 use home_client_model::lists::ListId;
 use home_client_session::{SecureStore, ServerRevocation, StoreFailure};
 use home_client_transport::Connection;
-use home_wire_contract::home::{actions::v1 as action, registry::v1 as registry};
+use home_wire_contract::{
+    api_command_operations::{CommandCompletion, CommandOutcome},
+    home::api::v2 as wire,
+};
 use serde::{Deserialize, Serialize};
 use slint::Model;
 use std::{io::Write as _, sync::mpsc as blocking, time::Instant};
@@ -32,6 +36,7 @@ struct Workload {
     item_count: usize,
     point_count: usize,
     action_entity: Option<String>,
+    observation_capability: String,
 }
 #[derive(Deserialize)]
 struct Fixture {
@@ -107,7 +112,7 @@ async fn until(mut condition: impl FnMut() -> bool) -> Result<()> {
     .await
     .map_err(|_| "stall qualification deadline".into())
 }
-fn items(state: &State) -> &[Arc<home_wire_contract::home::lists::v1::ItemSnapshot>] {
+fn items(state: &State) -> &[Arc<home_client_model::api_tasks::TaskResource>] {
     match state.items.as_ref().map(|snapshot| &snapshot.rows) {
         Some(CapturedRows::Items { rows, .. }) => rows,
         Some(CapturedRows::Catalog(_)) | None => &[],
@@ -148,11 +153,13 @@ async fn run(fixture: Fixture, lists: Lists, window: slint::Weak<HomewardWindow>
     }
     let list_id: ListId = admit(fixture.workload.list_id.parse())?;
     let with_command = fixture.workload.action_entity.is_some();
-    let action_entity: Option<EntityId> = fixture
+    let action_entity: Option<EntityName> = fixture
         .workload
         .action_entity
-        .map(|id| id.parse())
+        .map(|id| EntityName::try_from(id.as_str()))
         .transpose()?;
+    let observation_capability =
+        CapabilityName::try_from(fixture.workload.observation_capability.as_str())?;
     let connection = Connection::new(&fixture.origin, fixture.ca_pem.as_bytes())?;
     let store = Arc::new(MemoryStore::default());
     let session = SessionCoordinator::new(connection.auth(), store.clone());
@@ -165,12 +172,12 @@ async fn run(fixture: Fixture, lists: Lists, window: slint::Weak<HomewardWindow>
     let (list_owner, list_session, list_api, list_cancel) = (
         lists.clone(),
         session.clone(),
-        connection.lists(),
+        connection.tasks(),
         cancel.child_token(),
     );
     let list_task =
         tokio::spawn(async move { list_owner.run(list_session, list_api, list_cancel).await });
-    let observed = Arc::new(Mutex::new((0usize, 0u64)));
+    let observed = Arc::new(Mutex::new((0usize, None::<f64>)));
     let command_request = Arc::new(Mutex::new(None));
     let captured_command = command_request.clone();
     let projected = observed.clone();
@@ -178,52 +185,40 @@ async fn run(fixture: Fixture, lists: Lists, window: slint::Weak<HomewardWindow>
     let target = window.clone();
     let (cache, mut errors) = CacheOwner::start(
         session.clone(),
-        connection.state(),
+        connection.entity_views(),
+        connection.home(),
         Filter::all(),
         move |phase, view, viewport| {
             *captured_command.lock().unwrap() = action_entity.as_ref().and_then(|id| {
                 let view = view?;
                 let entity = view.get(id)?;
-                if write_access(entity, "core.switch.v1", "relay") != WriteAccess::Allowed {
-                    return None;
-                }
-                Some(action::CommandRequest {
-                    admission_epoch: view.cursor().epoch.clone(),
-                    config_revision: view.cursor().config_revision,
-                    target: registry::EntityRef {
-                        reference: Some(registry::entity_ref::Reference::EntityId(
-                            entity.entity_id.clone(),
-                        )),
-                        ..Default::default()
-                    }
-                    .into(),
-                    capability_schema_id: "core.switch.v1".into(),
-                    endpoint: "relay".into(),
-                    arguments: action::ActionArgs {
-                        arguments: Some(action::action_args::Arguments::SetSwitch(
-                            action::SetSwitch {
-                                on: true,
-                                ..Default::default()
-                            }
-                            .into(),
-                        )),
-                        ..Default::default()
-                    }
-                    .into(),
-                    ..Default::default()
-                })
+                let mut supported = entity.capabilities.iter().filter(|capability| matches!(capability.r#trait.as_ref(), Some(wire::capability::Trait::Power(value)) if value.supports_set));
+                let capability = supported.next()?;
+                // The fixture declares exactly one power slot; ambiguity is a
+                // fixture error, never a request to pick a provider endpoint.
+                if supported.next().is_some() { return None; }
+                let target = CapabilityName::try_from(capability.name.as_str()).ok()?;
+                if write_access(entity, &target) != WriteAccess::Allowed { return None; }
+                Some((target, DefinitionEtag::try_from(capability.etag.as_str()).ok()?, view.name().clone()))
             });
-            *projected.lock().unwrap() = (
-                view.map_or(0, |view| view.len()),
-                view.map_or(0, |view| {
-                    view.entities()
-                        .filter_map(|(_, row)| {
-                            row.state.as_option().and_then(|state| state.source_seq)
-                        })
-                        .max()
-                        .unwrap_or(0)
-                }),
-            );
+            let counter = view
+                .and_then(|view| view.get(&observation_capability.entity()))
+                .and_then(|entry| {
+                    entry
+                        .capabilities
+                        .iter()
+                        .find(|capability| capability.name == observation_capability.as_str())
+                })
+                .and_then(|capability| {
+                    let wire::capability::Trait::NumericMeasurement(value) =
+                        capability.r#trait.as_ref()?
+                    else {
+                        return None;
+                    };
+                    value.observation.as_option()?.value
+                })
+                .filter(|value| value.is_finite());
+            *projected.lock().unwrap() = (view.map_or(0, |view| view.len()), counter);
             cache_view::project_devices(
                 phase,
                 view,
@@ -250,7 +245,12 @@ async fn run(fixture: Fixture, lists: Lists, window: slint::Weak<HomewardWindow>
         seen
     });
     let handle = cache.handle();
-    let (actions, mut notices) = ActionController::start(session.clone(), connection.actions());
+    let actions = CapabilityController::new(
+        session.clone(),
+        connection.capabilities(),
+        connection.operations(),
+        &cancel,
+    );
     let (release, released) = blocking::channel();
     let work: Result<serde_json::Value> = async {
         admit(handle.activate())?;
@@ -258,7 +258,7 @@ async fn run(fixture: Fixture, lists: Lists, window: slint::Weak<HomewardWindow>
         let (token, generation) = {
             let state = lists.0.state.lock().unwrap();
             let Some(CapturedRows::Catalog(rows)) = state.catalog.as_ref().map(|snapshot| &snapshot.rows) else { return Err("catalog missing".into()); };
-            let index = rows.iter().position(|row| row.id.value == list_id.as_str()).ok_or("workload list missing")?;
+            let index = rows.iter().position(|row| row.native_id()==&list_id).ok_or("workload list missing")?;
             (state.catalog_tokens[index], state.generation)
         };
         ui(&window, move |window| window.invoke_lists_choose(token, generation)).await?;
@@ -281,24 +281,29 @@ async fn run(fixture: Fixture, lists: Lists, window: slint::Weak<HomewardWindow>
         let initial=controls.send(Control::Load).await?;
         if initial != (Stats {item_count:10000,completed_items:0,list_revision:10001}) { return Err("unexpected initial task state".into()); }
         let command = if with_command {
-            let request = command_request.lock().unwrap().clone().ok_or("authorized command target missing")?;
-            let epoch = request.admission_epoch.clone();
-            let revision = request.config_revision;
+            let captured = command_request.lock().unwrap().clone().ok_or("authorized command target missing")?;
+            let (target, etag, _) = &captured;
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs();
+            let deadline = Deadline::new(i64::try_from(now.checked_add(30).ok_or("deadline overflow")?)?, 0)?;
+            let request_id = admit(home_client_actions::new_request_id())?;
+            let request = Command::new(target.clone(), Intent::Power(Power::On), Some(request_id), deadline).with_definition_etag(etag.clone());
             let current = command_request.clone();
-            Some(admit(actions.client().submit(request, Arc::new(move || {
-                current.lock().unwrap().as_ref().is_some_and(|request| request.admission_epoch == epoch && request.config_revision == revision)
+            Some(admit(actions.submit(request, Arc::new(move || {
+                current.lock().unwrap().as_ref() == Some(&captured)
             })))?)
         } else { None };
         // The intent is programmatic in this adapter proof. Its genuine native
         // checkbox path is covered separately by the multi-domain UI scenario.
         lists.select_and_write(token,generation,Write::Complete(true));
         until(|| { let state=lists.0.state.lock().unwrap(); ready(&state) && state.notice.starts_with("Modification confirmée")
-            && items(&state).first().is_some_and(|row| row.value.completed==Some(true)) }).await?;
-        until(|| observed.lock().unwrap().1==1000).await?;
+            && items(&state).first().is_some_and(|row| row.content().completed()) }).await?;
+        // nhf023Workload.observation publishes 20000/1000 + tick/1000 kWh.
+        // This is an explicit fixture value, never a public sequence field.
+        until(|| observed.lock().unwrap().1==Some(21.0)).await?;
         if let Some(command) = &command {
             until(|| command.is_finished()).await?;
             let snapshot = command.snapshot();
-            if snapshot.submission != SubmissionState::Replied || !snapshot.progress.as_ref().is_some_and(|point| point.status == action::ActionStatus::Confirmed) {
+            if !snapshot.operation.as_ref().is_some_and(|operation| matches!(operation.completion(), CommandCompletion::Success { outcome: CommandOutcome::Confirmed, .. })) {
                 return Err("actual command protocol confirmation missing".into());
             }
         }
@@ -321,24 +326,20 @@ async fn run(fixture: Fixture, lists: Lists, window: slint::Weak<HomewardWindow>
         if handle.metrics().pending_notifications!=0 || lists.0.mailbox.metrics().pending_notifications!=0 {
             return Err("visual queues did not drain after thaw".into());
         }
-        // No command notice was consumed while the visual loop was frozen.
-        // The reliable path must retain its exact terminal identity despite
-        // coalescing 999 state projections on the separate visual path.
-        let mut terminal_notice = false;
+        // The latest immutable LRO result is retained independently of the
+        // coalesced visual mailbox. No state value establishes confirmation.
+        let mut terminal_retained = false;
         if let Some(command) = &command {
-            while let Ok(notice) = notices.try_recv() {
-                if notice.id != *command.id() { return Err("foreign action notice".into()); }
-                terminal_notice |= notice.kind == NoticeKind::Terminal;
-            }
-            if !terminal_notice || !command.snapshot().progress.as_ref().is_some_and(|point| point.status == action::ActionStatus::Confirmed) {
-                return Err("command confirmation lost after visual thaw".into());
-            }
+            let snapshot = command.snapshot();
+            terminal_retained = snapshot.request_id == command.request_id()
+                && snapshot.operation.as_ref().is_some_and(|operation| matches!(operation.completion(), CommandCompletion::Success { outcome: CommandOutcome::Confirmed, .. }));
+            if !terminal_retained { return Err("command confirmation lost after visual thaw".into()); }
         }
-        Ok(serde_json::json!({"entities":851,"updates_observed":1000,"ui_stalled_seconds":elapsed.as_secs_f64(),
+        Ok(serde_json::json!({"entities":851,"expected_synthetic_updates":1000,"final_meter_value":observed.lock().unwrap().1,"ui_stalled_seconds":elapsed.as_secs_f64(),
             "pending_state_notifications":cache_metrics.pending_notifications,"pending_list_notifications":list_metrics.pending_notifications,
             "state_coalesced":cache_metrics.coalesced,"checked_task_ui_after_thaw":true,"confirmation_ui_after_thaw":true,
             "list_revision":final_stats.list_revision,"task_mutations":1,"native_rendering":false,"device_actions":with_command,
-            "terminal_notice_after_thaw":terminal_notice,"physical_device_actions":false}))
+            "terminal_retained_after_thaw":terminal_retained,"physical_device_actions":false}))
     }.await;
     // Always thaw before cleanup, including a failed assertion/control. Only this
     // test's event loop is affected; no real UI or process is stopped.
@@ -353,7 +354,7 @@ async fn run(fixture: Fixture, lists: Lists, window: slint::Weak<HomewardWindow>
         );
     }
     let _ = release.send(());
-    actions.close().await;
+    actions.shutdown().await;
     cancel.cancel();
     let list_join = tokio::time::timeout(Duration::from_secs(10), list_task).await;
     cache.close().await;

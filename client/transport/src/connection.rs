@@ -4,13 +4,16 @@ use connectrpc::client::{ClientConfig, HttpClient};
 use http::Uri;
 use rustls_platform_verifier::BuilderVerifierExt;
 
+#[cfg(feature = "private-qualification")]
+use crate::{CompanionTransport, LogicTransport, NotificationTransport};
+use crate::{HomeTransport, OperationsTransport};
+
 use crate::{
-    AccountTransport, ActionTransport, AuthTransport, CalendarTransport, CameraTransport,
-    CompanionTransport, ConfigurationApplyTransport, ConfigurationPlanTransport,
-    ConfigurationSimulationTransport, ConfigurationTransport, DashboardTransport, Failure,
-    HistoryTransport, IntegrationTransport, ListTransport, LogicTransport, McpKeyTransport,
-    MediaTransport, NotificationTransport, ObservabilityTransport, PolicyTransport, StateTransport,
-    services::home,
+    AccountTransport, AuthTransport, CalendarTransport,
+    ConfigurationApplyTransport, ConfigurationPlanTransport, ConfigurationSimulationTransport,
+    ConfigurationTransport, DashboardTransport, Failure, HistoryTransport, IntegrationTransport,
+    McpKeyTransport, MediaTransport, ObservabilityTransport,
+    PolicyTransport, TaskTransport, services::home,
 };
 
 /// A shared verified TLS connection configuration. Service facades reuse the
@@ -22,6 +25,43 @@ pub struct Connection {
 }
 
 impl Connection {
+    pub fn entity_views(&self) -> crate::EntityViewTransport {
+        crate::EntityViewTransport {
+            client: home::api::v2::EntityViewServiceClient::new(
+                self.http.clone(),
+                self.config
+                    .clone()
+                    .with_default_max_message_size(16 * 1024 * 1024),
+            ),
+        }
+    }
+
+    pub fn capabilities(&self) -> crate::CapabilityTransport {
+        crate::CapabilityTransport {
+            client: home::api::v2::CapabilityServiceClient::new(
+                self.http.clone(),
+                self.config.clone(),
+            ),
+        }
+    }
+
+    pub fn operations(&self) -> OperationsTransport {
+        OperationsTransport {
+            client: crate::services::google::longrunning::OperationsClient::new(
+                self.http.clone(),
+                self.config
+                    .clone()
+                    .with_default_max_message_size(2 * 1024 * 1024),
+            ),
+        }
+    }
+
+    pub fn home(&self) -> HomeTransport {
+        HomeTransport {
+            client: home::api::v2::HomeServiceClient::new(self.http.clone(), self.config.clone()),
+        }
+    }
+
     pub fn new(origin: &str, trusted_ca_pem: &[u8]) -> Result<Self, Failure> {
         let uri: Uri = origin
             .parse()
@@ -72,24 +112,15 @@ impl Connection {
         Ok(Self { http, config })
     }
 
-    pub fn state(&self) -> StateTransport {
-        StateTransport {
-            client: home::state::v1::StateServiceClient::new(
-                self.http.clone(),
-                self.config.clone(),
-            ),
-        }
-    }
-
     pub fn auth(&self) -> AuthTransport {
         AuthTransport {
-            client: home::auth::v1::AuthServiceClient::new(self.http.clone(), self.config.clone()),
+            client: home::api::v2::AuthServiceClient::new(self.http.clone(), self.config.clone()),
         }
     }
 
     pub fn accounts(&self) -> AccountTransport {
         AccountTransport {
-            client: home::auth::v1::AccountServiceClient::new(
+            client: home::api::v2::AccountServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),
@@ -98,7 +129,7 @@ impl Connection {
 
     pub fn policies(&self) -> PolicyTransport {
         PolicyTransport {
-            client: home::auth::v1::AuthorizationPolicyServiceClient::new(
+            client: home::api::v2::AuthorizationPolicyServiceClient::new(
                 self.http.clone(),
                 // A valid policy source alone may occupy 1 MiB; leave bounded
                 // space for its protobuf metadata without widening other APIs.
@@ -111,16 +142,13 @@ impl Connection {
 
     pub fn mcp_keys(&self) -> McpKeyTransport {
         McpKeyTransport {
-            client: home::auth::v1::McpKeyServiceClient::new(
-                self.http.clone(),
-                self.config.clone(),
-            ),
+            client: home::api::v2::McpKeyServiceClient::new(self.http.clone(), self.config.clone()),
         }
     }
 
     pub fn integrations(&self) -> IntegrationTransport {
         IntegrationTransport {
-            client: home::integrationadmin::v1::IntegrationServiceClient::new(
+            client: home::api::v2::IntegrationServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),
@@ -129,34 +157,37 @@ impl Connection {
 
     pub fn observability(&self) -> ObservabilityTransport {
         ObservabilityTransport {
-            client: home::observability::v1::ObservabilityServiceClient::new(
+            client: home::api::v2::ObservabilityServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),
         }
     }
 
+    #[cfg(feature = "private-qualification")]
     pub fn notifications(&self) -> NotificationTransport {
         NotificationTransport {
-            client: home::notifications::v1::NotificationServiceClient::new(
+            client: home::testing::notifications::v1::NotificationServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),
         }
     }
 
+    #[cfg(feature = "private-qualification")]
     pub fn companion(&self) -> CompanionTransport {
         CompanionTransport {
-            client: home::companion::v1::CompanionServiceClient::new(
+            client: home::testing::companion::v1::CompanionServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),
         }
     }
 
+    #[cfg(feature = "private-qualification")]
     pub fn logic(&self) -> LogicTransport {
         LogicTransport {
-            client: home::logic::v1::LogicServiceClient::new(
+            client: home::testing::logic::v1::LogicServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),
@@ -167,7 +198,7 @@ impl Connection {
     // Keep this larger envelope specific to the four configuration services.
     pub fn configuration(&self) -> ConfigurationTransport {
         ConfigurationTransport {
-            client: home::configuration::v1::ConfigurationServiceClient::new(
+            client: home::api::v2::ConfigurationServiceClient::new(
                 self.http.clone(),
                 self.config
                     .clone()
@@ -178,7 +209,7 @@ impl Connection {
 
     pub fn configuration_plans(&self) -> ConfigurationPlanTransport {
         ConfigurationPlanTransport {
-            client: home::configurationplan::v1::ConfigurationPlanServiceClient::new(
+            client: home::api::v2::ConfigurationPlanServiceClient::new(
                 self.http.clone(),
                 self.config
                     .clone()
@@ -189,7 +220,7 @@ impl Connection {
 
     pub fn configuration_simulation(&self) -> ConfigurationSimulationTransport {
         ConfigurationSimulationTransport {
-            client: home::configurationsimulation::v1::ConfigurationSimulationServiceClient::new(
+            client: home::api::v2::ConfigurationSimulationServiceClient::new(
                 self.http.clone(),
                 self.config
                     .clone()
@@ -200,7 +231,7 @@ impl Connection {
 
     pub fn configuration_apply(&self) -> ConfigurationApplyTransport {
         ConfigurationApplyTransport {
-            client: home::configurationapply::v1::ConfigurationApplyServiceClient::new(
+            client: home::api::v2::ConfigurationApplyServiceClient::new(
                 self.http.clone(),
                 self.config
                     .clone()
@@ -211,23 +242,18 @@ impl Connection {
 
     pub fn dashboard(&self) -> DashboardTransport {
         DashboardTransport {
-            client: home::dashboard::v1::DashboardServiceClient::new(
+            homes: self.home(),
+            client: home::api::v2::DashboardServiceClient::new(
                 self.http.clone(),
-                self.config.clone(),
-            ),
-        }
-    }
-    pub fn actions(&self) -> ActionTransport {
-        ActionTransport {
-            client: home::actions::v1::ActionServiceClient::new(
-                self.http.clone(),
-                self.config.clone(),
+                self.config
+                    .clone()
+                    .with_default_max_message_size(2 * 1024 * 1024),
             ),
         }
     }
     pub fn history(&self) -> HistoryTransport {
         HistoryTransport {
-            client: home::history::v1::HistoryServiceClient::new(
+            client: home::api::v2::HistoryServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),
@@ -235,31 +261,24 @@ impl Connection {
     }
     pub fn media(&self) -> MediaTransport {
         MediaTransport {
-            client: home::media::v1::MediaServiceClient::new(
-                self.http.clone(),
-                self.config.clone(),
-            ),
+            homes: self.home(),
+            client: home::api::v2::MediaServiceClient::new(self.http.clone(), self.config.clone()),
         }
     }
     pub fn calendars(&self) -> CalendarTransport {
         CalendarTransport {
-            client: home::calendars::v1::CalendarServiceClient::new(
+            homes: self.home(),
+            client: home::api::v2::CalendarServiceClient::new(
                 self.http.clone(),
                 self.config.clone(),
             ),
         }
     }
-    pub fn cameras(&self) -> CameraTransport {
-        CameraTransport {
-            client: home::cameras::v1::CameraServiceClient::new(
-                self.http.clone(),
-                self.config.clone(),
-            ),
-        }
-    }
-    pub fn lists(&self) -> ListTransport {
-        ListTransport {
-            client: home::lists::v1::ListServiceClient::new(self.http.clone(), self.config.clone()),
+
+    pub fn tasks(&self) -> TaskTransport {
+        TaskTransport {
+            homes: self.home(),
+            client: home::api::v2::TaskServiceClient::new(self.http.clone(), self.config.clone()),
         }
     }
 }

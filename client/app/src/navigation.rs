@@ -94,7 +94,7 @@ impl NativeNavigation {
     }
     pub fn more_info(
         &self,
-        id: home_client_model::EntityId,
+        id: home_client_model::api::EntityName,
         origin: Option<crate::dashboard_focus::Origin>,
     ) -> Result<(), crate::device_view::Refusal> {
         let Some(window) = self.window.upgrade() else {
@@ -159,10 +159,7 @@ impl NativeNavigation {
                     .filter(|snapshot| snapshot.contains(layout))
                     .ok_or(Refusal::Stale)?;
                 snapshot
-                    .layout(
-                        &dashboard::DashboardId::parse(destination.dashboard.as_str())
-                            .map_err(|_| Refusal::Unsupported)?,
-                    )
+                    .layout(&destination.dashboard)
                     .ok_or(Refusal::Unavailable)?
             };
             let node = target

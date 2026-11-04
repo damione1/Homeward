@@ -1,7 +1,7 @@
 //! An authorized List/Get cohort. Opaque tokens are compared, never interpreted.
-use crate::dashboard::{DashboardId, Layout, LayoutFailure, LayoutState};
+use crate::dashboard::{DashboardName, Layout, LayoutFailure, LayoutState};
 use buffa::Message;
-use home_wire_contract::home::dashboard::v1 as wire;
+use home_wire_contract::home::api::v2 as wire;
 use std::{collections::BTreeMap, sync::Arc};
 
 const MAX_CAPTURE_BYTES: u64 = 16 * 1024 * 1024;
@@ -25,7 +25,7 @@ impl CatalogueToken {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Snapshot {
     token: CatalogueToken,
-    layouts: BTreeMap<DashboardId, LayoutState>,
+    layouts: BTreeMap<DashboardName, LayoutState>,
 }
 impl std::fmt::Debug for Snapshot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -50,7 +50,7 @@ impl Snapshot {
     pub fn token(&self) -> &CatalogueToken {
         &self.token
     }
-    pub fn state(&self, id: &DashboardId) -> LayoutState {
+    pub fn state(&self, id: &DashboardName) -> LayoutState {
         self.layouts
             .get(id)
             .cloned()
@@ -59,7 +59,7 @@ impl Snapshot {
     pub fn contains(&self, layout: &Layout) -> bool {
         self.layouts.get(&layout.id).and_then(LayoutState::layout) == Some(layout)
     }
-    pub fn layout(&self, id: &DashboardId) -> Option<Arc<Layout>> {
+    pub fn layout(&self, id: &DashboardName) -> Option<Arc<Layout>> {
         self.layouts.get(id)?.shared_layout()
     }
 }
@@ -68,123 +68,80 @@ pub(crate) enum CaptureOutcome {
     Accepted,
     Changed,
 }
-enum CaptureState {
-    Collecting,
-    Invalidated,
-}
 pub(crate) struct Capture {
     token: CatalogueToken,
-    expected: BTreeMap<DashboardId, wire::Metadata>,
-    layouts: BTreeMap<DashboardId, LayoutState>,
+    expected: BTreeMap<DashboardName, ()>,
+    layouts: BTreeMap<DashboardName, LayoutState>,
     bytes: u64,
-    state: CaptureState,
+    view: Arc<home_client_cache::CachedView>,
+    invalid: bool,
 }
 impl Capture {
-    pub fn new(list: &wire::ListDashboardsResponse) -> Result<Self, LayoutFailure> {
-        // Reuse the catalogue boundary, including duplicate IDs and its limit.
+    pub fn new(
+        list: &wire::ListDashboardsResponse,
+        view: Arc<home_client_cache::CachedView>,
+    ) -> Result<Self, LayoutFailure> {
         crate::dashboard_selection::Catalogue::from_wire(list, None)?;
-        let token = CatalogueToken::parse(&list.resume_token)?;
+        if !list.next_page_token.is_empty() {
+            return Err(LayoutFailure::Invalid);
+        };
         let mut expected = BTreeMap::new();
-        for metadata in &list.dashboards {
-            let id =
-                DashboardId::parse(&metadata.id.as_option().ok_or(LayoutFailure::Invalid)?.value)?;
-            expected.insert(id, metadata.clone());
+        for document in &list.dashboards {
+            let id = DashboardName::try_from(document.name.as_str())
+                .map_err(|_| LayoutFailure::Invalid)?;
+            if id.home() != view.name().home() {
+                return Err(LayoutFailure::Invalid);
+            };
+            expected.insert(id, ());
         }
+        let bytes = u64::from(list.encoded_len());
+        if bytes > MAX_CAPTURE_BYTES {
+            return Err(LayoutFailure::Budget);
+        };
         Ok(Self {
-            token,
+            token: CatalogueToken::parse(&list.resume_token)?,
             expected,
             layouts: BTreeMap::new(),
-            bytes: u64::from(list.encoded_len()),
-            state: CaptureState::Collecting,
+            bytes,
+            view,
+            invalid: false,
         })
     }
     pub fn insert(
         &mut self,
-        requested: &DashboardId,
-        response: &wire::GetDashboardResponse,
+        requested: &DashboardName,
+        response: &wire::QueryDashboardResponse,
     ) -> Result<CaptureOutcome, LayoutFailure> {
-        match self.state {
-            CaptureState::Invalidated => return Err(LayoutFailure::Invalid),
-            CaptureState::Collecting => {}
-        }
+        if self.invalid {
+            return Err(LayoutFailure::Invalid);
+        };
         let result = self.insert_current(requested, response);
-        match &result {
-            Ok(CaptureOutcome::Accepted) => {}
-            Ok(CaptureOutcome::Changed)
-            | Err(LayoutFailure::Invalid | LayoutFailure::Unsupported | LayoutFailure::Budget) => {
-                self.state = CaptureState::Invalidated
-            }
-        }
+        if result.is_err() {
+            self.invalid = true
+        };
         result
     }
     fn insert_current(
         &mut self,
-        requested: &DashboardId,
-        response: &wire::GetDashboardResponse,
+        requested: &DashboardName,
+        response: &wire::QueryDashboardResponse,
     ) -> Result<CaptureOutcome, LayoutFailure> {
-        if !response.__buffa_unknown_fields.is_empty() {
-            return Err(LayoutFailure::Unsupported);
-        }
-        if CatalogueToken::parse(&response.resume_token)? != self.token {
-            return Ok(CaptureOutcome::Changed);
-        }
         self.bytes = self.bytes.saturating_add(u64::from(response.encoded_len()));
         if self.bytes > MAX_CAPTURE_BYTES {
             return Err(LayoutFailure::Budget);
-        }
-        let document = response
-            .dashboard
-            .as_option()
-            .ok_or(LayoutFailure::Invalid)?;
-        let metadata = document
-            .metadata
-            .as_option()
-            .ok_or(LayoutFailure::Invalid)?;
-        let id = DashboardId::parse(&metadata.id.as_option().ok_or(LayoutFailure::Invalid)?.value)?;
-        if &id != requested
-            || self.expected.get(&id) != Some(metadata)
-            || self.layouts.contains_key(&id)
-        {
-            return Err(LayoutFailure::Invalid);
-        }
-        let state = match Layout::try_from(document) {
-            Ok(layout) => {
-                // Even a misbehaving server cannot reuse one token for two
-                // incompatible active configurations or authorization views.
-                if self
-                    .layouts
-                    .values()
-                    .filter_map(LayoutState::layout)
-                    .any(|other| {
-                        (
-                            other.config_revision,
-                            other.authorization_revision,
-                            other.config_hash,
-                        ) != (
-                            layout.config_revision,
-                            layout.authorization_revision,
-                            layout.config_hash,
-                        )
-                    })
-                {
-                    return Err(LayoutFailure::Invalid);
-                }
-                LayoutState::Ready(Arc::new(layout))
-            }
-            Err(LayoutFailure::Unsupported) => LayoutState::unsupported(document),
-            Err(error @ (LayoutFailure::Invalid | LayoutFailure::Budget)) => return Err(error),
         };
-        self.layouts.insert(id, state);
+        if !self.expected.contains_key(requested) || self.layouts.contains_key(requested) {
+            return Err(LayoutFailure::Invalid);
+        };
+        let layout = Layout::join(response, requested, &self.view)?;
+        self.layouts
+            .insert(requested.clone(), LayoutState::Ready(Arc::new(layout)));
         Ok(CaptureOutcome::Accepted)
     }
     pub fn finish(self) -> Result<Arc<Snapshot>, LayoutFailure> {
-        match self.state {
-            CaptureState::Invalidated => return Err(LayoutFailure::Invalid),
-            CaptureState::Collecting => {}
-        }
-        if self.expected.len() != self.layouts.len() {
+        if self.invalid || self.expected.len() != self.layouts.len() {
             return Err(LayoutFailure::Invalid);
-        }
+        };
         Ok(Arc::new(Snapshot {
             token: self.token,
             layouts: self.layouts,

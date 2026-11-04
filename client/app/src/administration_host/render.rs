@@ -6,8 +6,8 @@ use crate::{
 };
 use buffa::{EnumValue, Enumeration};
 use home_wire_contract::{
-    auth_contract::{AccountId, FactorCredentialId, InvitationId, McpKeyId, SessionId},
-    home::{auth::v1 as auth, observability::v1 as obs},
+    auth_contract::{AccountName, FactorCredentialName, InvitationName, McpKeyName, SessionName},
+    home::{api::v2 as auth, api::v2 as obs},
 };
 use slint::{ModelRc, VecModel};
 
@@ -15,14 +15,13 @@ use slint::{ModelRc, VecModel};
 pub(super) struct FactKey(String);
 #[derive(Clone, PartialEq, Eq)]
 pub(super) enum Target {
-    Account(AccountId),
-    Session(SessionId),
-    Factor(FactorCredentialId),
-    Key(McpKeyId),
-    Invitation(InvitationId),
+    Account(AccountName),
+    Session(SessionName),
+    Factor(FactorCredentialName),
+    Key(McpKeyName),
+    Invitation(InvitationName),
     Integration(IntegrationId),
     Configuration(super::configuration::Selection),
-    Logic(super::logic::Selection),
     Fact(FactKey),
 }
 #[derive(Clone)]
@@ -62,53 +61,54 @@ fn role(value: EnumValue<auth::AccountRole>) -> &'static str {
         }
     }
 }
-fn gauge(value: &obs::GaugeMeasurement) -> String {
+fn gauge(value: &obs::ObservationGaugeMeasurement) -> String {
     match &value.result {
-        Some(obs::gauge_measurement::Result::Value(value)) => value.to_string(),
-        Some(obs::gauge_measurement::Result::NotMeasured(_)) => "Not measured".into(),
-        Some(obs::gauge_measurement::Result::Unavailable(_)) => "Unavailable".into(),
+        Some(obs::observation_gauge_measurement::Result::Value(value)) => value.to_string(),
+        Some(obs::observation_gauge_measurement::Result::NotMeasured(_)) => "Not measured".into(),
+        Some(obs::observation_gauge_measurement::Result::Unavailable(_)) => "Unavailable".into(),
         None => "Not provided".into(),
     }
 }
 
-fn counter(value: &obs::CounterMeasurement) -> String {
+fn counter(value: &obs::ObservationCounterMeasurement) -> String {
     match &value.result {
-        Some(obs::counter_measurement::Result::Exact(value)) => value.to_string(),
-        Some(obs::counter_measurement::Result::Saturated(_)) => "Counter full".into(),
-        Some(obs::counter_measurement::Result::NotMeasured(_)) => "Not measured".into(),
-        Some(obs::counter_measurement::Result::Unavailable(_)) => "Unavailable".into(),
+        Some(obs::observation_counter_measurement::Result::Exact(value)) => value.to_string(),
+        Some(obs::observation_counter_measurement::Result::Saturated(_)) => "Counter full".into(),
+        Some(obs::observation_counter_measurement::Result::NotMeasured(_)) => "Not measured".into(),
+        Some(obs::observation_counter_measurement::Result::Unavailable(_)) => "Unavailable".into(),
         None => "Not provided".into(),
     }
 }
-fn lag(value: &obs::LagMeasurement) -> String {
+fn lag(value: &obs::ObservationLagMeasurement) -> String {
     match &value.result {
-        Some(obs::lag_measurement::Result::SameEpochPositions(value)) => {
+        Some(obs::observation_lag_measurement::Result::SameEpochPositions(value)) => {
             format!("{value} positions")
         }
-        Some(obs::lag_measurement::Result::Invalidated(_)) => "Invalidated".into(),
-        Some(obs::lag_measurement::Result::EpochMismatch(_)) => "Different epoch".into(),
-        Some(obs::lag_measurement::Result::Unavailable(_)) => "Unavailable".into(),
+        Some(obs::observation_lag_measurement::Result::Invalidated(_)) => "Invalidated".into(),
+        Some(obs::observation_lag_measurement::Result::EpochMismatch(_)) => {
+            "Different epoch".into()
+        }
+        Some(obs::observation_lag_measurement::Result::Unavailable(_)) => "Unavailable".into(),
         None => "Not provided".into(),
     }
 }
-fn position(value: &obs::PositionMeasurement) -> String {
+fn position(value: &obs::ObservationPositionMeasurement) -> String {
     match &value.result {
-        Some(obs::position_measurement::Result::Value(value)) => {
+        Some(obs::observation_position_measurement::Result::Value(value)) => {
             format!("{} / {}", hex(&value.epoch), value.sequence)
         }
-        Some(obs::position_measurement::Result::Unavailable(_)) => "Unavailable".into(),
+        Some(obs::observation_position_measurement::Result::Unavailable(_)) => "Unavailable".into(),
         None => "Not provided".into(),
     }
 }
 pub(super) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|value| format!("{value:02x}")).collect()
 }
-fn next(value: &obs::PageContinuation) -> Option<PageToken> {
-    match &value.result {
-        Some(obs::page_continuation::Result::NextPageToken(token)) => {
-            Some(PageToken::parse(token).expect("admitted page token"))
-        }
-        Some(obs::page_continuation::Result::End(_)) | None => None,
+fn next(value: &str) -> Option<PageToken> {
+    if value.is_empty() {
+        None
+    } else {
+        Some(PageToken::parse(value).expect("admitted page token"))
     }
 }
 
@@ -126,7 +126,6 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
     };
     match payload {
         Payload::Configuration(value) => return super::configuration::rows(value),
-        Payload::Logic(value) => return super::logic::rows(value),
         Payload::Personal { profile } => {
             push(
                 fact("identity/account"),
@@ -152,32 +151,38 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             }
         }
         Payload::Accounts(values) => {
+            page = values.next.clone();
             for value in values {
                 push(
-                    Target::Account(AccountId::try_from(&*value.id).expect("admitted account")),
+                    Target::Account(
+                        AccountName::try_from(value.name.as_str()).expect("admitted account"),
+                    ),
                     value.display_name.clone(),
                     format!(
                         "{} · {} · {}",
                         value.login_name,
                         role(value.role),
-                        name(value.status)
+                        name(value.state)
                     ),
                 );
             }
         }
         Payload::Sessions(values) => {
+            page = values.next.clone();
             for value in values {
                 push(
-                    Target::Session(SessionId::try_from(&*value.id).expect("admitted session")),
-                    if value.id.value == identity.session.as_str() {
+                    Target::Session(
+                        SessionName::try_from(value.name.as_str()).expect("admitted session"),
+                    ),
+                    if value.name == identity.session.as_str() {
                         "Current Session".into()
                     } else {
-                        value.id.value.clone()
+                        value.name.clone()
                     },
                     format!(
                         "Expires {}{}",
-                        at(&value.expires_at),
-                        if value.revoked_at.is_set() {
+                        at(&value.expire_time),
+                        if value.revoke_time.is_set() {
                             " · Revoked"
                         } else {
                             ""
@@ -187,13 +192,15 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             }
         }
         Payload::Factors(values) => {
+            page = values.next.clone();
             for value in values {
                 push(
                     Target::Factor(
-                        FactorCredentialId::try_from(&*value.id).expect("admitted factor"),
+                        FactorCredentialName::try_from(value.name.as_str())
+                            .expect("admitted factor"),
                     ),
                     "Security Key".into(),
-                    format!("{} · created {}", value.id.value, at(&value.created_at)),
+                    format!("{} · created {}", value.name, at(&value.create_time)),
                 );
             }
         }
@@ -211,18 +218,21 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             push(
                 fact("mfa/version"),
                 "Policy Revision".into(),
-                value.version.revision.to_string(),
+                value.etag.clone(),
             );
         }
         Payload::Keys(values) => {
+            page = values.next.clone();
             for value in values {
                 push(
-                    Target::Key(McpKeyId::try_from(&*value.id).expect("admitted MCP key")),
+                    Target::Key(
+                        McpKeyName::try_from(value.name.as_str()).expect("admitted MCP key"),
+                    ),
                     value.client_name.clone(),
                     format!(
                         "Expires {}{}",
-                        at(&value.expires_at),
-                        if value.revoked_at.is_set() {
+                        at(&value.expire_time),
+                        if value.revoke_time.is_set() {
                             " · Revoked"
                         } else {
                             ""
@@ -232,36 +242,33 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             }
         }
         Payload::Invitations(values) => {
+            page = values.next.clone();
             for value in values {
                 push(
                     Target::Invitation(
-                        InvitationId::try_from(&*value.id).expect("admitted invitation"),
+                        InvitationName::try_from(value.name.as_str()).expect("admitted invitation"),
                     ),
                     value.login_name.clone(),
                     format!(
                         "{} · {} · expires {}",
                         role(value.role),
-                        if value.revoked_at.is_set() {
+                        if value.revoke_time.is_set() {
                             "Revoked"
-                        } else if value.accepted_at.is_set() {
+                        } else if value.accept_time.is_set() {
                             "Accepted"
                         } else {
                             "Pending"
                         },
-                        at(&value.expires_at)
+                        at(&value.expire_time)
                     ),
                 );
             }
         }
         Payload::Policy { account, response } => {
-            let detail = match &response.result {
-                Some(auth::get_policy_response::Result::Present(value)) => format!(
-                    "Revision {} · updated {}",
-                    value.version.revision,
-                    at(&value.updated_at)
-                ),
-                Some(auth::get_policy_response::Result::Absent(_)) => "No policy defined".into(),
-                None => "Response not provided".into(),
+            let detail = if response.origin == auth::AuthorizationPolicyOrigin::Default {
+                "Default policy · no configurable permissions".into()
+            } else {
+                format!("Updated {}", at(&response.update_time))
             };
             push(
                 fact(format!("policy/{}", account.as_str())),
@@ -270,39 +277,47 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             );
         }
         Payload::Integrations(value) => {
-            for row in &value.response.instances {
+            for row in &value.response.integration_instances {
+                let type_label = value
+                    .types
+                    .iter()
+                    .find(|kind| kind.name == row.integration_type)
+                    .map_or(row.integration_type.as_str(), |kind| kind.type_key.as_str());
                 push(
                     Target::Integration(
-                        IntegrationId::parse(&row.integration_instance_id)
-                            .expect("admitted integration"),
+                        IntegrationId::parse(&row.name).expect("admitted integration"),
                     ),
-                    row.integration_instance_id.clone(),
+                    row.instance_key.clone(),
                     format!(
                         "{} · {}",
-                        integration_type(&row.type_id),
+                        integration_type(type_label),
                         name(row.desired_state)
                     ),
                 );
             }
-            if value.response.instances.is_empty() {
+            if value.response.integration_instances.is_empty() {
                 push(
                     fact("integrations/catalog"),
                     "Available Types".into(),
                     value
                         .types
                         .iter()
-                        .map(|kind| kind.type_id.as_str())
+                        .map(|kind| kind.type_key.as_str())
                         .collect::<Vec<_>>()
                         .join(", "),
                 );
             }
         }
         Payload::Integration(value) => {
-            let row = &value.response.instance;
+            let row = &value.instance;
+            let type_label = value
+                .kind
+                .as_ref()
+                .map_or(row.integration_type.as_str(), |kind| kind.type_key.as_str());
             push(
                 fact("integration/type"),
                 "Integration Type".into(),
-                integration_type(&row.type_id).into(),
+                integration_type(type_label).into(),
             );
             push(
                 fact("integration/state"),
@@ -320,21 +335,21 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             match &value.health {
                 Ok(health) => {
                     let report = match &health.report.result {
-                        Some(obs::integration_report_presence::Result::Present(report)) => {
-                            name(report.status)
-                        }
-                        Some(obs::integration_report_presence::Result::NoReport(_)) => {
+                        Some(obs::observation_integration_report_presence::Result::Present(
+                            report,
+                        )) => name(report.status),
+                        Some(obs::observation_integration_report_presence::Result::NoReport(_)) => {
                             "No report".into()
                         }
                         None => "Not provided".into(),
                     };
                     let phase = match &health.supervision.result {
-                        Some(obs::integration_supervision::Result::Supervised(value)) => {
-                            name(value.phase)
-                        }
-                        Some(obs::integration_supervision::Result::NotSupervised(_)) => {
-                            "Not supervised".into()
-                        }
+                        Some(obs::observation_integration_supervision::Result::Supervised(
+                            value,
+                        )) => name(value.phase),
+                        Some(obs::observation_integration_supervision::Result::NotSupervised(
+                            _,
+                        )) => "Not supervised".into(),
                         None => "Not provided".into(),
                     };
                     push(fact("integration/health"), "Reported Health".into(), report);
@@ -351,35 +366,40 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
             push(
                 fact("health/server"),
                 "Server".into(),
-                match value.health.server.readiness {
-                    EnumValue::Known(obs::ServerReadiness::Ready) => "Ready",
-                    EnumValue::Known(obs::ServerReadiness::Starting) => "Starting",
-                    EnumValue::Known(obs::ServerReadiness::Draining) => "Stopping",
-                    EnumValue::Known(obs::ServerReadiness::CoreUnavailable) => "Unavailable",
-                    EnumValue::Known(obs::ServerReadiness::Unspecified) | EnumValue::Unknown(_) => {
-                        "Not provided"
+                match value.server.readiness {
+                    EnumValue::Known(obs::ObservationServerReadiness::Ready) => "Ready",
+                    EnumValue::Known(obs::ObservationServerReadiness::Starting) => "Starting",
+                    EnumValue::Known(obs::ObservationServerReadiness::Draining) => "Stopping",
+                    EnumValue::Known(obs::ObservationServerReadiness::CoreUnavailable) => {
+                        "Unavailable"
                     }
+                    EnumValue::Known(obs::ObservationServerReadiness::Unspecified)
+                    | EnumValue::Unknown(_) => "Not provided",
                 }
                 .into(),
             );
             push(
                 fact("health/durable"),
                 "Persistent Storage".into(),
-                name(value.health.durable.availability),
+                name(value.durable.availability),
             );
             push(
                 fact("health/recorder"),
                 "Recorder".into(),
-                match &value.health.recorder.result {
-                    Some(obs::recorder_health::Result::Observed(value)) => {
+                match &value.recorder.result {
+                    Some(obs::observation_recorder_health::Result::Observed(value)) => {
                         format!("{} · {}", name(value.phase), name(value.state))
                     }
-                    Some(obs::recorder_health::Result::NotInstalled(_)) => "Not installed".into(),
-                    Some(obs::recorder_health::Result::Unavailable(_)) => "Unavailable".into(),
+                    Some(obs::observation_recorder_health::Result::NotInstalled(_)) => {
+                        "Not installed".into()
+                    }
+                    Some(obs::observation_recorder_health::Result::Unavailable(_)) => {
+                        "Unavailable".into()
+                    }
                     None => "Not provided".into(),
                 },
             );
-            for pilot in &value.health.pilots {
+            for pilot in &value.pilots {
                 push(
                     fact(format!("health/pilot/{}", name(pilot.phase))),
                     format!("Integrations · {}", name(pilot.phase)),
@@ -387,92 +407,61 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
                 );
             }
         }
-        Payload::Metrics(value) => metrics(&value.metrics, &mut push),
-        Payload::Logs(value) => match &value.result {
-            Some(obs::query_runtime_logs_response::Result::Page(value)) => {
-                for row in &value.rows {
-                    push(
-                        fact(format!(
-                            "log/{}/{}",
-                            hex(&value.process_epoch.value),
-                            row.sequence
-                        )),
-                        log_message(row.event.code).into(),
-                        format!(
-                            "{} · {} · {}",
-                            at(&row.event.occurred_at),
-                            name(row.event.level),
-                            name(row.event.component)
-                        ),
-                    );
-                }
-                page = next(&value.continuation);
+        Payload::Metrics(value) => metrics(value, &mut push),
+        Payload::Logs(value) => {
+            for row in &value.rows {
+                push(
+                    fact(format!(
+                        "log/{}/{}",
+                        hex(&value.process_epoch.value),
+                        row.sequence
+                    )),
+                    log_message(row.event.code).into(),
+                    format!(
+                        "{} · {} · {}",
+                        at(&row.event.occurred_at),
+                        name(row.event.level),
+                        name(row.event.component)
+                    ),
+                );
             }
-            Some(obs::query_runtime_logs_response::Result::CursorEvicted(value)) => push(
-                fact("logs/evicted"),
-                "Log history truncated".into(),
-                format!("First retained sequence: {}", value.retained_from),
-            ),
-            Some(obs::query_runtime_logs_response::Result::StaleCursor(_)) => push(
-                fact("logs/stale"),
-                "Snapshot expired".into(),
-                "Reload the first log page.".into(),
-            ),
-            Some(obs::query_runtime_logs_response::Result::Unavailable(_)) => push(
-                fact("logs/unavailable"),
-                "Log unavailable".into(),
-                "Try again with a new reading.".into(),
-            ),
-            None => (),
-        },
-        Payload::Audits(value) => match &value.result {
-            Some(obs::query_audits_response::Result::Page(value)) => {
-                for row in &value.rows {
-                    let (title, detail) = match &row.result {
-                        Some(obs::audit_row::Result::Authentication(value)) => (
-                            name(value.action),
-                            format!("{} · {}", at(&value.occurred_at), name(value.outcome)),
-                        ),
-                        Some(obs::audit_row::Result::SecretAccess(value)) => (
-                            "Secret access denied".into(),
-                            format!("{} · {}", at(&value.occurred_at), name(value.reason)),
-                        ),
-                        Some(obs::audit_row::Result::StoredMetadataInvalid(_)) => (
-                            "Invalid historical metadata".into(),
-                            "Values Not Exposed".into(),
-                        ),
-                        None => ("Entry not provided".into(), String::new()),
-                    };
-                    push(
-                        fact(format!("audit/{}/{}", name(value.source), row.id)),
-                        title,
-                        detail,
-                    );
-                }
-                page = next(&value.continuation);
+            page = next(&value.next_page_token);
+        }
+        Payload::Audits(value) => {
+            for row in &value.rows {
+                let (title, detail) = match &row.result {
+                    Some(obs::observation_audit_row::Result::Authentication(value)) => (
+                        name(value.action),
+                        format!("{} · {}", at(&value.occurred_at), name(value.outcome)),
+                    ),
+                    Some(obs::observation_audit_row::Result::SecretAccess(value)) => (
+                        "Secret access denied".into(),
+                        format!("{} · {}", at(&value.occurred_at), name(value.reason)),
+                    ),
+                    Some(obs::observation_audit_row::Result::StoredMetadataInvalid(_)) => (
+                        "Invalid historical metadata".into(),
+                        "Values Not Exposed".into(),
+                    ),
+                    None => ("Entry not provided".into(), String::new()),
+                };
+                push(
+                    fact(format!("audit/{}/{}", name(value.source), row.id)),
+                    title,
+                    detail,
+                );
             }
-            Some(obs::query_audits_response::Result::StaleCursor(_)) => push(
-                fact("audits/stale"),
-                "Snapshot expired".into(),
-                "Reload the first audit page.".into(),
-            ),
-            Some(obs::query_audits_response::Result::Unavailable(_)) => push(
-                fact("audits/unavailable"),
-                "Audits unavailable".into(),
-                "Try again with a new reading.".into(),
-            ),
-            None => (),
-        },
+            page = next(&value.next_page_token);
+        }
     }
     (rows, page)
 }
 
-fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, String)) {
+fn metrics(value: &obs::Metrics, push: &mut impl FnMut(Target, String, String)) {
     let mut metric = |key: String, label: String, value: String| push(fact(key), label, value);
     for queue in &value.queues {
         let group = name(queue.queue_class);
         match &queue.result {
-            Some(obs::queue_aggregate::Result::Installed(value)) => {
+            Some(obs::observation_queue_aggregate::Result::Installed(value)) => {
                 for (key, label, value) in [
                     ("queues", "Active Queues", gauge(&value.active_queues)),
                     ("queued", "Pending entries", gauge(&value.queued_entries)),
@@ -521,10 +510,10 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
                     );
                 }
             }
-            Some(obs::queue_aggregate::Result::NotInstalled(_)) => {
+            Some(obs::observation_queue_aggregate::Result::NotInstalled(_)) => {
                 metric(format!("queue/{group}"), group, "Not installed".into())
             }
-            Some(obs::queue_aggregate::Result::Unavailable(_)) => {
+            Some(obs::observation_queue_aggregate::Result::Unavailable(_)) => {
                 metric(format!("queue/{group}"), group, "Unavailable".into())
             }
             None => (),
@@ -533,9 +522,9 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
     for row in &value.queue_lags {
         let group = name(row.queue_class);
         let value = match &row.result {
-            Some(obs::queue_lag::Result::Installed(value)) => lag(value),
-            Some(obs::queue_lag::Result::NotInstalled(_)) => "Not installed".into(),
-            Some(obs::queue_lag::Result::Unavailable(_)) => "Unavailable".into(),
+            Some(obs::observation_queue_lag::Result::Installed(value)) => lag(value),
+            Some(obs::observation_queue_lag::Result::NotInstalled(_)) => "Not installed".into(),
+            Some(obs::observation_queue_lag::Result::Unavailable(_)) => "Unavailable".into(),
             None => "Not provided".into(),
         };
         metric(
@@ -545,7 +534,7 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
         );
     }
     match &value.recorder.result {
-        Some(obs::recorder_metrics::Result::Installed(value)) => {
+        Some(obs::observation_recorder_metrics::Result::Installed(value)) => {
             for (key, label, value) in [
                 ("queued-bytes", "Queued Bytes", gauge(&value.queued_bytes)),
                 (
@@ -608,10 +597,10 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
                 }
             }
         }
-        Some(obs::recorder_metrics::Result::NotInstalled(_)) => {
+        Some(obs::observation_recorder_metrics::Result::NotInstalled(_)) => {
             metric("recorder".into(), "Recorder".into(), "Not installed".into())
         }
-        Some(obs::recorder_metrics::Result::Unavailable(_)) => {
+        Some(obs::observation_recorder_metrics::Result::Unavailable(_)) => {
             metric("recorder".into(), "Recorder".into(), "Unavailable".into())
         }
         None => (),
@@ -635,7 +624,7 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
         );
     }
     match &value.runs.result {
-        Some(obs::run_metrics::Result::Installed(value)) => {
+        Some(obs::observation_run_metrics::Result::Installed(value)) => {
             metric(
                 "runs/preparing".into(),
                 "Runs being prepared".into(),
@@ -657,10 +646,10 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
                 }
             }
         }
-        Some(obs::run_metrics::Result::NotInstalled(_)) => {
+        Some(obs::observation_run_metrics::Result::NotInstalled(_)) => {
             metric("runs".into(), "Runs".into(), "Not installed".into())
         }
-        Some(obs::run_metrics::Result::Unavailable(_)) => {
+        Some(obs::observation_run_metrics::Result::Unavailable(_)) => {
             metric("runs".into(), "Runs".into(), "Unavailable".into())
         }
         None => (),
@@ -689,41 +678,65 @@ fn metrics(value: &obs::MetricsSnapshot, push: &mut impl FnMut(Target, String, S
         );
     }
 }
-fn log_message(value: EnumValue<obs::LogCode>) -> &'static str {
+fn log_message(value: EnumValue<obs::ObservationLogCode>) -> &'static str {
     match value {
-        EnumValue::Known(obs::LogCode::ProcessConfigReadFailed) => "Configuration reading denied",
-        EnumValue::Known(obs::LogCode::ProcessConfigAdmissionFailed) => "Configuration rejected",
-        EnumValue::Known(obs::LogCode::ProcessRuntimeStartFailed) => "Unable to start server",
-        EnumValue::Known(obs::LogCode::ProcessRuntimeFailed) => "Runtime stopped on error",
-        EnumValue::Known(obs::LogCode::ProcessReady) => "Server ready",
-        EnumValue::Known(obs::LogCode::ProcessStopped) => "Server stopped",
-        EnumValue::Known(obs::LogCode::TransportInternalDiagnostic) => {
+        EnumValue::Known(obs::ObservationLogCode::ProcessConfigReadFailed) => {
+            "Configuration reading denied"
+        }
+        EnumValue::Known(obs::ObservationLogCode::ProcessConfigAdmissionFailed) => {
+            "Configuration rejected"
+        }
+        EnumValue::Known(obs::ObservationLogCode::ProcessRuntimeStartFailed) => {
+            "Unable to start server"
+        }
+        EnumValue::Known(obs::ObservationLogCode::ProcessRuntimeFailed) => {
+            "Runtime stopped on error"
+        }
+        EnumValue::Known(obs::ObservationLogCode::ProcessReady) => "Server ready",
+        EnumValue::Known(obs::ObservationLogCode::ProcessStopped) => "Server stopped",
+        EnumValue::Known(obs::ObservationLogCode::TransportInternalDiagnostic) => {
             "Internal transport diagnostic"
         }
-        EnumValue::Known(obs::LogCode::MqttUnknownDiscovery) => "Unknown MQTT discovery",
-        EnumValue::Known(obs::LogCode::MqttInvalidDiscovery) => "Invalid MQTT discovery",
-        EnumValue::Known(obs::LogCode::MqttUnconfiguredSource) => "MQTT source not configured",
-        EnumValue::Known(obs::LogCode::MqttUnsupportedEffect) => "Unsupported MQTT effect",
-        EnumValue::Known(obs::LogCode::MqttUnsupportedColorMode) => "Unsupported MQTT color mode",
-        EnumValue::Known(obs::LogCode::MqttInvalidState) => "Invalid MQTT state",
-        EnumValue::Known(obs::LogCode::MqttInvalidAvailability) => "Invalid MQTT availability",
-        EnumValue::Known(obs::LogCode::MqttRetirementFailed) => "Unable to remove MQTT entry",
-        EnumValue::Known(obs::LogCode::MqttSnapshotOverflow) => "MQTT snapshot full",
-        EnumValue::Known(obs::LogCode::MqttUnconfiguredActionAnchor) => {
+        EnumValue::Known(obs::ObservationLogCode::MqttUnknownDiscovery) => "Unknown MQTT discovery",
+        EnumValue::Known(obs::ObservationLogCode::MqttInvalidDiscovery) => "Invalid MQTT discovery",
+        EnumValue::Known(obs::ObservationLogCode::MqttUnconfiguredSource) => {
+            "MQTT source not configured"
+        }
+        EnumValue::Known(obs::ObservationLogCode::MqttUnsupportedEffect) => {
+            "Unsupported MQTT effect"
+        }
+        EnumValue::Known(obs::ObservationLogCode::MqttUnsupportedColorMode) => {
+            "Unsupported MQTT color mode"
+        }
+        EnumValue::Known(obs::ObservationLogCode::MqttInvalidState) => "Invalid MQTT state",
+        EnumValue::Known(obs::ObservationLogCode::MqttInvalidAvailability) => {
+            "Invalid MQTT availability"
+        }
+        EnumValue::Known(obs::ObservationLogCode::MqttRetirementFailed) => {
+            "Unable to remove MQTT entry"
+        }
+        EnumValue::Known(obs::ObservationLogCode::MqttSnapshotOverflow) => "MQTT snapshot full",
+        EnumValue::Known(obs::ObservationLogCode::MqttUnconfiguredActionAnchor) => {
             "MQTT action target not configured"
         }
-        EnumValue::Known(obs::LogCode::MqttAmbiguousActionDevice) => "Ambiguous MQTT action target",
-        EnumValue::Known(obs::LogCode::MqttActionOverflow) => "MQTT action queue full",
-        EnumValue::Known(obs::LogCode::MqttInvalidAction) => "Invalid MQTT action",
-        EnumValue::Known(obs::LogCode::PilotStarting) => "Starting Integration",
-        EnumValue::Known(obs::LogCode::PilotRunning) => "Integration running",
-        EnumValue::Known(obs::LogCode::PilotRetrying) => "Integration Recovery",
-        EnumValue::Known(obs::LogCode::PilotDegraded) => "Integration degraded",
-        EnumValue::Known(obs::LogCode::PilotStopped) => "Integration stopped",
-        EnumValue::Known(obs::LogCode::PilotJoinTimeout) => "Integration stop timed out",
-        EnumValue::Known(obs::LogCode::PilotTaskCapacity) => "Task capacity reached",
-        EnumValue::Known(obs::LogCode::PilotFactoryFailed) => "Unable to create integration",
-        EnumValue::Known(obs::LogCode::Unspecified) | EnumValue::Unknown(_) => "Unsupported event",
+        EnumValue::Known(obs::ObservationLogCode::MqttAmbiguousActionDevice) => {
+            "Ambiguous MQTT action target"
+        }
+        EnumValue::Known(obs::ObservationLogCode::MqttActionOverflow) => "MQTT action queue full",
+        EnumValue::Known(obs::ObservationLogCode::MqttInvalidAction) => "Invalid MQTT action",
+        EnumValue::Known(obs::ObservationLogCode::PilotStarting) => "Starting Integration",
+        EnumValue::Known(obs::ObservationLogCode::PilotRunning) => "Integration running",
+        EnumValue::Known(obs::ObservationLogCode::PilotRetrying) => "Integration Recovery",
+        EnumValue::Known(obs::ObservationLogCode::PilotDegraded) => "Integration degraded",
+        EnumValue::Known(obs::ObservationLogCode::PilotStopped) => "Integration stopped",
+        EnumValue::Known(obs::ObservationLogCode::PilotJoinTimeout) => "Integration stop timed out",
+        EnumValue::Known(obs::ObservationLogCode::PilotTaskCapacity) => "Task capacity reached",
+        EnumValue::Known(obs::ObservationLogCode::PilotFactoryFailed) => {
+            "Unable to create integration"
+        }
+        EnumValue::Known(obs::ObservationLogCode::Unspecified) | EnumValue::Unknown(_) => {
+            "Unsupported event"
+        }
     }
 }
 
@@ -830,9 +843,9 @@ impl Projection {
             .and_then(|pane| pane.content.as_ref())
         {
             match payload{
-                Payload::Policy{response,..}=>if let Some(auth::get_policy_response::Result::Present(value))=&response.result{fields.push(("Policy Source".into(),String::from_utf8(value.yaml_source.clone()).expect("admitted policy UTF-8"),true));},
-                Payload::Integration(value)=>if let Some(home_wire_contract::home::integrationadmin::v1::integration_instance::Configuration::Editable(value))=&value.response.instance.configuration{fields.push(("Public Settings".into(),String::from_utf8(value.yaml_source.clone()).expect("admitted integration UTF-8"),true));for reference in &value.secrets{fields.push((format!("Reference · {}",reference.field),reference.name.clone(),false));}},
-                Payload::Personal{..}|Payload::Sessions(_)|Payload::Factors(_)|Payload::MfaPolicy(_)|Payload::Keys(_)|Payload::Accounts(_)|Payload::Invitations(_)|Payload::Integrations(_)|Payload::Health(_)|Payload::Metrics(_)|Payload::Logs(_)|Payload::Audits(_)|Payload::Configuration(_)|Payload::Logic(_)=>(),
+                Payload::Policy{response,..}=>{fields.push(("Policy Source".into(),String::from_utf8(response.yaml_source.clone()).expect("admitted policy UTF-8"),true));},
+                Payload::Integration(value)=>if let Some(home_wire_contract::home::api::v2::integration_instance::Configuration::Editable(value))=&value.instance.configuration{fields.push(("Public Settings".into(),String::from_utf8(value.yaml_source.clone()).expect("admitted integration UTF-8"),true));for reference in &value.secrets{fields.push((format!("Reference · {}",reference.field),reference.secret_key.clone(),false));}},
+                Payload::Personal{..}|Payload::Sessions(_)|Payload::Factors(_)|Payload::MfaPolicy(_)|Payload::Keys(_)|Payload::Accounts(_)|Payload::Invitations(_)|Payload::Integrations(_)|Payload::Health(_)|Payload::Metrics(_)|Payload::Logs(_)|Payload::Audits(_)|Payload::Configuration(_)=>(),
             }
         }
         Self {
@@ -852,10 +865,6 @@ impl Projection {
             commands: forms::available(state),
             configuration_actions: if state.section == Section::Configuration {
                 state.configuration.actions()
-            } else if state.section == Section::Logic
-                && matches!(state.stage, Stage::Ready | Stage::Empty)
-            {
-                state.logic.actions()
             } else {
                 Vec::new()
             },
@@ -869,17 +878,6 @@ impl Projection {
                     destructive: true,
                     fields: state.configuration.fields(),
                     choices: state.configuration.choices(),
-                })
-            } else if state.section == Section::Logic && state.logic.opened() {
-                Some(Editor {
-                    actions: Some(state.logic.editor_actions()),
-                    title: state.logic.title(),
-                    notice: state.logic.notice(),
-                    editable: state.logic.editable(),
-                    submittable: false,
-                    destructive: true,
-                    fields: state.logic.fields(),
-                    choices: Vec::new(),
                 })
             } else {
                 state.private.draft().map(|draft| Editor {
@@ -934,8 +932,6 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     window.set_admin_notice(
         if value.section == Section::Factors {
             "Hardware enrollment is unsupported on this device."
-        } else if value.section == Section::Logic {
-            "Synthetic server only. No routine or action on a real device. Source simulation is separate from execution."
         } else {
             ""
         }
@@ -1111,16 +1107,21 @@ mod presence_tests {
     use super::*;
     #[test]
     fn unavailable_and_unmeasured_metrics_are_distinct_from_a_measured_zero() {
-        let zero = obs::GaugeMeasurement {
-            result: Some(obs::gauge_measurement::Result::Value(0)),
+        let zero = obs::ObservationGaugeMeasurement {
+            result: Some(obs::observation_gauge_measurement::Result::Value(0)),
             ..Default::default()
         };
-        let unmeasured = obs::GaugeMeasurement {
-            result: Some(obs::gauge_measurement::Result::NotMeasured(Box::default())),
+        let unmeasured = obs::ObservationGaugeMeasurement {
+            result: Some(obs::observation_gauge_measurement::Result::NotMeasured(
+                Box::default(),
+            )),
             ..Default::default()
         };
         assert_eq!(gauge(&zero), "0");
         assert_eq!(gauge(&unmeasured), "Not measured");
-        assert_eq!(gauge(&obs::GaugeMeasurement::default()), "Not provided");
+        assert_eq!(
+            gauge(&obs::ObservationGaugeMeasurement::default()),
+            "Not provided"
+        );
     }
 }

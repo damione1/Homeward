@@ -1,14 +1,11 @@
-use crate::{
-    ProActionPhase,
-    media::{Artwork, Data, Field, Quantity},
+use crate::media::{Artwork, Data, Field, Quantity};
+use home_client_actions::capabilities::{
+    CapabilityHandle, CapabilitySnapshot, CapabilitySubmission, CapabilityTracking,
 };
-use home_client_actions::{ActionHandle, ActionSnapshot};
 use home_client_cache::ProjectionGeneration;
-use home_client_model::EntityId;
+use home_client_model::api::EntityName;
+use home_client_model::{api::Command, api_playback::ArtworkReference};
 use home_client_session::Generation;
-use home_wire_contract::home::{
-    actions::v1 as actions, media::v1 as wire, state::v1 as observation,
-};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio_util::sync::CancellationToken;
 
@@ -41,7 +38,7 @@ pub(super) struct Draft {
 }
 pub(super) struct Pending {
     pub generation: i32,
-    pub request: actions::CommandRequest,
+    pub request: Command,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum ChoiceKind {
@@ -59,7 +56,7 @@ pub(super) struct Choice {
 }
 pub(super) struct State {
     pub generation: i32,
-    pub entity: Option<EntityId>,
+    pub entity: Option<EntityName>,
     pub view: Option<ProjectionGeneration>,
     pub foreground: bool,
     pub interactive: bool,
@@ -72,8 +69,8 @@ pub(super) struct State {
     pub volume: Draft,
     pub position: Draft,
     pub pending: Option<Pending>,
-    pub action: Option<ActionHandle>,
-    pub progress: Option<Arc<ActionSnapshot>>,
+    pub action: Option<CapabilityHandle>,
+    pub progress: Option<Arc<CapabilitySnapshot>>,
     pub read_pending: bool,
     pub read_cancel: CancellationToken,
     pub notice: String,
@@ -152,37 +149,40 @@ impl State {
         if self.pending.is_some() {
             return true;
         }
-        let (phase, _, _) = crate::device_view::progress::presentation(self.progress.as_deref());
-        match phase {
-            ProActionPhase::Preparing
-            | ProActionPhase::Sending
-            | ProActionPhase::Uncertain
-            | ProActionPhase::Accepted
-            | ProActionPhase::Dispatched
-            | ProActionPhase::Acknowledged
-            | ProActionPhase::Interrupted => true,
-            ProActionPhase::Idle
-            | ProActionPhase::Confirmed
-            | ProActionPhase::Refused
-            | ProActionPhase::Failed
-            | ProActionPhase::Cancelled
-            | ProActionPhase::Indeterminate
-            | ProActionPhase::Unavailable
-            | ProActionPhase::Stopped => false,
-        }
+        self.progress.as_ref().is_some_and(|snapshot| {
+            if matches!(
+                snapshot.tracking,
+                CapabilityTracking::Complete | CapabilityTracking::Stopped
+            ) {
+                return false;
+            }
+            match snapshot.submission {
+                CapabilitySubmission::Prepared
+                | CapabilitySubmission::Sending
+                | CapabilitySubmission::Uncertain => true,
+                CapabilitySubmission::Accepted => snapshot
+                    .operation
+                    .as_ref()
+                    .is_none_or(|operation| !operation.done()),
+                CapabilitySubmission::NotSent
+                | CapabilitySubmission::Rejected
+                | CapabilitySubmission::Closed => false,
+            }
+        })
     }
+
     pub fn authorized(&self) -> bool {
         self.active
             && self.foreground
             && self.interactive
             && self.generation > 0
             && self.status == Status::Ready
-            && self.data.as_ref().is_some_and(|data| {
-                data.snapshot().action_access == observation::ActionAccess::Allowed
-                    && data.snapshot().quality.availability == observation::Availability::Available
-                    && data.snapshot().quality.freshness == observation::Freshness::Fresh
-            })
+            && self
+                .data
+                .as_ref()
+                .is_some_and(|data| data.snapshot().can_prepare())
     }
+
     pub fn editable(&self) -> bool {
         self.authorized() && !self.busy()
     }
@@ -201,26 +201,27 @@ impl State {
         }
         if changed {
             self.choices.clear();
-            let capabilities = &data.snapshot().capabilities;
-            for (kind, options) in [
-                (ChoiceKind::Source, &capabilities.sources),
-                (ChoiceKind::Group, &capabilities.groups),
-            ] {
-                for option in options {
-                    let Some(token) = self.next_choice.checked_add(1) else {
-                        self.generation = 0;
-                        self.clear_private();
-                        self.status = Status::Contract;
-                        return;
-                    };
-                    self.next_choice = token;
-                    self.choices.insert(
-                        ChoiceToken(token),
-                        Choice {
-                            kind,
-                            id: ChoiceId(option.id.clone()),
-                        },
-                    );
+            if let Some(capabilities) = data.snapshot().definition() {
+                for (kind, options) in [
+                    (ChoiceKind::Source, capabilities.sources()),
+                    (ChoiceKind::Group, capabilities.groups()),
+                ] {
+                    for option in options {
+                        let Some(token) = self.next_choice.checked_add(1) else {
+                            self.generation = 0;
+                            self.clear_private();
+                            self.status = Status::Contract;
+                            return;
+                        };
+                        self.next_choice = token;
+                        self.choices.insert(
+                            ChoiceToken(token),
+                            Choice {
+                                kind,
+                                id: ChoiceId(option.id().as_str().to_owned()),
+                            },
+                        );
+                    }
                 }
             }
         }
@@ -264,12 +265,12 @@ impl State {
         self.status = Status::Ready;
         self.notice.clear();
     }
-    pub fn artwork_reference(&self) -> Option<(&wire::ArtworkReference, Picture)> {
+    pub fn artwork_reference(&self) -> Option<(&ArtworkReference, Picture)> {
         self.data
             .as_ref()?
             .snapshot()
-            .artwork
-            .as_option()
-            .map(|r| (r, self.picture.clone()))
+            .observation()?
+            .artwork()
+            .map(|reference| (reference, self.picture.clone()))
     }
 }

@@ -9,7 +9,7 @@ use crate::{
 };
 use home_wire_contract::{
     configuration_apply_contract::{self, ActivationRequest},
-    home::{configuration::v1 as document, configurationapply::v1 as wire},
+    home::{api::v2 as document, api::v2 as wire},
 };
 use std::collections::BTreeSet;
 
@@ -111,8 +111,8 @@ pub(in crate::administration_host::configuration) enum HistoryQuery {
     Policy { id: DocumentId, page: String },
 }
 pub(in crate::administration_host::configuration) struct HistoryReply {
-    pub generations: Option<document::ListGenerationsResponse>,
-    pub versions: Option<(DocumentId, document::ListVersionsResponse)>,
+    pub generations: Option<document::ListConfigurationGenerationsResponse>,
+    pub versions: Option<(DocumentId, document::ListConfigurationRevisionsResponse)>,
 }
 #[derive(Clone)]
 enum Historical {
@@ -152,8 +152,8 @@ impl ExpectationChoice {
     }
 }
 struct History {
-    generations: Vec<document::HistoricalGeneration>,
-    versions: Vec<document::HistoricalVersion>,
+    generations: Vec<document::ConfigurationGeneration>,
+    versions: Vec<document::ConfigurationRevision>,
     policy: Option<DocumentId>,
     generation_next: Option<String>,
     policy_next: Option<String>,
@@ -234,10 +234,11 @@ impl Field {
 impl Editor {
     #[cfg(test)]
     pub fn activation_outcome(&self) -> Option<Outcome> {
-        self.activation
-            .receipt
-            .as_ref()
-            .map(|receipt| receipt.outcome)
+        match self.activation.stage {
+            EditStage::Completed(outcome) => Some(outcome),
+            EditStage::Uncertain => Some(Outcome::CommitUnknown),
+            EditStage::Draft | EditStage::InFlight | EditStage::Conflict => None,
+        }
     }
     #[cfg(test)]
     pub fn activation_displayed_active(&self) -> Option<&ActiveGeneration> {
@@ -245,6 +246,7 @@ impl Editor {
             .receipt
             .as_ref()
             .map(Receipt::displayed_active)
+            .or(Some(self.captured.active()))
     }
     pub fn mutable(&self) -> bool {
         matches!(
@@ -393,7 +395,7 @@ impl Editor {
             self.references_failed();
             return;
         };
-        if capture.id() != &read.id {
+        if capture.document().id.value != read.id.as_str() {
             self.references_failed();
             return;
         }
@@ -457,7 +459,7 @@ impl Editor {
                 self.history_failed();
                 return false;
             }
-            history.generation_next = next(&response.continuation);
+            history.generation_next = next(&response.next_page_token);
             history.generations = response.generations;
         }
         if let Some((id, response)) = reply.versions {
@@ -475,7 +477,7 @@ impl Editor {
                 return false;
             }
             history.policy = Some(id);
-            history.policy_next = next(&response.continuation);
+            history.policy_next = next(&response.next_page_token);
             history.versions = response.versions;
         }
         history.selected = None;
@@ -525,14 +527,16 @@ impl Editor {
         let Some(plan) = self
             .plan
             .as_ref()
-            .filter(|plan| plan.state == super::wire::PlanState::Admitted)
+            .filter(|plan| plan.state == super::wire::ConfigurationPlanState::Admitted)
         else {
             self.notice = "Build an accepted preview for this unchanged candidate before confirming its application.";
             return None;
         };
-        let request = wire::ApplyRequest {
+        let request = wire::ApplyConfigurationPlanRequest {
+            request_id: home_client_actions::new_request_id().ok()?.as_str().into(),
             candidate: candidate.to_wire().into(),
-            receipt: Some(plan.receipt.clone()),
+            name: plan.name.clone(),
+            etag: plan.etag.clone(),
             expected: anchor.sql().to_wire().into(),
             expected_workspace_sha256: anchor.workspace().bytes().to_vec(),
             sources,
@@ -554,8 +558,9 @@ impl Editor {
             self.notice = "Restore not sent: a complete historical selection and current preconditions are required.";
             return None;
         };
-        let mut request = wire::RollbackRequest {
-            id: self.captured.id().to_wire().into(),
+        let mut request = wire::RollbackConfigurationRequest {
+            request_id: home_client_actions::new_request_id().ok()?.as_str().into(),
+            name: self.captured.id().as_str().into(),
             expected: anchor.sql().to_wire().into(),
             expected_workspace_sha256: anchor.workspace().bytes().to_vec(),
             sources,
@@ -588,8 +593,8 @@ impl Editor {
     }
     pub fn complete_activation(
         &mut self,
-        activation: &document::ActivationResult,
-        current: Option<document::ReadDocumentResponse>,
+        activation: &home_wire_contract::configuration_operations_contract::Publication,
+        current: Option<document::ConfigurationDocument>,
     ) {
         if self.activation.stage != EditStage::InFlight {
             return;
@@ -607,6 +612,11 @@ impl Editor {
         self.activation.stage = EditStage::Conflict;
         self.notice = "Reference conflict before saving. Reload and resolve explicitly; no source is overwritten automatically.";
     }
+    pub fn activation_restart_required(&mut self) {
+        self.activation.stage = EditStage::Completed(Outcome::RestartRequired);
+        self.notice = "Server restart required. Nothing was saved; no automatic retry.";
+        self.stale = true;
+    }
     pub fn activation_rejected(&mut self) {
         self.activation.stage = EditStage::Completed(Outcome::RejectedBeforeCommit);
         self.notice = "Activation rejected before saving. A new confirmation will be required.";
@@ -622,7 +632,7 @@ impl Editor {
             && self
                 .plan
                 .as_ref()
-                .is_some_and(|plan| plan.state == plan::PlanState::Admitted)
+                .is_some_and(|plan| plan.state == plan::ConfigurationPlanState::Admitted)
     }
     pub(super) fn can_rollback(&self) -> bool {
         self.activation_anchor().is_some()
@@ -799,12 +809,14 @@ fn choice<T>(values: &[T], option: i32) -> Option<&T> {
         .and_then(|value| value.checked_sub(1))
         .and_then(|index| values.get(index))
 }
-fn next(value: &document::PageContinuation) -> Option<String> {
-    match &value.result {
-        Some(document::page_continuation::Result::NextPageToken(value)) => Some(value.clone()),
-        Some(document::page_continuation::Result::Complete(_)) | None => None,
+fn next(value: &str) -> Option<String> {
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.into())
     }
 }
+
 fn sql_label(value: &Observation<Sql>) -> String {
     let (prefix, value) = match value {
         Observation::Unobserved => return "not observed".into(),
@@ -885,13 +897,13 @@ mod tests {
             panic!("references")
         };
         let mut response = super::super::super::workflow::tests::response(7, 6);
-        let value = response.document.as_option_mut().unwrap();
+        let value = &mut response;
         value.id = read.id.to_wire().into();
         value.kind = document::DocumentKind::DashboardSource.into();
         value.schema_version = "homeward-dashboard-1".into();
         value.syntax_profile = "ha-2026.10/lovelace-1".into();
         value.workspace_state = Some(match dirty {
-            Some(dirty) => document::document::WorkspaceState::Workspace(Box::new(
+            Some(dirty) => document::configuration_document::WorkspaceState::Workspace(Box::new(
                 document::WorkspaceObservation {
                     source_sha256: vec![
                         if dirty == document::DirtyState::Clean {
@@ -910,12 +922,12 @@ mod tests {
                     ..Default::default()
                 },
             )),
-            None => document::document::WorkspaceState::WorkspaceUnobserved(Box::new(
-                document::WorkspaceUnobserved {
+            None => document::configuration_document::WorkspaceState::WorkspaceUnobserved(
+                Box::new(document::WorkspaceUnobserved {
                     reason: document::WorkspaceUnobservedReason::NoPhysicalLocator.into(),
                     ..Default::default()
-                },
-            )),
+                }),
+            ),
         });
         editor.accept_reference(read, Capture::admit(response).unwrap());
     }
@@ -987,12 +999,7 @@ mod tests {
             &Capture::admit(super::super::super::workflow::tests::response(9, 9)).unwrap(),
         );
         editor.complete_activation(
-            &document::ActivationResult {
-                outcome: document::ActivationOutcome::Published.into(),
-                transaction: document::TransactionOutcome::Committed.into(),
-                generation_revision: Some(8),
-                ..Default::default()
-            },
+            &crate::configuration::publication_for_test("homes/test", true, 8, 8),
             Some(super::super::super::workflow::tests::response(8, 8)),
         );
         assert_eq!(
@@ -1037,10 +1044,9 @@ mod tests {
         };
         editor.edit(super::super::Field::Path as i32, "replacement.yaml".into());
         let mut response = super::super::super::workflow::tests::response(7, 6);
-        let document = response.document.as_option_mut().unwrap();
+        let document = &mut response;
         document.id = old.id.to_wire().into();
-        document.kind =
-            home_wire_contract::home::configuration::v1::DocumentKind::DashboardSource.into();
+        document.kind = home_wire_contract::home::api::v2::DocumentKind::DashboardSource.into();
         document.schema_version = "homeward-dashboard-1".into();
         document.syntax_profile = "ha-2026.10/lovelace-1".into();
         editor.accept_reference(old, Capture::admit(response).unwrap());
@@ -1054,9 +1060,10 @@ mod tests {
         absent(&mut editor);
         let id = DocumentId::parse("synthetic.dashboard").unwrap();
         let reply = HistoryReply {
-            generations: Some(document::ListGenerationsResponse {
+            generations: Some(document::ListConfigurationGenerationsResponse {
                 generations: vec![
-                    document::HistoricalGeneration {
+                    document::ConfigurationGeneration {
+                        name: "homes/test/configurationGenerations/g-5".into(),
                         generation: document::ActiveGeneration {
                             revision: 5,
                             manifest_sha256: vec![5; 32],
@@ -1071,7 +1078,8 @@ mod tests {
                         .into(),
                         ..Default::default()
                     },
-                    document::HistoricalGeneration {
+                    document::ConfigurationGeneration {
+                        name: "homes/test/configurationGenerations/g-4".into(),
                         generation: document::ActiveGeneration {
                             revision: 4,
                             manifest_sha256: vec![4; 32],
@@ -1087,17 +1095,13 @@ mod tests {
                         ..Default::default()
                     },
                 ],
-                continuation: document::PageContinuation {
-                    result: Some(document::page_continuation::Result::Complete(Box::default())),
-                    ..Default::default()
-                }
-                .into(),
+                next_page_token: String::new(),
                 ..Default::default()
             }),
             versions: Some((
                 id.clone(),
-                document::ListVersionsResponse {
-                    versions: vec![document::HistoricalVersion {
+                document::ListConfigurationRevisionsResponse {
+                    versions: vec![document::ConfigurationRevision {
                         id: id.to_wire().into(),
                         version: document::DocumentVersion {
                             revision: 3,
@@ -1114,11 +1118,7 @@ mod tests {
                         .into(),
                         ..Default::default()
                     }],
-                    continuation: document::PageContinuation {
-                        result: Some(document::page_continuation::Result::Complete(Box::default())),
-                        ..Default::default()
-                    }
-                    .into(),
+                    next_page_token: String::new(),
                     ..Default::default()
                 },
             )),

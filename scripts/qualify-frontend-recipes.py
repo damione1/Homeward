@@ -130,10 +130,12 @@ def verify(report, final, scenario):
             and final['fake_driver_calls'] == final['command_driver_entries']
             == final['protocol_confirmations'] == final['observed_effects'] == count):
         raise RuntimeError('Server/fake driver count or cleanup mismatch')
-    if (final['submit_ids'] != ids + [report['denied_command_id']]
-            or report['denied_command_id'] in ids
+    if (final['execute_request_ids'] != ids + [report['denied_request_id']]
+            or report['denied_request_id'] in ids
             or final['lost_responses'] != int(scenario is Scenario.LOST)
-            or set(final['get_ids']) != set(ids) or set(final['watch_ids']) != set(ids)):
+            or set(final['admitted_operations']) != set(ids)
+            or set(final['get_operation_names']) != set(final['admitted_operations'].values())
+            or set(final['wait_operation_names']) != set(final['admitted_operations'].values())):
         raise RuntimeError('A command was replayed, recovered under another ID or not tracked')
     if final['device_arguments'] != [operation.arguments() for operation in operations]:
         raise RuntimeError('Driver arguments differ from the exact typed user intentions')
@@ -200,7 +202,7 @@ def qualify(proof, server_binary, client_binary, scenario):
                             action = Control(command['action'])
                             expected = {'sequence', 'action'}
                             if action in (Control.CONFIRM, Control.OBSERVE):
-                                expected.add('command_id')
+                                expected.add('request_id')
                             if (set(command) != expected
                                     or command['sequence'] != len(controls) + 1):
                                 raise RuntimeError('Unbound or out-of-order fixture control')

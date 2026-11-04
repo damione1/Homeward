@@ -1,5 +1,5 @@
 //! Fixed presentation choices for the protocol's finite permission ceiling.
-use home_wire_contract::home::auth::v1 as auth;
+use home_wire_contract::home::api::v2 as auth;
 
 const FAMILIES: [auth::ScopeFamily; 13] = [
     auth::ScopeFamily::StateRegistry,

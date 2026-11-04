@@ -3,7 +3,8 @@ use super::{
     Power, Refusal,
     number::{Bounds, NumericInput},
 };
-use home_wire_contract::home::{actions::v1 as action, registry::v1 as wire, state::v1 as state};
+use home_client_model::api as model;
+use home_wire_contract::home::api::v2 as wire;
 
 fn options<E: buffa::Enumeration>(
     values: &[buffa::EnumValue<E>],
@@ -23,31 +24,31 @@ fn options<E: buffa::Enumeration>(
     }
     Some(result)
 }
-fn mode(value: wire::ClimateMode) -> bool {
+fn mode(value: wire::TemperatureMode) -> bool {
     match value {
-        wire::ClimateMode::Off
-        | wire::ClimateMode::Heat
-        | wire::ClimateMode::Cool
-        | wire::ClimateMode::Auto
-        | wire::ClimateMode::Dry
-        | wire::ClimateMode::FanOnly => true,
-        wire::ClimateMode::Unspecified => false,
+        wire::TemperatureMode::Off
+        | wire::TemperatureMode::Heat
+        | wire::TemperatureMode::Cool
+        | wire::TemperatureMode::Auto
+        | wire::TemperatureMode::Dry
+        | wire::TemperatureMode::FanOnly => true,
+        wire::TemperatureMode::Unspecified => false,
     }
 }
-fn activity(value: wire::ClimateActivity) -> bool {
+fn activity(value: wire::TemperatureActivity) -> bool {
     match value {
-        wire::ClimateActivity::Idle
-        | wire::ClimateActivity::Heating
-        | wire::ClimateActivity::Cooling
-        | wire::ClimateActivity::Drying
-        | wire::ClimateActivity::FanOnly => true,
-        wire::ClimateActivity::Unspecified => false,
+        wire::TemperatureActivity::Idle
+        | wire::TemperatureActivity::Heating
+        | wire::TemperatureActivity::Cooling
+        | wire::TemperatureActivity::Drying
+        | wire::TemperatureActivity::FanOnly => true,
+        wire::TemperatureActivity::Unspecified => false,
     }
 }
-fn fan_target(value: wire::ClimateFanTarget) -> bool {
+fn fan_target(value: wire::TemperatureFanTarget) -> bool {
     match value {
-        wire::ClimateFanTarget::On | wire::ClimateFanTarget::Auto => true,
-        wire::ClimateFanTarget::Unspecified => false,
+        wire::TemperatureFanTarget::On | wire::TemperatureFanTarget::Auto => true,
+        wire::TemperatureFanTarget::Unspecified => false,
     }
 }
 fn temperature(value: &wire::NumberBounds) -> Option<Bounds> {
@@ -70,7 +71,7 @@ impl Range {
     pub fn bounds(self) -> (Bounds, Bounds) {
         (self.low, self.high)
     }
-    fn deltas(value: &wire::ClimateSetpointRangeConstraints) -> bool {
+    fn deltas(value: &wire::TemperatureRangeBounds) -> bool {
         value.__buffa_unknown_fields.is_empty()
             && value
                 .minimum_delta_celsius
@@ -80,7 +81,7 @@ impl Range {
                 .is_none_or(|value| value.is_finite() && value >= 0.)
             && !matches!((value.minimum_delta_celsius,value.maximum_delta_celsius),(Some(minimum),Some(maximum)) if minimum>maximum)
     }
-    fn parse(value: &wire::ClimateSetpointRangeConstraints) -> Option<Self> {
+    fn parse(value: &wire::TemperatureRangeBounds) -> Option<Self> {
         if !Self::deltas(value) {
             return None;
         }
@@ -115,7 +116,7 @@ impl Range {
         }
         Ok((low, high))
     }
-    fn observation(value: &wire::ClimateSetpointRangeConstraints) -> Option<()> {
+    fn observation(value: &wire::TemperatureRangeBounds) -> Option<()> {
         if !Self::deltas(value) {
             return None;
         }
@@ -140,26 +141,26 @@ pub(super) struct Observes {
     pub temperature: bool,
     pub setpoint: bool,
     pub range: bool,
-    pub modes: Vec<wire::ClimateMode>,
-    pub activities: Vec<wire::ClimateActivity>,
+    pub modes: Vec<wire::TemperatureMode>,
+    pub activities: Vec<wire::TemperatureActivity>,
     pub humidity: bool,
     pub fan_activity: bool,
-    pub fan_targets: Vec<wire::ClimateFanTarget>,
+    pub fan_targets: Vec<wire::TemperatureFanTarget>,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Climate {
     setpoint: Option<Bounds>,
     range: Option<Range>,
-    modes: Vec<wire::ClimateMode>,
-    fan_targets: Vec<wire::ClimateFanTarget>,
+    modes: Vec<wire::TemperatureMode>,
+    fan_targets: Vec<wire::TemperatureFanTarget>,
     observes: Observes,
 }
 #[derive(Clone, Debug)]
 pub(crate) enum ClimateIntent {
     Setpoint(NumericInput),
     Range(NumericInput, NumericInput),
-    Mode(wire::ClimateMode),
-    FanTarget(wire::ClimateFanTarget),
+    Mode(wire::TemperatureMode),
+    FanTarget(wire::TemperatureFanTarget),
 }
 impl Climate {
     pub fn restricted(&self, temperature: bool, modes: bool) -> Self {
@@ -181,83 +182,106 @@ impl Climate {
     pub fn range(&self) -> Option<Range> {
         self.range
     }
-    pub fn modes(&self) -> &[wire::ClimateMode] {
+    pub fn modes(&self) -> &[wire::TemperatureMode] {
         &self.modes
     }
-    pub fn fan_targets(&self) -> &[wire::ClimateFanTarget] {
+    pub fn fan_targets(&self) -> &[wire::TemperatureFanTarget] {
         &self.fan_targets
     }
     pub fn observes(&self) -> &Observes {
         &self.observes
     }
-    pub fn parse(value: &wire::ClimateConstraints) -> Option<Self> {
+    pub fn parse(value: &wire::TemperatureControlCapability) -> Option<Self> {
         if !value.__buffa_unknown_fields.is_empty() {
             return None;
         }
-        let observation = |observation: &wire::ClimateTemperatureObservation| {
+        let observation = |observation: &wire::TemperatureObservationDefinition| {
             if !observation.__buffa_unknown_fields.is_empty() {
                 return None;
             }
             optional(observation.bounds.as_option(), temperature).map(|_| ())
         };
-        let current = optional(value.observed_temperature_celsius.as_option(), observation)?;
         let setpoint = optional(value.observed_setpoint_celsius.as_option(), observation)?;
         let range = optional(
             value.observed_setpoint_range_celsius.as_option(),
             Range::observation,
         )?;
-        let humidity = optional(value.observed_humidity_percent.as_option(), |value| {
-            Bounds::parse(value).filter(|bounds| bounds.minimum() >= 0. && bounds.maximum() <= 100.)
-        })?;
         Some(Self {
             setpoint: optional(value.setpoint_celsius.as_option(), temperature)?,
             range: optional(value.setpoint_range_celsius.as_option(), Range::parse)?,
             modes: options(&value.mode_options, mode, 6)?,
             fan_targets: options(&value.fan_target_options, fan_target, 2)?,
             observes: Observes {
-                temperature: current.is_some(),
+                temperature: false, // NumericMeasurement is a separate capability.
                 setpoint: setpoint.is_some(),
                 range: range.is_some(),
-                humidity: humidity.is_some(),
+                humidity: false, // NumericMeasurement is a separate capability.
                 fan_activity: value.observes_fan_activity,
                 modes: options(&value.observed_mode_options, mode, 6)?,
-                activities: options(&value.activity_options, activity, 5)?,
+                activities: options(&value.observed_activity_options, activity, 5)?,
                 fan_targets: options(&value.observed_fan_target_options, fan_target, 2)?,
             },
         })
     }
-    pub fn arguments(&self, intent: ClimateIntent) -> Result<action::SetClimate, Refusal> {
-        let mut arguments = action::SetClimate::default();
-        match intent {
+    pub fn arguments(&self, intent: ClimateIntent) -> Result<model::ThermalIntent, Refusal> {
+        let (target, mode, fan) = match intent {
             ClimateIntent::Setpoint(input) => {
-                arguments.setpoint_celsius =
-                    Some(input.admit(self.setpoint.ok_or(Refusal::Unsupported)?)?)
+                let value = input.admit(self.setpoint.ok_or(Refusal::Unsupported)?)?;
+                (
+                    Some(model::TemperatureTarget::Single(
+                        model::Celsius::try_from(value).map_err(|_| Refusal::InvalidValue)?,
+                    )),
+                    None,
+                    None,
+                )
             }
             ClimateIntent::Range(low, high) => {
                 let (low, high) = self.range.ok_or(Refusal::Unsupported)?.admit(low, high)?;
-                arguments.heat_threshold_celsius = Some(low);
-                arguments.cool_threshold_celsius = Some(high);
+                let low = model::Celsius::try_from(low).map_err(|_| Refusal::InvalidValue)?;
+                let high = model::Celsius::try_from(high).map_err(|_| Refusal::InvalidValue)?;
+                (
+                    Some(model::TemperatureTarget::Range(
+                        model::TemperatureRange::new(low, high)
+                            .map_err(|_| Refusal::InvalidValue)?,
+                    )),
+                    None,
+                    None,
+                )
             }
             ClimateIntent::Mode(mode) => {
                 if !self.modes.contains(&mode) {
                     return Err(Refusal::Unsupported);
                 }
-                arguments.mode = Some(mode.into());
+                let mode = match mode {
+                    wire::TemperatureMode::Off => model::TemperatureMode::Off,
+                    wire::TemperatureMode::Heat => model::TemperatureMode::Heat,
+                    wire::TemperatureMode::Cool => model::TemperatureMode::Cool,
+                    wire::TemperatureMode::Auto => model::TemperatureMode::Auto,
+                    wire::TemperatureMode::Dry => model::TemperatureMode::Dry,
+                    wire::TemperatureMode::FanOnly => model::TemperatureMode::FanOnly,
+                    wire::TemperatureMode::Unspecified => return Err(Refusal::Unsupported),
+                };
+                (None, Some(mode), None)
             }
             ClimateIntent::FanTarget(target) => {
                 if !self.fan_targets.contains(&target) {
                     return Err(Refusal::Unsupported);
                 }
-                arguments.fan_target = Some(target.into());
+                let target = match target {
+                    wire::TemperatureFanTarget::On => model::TemperatureFanTarget::On,
+                    wire::TemperatureFanTarget::Auto => model::TemperatureFanTarget::Auto,
+                    wire::TemperatureFanTarget::Unspecified => return Err(Refusal::Unsupported),
+                };
+                (None, None, Some(target))
             }
-        }
-        Ok(arguments)
+        };
+        model::ThermalIntent::new(target, mode, fan).map_err(|_| Refusal::InvalidValue)
     }
 }
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Fan {
     power: bool,
-    speeds: Vec<state::FanSpeed>,
+    speeds: Vec<wire::FanSpeed>,
 }
 impl Fan {
     pub fn restricted(&self, power: bool, speed: bool) -> Self {
@@ -273,26 +297,37 @@ impl Fan {
     pub fn can_power(&self) -> bool {
         self.power
     }
-    pub fn speeds(&self) -> &[state::FanSpeed] {
+    pub fn speeds(&self) -> &[wire::FanSpeed] {
         &self.speeds
     }
-    fn speed_name(speed: state::FanSpeed) -> Option<&'static str> {
+    fn speed_name(speed: wire::FanSpeed) -> Option<&'static str> {
         match speed {
-            state::FanSpeed::Off => Some("Off"),
-            state::FanSpeed::Low => Some("Low"),
-            state::FanSpeed::Medium => Some("Medium"),
-            state::FanSpeed::MediumHigh => Some("MediumHigh"),
-            state::FanSpeed::High => Some("High"),
-            state::FanSpeed::Unspecified => None,
+            wire::FanSpeed::Off => Some("Off"),
+            wire::FanSpeed::Low => Some("Low"),
+            wire::FanSpeed::Medium => Some("Medium"),
+            wire::FanSpeed::MediumHigh => Some("MediumHigh"),
+            wire::FanSpeed::High => Some("High"),
+            wire::FanSpeed::Unspecified => None,
         }
     }
-    pub fn parse(value: &wire::FanConstraints) -> Option<Self> {
-        if !value.__buffa_unknown_fields.is_empty() || value.speed_options.len() > 5 {
+    pub fn parse(value: &wire::FanControlCapability) -> Option<Self> {
+        let options = value
+            .speed
+            .as_option()
+            .map(|speed| speed.options.as_slice())
+            .unwrap_or(&[]);
+        if !value.__buffa_unknown_fields.is_empty()
+            || value
+                .speed
+                .as_option()
+                .is_some_and(|speed| !speed.__buffa_unknown_fields.is_empty())
+            || options.len() > 5
+        {
             return None;
         }
-        let mut speeds = Vec::with_capacity(value.speed_options.len());
-        for value in &value.speed_options {
-            let speed = <state::FanSpeed as buffa::Enumeration>::values()
+        let mut speeds = Vec::with_capacity(options.len());
+        for value in options {
+            let speed = <wire::FanSpeed as buffa::Enumeration>::values()
                 .iter()
                 .copied()
                 .find(|speed| Self::speed_name(*speed) == Some(value.as_str()))?;
@@ -302,28 +337,26 @@ impl Fan {
             speeds.push(speed);
         }
         Some(Self {
-            power: value.set_on,
+            power: value.supports_power,
             speeds,
         })
     }
-    pub fn power(&self, value: Power) -> Result<action::SetFan, Refusal> {
+    pub fn power(&self, value: Power) -> Result<model::FanIntent, Refusal> {
         if !self.power {
             return Err(Refusal::Unsupported);
         }
-        Ok(action::SetFan {
-            on: Some(value.on()),
-            ..Default::default()
-        })
+        model::FanIntent::new(Some(value.on()), None).map_err(|_| Refusal::InvalidValue)
     }
-    pub fn speed(&self, speed: state::FanSpeed) -> Result<action::SetFan, Refusal> {
+    pub fn speed(&self, speed: wire::FanSpeed) -> Result<model::FanIntent, Refusal> {
         if !self.speeds.contains(&speed) {
             return Err(Refusal::Unsupported);
         }
         let name = Self::speed_name(speed).ok_or(Refusal::Unsupported)?;
-        Ok(action::SetFan {
-            speed: Some(name.into()),
-            ..Default::default()
-        })
+        model::FanIntent::new(
+            None,
+            Some(model::SelectorKey::try_from(name).map_err(|_| Refusal::InvalidValue)?),
+        )
+        .map_err(|_| Refusal::InvalidValue)
     }
 }
 
@@ -344,44 +377,46 @@ mod tests {
     }
     #[test]
     fn observation_advertisements_never_create_command_capabilities() {
-        let control = Climate::parse(&wire::ClimateConstraints {
-            observed_temperature_celsius: wire::ClimateTemperatureObservation::default().into(),
-            observed_setpoint_celsius: wire::ClimateTemperatureObservation::default().into(),
-            observed_mode_options: vec![wire::ClimateMode::Heat.into()],
-            activity_options: vec![wire::ClimateActivity::Heating.into()],
-            observed_fan_target_options: vec![wire::ClimateFanTarget::Auto.into()],
+        let control = Climate::parse(&wire::TemperatureControlCapability {
+            observed_setpoint_celsius: wire::TemperatureObservationDefinition::default().into(),
+            observed_mode_options: vec![wire::TemperatureMode::Heat.into()],
+            observed_activity_options: vec![wire::TemperatureActivity::Heating.into()],
+            observed_fan_target_options: vec![wire::TemperatureFanTarget::Auto.into()],
             observes_fan_activity: true,
             ..Default::default()
         })
         .unwrap();
         assert!(
-            control.observes.temperature
+            !control.observes.temperature
                 && control.observes.setpoint
                 && control.observes.fan_activity
         );
         assert!(!control.observes.range && !control.observes.humidity);
-        assert_eq!(control.observes.modes, [wire::ClimateMode::Heat]);
+        assert_eq!(control.observes.modes, [wire::TemperatureMode::Heat]);
         assert_eq!(
             control.observes.activities,
-            [wire::ClimateActivity::Heating]
+            [wire::TemperatureActivity::Heating]
         );
-        assert_eq!(control.observes.fan_targets, [wire::ClimateFanTarget::Auto]);
+        assert_eq!(
+            control.observes.fan_targets,
+            [wire::TemperatureFanTarget::Auto]
+        );
         assert!(matches!(
             control.arguments(ClimateIntent::Setpoint(text("0"))),
             Err(Refusal::Unsupported)
         ));
         assert!(matches!(
-            control.arguments(ClimateIntent::Mode(wire::ClimateMode::Heat)),
+            control.arguments(ClimateIntent::Mode(wire::TemperatureMode::Heat)),
             Err(Refusal::Unsupported)
         ));
         assert!(matches!(
-            control.arguments(ClimateIntent::FanTarget(wire::ClimateFanTarget::Auto)),
+            control.arguments(ClimateIntent::FanTarget(wire::TemperatureFanTarget::Auto)),
             Err(Refusal::Unsupported)
         ));
     }
     #[test]
     fn zero_negative_decimal_comma_and_renderer_rounding_keep_exact_server_bounds() {
-        let control = Climate::parse(&wire::ClimateConstraints {
+        let control = Climate::parse(&wire::TemperatureControlCapability {
             setpoint_celsius: limits().into(),
             ..Default::default()
         })
@@ -390,15 +425,19 @@ mod tests {
             control
                 .arguments(ClimateIntent::Setpoint(text("0")))
                 .unwrap()
-                .setpoint_celsius,
-            Some(0.)
+                .target(),
+            Some(model::TemperatureTarget::Single(
+                model::Celsius::try_from(0.).unwrap()
+            ))
         );
         assert_eq!(
             control
                 .arguments(ClimateIntent::Setpoint(text("-0,5")))
                 .unwrap()
-                .setpoint_celsius,
-            Some(-0.5)
+                .target(),
+            Some(model::TemperatureTarget::Single(
+                model::Celsius::try_from(-0.5).unwrap()
+            ))
         );
         assert_eq!(
             control
@@ -406,8 +445,10 @@ mod tests {
                     20.499998_f32
                 ))))
                 .unwrap()
-                .setpoint_celsius,
-            Some(20.5)
+                .target(),
+            Some(model::TemperatureTarget::Single(
+                model::Celsius::try_from(20.5).unwrap()
+            ))
         );
         for value in ["-", "NaN", "inf", "30.5", "-5.5", "20.25", "1,000.5"] {
             assert!(
@@ -421,8 +462,8 @@ mod tests {
     }
     #[test]
     fn ranges_submit_both_validated_endpoints_and_never_invent_a_single_setpoint() {
-        let control = Climate::parse(&wire::ClimateConstraints {
-            setpoint_range_celsius: wire::ClimateSetpointRangeConstraints {
+        let control = Climate::parse(&wire::TemperatureControlCapability {
+            setpoint_range_celsius: wire::TemperatureRangeBounds {
                 low_celsius: limits().into(),
                 high_celsius: limits().into(),
                 minimum_delta_celsius: Some(2.),
@@ -436,10 +477,12 @@ mod tests {
         let arguments = control
             .arguments(ClimateIntent::Range(text("0"), text("5")))
             .unwrap();
-        assert_eq!(arguments.heat_threshold_celsius, Some(0.));
-        assert_eq!(arguments.cool_threshold_celsius, Some(5.));
-        assert_eq!(arguments.setpoint_celsius, None);
-        assert!(arguments.mode.is_none() && arguments.fan_target.is_none());
+        let Some(model::TemperatureTarget::Range(range)) = arguments.target() else {
+            panic!("atomic range")
+        };
+        assert_eq!(range.low().value(), 0.);
+        assert_eq!(range.high().value(), 5.);
+        assert!(arguments.mode().is_none() && arguments.fan().is_none());
         for (low, high) in [("0", "1"), ("0", "15"), ("5", "0"), ("0", "5.25")] {
             assert!(matches!(
                 control.arguments(ClimateIntent::Range(text(low), text(high))),
@@ -453,54 +496,51 @@ mod tests {
     }
     #[test]
     fn requested_mode_and_fan_target_are_independent_and_instance_limited() {
-        let control = Climate::parse(&wire::ClimateConstraints {
+        let control = Climate::parse(&wire::TemperatureControlCapability {
             mode_options: vec![
-                wire::ClimateMode::Heat.into(),
-                wire::ClimateMode::Off.into(),
+                wire::TemperatureMode::Heat.into(),
+                wire::TemperatureMode::Off.into(),
             ],
             fan_target_options: vec![
-                wire::ClimateFanTarget::On.into(),
-                wire::ClimateFanTarget::Auto.into(),
+                wire::TemperatureFanTarget::On.into(),
+                wire::TemperatureFanTarget::Auto.into(),
             ],
             ..Default::default()
         })
         .unwrap();
         let mode = control
-            .arguments(ClimateIntent::Mode(wire::ClimateMode::Heat))
+            .arguments(ClimateIntent::Mode(wire::TemperatureMode::Heat))
             .unwrap();
-        assert_eq!(mode.mode.unwrap().as_known(), Some(wire::ClimateMode::Heat));
-        assert!(mode.fan_target.is_none());
+        assert_eq!(mode.mode(), Some(model::TemperatureMode::Heat));
+        assert!(mode.fan().is_none());
         let fan = control
-            .arguments(ClimateIntent::FanTarget(wire::ClimateFanTarget::Auto))
+            .arguments(ClimateIntent::FanTarget(wire::TemperatureFanTarget::Auto))
             .unwrap();
-        assert_eq!(
-            fan.fan_target.unwrap().as_known(),
-            Some(wire::ClimateFanTarget::Auto)
-        );
-        assert!(fan.mode.is_none());
+        assert_eq!(fan.fan(), Some(model::TemperatureFanTarget::Auto));
+        assert!(fan.mode().is_none());
         assert!(matches!(
-            control.arguments(ClimateIntent::Mode(wire::ClimateMode::Cool)),
+            control.arguments(ClimateIntent::Mode(wire::TemperatureMode::Cool)),
             Err(Refusal::Unsupported)
         ));
         assert!(matches!(
-            control.arguments(ClimateIntent::Mode(wire::ClimateMode::Unspecified)),
+            control.arguments(ClimateIntent::Mode(wire::TemperatureMode::Unspecified)),
             Err(Refusal::Unsupported)
         ));
     }
     #[test]
     fn future_duplicates_unknown_nested_fields_and_impossible_ranges_are_inert() {
         assert!(
-            Climate::parse(&wire::ClimateConstraints {
+            Climate::parse(&wire::TemperatureControlCapability {
                 mode_options: vec![buffa::EnumValue::Unknown(99)],
                 ..Default::default()
             })
             .is_none()
         );
         assert!(
-            Climate::parse(&wire::ClimateConstraints {
+            Climate::parse(&wire::TemperatureControlCapability {
                 mode_options: vec![
-                    wire::ClimateMode::Heat.into(),
-                    wire::ClimateMode::Heat.into()
+                    wire::TemperatureMode::Heat.into(),
+                    wire::TemperatureMode::Heat.into()
                 ],
                 ..Default::default()
             })
@@ -508,15 +548,15 @@ mod tests {
         );
         let unknown = wire::NumberBounds::decode_from_slice(&[0xa0, 0x06, 0x01]).unwrap();
         assert!(
-            Climate::parse(&wire::ClimateConstraints {
+            Climate::parse(&wire::TemperatureControlCapability {
                 setpoint_celsius: unknown.into(),
                 ..Default::default()
             })
             .is_none()
         );
         assert!(
-            Climate::parse(&wire::ClimateConstraints {
-                setpoint_range_celsius: wire::ClimateSetpointRangeConstraints {
+            Climate::parse(&wire::TemperatureControlCapability {
+                setpoint_range_celsius: wire::TemperatureRangeBounds {
                     low_celsius: limits().into(),
                     ..Default::default()
                 }
@@ -526,8 +566,8 @@ mod tests {
             .is_none()
         );
         assert!(
-            Climate::parse(&wire::ClimateConstraints {
-                setpoint_range_celsius: wire::ClimateSetpointRangeConstraints {
+            Climate::parse(&wire::TemperatureControlCapability {
+                setpoint_range_celsius: wire::TemperatureRangeBounds {
                     low_celsius: limits().into(),
                     high_celsius: limits().into(),
                     minimum_delta_celsius: Some(40.),
@@ -541,7 +581,7 @@ mod tests {
     }
     #[test]
     fn fan_power_and_speed_are_distinct_and_unknown_speed_names_never_fall_back() {
-        let control = Fan::parse(&wire::FanConstraints {
+        let control = Fan::parse(&wire::FanControlCapability {
             set_on: true,
             speed_options: vec!["Low".into(), "High".into()],
             ..Default::default()
@@ -550,15 +590,15 @@ mod tests {
         let power = control.power(Power::On).unwrap();
         assert_eq!(power.on, Some(true));
         assert!(power.speed.is_none());
-        let speed = control.speed(state::FanSpeed::High).unwrap();
+        let speed = control.speed(wire::FanSpeed::High).unwrap();
         assert_eq!(speed.speed.as_deref(), Some("High"));
         assert!(speed.on.is_none());
         assert!(matches!(
-            control.speed(state::FanSpeed::Off),
+            control.speed(wire::FanSpeed::Off),
             Err(Refusal::Unsupported)
         ));
         assert!(matches!(
-            control.speed(state::FanSpeed::Unspecified),
+            control.speed(wire::FanSpeed::Unspecified),
             Err(Refusal::Unsupported)
         ));
         for values in [
@@ -567,7 +607,7 @@ mod tests {
             vec![" Low".into()],
         ] {
             assert!(
-                Fan::parse(&wire::FanConstraints {
+                Fan::parse(&wire::FanControlCapability {
                     speed_options: values,
                     ..Default::default()
                 })
@@ -575,7 +615,7 @@ mod tests {
             );
         }
         assert!(matches!(
-            Fan::parse(&wire::FanConstraints::default())
+            Fan::parse(&wire::FanControlCapability::default())
                 .unwrap()
                 .power(Power::On),
             Err(Refusal::Unsupported)

@@ -8,7 +8,6 @@ use crate::{
         ActiveGeneration, Anchor, Capture, EditStage, Outcome, Receipt, SourceEdit, UserSource,
     },
 };
-use buffa::EnumValue;
 use home_client_session::{Generation, SessionCoordinator};
 use home_client_transport::{Connection, Failure, FailureKind, RpcCode};
 use home_wire_contract::configuration_contract::{
@@ -80,7 +79,7 @@ struct Draft {
     captured: Capture,
     edit: Edit,
     text: Zeroizing<String>,
-    histories: Vec<wire::HistoricalGeneration>,
+    histories: Vec<wire::ConfigurationGeneration>,
     next_history: Option<String>,
     receipt: Option<Receipt>,
     notice: &'static str,
@@ -129,8 +128,8 @@ impl Draft {
 }
 enum JobKind {
     Plan(Box<super::planner::Operation>),
-    Write(wire::WriteDocumentRequest),
-    Restore(wire::RestoreDocumentRequest),
+    Write(wire::PublishConfigurationDocumentRequest),
+    Restore(wire::RollbackConfigurationDocumentRequest),
     History(Option<String>),
     Read(ReadPurpose),
 }
@@ -150,13 +149,13 @@ enum Reply {
         capture: Box<Capture>,
     },
     PlanHistory(Box<super::planner::HistoryReply>),
-    Simulation(Box<home_wire_contract::home::configurationsimulation::v1::SimulatePlanResponse>),
-    Plan(Box<home_wire_contract::home::configurationplan::v1::Plan>),
+    Simulation(Box<home_wire_contract::home::api::v2::SimulateConfigurationPlanResponse>),
+    Plan(Box<home_wire_contract::home::api::v2::ConfigurationPlan>),
     Mutation {
-        activation: wire::ActivationResult,
-        current: Option<Box<wire::ReadDocumentResponse>>,
+        activation: home_wire_contract::configuration_operations_contract::Publication,
+        current: Option<Box<wire::ConfigurationDocument>>,
     },
-    History(wire::ListGenerationsResponse),
+    History(wire::ListConfigurationGenerationsResponse),
     Read {
         purpose: ReadPurpose,
         capture: Box<Capture>,
@@ -167,6 +166,7 @@ enum Error {
     Denied,
     Conflict,
     Rejected,
+    Restart,
     Uncertain,
     Invalid,
 }
@@ -610,8 +610,13 @@ impl Workflow {
                     draft.notice = "Select a complete generation.";
                     return;
                 };
-                let request = wire::RestoreDocumentRequest {
-                    id: current.id().to_wire().into(),
+                let Ok(request_id) = home_client_actions::new_request_id() else {
+                    draft.notice = "Request identity unavailable. No restore was sent.";
+                    return;
+                };
+                let request = wire::RollbackConfigurationDocumentRequest {
+                    request_id: request_id.as_str().into(),
+                    name: current.name().into(),
                     expected: anchor.sql().to_wire().into(),
                     expected_workspace_sha256: anchor.workspace().bytes().to_vec(),
                     historical: historical.to_wire().into(),
@@ -711,12 +716,8 @@ impl Workflow {
             }
             Ok(Reply::History(value)) => {
                 if let Some(draft) = &mut self.draft {
-                    draft.next_history = match value.continuation.result {
-                        Some(wire::page_continuation::Result::NextPageToken(ref value)) => {
-                            Some(value.clone())
-                        }
-                        Some(wire::page_continuation::Result::Complete(_)) | None => None,
-                    };
+                    draft.next_history =
+                        (!value.next_page_token.is_empty()).then_some(value.next_page_token);
                     draft.histories = value.generations;
                     if let Edit::Restore { historical, .. } = &mut draft.edit {
                         *historical = None;
@@ -780,6 +781,7 @@ impl Workflow {
                         Effect::Mutation => match error {
                             Error::Conflict => planner.activation_conflict(),
                             Error::Rejected => planner.activation_rejected(),
+                            Error::Restart => planner.activation_restart_required(),
                             Error::Uncertain | Error::Invalid => planner.activation_uncertain(),
                             Error::Denied => unreachable!(),
                         },
@@ -806,6 +808,16 @@ impl Workflow {
                                 }
                             }
                             draft.notice = "Source rejected before saving. Reload the state before confirming again.";
+                        }
+                        Error::Restart => {
+                            match &mut draft.edit {
+                                Edit::Write(value) => value.restart_required(),
+                                Edit::Restore { stage, .. } => {
+                                    *stage = EditStage::Completed(Outcome::RestartRequired)
+                                }
+                            }
+                            draft.notice =
+                                "Server restart required. Nothing was saved; no automatic retry.";
                         }
                         Error::Uncertain | Error::Invalid => self.uncertain(),
                         Error::Denied => unreachable!(),
@@ -1051,23 +1063,38 @@ fn failure(value: &Failure) -> Error {
     {
         return Error::Denied;
     }
-    if let Ok(Some(error)) = value.configuration_error() {
-        if !error.__buffa_unknown_fields.is_empty() {
-            return Error::Uncertain;
-        }
-        match error.code {
-            EnumValue::Known(wire::ErrorCode::Conflict) => return Error::Conflict,
-            EnumValue::Known(wire::ErrorCode::InvalidArgument) => return Error::Rejected,
-            EnumValue::Known(
-                wire::ErrorCode::Unspecified
-                | wire::ErrorCode::Denied
-                | wire::ErrorCode::NotFound
-                | wire::ErrorCode::Unavailable
-                | wire::ErrorCode::ReconciliationRequired
-                | wire::ErrorCode::IncompleteGeneration
-                | wire::ErrorCode::Capacity,
-            )
-            | EnumValue::Unknown(_) => {}
+    if let Ok(Some(error)) = value.api_failure() {
+        use home_wire_contract::home::api::v2::ApiErrorReason;
+        match error.reason() {
+            ApiErrorReason::EtagMismatch => return Error::Conflict,
+            ApiErrorReason::ValidationFailed | ApiErrorReason::StatePreconditionFailed => {
+                return Error::Rejected;
+            }
+            ApiErrorReason::ConfigRestartRequired => return Error::Restart,
+            ApiErrorReason::AuthenticationRequired | ApiErrorReason::AccessDenied => {
+                return Error::Denied;
+            }
+            ApiErrorReason::Unspecified
+            | ApiErrorReason::ResourceNotFound
+            | ApiErrorReason::ResourceAlreadyExists
+            | ApiErrorReason::RequestIdReused
+            | ApiErrorReason::ConfigChanged
+            | ApiErrorReason::TopologyChanged
+            | ApiErrorReason::CapabilityUnavailable
+            | ApiErrorReason::SourceReadOnly
+            | ApiErrorReason::ResyncRequired
+            | ApiErrorReason::RateLimited
+            | ApiErrorReason::RequestTooLarge
+            | ApiErrorReason::StreamCapacity
+            | ApiErrorReason::QueryBudgetExceeded
+            | ApiErrorReason::ServiceUnavailable
+            | ApiErrorReason::RequestCancelled
+            | ApiErrorReason::RequestDeadlineExceeded
+            | ApiErrorReason::CommitOutcomeUnknown
+            | ApiErrorReason::EffectOutcomeUnknown
+            | ApiErrorReason::InternalFailure
+            | ApiErrorReason::StoredDataIntegrity
+            | ApiErrorReason::MethodNotSupported => {}
         }
     }
     Error::Uncertain
@@ -1102,6 +1129,75 @@ pub(in crate::administration_host) async fn execute(
         result,
     }
 }
+async fn follow_configuration_operation(
+    session: &SessionCoordinator,
+    connection: &Connection,
+    lease: &home_client_session::AccessLease,
+    cancel: &CancellationToken,
+    home: &str,
+    request_id: &str,
+    raw: home_wire_contract::google::longrunning::Operation,
+) -> Result<home_wire_contract::configuration_operations_contract::Publication, Error> {
+    use home_wire_contract::{
+        configuration_operations_contract::{self, Phase},
+        google::longrunning::WaitOperationRequest,
+    };
+    let admitted =
+        configuration_operations_contract::admit_response(&raw).map_err(|_| Error::Invalid)?;
+    let expected_request =
+        home_client_model::api::RequestId::try_from(request_id).map_err(|_| Error::Invalid)?;
+    if admitted.request_id() != Some(&expected_request) {
+        return Err(Error::Invalid);
+    }
+    if admitted
+        .name()
+        .as_str()
+        .split_once("/operations/")
+        .map(|(parent, _)| parent)
+        != Some(home)
+    {
+        return Err(Error::Invalid);
+    }
+    if matches!(admitted.phase(), Phase::Published | Phase::Failed) {
+        return Ok(admitted);
+    }
+    let transport = connection.operations();
+    let request = WaitOperationRequest {
+        name: admitted.name().as_str().into(),
+        timeout: buffa_types::google::protobuf::Duration {
+            seconds: 1,
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    };
+    let result = tokio::select! { biased;
+        () = cancel.cancelled() => return Err(Error::Uncertain),
+        () = lease.cancellation.cancelled() => return Err(Error::Denied),
+        result = transport.wait_operation(request, lease.token(), Duration::from_secs(3), cancel) => result,
+    };
+    match result {
+        Ok(raw) => {
+            match configuration_operations_contract::admit_operation(&raw, admitted.name()) {
+                Ok(next) if next.follows(&admitted) => Ok(next),
+                // Refuse malformed, retargeted or regressing status. The last
+                // admitted COMMIT stays pending; no new payload is projected.
+                Ok(_) | Err(_) => Ok(admitted),
+            }
+        }
+        Err(error) => {
+            let classification = failure(&error);
+            let _ = session.observe_failure(lease.generation, &error).await;
+            if matches!(classification, Error::Denied) {
+                return Err(Error::Denied);
+            }
+            // Failure of this read does not erase the already admitted COMMIT
+            // and never retries the mutation that allocated the operation.
+            Ok(admitted)
+        }
+    }
+}
+
 async fn execute_inner(
     session: &SessionCoordinator,
     connection: &Connection,
@@ -1115,12 +1211,15 @@ async fn execute_inner(
         .await
         .map_err(|_| Error::Denied)?;
     if !authority.administrator()
-        || authority.identity.account != *lease.account_id()
-        || authority.identity.session != *lease.session_id()
+        || authority.identity.account != *lease.account_name()
+        || authority.identity.session != *lease.session_name()
     {
         return Err(Error::Denied);
     }
     let api = connection.configuration();
+    let home = super::home_name(session, connection, &lease, &job.cancel)
+        .await
+        .map_err(|_| Error::Uncertain)?;
     macro_rules! call {($client:expr,$method:ident,$request:expr)=>{{
         let client = $client;
         let result=tokio::select! {biased;()=job.cancel.cancelled()=>return Err(Error::Uncertain),()=lease.cancellation.cancelled()=>return Err(Error::Denied),result=client.$method($request,lease.token(),Duration::from_secs(4),&job.cancel)=>result};
@@ -1130,21 +1229,30 @@ async fn execute_inner(
         JobKind::Plan(operation) => {
             use home_wire_contract::{
                 config_plans::{self, PlanResponse},
-                home::configurationplan::v1 as plan,
+                home::api::v2 as plan,
             };
             let api = connection.configuration_plans();
             let (family, identity, value) = match *operation {
                 super::planner::Operation::References(read) => {
+                    let name = super::source_document_name(
+                        session,
+                        connection,
+                        &lease,
+                        &job.cancel,
+                        read.id.as_str(),
+                    )
+                    .await
+                    .map_err(|_| Error::Invalid)?;
                     let response = call!(
                         connection.configuration(),
                         read_document,
-                        wire::ReadDocumentRequest {
-                            id: read.id.to_wire().into(),
+                        wire::GetConfigurationDocumentRequest {
+                            name,
                             ..Default::default()
                         }
                     );
                     let capture = Capture::admit(response).map_err(|_| Error::Invalid)?;
-                    if capture.id() != &read.id {
+                    if capture.document().id.value != read.id.as_str() {
                         return Err(Error::Invalid);
                     }
                     return Ok(Reply::References {
@@ -1169,13 +1277,10 @@ async fn execute_inner(
                         let response = call!(
                             connection.configuration(),
                             list_generations,
-                            wire::ListGenerationsRequest {
-                                page: wire::PageRequest {
-                                    page_size: 50,
-                                    page_token: page,
-                                    ..Default::default()
-                                }
-                                .into(),
+                            wire::ListConfigurationGenerationsRequest {
+                                parent: home.clone(),
+                                page_size: 50,
+                                page_token: page.unwrap_or_default(),
                                 ..Default::default()
                             }
                         );
@@ -1189,14 +1294,10 @@ async fn execute_inner(
                         let response = call!(
                             connection.configuration(),
                             list_versions,
-                            wire::ListVersionsRequest {
-                                id: id.to_wire().into(),
-                                page: wire::PageRequest {
-                                    page_size: 50,
-                                    page_token: page,
-                                    ..Default::default()
-                                }
-                                .into(),
+                            wire::ListConfigurationRevisionsRequest {
+                                parent: id.as_str().into(),
+                                page_size: 50,
+                                page_token: page.unwrap_or_default(),
                                 ..Default::default()
                             }
                         );
@@ -1209,31 +1310,39 @@ async fn execute_inner(
                     return Ok(Reply::PlanHistory(Box::new(reply)));
                 }
                 super::planner::Operation::Apply(request) => {
-                    use home_wire_contract::configuration_apply_contract::{
-                        self, ActivationResponse,
-                    };
+                    let request_id = request.request_id.clone();
                     let response = call!(connection.configuration_apply(), apply, *request);
-                    configuration_apply_contract::admit_activation_response(
-                        ActivationResponse::Apply(&response),
+                    let response = follow_configuration_operation(
+                        session,
+                        connection,
+                        &lease,
+                        &job.cancel,
+                        &home,
+                        &request_id,
+                        response,
                     )
-                    .map_err(|_| Error::Invalid)?;
+                    .await?;
                     return Ok(Reply::Mutation {
-                        activation: response.activation.into_option().ok_or(Error::Invalid)?,
-                        current: response.current.into_option().map(Box::new),
+                        activation: response,
+                        current: None,
                     });
                 }
                 super::planner::Operation::Rollback(request) => {
-                    use home_wire_contract::configuration_apply_contract::{
-                        self, ActivationResponse,
-                    };
+                    let request_id = request.request_id.clone();
                     let response = call!(connection.configuration_apply(), rollback, *request);
-                    configuration_apply_contract::admit_activation_response(
-                        ActivationResponse::Rollback(&response),
+                    let response = follow_configuration_operation(
+                        session,
+                        connection,
+                        &lease,
+                        &job.cancel,
+                        &home,
+                        &request_id,
+                        response,
                     )
-                    .map_err(|_| Error::Invalid)?;
+                    .await?;
                     return Ok(Reply::Mutation {
-                        activation: response.activation.into_option().ok_or(Error::Invalid)?,
-                        current: response.current.into_option().map(Box::new),
+                        activation: response,
+                        current: None,
                     });
                 }
                 super::planner::Operation::Simulate(request) => {
@@ -1245,17 +1354,16 @@ async fn execute_inner(
                     home_wire_contract::configuration_simulation_contract::admit_simulation_response(&response).map_err(|_|Error::Invalid)?;
                     return Ok(Reply::Simulation(Box::new(response)));
                 }
-                super::planner::Operation::Build(request) => {
-                    let family = request.candidate.family;
-                    let identity = request.candidate.identity.clone();
+                super::planner::Operation::Build(mut request) => {
+                    request.parent = home.clone();
+                    config_plans::admit_plan_request(config_plans::PlanRequest::Build(&request))
+                        .map_err(|_| Error::Invalid)?;
+                    let family = request.configuration_plan.candidate.family;
+                    let identity = request.configuration_plan.candidate.identity.clone();
                     let response = call!(api, build_plan, request);
                     config_plans::admit_plan_response(PlanResponse::Build(&response))
                         .map_err(|_| Error::Invalid)?;
-                    (
-                        family,
-                        identity,
-                        response.plan.into_option().ok_or(Error::Invalid)?,
-                    )
+                    (family, identity, response)
                 }
                 super::planner::Operation::Revalidate(request) => {
                     let family = request.candidate.family;
@@ -1263,55 +1371,62 @@ async fn execute_inner(
                     let response = call!(api, revalidate_plan, request);
                     config_plans::admit_plan_response(PlanResponse::Revalidate(&response))
                         .map_err(|_| Error::Invalid)?;
-                    (
-                        family,
-                        identity,
-                        response.plan.into_option().ok_or(Error::Invalid)?,
-                    )
+                    (family, identity, response)
                 }
             };
             if value.family != family
                 || value.identity != identity
-                || value.author != lease.account_id().as_str()
-                || value.family == plan::SourceFamily::Unspecified
+                || value.author != lease.account_name().as_str()
+                || value.family == plan::ConfigurationPlanSourceFamily::Unspecified
             {
                 return Err(Error::Invalid);
             }
             Ok(Reply::Plan(Box::new(value)))
         }
         JobKind::Write(request) => {
+            let request_id = request.request_id.clone();
             let response = call!(api, write_document, request);
-            configuration_contract::admit_configuration_response(ConfigurationResponse::Write(
-                &response,
-            ))
-            .map_err(|_| Error::Invalid)?;
+            let response = follow_configuration_operation(
+                session,
+                connection,
+                &lease,
+                &job.cancel,
+                &home,
+                &request_id,
+                response,
+            )
+            .await?;
             Ok(Reply::Mutation {
-                activation: response.activation.into_option().ok_or(Error::Invalid)?,
-                current: response.current.into_option().map(Box::new),
+                activation: response,
+                current: None,
             })
         }
         JobKind::Restore(request) => {
+            let request_id = request.request_id.clone();
             let response = call!(api, restore_document, request);
-            configuration_contract::admit_configuration_response(ConfigurationResponse::Restore(
-                &response,
-            ))
-            .map_err(|_| Error::Invalid)?;
+            let response = follow_configuration_operation(
+                session,
+                connection,
+                &lease,
+                &job.cancel,
+                &home,
+                &request_id,
+                response,
+            )
+            .await?;
             Ok(Reply::Mutation {
-                activation: response.activation.into_option().ok_or(Error::Invalid)?,
-                current: response.current.into_option().map(Box::new),
+                activation: response,
+                current: None,
             })
         }
         JobKind::History(page) => {
             let response = call!(
                 api,
                 list_generations,
-                wire::ListGenerationsRequest {
-                    page: wire::PageRequest {
-                        page_size: 50,
-                        page_token: page,
-                        ..Default::default()
-                    }
-                    .into(),
+                wire::ListConfigurationGenerationsRequest {
+                    parent: home.clone(),
+                    page_size: 50,
+                    page_token: page.unwrap_or_default(),
                     ..Default::default()
                 }
             );
@@ -1322,22 +1437,9 @@ async fn execute_inner(
             Ok(Reply::History(response))
         }
         JobKind::Read(purpose) => {
-            let response = call!(
-                api,
-                read_document,
-                wire::ReadDocumentRequest {
-                    id: wire::DocumentId {
-                        value: "operational.main".into(),
-                        ..Default::default()
-                    }
-                    .into(),
-                    ..Default::default()
-                }
-            );
-            let capture = Capture::admit(response).map_err(|_| Error::Invalid)?;
-            if capture.id().as_str() != "operational.main" {
-                return Err(Error::Invalid);
-            }
+            let capture = super::operational_capture(session, connection, &lease, &job.cancel)
+                .await
+                .map_err(|_| Error::Uncertain)?;
             Ok(Reply::Read {
                 purpose,
                 capture: Box::new(capture),
@@ -1353,45 +1455,43 @@ pub(super) mod tests {
     pub(in crate::administration_host::configuration) fn response(
         revision: i64,
         generation: i64,
-    ) -> wire::ReadDocumentResponse {
-        wire::ReadDocumentResponse {
-            document: wire::Document {
-                id: wire::DocumentId {
-                    value: "operational.main".into(),
-                    ..Default::default()
-                }
-                .into(),
-                kind: wire::DocumentKind::OperationalYaml.into(),
-                schema_version: "homeward.operational/1".into(),
-                syntax_profile: "homeward.operational-yaml/1".into(),
-                version: wire::DocumentVersion {
-                    revision,
-                    source_sha256: vec![1; 32],
-                    ..Default::default()
-                }
-                .into(),
-                updated_at: Timestamp {
-                    seconds: 1_700_000_000,
-                    ..Default::default()
-                }
-                .into(),
-                active: true,
-                protected_source_reference: vec![3; 32],
-                workspace_state: Some(wire::document::WorkspaceState::Workspace(Box::new(
-                    wire::WorkspaceObservation {
-                        source_sha256: vec![2; 32],
-                        updated_at: Timestamp {
-                            seconds: 1_700_000_001,
-                            ..Default::default()
-                        }
-                        .into(),
-                        dirty: wire::DirtyState::Unvalidated.into(),
-                        ..Default::default()
-                    },
-                ))),
+    ) -> wire::ConfigurationDocument {
+        wire::ConfigurationDocument {
+            name: "homes/test/configurationDocuments/operational".into(),
+            etag: "test-etag".into(),
+            id: wire::DocumentId {
+                value: "operational.main".into(),
                 ..Default::default()
             }
             .into(),
+            kind: wire::DocumentKind::OperationalYaml.into(),
+            schema_version: "homeward.operational/1".into(),
+            syntax_profile: "homeward.operational-yaml/1".into(),
+            version: wire::DocumentVersion {
+                revision,
+                source_sha256: vec![1; 32],
+                ..Default::default()
+            }
+            .into(),
+            updated_at: Timestamp {
+                seconds: 1_700_000_000,
+                ..Default::default()
+            }
+            .into(),
+            active: true,
+            protected_source_reference: vec![3; 32],
+            workspace_state: Some(wire::configuration_document::WorkspaceState::Workspace(
+                Box::new(wire::WorkspaceObservation {
+                    source_sha256: vec![2; 32],
+                    updated_at: Timestamp {
+                        seconds: 1_700_000_001,
+                        ..Default::default()
+                    }
+                    .into(),
+                    dirty: wire::DirtyState::Unvalidated.into(),
+                    ..Default::default()
+                }),
+            )),
             active_generation: wire::ActiveGeneration {
                 revision: generation,
                 manifest_sha256: vec![4; 32],
@@ -1454,11 +1554,7 @@ pub(super) mod tests {
         let old = Capture::admit(response(6, 5)).unwrap();
         assert_eq!(workflow.snapshot_admission(&old), Ok(false));
         let mut fork = response(7, 6);
-        let mut document = fork.document.into_option().unwrap();
-        let mut version = document.version.into_option().unwrap();
-        version.source_sha256 = vec![9; 32];
-        document.version = version.into();
-        fork.document = document.into();
+        fork.version.as_option_mut().unwrap().source_sha256 = vec![9; 32];
         let fork = Capture::admit(fork).unwrap();
         assert!(workflow.snapshot_admission(&fork).is_err());
         workflow.observe(fork);
@@ -1509,12 +1605,7 @@ pub(super) mod tests {
             permit: job.permit,
             effect: Effect::Mutation,
             result: Ok(Reply::Mutation {
-                activation: wire::ActivationResult {
-                    outcome: wire::ActivationOutcome::Published.into(),
-                    transaction: wire::TransactionOutcome::Committed.into(),
-                    generation_revision: Some(8),
-                    ..Default::default()
-                },
+                activation: crate::configuration::publication_for_test("homes/test", true, 8, 8),
                 current: Some(Box::new(response(8, 8)))
             })
         }));
@@ -1616,15 +1707,8 @@ pub(super) mod tests {
         });
         workflow.observe(Capture::admit(response(9, 9)).unwrap());
         for mut capture in [response(8, 8), response(9, 9)] {
-            if capture.document.version.revision == 9 {
-                capture
-                    .document
-                    .as_option_mut()
-                    .unwrap()
-                    .version
-                    .as_option_mut()
-                    .unwrap()
-                    .source_sha256 = vec![9; 32];
+            if capture.version.revision == 9 {
+                capture.version.as_option_mut().unwrap().source_sha256 = vec![9; 32];
             }
             workflow.editor_action(ProAdminAction::Resolve);
             let read = workflow.take_pending().unwrap();
@@ -1664,9 +1748,10 @@ pub(super) mod tests {
         let mut workflow = ready();
         workflow.open(ProAdminAction::Restore);
         let history = workflow.take_pending().unwrap();
-        let generations = wire::ListGenerationsResponse {
+        let generations = wire::ListConfigurationGenerationsResponse {
             generations: vec![
-                wire::HistoricalGeneration {
+                wire::ConfigurationGeneration {
+                    name: "homes/test/configurationGenerations/g-4".into(),
                     generation: wire::ActiveGeneration {
                         revision: 4,
                         manifest_sha256: vec![5; 32],
@@ -1681,7 +1766,8 @@ pub(super) mod tests {
                     .into(),
                     ..Default::default()
                 },
-                wire::HistoricalGeneration {
+                wire::ConfigurationGeneration {
+                    name: "homes/test/configurationGenerations/g-5".into(),
                     generation: wire::ActiveGeneration {
                         revision: 5,
                         manifest_sha256: vec![6; 32],
@@ -1697,11 +1783,7 @@ pub(super) mod tests {
                     ..Default::default()
                 },
             ],
-            continuation: wire::PageContinuation {
-                result: Some(wire::page_continuation::Result::Complete(Box::default())),
-                ..Default::default()
-            }
-            .into(),
+            next_page_token: String::new(),
             ..Default::default()
         };
         workflow.accept(Completion {

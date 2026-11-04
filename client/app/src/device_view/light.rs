@@ -5,7 +5,7 @@ use super::{
     number::{Bounds, NumericInput},
 };
 use crate::NavigationStep;
-use home_wire_contract::home::registry::v1::NumberBounds;
+use home_wire_contract::home::api::v2::NumberBounds;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Mireds(u32);

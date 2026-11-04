@@ -494,10 +494,11 @@ def desktop(directory, server, helper, binary, scenario):
             write(directory / 'interaction-result.json', receipt)
     report = json.loads((directory / 'fixture/result.json').read_text())
     submitted, physical = scenario.counts()
-    assert report['server_joined'] and len(report['submit_ids'] or [])==submitted
-    assert len(set(report['submit_ids'] or []))==submitted
-    reads = (report['get_ids'] or []) + (report['watch_ids'] or [])
-    assert all(command_id in (report['submit_ids'] or []) for command_id in reads)
+    assert report['server_joined'] and len(report['execute_request_ids'] or [])==submitted
+    assert len(set(report['execute_request_ids'] or []))==submitted
+    reads = (report['get_operation_names'] or []) + (report['wait_operation_names'] or [])
+    assert set(report['admitted_operations']) == set(report['execute_request_ids'] or [])
+    assert all(name in report['admitted_operations'].values() for name in reads)
     assert bool(reads)==bool(submitted)
     assert report['fake_driver_calls']==physical
     assert report['command_driver_entries']==submitted

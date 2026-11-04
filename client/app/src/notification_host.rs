@@ -17,7 +17,7 @@ use home_client_transport::{Connection, Failure, FailureKind, RpcCode};
 use home_wire_contract::{
     auth_contract::{AccountId, SessionId},
     companion_contract as parent_admit,
-    home::{companion::v1 as companion, notifications::v1 as wire},
+    home::{testing::companion::v1 as companion, testing::notifications::v1 as wire},
     notifications_contract as admit,
 };
 use slint::ComponentHandle;

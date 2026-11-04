@@ -1,5 +1,6 @@
 //! One owned media reader, coalesced presentation and the shared action client.
 //! No UI callback runs network work or retains a replayable physical intention.
+mod progress;
 mod read;
 mod render;
 mod state;
@@ -12,17 +13,23 @@ use crate::{
     ProValueIntent, RangeThumb, StepDirection,
     media::{Data, Field, Motion, Refusal},
 };
-use home_client_actions::{ActionClient, ActionSnapshot, AdmissionCheck};
+use home_client_actions::{
+    AdmissionCheck,
+    capabilities::{CapabilityController, CapabilitySnapshot},
+};
 use home_client_cache::{ProjectionGeneration, ProjectionMailbox, Publication};
-use home_client_model::EntityId;
+use home_client_model::api::EntityName;
+use home_client_model::{
+    api::Command,
+    api_media::{MediaAction, MediaIdentifier, MediaOperation},
+};
 use home_client_session::{Phase, SessionCoordinator};
 use home_client_transport::MediaTransport;
-use home_wire_contract::home::media::v1 as wire;
 use slint::ComponentHandle;
 use state::{ChoiceKind, ChoiceToken, Pending, Picture, State, Status};
 use std::{
     sync::{Arc, Mutex},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 use tokio::{
     sync::{Notify, watch},
@@ -119,7 +126,7 @@ impl Media {
         self.publish(&state);
         self.0.changed.notify_one();
     }
-    pub fn choose(&self, entity: Option<EntityId>, view: ProjectionGeneration) {
+    pub fn choose(&self, entity: Option<EntityName>, view: ProjectionGeneration) {
         let mut state = self.0.state.lock().expect("media state");
         if state.entity == entity && state.view == Some(view) {
             return;
@@ -175,7 +182,7 @@ impl Media {
             return;
         }
         if let Picture::Ready(picture) = &state.picture
-            && picture.expires() <= SystemTime::now()
+            && picture.deadline() <= std::time::Instant::now()
         {
             state.picture = Picture::Expired;
             self.publish(&state);
@@ -183,14 +190,14 @@ impl Media {
     }
     fn operation(&self, token: i32, generation: i32, op: ProMediaOperation) {
         let op = match op {
-            ProMediaOperation::Play => wire::Operation::Play,
-            ProMediaOperation::Pause => wire::Operation::Pause,
-            ProMediaOperation::Stop => wire::Operation::Stop,
-            ProMediaOperation::Previous => wire::Operation::Previous,
-            ProMediaOperation::Next => wire::Operation::Next,
+            ProMediaOperation::Play => MediaOperation::Play,
+            ProMediaOperation::Pause => MediaOperation::Pause,
+            ProMediaOperation::Stop => MediaOperation::Stop,
+            ProMediaOperation::Previous => MediaOperation::Previous,
+            ProMediaOperation::Next => MediaOperation::Next,
         };
         self.prepare(token, generation, |data| {
-            data.request(wire::media_action::Command::Operation(op.into()))
+            data.request(MediaAction::Operation(op))
         });
     }
     fn option(&self, token: i32, generation: i32, kind: ProMediaOptionKind, option: i32) {
@@ -209,9 +216,12 @@ impl Media {
         else {
             return;
         };
+        let Ok(id) = MediaIdentifier::try_from(choice.id.0.as_str()) else {
+            return;
+        };
         let command = match choice.kind {
-            ChoiceKind::Source => wire::media_action::Command::SourceId(choice.id.0.clone()),
-            ChoiceKind::Group => wire::media_action::Command::GroupId(choice.id.0.clone()),
+            ChoiceKind::Source => MediaAction::Source(id),
+            ChoiceKind::Group => MediaAction::Group(id),
         };
         let result = state
             .data
@@ -226,10 +236,7 @@ impl Media {
         &self,
         token: i32,
         generation: i32,
-        build: impl FnOnce(
-            &Data,
-        )
-            -> Result<home_wire_contract::home::actions::v1::CommandRequest, Refusal>,
+        build: impl FnOnce(&Data) -> Result<Command, Refusal>,
     ) {
         let mut state = self.0.state.lock().expect("media state");
         if !state.admits(token, generation) {
@@ -244,10 +251,7 @@ impl Media {
         self.publish(&state);
         self.0.changed.notify_one();
     }
-    fn enqueue(
-        state: &mut State,
-        result: Result<home_wire_contract::home::actions::v1::CommandRequest, Refusal>,
-    ) {
+    fn enqueue(state: &mut State, result: Result<Command, Refusal>) {
         match result {
             Ok(request) => {
                 for field in [Field::Volume, Field::Position] {
@@ -428,14 +432,14 @@ impl Media {
         &self,
         session: SessionCoordinator,
         transport: MediaTransport,
-        actions: ActionClient,
+        actions: CapabilityController,
         cancel: CancellationToken,
     ) {
         *self.0.session.lock().expect("media session") = Some(session.clone());
         let mut phases = session.subscribe();
         let mut source_generation = phases.borrow().generation;
         let mut reads = JoinSet::new();
-        let mut updates: Option<watch::Receiver<Arc<ActionSnapshot>>> = None;
+        let mut updates: Option<watch::Receiver<Arc<CapabilitySnapshot>>> = None;
         let mut clock = tokio::time::interval_at(
             tokio::time::Instant::now() + Duration::from_secs(2),
             Duration::from_secs(2),
@@ -489,7 +493,7 @@ impl Media {
                 )
             };
             if let Some(pending) = pending {
-                // ActionClient checks admission synchronously, then checks the
+                // CapabilityController checks admission synchronously, then checks the
                 // same guard after awaiting session access. Never hold State here.
                 let result = actions.submit(pending.request, self.admission(pending.generation));
                 let mut state = self.0.state.lock().expect("media state");
@@ -529,12 +533,13 @@ impl Media {
                 _=clock.tick(),if poll=>{self.0.state.lock().expect("media state").read_pending=true;},
                 _=reads.join_next(),if !reads.is_empty()=>{},
                 changed=async{match updates.as_mut(){Some(receiver)=>receiver.changed().await.is_ok(),None=>std::future::pending().await}}=>{
-                    if changed{let snapshot=updates.as_ref().expect("media action receiver").borrow().clone();let mut state=self.0.state.lock().expect("media state");if state.action.as_ref().is_some_and(|action|action.id()==&snapshot.id){state.progress=Some(snapshot);self.publish(&state);}}else{updates=None;}
+                    if changed{let snapshot=updates.as_ref().expect("media action receiver").borrow().clone();let mut state=self.0.state.lock().expect("media state");if state.action.as_ref().is_some_and(|action|action.request_id()==snapshot.request_id){state.progress=Some(snapshot);self.publish(&state);}}else{updates=None;}
                 }
             }
         }
         self.clear();
         while reads.join_next().await.is_some() {}
+        actions.shutdown().await;
         *self.0.session.lock().expect("media session") = None;
     }
 }

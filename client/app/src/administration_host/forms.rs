@@ -10,8 +10,10 @@ use crate::{
 use home_client_session::{Generation, SessionCoordinator};
 use home_client_transport::{Connection, FailureKind, RpcCode};
 use home_wire_contract::{
-    auth_contract::{self, AccountId, FactorCredentialId, InvitationId, McpKeyId, SessionId},
-    home::auth::v1 as auth,
+    auth_contract::{
+        self, AccountName, FactorCredentialName, InvitationName, McpKeyName, SessionName,
+    },
+    home::api::v2 as auth,
 };
 use scopes::ScopeChoice;
 use std::time::Duration;
@@ -103,14 +105,14 @@ impl Choice {
 pub(super) enum Command {
     Create,
     Update(auth::Account),
-    Delete(AccountId),
+    Delete(auth::Account),
     Invite,
-    RevokeInvitation(InvitationId),
+    RevokeInvitation(InvitationName),
     CreateMcp,
-    RevokeMcp(McpKeyId),
-    RevokeSession(SessionId),
-    RemoveFactor(FactorCredentialId),
-    RecoveryCodes(AccountId),
+    RevokeMcp(McpKeyName),
+    RevokeSession(SessionName),
+    RemoveFactor(FactorCredentialName),
+    RecoveryCodes(AccountName),
     MfaPolicy(auth::SecondFactorPolicy),
     Advanced(Box<advanced::Command>),
 }
@@ -212,12 +214,10 @@ pub(super) fn available(state: &State) -> Vec<Command> {
                     .private
                     .pane(Section::Accounts)
                     .and_then(|pane| pane.content.as_ref())
-                && let Some(account) = accounts
-                    .iter()
-                    .find(|account| account.id.value == id.as_str())
+                && let Some(account) = accounts.iter().find(|account| account.name == id.as_str())
             {
                 result.push(Command::Update(account.clone()));
-                result.push(Command::Delete(id.clone()));
+                result.push(Command::Delete(account.clone()));
             }
         }
         Section::Invitations => {
@@ -228,9 +228,9 @@ pub(super) fn available(state: &State) -> Vec<Command> {
                     .pane(Section::Invitations)
                     .and_then(|pane| pane.content.as_ref())
                 && rows.iter().any(|row| {
-                    row.id.value == id.as_str()
-                        && !row.revoked_at.is_set()
-                        && !row.accepted_at.is_set()
+                    row.name == id.as_str()
+                        && !row.revoke_time.is_set()
+                        && !row.accept_time.is_set()
                 })
             {
                 result.push(Command::RevokeInvitation(id.clone()));
@@ -245,7 +245,7 @@ pub(super) fn available(state: &State) -> Vec<Command> {
                     .and_then(|pane| pane.content.as_ref())
                 && rows
                     .iter()
-                    .any(|row| row.id.value == id.as_str() && !row.revoked_at.is_set())
+                    .any(|row| row.name == id.as_str() && !row.revoke_time.is_set())
             {
                 result.push(Command::RevokeMcp(id.clone()));
             }
@@ -258,7 +258,7 @@ pub(super) fn available(state: &State) -> Vec<Command> {
                     .and_then(|pane| pane.content.as_ref())
                 && rows
                     .iter()
-                    .any(|row| row.id.value == id.as_str() && !row.revoked_at.is_set())
+                    .any(|row| row.name == id.as_str() && !row.revoke_time.is_set())
             {
                 result.push(Command::RevokeSession(id.clone()));
             }
@@ -273,7 +273,7 @@ pub(super) fn available(state: &State) -> Vec<Command> {
                     result.push(Command::RecoveryCodes(authority.identity.account.clone()));
                 }
                 if let Some(render::Target::Factor(id)) = &state.selected
-                    && rows.iter().any(|row| row.id.value == id.as_str())
+                    && rows.iter().any(|row| row.name == id.as_str())
                 {
                     result.push(Command::RemoveFactor(id.clone()));
                 }
@@ -313,12 +313,19 @@ pub(super) fn available(state: &State) -> Vec<Command> {
                     advanced::Command::Integration(IntegrationCommand::Create(value.clone())),
                 ))),
                 Some(Payload::Integration(value)) => {
-                    if matches!(value.response.instance.configuration,Some(home_wire_contract::home::integrationadmin::v1::integration_instance::Configuration::Editable(_))){result.push(Command::Advanced(Box::new(advanced::Command::Integration(IntegrationCommand::Update(value.clone())))));}
+                    if matches!(
+                        value.instance.configuration,
+                        Some(home_wire_contract::home::api::v2::integration_instance::Configuration::Editable(_))
+                    ) {
+                        result.push(Command::Advanced(Box::new(advanced::Command::Integration(
+                            IntegrationCommand::Update(value.clone()),
+                        ))));
+                    }
                     result.push(Command::Advanced(Box::new(advanced::Command::Integration(
                         IntegrationCommand::Delete(value.clone()),
                     ))));
-                    let desired = if value.response.instance.desired_state
-                        == home_wire_contract::home::integrationadmin::v1::DesiredState::Enabled
+                    let desired = if value.instance.desired_state
+                        == home_wire_contract::home::api::v2::IntegrationDesiredState::Enabled
                     {
                         DesiredState::Disabled
                     } else {
@@ -344,15 +351,13 @@ pub(super) fn available(state: &State) -> Vec<Command> {
                     | Payload::Metrics(_)
                     | Payload::Logs(_)
                     | Payload::Audits(_)
-                    | Payload::Configuration(_)
-                    | Payload::Logic(_),
+                    | Payload::Configuration(_),
                 )
                 | None => (),
             }
         }
         Section::Account
         | Section::Configuration
-        | Section::Logic
         | Section::Health
         | Section::Metrics
         | Section::Logs
@@ -362,6 +367,7 @@ pub(super) fn available(state: &State) -> Vec<Command> {
     result
 }
 pub(super) struct Draft {
+    own: AccountName,
     command: Command,
     login: Zeroizing<String>,
     name: Zeroizing<String>,
@@ -369,7 +375,7 @@ pub(super) struct Draft {
     client_name: Zeroizing<String>,
     days: Zeroizing<String>,
     role: auth::AccountRole,
-    status: auth::AccountStatus,
+    status: auth::AccountState,
     scopes: Vec<ScopeChoice>,
     require_admin_factor: bool,
     advanced: Option<Box<advanced::Draft>>,
@@ -377,8 +383,9 @@ pub(super) struct Draft {
     pub notice: &'static str,
 }
 impl Draft {
-    pub fn new(command: Command) -> Self {
+    pub fn new(command: Command, own: AccountName) -> Self {
         let mut value = Self {
+            own,
             command,
             login: Zeroizing::new(String::new()),
             name: Zeroizing::new(String::new()),
@@ -386,7 +393,7 @@ impl Draft {
             client_name: Zeroizing::new(String::new()),
             days: Zeroizing::new("7".into()),
             role: auth::AccountRole::User,
-            status: auth::AccountStatus::Active,
+            status: auth::AccountState::Active,
             scopes: Vec::new(),
             require_admin_factor: false,
             advanced: None,
@@ -397,7 +404,7 @@ impl Draft {
             value.login = Zeroizing::new(account.login_name.clone());
             value.name = Zeroizing::new(account.display_name.clone());
             value.role = auth_contract::admit_role(account.role).expect("admitted role");
-            value.status = match account.status {
+            value.status = match account.state {
                 buffa::EnumValue::Known(value) => value,
                 buffa::EnumValue::Unknown(_) => unreachable!("admitted status"),
             };
@@ -546,7 +553,7 @@ impl Draft {
                         {
                             return;
                         }
-                        self.status = auth::AccountStatus::Active;
+                        self.status = auth::AccountState::Active;
                     }
                     Choice::Disabled => {
                         if field != ChoiceField::Status
@@ -554,7 +561,7 @@ impl Draft {
                         {
                             return;
                         }
-                        self.status = auth::AccountStatus::Disabled;
+                        self.status = auth::AccountState::Disabled;
                     }
                     Choice::RequireMfa | Choice::OptionalMfa => return,
                 }
@@ -624,12 +631,12 @@ impl Draft {
                     (
                         Choice::Active,
                         "Account active",
-                        self.status == auth::AccountStatus::Active,
+                        self.status == auth::AccountState::Active,
                     ),
                     (
                         Choice::Disabled,
                         "Account disabled",
-                        self.status == auth::AccountStatus::Disabled,
+                        self.status == auth::AccountState::Disabled,
                     ),
                 ]
                 .map(|(choice, label, selected)| ProAdminChoice {
@@ -730,26 +737,39 @@ impl Draft {
                     return None;
                 }
                 Operation::Create(auth::CreateAccountRequest {
-                    login_name: self.login.to_string(),
-                    display_name: self.name.to_string(),
-                    initial_password: self.password.to_string(),
-                    role: self.role.into(),
+                    parent: self.own.home().as_str().into(),
+                    account: auth::Account {
+                        login_name: self.login.to_string(),
+                        display_name: self.name.to_string(),
+                        initial_password: self.password.to_string(),
+                        role: self.role.into(),
+                        state: auth::AccountState::Active.into(),
+                        ..Default::default()
+                    }
+                    .into(),
                     ..Default::default()
                 })
             }
             Command::Update(account) => Operation::Update(auth::UpdateAccountRequest {
-                account_id: account.id.clone(),
-                display_name: Some(self.name.to_string()),
-                role: Some(self.role.into()),
-                status: Some(self.status.into()),
-                ..Default::default()
-            }),
-            Command::Delete(id) => Operation::Delete(auth::DeleteAccountRequest {
-                account_id: auth::AccountId {
-                    value: id.as_str().into(),
+                account: auth::Account {
+                    name: account.name.clone(),
+                    etag: account.etag.clone(),
+                    display_name: self.name.to_string(),
+                    role: self.role.into(),
+                    state: self.status.into(),
                     ..Default::default()
                 }
                 .into(),
+                update_mask: buffa_types::google::protobuf::FieldMask {
+                    paths: vec!["display_name".into(), "role".into(), "state".into()],
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            }),
+            Command::Delete(account) => Operation::Delete(auth::DeleteAccountRequest {
+                name: account.name.clone(),
+                etag: account.etag.clone(),
                 ..Default::default()
             }),
             Command::Invite => {
@@ -757,10 +777,11 @@ impl Draft {
                     self.notice = "Enter the invited account’s username.";
                     return None;
                 }
-                Operation::Invite(auth::CreateInvitationRequest {
+                Operation::Invite(auth::IssueInvitationRequest {
+                    parent: self.own.home().as_str().into(),
                     login_name: self.login.to_string(),
                     role: self.role.into(),
-                    expires_at: buffa_types::google::protobuf::Timestamp {
+                    expire_time: buffa_types::google::protobuf::Timestamp {
                         seconds: chrono::Utc::now().timestamp() + days * 86400,
                         nanos: 0,
                         ..Default::default()
@@ -771,11 +792,7 @@ impl Draft {
             }
             Command::RevokeInvitation(id) => {
                 Operation::RevokeInvitation(auth::RevokeInvitationRequest {
-                    invitation_id: auth::InvitationId {
-                        value: id.as_str().into(),
-                        ..Default::default()
-                    }
-                    .into(),
+                    name: id.as_str().into(),
                     ..Default::default()
                 })
             }
@@ -784,7 +801,8 @@ impl Draft {
                     self.notice = "Enter the client and select at least one maximum permission.";
                     return None;
                 }
-                let request = auth::CreateMcpKeyRequest {
+                let request = auth::IssueMcpKeyRequest {
+                    parent: self.own.as_str().into(),
                     client_name: self.client_name.to_string(),
                     scopes: self.scopes.iter().copied().map(ScopeChoice::wire).collect(),
                     lifetime: buffa_types::google::protobuf::Duration {
@@ -795,53 +813,40 @@ impl Draft {
                     .into(),
                     ..Default::default()
                 };
-                if auth_contract::admit_mcp_create_request(&request).is_err() {
+                if auth_contract::admit_mcp_issue_request(&request).is_err() {
                     self.notice = "The permission limit or validity period is invalid.";
                     return None;
                 }
                 Operation::CreateMcp(request)
             }
             Command::RevokeMcp(id) => Operation::RevokeMcp(auth::RevokeMcpKeyRequest {
-                key_id: auth::McpKeyId {
-                    value: id.as_str().into(),
-                    ..Default::default()
-                }
-                .into(),
+                name: id.as_str().into(),
                 ..Default::default()
             }),
             Command::RevokeSession(id) => Operation::RevokeSession(auth::RevokeSessionRequest {
-                session_id: auth::SessionId {
-                    value: id.as_str().into(),
-                    ..Default::default()
-                }
-                .into(),
+                name: id.as_str().into(),
                 ..Default::default()
             }),
-            Command::RemoveFactor(id) => Operation::RemoveFactor(auth::RemoveFactorRequest {
-                factor_id: auth::FactorCredentialId {
-                    value: id.as_str().into(),
+            Command::RemoveFactor(id) => {
+                Operation::RemoveFactor(auth::RemoveFactorCredentialRequest {
+                    name: id.as_str().into(),
                     ..Default::default()
-                }
-                .into(),
-                ..Default::default()
-            }),
+                })
+            }
             Command::RecoveryCodes(id) => {
                 Operation::RecoveryCodes(auth::ReplaceRecoveryCodesRequest {
-                    account_id: auth::AccountId {
-                        value: id.as_str().into(),
-                        ..Default::default()
-                    }
-                    .into(),
+                    name: id.as_str().into(),
                     ..Default::default()
                 })
             }
             Command::MfaPolicy(policy) => {
-                let request = auth::SetSecondFactorPolicyRequest {
+                let request = auth::ChangeSecondFactorPolicyRequest {
                     require_admin_factor: self.require_admin_factor,
-                    expected: policy.version.clone(),
+                    name: policy.name.clone(),
+                    etag: policy.etag.clone(),
                     ..Default::default()
                 };
-                if auth_contract::admit_set_second_factor_policy(&request).is_err() {
+                if auth_contract::admit_change_second_factor_policy(&request).is_err() {
                     return None;
                 }
                 Operation::MfaPolicy(request)
@@ -877,14 +882,14 @@ pub(super) enum Operation {
     Create(auth::CreateAccountRequest),
     Update(auth::UpdateAccountRequest),
     Delete(auth::DeleteAccountRequest),
-    Invite(auth::CreateInvitationRequest),
+    Invite(auth::IssueInvitationRequest),
     RevokeInvitation(auth::RevokeInvitationRequest),
-    CreateMcp(auth::CreateMcpKeyRequest),
+    CreateMcp(auth::IssueMcpKeyRequest),
     RevokeMcp(auth::RevokeMcpKeyRequest),
     RevokeSession(auth::RevokeSessionRequest),
-    RemoveFactor(auth::RemoveFactorRequest),
+    RemoveFactor(auth::RemoveFactorCredentialRequest),
     RecoveryCodes(auth::ReplaceRecoveryCodesRequest),
-    MfaPolicy(auth::SetSecondFactorPolicyRequest),
+    MfaPolicy(auth::ChangeSecondFactorPolicyRequest),
     Advanced(Box<advanced::Operation>),
 }
 pub(super) struct Completion {
@@ -945,23 +950,21 @@ pub(super) async fn execute(
             advanced::execute(session, connection, &lease, *value, &receipt.cancel).await
         }
         Operation::Create(request) => {
-            let login = request.login_name.clone();
+            let login = request.account.login_name.clone();
+            let parent = request.parent.clone();
             let response = call!(connection.accounts(), create_account, request);
             Completion::published(
-                response.__buffa_unknown_fields.is_empty()
-                    && response.account.as_option().is_some_and(|account| {
-                        auth_contract::admit_account(account).is_ok() && account.login_name == login
-                    }),
+                auth_contract::admit_account(&response).is_ok()
+                    && response.login_name == login
+                    && AccountName::try_from(response.name.as_str())
+                        .is_ok_and(|name| name.home().as_str() == parent),
             )
         }
         Operation::Update(request) => {
-            let id = request.account_id.value.clone();
+            let name = request.account.name.clone();
             let response = call!(connection.accounts(), update_account, request);
             Completion::published(
-                response.__buffa_unknown_fields.is_empty()
-                    && response.account.as_option().is_some_and(|account| {
-                        auth_contract::admit_account(account).is_ok() && account.id.value == id
-                    }),
+                auth_contract::admit_account(&response).is_ok() && response.name == name,
             )
         }
         Operation::Delete(request) => Completion::published(
@@ -972,15 +975,15 @@ pub(super) async fn execute(
         Operation::Invite(request) => {
             let login = request.login_name.clone();
             let role = request.role;
-            let response = call!(connection.accounts(), create_invitation, request);
+            let response = call!(connection.accounts(), issue_invitation, request);
             let secret = Zeroizing::new(response.invitation_token);
             if !response.__buffa_unknown_fields.is_empty()
                 || !response.invitation.as_option().is_some_and(|invitation| {
                     auth_contract::admit_invitation_metadata(invitation).is_ok()
                         && invitation.login_name == login
                         && invitation.role == role
-                        && !invitation.accepted_at.is_set()
-                        && !invitation.revoked_at.is_set()
+                        && !invitation.accept_time.is_set()
+                        && !invitation.revoke_time.is_set()
                 })
             {
                 return Completion::state(MutationState::Uncertain);
@@ -995,7 +998,7 @@ pub(super) async fn execute(
         Operation::CreateMcp(request) => {
             let name = request.client_name.clone();
             let scopes = request.scopes.clone();
-            let response = call!(connection.mcp_keys(), create_mcp_key, request);
+            let response = call!(connection.mcp_keys(), issue_mcp_key, request);
             let secret = Zeroizing::new(response.secret);
             let now = chrono::Utc::now();
             let now = buffa_types::google::protobuf::Timestamp {
@@ -1004,10 +1007,11 @@ pub(super) async fn execute(
                 ..Default::default()
             };
             if !response.__buffa_unknown_fields.is_empty()
-                || !response.key.as_option().is_some_and(|key| {
+                || !response.mcp_key.as_option().is_some_and(|key| {
                     auth_contract::admit_mcp_key(key, &now).is_ok()
                         && auth_contract::admit_mcp_key_metadata(key).is_ok()
-                        && key.account_id.value == lease.account_id().as_str()
+                        && McpKeyName::try_from(key.name.as_str())
+                            .is_ok_and(|name| &name.account() == lease.account_name())
                         && key.client_name == name
                         && key.scopes.len() == scopes.len()
                         && scopes.iter().all(|scope| {
@@ -1027,7 +1031,7 @@ pub(super) async fn execute(
                 .is_empty(),
         ),
         Operation::RevokeSession(request) => {
-            let current = request.session_id.value == lease.session_id().as_str();
+            let current = request.name == lease.session_name().as_str();
             let () = call!(
                 connection.auth(),
                 revoke_session,
@@ -1044,7 +1048,7 @@ pub(super) async fn execute(
         Operation::RemoveFactor(request) => {
             let response = call!(
                 connection.auth(),
-                remove_factor,
+                remove_factor_credential,
                 request,
                 &receipt.cancel,
                 false
@@ -1059,12 +1063,12 @@ pub(super) async fn execute(
             let requested = request.require_admin_factor;
             let response = call!(
                 connection.accounts(),
-                set_second_factor_policy,
+                change_second_factor_policy,
                 request,
                 &receipt.cancel,
                 false
             );
-            if auth_contract::admit_set_second_factor_policy_response(&response).is_err()
+            if auth_contract::admit_change_second_factor_policy_response(&response).is_err()
                 || response.policy.require_admin_factor != requested
             {
                 return Completion::state(MutationState::Uncertain);
@@ -1086,7 +1090,7 @@ pub(super) async fn execute(
             Completion::published(true)
         }
         Operation::RecoveryCodes(request) => {
-            if request.account_id.value != lease.account_id().as_str() {
+            if request.name != lease.account_name().as_str() {
                 return Completion::state(MutationState::Rejected);
             }
             let response = call!(

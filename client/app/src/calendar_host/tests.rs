@@ -42,32 +42,33 @@ fn session() -> SessionCoordinator {
     SessionCoordinator::new(connection.auth(), Arc::new(EmptyStore))
 }
 fn ready(state: &mut State, session: &SessionCoordinator) {
-    let id = wire::CalendarId {
-        entity_id: "synthetic-calendar".into(),
-        ..Default::default()
-    };
     let calendar = wire::Calendar {
-        id: id.clone().into(),
-        origin: wire::Origin::Local.into(),
-        name: Some("Synthetic calendar".into()),
-        revision: wire::Revision {
-            resource: wire::EventKey {
-                calendar: id.clone().into(),
-                ..Default::default()
-            }
-            .into(),
-            presence: wire::Presence::Present.into(),
-            number: 1,
-            ..Default::default()
-        }
-        .into(),
-        quality: wire::Quality::Fresh.into(),
-        provenance: wire::DataProvenance::Synthetic.into(),
-        mutation_access: wire::MutationAccess::Allowed.into(),
+        name: "homes/synthetic/calendars/id-63616c".into(),
+        source_entity: "homes/synthetic/entities/source".into(),
+        display_name: "Synthetic calendar".into(),
+        etag: "W/\"calendar-one\"".into(),
+        origin: wire::CalendarOrigin::Local.into(),
+        freshness: wire::CalendarFreshness::Fresh.into(),
+        provenance: wire::CalendarProvenance::Synthetic.into(),
+        mutation_access: wire::CalendarMutationAccess::Allowed.into(),
         ..Default::default()
     };
-    state.catalog = vec![calendar.clone()];
-    state.selected = admit::calendar_id(&id);
+    state.catalog = vec![wire::CalendarSource {
+        calendar: calendar.name.clone(),
+        source_entity: calendar.source_entity.clone(),
+        display_name: calendar.display_name.clone(),
+        origin: calendar.origin,
+        provenance: calendar.provenance,
+        mutation_access: calendar.mutation_access,
+        materialized: true,
+        ..Default::default()
+    }];
+    state.selected = Some(
+        home_client_model::api_calendars::CalendarName::try_from(calendar.name.as_str())
+            .unwrap()
+            .native_id()
+            .clone(),
+    );
     state.active = true;
     state.interactive = true;
     state.foreground = true;
@@ -79,9 +80,9 @@ fn ready(state: &mut State, session: &SessionCoordinator) {
     let mut capture = CalendarCapture::new(&calendar, &state.query().unwrap()).unwrap();
     capture
         .push(&wire::QueryOccurrencesResponse {
-            revision: calendar.revision.clone(),
-            quality: wire::Quality::Fresh.into(),
-            provenance: wire::DataProvenance::Synthetic.into(),
+            calendar_etag: calendar.etag.clone(),
+            freshness: wire::CalendarFreshness::Fresh.into(),
+            provenance: wire::CalendarProvenance::Synthetic.into(),
             ..Default::default()
         })
         .unwrap();
@@ -113,7 +114,10 @@ fn an_uncertain_calendar_write_stays_disabled_until_an_explicit_read() {
 fn remote_and_calculated_sources_never_create_mutations_even_with_allowed_access() {
     let owner = Calendars::detached();
     let session = session();
-    for origin in [wire::Origin::RemoteIcs, wire::Origin::Calculated] {
+    for origin in [
+        wire::CalendarOrigin::RemoteIcs,
+        wire::CalendarOrigin::Calculated,
+    ] {
         let generation = {
             let mut state = owner.0.state.lock().unwrap();
             ready(&mut state, &session);
@@ -123,9 +127,9 @@ fn remote_and_calculated_sources_never_create_mutations_even_with_allowed_access
             let mut capture = CalendarCapture::new(&calendar, &query).unwrap();
             capture
                 .push(&wire::QueryOccurrencesResponse {
-                    revision: calendar.revision.clone(),
-                    quality: wire::Quality::Fresh.into(),
-                    provenance: wire::DataProvenance::Synthetic.into(),
+                    calendar_etag: calendar.etag.clone(),
+                    freshness: wire::CalendarFreshness::Fresh.into(),
+                    provenance: wire::CalendarProvenance::Synthetic.into(),
                     ..Default::default()
                 })
                 .unwrap();
@@ -149,11 +153,10 @@ fn coalescing_a_private_reset_with_a_fresh_same_calendar_capture_erases_editor_b
     let session = session();
     let mut state = State::default();
     ready(&mut state, &session);
-    let key = EventKey::new(
-        state.selected.clone().unwrap(),
-        "private-draft".parse().unwrap(),
+    let mut draft = Draft::new(
+        state.selected_name().unwrap(),
+        &state.start.parse().unwrap(),
     );
-    let mut draft = Draft::new(key, &state.start.parse().unwrap());
     draft.edit(Field::Summary, "Private old summary".into());
     draft.edit(Field::Description, "Private old description".into());
     state.draft = Some(draft);
@@ -230,28 +233,23 @@ fn week_mode_reads_exactly_seven_civil_days_and_custom_ranges_return_to_list() {
 }
 
 #[test]
-fn a_confirmed_receipt_blocks_older_captures_and_refreshes_catalog_metadata() {
+fn a_new_opaque_etag_marks_an_open_draft_conflicted_and_refreshes_label() {
     let session = session();
     let mut state = State::default();
     ready(&mut state, &session);
-    let old = state.snapshot.as_ref().unwrap().clone();
-    let mut calendar = old.calendar().clone();
-    let mut revision = calendar.revision.as_option().unwrap().clone();
-    revision.number = 2;
-    calendar.revision = revision.into();
-    calendar.name = Some("Authoritative renamed calendar".into());
-    state.minimum_revision =
-        admit::calendar_revision(&calendar.revision, state.selected.as_ref().unwrap());
-    state.ready = false;
-    state.snapshot(old, session.generation());
-    assert!(!state.ready);
-    assert_eq!(state.catalog[0].revision.number, 1);
+    state.draft = Some(Draft::new(
+        state.selected_name().unwrap(),
+        &state.start.parse().unwrap(),
+    ));
+    let mut calendar = state.calendar().unwrap().clone();
+    calendar.etag = "W/\"unrelated-opaque-token\"".into();
+    calendar.display_name = "Authoritative renamed calendar".into();
     let mut capture = CalendarCapture::new(&calendar, &state.query().unwrap()).unwrap();
     capture
         .push(&wire::QueryOccurrencesResponse {
-            revision: calendar.revision.clone(),
-            quality: wire::Quality::Fresh.into(),
-            provenance: wire::DataProvenance::Synthetic.into(),
+            calendar_etag: calendar.etag.clone(),
+            freshness: wire::CalendarFreshness::Fresh.into(),
+            provenance: wire::CalendarProvenance::Synthetic.into(),
             ..Default::default()
         })
         .unwrap();
@@ -259,10 +257,11 @@ fn a_confirmed_receipt_blocks_older_captures_and_refreshes_catalog_metadata() {
         Arc::new(capture.finish(&calendar).unwrap()),
         session.generation(),
     );
-    assert!(state.ready && state.minimum_revision.is_none());
+    assert!(state.ready);
+    assert_eq!(state.draft.as_ref().unwrap().phase, EditPhase::Conflict);
     assert_eq!(
-        state.catalog[0].name.as_deref(),
-        Some("Authoritative renamed calendar")
+        state.catalog[0].display_name,
+        "Authoritative renamed calendar"
     );
 }
 
@@ -282,20 +281,29 @@ fn widget_calendar_window_preserves_server_duration_and_zone_across_a_fold() {
     let now = chrono::DateTime::parse_from_rfc3339("2026-11-01T05:30:00Z")
         .unwrap()
         .with_timezone(&chrono::Utc);
-    let query = state::widget_query(&target, now).unwrap();
-    assert_eq!(query.id.entity_id, "exact-calendar-second");
+    let name = home_client_model::api_calendars::CalendarName::try_from(
+        "homes/synthetic/calendars/id-65786163742d63616c656e6461722d7365636f6e64",
+    )
+    .unwrap();
+    let query = state::widget_query(&target, &name, now).unwrap();
+    assert_eq!(query.parent, format!("{}/events/-", name.as_str()));
     assert_eq!(query.page_size, 3);
-    assert_eq!(query.window.zone, "America/Toronto");
-    let Some(wire::window::Bounds::Times(span)) = &query.window.bounds else {
+    assert_eq!(query.window.time_zone, "America/Toronto");
+    let Some(wire::calendar_window::Bounds::Times(span)) = &query.window.bounds else {
         panic!("absolute configured window")
     };
-    assert_eq!(span.start_instant, "2026-11-01T05:30:00Z");
-    assert_eq!(span.end_instant, "2026-11-01T07:30:00Z");
-    assert_eq!(span.zone, "America/Toronto");
+    assert_eq!(
+        span.start_time.as_option().unwrap(),
+        &admit::parse_timestamp("2026-11-01T05:30:00Z", true).unwrap()
+    );
+    assert_eq!(
+        span.end_time.as_option().unwrap(),
+        &admit::parse_timestamp("2026-11-01T07:30:00Z", true).unwrap()
+    );
     assert!(admit::admit_query(&query).is_ok());
     let mut invalid = target;
     invalid.window_seconds = 31_622_401;
-    assert!(state::widget_query(&invalid, now).is_none());
+    assert!(state::widget_query(&invalid, &name, now).is_none());
 }
 #[test]
 fn widget_calendar_never_selects_first_catalogue_or_substitutes_missing_source() {
@@ -305,8 +313,8 @@ fn widget_calendar_never_selects_first_catalogue_or_substitutes_missing_source()
         let state = owner.0.state.lock().unwrap();
         assert_eq!(state.selected.as_ref(), Some(&target.calendar));
         assert!(state.catalog.is_empty());
-        assert!(!state.catalog_needed);
-        assert_eq!(state.query().unwrap().id.entity_id, "exact-calendar-second");
+        assert!(state.catalog_needed);
+        assert!(state.query().is_none());
         assert!(!state.ready);
     }
     let context = owner.0.state.lock().unwrap().context;
@@ -318,7 +326,7 @@ fn widget_calendar_never_selects_first_catalogue_or_substitutes_missing_source()
         assert!(!state.ready);
         owner.pin_widget(&mut state);
         assert_eq!(state.selected.as_ref(), Some(&target.calendar));
-        assert!(!state.catalog_needed);
+        assert!(state.catalog_needed);
         assert!(state.snapshot.is_none());
     }
 }

@@ -1,11 +1,13 @@
 //! Private list presentation state. Names, ordinals and Slint delegate positions
 //! never become identities. The owner supplies complete Watch-fenced captures.
 use home_client_actions::lists::{
-    ItemTarget, ListWriteIntent, ListWriteOutcome, MoveDestination, PreparedListMutation,
+    ItemTarget, ListWriteIntent, ListWriteOutcome, MoveDestination, PreparedListMutation, Rejection,
 };
 use home_client_cache::lists::{CapturedRows, ListReadMetadata, ListReadSnapshot};
-use home_client_model::lists::{ItemKey, ItemRevision, ListId, ListRevision};
-use home_wire_contract::home::lists::v1 as wire;
+use home_client_model::{
+    api_tasks::{TaskContent, TaskDue, TaskListRevision, TaskResource, TaskText},
+    lists::{ItemKey, ListId},
+};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -70,6 +72,7 @@ pub(crate) struct Prepared {
 }
 
 pub(crate) struct State {
+    home: Option<home_client_model::api::HomeName>,
     pub context: u64,
     pub generation: i32,
     pub privacy_generation: i32,
@@ -99,6 +102,7 @@ pub(crate) struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
+            home: None,
             context: 1,
             generation: 1,
             privacy_generation: 1,
@@ -127,14 +131,13 @@ impl Default for State {
         }
     }
 }
-fn key(row: &wire::ItemSnapshot) -> Option<ItemKey> {
-    Some(ItemKey::new(
-        row.list_id.value.parse().ok()?,
-        row.uid.value.parse().ok()?,
-    ))
+fn key(row: &TaskResource) -> Option<ItemKey> {
+    Some(row.key().clone())
 }
+
 impl State {
     pub fn clear(&mut self) {
+        self.home = None;
         self.active = false;
         self.blocked = false;
         self.catalog = None;
@@ -214,13 +217,24 @@ impl State {
         Ok(())
     }
     pub fn publish_catalog(&mut self, snapshot: Arc<ListReadSnapshot>) -> Result<(), Refusal> {
+        if self
+            .home
+            .as_ref()
+            .is_some_and(|prior| prior != &snapshot.home)
+        {
+            self.clear();
+            return Err(Refusal::Stale);
+        }
         let CapturedRows::Catalog(rows) = &snapshot.rows else {
             return Err(Refusal::Invalid);
         };
         let mut tokens = Vec::with_capacity(rows.len());
         let mut admitted = BTreeMap::new();
         for row in rows {
-            let id: ListId = row.id.value.parse().map_err(|_| Refusal::Invalid)?;
+            if row.name().home() != &snapshot.home {
+                return Err(Refusal::Invalid);
+            }
+            let id = row.native_id().clone();
             let token = match self.list_tokens.get(&id) {
                 Some(token) => *token,
                 None => self.token()?,
@@ -253,6 +267,7 @@ impl State {
             self.context = self.context.checked_add(1).ok_or(Refusal::Capacity)?;
             self.pending = None;
         }
+        self.home = Some(snapshot.home.clone());
         self.catalog_tokens = Arc::new(tokens);
         self.catalog = Some(snapshot);
         self.catalog_phase = Freshness::Online;
@@ -291,7 +306,13 @@ impl State {
         let ListReadMetadata::List(metadata) = &snapshot.metadata else {
             return Err(Refusal::Invalid);
         };
-        if metadata.id.value != list.as_str() {
+        if metadata.name().home() != &snapshot.home
+            || self
+                .home
+                .as_ref()
+                .is_some_and(|prior| prior != &snapshot.home)
+            || metadata.native_id() != list
+        {
             return Err(Refusal::Invalid);
         }
         let mut tokens = Vec::with_capacity(rows.len());
@@ -306,13 +327,14 @@ impl State {
             tokens.push(token);
         }
         self.tokens = admitted;
+        self.home = Some(snapshot.home.clone());
         self.items = Some(snapshot);
         self.item_tokens = Arc::new(tokens);
         self.item_phase = Freshness::Online;
         self.clear_read_notice_if_online();
         if let Some(selected) = self.selected_item.clone() {
             if let Some((row, target)) = self.current_item(&selected) {
-                let text = row.value.summary.clone();
+                let text = row.content().summary().as_str().to_owned();
                 if self.reload_draft {
                     self.drafts.remove(&selected);
                     self.reload_draft = false;
@@ -336,7 +358,7 @@ impl State {
         }
         self.advance()
     }
-    pub fn current_item(&self, key: &ItemKey) -> Option<(Arc<wire::ItemSnapshot>, ItemTarget)> {
+    pub fn current_item(&self, key: &ItemKey) -> Option<(Arc<TaskResource>, ItemTarget)> {
         let snapshot = self.items.as_ref()?;
         let CapturedRows::Items { list, rows } = &snapshot.rows else {
             return None;
@@ -344,18 +366,15 @@ impl State {
         if list != key.list() {
             return None;
         }
-        let row = rows
-            .iter()
-            .find(|row| row.uid.value == key.uid().as_str())?
-            .clone();
+        let row = rows.iter().find(|row| row.key() == key)?.clone();
         let ListReadMetadata::List(metadata) = &snapshot.metadata else {
             return None;
         };
-        let list = ListRevision::new(list.clone(), metadata.revision.number).ok()?;
-        let revision = ItemRevision::new(key.clone(), row.revision.number).ok()?;
+        let list = metadata.revision().clone();
+        let revision = row.revision().clone();
         Some((row, ItemTarget::new(list, revision).ok()?))
     }
-    pub fn selected_target(&self) -> Option<(Arc<wire::ItemSnapshot>, ItemTarget)> {
+    pub fn selected_target(&self) -> Option<(Arc<TaskResource>, ItemTarget)> {
         self.current_item(self.selected_item.as_ref()?)
     }
     fn clear_read_notice_if_online(&mut self) {
@@ -463,7 +482,7 @@ impl State {
         {
             return Err(Refusal::Stale);
         }
-        let list_revision = || -> Result<ListRevision, Refusal> {
+        let list_revision = || -> Result<TaskListRevision, Refusal> {
             if self.item_phase != Freshness::Online {
                 return Err(Refusal::Stale);
             }
@@ -471,11 +490,7 @@ impl State {
             else {
                 return Err(Refusal::Stale);
             };
-            ListRevision::new(
-                list.id.value.parse().map_err(|_| Refusal::Invalid)?,
-                list.revision.number,
-            )
-            .map_err(|_| Refusal::Invalid)
+            Ok(list.revision().clone())
         };
         let target = || {
             self.selected_target()
@@ -495,9 +510,13 @@ impl State {
             | Write::MoveDown => None,
         };
         let (kind, intent) = match write {
-            Write::Create(name) if self.catalog_phase == Freshness::Online => {
-                (WriteKind::Create, ListWriteIntent::Create { name })
-            }
+            Write::Create(name) if self.catalog_phase == Freshness::Online => (
+                WriteKind::Create,
+                ListWriteIntent::Create {
+                    home: self.catalog.as_ref().ok_or(Refusal::Stale)?.home.clone(),
+                    name,
+                },
+            ),
             Write::Create(_) => return Err(Refusal::Stale),
             Write::Rename(name) => (
                 WriteKind::Rename,
@@ -510,17 +529,19 @@ impl State {
                 WriteKind::DeleteList,
                 ListWriteIntent::DeleteList {
                     revision: list_revision()?,
+                    force: false,
                 },
             ),
             Write::Add(summary) => (
                 WriteKind::Add,
                 ListWriteIntent::Add {
                     revision: list_revision()?,
-                    payload: wire::ItemPayload {
-                        summary,
-                        completed: Some(false),
-                        ..Default::default()
-                    },
+                    payload: TaskContent::new(
+                        TaskText::try_from(summary.as_str()).map_err(|_| Refusal::Invalid)?,
+                        false,
+                        None,
+                        TaskDue::None,
+                    ),
                 },
             ),
             Write::Save => {
@@ -530,8 +551,9 @@ impl State {
                 if self.item_phase != Freshness::Online || draft.phase != DraftPhase::Editing {
                     return Err(Refusal::Stale);
                 }
-                let mut payload = row.value.as_option().ok_or(Refusal::Invalid)?.clone();
-                payload.summary = draft.text.clone();
+                let payload = row.content().with_summary(
+                    TaskText::try_from(draft.text.as_str()).map_err(|_| Refusal::Invalid)?,
+                );
                 (
                     WriteKind::Save,
                     ListWriteIntent::Edit {
@@ -560,7 +582,7 @@ impl State {
                 };
                 let index = rows
                     .iter()
-                    .position(|row| row.uid.value == target.key().uid().as_str())
+                    .position(|row| row.key() == target.key())
                     .ok_or(Refusal::Stale)?;
                 let after = match write {
                     Write::MoveFirst => None,
@@ -661,8 +683,14 @@ impl State {
                 self.notice =
                     "Access changed. Private data was removed; no writes will be replayed.";
             }
-            ListWriteOutcome::Rejected(_) => {
-                self.notice = "Change rejected by the server. It has not been reported as saved."
+            ListWriteOutcome::Rejected(Rejection::HasChildren) => {
+                self.notice =
+                    "This list contains tasks. Delete its tasks before deleting the list.";
+            }
+            ListWriteOutcome::Rejected(
+                Rejection::Invalid | Rejection::NotFound | Rejection::Capacity,
+            ) => {
+                self.notice = "Change rejected by the server. It has not been reported as saved.";
             }
             ListWriteOutcome::NotSent(_) => self.notice = "Change not sent: the context changed.",
         }

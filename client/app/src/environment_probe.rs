@@ -10,7 +10,7 @@ use home_client_cache::{
 };
 use home_client_session::{SecureStore, SessionCoordinator, StoreFailure};
 use home_client_transport::Connection;
-use home_wire_contract::home::{environment::v1 as env, state::v1 as state};
+use home_wire_contract::home::api::v2 as env;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
@@ -136,34 +136,63 @@ impl Queue {
         .map_err(|_| "cache projection timed out")?
     }
 }
+fn capabilities(view: &CachedView) -> impl Iterator<Item = &env::Capability> {
+    view.entities()
+        .flat_map(|(_, entity)| entity.capabilities.iter())
+}
 fn private(view: &CachedView) -> bool {
-    view.entities().any(|(_, entity)| {
+    capabilities(view).any(|capability| {
         matches!(
-            entity.state.value,
-            Some(state::observed_state::Value::PresenceDetails(_))
+            capability.r#trait,
+            Some(env::capability::Trait::PresenceDetails(_))
         )
     })
 }
 fn weather(view: &CachedView) -> Option<&env::WeatherValue> {
-    view.entities().find_map(|(_, entity)| {
-        if let Some(state::observed_state::Value::Weather(value)) = entity.state.value.as_ref() {
-            Some(value.as_ref())
-        } else {
-            None
-        }
+    capabilities(view).find_map(|capability| match capability.r#trait.as_ref()? {
+        env::capability::Trait::Weather(value) => value.observation.value.as_option(),
+        _ => None,
+    })
+}
+fn solar_events(view: &CachedView) -> impl Iterator<Item = &env::SolarEventValue> {
+    capabilities(view).filter_map(|capability| match capability.r#trait.as_ref()? {
+        env::capability::Trait::SolarEvent(value) => value.observation.value.as_option(),
+        _ => None,
     })
 }
 fn solar_instant(view: &CachedView) -> Option<(i64, i32)> {
-    view.entities().find_map(|(_, entity)| {
-        if let Some(state::observed_state::Value::SolarEvent(value)) = entity.state.value.as_ref()
-            && let Some(home_wire_contract::home::solar::v1::solar_occurrence::Occurrence::At(at)) =
-                value.occurrence.occurrence.as_ref()
-        {
-            Some((at.seconds, at.nanos))
-        } else {
-            None
-        }
+    solar_events(view).find_map(|value| match value.occurrence.occurrence.as_ref()? {
+        env::solar_occurrence::Occurrence::EventTime(at) => Some((at.seconds, at.nanos)),
+        env::solar_occurrence::Occurrence::Absent(_) => None,
     })
+}
+fn all_stale(view: &CachedView) -> bool {
+    capabilities(view).next().is_some()
+        && capabilities(view).all(|capability| {
+            crate::device_view::observation::evidence(capability)
+                .and_then(|(quality, _)| quality)
+                .is_some_and(|quality| quality.freshness == env::Freshness::Stale)
+        })
+}
+fn all_missing(view: &CachedView) -> bool {
+    // This fixture deliberately exposes only these four observation traits.
+    // An unexpected trait cannot make the missing-value assertion pass.
+    capabilities(view).next().is_some()
+        && capabilities(view).all(|capability| match capability.r#trait.as_ref() {
+            Some(env::capability::Trait::Weather(value)) => {
+                value.observation.value.as_option().is_none()
+            }
+            Some(env::capability::Trait::Presence(value)) => {
+                value.observation.value.as_option().is_none()
+            }
+            Some(env::capability::Trait::PresenceDetails(value)) => {
+                value.observation.value.as_option().is_none()
+            }
+            Some(env::capability::Trait::SolarEvent(value)) => {
+                value.observation.value.as_option().is_none()
+            }
+            _ => false,
+        })
 }
 async fn snapshot(
     connection: &Connection,
@@ -171,7 +200,15 @@ async fn snapshot(
     cancel: &CancellationToken,
 ) -> Result<CachedView> {
     let lease = admit(session.access(cancel).await)?;
-    Ok(read_snapshot(&connection.state(), &lease, Filter::all(), 1, cancel).await?)
+    Ok(read_snapshot(
+        &connection.entity_views(),
+        &connection.home(),
+        &lease,
+        Filter::all(),
+        1,
+        cancel,
+    )
+    .await?)
 }
 async fn layout(
     connection: &Connection,
@@ -275,7 +312,8 @@ async fn run(fixture: Fixture) -> Result<()> {
     let target = queue.clone();
     let (owner, mut events) = CacheOwner::start(
         session.clone(),
-        connection.state(),
+        connection.entity_views(),
+        connection.home(),
         Filter::all(),
         |phase, view, _| Snapshot {
             phase,
@@ -294,24 +332,17 @@ async fn run(fixture: Fixture) -> Result<()> {
         .await?;
     let mut controls = Controls::default();
     controls.send(Control::Stale).await?;
-    let stale =
-        queue
-            .until(|p| {
-                p.view.as_ref().and_then(weather).is_some_and(|v| {
-                    v.forecast.valid_until.seconds < chrono::Utc::now().timestamp()
-                }) && p.view.as_ref().is_some_and(|v| {
-                    v.entities()
-                        .all(|(_, e)| e.state.quality.freshness == state::Freshness::Stale)
-                })
-            })
-            .await?;
-    assert!(
-        stale
-            .view
-            .unwrap()
-            .entities()
-            .all(|(_, e)| e.state.quality.freshness == state::Freshness::Stale)
-    );
+    let stale = queue
+        .until(|p| {
+            p.view.as_ref().and_then(weather).is_some_and(|v| {
+                v.forecast
+                    .expire_time
+                    .as_option()
+                    .is_some_and(|time| time.seconds < chrono::Utc::now().timestamp())
+            }) && p.view.as_ref().is_some_and(|v| all_stale(v))
+        })
+        .await?;
+    assert!(all_stale(stale.view.as_ref().unwrap()));
     controls.send(Control::Unknown).await?;
     queue
         .until(|p| {
@@ -322,7 +353,18 @@ async fn run(fixture: Fixture) -> Result<()> {
         })
         .await?;
     controls.send(Control::Absent).await?;
-    let absent=queue.until(|p|p.view.as_ref().is_some_and(|v|v.entities().any(|(_,e)|if let Some(state::observed_state::Value::SolarEvent(value))=e.state.value.as_ref(){matches!(value.occurrence.occurrence,Some(home_wire_contract::home::solar::v1::solar_occurrence::Occurrence::Absent(_)))}else{false}))).await?;
+    let absent = queue
+        .until(|projection| {
+            projection.view.as_ref().is_some_and(|view| {
+                solar_events(view).any(|value| {
+                    matches!(
+                        value.occurrence.occurrence,
+                        Some(env::solar_occurrence::Occurrence::Absent(_))
+                    )
+                })
+            })
+        })
+        .await?;
     let absent_projection = store.project(CachePhase::Live, absent.view.as_ref(), &request);
     let solar = absent_projection
         .native_devices
@@ -338,11 +380,7 @@ async fn run(fixture: Fixture) -> Result<()> {
     );
     controls.send(Control::Missing).await?;
     queue
-        .until(|p| {
-            p.view
-                .as_ref()
-                .is_some_and(|v| v.entities().all(|(_, e)| e.state.value.is_none()))
-        })
+        .until(|p| p.view.as_ref().is_some_and(all_missing))
         .await?;
     controls.send(Control::Nominal).await?;
     queue
@@ -405,13 +443,18 @@ async fn run(fixture: Fixture) -> Result<()> {
         solar_instant(resumed.view.as_ref().unwrap()),
         Some(before_suspend)
     );
-    assert!(resumed.view.as_ref().unwrap().entities().any(|(_, e)| {
-        if let Some(state::observed_state::Value::Presence(value)) = e.state.value.as_ref() {
-            value.residence == env::Residence::Home
-        } else {
-            false
-        }
-    }));
+    assert!(
+        capabilities(resumed.view.as_ref().unwrap()).any(|capability| {
+            match capability.r#trait.as_ref() {
+                Some(env::capability::Trait::Presence(value)) => value
+                    .observation
+                    .value
+                    .as_option()
+                    .is_some_and(|value| value.residence == env::Residence::Home),
+                _ => false,
+            }
+        })
+    );
     controls.send(Control::Outage).await?;
     let offline = queue
         .until(|p| p.phase == CachePhase::Offline && p.view.as_ref().is_some_and(private))
@@ -426,7 +469,10 @@ async fn run(fixture: Fixture) -> Result<()> {
         .until(|p| {
             p.phase == CachePhase::Live
                 && p.view.as_ref().and_then(weather).is_some_and(|v| {
-                    v.forecast.valid_until.seconds > chrono::Utc::now().timestamp()
+                    v.forecast
+                        .expire_time
+                        .as_option()
+                        .is_some_and(|time| time.seconds > chrono::Utc::now().timestamp())
                 })
         })
         .await?;

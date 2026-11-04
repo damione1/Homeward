@@ -3,13 +3,13 @@
 use crate::dashboard::LayoutFailure;
 use buffa::EnumValue;
 use home_client_model::{
-    EntityId,
-    calendars::CalendarId,
-    dashboard::{DashboardId, Destination, NodeId, Presentation},
-    lists::ListId,
+    api::{CapabilityName, DashboardName, EntityName},
+    api_calendars::CalendarName,
+    api_tasks::TaskListName,
+    dashboard::{Destination, Literal, NodeId, Presentation},
     local_time::DisplayTimeZone,
 };
-use home_wire_contract::home::dashboard::v1 as wire;
+use home_wire_contract::home::api::v2 as wire;
 use std::collections::BTreeSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,48 +22,48 @@ pub(crate) enum FieldKey {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Field {
-    pub entity: EntityId,
+    pub entity: EntityName,
+    pub capability: CapabilityName,
     pub key: FieldKey,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Observation {
     pub field: Field,
     pub label: String,
-    pub active_states: Vec<String>,
-    pub icon: wire::NativeIcon,
+    pub active_states: Vec<Literal>,
+    pub icon: wire::DashboardIcon,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Content {
     ClockWeather {
         zone: DisplayTimeZone,
-        weather: Option<EntityId>,
+        weather: Option<CapabilityName>,
     },
     Room {
         room: crate::dashboard::RoomId,
         temperature: Option<Field>,
-        activity: Vec<EntityId>,
-        active_states: Vec<String>,
+        activity: Vec<Activity>,
     },
     Thermostat {
-        entity: EntityId,
+        entity: EntityName,
         current: Field,
         target: Field,
         detailed: bool,
         summary_only: bool,
     },
     Agenda {
-        calendar: CalendarId,
+        calendar: CalendarName,
         zone: DisplayTimeZone,
         window_seconds: u32,
         limit: usize,
     },
     Tasks {
-        list: ListId,
+        list: TaskListName,
         limit: usize,
         shopping_only: bool,
     },
     Security {
-        entities: Vec<EntityId>,
+        capabilities: Vec<CapabilityName>,
     },
     Observations {
         items: Vec<Observation>,
@@ -87,31 +87,37 @@ pub(crate) struct Binding {
     pub config: Widget,
 }
 impl Widget {
-    pub fn entities(&self) -> Vec<&EntityId> {
+    pub fn entities(&self) -> Vec<EntityName> {
         match &self.content {
-            Content::ClockWeather { weather, .. } => weather.iter().collect(),
+            Content::ClockWeather { weather, .. } => {
+                weather.iter().map(CapabilityName::entity).collect()
+            }
             Content::Room {
                 temperature,
                 activity,
                 ..
             } => temperature
                 .iter()
-                .map(|f| &f.entity)
-                .chain(activity.iter())
+                .map(|f| f.entity.clone())
+                .chain(activity.iter().map(|a| a.field.entity.clone()))
                 .collect(),
             Content::Thermostat {
                 entity,
                 current,
                 target,
                 ..
-            } => vec![entity, &current.entity, &target.entity],
-            Content::Security { entities } => entities.iter().collect(),
+            } => vec![
+                entity.clone(),
+                current.entity.clone(),
+                target.entity.clone(),
+            ],
+            Content::Security { capabilities } => {
+                capabilities.iter().map(CapabilityName::entity).collect()
+            }
             Content::Observations { items } => {
-                items.iter().map(|item| &item.field.entity).collect()
+                items.iter().map(|i| i.field.entity.clone()).collect()
             }
-            Content::Agenda { .. } | Content::Tasks { .. } | Content::Navigation { .. } => {
-                Vec::new()
-            }
+            _ => Vec::new(),
         }
     }
     pub fn destination(&self) -> Option<&Destination> {
@@ -136,7 +142,7 @@ impl Widget {
             } => usize::from(temperature.is_some()) + activity.len(),
             Content::Thermostat { .. } => 3,
             Content::Agenda { .. } | Content::Tasks { .. } => 1,
-            Content::Security { entities } => entities.len(),
+            Content::Security { capabilities } => capabilities.len(),
             Content::Observations { items } => items.len(),
             Content::Navigation { .. } => 0,
         }
@@ -150,85 +156,73 @@ fn text(value: &str, maximum: usize, empty: bool) -> Result<(), LayoutFailure> {
         Ok(())
     }
 }
-fn entity(value: &str) -> Result<EntityId, LayoutFailure> {
-    text(value, 4096, false)?;
-    value.parse().map_err(|_| LayoutFailure::Invalid)
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Activity {
+    pub field: Field,
+    pub active_states: Vec<Literal>,
 }
-fn field(value: &wire::NativeFieldBinding) -> Result<Field, LayoutFailure> {
-    if !value.__buffa_unknown_fields.is_empty() {
-        return Err(LayoutFailure::Unsupported);
-    }
-    let key = match value.field_key.as_str() {
-        "state" => FieldKey::State,
-        "value" => FieldKey::Value,
-        "current_temperature_celsius" => FieldKey::CurrentTemperature,
-        "setpoint_celsius" => FieldKey::Setpoint,
-        "measurement" => FieldKey::Measurement,
-        _ => return Err(LayoutFailure::Unsupported),
+fn entity(value: &str) -> Result<EntityName, LayoutFailure> {
+    EntityName::try_from(value).map_err(|_| LayoutFailure::Invalid)
+}
+fn capability(value: &str) -> Result<CapabilityName, LayoutFailure> {
+    CapabilityName::try_from(value).map_err(|_| LayoutFailure::Invalid)
+}
+fn field(value: &wire::DashboardFieldBinding) -> Result<Field, LayoutFailure> {
+    let parsed = home_wire_contract::dashboard_contract::decode_field(value)
+        .map_err(|_| LayoutFailure::Unsupported)?;
+    let key = match parsed.field {
+        home_client_model::dashboard::FieldKey::State => FieldKey::State,
+        home_client_model::dashboard::FieldKey::Value => FieldKey::Value,
+        home_client_model::dashboard::FieldKey::CurrentTemperature => FieldKey::CurrentTemperature,
+        home_client_model::dashboard::FieldKey::Setpoint => FieldKey::Setpoint,
+        home_client_model::dashboard::FieldKey::Measurement => FieldKey::Measurement,
     };
     Ok(Field {
-        entity: entity(&value.entity_id)?,
+        entity: parsed.capability.entity(),
+        capability: parsed.capability,
         key,
     })
 }
-fn entities(values: &[String], maximum: usize) -> Result<Vec<EntityId>, LayoutFailure> {
-    if values.len() > maximum {
+fn states(values: &[wire::DashboardLiteral]) -> Result<Vec<Literal>, LayoutFailure> {
+    if values.len() > 64 {
         return Err(LayoutFailure::Budget);
-    }
-    let result = values
-        .iter()
-        .map(|value| entity(value))
-        .collect::<Result<Vec<_>, _>>()?;
-    let unique = result.iter().collect::<BTreeSet<_>>();
-    if unique.len() != result.len() {
-        return Err(LayoutFailure::Invalid);
+    };
+    let mut result = Vec::new();
+    for value in values {
+        let value = home_wire_contract::dashboard_contract::decode_literal(value)
+            .map_err(|_| LayoutFailure::Unsupported)?;
+        if result.contains(&value) {
+            return Err(LayoutFailure::Invalid);
+        };
+        result.push(value)
     }
     Ok(result)
 }
-fn states(values: &[String]) -> Result<Vec<String>, LayoutFailure> {
-    if values.len() > 64 {
-        return Err(LayoutFailure::Budget);
-    }
-    let mut seen = BTreeSet::new();
-    for value in values {
-        text(value, 256, false)?;
-        if !seen.insert(value) {
-            return Err(LayoutFailure::Invalid);
-        }
-    }
-    Ok(values.to_vec())
-}
-pub(crate) fn destination(value: &wire::NativeDestination) -> Result<Destination, LayoutFailure> {
+pub(crate) fn destination(
+    value: &wire::DashboardDestination,
+) -> Result<Destination, LayoutFailure> {
     if !value.__buffa_unknown_fields.is_empty() {
         return Err(LayoutFailure::Unsupported);
-    }
-    let dashboard = value
-        .dashboard_id
-        .as_option()
-        .ok_or(LayoutFailure::Invalid)?;
-    if !dashboard.__buffa_unknown_fields.is_empty() {
-        return Err(LayoutFailure::Unsupported);
-    }
+    };
     let presentation = match value.presentation {
-        EnumValue::Known(wire::NativePresentation::Page) => Presentation::Page,
-        EnumValue::Known(wire::NativePresentation::Popup) => Presentation::Popup,
-        EnumValue::Known(wire::NativePresentation::Unspecified) | EnumValue::Unknown(_) => {
-            return Err(LayoutFailure::Unsupported);
-        }
+        EnumValue::Known(wire::DashboardPresentation::Page) => Presentation::Page,
+        EnumValue::Known(wire::DashboardPresentation::Popup) => Presentation::Popup,
+        _ => return Err(LayoutFailure::Unsupported),
     };
     Ok(Destination {
-        dashboard: DashboardId::parse(&dashboard.value).map_err(|_| LayoutFailure::Invalid)?,
+        dashboard: DashboardName::try_from(value.dashboard.as_str())
+            .map_err(|_| LayoutFailure::Invalid)?,
         node: NodeId::parse(&value.node_id).map_err(|_| LayoutFailure::Invalid)?,
         presentation,
     })
 }
-impl TryFrom<&wire::NativeWidget> for Widget {
+impl TryFrom<&wire::DashboardWidget> for Widget {
     type Error = LayoutFailure;
-    fn try_from(value: &wire::NativeWidget) -> Result<Self, Self::Error> {
-        use wire::native_widget::Content as W;
+    fn try_from(value: &wire::DashboardWidget) -> Result<Self, Self::Error> {
+        use wire::dashboard_widget::Content as W;
         if !value.__buffa_unknown_fields.is_empty() {
             return Err(LayoutFailure::Unsupported);
-        }
+        };
         text(&value.action_label, 256, true)?;
         text(&value.empty_label, 4096, true)?;
         let action = value.action.as_option().map(destination).transpose()?;
@@ -236,41 +230,62 @@ impl TryFrom<&wire::NativeWidget> for Widget {
             W::ClockWeather(v) => {
                 if !v.__buffa_unknown_fields.is_empty() {
                     return Err(LayoutFailure::Unsupported);
-                }
+                };
                 Content::ClockWeather {
-                    zone: v.timezone.parse().map_err(|_| LayoutFailure::Unsupported)?,
-                    weather: (!v.weather_entity_id.is_empty())
-                        .then(|| entity(&v.weather_entity_id))
-                        .transpose()?,
+                    zone: v
+                        .time_zone
+                        .parse()
+                        .map_err(|_| LayoutFailure::Unsupported)?,
+                    weather: if v.weather_capability.is_empty() {
+                        None
+                    } else {
+                        Some(capability(&v.weather_capability)?)
+                    },
                 }
             }
             W::Room(v) => {
                 if !v.__buffa_unknown_fields.is_empty() {
                     return Err(LayoutFailure::Unsupported);
-                }
+                };
+                if v.activity.len() > 4096 {
+                    return Err(LayoutFailure::Budget);
+                };
                 let temperature = v.temperature.as_option().map(field).transpose()?;
                 if temperature.as_ref().is_some_and(|f| {
                     !matches!(f.key, FieldKey::CurrentTemperature | FieldKey::Measurement)
                 }) {
                     return Err(LayoutFailure::Unsupported);
-                }
-                let activity = entities(&v.activity_entity_ids, 4096)?;
-                let active_states = states(&v.active_states)?;
-                if !activity.is_empty() && active_states.is_empty() {
-                    return Err(LayoutFailure::Invalid);
+                };
+                let mut activity = Vec::new();
+                let mut seen = BTreeSet::new();
+                for item in &v.activity {
+                    if !item.__buffa_unknown_fields.is_empty() {
+                        return Err(LayoutFailure::Unsupported);
+                    };
+                    let field = field(item.field.as_option().ok_or(LayoutFailure::Invalid)?)?;
+                    if !seen.insert(field.capability.clone()) {
+                        return Err(LayoutFailure::Invalid);
+                    };
+                    let active_states = states(&item.active_values)?;
+                    if active_states.is_empty() {
+                        return Err(LayoutFailure::Invalid);
+                    };
+                    activity.push(Activity {
+                        field,
+                        active_states,
+                    })
                 }
                 Content::Room {
                     room: crate::dashboard::RoomId::parse(&v.room_id)?,
                     temperature,
                     activity,
-                    active_states,
                 }
             }
             W::Thermostat(v) => {
                 if !v.__buffa_unknown_fields.is_empty() {
                     return Err(LayoutFailure::Unsupported);
-                }
-                let entity = entity(&v.entity_id)?;
+                };
+                let entity = entity(&v.entity)?;
                 let current = field(
                     v.current_temperature
                         .as_option()
@@ -287,91 +302,116 @@ impl TryFrom<&wire::NativeWidget> for Widget {
                     || target.key != FieldKey::Setpoint
                 {
                     return Err(LayoutFailure::Invalid);
-                }
+                };
+                let (detailed, summary_only) = match v.presentation {
+                    EnumValue::Known(wire::DashboardThermostatPresentation::Compact) => {
+                        (false, false)
+                    }
+                    EnumValue::Known(wire::DashboardThermostatPresentation::Detail) => {
+                        (true, false)
+                    }
+                    EnumValue::Known(wire::DashboardThermostatPresentation::Summary) => {
+                        (false, true)
+                    }
+                    _ => return Err(LayoutFailure::Unsupported),
+                };
                 Content::Thermostat {
                     entity,
                     current,
                     target,
-                    detailed: match v.presentation {
-                        EnumValue::Known(wire::NativeThermostatPresentation::Compact) => false,
-                        EnumValue::Known(wire::NativeThermostatPresentation::Detail) => true,
-                        EnumValue::Known(wire::NativeThermostatPresentation::Summary) => false,
-                        EnumValue::Unknown(_) => return Err(LayoutFailure::Unsupported),
-                    },
-                    summary_only: v.presentation == wire::NativeThermostatPresentation::Summary,
+                    detailed,
+                    summary_only,
                 }
             }
             W::Agenda(v) => {
                 if !v.__buffa_unknown_fields.is_empty() {
                     return Err(LayoutFailure::Unsupported);
-                }
-                if !(1..=1000).contains(&v.limit) || !(1..=31_622_400).contains(&v.window_seconds) {
+                };
+                let duration = v.time_window.as_option().ok_or(LayoutFailure::Invalid)?;
+                if !(1..=1000).contains(&v.limit)
+                    || !(1..=31_622_400).contains(&duration.seconds)
+                    || duration.nanos != 0
+                    || !duration.__buffa_unknown_fields.is_empty()
+                {
                     return Err(LayoutFailure::Budget);
-                }
+                };
                 Content::Agenda {
-                    calendar: CalendarId::new(entity(&v.calendar_id)?),
-                    zone: v.timezone.parse().map_err(|_| LayoutFailure::Unsupported)?,
-                    window_seconds: v.window_seconds,
+                    calendar: CalendarName::try_from(v.calendar.as_str())
+                        .map_err(|_| LayoutFailure::Invalid)?,
+                    zone: v
+                        .time_zone
+                        .parse()
+                        .map_err(|_| LayoutFailure::Unsupported)?,
+                    window_seconds: duration.seconds as u32,
                     limit: v.limit as usize,
                 }
             }
             W::Tasks(v) => {
                 if !v.__buffa_unknown_fields.is_empty() {
                     return Err(LayoutFailure::Unsupported);
-                }
+                };
                 if !(1..=1000).contains(&v.limit) {
                     return Err(LayoutFailure::Budget);
-                }
+                };
+                let shopping_only = match v.presentation {
+                    EnumValue::Known(wire::DashboardTasksPresentation::Preview) => false,
+                    EnumValue::Known(wire::DashboardTasksPresentation::Shopping) => true,
+                    _ => return Err(LayoutFailure::Unsupported),
+                };
                 Content::Tasks {
-                    list: v.list_id.parse().map_err(|_| LayoutFailure::Invalid)?,
+                    list: TaskListName::try_from(v.task_list.as_str())
+                        .map_err(|_| LayoutFailure::Invalid)?,
                     limit: v.limit as usize,
-                    shopping_only: match v.presentation {
-                        EnumValue::Known(wire::NativeTasksPresentation::Preview) => false,
-                        EnumValue::Known(wire::NativeTasksPresentation::Shopping) => true,
-                        EnumValue::Unknown(_) => return Err(LayoutFailure::Unsupported),
-                    },
+                    shopping_only,
                 }
             }
             W::Security(v) => {
                 if !v.__buffa_unknown_fields.is_empty() {
                     return Err(LayoutFailure::Unsupported);
-                }
-                Content::Security {
-                    entities: entities(&v.entity_ids, 64)?,
-                }
+                };
+                if v.capabilities.len() > 64 {
+                    return Err(LayoutFailure::Budget);
+                };
+                let capabilities = v
+                    .capabilities
+                    .iter()
+                    .map(|v| capability(v))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if capabilities.iter().collect::<BTreeSet<_>>().len() != capabilities.len() {
+                    return Err(LayoutFailure::Invalid);
+                };
+                Content::Security { capabilities }
             }
             W::Observations(v) => {
                 if !v.__buffa_unknown_fields.is_empty() {
                     return Err(LayoutFailure::Unsupported);
-                }
+                };
                 if v.items.len() > 64 {
                     return Err(LayoutFailure::Budget);
-                }
-                let items = v
-                    .items
-                    .iter()
-                    .map(|item| {
-                        if !item.__buffa_unknown_fields.is_empty() {
-                            return Err(LayoutFailure::Unsupported);
-                        }
-                        text(&item.label, 256, false)?;
-                        Ok(Observation {
-                            field: field(item.field.as_option().ok_or(LayoutFailure::Invalid)?)?,
-                            label: item.label.clone(),
-                            active_states: states(&item.active_states)?,
-                            icon: match item.icon {
-                                EnumValue::Known(icon) => icon,
-                                EnumValue::Unknown(_) => return Err(LayoutFailure::Unsupported),
-                            },
-                        })
+                };
+                let mut items = Vec::new();
+                for item in &v.items {
+                    if !item.__buffa_unknown_fields.is_empty() {
+                        return Err(LayoutFailure::Unsupported);
+                    };
+                    text(&item.label, 256, false)?;
+                    let icon = match item.icon {
+                        EnumValue::Known(v) => v,
+                        _ => return Err(LayoutFailure::Unsupported),
+                    };
+                    items.push(Observation {
+                        field: field(item.field.as_option().ok_or(LayoutFailure::Invalid)?)?,
+                        label: item.label.clone(),
+                        active_states: states(&item.active_values)?,
+                        icon,
                     })
-                    .collect::<Result<Vec<_>, LayoutFailure>>()?;
+                }
                 Content::Observations { items }
             }
             W::Navigation(v) => {
                 if !v.__buffa_unknown_fields.is_empty() {
                     return Err(LayoutFailure::Unsupported);
-                }
+                };
                 Content::Navigation {
                     destination: destination(
                         v.destination.as_option().ok_or(LayoutFailure::Invalid)?,

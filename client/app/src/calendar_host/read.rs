@@ -1,5 +1,6 @@
 use super::*;
 use home_client_cache::calendars::{CalendarReadEvent, CalendarReadExit, read_calendar_once};
+use home_client_model::{api::HomeName, calendars::CalendarId};
 use home_client_session::Generation;
 use home_client_transport::{Failure, FailureKind, RpcCode};
 use std::time::Duration;
@@ -10,34 +11,51 @@ fn failure_status(error: &Failure) -> Status {
     if !matches!(error.authorization_termination(), Ok(None)) {
         return Status::Denied;
     }
-    match error.kind() {
-        FailureKind::Rpc(RpcCode::PermissionDenied | RpcCode::Unauthenticated) => Status::Denied,
-        FailureKind::Rpc(RpcCode::Unimplemented) => Status::Unsupported,
-        FailureKind::Rpc(RpcCode::InvalidArgument | RpcCode::OutOfRange | RpcCode::DataLoss) => {
-            Status::Invalid
+    match error.api_failure() {
+        Err(_) => Status::Invalid,
+        Ok(Some(error)) => {
+            use wire::ApiErrorReason as R;
+            match error.reason() {
+                R::AccessDenied | R::AuthenticationRequired => Status::Denied,
+                R::MethodNotSupported => Status::Unsupported,
+                R::ServiceUnavailable | R::RequestDeadlineExceeded | R::RequestCancelled => {
+                    Status::Offline
+                }
+                R::ResourceNotFound
+                | R::CapabilityUnavailable
+                | R::ResyncRequired
+                | R::ConfigChanged
+                | R::TopologyChanged
+                | R::StatePreconditionFailed
+                | R::RateLimited
+                | R::RequestTooLarge
+                | R::StreamCapacity
+                | R::QueryBudgetExceeded => Status::Offline,
+                R::ValidationFailed
+                | R::ResourceAlreadyExists
+                | R::RequestIdReused
+                | R::EtagMismatch
+                | R::SourceReadOnly
+                | R::ConfigRestartRequired
+                | R::CommitOutcomeUnknown
+                | R::EffectOutcomeUnknown
+                | R::InternalFailure
+                | R::StoredDataIntegrity
+                | R::Unspecified => Status::Invalid,
+            }
         }
-        FailureKind::Rpc(
-            RpcCode::Canceled
-            | RpcCode::Unknown
-            | RpcCode::DeadlineExceeded
-            | RpcCode::NotFound
-            | RpcCode::AlreadyExists
-            | RpcCode::ResourceExhausted
-            | RpcCode::FailedPrecondition
-            | RpcCode::Aborted
-            | RpcCode::Internal
-            | RpcCode::Unavailable,
-        )
-        | FailureKind::InvalidConfiguration
-        | FailureKind::UntrustedCertificate
-        | FailureKind::WrongServerName
-        | FailureKind::TlsRejected
-        | FailureKind::NetworkInterrupted
-        | FailureKind::Deadline
-        | FailureKind::Cancelled => Status::Offline,
-        // connectrpc declares its RPC code non-exhaustive. Unknown wire values
-        // cannot establish a usable, commandable calendar projection.
-        FailureKind::Rpc(_) => Status::Invalid,
+        Ok(None) => {
+            if matches!(
+                error.kind(),
+                FailureKind::Rpc(RpcCode::PermissionDenied | RpcCode::Unauthenticated)
+            ) {
+                Status::Denied
+            } else if error.may_resume_read() {
+                Status::Offline
+            } else {
+                Status::Invalid
+            }
+        }
     }
 }
 impl Calendars {
@@ -105,9 +123,13 @@ impl Calendars {
                 return;
             }
         };
-        let response = api
-            .list_calendars(
-                wire::ListCalendarsRequest::default(),
+        let discovery = api
+            .home()
+            .list_homes(
+                wire::ListHomesRequest {
+                    page_size: 2,
+                    ..Default::default()
+                },
                 lease.token(),
                 TIMEOUT,
                 &cancel,
@@ -119,14 +141,16 @@ impl Calendars {
         {
             return;
         }
-        let catalog = match response {
-            Ok(response) => match admit::admit_catalog(&response) {
-                Ok(catalog) => catalog.wire().calendars.clone(),
-                Err(_) => {
-                    self.failed(context, Status::Invalid);
-                    return;
-                }
-            },
+        let home = match discovery {
+            Ok(homes)
+                if homes.__buffa_unknown_fields.is_empty()
+                    && homes.next_page_token.is_empty()
+                    && homes.homes.len() == 1
+                    && homes.homes[0].__buffa_unknown_fields.is_empty() =>
+            {
+                HomeName::try_from(homes.homes[0].name.as_str()).ok()
+            }
+            Ok(_) => None,
             Err(error) => {
                 let status = failure_status(&error);
                 let _ = session.observe_failure(lease.generation, &error).await;
@@ -134,6 +158,74 @@ impl Calendars {
                 return;
             }
         };
+        let Some(home) = home else {
+            self.failed(context, Status::Invalid);
+            return;
+        };
+        let mut catalog = Vec::new();
+        let mut names = std::collections::BTreeSet::new();
+        let mut tokens = std::collections::BTreeSet::new();
+        let mut page_token = String::new();
+        loop {
+            let response = api
+                .query_calendar_sources(
+                    wire::QueryCalendarSourcesRequest {
+                        parent: home.as_str().into(),
+                        page_size: 256,
+                        page_token: page_token.clone(),
+                        ..Default::default()
+                    },
+                    lease.token(),
+                    TIMEOUT,
+                    &cancel,
+                )
+                .await;
+            if cancel.is_cancelled()
+                || lease.cancellation.is_cancelled()
+                || !session.is_current(lease.generation)
+            {
+                return;
+            }
+            let page = match response {
+                Ok(page) => match admit::admit_sources(&page, &home) {
+                    Ok(value) => value,
+                    Err(_) => {
+                        self.failed(context, Status::Invalid);
+                        return;
+                    }
+                },
+                Err(error) => {
+                    let status = failure_status(&error);
+                    let _ = session.observe_failure(lease.generation, &error).await;
+                    self.failed(context, status);
+                    return;
+                }
+            };
+            if catalog
+                .len()
+                .saturating_add(page.wire().calendar_sources.len())
+                > 256
+                || tokens.len() >= 32
+            {
+                self.failed(context, Status::TooLarge);
+                return;
+            }
+            for source in &page.wire().calendar_sources {
+                if !names.insert(source.calendar.clone()) {
+                    self.failed(context, Status::Invalid);
+                    return;
+                }
+                catalog.push(source.clone());
+            }
+            page_token = page.wire().next_page_token.clone();
+            if page_token.is_empty() {
+                break;
+            }
+            if !tokens.insert(page_token.clone()) {
+                self.failed(context, Status::Invalid);
+                return;
+            }
+        }
         let mut state = self.0.state.lock().expect("calendar state");
         if state.context != context
             || cancel.is_cancelled()
@@ -145,19 +237,21 @@ impl Calendars {
         state.source = Some(lease.generation);
         state.catalog_needed = false;
         state.status = Status::Ready;
-        if !state
-            .catalog
-            .iter()
-            .any(|calendar| admit::calendar_id(&calendar.id).as_ref() == state.selected.as_ref())
-        {
-            state.selected = state
-                .catalog
-                .first()
-                .and_then(|calendar| admit::calendar_id(&calendar.id));
+        if state.selected_source().is_none() {
+            state.selected = if let Some(target) = &self.0.widget {
+                Some(target.calendar.native_id().clone())
+            } else {
+                state
+                    .catalog
+                    .first()
+                    .and_then(|source| CalendarName::try_from(source.calendar.as_str()).ok())
+                    .map(|name| name.native_id().clone())
+            };
             state.snapshot = None;
             state.draft = None;
-            state.reset_reads();
         }
+        self.pin_widget(&mut state);
+        state.reset_reads();
         if state.catalog.is_empty() {
             state.notice = "The server provided no authorized calendars.".into();
         }
@@ -192,6 +286,19 @@ impl Calendars {
                 CalendarReadEvent::Invalidated => {
                     state.ready = false;
                 }
+                CalendarReadEvent::NotMaterialized(name) => {
+                    if state.selected_name().as_ref() == Some(&name) {
+                        state.snapshot = None;
+                        state.ready = true;
+                        state.source = Some(lease.generation);
+                        state.status = Status::Ready;
+                        for source in &mut state.catalog {
+                            if source.calendar == name.as_str() {
+                                source.materialized = false;
+                            }
+                        }
+                    }
+                }
                 CalendarReadEvent::Published(snapshot) => {
                     state.snapshot(snapshot, lease.generation)
                 }
@@ -217,7 +324,8 @@ impl Calendars {
             CalendarReadExit::Contract(
                 admit::AdmissionError::Invalid
                 | admit::AdmissionError::ForeignResource
-                | admit::AdmissionError::StaleRevision
+                | admit::AdmissionError::StaleVersion
+                | admit::AdmissionError::ReadOnly
                 | admit::AdmissionError::Sequence,
             ) => self.failed(context, Status::Invalid),
             CalendarReadExit::Cancelled => {}
@@ -260,24 +368,30 @@ impl Calendars {
                 }
                 state.busy = false;
                 let phase = match outcome {
-                    CalendarWriteOutcome::Committed(receipt) => {
+                    CalendarWriteOutcome::Committed(result) => {
+                        use home_client_actions::calendars::ConfirmedMutation;
+                        match result.as_ref() {
+                            ConfirmedMutation::Calendar(resource) => {
+                                for source in &mut state.catalog {
+                                    if source.calendar == resource.wire().name {
+                                        source.materialized = true;
+                                    }
+                                }
+                            }
+                            ConfirmedMutation::DeletedCalendar(name) => {
+                                for source in &mut state.catalog {
+                                    if source.calendar == name.as_str() {
+                                        source.materialized = false;
+                                        source.mutation_access =
+                                            wire::CalendarMutationAccess::Denied.into();
+                                    }
+                                }
+                            }
+                            ConfirmedMutation::Event(_) | ConfirmedMutation::DeletedEvent(_) => {}
+                        }
                         state.draft = None;
-                        let revision = state
-                            .selected
-                            .as_ref()
-                            .and_then(|id| {
-                                admit::calendar_revision(&receipt.wire().calendar_revision, id)
-                            })
-                            .expect("admitted commit calendar revision");
-                        state.ready = state.snapshot.as_ref().is_some_and(|snapshot| {
-                            admit::calendar_revision(
-                                &snapshot.calendar().revision,
-                                revision.calendar(),
-                            )
-                            .is_some_and(|read| read.state().number() >= revision.state().number())
-                        });
-                        state.minimum_revision = Some(revision);
-                        state.bump();
+                        state.snapshot = None;
+                        state.reset_reads();
                         state.notice = "Change saved; reading the server again.".into();
                         None
                     }
@@ -289,13 +403,6 @@ impl Calendars {
                         state.uncertain = true;
                         state.notice="Save outcome unknown · no automatic resubmission. Reload explicitly before submitting another action.".into();
                         Some(EditPhase::Unknown)
-                    }
-                    CalendarWriteOutcome::CommittedResponseWithheld => {
-                        state.clear_private();
-                        state.status = Status::Denied;
-                        state.notice =
-                            "Change accepted; response withheld after permissions changed.".into();
-                        Some(EditPhase::Withheld)
                     }
                     CalendarWriteOutcome::AuthorityTerminated => {
                         state.clear_private();
@@ -330,9 +437,9 @@ impl Calendars {
                     }
                 };
                 let response = api
-                    .get_event(
-                        wire::GetEventRequest {
-                            key: event_key(&key).into(),
+                    .get_calendar_event(
+                        wire::GetCalendarEventRequest {
+                            name: key.as_str().into(),
                             ..Default::default()
                         },
                         lease.token(),
@@ -348,7 +455,7 @@ impl Calendars {
                 }
                 let value = match response {
                     Ok(response) if response.__buffa_unknown_fields.is_empty() => {
-                        match admit::admit_event(&response.event, &key) {
+                        match admit::admit_event(&response, &key) {
                             Ok(value) => value,
                             Err(_) => {
                                 self.failed(context, Status::Invalid);
@@ -361,6 +468,21 @@ impl Calendars {
                         return;
                     }
                     Err(error) => {
+                        if error.api_failure().ok().flatten().is_some_and(|failure| {
+                            failure.reason() == wire::ApiErrorReason::ResourceNotFound
+                        }) {
+                            let mut state = self.0.state.lock().expect("calendar state");
+                            if state.finish_read_job(context, generation) {
+                                if let Some(draft) = &mut state.draft {
+                                    draft.phase = EditPhase::Conflict;
+                                }
+                                state.notice = "This event is no longer available. Reload the calendar before editing.".into();
+                                state.reset_reads();
+                            }
+                            self.publish(&state);
+                            self.0.changed.notify_one();
+                            return;
+                        }
                         let status = failure_status(&error);
                         let _ = session.observe_failure(lease.generation, &error).await;
                         self.job_failed(context, status);
@@ -374,7 +496,7 @@ impl Calendars {
                 }
                 if state
                     .calendar()
-                    .is_none_or(|calendar| calendar.revision != value.wire().calendar_revision)
+                    .is_none_or(|calendar| calendar.etag != value.wire().calendar_etag)
                 {
                     state.notice = "The calendar revision changed; reload the range.".into();
                     state.reset_reads();
@@ -414,7 +536,7 @@ impl Calendars {
                     }
                 };
                 let response = api
-                    .resolve_local_time(request.clone(), lease.token(), TIMEOUT, &cancel)
+                    .resolve_calendar_time(request.clone(), lease.token(), TIMEOUT, &cancel)
                     .await;
                 if cancel.is_cancelled()
                     || lease.cancellation.is_cancelled()
@@ -556,8 +678,8 @@ impl Calendars {
                 _=tasks.join_next(),if !tasks.is_empty()=>{},
                 _=clock.tick()=>{let mut state=self.0.state.lock().expect("calendar state");if state.active&&state.status==Status::Offline{state.reset_reads();}
                     if state.active&&let Some(target)=&self.0.widget {
-                        let expired=state.query_override.as_ref().and_then(|query|query.window.as_option()).and_then(|window|match &window.bounds{Some(wire::window::Bounds::Times(span))=>chrono::DateTime::parse_from_rfc3339(&span.start_instant).ok(),Some(wire::window::Bounds::Dates(_))|None=>None}).is_none_or(|start|chrono::Utc::now().signed_duration_since(start).num_seconds()>=60);
-                        if expired {state.query_override=state::widget_query(target,chrono::Utc::now());state.reset_reads();}
+                        let expired=state.query_override.as_ref().and_then(|query|query.window.as_option()).and_then(|window|match &window.bounds{Some(wire::calendar_window::Bounds::Times(span))=>admit::timestamp_text(&span.start_time).ok().and_then(|value|chrono::DateTime::parse_from_rfc3339(&value).ok()),Some(wire::calendar_window::Bounds::Dates(_))|None=>None}).is_none_or(|start|chrono::Utc::now().signed_duration_since(start).num_seconds()>=60);
+                        if expired {state.query_override=state.selected_name().as_ref().and_then(|name|state::widget_query(target,name,chrono::Utc::now()));state.reset_reads();}
                     }
                     self.publish(&state);},
             }

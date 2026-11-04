@@ -11,7 +11,7 @@ use home_client_session::{AccessLease, SessionCoordinator};
 use home_client_transport::Connection;
 use home_wire_contract::{
     configuration_contract::{self, ConfigurationResponse},
-    home::configuration::v1 as wire,
+    home::api::v2 as wire,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -19,7 +19,7 @@ use super::{
     read::{PageToken, ReadError, TIMEOUT, call},
     render,
 };
-use crate::configuration::{Capture, DocumentId, Workspace};
+use crate::configuration::{Capture, DocumentName as DocumentId, Workspace};
 
 fn workspace_label(value: &Workspace) -> String {
     match value {
@@ -45,14 +45,14 @@ pub(super) struct Payload {
 }
 #[derive(Clone)]
 pub(super) enum Page {
-    Documents(wire::ListDocumentsResponse),
+    Documents(wire::ListConfigurationDocumentsResponse),
     Document(Box<Capture>),
     Versions {
         id: DocumentId,
-        response: wire::ListVersionsResponse,
+        response: wire::ListConfigurationRevisionsResponse,
     },
-    Schemas(wire::ListSchemasResponse),
-    Generations(wire::ListGenerationsResponse),
+    Schemas(wire::ListConfigurationSchemasResponse),
+    Generations(wire::ListConfigurationGenerationsResponse),
 }
 pub(super) async fn load(
     session: &SessionCoordinator,
@@ -62,31 +62,12 @@ pub(super) async fn load(
     page: Option<PageToken>,
     cancel: &CancellationToken,
 ) -> Result<Payload, ReadError> {
-    let page = wire::PageRequest {
-        page_size: 50,
-        page_token: page.map(|value| value.as_str().into()),
-        ..Default::default()
-    };
+    let parent = home_name(session, connection, lease, cancel).await?;
+    let page_token = page
+        .map(|value| value.as_str().to_string())
+        .unwrap_or_default();
     let api = connection.configuration();
-    let root = call!(
-        session,
-        lease,
-        cancel,
-        api.clone(),
-        read_document,
-        wire::ReadDocumentRequest {
-            id: wire::DocumentId {
-                value: "operational.main".into(),
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        }
-    );
-    let root = Capture::admit(root).map_err(|_| ReadError::Invalid)?;
-    if root.id().as_str() != "operational.main" {
-        return Err(ReadError::Invalid);
-    }
+    let root = operational_capture(session, connection, lease, cancel).await?;
     match selection {
         Selection::Documents => {
             let response = call!(
@@ -95,8 +76,10 @@ pub(super) async fn load(
                 cancel,
                 api,
                 list_documents,
-                wire::ListDocumentsRequest {
-                    page: page.into(),
+                wire::ListConfigurationDocumentsRequest {
+                    parent: parent.clone(),
+                    page_size: 50,
+                    page_token: page_token.clone(),
                     ..Default::default()
                 }
             );
@@ -124,8 +107,8 @@ pub(super) async fn load(
                     cancel,
                     api,
                     read_document,
-                    wire::ReadDocumentRequest {
-                        id: id.to_wire().into(),
+                    wire::GetConfigurationDocumentRequest {
+                        name: id.as_str().into(),
                         ..Default::default()
                     }
                 );
@@ -143,9 +126,10 @@ pub(super) async fn load(
                 cancel,
                 api,
                 list_versions,
-                wire::ListVersionsRequest {
-                    id: id.to_wire().into(),
-                    page: page.into(),
+                wire::ListConfigurationRevisionsRequest {
+                    parent: id.as_str().into(),
+                    page_size: 50,
+                    page_token: page_token.clone(),
                     ..Default::default()
                 }
             );
@@ -168,8 +152,10 @@ pub(super) async fn load(
                 cancel,
                 api,
                 list_schemas,
-                wire::ListSchemasRequest {
-                    page: page.into(),
+                wire::ListConfigurationSchemasRequest {
+                    parent: parent.clone(),
+                    page_size: 50,
+                    page_token: page_token.clone(),
                     ..Default::default()
                 }
             );
@@ -192,8 +178,10 @@ pub(super) async fn load(
                 cancel,
                 api,
                 list_generations,
-                wire::ListGenerationsRequest {
-                    page: page.into(),
+                wire::ListConfigurationGenerationsRequest {
+                    parent: parent.clone(),
+                    page_size: 50,
+                    page_token: page_token.clone(),
                     ..Default::default()
                 }
             );
@@ -215,14 +203,14 @@ pub(super) async fn load(
     .map(|page| Payload { root, page })
 }
 
-fn next(value: &wire::PageContinuation) -> Option<PageToken> {
-    match &value.result {
-        Some(wire::page_continuation::Result::NextPageToken(value)) => {
-            Some(PageToken::configuration(value).expect("admitted configuration cursor"))
-        }
-        Some(wire::page_continuation::Result::Complete(_)) | None => None,
+fn next(value: &str) -> Option<PageToken> {
+    if value.is_empty() {
+        None
+    } else {
+        Some(PageToken::configuration(value).expect("admitted configuration cursor"))
     }
 }
+
 pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
     let mut rows = Vec::new();
     let mut push = |target, title: String, detail: String| {
@@ -248,7 +236,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                 "Publication History and Restore Availability".into(),
             );
             for value in &value.documents {
-                let id = DocumentId::parse(&value.id.value).expect("admitted document");
+                let id = DocumentId::parse(&value.name).expect("admitted document");
                 push(
                     navigate(Selection::Document(id)),
                     value.id.value.clone(),
@@ -258,7 +246,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                     ),
                 );
             }
-            page = next(&value.continuation);
+            page = next(&value.next_page_token);
         }
         Page::Document(value) => {
             push(
@@ -338,7 +326,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                     format!("{detail}\n{}", render::hex(&value.version.source_sha256)),
                 );
             }
-            page = next(&response.continuation);
+            page = next(&response.next_page_token);
         }
         Page::Schemas(value) => {
             push(
@@ -361,7 +349,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                     ),
                 );
             }
-            page = next(&value.continuation);
+            page = next(&value.next_page_token);
         }
         Page::Generations(value) => {
             push(
@@ -391,8 +379,136 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                     ),
                 );
             }
-            page = next(&value.continuation);
+            page = next(&value.next_page_token);
         }
     }
     (rows, page)
+}
+
+pub(super) async fn home_name(
+    session: &SessionCoordinator,
+    connection: &Connection,
+    lease: &AccessLease,
+    cancel: &CancellationToken,
+) -> Result<String, ReadError> {
+    let homes = call!(
+        session,
+        lease,
+        cancel,
+        connection.home(),
+        list_homes,
+        wire::ListHomesRequest {
+            page_size: 1,
+            ..Default::default()
+        }
+    );
+    if homes.homes.len() != 1 || !homes.next_page_token.is_empty() {
+        return Err(ReadError::Invalid);
+    }
+    let name = homes.homes[0].name.clone();
+    if !configuration_contract::home_name(&name) {
+        return Err(ReadError::Invalid);
+    }
+    Ok(name)
+}
+pub(super) async fn operational_capture(
+    session: &SessionCoordinator,
+    connection: &Connection,
+    lease: &AccessLease,
+    cancel: &CancellationToken,
+) -> Result<Capture, ReadError> {
+    let parent = home_name(session, connection, lease, cancel).await?;
+    let mut token = String::new();
+    let mut found = None;
+    let mut seen = BTreeSet::new();
+    for _ in 0..32 {
+        let page = call!(
+            session,
+            lease,
+            cancel,
+            connection.configuration(),
+            list_documents,
+            wire::ListConfigurationDocumentsRequest {
+                parent: parent.clone(),
+                page_size: 100,
+                page_token: token,
+                ..Default::default()
+            }
+        );
+        configuration_contract::admit_configuration_response(ConfigurationResponse::Documents(
+            &page,
+        ))
+        .map_err(|_| ReadError::Invalid)?;
+        for document in page.documents {
+            if !seen.insert(document.name.clone()) || seen.len() > crate::administration::MAX_ROWS {
+                return Err(ReadError::Invalid);
+            }
+            if document.kind == wire::DocumentKind::OperationalYaml && document.active {
+                if found.replace(document.name).is_some() {
+                    return Err(ReadError::Invalid);
+                }
+            }
+        }
+        if page.next_page_token.is_empty() {
+            let name = found.ok_or(ReadError::Invalid)?;
+            let document = call!(
+                session,
+                lease,
+                cancel,
+                connection.configuration(),
+                read_document,
+                wire::GetConfigurationDocumentRequest {
+                    name,
+                    ..Default::default()
+                }
+            );
+            return Capture::admit(document).map_err(|_| ReadError::Invalid);
+        }
+        token = page.next_page_token;
+    }
+    Err(ReadError::Invalid)
+}
+
+pub(super) async fn source_document_name(
+    session: &SessionCoordinator,
+    connection: &Connection,
+    lease: &AccessLease,
+    cancel: &CancellationToken,
+    native_key: &str,
+) -> Result<String, ReadError> {
+    let parent = home_name(session, connection, lease, cancel).await?;
+    let mut token = String::new();
+    let mut seen = BTreeSet::new();
+    for _ in 0..32 {
+        let page = call!(
+            session,
+            lease,
+            cancel,
+            connection.configuration(),
+            list_documents,
+            wire::ListConfigurationDocumentsRequest {
+                parent: parent.clone(),
+                page_size: 100,
+                page_token: token,
+                ..Default::default()
+            }
+        );
+        configuration_contract::admit_configuration_response(ConfigurationResponse::Documents(
+            &page,
+        ))
+        .map_err(|_| ReadError::Invalid)?;
+        for document in page.documents {
+            if !seen.insert(document.name.clone()) || seen.len() > crate::administration::MAX_ROWS {
+                return Err(ReadError::Invalid);
+            }
+            if document.id.value == native_key {
+                return Ok(document.name);
+            }
+        }
+        if page.next_page_token.is_empty() {
+            return Err(ReadError::Invalid);
+        }
+        token = page.next_page_token;
+    }
+    Err(ReadError::Invalid)
 }

@@ -7,9 +7,12 @@ use crate::{
 };
 use chrono::Datelike;
 use home_client_cache::calendars::CalendarReadSnapshot;
-use home_client_model::calendars::{CalendarId, EventKey};
+use home_client_model::{
+    api_calendars::{CalendarEventName, CalendarName},
+    calendars::CalendarId,
+};
 use home_client_session::{Generation, SessionCoordinator};
-use home_wire_contract::{calendars_contract as admit, home::calendars::v1 as wire};
+use home_wire_contract::{calendars_contract as admit, home::api::v2 as wire};
 use slint::{Model, ModelNotify, ModelRc, ModelTracker};
 use std::sync::Arc;
 
@@ -18,7 +21,7 @@ pub(super) struct Projection {
     privacy_generation: i32,
     source: Option<Generation>,
     session: Option<SessionCoordinator>,
-    catalog: Vec<wire::Calendar>,
+    catalog: Vec<wire::CalendarSource>,
     selected: Option<CalendarId>,
     snapshot: Option<Arc<CalendarReadSnapshot>>,
     indices: Vec<usize>,
@@ -92,7 +95,6 @@ fn phase(phase: EditPhase) -> ProAgendaPhase {
         EditPhase::Pending => ProAgendaPhase::Pending,
         EditPhase::Conflict => ProAgendaPhase::Conflict,
         EditPhase::Unknown => ProAgendaPhase::CommitUnknown,
-        EditPhase::Withheld => ProAgendaPhase::CommittedResponseWithheld,
     }
 }
 fn resolution(value: &Resolution) -> (ZonedTimePresentation, String) {
@@ -203,7 +205,7 @@ struct Rows {
     snapshot: Arc<CalendarReadSnapshot>,
     indices: Vec<usize>,
     generation: i32,
-    draft: Option<(EventKey, EditPhase)>,
+    draft: Option<(CalendarEventName, EditPhase)>,
     notify: ModelNotify,
 }
 impl Model for Rows {
@@ -215,38 +217,48 @@ impl Model for Rows {
         let actual = *self.indices.get(index)?;
         let row = self.snapshot.occurrences().get(actual)?;
         let (day, time, kind) = match &row.span.value {
-            Some(wire::span::Value::Dates(span)) => (
-                span.start.as_str(),
-                format!("{} – {} (end exclusive)", span.start, span.end_exclusive),
-                ProAgendaTemporalKind::AllDay,
-            ),
-            Some(wire::span::Value::Times(span)) => (
-                span.anchor_local.get(..10)?,
-                format!(
-                    "{} – {} · {}",
-                    span.anchor_local.get(11..)?,
-                    span.end_local,
-                    span.zone
-                ),
-                ProAgendaTemporalKind::Timed,
-            ),
+            Some(wire::calendar_span::Value::Dates(span)) => {
+                let start = admit::date(&span.start_date).ok()?.to_string();
+                let end = admit::date(&span.end_date).ok()?.to_string();
+                (
+                    start.clone(),
+                    format!("{start} – {end} (end exclusive)"),
+                    ProAgendaTemporalKind::AllDay,
+                )
+            }
+            Some(wire::calendar_span::Value::Times(span)) => {
+                let start = admit::civil_text(&span.start_local).ok()?;
+                let end = admit::civil_text(&span.end_local).ok()?;
+                (
+                    start.get(..10)?.to_owned(),
+                    format!("{} – {} · {}", start.get(11..)?, end, span.time_zone),
+                    ProAgendaTemporalKind::Timed,
+                )
+            }
             None => return None,
         };
         let phase = self
             .draft
             .as_ref()
-            .filter(|(key, _)| admit::event_key(&row.key).as_ref() == Some(key))
+            .filter(|(key, _)| {
+                CalendarEventName::try_from(row.calendar_event.as_str())
+                    .ok()
+                    .as_ref()
+                    == Some(key)
+            })
             .map_or(ProAgendaPhase::Ready, |(_, value)| phase(*value));
         Some(ProAgendaRow {
             token: actual as i32 + 1,
             generation: self.generation,
-            date: date(day),
+            date: date(&day),
             day_label: day.into(),
             time_label: time.into(),
             title: row.summary.clone().into(),
             detail: format!(
                 "{} · {} · occurrence {}",
-                row.location, row.description, row.recurrence_id
+                row.location,
+                row.description,
+                admit::point_key(&row.recurrence_point).ok()?
             )
             .into(),
             kind,
@@ -261,18 +273,23 @@ impl Model for Rows {
         self
     }
 }
-fn source(calendar: &wire::Calendar) -> String {
+fn source(
+    origin: buffa::EnumValue<wire::CalendarOrigin>,
+    provenance: buffa::EnumValue<wire::CalendarProvenance>,
+) -> String {
     use buffa::EnumValue;
-    let origin = match calendar.origin {
-        EnumValue::Known(wire::Origin::Local) => "Local Calendar",
-        EnumValue::Known(wire::Origin::RemoteIcs) => "Remote source · read-only",
-        EnumValue::Known(wire::Origin::Calculated) => "Calculated source · read-only",
-        EnumValue::Known(wire::Origin::Unspecified) | EnumValue::Unknown(_) => "Source rejected",
+    let origin = match origin {
+        EnumValue::Known(wire::CalendarOrigin::Local) => "Local Calendar",
+        EnumValue::Known(wire::CalendarOrigin::RemoteIcs) => "Remote source · read-only",
+        EnumValue::Known(wire::CalendarOrigin::Calculated) => "Calculated source · read-only",
+        EnumValue::Known(wire::CalendarOrigin::Unspecified) | EnumValue::Unknown(_) => {
+            "Source rejected"
+        }
     };
-    let provenance = match calendar.provenance {
-        EnumValue::Known(wire::DataProvenance::Synthetic) => " · ISOLATED MOCK",
-        EnumValue::Known(wire::DataProvenance::Observed) => " · observed source",
-        EnumValue::Known(wire::DataProvenance::Unspecified) | EnumValue::Unknown(_) => {
+    let provenance = match provenance {
+        EnumValue::Known(wire::CalendarProvenance::Synthetic) => " · ISOLATED MOCK",
+        EnumValue::Known(wire::CalendarProvenance::Observed) => " · observed source",
+        EnumValue::Known(wire::CalendarProvenance::Unspecified) | EnumValue::Unknown(_) => {
             " · source not verified"
         }
     };
@@ -319,35 +336,46 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         return;
     }
     let previous = window.get_calendars();
-    let current = value
-        .snapshot
-        .as_ref()
-        .map(|snapshot| snapshot.calendar())
-        .or_else(|| {
-            value.catalog.iter().find(|calendar| {
-                admit::calendar_id(&calendar.id).as_ref() == value.selected.as_ref()
-            })
-        });
+    let current = value.snapshot.as_ref().map(|snapshot| snapshot.calendar());
+    let selected_source = value.catalog.iter().find(|source| {
+        CalendarName::try_from(source.calendar.as_str())
+            .ok()
+            .as_ref()
+            .map(CalendarName::native_id)
+            == value.selected.as_ref()
+    });
     let calendar_token = value
         .catalog
         .iter()
-        .position(|calendar| admit::calendar_id(&calendar.id).as_ref() == value.selected.as_ref())
+        .position(|source| {
+            CalendarName::try_from(source.calendar.as_str())
+                .ok()
+                .as_ref()
+                .map(CalendarName::native_id)
+                == value.selected.as_ref()
+        })
         .map_or(0, |index| index as i32 + 1);
-    let present =
-        current.is_some_and(|calendar| calendar.revision.presence == wire::Presence::Present);
+    let present = current.is_some();
     let catalog = value
         .catalog
         .iter()
         .enumerate()
         .map(|(index, calendar)| ContentItem {
             token: index as i32 + 1,
-            title: calendar
-                .name
-                .as_deref()
-                .unwrap_or("Calendar to Create")
-                .into(),
-            excerpt: source(calendar).into(),
-            selected: admit::calendar_id(&calendar.id).as_ref() == value.selected.as_ref(),
+            title: if !calendar.display_name.is_empty() {
+                calendar.display_name.clone()
+            } else if calendar.materialized {
+                "Calendar".into()
+            } else {
+                "Calendar to Create".into()
+            }
+            .into(),
+            excerpt: source(calendar.origin, calendar.provenance).into(),
+            selected: CalendarName::try_from(calendar.calendar.as_str())
+                .ok()
+                .as_ref()
+                .map(CalendarName::native_id)
+                == value.selected.as_ref(),
             disabled: !value.active || value.busy,
             ..Default::default()
         })
@@ -355,7 +383,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     let draft = value
         .draft
         .as_ref()
-        .map(|draft| (draft.key.clone(), draft.phase));
+        .and_then(|draft| draft.key.clone().map(|key| (key, draft.phase)));
     let rows = match &value.snapshot {
         Some(snapshot) => {
             let same = previous
@@ -436,9 +464,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     if previous.zone.as_str() != value.zone {
         window.set_calendars_zone(value.zone.clone().into());
     }
-    let title = current
-        .and_then(|calendar| calendar.name.as_deref())
-        .unwrap_or("Calendar");
+    let title = current.map_or("Calendar", |calendar| calendar.display_name.as_str());
     if previous.privacy_generation != value.privacy_generation
         || previous.calendar_token != calendar_token
         || !value.active
@@ -481,11 +507,11 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         busy: value.busy,
         title: title.into(),
         notice: notice.into(),
-        source: current
+        source: selected_source
             .map_or_else(String::new, |calendar| {
                 format!(
                     "{} · {}",
-                    source(calendar),
+                    source(calendar.origin, calendar.provenance),
                     value
                         .snapshot
                         .as_ref()
@@ -495,7 +521,11 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             .into(),
         revision: current
             .map_or_else(String::new, |calendar| {
-                format!("Revision {}", calendar.revision.number)
+                calendar
+                    .update_time
+                    .as_option()
+                    .and_then(|value| admit::timestamp_text(value).ok())
+                    .map_or_else(String::new, |value| format!("Updated {value}"))
             })
             .into(),
         cached_at: value
@@ -560,12 +590,9 @@ pub(super) fn render_widget(
             .is_some_and(|session| session.is_current(generation))
     });
     let snapshot = value.snapshot.as_ref().filter(|snapshot| {
-        current_session
-            && value.active
-            && admit::calendar_id(&snapshot.calendar().id).as_ref() == Some(&target.calendar)
+        current_session && value.active && snapshot.calendar().name == target.calendar.as_str()
     });
-    let present = snapshot
-        .is_some_and(|snapshot| snapshot.calendar().revision.presence == wire::Presence::Present);
+    let present = snapshot.is_some();
     let fresh = snapshot.is_some_and(|snapshot| snapshot_fresh(snapshot));
     let ready = current_session
         && value.active
@@ -639,14 +666,15 @@ impl Model for WidgetRows {
         let actual = *self.indices.get(index)?;
         let row = self.snapshot.occurrences().get(actual)?;
         let (day, time, kind) = match &row.span.value {
-            Some(wire::span::Value::Dates(span)) => (
-                span.start.clone(),
+            Some(wire::calendar_span::Value::Dates(span)) => (
+                admit::date(&span.start_date).ok()?.to_string(),
                 "All Day".to_owned(),
                 ProAgendaTemporalKind::AllDay,
             ),
-            Some(wire::span::Value::Times(span)) => {
-                let start = widget_local(&span.start_instant, self.zone)?;
-                let end = widget_local(&span.end_instant, self.zone)?;
+            Some(wire::calendar_span::Value::Times(span)) => {
+                let start =
+                    widget_local(&admit::timestamp_text(&span.start_time).ok()?, self.zone)?;
+                let end = widget_local(&admit::timestamp_text(&span.end_time).ok()?, self.zone)?;
                 (
                     start.date(),
                     format!(

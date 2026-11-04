@@ -1,42 +1,61 @@
 use super::*;
 use crate::camera::{self, Frame};
-use home_client_model::cameras::CameraId;
+use buffa::Message;
+use home_client_model::api_content::MediaSourceName;
 use home_client_session::AccessLease;
 use home_client_transport::{Failure, FailureKind, RpcCode};
-use home_wire_contract::{cameras_contract as admit, home::cameras::v1 as wire};
+use home_wire_contract::{camera_content as admit, content_contract, home::api::v2 as wire};
 use std::{collections::BTreeSet, time::SystemTime};
 const TIMEOUT: Duration = Duration::from_secs(5);
 fn failure(error: &Failure) -> Status {
     if !matches!(error.authorization_termination(), Ok(None)) {
         return Status::Revoked;
     }
-    match error.kind() {
-        FailureKind::Rpc(RpcCode::PermissionDenied | RpcCode::Unauthenticated) => Status::Revoked,
-        FailureKind::Rpc(RpcCode::Unimplemented) => Status::Unsupported,
-        FailureKind::Rpc(RpcCode::InvalidArgument | RpcCode::OutOfRange | RpcCode::DataLoss) => {
-            Status::Invalid
+    match error.api_failure() {
+        Err(_) => Status::Invalid,
+        Ok(Some(error)) => {
+            use wire::ApiErrorReason as R;
+            match error.reason() {
+                R::AccessDenied | R::AuthenticationRequired => Status::Revoked,
+                R::MethodNotSupported => Status::Unsupported,
+                R::ServiceUnavailable | R::RequestDeadlineExceeded | R::RequestCancelled => {
+                    Status::Offline
+                }
+                R::ResourceNotFound
+                | R::CapabilityUnavailable
+                | R::ResyncRequired
+                | R::ConfigChanged
+                | R::TopologyChanged
+                | R::StatePreconditionFailed
+                | R::RateLimited
+                | R::RequestTooLarge
+                | R::StreamCapacity
+                | R::QueryBudgetExceeded => Status::Unavailable,
+                R::ValidationFailed
+                | R::ResourceAlreadyExists
+                | R::RequestIdReused
+                | R::EtagMismatch
+                | R::SourceReadOnly
+                | R::ConfigRestartRequired
+                | R::CommitOutcomeUnknown
+                | R::EffectOutcomeUnknown
+                | R::InternalFailure
+                | R::StoredDataIntegrity
+                | R::Unspecified => Status::Invalid,
+            }
         }
-        FailureKind::Rpc(RpcCode::ResourceExhausted) => Status::Unavailable,
-        FailureKind::Rpc(
-            RpcCode::Canceled
-            | RpcCode::Unknown
-            | RpcCode::DeadlineExceeded
-            | RpcCode::NotFound
-            | RpcCode::AlreadyExists
-            | RpcCode::FailedPrecondition
-            | RpcCode::Aborted
-            | RpcCode::Internal
-            | RpcCode::Unavailable,
-        )
-        | FailureKind::InvalidConfiguration
-        | FailureKind::UntrustedCertificate
-        | FailureKind::WrongServerName
-        | FailureKind::TlsRejected
-        | FailureKind::NetworkInterrupted
-        | FailureKind::Deadline
-        | FailureKind::Cancelled => Status::Offline,
-        // Upstream connectrpc status is explicitly non-exhaustive.
-        FailureKind::Rpc(_) => Status::Invalid,
+        Ok(None) => {
+            if matches!(
+                error.kind(),
+                FailureKind::Rpc(RpcCode::PermissionDenied | RpcCode::Unauthenticated)
+            ) {
+                Status::Revoked
+            } else if error.may_resume_read() {
+                Status::Offline
+            } else {
+                Status::Invalid
+            }
+        }
     }
 }
 async fn response<T>(
@@ -63,7 +82,7 @@ impl Cameras {
     pub(super) async fn catalog(
         &self,
         session: SessionCoordinator,
-        api: CameraTransport,
+        api: MediaTransport,
         context: u64,
         cancel: CancellationToken,
     ) {
@@ -74,23 +93,83 @@ impl Cameras {
                 return;
             }
         };
-        let reply = response(
-            &session,
-            &access,
-            api.list_cameras(
-                wire::ListCamerasRequest::default(),
-                access.token(),
-                TIMEOUT,
-                &cancel,
+        let result = async {
+            let homes = response(
+                &session,
+                &access,
+                api.home()
+                    .list_homes(
+                        wire::ListHomesRequest {
+                            page_size: 2,
+                            ..Default::default()
+                        },
+                        access.token(),
+                        TIMEOUT,
+                        &cancel,
+                    )
+                    .await,
             )
-            .await,
-        )
+            .await?;
+            if !homes.__buffa_unknown_fields.is_empty()
+                || homes.homes.len() != 1
+                || !homes.next_page_token.is_empty()
+                || !homes.homes[0].__buffa_unknown_fields.is_empty()
+            {
+                return Err(Status::Invalid);
+            }
+            let home = home_client_model::api::HomeName::try_from(homes.homes[0].name.as_str())
+                .map_err(|_| Status::Invalid)?;
+            let mut catalog = Vec::new();
+            let mut tokens = BTreeSet::new();
+            let mut token = String::new();
+            let mut previous = None;
+            let mut pages = 0;
+            loop {
+                let page = response(
+                    &session,
+                    &access,
+                    api.list_media_sources(
+                        wire::ListMediaSourcesRequest {
+                            parent: home.as_str().to_owned(),
+                            page_size: 256,
+                            page_token: token,
+                            ..Default::default()
+                        },
+                        access.token(),
+                        TIMEOUT,
+                        &cancel,
+                    )
+                    .await,
+                )
+                .await?;
+                let sources =
+                    content_contract::source_page(&page, &home).map_err(|_| Status::Invalid)?;
+                for source in &sources {
+                    if previous.as_ref().is_some_and(|name| name >= source.name()) {
+                        return Err(Status::Invalid);
+                    }
+                    previous = Some(source.name().clone());
+                }
+                catalog.extend(admit::catalog(&page, &home).map_err(|_| Status::Invalid)?);
+                pages += 1;
+                if catalog.len() > admit::MAX_CATALOG || pages > 128 {
+                    return Err(Status::Invalid);
+                }
+                if page.next_page_token.is_empty() {
+                    return Ok(catalog);
+                }
+                if !tokens.insert(page.next_page_token.clone()) {
+                    return Err(Status::Invalid);
+                }
+                token = page.next_page_token;
+            }
+        }
         .await;
         if cancel.is_cancelled() {
             return;
         }
-        let catalog = match reply.and_then(|v| admit::catalog(&v).map_err(|_| Status::Invalid)) {
-            Ok(v) => v,
+        let catalog = match result {
+            Ok(catalog) => catalog,
             Err(status) => {
                 self.catalog_failed(context, status);
                 return;
@@ -124,9 +203,9 @@ impl Cameras {
     pub(super) async fn camera(
         &self,
         session: SessionCoordinator,
-        api: CameraTransport,
+        api: MediaTransport,
         context: u64,
-        id: CameraId,
+        id: MediaSourceName,
         cancel: CancellationToken,
     ) {
         let access = match session.access(&cancel).await {
@@ -137,31 +216,49 @@ impl Cameras {
             }
         };
         let access = Arc::new(access);
+        let delete_request_id = match home_client_actions::new_request_id() {
+            Ok(id) => id,
+            Err(_) => {
+                self.failed(context, Status::Invalid);
+                return;
+            }
+        };
+        let request = match content_contract::create_session_request(
+            &id,
+            home_client_model::api_content::ContentKind::Camera,
+            None,
+            match home_client_actions::new_request_id() {
+                Ok(id) => id,
+                Err(_) => {
+                    self.failed(context, Status::Invalid);
+                    return;
+                }
+            },
+        ) {
+            Ok(request) => request,
+            Err(_) => {
+                self.failed(context, Status::Invalid);
+                return;
+            }
+        };
         let opened = response(
             &session,
             &access,
-            api.open_session(
-                wire::OpenSessionRequest {
-                    entity_id: id.entity().as_str().into(),
-                    ..Default::default()
-                },
-                access.token(),
-                TIMEOUT,
-                &cancel,
-            )
-            .await,
+            api.create_media_session(request, access.token(), TIMEOUT, &cancel)
+                .await,
         )
         .await;
         let lease = match opened.and_then(|v| {
-            admit::lease(&v, &id, SystemTime::now(), Instant::now()).map_err(|_| Status::Invalid)
+            admit::lease(
+                &v,
+                &id,
+                home_client_model::api_content::ContentKind::Camera,
+                SystemTime::now(),
+                Instant::now(),
+            )
+            .map_err(|_| Status::Invalid)
         }) {
-            Ok(admit::Outcome::Value(lease)) => lease,
-            Ok(admit::Outcome::Refused(issue)) => {
-                if !cancel.is_cancelled() {
-                    self.failed(context, Status::refusal(issue))
-                };
-                return;
-            }
+            Ok(lease) => lease,
             Err(status) => {
                 if !cancel.is_cancelled() {
                     self.failed(context, status)
@@ -180,9 +277,10 @@ impl Cameras {
         // Cleanup is an owned, bounded request on the original verified origin.
         // Never carry an old reference or access token into a replacement profile.
         let _ = api
-            .close_session(
-                wire::CloseSessionRequest {
-                    session: lease.wire_reference().into(),
+            .delete_media_session(
+                wire::DeleteMediaSessionRequest {
+                    name: lease.name().as_str().to_owned(),
+                    request_id: delete_request_id.as_str().to_owned(),
                     ..Default::default()
                 },
                 access.token(),
@@ -194,7 +292,7 @@ impl Cameras {
     async fn follow(
         &self,
         session: &SessionCoordinator,
-        api: &CameraTransport,
+        api: &MediaTransport,
         access: &Arc<AccessLease>,
         lease: &admit::Lease,
         context: u64,
@@ -205,9 +303,9 @@ impl Cameras {
         let mut watch = response(
             session,
             access,
-            api.watch_session(
-                wire::WatchSessionRequest {
-                    session: lease.wire_reference().into(),
+            api.watch_media_session(
+                wire::WatchMediaSessionRequest {
+                    name: lease.name().as_str().to_owned(),
                     ..Default::default()
                 },
                 access.token(),
@@ -223,13 +321,11 @@ impl Cameras {
         let ready = response(session, access, ready)
             .await?
             .ok_or(Status::Offline)?;
-        let mut revision = match admit::watch(&ready, lease, 0, 0).map_err(|_| Status::Invalid)? {
-            admit::WatchFrame::Ready(revision) => revision,
-            admit::WatchFrame::Expired => return Err(Status::Expired),
-            admit::WatchFrame::Revoked => return Err(Status::Revoked),
-            admit::WatchFrame::ResyncRequired => return Err(Status::Offline),
-            admit::WatchFrame::Changed(_) => return Err(Status::Invalid),
-        };
+        let mut revision =
+            match admit::watch(&ready, lease, 0, None).map_err(|_| Status::Invalid)? {
+                admit::WatchFrame::Ready(revision) => revision,
+                admit::WatchFrame::Changed(_) => return Err(Status::Invalid),
+            };
         let mut sequence = 1;
         let mut jobs = JoinSet::new();
         let (mut event_busy, mut image_busy) = (false, false);
@@ -253,9 +349,11 @@ impl Cameras {
                     let target = state.target.clone();
                     let eligible = target.as_ref().is_some_and(|key| match key {
                         ImageKey::Snapshot(_) => true,
-                        ImageKey::EventThumbnail(key) => {
-                            state.events.rows.iter().any(|event| &event.key == key)
-                        }
+                        ImageKey::EventThumbnail(key) => state
+                            .events
+                            .rows
+                            .iter()
+                            .any(|event| &event.key == key && event.has_image),
                     });
                     if eligible {
                         state.image_requested = false;
@@ -278,7 +376,11 @@ impl Cameras {
                     work_cancel.child_token(),
                 );
                 jobs.spawn(async move {
-                    ReadJob::Events(capture(&api, &session, &access, &lease, &token).await)
+                    // Local stream sequence fences in-flight pages; opaque etags have no ordering.
+                    ReadJob::Events {
+                        sequence,
+                        result: capture(&api, &session, &access, &lease, &token).await,
+                    }
                 });
             }
             if let Some((key, token)) = image {
@@ -301,28 +403,24 @@ impl Cameras {
                 ()=&mut changed=>{},
                 message=watch.next()=>{
                     let frame=match response(session,access,message).await {Ok(Some(v))=>v,Ok(None)=>break Err(Status::Offline),Err(status)=>break Err(status)};
-                    match admit::watch(&frame,lease,sequence,revision).map_err(|_|Status::Invalid) {
+                    match admit::watch(&frame,lease,sequence,Some(&revision)).map_err(|_|Status::Invalid) {
                         Ok(admit::WatchFrame::Changed(next))=>{
-                            sequence=frame.sequence;revision=next;events_needed=true;
+                            sequence=match u64::try_from(frame.sequence){Ok(sequence)=>sequence,Err(_)=>break Err(Status::Invalid)};revision=next;events_needed=true;
                             let mut state=self.0.state.lock().expect("camera state");if state.context!=context {break Ok(())}
                             state.events=Events::default();state.picture=None;state.image_cancel.cancel();state.image_cancel=state.cancel.child_token();state.image_requested=state.preview_visible;state.status=Status::Loading;state.bump();self.retired(&state);
                         },
-                        Ok(admit::WatchFrame::Expired)=>break Err(Status::Expired),
-                        Ok(admit::WatchFrame::Revoked)=>break Err(Status::Revoked),
-                        Ok(admit::WatchFrame::ResyncRequired)=>break Err(Status::Offline),
                         Ok(admit::WatchFrame::Ready(_))|Err(_)=>break Err(Status::Invalid),
                     }
                 },
                 result=jobs.join_next(),if !jobs.is_empty()=>{
                     match result {
-                        Some(Ok(ReadJob::Events(result)))=>{
+                        Some(Ok(ReadJob::Events{sequence:captured_sequence,result}))=>{
                             event_busy=false;
                             match result {
                                 Ok(capture)=>{
-                                    if capture.revision<revision {events_needed=true;continue}
+                                    if captured_sequence!=sequence {events_needed=true;continue}
                                     let mut state=self.0.state.lock().expect("camera state");if state.context!=context {break Ok(())}
-                                    state.events=match Events::new(capture.rows,&state.events) {Ok(v)=>v,Err(status)=>break Err(status)};
-                                    if let Some(ImageKey::EventThumbnail(key))=&state.target && !state.events.rows.iter().any(|e|&e.key==key) {state.picture=None;state.status=Status::Missing;state.image_requested=false;}
+                                    if let Err(status) = state.replace_events(capture.rows) { break Err(status); }
                                     state.bump();self.publish(&state);
                                 },
                                 Err(Status::Loading)=>events_needed=true,
@@ -333,7 +431,7 @@ impl Cameras {
                             image_busy=false;let mut state=self.0.state.lock().expect("camera state");
                             if !state.accepts(context,Instant::now()) || local.is_cancelled() || !state.preview_visible || state.target.as_ref()!=Some(&key) {continue}
                             match result {
-                                Ok(image)=>{if image.deadline>Instant::now(){state.picture=Some(image);state.status=Status::Ready}else{state.picture=None;state.status=Status::Expired}},
+                                Ok(image)=>{if image.session!=*lease.name(){break Err(Status::Invalid)};if image.deadline>Instant::now(){state.picture=Some(image);state.status=Status::Ready}else{state.picture=None;state.status=Status::Expired}},
                                 Err(Status::Missing)=>{state.picture=None;state.status=Status::Missing;},
                                 Err(Status::Unavailable)=>{state.picture=None;state.status=Status::Unavailable;},
                                 Err(status @ (Status::Expired|Status::Revoked|Status::WrongCamera|Status::Offline|Status::Invalid|Status::Unsupported))=>break Err(status),
@@ -364,11 +462,13 @@ impl Cameras {
     }
 }
 struct Capture {
-    revision: u64,
     rows: Vec<admit::Event>,
 }
 enum ReadJob {
-    Events(Result<Capture, Status>),
+    Events {
+        sequence: u64,
+        result: Result<Capture, Status>,
+    },
     Image {
         key: ImageKey,
         cancel: CancellationToken,
@@ -376,7 +476,7 @@ enum ReadJob {
     },
 }
 async fn capture(
-    api: &CameraTransport,
+    api: &MediaTransport,
     session: &SessionCoordinator,
     access: &AccessLease,
     lease: &admit::Lease,
@@ -386,9 +486,11 @@ async fn capture(
         let mut rows = Vec::new();
         let mut identities = BTreeSet::new();
         let mut cursors = BTreeSet::new();
-        let mut cursor = Vec::new();
+        let mut cursor = String::new();
         let mut revision = None;
         let mut total = None;
+        let mut pages = 0usize;
+        let mut bytes = 0usize;
         loop {
             if cancel.is_cancelled() {
                 return Err(Status::Hidden);
@@ -396,11 +498,11 @@ async fn capture(
             let reply = response(
                 session,
                 access,
-                api.list_events(
-                    wire::ListEventsRequest {
-                        session: lease.wire_reference().into(),
-                        page_size: admit::MAX_PAGE as u32,
-                        cursor,
+                api.query_media_session_events(
+                    wire::QueryMediaSessionEventsRequest {
+                        name: lease.name().as_str().to_owned(),
+                        page_size: admit::MAX_PAGE as i32,
+                        page_token: cursor,
                         ..Default::default()
                     },
                     access.token(),
@@ -410,25 +512,27 @@ async fn capture(
                 .await,
             )
             .await?;
-            let page = match admit::events(&reply, lease, SystemTime::now(), Instant::now())
-                .map_err(|_| Status::Invalid)?
-            {
-                admit::Outcome::Value(v) => v,
-                admit::Outcome::Refused(issue) => return Err(Status::refusal(issue)),
-            };
-            if revision.is_some_and(|r| r != page.revision.get())
+            pages += 1;
+            bytes = bytes
+                .saturating_add(reply.encoded_len() as usize * 8)
+                .saturating_add(reply.media_events.len() * 512);
+            if pages > admit::MAX_EVENTS + 1 || bytes > 32 * 1024 * 1024 {
+                return Err(Status::Invalid);
+            }
+            let page = admit::events(&reply, lease, SystemTime::now(), Instant::now())
+                .map_err(|_| Status::Invalid)?;
+            if revision.as_ref().is_some_and(|r| r != &page.etag)
                 || total.is_some_and(|t| t != page.total)
             {
                 return Err(Status::Loading);
             }
-            revision = Some(page.revision.get());
+            revision = Some(page.etag.clone());
             total = Some(page.total);
             for event in page.events {
-                if rows.last().is_some_and(|prior: &admit::Event| {
-                    event.captured_at > prior.captured_at
-                        || event.captured_at == prior.captured_at
-                            && event.key.event() <= prior.key.event()
-                }) || !identities.insert(event.key.clone())
+                if rows
+                    .last()
+                    .is_some_and(|prior: &admit::Event| event.key.event() <= prior.key.event())
+                    || !identities.insert(event.key.clone())
                 {
                     return Err(Status::Invalid);
                 }
@@ -439,19 +543,16 @@ async fn capture(
             }
             match page.next {
                 Some(next) => {
-                    if rows.len() >= page.total || !cursors.insert(next.bytes().to_vec()) {
+                    if !cursors.insert(next.as_str().to_owned()) {
                         return Err(Status::Invalid);
                     };
-                    cursor = next.bytes().to_vec();
+                    cursor = next.as_str().to_owned();
                 }
                 None => {
                     if rows.len() != page.total {
                         return Err(Status::Invalid);
                     };
-                    return Ok(Capture {
-                        revision: page.revision.get(),
-                        rows,
-                    });
+                    return Ok(Capture { rows });
                 }
             }
         }
@@ -460,7 +561,7 @@ async fn capture(
     .map_err(|_| Status::Offline)?
 }
 async fn picture(
-    api: &CameraTransport,
+    api: &MediaTransport,
     session: &SessionCoordinator,
     access: &AccessLease,
     lease: &admit::Lease,
@@ -471,16 +572,12 @@ async fn picture(
     let reply = response(
         session,
         access,
-        api.read_image(request, access.token(), TIMEOUT, cancel)
+        api.read_media_session(request, access.token(), TIMEOUT, cancel)
             .await,
     )
     .await?;
-    let image = match admit::image(&reply, lease, key, SystemTime::now(), Instant::now())
-        .map_err(|_| Status::Invalid)?
-    {
-        admit::Outcome::Value(v) => v,
-        admit::Outcome::Refused(issue) => return Err(Status::refusal(issue)),
-    };
+    let image = admit::image(&reply, lease, key, SystemTime::now(), Instant::now())
+        .map_err(|_| Status::Invalid)?;
     if cancel.is_cancelled() {
         return Err(Status::Hidden);
     }

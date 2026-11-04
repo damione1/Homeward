@@ -174,7 +174,7 @@ def qualify(receipt_path,server_path,reset_owned_test_data=False,scope=PhysicalS
                 match scope:
                     case PhysicalScope.FULL:
                         ui.navigation(); ui.tap('Inventaire'); ui.find('Élément')
-                        ui.tap(private['expected_first_alias'],match=contains)
+                        ui.tap(private['expected_first_label'],match=contains)
                         ui.find('Retour aux éléments'); ui.capture('detail')
                         key(Key.BACK); ui.find('Élément'); ui.capture('native-back')
                         ui.navigation(); ui.tap('Accueil'); ui.find('Ma maison',match=contains)

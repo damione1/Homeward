@@ -13,9 +13,7 @@ use crate::{
     ProDeviceChoice, ProDeviceValue, ProLockChoice, ProLockOperation, ProValueEvent,
     ProValueIntent, ProValueKind, ProValueMode, RangeThumb, StepDirection,
 };
-use home_wire_contract::home::{
-    controls::v1 as controls, helpers::v1 as helpers, registry::v1 as registry, state::v1 as state,
-};
+use home_wire_contract::home::api::v2 as wire;
 
 #[derive(Clone, Copy)]
 pub(super) enum Editor {
@@ -51,7 +49,7 @@ pub(super) fn editors(control: &Control) -> Vec<Editor> {
         Control::Helper(helper) => {
             if helper.available()
                 && !matches!(helper.kind(), Kind::Boolean | Kind::Button)
-                && helper.operations().contains(&helpers::HelperOperation::Set)
+                && helper.operations().contains(&wire::HelperOperation::Set)
             {
                 result.push(Editor::Helper);
             }
@@ -63,6 +61,7 @@ pub(super) fn editors(control: &Control) -> Vec<Editor> {
             }
         }
         Control::Switch { .. }
+        | Control::Level { .. }
         | Control::Light { color: None, .. }
         | Control::Fan(_)
         | Control::Binary
@@ -74,32 +73,32 @@ pub(super) fn editors(control: &Control) -> Vec<Editor> {
     }
     result
 }
-pub(crate) fn mode_label(value: registry::ClimateMode) -> &'static str {
+pub(crate) fn mode_label(value: wire::TemperatureMode) -> &'static str {
     match value {
-        registry::ClimateMode::Unspecified => "Unspecified",
-        registry::ClimateMode::Off => "Off",
-        registry::ClimateMode::Heat => "Heat",
-        registry::ClimateMode::Cool => "Cool",
-        registry::ClimateMode::Auto => "Auto",
-        registry::ClimateMode::Dry => "Dehumidification",
-        registry::ClimateMode::FanOnly => "Fan Only",
+        wire::TemperatureMode::Unspecified => "Unspecified",
+        wire::TemperatureMode::Off => "Off",
+        wire::TemperatureMode::Heat => "Heat",
+        wire::TemperatureMode::Cool => "Cool",
+        wire::TemperatureMode::Auto => "Auto",
+        wire::TemperatureMode::Dry => "Dehumidification",
+        wire::TemperatureMode::FanOnly => "Fan Only",
     }
 }
-fn fan_target_label(value: registry::ClimateFanTarget) -> &'static str {
+fn fan_target_label(value: wire::TemperatureFanTarget) -> &'static str {
     match value {
-        registry::ClimateFanTarget::Unspecified => "Unspecified",
-        registry::ClimateFanTarget::On => "On",
-        registry::ClimateFanTarget::Auto => "Auto",
+        wire::TemperatureFanTarget::Unspecified => "Unspecified",
+        wire::TemperatureFanTarget::On => "On",
+        wire::TemperatureFanTarget::Auto => "Auto",
     }
 }
-fn activity_label(value: registry::ClimateActivity) -> &'static str {
+fn activity_label(value: wire::TemperatureActivity) -> &'static str {
     match value {
-        registry::ClimateActivity::Unspecified => "Unspecified",
-        registry::ClimateActivity::Idle => "Idle",
-        registry::ClimateActivity::Heating => "Heating",
-        registry::ClimateActivity::Cooling => "Cooling",
-        registry::ClimateActivity::Drying => "Dehumidifying",
-        registry::ClimateActivity::FanOnly => "Fan running",
+        wire::TemperatureActivity::Unspecified => "Unspecified",
+        wire::TemperatureActivity::Idle => "Idle",
+        wire::TemperatureActivity::Heating => "Heating",
+        wire::TemperatureActivity::Cooling => "Cooling",
+        wire::TemperatureActivity::Drying => "Dehumidifying",
+        wire::TemperatureActivity::FanOnly => "Fan running",
     }
 }
 pub(super) fn choices(control: &Control) -> Vec<Choice> {
@@ -122,12 +121,12 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
         Control::Fan(fan) => {
             for speed in fan.speeds() {
                 let label = match *speed {
-                    state::FanSpeed::Unspecified => "Unspecified",
-                    state::FanSpeed::Off => "Off",
-                    state::FanSpeed::Low => "Low",
-                    state::FanSpeed::Medium => "Medium",
-                    state::FanSpeed::MediumHigh => "Medium High",
-                    state::FanSpeed::High => "High",
+                    wire::FanSpeed::Unspecified => "Unspecified",
+                    wire::FanSpeed::Off => "Off",
+                    wire::FanSpeed::Low => "Low",
+                    wire::FanSpeed::Medium => "Medium",
+                    wire::FanSpeed::MediumHigh => "Medium High",
+                    wire::FanSpeed::High => "High",
                 };
                 choices.push(Choice {
                     label: format!("Speed · {label}"),
@@ -136,7 +135,7 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
             }
         }
         Control::Helper(helper) => {
-            if helper.operations().contains(&helpers::HelperOperation::Set)
+            if helper.operations().contains(&wire::HelperOperation::Set)
                 && matches!(helper.kind(), Kind::Boolean)
             {
                 for (value, label) in [(true, "Enable"), (false, "Disable")] {
@@ -148,14 +147,14 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
             }
             for operation in helper.operations() {
                 let label = match *operation {
-                    helpers::HelperOperation::Set | helpers::HelperOperation::Unspecified => None,
-                    helpers::HelperOperation::Toggle => Some("Reverse"),
-                    helpers::HelperOperation::Increment => Some("Increase"),
-                    helpers::HelperOperation::Decrement => Some("Decrease"),
-                    helpers::HelperOperation::Reset => Some("Reset"),
-                    helpers::HelperOperation::Press => Some("Trigger"),
-                    helpers::HelperOperation::Next => Some("Next Option"),
-                    helpers::HelperOperation::Previous => Some("Previous Option"),
+                    wire::HelperOperation::Set | wire::HelperOperation::Unspecified => None,
+                    wire::HelperOperation::Toggle => Some("Reverse"),
+                    wire::HelperOperation::Increment => Some("Increase"),
+                    wire::HelperOperation::Decrement => Some("Decrease"),
+                    wire::HelperOperation::Reset => Some("Reset"),
+                    wire::HelperOperation::Press => Some("Trigger"),
+                    wire::HelperOperation::Next => Some("Next Option"),
+                    wire::HelperOperation::Previous => Some("Previous Option"),
                 };
                 if let Some(label) = label {
                     choices.push(Choice {
@@ -196,6 +195,7 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
             }
         }
         Control::Switch { .. }
+        | Control::Level { .. }
         | Control::Light { .. }
         | Control::Binary
         | Control::Measurement
@@ -232,10 +232,10 @@ pub(super) fn cover_rows(control: &Control) -> Vec<ProCoverChoice> {
         .enumerate()
         .filter_map(|(token, operation)| {
             let kind = match *operation {
-                controls::CoverOperation::Open => ProCoverOperation::Open,
-                controls::CoverOperation::Close => ProCoverOperation::Close,
-                controls::CoverOperation::Stop => ProCoverOperation::Stop,
-                controls::CoverOperation::Unspecified => return None,
+                wire::CoverOperation::Open => ProCoverOperation::Open,
+                wire::CoverOperation::Close => ProCoverOperation::Close,
+                wire::CoverOperation::Stop => ProCoverOperation::Stop,
+                wire::CoverOperation::Unspecified => return None,
             };
             Some(ProCoverChoice {
                 token: token as i32,
@@ -254,9 +254,9 @@ pub(super) fn lock_rows(control: &Control) -> Vec<ProLockChoice> {
         .enumerate()
         .filter_map(|(token, operation)| {
             let kind = match *operation {
-                controls::LockOperation::Lock => ProLockOperation::Lock,
-                controls::LockOperation::Unlock => ProLockOperation::Unlock,
-                controls::LockOperation::Unspecified => return None,
+                wire::LockOperation::Lock => ProLockOperation::Lock,
+                wire::LockOperation::Unlock => ProLockOperation::Unlock,
+                wire::LockOperation::Unspecified => return None,
             };
             Some(ProLockChoice {
                 token: token as i32,
@@ -276,10 +276,10 @@ pub(super) fn alarm_rows(control: &Control) -> Vec<ProAlarmChoice> {
         .enumerate()
         .filter_map(|(token, operation)| {
             let kind = match *operation {
-                controls::AlarmOperation::ArmHome => ProAlarmOperation::ArmHome,
-                controls::AlarmOperation::ArmAway => ProAlarmOperation::ArmAway,
-                controls::AlarmOperation::Disarm => ProAlarmOperation::Disarm,
-                controls::AlarmOperation::Unspecified => return None,
+                wire::AlarmOperation::ArmHome => ProAlarmOperation::ArmHome,
+                wire::AlarmOperation::ArmAway => ProAlarmOperation::ArmAway,
+                wire::AlarmOperation::Disarm => ProAlarmOperation::Disarm,
+                wire::AlarmOperation::Unspecified => return None,
             };
             Some(ProAlarmChoice {
                 token: token as i32,
@@ -289,31 +289,16 @@ pub(super) fn alarm_rows(control: &Control) -> Vec<ProAlarmChoice> {
         })
         .collect()
 }
-fn climate_observation(entity: &state::ViewEntity) -> Option<&state::ClimateValue> {
-    let observed = entity
-        .state
-        .as_option()
-        .filter(|value| value.__buffa_unknown_fields.is_empty())?;
-    match observed.value.as_ref()? {
-        state::observed_state::Value::Climate(value) => {
-            value.__buffa_unknown_fields.is_empty().then_some(value)
-        }
-        state::observed_state::Value::SwitchOn(_)
-        | state::observed_state::Value::Measurement(_)
-        | state::observed_state::Value::Light(_)
-        | state::observed_state::Value::Fan(_)
-        | state::observed_state::Value::Helper(_)
-        | state::observed_state::Value::Solar(_)
-        | state::observed_state::Value::SolarEvent(_)
-        | state::observed_state::Value::Cover(_)
-        | state::observed_state::Value::Lock(_)
-        | state::observed_state::Value::Alarm(_)
-        | state::observed_state::Value::Weather(_)
-        | state::observed_state::Value::Presence(_)
-        | state::observed_state::Value::PresenceDetails(_) => None,
-    }
+fn climate_observation(
+    capability: &wire::Capability,
+) -> Option<&wire::TemperatureControlObservation> {
+    super::observation::evidence(capability)?;
+    let wire::capability::Trait::TemperatureControl(value) = capability.r#trait.as_ref()? else {
+        return None;
+    };
+    value.observation.as_option()
 }
-pub(super) fn readings(control: &Control, entity: &state::ViewEntity) -> String {
+pub(super) fn readings(control: &Control, entity: &wire::Capability) -> String {
     let Control::Climate(climate) = control else {
         return String::new();
     };
@@ -322,18 +307,13 @@ pub(super) fn readings(control: &Control, entity: &state::ViewEntity) -> String 
     };
     let observes = climate.observes();
     let mut parts = Vec::new();
-    if observes.temperature
-        && let Some(value) = value.current_temperature_celsius.filter(|v| v.is_finite())
-    {
-        parts.push(format!("Temperature · {value} °C"));
-    }
     match value.setpoint.as_ref() {
-        Some(state::climate_value::Setpoint::SetpointCelsius(value))
+        Some(wire::temperature_control_observation::Setpoint::SetpointCelsius(value))
             if observes.setpoint && value.is_finite() =>
         {
             parts.push(format!("Observed setpoint · {value} °C"));
         }
-        Some(state::climate_value::Setpoint::SetpointRangeCelsius(value))
+        Some(wire::temperature_control_observation::Setpoint::SetpointRangeCelsius(value))
             if observes.range && value.__buffa_unknown_fields.is_empty() =>
         {
             if let Some(low) = value.low_celsius.filter(|v| v.is_finite()) {
@@ -344,8 +324,8 @@ pub(super) fn readings(control: &Control, entity: &state::ViewEntity) -> String 
             }
         }
         Some(
-            state::climate_value::Setpoint::SetpointCelsius(_)
-            | state::climate_value::Setpoint::SetpointRangeCelsius(_),
+            wire::temperature_control_observation::Setpoint::SetpointCelsius(_)
+            | wire::temperature_control_observation::Setpoint::SetpointRangeCelsius(_),
         )
         | None => {}
     }
@@ -362,11 +342,6 @@ pub(super) fn readings(control: &Control, entity: &state::ViewEntity) -> String 
         .filter(|v| observes.activities.contains(v))
     {
         parts.push(format!("Observed activity · {}", activity_label(activity)));
-    }
-    if observes.humidity
-        && let Some(value) = value.humidity_percent.filter(|v| v.is_finite())
-    {
-        parts.push(format!("Humidity · {value} %"));
     }
     if observes.fan_activity
         && let Some(value) = value.fan_active
@@ -400,6 +375,7 @@ impl Editor {
             } => Ok(color),
             Control::Light { color: None, .. }
             | Control::Switch { .. }
+            | Control::Level { .. }
             | Control::Climate(_)
             | Control::Fan(_)
             | Control::Helper(_)
@@ -435,6 +411,7 @@ impl Editor {
                 Control::Climate(_)
                 | Control::Fan(_)
                 | Control::Switch { .. }
+                | Control::Level { .. }
                 | Control::Light { .. }
                 | Control::Binary
                 | Control::Measurement
@@ -446,15 +423,13 @@ impl Editor {
             },
         }
     }
-    pub fn initial(self, entity: &state::ViewEntity, control: &Control) -> Draft {
+    pub fn initial(self, entity: &wire::Capability, control: &Control) -> Draft {
         let mut draft = Draft::default();
         if let Self::CoverPosition(_) = self {
             if let Control::Cover(cover) = control
-                && let Some(observation) = entity
-                    .state
-                    .as_option()
-                    .filter(|v| v.__buffa_unknown_fields.is_empty())
-                && let Some(state::observed_state::Value::Cover(value)) = &observation.value
+                && super::observation::evidence(entity).is_some()
+                && let Some(wire::capability::Trait::Cover(capability)) = entity.r#trait.as_ref()
+                && let Some(value) = capability.observation.value.as_option()
                 && let Some(position) = cover.observed_position(value)
             {
                 draft.lower = position.to_string();
@@ -463,15 +438,13 @@ impl Editor {
         }
         if matches!(self, Self::ColorTemperature) {
             if let Ok(color) = Self::color(control)
-                && let Some(value) = entity
-                    .state
-                    .as_option()
-                    .filter(|value| value.__buffa_unknown_fields.is_empty())
-                    .and_then(|state| state.value.as_ref())
-                && let state::observed_state::Value::Light(value) = value
-                && value.__buffa_unknown_fields.is_empty()
-                && let Some(value) = value
-                    .color_temp_mireds
+                && super::observation::evidence(entity).is_some()
+                && let Some(wire::capability::Trait::LightControl(capability)) =
+                    entity.r#trait.as_ref()
+                && let Some(value) = capability
+                    .observation
+                    .color_temperature_mireds
+                    .and_then(|value| u32::try_from(value).ok())
                     .and_then(super::light::Mireds::from_wire)
                 && color.admit(value).is_ok()
             {
@@ -499,6 +472,7 @@ impl Editor {
                 Self::Helper | Self::ColorTemperature | Self::CoverPosition(_) => false,
             },
             Control::Switch { .. }
+            | Control::Level { .. }
             | Control::Light { .. }
             | Control::Fan(_)
             | Control::Helper(_)
@@ -517,7 +491,7 @@ impl Editor {
             match (self, value.setpoint.as_ref()) {
                 (
                     Self::Setpoint(bounds),
-                    Some(state::climate_value::Setpoint::SetpointCelsius(value)),
+                    Some(wire::temperature_control_observation::Setpoint::SetpointCelsius(value)),
                 ) => {
                     if bounds.admit(*value).is_ok() {
                         draft.lower = value.to_string();
@@ -525,7 +499,9 @@ impl Editor {
                 }
                 (
                     Self::Range(range),
-                    Some(state::climate_value::Setpoint::SetpointRangeCelsius(value)),
+                    Some(wire::temperature_control_observation::Setpoint::SetpointRangeCelsius(
+                        value,
+                    )),
                 ) => {
                     if value.__buffa_unknown_fields.is_empty() {
                         let (low, high) = range.bounds();
@@ -544,9 +520,12 @@ impl Editor {
                 }
                 (
                     Self::Setpoint(_),
-                    Some(state::climate_value::Setpoint::SetpointRangeCelsius(_)),
+                    Some(wire::temperature_control_observation::Setpoint::SetpointRangeCelsius(_)),
                 )
-                | (Self::Range(_), Some(state::climate_value::Setpoint::SetpointCelsius(_)))
+                | (
+                    Self::Range(_),
+                    Some(wire::temperature_control_observation::Setpoint::SetpointCelsius(_)),
+                )
                 | (Self::Setpoint(_) | Self::Range(_), None)
                 | (
                     Self::Helper | Self::ColorTemperature | Self::CoverPosition(_),

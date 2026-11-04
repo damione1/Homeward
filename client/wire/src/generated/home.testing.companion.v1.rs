@@ -1073,14 +1073,14 @@ impl Capability {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Capability";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Capability";
 }
 ::buffa::impl_default_instance!(Capability);
 impl ::buffa::MessageName for Capability {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "Capability";
-    const FULL_NAME: &'static str = "home.companion.v1.Capability";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Capability";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.Capability";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Capability";
 }
 impl ::buffa::Message for Capability {
     /// Returns the total encoded size in bytes.
@@ -1218,7 +1218,7 @@ impl ::buffa::Message for Capability {
     }
 }
 impl ::buffa::ExtensionSet for Capability {
-    const PROTO_FQN: &'static str = "home.companion.v1.Capability";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.Capability";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1256,14 +1256,14 @@ impl DeviceDescription {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DeviceDescription";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DeviceDescription";
 }
 ::buffa::impl_default_instance!(DeviceDescription);
 impl ::buffa::MessageName for DeviceDescription {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "DeviceDescription";
-    const FULL_NAME: &'static str = "home.companion.v1.DeviceDescription";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DeviceDescription";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.DeviceDescription";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DeviceDescription";
 }
 impl ::buffa::Message for DeviceDescription {
     /// Returns the total encoded size in bytes.
@@ -1392,7 +1392,7 @@ impl ::buffa::Message for DeviceDescription {
     }
 }
 impl ::buffa::ExtensionSet for DeviceDescription {
-    const PROTO_FQN: &'static str = "home.companion.v1.DeviceDescription";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.DeviceDescription";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1417,14 +1417,14 @@ impl InstallationId {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.InstallationId";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.InstallationId";
 }
 ::buffa::impl_default_instance!(InstallationId);
 impl ::buffa::MessageName for InstallationId {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "InstallationId";
-    const FULL_NAME: &'static str = "home.companion.v1.InstallationId";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.InstallationId";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.InstallationId";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.InstallationId";
 }
 impl ::buffa::Message for InstallationId {
     /// Returns the total encoded size in bytes.
@@ -1488,7 +1488,7 @@ impl ::buffa::Message for InstallationId {
     }
 }
 impl ::buffa::ExtensionSet for InstallationId {
-    const PROTO_FQN: &'static str = "home.companion.v1.InstallationId";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.InstallationId";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1513,14 +1513,14 @@ impl DeviceId {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DeviceId";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DeviceId";
 }
 ::buffa::impl_default_instance!(DeviceId);
 impl ::buffa::MessageName for DeviceId {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "DeviceId";
-    const FULL_NAME: &'static str = "home.companion.v1.DeviceId";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DeviceId";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.DeviceId";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DeviceId";
 }
 impl ::buffa::Message for DeviceId {
     /// Returns the total encoded size in bytes.
@@ -1584,7 +1584,7 @@ impl ::buffa::Message for DeviceId {
     }
 }
 impl ::buffa::ExtensionSet for DeviceId {
-    const PROTO_FQN: &'static str = "home.companion.v1.DeviceId";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.DeviceId";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1622,14 +1622,14 @@ impl Consent {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Consent";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Consent";
 }
 ::buffa::impl_default_instance!(Consent);
 impl ::buffa::MessageName for Consent {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "Consent";
-    const FULL_NAME: &'static str = "home.companion.v1.Consent";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Consent";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.Consent";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Consent";
 }
 impl ::buffa::Message for Consent {
     /// Returns the total encoded size in bytes.
@@ -1743,7 +1743,7 @@ impl ::buffa::Message for Consent {
     }
 }
 impl ::buffa::ExtensionSet for Consent {
-    const PROTO_FQN: &'static str = "home.companion.v1.Consent";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.Consent";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1773,14 +1773,14 @@ impl Battery {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Battery";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Battery";
 }
 ::buffa::impl_default_instance!(Battery);
 impl ::buffa::MessageName for Battery {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "Battery";
-    const FULL_NAME: &'static str = "home.companion.v1.Battery";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Battery";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.Battery";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Battery";
 }
 impl ::buffa::Message for Battery {
     /// Returns the total encoded size in bytes.
@@ -1866,7 +1866,7 @@ impl ::buffa::Message for Battery {
     }
 }
 impl ::buffa::ExtensionSet for Battery {
-    const PROTO_FQN: &'static str = "home.companion.v1.Battery";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.Battery";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1894,14 +1894,14 @@ impl BatteryObservation {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.BatteryObservation";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.BatteryObservation";
 }
 ::buffa::impl_default_instance!(BatteryObservation);
 impl ::buffa::MessageName for BatteryObservation {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "BatteryObservation";
-    const FULL_NAME: &'static str = "home.companion.v1.BatteryObservation";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.BatteryObservation";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.BatteryObservation";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.BatteryObservation";
 }
 impl ::buffa::Message for BatteryObservation {
     /// Returns the total encoded size in bytes.
@@ -2015,7 +2015,7 @@ impl ::buffa::Message for BatteryObservation {
     }
 }
 impl ::buffa::ExtensionSet for BatteryObservation {
-    const PROTO_FQN: &'static str = "home.companion.v1.BatteryObservation";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.BatteryObservation";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2051,14 +2051,14 @@ impl ConnectivityObservation {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.ConnectivityObservation";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.ConnectivityObservation";
 }
 ::buffa::impl_default_instance!(ConnectivityObservation);
 impl ::buffa::MessageName for ConnectivityObservation {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "ConnectivityObservation";
-    const FULL_NAME: &'static str = "home.companion.v1.ConnectivityObservation";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.ConnectivityObservation";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.ConnectivityObservation";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.ConnectivityObservation";
 }
 impl ::buffa::Message for ConnectivityObservation {
     /// Returns the total encoded size in bytes.
@@ -2151,7 +2151,7 @@ impl ::buffa::Message for ConnectivityObservation {
     }
 }
 impl ::buffa::ExtensionSet for ConnectivityObservation {
-    const PROTO_FQN: &'static str = "home.companion.v1.ConnectivityObservation";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.ConnectivityObservation";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2187,14 +2187,14 @@ impl ActivityObservation {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.ActivityObservation";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.ActivityObservation";
 }
 ::buffa::impl_default_instance!(ActivityObservation);
 impl ::buffa::MessageName for ActivityObservation {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "ActivityObservation";
-    const FULL_NAME: &'static str = "home.companion.v1.ActivityObservation";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.ActivityObservation";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.ActivityObservation";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.ActivityObservation";
 }
 impl ::buffa::Message for ActivityObservation {
     /// Returns the total encoded size in bytes.
@@ -2287,7 +2287,7 @@ impl ::buffa::Message for ActivityObservation {
     }
 }
 impl ::buffa::ExtensionSet for ActivityObservation {
-    const PROTO_FQN: &'static str = "home.companion.v1.ActivityObservation";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.ActivityObservation";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2343,14 +2343,14 @@ impl Snapshot {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Snapshot";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Snapshot";
 }
 ::buffa::impl_default_instance!(Snapshot);
 impl ::buffa::MessageName for Snapshot {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "Snapshot";
-    const FULL_NAME: &'static str = "home.companion.v1.Snapshot";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Snapshot";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.Snapshot";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Snapshot";
 }
 impl ::buffa::Message for Snapshot {
     /// Returns the total encoded size in bytes.
@@ -2512,7 +2512,7 @@ impl ::buffa::Message for Snapshot {
     }
 }
 impl ::buffa::ExtensionSet for Snapshot {
-    const PROTO_FQN: &'static str = "home.companion.v1.Snapshot";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.Snapshot";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2544,14 +2544,14 @@ impl Context {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Context";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Context";
 }
 ::buffa::impl_default_instance!(Context);
 impl ::buffa::MessageName for Context {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "Context";
-    const FULL_NAME: &'static str = "home.companion.v1.Context";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Context";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.Context";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Context";
 }
 impl ::buffa::Message for Context {
     /// Returns the total encoded size in bytes.
@@ -2637,7 +2637,7 @@ impl ::buffa::Message for Context {
     }
 }
 impl ::buffa::ExtensionSet for Context {
-    const PROTO_FQN: &'static str = "home.companion.v1.Context";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.Context";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2655,13 +2655,13 @@ pub struct Installation {
     ///
     /// Field 3: `account_id`
     pub account_id: ::buffa::MessageField<
-        super::super::auth::v1::AccountId,
-        ::buffa::Inline<super::super::auth::v1::AccountId>,
+        super::super::super::auth::v1::AccountId,
+        ::buffa::Inline<super::super::super::auth::v1::AccountId>,
     >,
     /// Field 4: `session_id`
     pub session_id: ::buffa::MessageField<
-        super::super::auth::v1::SessionId,
-        ::buffa::Inline<super::super::auth::v1::SessionId>,
+        super::super::super::auth::v1::SessionId,
+        ::buffa::Inline<super::super::super::auth::v1::SessionId>,
     >,
     /// Field 5: `device`
     pub device: ::buffa::MessageField<
@@ -2720,14 +2720,14 @@ impl Installation {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Installation";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Installation";
 }
 ::buffa::impl_default_instance!(Installation);
 impl ::buffa::MessageName for Installation {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "Installation";
-    const FULL_NAME: &'static str = "home.companion.v1.Installation";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Installation";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.Installation";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Installation";
 }
 impl ::buffa::Message for Installation {
     /// Returns the total encoded size in bytes.
@@ -3096,7 +3096,7 @@ impl ::buffa::Message for Installation {
     }
 }
 impl ::buffa::ExtensionSet for Installation {
-    const PROTO_FQN: &'static str = "home.companion.v1.Installation";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.Installation";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3135,14 +3135,14 @@ impl RegisterInstallationRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RegisterInstallationRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RegisterInstallationRequest";
 }
 ::buffa::impl_default_instance!(RegisterInstallationRequest);
 impl ::buffa::MessageName for RegisterInstallationRequest {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "RegisterInstallationRequest";
-    const FULL_NAME: &'static str = "home.companion.v1.RegisterInstallationRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RegisterInstallationRequest";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.RegisterInstallationRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RegisterInstallationRequest";
 }
 impl ::buffa::Message for RegisterInstallationRequest {
     /// Returns the total encoded size in bytes.
@@ -3262,7 +3262,7 @@ impl ::buffa::Message for RegisterInstallationRequest {
     }
 }
 impl ::buffa::ExtensionSet for RegisterInstallationRequest {
-    const PROTO_FQN: &'static str = "home.companion.v1.RegisterInstallationRequest";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.RegisterInstallationRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3292,14 +3292,14 @@ impl RegisterInstallationResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RegisterInstallationResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RegisterInstallationResponse";
 }
 ::buffa::impl_default_instance!(RegisterInstallationResponse);
 impl ::buffa::MessageName for RegisterInstallationResponse {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "RegisterInstallationResponse";
-    const FULL_NAME: &'static str = "home.companion.v1.RegisterInstallationResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RegisterInstallationResponse";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.RegisterInstallationResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RegisterInstallationResponse";
 }
 impl ::buffa::Message for RegisterInstallationResponse {
     /// Returns the total encoded size in bytes.
@@ -3405,7 +3405,7 @@ impl ::buffa::Message for RegisterInstallationResponse {
     }
 }
 impl ::buffa::ExtensionSet for RegisterInstallationResponse {
-    const PROTO_FQN: &'static str = "home.companion.v1.RegisterInstallationResponse";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.RegisterInstallationResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3433,14 +3433,14 @@ impl GetInstallationRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.GetInstallationRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.GetInstallationRequest";
 }
 ::buffa::impl_default_instance!(GetInstallationRequest);
 impl ::buffa::MessageName for GetInstallationRequest {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "GetInstallationRequest";
-    const FULL_NAME: &'static str = "home.companion.v1.GetInstallationRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.GetInstallationRequest";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.GetInstallationRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.GetInstallationRequest";
 }
 impl ::buffa::Message for GetInstallationRequest {
     /// Returns the total encoded size in bytes.
@@ -3558,7 +3558,7 @@ impl ::buffa::Message for GetInstallationRequest {
     }
 }
 impl ::buffa::ExtensionSet for GetInstallationRequest {
-    const PROTO_FQN: &'static str = "home.companion.v1.GetInstallationRequest";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.GetInstallationRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3596,14 +3596,14 @@ impl GetInstallationResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.GetInstallationResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.GetInstallationResponse";
 }
 ::buffa::impl_default_instance!(GetInstallationResponse);
 impl ::buffa::MessageName for GetInstallationResponse {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "GetInstallationResponse";
-    const FULL_NAME: &'static str = "home.companion.v1.GetInstallationResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.GetInstallationResponse";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.GetInstallationResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.GetInstallationResponse";
 }
 impl ::buffa::Message for GetInstallationResponse {
     /// Returns the total encoded size in bytes.
@@ -3709,7 +3709,7 @@ impl ::buffa::Message for GetInstallationResponse {
     }
 }
 impl ::buffa::ExtensionSet for GetInstallationResponse {
-    const PROTO_FQN: &'static str = "home.companion.v1.GetInstallationResponse";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.GetInstallationResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3745,14 +3745,14 @@ impl UpdateConsentRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.UpdateConsentRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.UpdateConsentRequest";
 }
 ::buffa::impl_default_instance!(UpdateConsentRequest);
 impl ::buffa::MessageName for UpdateConsentRequest {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "UpdateConsentRequest";
-    const FULL_NAME: &'static str = "home.companion.v1.UpdateConsentRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.UpdateConsentRequest";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.UpdateConsentRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.UpdateConsentRequest";
 }
 impl ::buffa::Message for UpdateConsentRequest {
     /// Returns the total encoded size in bytes.
@@ -3902,7 +3902,7 @@ impl ::buffa::Message for UpdateConsentRequest {
     }
 }
 impl ::buffa::ExtensionSet for UpdateConsentRequest {
-    const PROTO_FQN: &'static str = "home.companion.v1.UpdateConsentRequest";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.UpdateConsentRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3932,14 +3932,14 @@ impl UpdateConsentResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.UpdateConsentResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.UpdateConsentResponse";
 }
 ::buffa::impl_default_instance!(UpdateConsentResponse);
 impl ::buffa::MessageName for UpdateConsentResponse {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "UpdateConsentResponse";
-    const FULL_NAME: &'static str = "home.companion.v1.UpdateConsentResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.UpdateConsentResponse";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.UpdateConsentResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.UpdateConsentResponse";
 }
 impl ::buffa::Message for UpdateConsentResponse {
     /// Returns the total encoded size in bytes.
@@ -4045,7 +4045,7 @@ impl ::buffa::Message for UpdateConsentResponse {
     }
 }
 impl ::buffa::ExtensionSet for UpdateConsentResponse {
-    const PROTO_FQN: &'static str = "home.companion.v1.UpdateConsentResponse";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.UpdateConsentResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4087,14 +4087,14 @@ impl PublishTelemetryRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.PublishTelemetryRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.PublishTelemetryRequest";
 }
 ::buffa::impl_default_instance!(PublishTelemetryRequest);
 impl ::buffa::MessageName for PublishTelemetryRequest {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "PublishTelemetryRequest";
-    const FULL_NAME: &'static str = "home.companion.v1.PublishTelemetryRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.PublishTelemetryRequest";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.PublishTelemetryRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.PublishTelemetryRequest";
 }
 impl ::buffa::Message for PublishTelemetryRequest {
     /// Returns the total encoded size in bytes.
@@ -4258,7 +4258,7 @@ impl ::buffa::Message for PublishTelemetryRequest {
     }
 }
 impl ::buffa::ExtensionSet for PublishTelemetryRequest {
-    const PROTO_FQN: &'static str = "home.companion.v1.PublishTelemetryRequest";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.PublishTelemetryRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4288,14 +4288,14 @@ impl PublishTelemetryResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.PublishTelemetryResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.PublishTelemetryResponse";
 }
 ::buffa::impl_default_instance!(PublishTelemetryResponse);
 impl ::buffa::MessageName for PublishTelemetryResponse {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "PublishTelemetryResponse";
-    const FULL_NAME: &'static str = "home.companion.v1.PublishTelemetryResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.PublishTelemetryResponse";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.PublishTelemetryResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.PublishTelemetryResponse";
 }
 impl ::buffa::Message for PublishTelemetryResponse {
     /// Returns the total encoded size in bytes.
@@ -4401,7 +4401,7 @@ impl ::buffa::Message for PublishTelemetryResponse {
     }
 }
 impl ::buffa::ExtensionSet for PublishTelemetryResponse {
-    const PROTO_FQN: &'static str = "home.companion.v1.PublishTelemetryResponse";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.PublishTelemetryResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4434,14 +4434,14 @@ impl RevokeInstallationRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RevokeInstallationRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RevokeInstallationRequest";
 }
 ::buffa::impl_default_instance!(RevokeInstallationRequest);
 impl ::buffa::MessageName for RevokeInstallationRequest {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "RevokeInstallationRequest";
-    const FULL_NAME: &'static str = "home.companion.v1.RevokeInstallationRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RevokeInstallationRequest";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.RevokeInstallationRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RevokeInstallationRequest";
 }
 impl ::buffa::Message for RevokeInstallationRequest {
     /// Returns the total encoded size in bytes.
@@ -4563,7 +4563,7 @@ impl ::buffa::Message for RevokeInstallationRequest {
     }
 }
 impl ::buffa::ExtensionSet for RevokeInstallationRequest {
-    const PROTO_FQN: &'static str = "home.companion.v1.RevokeInstallationRequest";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.RevokeInstallationRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4593,14 +4593,14 @@ impl RevokeInstallationResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RevokeInstallationResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RevokeInstallationResponse";
 }
 ::buffa::impl_default_instance!(RevokeInstallationResponse);
 impl ::buffa::MessageName for RevokeInstallationResponse {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "RevokeInstallationResponse";
-    const FULL_NAME: &'static str = "home.companion.v1.RevokeInstallationResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RevokeInstallationResponse";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.RevokeInstallationResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RevokeInstallationResponse";
 }
 impl ::buffa::Message for RevokeInstallationResponse {
     /// Returns the total encoded size in bytes.
@@ -4706,7 +4706,7 @@ impl ::buffa::Message for RevokeInstallationResponse {
     }
 }
 impl ::buffa::ExtensionSet for RevokeInstallationResponse {
-    const PROTO_FQN: &'static str = "home.companion.v1.RevokeInstallationResponse";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.RevokeInstallationResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4729,14 +4729,14 @@ impl DescribeCompanionRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DescribeCompanionRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DescribeCompanionRequest";
 }
 ::buffa::impl_default_instance!(DescribeCompanionRequest);
 impl ::buffa::MessageName for DescribeCompanionRequest {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "DescribeCompanionRequest";
-    const FULL_NAME: &'static str = "home.companion.v1.DescribeCompanionRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DescribeCompanionRequest";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.DescribeCompanionRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DescribeCompanionRequest";
 }
 impl ::buffa::Message for DescribeCompanionRequest {
     /// Returns the total encoded size in bytes.
@@ -4786,7 +4786,158 @@ impl ::buffa::Message for DescribeCompanionRequest {
     }
 }
 impl ::buffa::ExtensionSet for DescribeCompanionRequest {
-    const PROTO_FQN: &'static str = "home.companion.v1.DescribeCompanionRequest";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.DescribeCompanionRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+/// Qualification-only identity captured from the verified native session lease.
+/// It is never reconstructed from an opaque public Account or Session name.
+#[derive(Clone, PartialEq, Default)]
+pub struct SyntheticIdentity {
+    /// Field 1: `account_id`
+    pub account_id: ::buffa::MessageField<
+        super::super::super::auth::v1::AccountId,
+        ::buffa::Inline<super::super::super::auth::v1::AccountId>,
+    >,
+    /// Field 2: `session_id`
+    pub session_id: ::buffa::MessageField<
+        super::super::super::auth::v1::SessionId,
+        ::buffa::Inline<super::super::super::auth::v1::SessionId>,
+    >,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for SyntheticIdentity {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("SyntheticIdentity")
+            .field("account_id", &self.account_id)
+            .field("session_id", &self.session_id)
+            .finish()
+    }
+}
+impl SyntheticIdentity {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.SyntheticIdentity";
+}
+::buffa::impl_default_instance!(SyntheticIdentity);
+impl ::buffa::MessageName for SyntheticIdentity {
+    const PACKAGE: &'static str = "home.testing.companion.v1";
+    const NAME: &'static str = "SyntheticIdentity";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.SyntheticIdentity";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.SyntheticIdentity";
+}
+impl ::buffa::Message for SyntheticIdentity {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.account_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.account_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.session_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.session_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.account_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.account_id.write_to(__cache, buf);
+        }
+        if self.session_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.session_id.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.account_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.session_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.account_id = ::buffa::MessageField::none();
+        self.session_id = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for SyntheticIdentity {
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.SyntheticIdentity";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4798,6 +4949,11 @@ impl ::buffa::ExtensionSet for DescribeCompanionRequest {
 pub struct DescribeCompanionResponse {
     /// Field 1: `context`
     pub context: ::buffa::MessageField<Context, ::buffa::Inline<Context>>,
+    /// Field 2: `synthetic_identity`
+    pub synthetic_identity: ::buffa::MessageField<
+        SyntheticIdentity,
+        ::buffa::Inline<SyntheticIdentity>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -4805,6 +4961,7 @@ impl ::core::fmt::Debug for DescribeCompanionResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("DescribeCompanionResponse")
             .field("context", &self.context)
+            .field("synthetic_identity", &self.synthetic_identity)
             .finish()
     }
 }
@@ -4813,14 +4970,14 @@ impl DescribeCompanionResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DescribeCompanionResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DescribeCompanionResponse";
 }
 ::buffa::impl_default_instance!(DescribeCompanionResponse);
 impl ::buffa::MessageName for DescribeCompanionResponse {
-    const PACKAGE: &'static str = "home.companion.v1";
+    const PACKAGE: &'static str = "home.testing.companion.v1";
     const NAME: &'static str = "DescribeCompanionResponse";
-    const FULL_NAME: &'static str = "home.companion.v1.DescribeCompanionResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DescribeCompanionResponse";
+    const FULL_NAME: &'static str = "home.testing.companion.v1.DescribeCompanionResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DescribeCompanionResponse";
 }
 impl ::buffa::Message for DescribeCompanionResponse {
     /// Returns the total encoded size in bytes.
@@ -4843,6 +5000,14 @@ impl ::buffa::Message for DescribeCompanionResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.synthetic_identity.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.synthetic_identity.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4860,6 +5025,14 @@ impl ::buffa::Message for DescribeCompanionResponse {
                 buf,
             );
             self.context.write_to(__cache, buf);
+        }
+        if self.synthetic_identity.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.synthetic_identity.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4885,6 +5058,17 @@ impl ::buffa::Message for DescribeCompanionResponse {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.synthetic_identity.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4894,11 +5078,12 @@ impl ::buffa::Message for DescribeCompanionResponse {
     }
     fn clear(&mut self) {
         self.context = ::buffa::MessageField::none();
+        self.synthetic_identity = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
 impl ::buffa::ExtensionSet for DescribeCompanionResponse {
-    const PROTO_FQN: &'static str = "home.companion.v1.DescribeCompanionResponse";
+    const PROTO_FQN: &'static str = "home.testing.companion.v1.DescribeCompanionResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -5111,10 +5296,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for CapabilityView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "Capability";
-            const FULL_NAME: &'static str = "home.companion.v1.Capability";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Capability";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.Capability";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Capability";
         }
         ::buffa::impl_default_view_instance!(CapabilityView);
         ::buffa::impl_view_reborrow!(CapabilityView);
@@ -5451,10 +5636,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for DeviceDescriptionView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "DeviceDescription";
-            const FULL_NAME: &'static str = "home.companion.v1.DeviceDescription";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DeviceDescription";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.DeviceDescription";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DeviceDescription";
         }
         ::buffa::impl_default_view_instance!(DeviceDescriptionView);
         ::buffa::impl_view_reborrow!(DeviceDescriptionView);
@@ -5705,10 +5890,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for InstallationIdView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "InstallationId";
-            const FULL_NAME: &'static str = "home.companion.v1.InstallationId";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.InstallationId";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.InstallationId";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.InstallationId";
         }
         ::buffa::impl_default_view_instance!(InstallationIdView);
         ::buffa::impl_view_reborrow!(InstallationIdView);
@@ -5933,10 +6118,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for DeviceIdView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "DeviceId";
-            const FULL_NAME: &'static str = "home.companion.v1.DeviceId";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DeviceId";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.DeviceId";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DeviceId";
         }
         ::buffa::impl_default_view_instance!(DeviceIdView);
         ::buffa::impl_view_reborrow!(DeviceIdView);
@@ -6216,10 +6401,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ConsentView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "Consent";
-            const FULL_NAME: &'static str = "home.companion.v1.Consent";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Consent";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.Consent";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Consent";
         }
         ::buffa::impl_default_view_instance!(ConsentView);
         ::buffa::impl_view_reborrow!(ConsentView);
@@ -6482,10 +6667,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for BatteryView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "Battery";
-            const FULL_NAME: &'static str = "home.companion.v1.Battery";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Battery";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.Battery";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Battery";
         }
         ::buffa::impl_default_view_instance!(BatteryView);
         ::buffa::impl_view_reborrow!(BatteryView);
@@ -6814,10 +6999,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for BatteryObservationView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "BatteryObservation";
-            const FULL_NAME: &'static str = "home.companion.v1.BatteryObservation";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.BatteryObservation";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.BatteryObservation";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.BatteryObservation";
         }
         ::buffa::impl_default_view_instance!(BatteryObservationView);
         ::buffa::impl_view_reborrow!(BatteryObservationView);
@@ -7115,10 +7300,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ConnectivityObservationView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "ConnectivityObservation";
-            const FULL_NAME: &'static str = "home.companion.v1.ConnectivityObservation";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.ConnectivityObservation";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.ConnectivityObservation";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.ConnectivityObservation";
         }
         ::buffa::impl_default_view_instance!(ConnectivityObservationView);
         ::buffa::impl_view_reborrow!(ConnectivityObservationView);
@@ -7424,10 +7609,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ActivityObservationView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "ActivityObservation";
-            const FULL_NAME: &'static str = "home.companion.v1.ActivityObservation";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.ActivityObservation";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.ActivityObservation";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.ActivityObservation";
         }
         ::buffa::impl_default_view_instance!(ActivityObservationView);
         ::buffa::impl_view_reborrow!(ActivityObservationView);
@@ -7857,10 +8042,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for SnapshotView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "Snapshot";
-            const FULL_NAME: &'static str = "home.companion.v1.Snapshot";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Snapshot";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.Snapshot";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Snapshot";
         }
         ::buffa::impl_default_view_instance!(SnapshotView);
         ::buffa::impl_view_reborrow!(SnapshotView);
@@ -8140,10 +8325,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ContextView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "Context";
-            const FULL_NAME: &'static str = "home.companion.v1.Context";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Context";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.Context";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Context";
         }
         ::buffa::impl_default_view_instance!(ContextView);
         ::buffa::impl_view_reborrow!(ContextView);
@@ -8278,11 +8463,15 @@ pub mod __buffa {
             ///
             /// Field 3: `account_id`
             pub account_id: ::buffa::MessageFieldView<
-                super::super::super::super::auth::v1::__buffa::view::AccountIdView<'a>,
+                super::super::super::super::super::auth::v1::__buffa::view::AccountIdView<
+                    'a,
+                >,
             >,
             /// Field 4: `session_id`
             pub session_id: ::buffa::MessageFieldView<
-                super::super::super::super::auth::v1::__buffa::view::SessionIdView<'a>,
+                super::super::super::super::super::auth::v1::__buffa::view::SessionIdView<
+                    'a,
+                >,
             >,
             /// Field 5: `device`
             pub device: ::buffa::MessageFieldView<
@@ -8420,7 +8609,7 @@ pub mod __buffa {
                             }
                             None => {
                                 view.account_id = ::buffa::MessageFieldView::set(
-                                    <super::super::super::super::auth::v1::__buffa::view::AccountIdView as ::buffa::MessageView>::decode_view_ctx(
+                                    <super::super::super::super::super::auth::v1::__buffa::view::AccountIdView as ::buffa::MessageView>::decode_view_ctx(
                                         sub,
                                         __sub_ctx,
                                     )?,
@@ -8445,7 +8634,7 @@ pub mod __buffa {
                             }
                             None => {
                                 view.session_id = ::buffa::MessageFieldView::set(
-                                    <super::super::super::super::auth::v1::__buffa::view::SessionIdView as ::buffa::MessageView>::decode_view_ctx(
+                                    <super::super::super::super::super::auth::v1::__buffa::view::SessionIdView as ::buffa::MessageView>::decode_view_ctx(
                                         sub,
                                         __sub_ctx,
                                     )?,
@@ -8660,9 +8849,9 @@ pub mod __buffa {
                     account_id: match self.account_id.as_option() {
                         Some(v) => {
                             ::buffa::MessageField::<
-                                super::super::super::super::auth::v1::AccountId,
+                                super::super::super::super::super::auth::v1::AccountId,
                                 ::buffa::Inline<
-                                    super::super::super::super::auth::v1::AccountId,
+                                    super::super::super::super::super::auth::v1::AccountId,
                                 >,
                             >::some(v.to_owned_from_source(__buffa_src)?)
                         }
@@ -8671,9 +8860,9 @@ pub mod __buffa {
                     session_id: match self.session_id.as_option() {
                         Some(v) => {
                             ::buffa::MessageField::<
-                                super::super::super::super::auth::v1::SessionId,
+                                super::super::super::super::super::auth::v1::SessionId,
                                 ::buffa::Inline<
-                                    super::super::super::super::auth::v1::SessionId,
+                                    super::super::super::super::super::auth::v1::SessionId,
                                 >,
                             >::some(v.to_owned_from_source(__buffa_src)?)
                         }
@@ -8944,10 +9133,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for InstallationView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "Installation";
-            const FULL_NAME: &'static str = "home.companion.v1.Installation";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.Installation";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.Installation";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.Installation";
         }
         ::buffa::impl_default_view_instance!(InstallationView);
         ::buffa::impl_view_reborrow!(InstallationView);
@@ -9058,7 +9247,9 @@ pub mod __buffa {
             pub fn account_id(
                 &self,
             ) -> &::buffa::MessageFieldView<
-                super::super::super::super::auth::v1::__buffa::view::AccountIdView<'_>,
+                super::super::super::super::super::auth::v1::__buffa::view::AccountIdView<
+                    '_,
+                >,
             > {
                 &self.0.reborrow().account_id
             }
@@ -9067,7 +9258,9 @@ pub mod __buffa {
             pub fn session_id(
                 &self,
             ) -> &::buffa::MessageFieldView<
-                super::super::super::super::auth::v1::__buffa::view::SessionIdView<'_>,
+                super::super::super::super::super::auth::v1::__buffa::view::SessionIdView<
+                    '_,
+                >,
             > {
                 &self.0.reborrow().session_id
             }
@@ -9390,10 +9583,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for RegisterInstallationRequestView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "RegisterInstallationRequest";
-            const FULL_NAME: &'static str = "home.companion.v1.RegisterInstallationRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RegisterInstallationRequest";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.RegisterInstallationRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RegisterInstallationRequest";
         }
         ::buffa::impl_default_view_instance!(RegisterInstallationRequestView);
         ::buffa::impl_view_reborrow!(RegisterInstallationRequestView);
@@ -9746,10 +9939,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for RegisterInstallationResponseView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "RegisterInstallationResponse";
-            const FULL_NAME: &'static str = "home.companion.v1.RegisterInstallationResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RegisterInstallationResponse";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.RegisterInstallationResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RegisterInstallationResponse";
         }
         ::buffa::impl_default_view_instance!(RegisterInstallationResponseView);
         ::buffa::impl_view_reborrow!(RegisterInstallationResponseView);
@@ -10098,10 +10291,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for GetInstallationRequestView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "GetInstallationRequest";
-            const FULL_NAME: &'static str = "home.companion.v1.GetInstallationRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.GetInstallationRequest";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.GetInstallationRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.GetInstallationRequest";
         }
         ::buffa::impl_default_view_instance!(GetInstallationRequestView);
         ::buffa::impl_view_reborrow!(GetInstallationRequestView);
@@ -10435,10 +10628,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for GetInstallationResponseView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "GetInstallationResponse";
-            const FULL_NAME: &'static str = "home.companion.v1.GetInstallationResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.GetInstallationResponse";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.GetInstallationResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.GetInstallationResponse";
         }
         ::buffa::impl_default_view_instance!(GetInstallationResponseView);
         ::buffa::impl_view_reborrow!(GetInstallationResponseView);
@@ -10856,10 +11049,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for UpdateConsentRequestView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "UpdateConsentRequest";
-            const FULL_NAME: &'static str = "home.companion.v1.UpdateConsentRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.UpdateConsentRequest";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.UpdateConsentRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.UpdateConsentRequest";
         }
         ::buffa::impl_default_view_instance!(UpdateConsentRequestView);
         ::buffa::impl_view_reborrow!(UpdateConsentRequestView);
@@ -11211,10 +11404,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for UpdateConsentResponseView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "UpdateConsentResponse";
-            const FULL_NAME: &'static str = "home.companion.v1.UpdateConsentResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.UpdateConsentResponse";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.UpdateConsentResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.UpdateConsentResponse";
         }
         ::buffa::impl_default_view_instance!(UpdateConsentResponseView);
         ::buffa::impl_view_reborrow!(UpdateConsentResponseView);
@@ -11649,10 +11842,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for PublishTelemetryRequestView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "PublishTelemetryRequest";
-            const FULL_NAME: &'static str = "home.companion.v1.PublishTelemetryRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.PublishTelemetryRequest";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.PublishTelemetryRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.PublishTelemetryRequest";
         }
         ::buffa::impl_default_view_instance!(PublishTelemetryRequestView);
         ::buffa::impl_view_reborrow!(PublishTelemetryRequestView);
@@ -12017,10 +12210,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for PublishTelemetryResponseView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "PublishTelemetryResponse";
-            const FULL_NAME: &'static str = "home.companion.v1.PublishTelemetryResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.PublishTelemetryResponse";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.PublishTelemetryResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.PublishTelemetryResponse";
         }
         ::buffa::impl_default_view_instance!(PublishTelemetryResponseView);
         ::buffa::impl_view_reborrow!(PublishTelemetryResponseView);
@@ -12384,10 +12577,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for RevokeInstallationRequestView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "RevokeInstallationRequest";
-            const FULL_NAME: &'static str = "home.companion.v1.RevokeInstallationRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RevokeInstallationRequest";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.RevokeInstallationRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RevokeInstallationRequest";
         }
         ::buffa::impl_default_view_instance!(RevokeInstallationRequestView);
         ::buffa::impl_view_reborrow!(RevokeInstallationRequestView);
@@ -12737,10 +12930,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for RevokeInstallationResponseView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "RevokeInstallationResponse";
-            const FULL_NAME: &'static str = "home.companion.v1.RevokeInstallationResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.RevokeInstallationResponse";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.RevokeInstallationResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.RevokeInstallationResponse";
         }
         ::buffa::impl_default_view_instance!(RevokeInstallationResponseView);
         ::buffa::impl_view_reborrow!(RevokeInstallationResponseView);
@@ -12977,10 +13170,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for DescribeCompanionRequestView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "DescribeCompanionRequest";
-            const FULL_NAME: &'static str = "home.companion.v1.DescribeCompanionRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DescribeCompanionRequest";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.DescribeCompanionRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DescribeCompanionRequest";
         }
         ::buffa::impl_default_view_instance!(DescribeCompanionRequestView);
         ::buffa::impl_view_reborrow!(DescribeCompanionRequestView);
@@ -13099,11 +13292,367 @@ pub mod __buffa {
             type View<'a> = DescribeCompanionRequestView<'a>;
             type ViewHandle = DescribeCompanionRequestOwnedView;
         }
+        /// Qualification-only identity captured from the verified native session lease.
+        /// It is never reconstructed from an opaque public Account or Session name.
+        #[derive(Clone, Debug, Default)]
+        pub struct SyntheticIdentityView<'a> {
+            /// Field 1: `account_id`
+            pub account_id: ::buffa::MessageFieldView<
+                super::super::super::super::super::auth::v1::__buffa::view::AccountIdView<
+                    'a,
+                >,
+            >,
+            /// Field 2: `session_id`
+            pub session_id: ::buffa::MessageFieldView<
+                super::super::super::super::super::auth::v1::__buffa::view::SessionIdView<
+                    'a,
+                >,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for SyntheticIdentityView<'a> {
+            type Owned = super::super::SyntheticIdentity;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.account_id.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.account_id = ::buffa::MessageFieldView::set(
+                                    <super::super::super::super::super::auth::v1::__buffa::view::AccountIdView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.session_id.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.session_id = ::buffa::MessageFieldView::set(
+                                    <super::super::super::super::super::auth::v1::__buffa::view::SessionIdView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::SyntheticIdentity,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::SyntheticIdentity,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::SyntheticIdentity {
+                    account_id: match self.account_id.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::super::super::super::auth::v1::AccountId,
+                                ::buffa::Inline<
+                                    super::super::super::super::super::auth::v1::AccountId,
+                                >,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    session_id: match self.session_id.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::super::super::super::auth::v1::SessionId,
+                                ::buffa::Inline<
+                                    super::super::super::super::super::auth::v1::SessionId,
+                                >,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for SyntheticIdentityView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.account_id.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.account_id.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.session_id.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.session_id.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.account_id.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.account_id.write_to(__cache, buf);
+                }
+                if self.session_id.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.session_id.write_to(__cache, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for SyntheticIdentityView<'a> {
+            const PACKAGE: &'static str = "home.testing.companion.v1";
+            const NAME: &'static str = "SyntheticIdentity";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.SyntheticIdentity";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.SyntheticIdentity";
+        }
+        ::buffa::impl_default_view_instance!(SyntheticIdentityView);
+        ::buffa::impl_view_reborrow!(SyntheticIdentityView);
+        /** Self-contained, `'static` owned view of a `SyntheticIdentity` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`SyntheticIdentityView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SyntheticIdentityView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct SyntheticIdentityOwnedView(
+            ::buffa::OwnedView<SyntheticIdentityView<'static>>,
+        );
+        impl SyntheticIdentityOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    SyntheticIdentityOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    SyntheticIdentityOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::SyntheticIdentity,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    SyntheticIdentityOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`SyntheticIdentityView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &SyntheticIdentityView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::SyntheticIdentity {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `account_id`
+            #[must_use]
+            pub fn account_id(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::super::super::super::auth::v1::__buffa::view::AccountIdView<
+                    '_,
+                >,
+            > {
+                &self.0.reborrow().account_id
+            }
+            /// Field 2: `session_id`
+            #[must_use]
+            pub fn session_id(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::super::super::super::auth::v1::__buffa::view::SessionIdView<
+                    '_,
+                >,
+            > {
+                &self.0.reborrow().session_id
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<SyntheticIdentityView<'static>>>
+        for SyntheticIdentityOwnedView {
+            fn from(inner: ::buffa::OwnedView<SyntheticIdentityView<'static>>) -> Self {
+                SyntheticIdentityOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<SyntheticIdentityOwnedView>
+        for ::buffa::OwnedView<SyntheticIdentityView<'static>> {
+            fn from(wrapper: SyntheticIdentityOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<SyntheticIdentityView<'static>>>
+        for SyntheticIdentityOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<SyntheticIdentityView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::SyntheticIdentity {
+            type View<'a> = SyntheticIdentityView<'a>;
+            type ViewHandle = SyntheticIdentityOwnedView;
+        }
         #[derive(Clone, Debug, Default)]
         pub struct DescribeCompanionResponseView<'a> {
             /// Field 1: `context`
             pub context: ::buffa::MessageFieldView<
                 super::super::__buffa::view::ContextView<'a>,
+            >,
+            /// Field 2: `synthetic_identity`
+            pub synthetic_identity: ::buffa::MessageFieldView<
+                super::super::__buffa::view::SyntheticIdentityView<'a>,
             >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
@@ -13168,6 +13717,31 @@ pub mod __buffa {
                             }
                         }
                     }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.synthetic_identity.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.synthetic_identity = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::SyntheticIdentityView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -13206,6 +13780,15 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    synthetic_identity: match self.synthetic_identity.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::SyntheticIdentity,
+                                ::buffa::Inline<super::super::SyntheticIdentity>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -13223,6 +13806,14 @@ pub mod __buffa {
                 if self.context.is_set() {
                     let __slot = __cache.reserve();
                     let inner_size = self.context.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.synthetic_identity.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.synthetic_identity.compute_size(__cache);
                     __cache.set(__slot, inner_size);
                     size
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -13247,14 +13838,22 @@ pub mod __buffa {
                     );
                     self.context.write_to(__cache, buf);
                 }
+                if self.synthetic_identity.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.synthetic_identity.write_to(__cache, buf);
+                }
                 self.__buffa_unknown_fields.write_to(buf);
             }
         }
         impl<'a> ::buffa::MessageName for DescribeCompanionResponseView<'a> {
-            const PACKAGE: &'static str = "home.companion.v1";
+            const PACKAGE: &'static str = "home.testing.companion.v1";
             const NAME: &'static str = "DescribeCompanionResponse";
-            const FULL_NAME: &'static str = "home.companion.v1.DescribeCompanionResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.companion.v1.DescribeCompanionResponse";
+            const FULL_NAME: &'static str = "home.testing.companion.v1.DescribeCompanionResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.companion.v1.DescribeCompanionResponse";
         }
         ::buffa::impl_default_view_instance!(DescribeCompanionResponseView);
         ::buffa::impl_view_reborrow!(DescribeCompanionResponseView);
@@ -13354,6 +13953,15 @@ pub mod __buffa {
                 super::super::__buffa::view::ContextView<'_>,
             > {
                 &self.0.reborrow().context
+            }
+            /// Field 2: `synthetic_identity`
+            #[must_use]
+            pub fn synthetic_identity(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::SyntheticIdentityView<'_>,
+            > {
+                &self.0.reborrow().synthetic_identity
             }
         }
         impl ::core::convert::From<
@@ -13594,6 +14202,10 @@ pub use self::__buffa::view::RevokeInstallationResponseOwnedView;
 pub use self::__buffa::view::DescribeCompanionRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::DescribeCompanionRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SyntheticIdentityView;
+#[doc(inline)]
+pub use self::__buffa::view::SyntheticIdentityOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::DescribeCompanionResponseView;
 #[doc(inline)]

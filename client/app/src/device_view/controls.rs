@@ -5,8 +5,8 @@ use super::{
     number::{Bounds, NumericInput},
 };
 use home_wire_contract::{
-    controls_contract as admit,
-    home::{controls::v1 as wire, registry::v1::NumberBounds},
+    api_controls_contract as admit,
+    home::api::v2::{self as wire, NumberBounds},
 };
 
 #[derive(Clone, Debug)]
@@ -16,12 +16,12 @@ pub(crate) enum CoverIntent {
 }
 #[derive(Clone, PartialEq)]
 pub(super) struct Cover {
-    limits: wire::CoverConstraints,
+    limits: wire::CoverDefinition,
     operations: Vec<wire::CoverOperation>,
     position: Option<Bounds>,
 }
 impl Cover {
-    pub fn parse(limits: &wire::CoverConstraints) -> Option<Self> {
+    pub fn parse(limits: &wire::CoverDefinition) -> Option<Self> {
         if !admit::cover_constraints(limits) {
             return None;
         }
@@ -71,17 +71,17 @@ impl Cover {
             .position_percent
             .filter(|p| self.position.is_some_and(|b| b.admit(*p).is_ok()))
     }
-    pub fn arguments(&self, intent: CoverIntent) -> Result<wire::CoverAction, Refusal> {
+    pub fn arguments(&self, intent: CoverIntent) -> Result<wire::SetCoverCommand, Refusal> {
         let command = match intent {
             CoverIntent::Operation(operation) => {
-                wire::cover_action::Command::Operation(operation.into())
+                wire::set_cover_command::Target::Operation(operation.into())
             }
-            CoverIntent::Position(value) => wire::cover_action::Command::PositionPercent(
+            CoverIntent::Position(value) => wire::set_cover_command::Target::PositionPercent(
                 value.admit(self.position.ok_or(Refusal::Unsupported)?)?,
             ),
         };
-        let value = wire::CoverAction {
-            command: Some(command),
+        let value = wire::SetCoverCommand {
+            target: Some(command),
             ..Default::default()
         };
         if admit::cover_action(&value, &self.limits) {
@@ -93,11 +93,11 @@ impl Cover {
 }
 #[derive(Clone, PartialEq)]
 pub(super) struct Lock {
-    limits: wire::LockConstraints,
+    limits: wire::LockDefinition,
     operations: Vec<wire::LockOperation>,
 }
 impl Lock {
-    pub fn parse(limits: &wire::LockConstraints) -> Option<Self> {
+    pub fn parse(limits: &wire::LockDefinition) -> Option<Self> {
         if !admit::lock_constraints(limits) {
             return None;
         }
@@ -114,8 +114,11 @@ impl Lock {
     pub fn operations(&self) -> &[wire::LockOperation] {
         &self.operations
     }
-    pub fn arguments(&self, operation: wire::LockOperation) -> Result<wire::LockAction, Refusal> {
-        let value = wire::LockAction {
+    pub fn arguments(
+        &self,
+        operation: wire::LockOperation,
+    ) -> Result<wire::SetLockCommand, Refusal> {
+        let value = wire::SetLockCommand {
             operation: operation.into(),
             ..Default::default()
         };
@@ -128,11 +131,11 @@ impl Lock {
 }
 #[derive(Clone, PartialEq)]
 pub(super) struct Alarm {
-    limits: wire::AlarmConstraints,
+    limits: wire::AlarmDefinition,
     operations: Vec<wire::AlarmOperation>,
 }
 impl Alarm {
-    pub fn parse(limits: &wire::AlarmConstraints) -> Option<Self> {
+    pub fn parse(limits: &wire::AlarmDefinition) -> Option<Self> {
         if !admit::alarm_constraints(limits) {
             return None;
         }
@@ -149,8 +152,11 @@ impl Alarm {
     pub fn operations(&self) -> &[wire::AlarmOperation] {
         &self.operations
     }
-    pub fn arguments(&self, operation: wire::AlarmOperation) -> Result<wire::AlarmAction, Refusal> {
-        let value = wire::AlarmAction {
+    pub fn arguments(
+        &self,
+        operation: wire::AlarmOperation,
+    ) -> Result<wire::SetAlarmCommand, Refusal> {
+        let value = wire::SetAlarmCommand {
             operation: operation.into(),
             ..Default::default()
         };
@@ -167,17 +173,13 @@ mod tests {
     use super::super::{DeviceIntent, Power, capability::Control};
     use super::*;
     use buffa::EnumValue;
-    use home_wire_contract::home::{
-        actions::v1::action_args::Arguments,
-        registry::v1::{CapabilityDescription, capability_description::Constraints},
-    };
-    fn limits() -> wire::CoverConstraints {
-        wire::CoverConstraints {
+    fn limits() -> wire::CoverDefinition {
+        wire::CoverDefinition {
             operations: vec![
                 wire::CoverOperation::Stop.into(),
                 wire::CoverOperation::Open.into(),
             ],
-            set_position_percent: wire::PercentBounds {
+            set_position_percent: wire::PercentageBounds {
                 minimum: 10.,
                 maximum: 90.,
                 step: Some(5.),
@@ -190,10 +192,13 @@ mod tests {
     }
     #[test]
     fn exact_capability_family_and_instance_operations_are_required() {
-        let capability = CapabilityDescription {
-            schema_id: "core.cover.v1".into(),
-            major: 1,
-            constraints: Some(Constraints::Cover(limits().into())),
+        let capability = wire::Capability {
+            r#trait: Some(wire::capability::Trait::Cover(Box::new(
+                wire::CoverCapability {
+                    definition: limits().into(),
+                    ..Default::default()
+                },
+            ))),
             ..Default::default()
         };
         let control = Control::parse(&capability);
@@ -204,7 +209,7 @@ mod tests {
             )
             .unwrap();
         assert!(
-            matches!(args.arguments,Some(Arguments::Cover(value)) if value.command==Some(wire::cover_action::Command::Operation(wire::CoverOperation::Stop.into())))
+            matches!(args,wire::execute_capability_request::Command::Cover(value) if value.target==Some(wire::set_cover_command::Target::Operation(wire::CoverOperation::Stop.into())))
         );
         for intent in [
             DeviceIntent::Cover(CoverIntent::Operation(wire::CoverOperation::Close)),
@@ -215,10 +220,10 @@ mod tests {
             assert!(control.arguments(intent, None).is_err());
         }
         let mut foreign = capability.clone();
-        foreign.schema_id = "core.switch.v1".into();
+        foreign.r#trait = Some(wire::capability::Trait::Opaque(Box::default()));
         assert!(matches!(Control::parse(&foreign), Control::Unsupported));
         foreign = capability;
-        foreign.major = 2;
+        foreign.r#trait = None;
         assert!(matches!(Control::parse(&foreign), Control::Unsupported));
     }
     #[test]
@@ -235,8 +240,8 @@ mod tests {
             .arguments(CoverIntent::Position(NumericInput::Text("35".into())))
             .unwrap();
         assert_eq!(
-            action.command,
-            Some(wire::cover_action::Command::PositionPercent(35.))
+            action.target,
+            Some(wire::set_cover_command::Target::PositionPercent(35.))
         );
         assert!(
             cover
@@ -277,7 +282,7 @@ mod tests {
     }
     #[test]
     fn locks_and_alarms_keep_observation_vocabulary_separate_from_command_admission() {
-        let lock = Lock::parse(&wire::LockConstraints {
+        let lock = Lock::parse(&wire::LockDefinition {
             operations: vec![wire::LockOperation::Lock.into()],
             observed_states: vec![wire::LockState::Jammed.into()],
             ..Default::default()
@@ -286,7 +291,7 @@ mod tests {
         assert!(lock.arguments(wire::LockOperation::Lock).is_ok());
         assert!(lock.arguments(wire::LockOperation::Unlock).is_err());
         assert!(lock.arguments(wire::LockOperation::Unspecified).is_err());
-        let alarm = Alarm::parse(&wire::AlarmConstraints {
+        let alarm = Alarm::parse(&wire::AlarmDefinition {
             operations: vec![wire::AlarmOperation::Disarm.into()],
             observed_states: vec![
                 wire::AlarmState::Triggered.into(),

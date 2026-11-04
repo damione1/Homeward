@@ -1,4 +1,4 @@
-//! Joined ListService owner for either the page catalogue/selected list or one
+//! Joined TaskService owner for either the page catalogue/selected list or one
 //! exact dashboard source. Both use the same revision fences, single in-flight
 //! write and coalesced visual publication.
 mod projection;
@@ -14,7 +14,7 @@ use crate::{
 use home_client_cache::lists::{CapturedRows, ListReadEvent, ListReadExit, Scope, read_lists_once};
 use home_client_cache::{ProjectionMailbox, Publication};
 use home_client_session::{Generation, Phase, SessionCoordinator};
-use home_client_transport::ListTransport;
+use home_client_transport::TaskTransport;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::sync::{
     Arc, Mutex,
@@ -117,9 +117,7 @@ impl Lists {
                         };
                         rows.iter()
                             .zip(state.item_tokens.iter())
-                            .filter(|(row, _)| {
-                                !target.shopping_only || row.value.completed != Some(true)
-                            })
+                            .filter(|(row, _)| !target.shopping_only || !row.content().completed())
                             .take(target.limit)
                             .any(|(_, item)| *item == token)
                     })
@@ -180,7 +178,7 @@ impl Lists {
                         };
                         rows.iter()
                             .zip(state.item_tokens.iter())
-                            .any(|(row, item)| *item == token && row.value.completed == Some(true))
+                            .any(|(row, item)| *item == token && row.content().completed())
                     })
             };
             if completed {
@@ -324,7 +322,7 @@ impl Lists {
                                     CapturedRows::Catalog(_) => None,
                                 })
                         })
-                        .is_some_and(|candidate| candidate.uid.value == row.uid.value)
+                        .is_some_and(|candidate| candidate.key() == row.key())
                 });
             if !same && state.select_item(token, generation).is_err() {
                 return;
@@ -366,10 +364,7 @@ impl Lists {
             let index = state
                 .selected_item
                 .as_ref()
-                .and_then(|key| {
-                    rows.iter()
-                        .position(|row| row.uid.value == key.uid().as_str())
-                })
+                .and_then(|key| rows.iter().position(|row| row.key().uid() == key.uid()))
                 .unwrap_or(0);
             let next = match step {
                 NavigationStep::Next => (index + 1).min(rows.len() - 1),
@@ -385,7 +380,7 @@ impl Lists {
     pub async fn run(
         &self,
         session: SessionCoordinator,
-        transport: ListTransport,
+        transport: TaskTransport,
         cancel: CancellationToken,
     ) {
         *self.0.session.lock().expect("list session") = Some((session.clone(), None));
@@ -422,7 +417,7 @@ impl Lists {
                     && let Some(target) = &self.0.widget
                     && state.selected_list.is_none()
                 {
-                    state.selected_list = Some(target.list.clone());
+                    state.selected_list = Some(target.list.native_id().clone());
                     state.item_phase = Freshness::Syncing;
                 }
                 (active, state.context, state.selected_list.clone())
@@ -486,7 +481,7 @@ impl Lists {
     async fn read(
         &self,
         session: SessionCoordinator,
-        transport: ListTransport,
+        transport: TaskTransport,
         scope: Scope,
         context: u64,
         cancel: CancellationToken,
@@ -694,9 +689,8 @@ mod widget_tests {
                 state.selected_target().unwrap().1.key().list().as_str(),
                 "configured-second-list"
             );
-            assert_eq!(
-                state.selected_target().unwrap().0.value.completed,
-                Some(false),
+            assert!(
+                !state.selected_target().unwrap().0.content().completed(),
                 "completion stays observed until server readback"
             );
         }

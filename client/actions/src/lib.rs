@@ -2,25 +2,15 @@
 //! values. No persistence, offline queue or automatic command resubmission.
 #![deny(clippy::wildcard_enum_match_arm)]
 
+/// Minted by the cache/UI adapter from the exact identity, capability, write
+/// permission and model generation captured by the gesture. Called again after
+/// waiting for session access, immediately before consuming admission.
+pub type AdmissionCheck = std::sync::Arc<dyn Fn() -> bool + Send + Sync>;
+
 mod access;
 pub mod calendars;
-mod controller;
 pub mod lists;
-pub use controller::{
-    ActionClient, ActionController, ActionHandle, ActionNotice, ActionSnapshot, AdmissionCheck,
-    ControllerError, NoticeKind, TrackingIssue,
-};
-mod target;
-mod tracking;
 pub use access::{WriteAccess, write_access};
-pub use target::{ActionTarget, Endpoint, SchemaId};
-pub use tracking::{ActionRecord, LiveState, SubmissionState, TrackingError};
-
-use home_wire_contract::actions_contract;
-use std::{fmt, str::FromStr};
-
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CommandId(String);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IdentityFailure {
@@ -28,30 +18,6 @@ pub enum IdentityFailure {
     RandomUnavailable,
 }
 
-impl CommandId {
-    pub fn generate() -> Result<Self, IdentityFailure> {
-        let mut bytes = [0u8; 16];
-        getrandom::fill(&mut bytes).map_err(|_| IdentityFailure::RandomUnavailable)?;
-        Ok(Self(
-            bytes.iter().map(|byte| format!("{byte:02x}")).collect(),
-        ))
-    }
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-impl FromStr for CommandId {
-    type Err = IdentityFailure;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if actions_contract::command_id(value) {
-            Ok(Self(value.to_owned()))
-        } else {
-            Err(IdentityFailure::Invalid)
-        }
-    }
-}
-impl fmt::Debug for CommandId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("CommandId(..)")
-    }
-}
+pub mod capabilities;
+mod request_id;
+pub use request_id::new_request_id;

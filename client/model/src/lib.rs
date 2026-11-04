@@ -4,6 +4,10 @@
 use std::{error::Error, fmt, str::FromStr};
 
 pub mod api;
+pub mod api_history;
+pub mod api_observation;
+pub mod api_tasks;
+pub mod auth;
 pub mod calendars;
 pub mod cameras;
 pub mod dashboard;
@@ -54,3 +58,13 @@ impl EntityId {
 }
 
 pub mod video;
+
+pub mod api_media;
+
+pub mod api_observations;
+
+pub mod api_calendars;
+
+pub mod api_content;
+
+pub mod api_playback;

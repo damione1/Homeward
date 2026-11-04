@@ -1,6 +1,6 @@
 use super::*;
 use crate::{ProVideoPresentation, ProVideoState, VideoPresentation};
-use home_client_model::cameras::Provenance;
+use home_client_model::api_media::MediaDataProvenance as Provenance;
 pub(super) struct Projection {
     selection: Option<Selection>,
     source: Option<(SessionCoordinator, Generation)>,
@@ -92,7 +92,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         generation: value.generation,
         title: selection.camera.title.into(),
         source: selection.camera.source.into(),
-        identity: selection.camera.id.entity().as_str().into(),
+        identity: selection.camera.id.as_str().into(),
         provenance: match selection.camera.provenance {
             Provenance::Synthetic => "ISOLATED MOCK · synthetic video · no real devices",
             Provenance::Observed => "Authorized source · video without audio",

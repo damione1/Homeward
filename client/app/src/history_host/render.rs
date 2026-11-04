@@ -6,7 +6,7 @@ use crate::{
     HistoryPresentation, HomewardWindow, ProChartPhase, ProChartSeries, history::SourceRef,
 };
 use home_client_cache::history::{Content, Pages};
-use home_wire_contract::home::{history::v1 as wire, state::v1 as state};
+use home_wire_contract::home::api::v2 as wire;
 use slint_kit_pro::charts::{
     PixelHeight, PixelWidth, PlotKind, PreparedFrame, RasterStyle, RenderRequest, SeriesPaint,
     SeriesSet, TimeSpan, Timestamp, ValueRange,
@@ -113,7 +113,7 @@ impl Projection {
         value
     }
 }
-pub(super) fn scope(data: &Data) -> Option<&wire::ReadScope> {
+pub(super) fn scope(data: &Data) -> Option<&wire::HistoryReadScope> {
     match &data.snapshot.content {
         Content::NotRetained(scope) => Some(scope),
         Content::Retained(Pages::Observations(pages)) => pages.first().map(|p| &*p.scope),
@@ -206,31 +206,23 @@ fn inspection(data: &Data, group_index: usize, index: usize) -> String {
     let text = value.text();
     match (&data.snapshot.content, source) {
         (Content::Retained(Pages::Observations(pages)), SourceRef::Observation { page, point }) => {
-            let point = &pages[page].points[point];
+            let point = &pages[page].observations[point];
             let source = point
                 .state
-                .observed_at
+                .observed_time
                 .as_option()
                 .map_or_else(|| "not provided".into(), utc);
-            let epoch = point
-                .position
-                .epoch
-                .iter()
-                .map(|v| format!("{v:02x}"))
-                .collect::<String>();
             format!(
-                "{text} {} · {} · received {} · source snapshot {source} · source session {} · position {epoch}/{} · observation {} / {}",
+                "{text} {} · {} · received {} · source snapshot {source} · observation {} / {}",
                 group.descriptor.unit,
                 quality(&group.quality),
-                utc(&point.state.received_at),
-                point.state.source_session,
-                point.position.sequence,
+                utc(&point.state.receive_time),
                 index + 1,
                 group.series.samples().len()
             )
         }
         (Content::Retained(Pages::Hourly(pages)), SourceRef::Aggregate { page, point }) => {
-            let point = &pages[page].points[point];
+            let point = &pages[page].aggregates[point];
             format!(
                 "{} = {text} {} · {} · bucket [{}; {}) · server duration {} ns · reset {:?} · causes {:?}",
                 data.statistic.label(),
@@ -248,32 +240,33 @@ fn inspection(data: &Data, group_index: usize, index: usize) -> String {
         | (Content::Retained(Pages::Hourly(_)), SourceRef::Observation { .. }) => String::new(),
     }
 }
-fn quality(value: &state::Quality) -> String {
+fn quality(value: &wire::ObservationQuality) -> String {
     use buffa::EnumValue::{Known, Unknown};
     let availability = match value.availability {
-        Known(state::Availability::Available) => "disponible",
-        Known(state::Availability::Unknown) => "availability unknown",
-        Known(state::Availability::Unavailable) => "indisponible",
-        Known(state::Availability::Unspecified) | Unknown(_) => "availability unspecified",
+        Known(wire::Availability::Available) => "disponible",
+        Known(wire::Availability::Unknown) => "availability unknown",
+        Known(wire::Availability::Unavailable) => "indisponible",
+        Known(wire::Availability::Unspecified) | Unknown(_) => "availability unspecified",
     };
     let freshness = match value.freshness {
-        Known(state::Freshness::Fresh) => "fresh",
-        Known(state::Freshness::Stale) => "outdated",
-        Known(state::Freshness::Unspecified) | Unknown(_) => "freshness unspecified",
+        Known(wire::Freshness::Current) => "fresh",
+        Known(wire::Freshness::Stale) => "outdated",
+        Known(wire::Freshness::Unspecified) | Unknown(_) => "freshness unspecified",
     };
     let provenance = match value.provenance {
-        Known(state::Provenance::Observed) => "observed",
-        Known(state::Provenance::Restored) => "restored",
-        Known(state::Provenance::Estimated) => "estimated",
-        Known(state::Provenance::Unspecified) | Unknown(_) => "source unspecified",
+        Known(wire::Provenance::Observed) => "observed",
+        Known(wire::Provenance::Derived) => "derived",
+        Known(wire::Provenance::Restored) => "restored",
+        Known(wire::Provenance::Estimated) => "estimated",
+        Known(wire::Provenance::Unspecified) | Unknown(_) => "source unspecified",
     };
     format!("{availability} · {freshness} · {provenance}")
 }
 fn aggregation(
-    value: buffa::EnumValue<home_wire_contract::home::registry::v1::MeasurementAggregation>,
+    value: buffa::EnumValue<home_wire_contract::home::api::v2::MeasurementAggregation>,
 ) -> &'static str {
     use buffa::EnumValue::{Known, Unknown};
-    use home_wire_contract::home::registry::v1::MeasurementAggregation as A;
+    use home_wire_contract::home::api::v2::MeasurementAggregation as A;
     match value {
         Known(A::Current) => "current value",
         Known(A::Sum) => "server sum",
@@ -282,10 +275,10 @@ fn aggregation(
     }
 }
 fn semantic(
-    value: buffa::EnumValue<home_wire_contract::home::registry::v1::MeasurementSemantic>,
+    value: buffa::EnumValue<home_wire_contract::home::api::v2::MeasurementSemantic>,
 ) -> &'static str {
     use buffa::EnumValue::{Known, Unknown};
-    use home_wire_contract::home::registry::v1::MeasurementSemantic as S;
+    use home_wire_contract::home::api::v2::MeasurementSemantic as S;
     match value {
         Known(S::Measurement) => "mesure",
         Known(S::Total) => "cumulative counter",

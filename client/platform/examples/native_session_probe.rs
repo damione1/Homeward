@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         CredentialKey, Phase, SecureStore, ServerRevocation, SessionCoordinator, SessionFailure,
     };
     use home_client_transport::{Connection, FailureKind, RpcCode};
-    use home_wire_contract::home::auth::v1 as auth;
+    use home_wire_contract::home::api::v2 as auth;
     use session_scenario::SessionScenario;
     use sha2::{Digest, Sha256};
     use std::{sync::Arc, time::Duration};
@@ -106,7 +106,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             SessionScenario::Lose => { login(text("password")?.into()).await?; Completion::LoseResponse }
         };
         let initial = owner.access(&CancellationToken::new()).await?;
-        let request = || auth::ListSessionsRequest { account_id: auth::AccountId { value:text("account_id").expect("fixture account").into(), ..Default::default() }.into(), ..Default::default() };
+        let expected_account = home_wire_contract::auth_contract::AccountName::try_from(text("account_name")?).map_err(|_| "invalid fixture account name")?;
+        if initial.account_name() != &expected_account { return Err("fixture account differs from admitted owner".into()); }
+        let request = || auth::ListSessionsRequest { parent: expected_account.as_str().into(), ..Default::default() };
         let page = connection.auth().list_sessions(request(), initial.token(), Duration::from_secs(5), &initial.cancellation).await?;
         if page.sessions.is_empty() { return Err("native protected session read empty".into()); }
         let expect_rotation = match completion {

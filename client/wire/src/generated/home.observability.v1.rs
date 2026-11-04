@@ -4196,6 +4196,7 @@ impl ::buffa::Enumeration for CoverageTruncationReason {
         ]
     }
 }
+/// Private native owner projections; this package declares no network service.
 /// These are read projections, never command authority or an event bus. Enum
 /// zero, unknown operational enums, absent required oneofs, and unknown input
 /// fields are rejected at admission. Generated codecs retain wire unknowns.
@@ -19690,6 +19691,7 @@ pub mod __buffa {
     pub mod view {
         #[allow(unused_imports)]
         use super::*;
+        /// Private native owner projections; this package declares no network service.
         /// These are read projections, never command authority or an event bus. Enum
         /// zero, unknown operational enums, absent required oneofs, and unknown input
         /// fields are rejected at admission. Generated codecs retain wire unknowns.

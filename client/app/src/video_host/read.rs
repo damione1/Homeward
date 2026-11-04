@@ -1,11 +1,11 @@
 use super::*;
-use home_client_model::cameras::CameraId;
+use home_client_model::api_content::MediaSourceName;
 use home_client_session::AccessLease;
 use home_client_transport::{Failure, FailureKind, RpcCode};
 use home_wire_contract::{
-    camera_video_contract::{self as video, VideoFrame},
-    cameras_contract as camera,
-    home::cameras::v1 as wire,
+    camera_content as camera, content_contract,
+    home::api::v2 as wire,
+    media_video_contract::{self as video, VideoFrame},
 };
 use std::time::SystemTime;
 
@@ -36,35 +36,51 @@ fn transport_failure(error: &Failure) -> ReadFailure {
     if !matches!(error.authorization_termination(), Ok(None)) {
         return ReadFailure::Revoked;
     }
-    match error.kind() {
-        FailureKind::Rpc(RpcCode::PermissionDenied | RpcCode::Unauthenticated) => {
-            ReadFailure::Revoked
+    match error.api_failure() {
+        Err(_) => ReadFailure::Invalid,
+        Ok(Some(error)) => {
+            use wire::ApiErrorReason as R;
+            match error.reason() {
+                R::AccessDenied | R::AuthenticationRequired => ReadFailure::Revoked,
+                R::MethodNotSupported => ReadFailure::Unsupported,
+                R::ServiceUnavailable | R::RequestDeadlineExceeded | R::RequestCancelled => {
+                    ReadFailure::Offline
+                }
+                R::ResourceNotFound
+                | R::CapabilityUnavailable
+                | R::ResyncRequired
+                | R::ConfigChanged
+                | R::TopologyChanged
+                | R::StatePreconditionFailed
+                | R::RateLimited
+                | R::RequestTooLarge
+                | R::StreamCapacity
+                | R::QueryBudgetExceeded => ReadFailure::Unavailable,
+                R::ValidationFailed
+                | R::ResourceAlreadyExists
+                | R::RequestIdReused
+                | R::EtagMismatch
+                | R::SourceReadOnly
+                | R::ConfigRestartRequired
+                | R::CommitOutcomeUnknown
+                | R::EffectOutcomeUnknown
+                | R::InternalFailure
+                | R::StoredDataIntegrity
+                | R::Unspecified => ReadFailure::Invalid,
+            }
         }
-        FailureKind::Rpc(RpcCode::Unimplemented) => ReadFailure::Unsupported,
-        FailureKind::Rpc(RpcCode::InvalidArgument | RpcCode::OutOfRange | RpcCode::DataLoss) => {
-            ReadFailure::Invalid
+        Ok(None) => {
+            if matches!(
+                error.kind(),
+                FailureKind::Rpc(RpcCode::PermissionDenied | RpcCode::Unauthenticated)
+            ) {
+                ReadFailure::Revoked
+            } else if error.may_resume_read() {
+                ReadFailure::Offline
+            } else {
+                ReadFailure::Invalid
+            }
         }
-        FailureKind::Rpc(RpcCode::ResourceExhausted) => ReadFailure::Unavailable,
-        FailureKind::Rpc(
-            RpcCode::Canceled
-            | RpcCode::Unknown
-            | RpcCode::DeadlineExceeded
-            | RpcCode::NotFound
-            | RpcCode::AlreadyExists
-            | RpcCode::FailedPrecondition
-            | RpcCode::Aborted
-            | RpcCode::Internal
-            | RpcCode::Unavailable,
-        )
-        | FailureKind::InvalidConfiguration
-        | FailureKind::UntrustedCertificate
-        | FailureKind::WrongServerName
-        | FailureKind::TlsRejected
-        | FailureKind::NetworkInterrupted
-        | FailureKind::Deadline
-        | FailureKind::Cancelled => ReadFailure::Offline,
-        // Upstream RpcCode is intentionally non-exhaustive.
-        FailureKind::Rpc(_) => ReadFailure::Invalid,
     }
 }
 enum Input {
@@ -115,9 +131,9 @@ impl Videos {
     pub(super) async fn play(
         &self,
         session: SessionCoordinator,
-        api: CameraTransport,
+        api: MediaTransport,
         context: u64,
-        id: CameraId,
+        id: MediaSourceName,
         cancel: CancellationToken,
     ) {
         {
@@ -137,16 +153,37 @@ impl Videos {
             {
                 return;
             }
+            let delete_request_id = match home_client_actions::new_request_id() {
+                Ok(id) => id,
+                Err(_) => {
+                    self.failed(context, Playback::Invalid);
+                    return;
+                }
+            };
+            let request = match home_client_actions::new_request_id()
+                .ok()
+                .and_then(|request_id| {
+                    content_contract::create_session_request(
+                        &id,
+                        home_client_model::api_content::ContentKind::Camera,
+                        None,
+                        request_id,
+                    )
+                    .ok()
+                }) {
+                Some(request) => request,
+                None => {
+                    self.failed(context, Playback::Invalid);
+                    return;
+                }
+            };
             let result = self
                 .response(
                     &session,
                     &access,
                     context,
-                    api.open_session(
-                        wire::OpenSessionRequest {
-                            entity_id: id.entity().as_str().into(),
-                            ..Default::default()
-                        },
+                    api.create_media_session(
+                        request,
                         access.token(),
                         Duration::from_secs(5),
                         &cancel,
@@ -155,24 +192,16 @@ impl Videos {
                 )
                 .await;
             let lease = match result.and_then(|raw| {
-                camera::lease(&raw, &id, SystemTime::now(), Instant::now())
-                    .map_err(|_| ReadFailure::Invalid)
+                camera::lease(
+                    &raw,
+                    &id,
+                    home_client_model::api_content::ContentKind::Camera,
+                    SystemTime::now(),
+                    Instant::now(),
+                )
+                .map_err(|_| ReadFailure::Invalid)
             }) {
-                Ok(camera::Outcome::Value(lease)) => lease,
-                Ok(camera::Outcome::Refused(issue)) => {
-                    let failure = match issue {
-                        camera::ReadIssue::Expired => ReadFailure::Expired,
-                        camera::ReadIssue::Revoked => ReadFailure::Revoked,
-                        camera::ReadIssue::Missing
-                        | camera::ReadIssue::WrongCamera
-                        | camera::ReadIssue::ResyncRequired => ReadFailure::Invalid,
-                        camera::ReadIssue::Unavailable => ReadFailure::Unavailable,
-                    };
-                    if let Some(phase) = failure.phase() {
-                        self.failed(context, phase);
-                    }
-                    return;
-                }
+                Ok(lease) => lease,
                 Err(error) => {
                     if let Some(phase) = error.phase() {
                         self.failed(context, phase);
@@ -185,9 +214,10 @@ impl Videos {
             // One bounded cleanup on the original origin/token; no retries and no
             // transfer of a camera lease to another profile or account.
             let _ = api
-                .close_session(
-                    wire::CloseSessionRequest {
-                        session: lease.wire_reference().into(),
+                .delete_media_session(
+                    wire::DeleteMediaSessionRequest {
+                        name: lease.name().as_str().to_owned(),
+                        request_id: delete_request_id.as_str().to_owned(),
                         ..Default::default()
                     },
                     access.token(),
@@ -200,7 +230,7 @@ impl Videos {
     async fn follow(
         &self,
         session: &SessionCoordinator,
-        api: &CameraTransport,
+        api: &MediaTransport,
         access: &AccessLease,
         lease: &camera::Lease,
         context: u64,
@@ -212,9 +242,9 @@ impl Videos {
                 session,
                 access,
                 context,
-                api.read_video(
-                    wire::ReadVideoRequest {
-                        session: lease.wire_reference().into(),
+                api.stream_media_session(
+                    wire::StreamMediaSessionRequest {
+                        name: lease.name().as_str().to_owned(),
                         ..Default::default()
                     },
                     access.token(),
@@ -284,11 +314,6 @@ impl Videos {
             let input = match frame {
                 VideoFrame::Header(header) => Input::Header(header),
                 VideoFrame::Sample(sample) => Input::Sample(sample),
-                VideoFrame::Expired => break ReadFailure::Expired,
-                VideoFrame::Revoked => break ReadFailure::Revoked,
-                VideoFrame::Unavailable => break ReadFailure::Unavailable,
-                VideoFrame::Unsupported => break ReadFailure::Unsupported,
-                VideoFrame::ResyncRequired => break ReadFailure::Invalid,
             };
             let sent = tokio::select! {biased;
                 ()=cancel.cancelled()=>break ReadFailure::Cancelled,

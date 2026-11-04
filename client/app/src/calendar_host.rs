@@ -14,10 +14,13 @@ use crate::{
 };
 use home_client_actions::calendars::{CalendarWriteOutcome, PreparedCalendarMutation};
 use home_client_cache::{ProjectionMailbox, Publication};
-use home_client_model::calendars::{CalendarId, CivilDate, EventKey, EventRevision, RevisionState};
+use home_client_model::{
+    api_calendars::{CalendarEventName, CalendarName},
+    calendars::CivilDate,
+};
 use home_client_session::{Phase, SessionCoordinator};
 use home_client_transport::CalendarTransport;
-use home_wire_contract::{calendars_contract as admit, home::calendars::v1 as wire};
+use home_wire_contract::{calendars_contract as admit, home::api::v2 as wire};
 use slint::ComponentHandle;
 use state::{Job, Open, State, Status};
 use std::sync::{
@@ -80,11 +83,14 @@ impl Calendars {
     fn pin_widget(&self, state: &mut State) {
         if let Some(target) = &self.0.widget {
             state.interactive = true;
-            state.catalog_needed = false;
+
             state.zone = target.zone.name().into();
-            state.selected = Some(target.calendar.clone());
+            state.selected = Some(target.calendar.native_id().clone());
             if state.query_override.is_none() {
-                state.query_override = state::widget_query(target, chrono::Utc::now());
+                state.query_override = state
+                    .selected_name()
+                    .as_ref()
+                    .and_then(|name| state::widget_query(target, name, chrono::Utc::now()));
             }
         }
     }
@@ -365,7 +371,11 @@ impl Calendars {
             .checked_sub(1)
             .and_then(|index| usize::try_from(index).ok())
             .and_then(|index| state.catalog.get(index))
-            .and_then(|row| admit::calendar_id(&row.id))
+            .and_then(|row| {
+                CalendarName::try_from(row.calendar.as_str())
+                    .ok()
+                    .map(|name| name.native_id().clone())
+            })
         else {
             return;
         };
@@ -391,7 +401,7 @@ impl Calendars {
                     .as_ref()?
                     .occurrences()
                     .get(index)
-                    .and_then(|row| admit::event_key(&row.key))
+                    .and_then(|row| CalendarEventName::try_from(row.calendar_event.as_str()).ok())
                     .map(|key| (index, key))
             })
         else {
@@ -533,54 +543,40 @@ impl Calendars {
                 if !state.editable() || !state.present() {
                     return;
                 }
-                let Some(id) = state.selected.clone() else {
+                let Some(parent) = state.selected_name() else {
                     return;
                 };
                 let Ok(date) = state.start.parse::<CivilDate>() else {
                     return;
                 };
-                use sha2::{Digest, Sha256};
-                let uid = format!(
-                    "frontend-{:x}",
-                    Sha256::digest(format!(
-                        "{:?}-{}-{}",
-                        std::time::SystemTime::now(),
-                        state.context,
-                        state.generation
-                    ))
-                );
-                let key = EventKey::new(id, uid.parse().expect("bounded generated UID"));
                 state.bump();
                 state.draft_token = 0;
-                state.draft = Some(Draft::new(key, &date));
+                state.draft = Some(Draft::new(parent, &date));
             }
             CalendarCommand::Create | CalendarCommand::Rename | CalendarCommand::Remove => {
                 if !state.editable() {
                     return;
                 }
-                let Some(current) = state.current() else {
-                    return;
-                };
-                let mutation = match command {
-                    CalendarCommand::Create => wire::Mutation::Create,
-                    CalendarCommand::Rename => wire::Mutation::Update,
-                    CalendarCommand::Remove => wire::Mutation::Delete,
+                let prepared = match command {
+                    CalendarCommand::Create => state.selected_source().and_then(|source| {
+                        let name = CalendarName::try_from(source.calendar.as_str()).ok()?;
+                        let source = admit::admit_source(source, name.home()).ok()?;
+                        PreparedCalendarMutation::create(&source, a.into()).ok()
+                    }),
+                    CalendarCommand::Rename => state.current().and_then(|current| {
+                        PreparedCalendarMutation::rename(&current, a.into()).ok()
+                    }),
+                    CalendarCommand::Remove => state
+                        .current()
+                        .and_then(|current| PreparedCalendarMutation::delete(&current, false).ok()),
                     CalendarCommand::Reload
                     | CalendarCommand::NewEvent
                     | CalendarCommand::ApplyRange => unreachable!("calendar mutation branch"),
                 };
-                let request = wire::MutateCalendarRequest {
-                    id: current.wire().id.clone(),
-                    expected_revision: current.wire().revision.clone(),
-                    mutation: mutation.into(),
-                    name: a.into(),
-                    ..Default::default()
-                };
-                match PreparedCalendarMutation::calendar(&current, request) {
-                    Ok(prepared) => {
-                        state.enqueue(Job::Write(prepared));
-                    }
-                    Err(_) => state.notice = "Invalid calendar change or read-only source.".into(),
+                if let Some(prepared) = prepared {
+                    state.enqueue(Job::Write(prepared));
+                } else {
+                    state.notice = "Invalid calendar change or read-only source.".into();
                 }
             }
         }
@@ -598,7 +594,7 @@ impl Calendars {
                 state.bump();
             }
             ProAgendaAction::Reload | ProAgendaAction::Rebase => {
-                if let Some(key) = state.draft.as_ref().map(|draft| draft.key.clone()) {
+                if let Some(key) = state.draft.as_ref().and_then(|draft| draft.key.clone()) {
                     state.enqueue(Job::Open(
                         key,
                         match action {
@@ -624,40 +620,29 @@ impl Calendars {
                 let Some(current) = state.current() else {
                     return;
                 };
-                let mutation = match action {
-                    ProAgendaAction::Remove => wire::Mutation::Delete,
+                let prepared = match action {
+                    ProAgendaAction::Remove => draft.revision.as_ref().and_then(|version| {
+                        PreparedCalendarMutation::delete_event(&current, version).ok()
+                    }),
                     ProAgendaAction::Save => {
-                        if draft.existing {
-                            wire::Mutation::Update
-                        } else {
-                            wire::Mutation::Create
-                        }
+                        draft.event().and_then(|value| match &draft.revision {
+                            Some(version) => {
+                                PreparedCalendarMutation::update_event(&current, version, value)
+                                    .ok()
+                            }
+                            None => PreparedCalendarMutation::create_event(&current, value).ok(),
+                        })
                     }
                     ProAgendaAction::Reload | ProAgendaAction::Rebase | ProAgendaAction::Cancel => {
                         unreachable!("write draft branch")
                     }
                 };
-                let value = if mutation == wire::Mutation::Delete {
-                    Default::default()
-                } else {
-                    let Some(value) = draft.event() else {
-                        return;
-                    };
-                    value.into()
-                };
-                let request = wire::MutateEventRequest {
-                    key: event_key(&draft.key).into(),
-                    mutation: mutation.into(),
-                    expected_revision: event_revision(&draft.revision).into(),
-                    value,
-                    ..Default::default()
-                };
-                match PreparedCalendarMutation::event(&current, &draft.revision, request) {
-                    Ok(prepared) => {
+                match prepared {
+                    Some(prepared) => {
                         state.draft.as_mut().expect("draft").phase = EditPhase::Pending;
                         state.enqueue(Job::Write(prepared));
                     }
-                    Err(_) => {
+                    None => {
                         state.notice = "Invalid event or read-only source; nothing was sent.".into()
                     }
                 }
@@ -665,29 +650,5 @@ impl Calendars {
         }
         self.publish(&state);
         self.0.changed.notify_one();
-    }
-}
-fn event_key(key: &EventKey) -> wire::EventKey {
-    wire::EventKey {
-        calendar: wire::CalendarId {
-            entity_id: key.calendar().entity().as_str().into(),
-            ..Default::default()
-        }
-        .into(),
-        uid: key.uid().as_str().into(),
-        ..Default::default()
-    }
-}
-fn event_revision(revision: &EventRevision) -> wire::Revision {
-    let (presence, number) = match revision.state() {
-        RevisionState::Absent => (wire::Presence::Absent, 0),
-        RevisionState::Present(n) => (wire::Presence::Present, n.get()),
-        RevisionState::Removed(n) => (wire::Presence::Removed, n.get()),
-    };
-    wire::Revision {
-        resource: event_key(revision.key()).into(),
-        presence: presence.into(),
-        number,
-        ..Default::default()
     }
 }

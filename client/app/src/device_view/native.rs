@@ -2,15 +2,14 @@
 //! Presentation filtering and command construction use the same restricted Control.
 use super::{capability::Control, helper::Kind};
 use crate::dashboard_layout::{FeatureKind, Kind as NodeKind, Node, NodeId, RecipeKind};
-use home_client_actions::ActionTarget;
 use home_client_cache::CachedView;
-use home_client_model::EntityId;
-use home_wire_contract::home::helpers::v1::HelperOperation;
+use home_client_model::api::{CapabilityName, EntityName};
+use home_wire_contract::home::api::v2::HelperOperation;
 use std::collections::{BTreeMap, BTreeSet};
 
 // A summary step is a complete intent, unlike the drafts in ordinary cards.
-// Its reservation survives uncertain delivery and is released only by exact
-// observation reconciliation or a definitive non-send/refusal.
+// Its reservation survives uncertain delivery. Observed equality cannot resolve
+// an effect: only an admitted operation result or definitive non-send can do so.
 type StepKey = (super::CardGeneration, i32);
 #[derive(Default)]
 pub(super) struct Steps {
@@ -18,14 +17,14 @@ pub(super) struct Steps {
     pub pending: BTreeMap<StepKey, PendingStep>,
 }
 pub(super) struct PendingStep {
-    target: ActionTarget,
+    target: CapabilityName,
     original: String,
     proposed: String,
-    action: Option<home_client_actions::CommandId>,
+    action: Option<home_client_model::api::RequestId>,
     life: std::sync::Arc<std::sync::atomic::AtomicU8>,
 }
 impl PendingStep {
-    pub fn blocks_target(&self, target: &ActionTarget) -> bool {
+    pub fn blocks_target(&self, target: &CapabilityName) -> bool {
         &self.target == target && self.life.load(std::sync::atomic::Ordering::SeqCst) != 2
     }
     pub fn attached(&self) -> bool {
@@ -101,7 +100,7 @@ pub(super) fn is_thermostat(
     };
     matches!(&widget.content, Content::Thermostat { entity, current, target, detailed: false, summary_only: false }
         if node.kind == NodeKind::Widget && node.entity.as_ref() == Some(entity)
-            && entity == slot.target.entity() && &current.entity == entity && &target.entity == entity
+            && entity == &slot.target.entity() && target.capability==slot.target && &current.entity == entity && &target.entity == entity
             && current.key == FieldKey::CurrentTemperature && target.key == FieldKey::Setpoint
             && matches!(editor, super::panel::Editor::Setpoint(_)))
 }
@@ -135,15 +134,10 @@ pub(super) fn observe_step(
     if let Some(pending_key) = pending_key {
         let pending = &state.native_steps.pending[&pending_key];
         let release = pending.life.load(std::sync::atomic::Ordering::SeqCst) == 2
-            || (fresh
-                && !initial.lower.is_empty()
-                && initial.error.is_empty()
-                && initial.lower == pending.proposed)
             || pending.action.as_ref().is_some_and(|id| {
-                state
-                    .actions
-                    .iter()
-                    .any(|(_, action)| action.id() == id && definitive_failure(&action.snapshot()))
+                state.actions.iter().any(|(_, action)| {
+                    &action.request_id() == id && resolved_step(&action.snapshot())
+                })
             });
         if release {
             state.native_steps.pending.remove(&pending_key);
@@ -159,10 +153,11 @@ pub(super) fn observe_step(
     }
     state.drafts.insert(key, initial.clone());
 }
-fn definitive_failure(snapshot: &home_client_actions::ActionSnapshot) -> bool {
+fn resolved_step(snapshot: &home_client_actions::capabilities::CapabilitySnapshot) -> bool {
     matches!(
         super::progress::presentation(Some(snapshot)).0,
-        crate::ProActionPhase::Refused
+        crate::ProActionPhase::Confirmed
+            | crate::ProActionPhase::Refused
             | crate::ProActionPhase::Failed
             | crate::ProActionPhase::Cancelled
     )
@@ -244,8 +239,8 @@ pub(super) fn edit_step(
 }
 pub(super) fn attach_step(
     state: &mut super::State,
-    target: &ActionTarget,
-    id: &home_client_actions::CommandId,
+    target: &CapabilityName,
+    id: &home_client_model::api::RequestId,
 ) {
     for pending in state
         .native_steps
@@ -295,7 +290,7 @@ pub(super) fn abandon_step(state: &mut super::State, token: i32, generation: i32
 }
 
 pub(super) struct Admitted {
-    pub entity: EntityId,
+    pub entity: EntityName,
     pub capability: usize,
     pub control: Control,
     pub title: String,
@@ -306,6 +301,11 @@ fn features(control: &Control) -> BTreeSet<FeatureKind> {
         Control::Switch { power } => {
             if *power {
                 result.insert(FeatureKind::Toggle);
+            }
+        }
+        Control::Level { bounds } => {
+            if bounds.is_some() {
+                result.insert(FeatureKind::Brightness);
             }
         }
         Control::Light {
@@ -406,6 +406,7 @@ fn restrict(control: &Control, node: &Node) -> Option<Control> {
                     | Kind::Button => false,
                 },
                 Control::Switch { .. }
+                | Control::Level { .. }
                 | Control::Light { .. }
                 | Control::Climate(_)
                 | Control::Fan(_)
@@ -454,6 +455,7 @@ fn restrict(control: &Control, node: &Node) -> Option<Control> {
                 Control::Helper(helper.restricted_to(&[HelperOperation::Set]))
             }
             Control::Switch { .. }
+            | Control::Level { .. }
             | Control::Light { .. }
             | Control::Climate(_)
             | Control::Fan(_)
@@ -471,6 +473,9 @@ fn restrict(control: &Control, node: &Node) -> Option<Control> {
     Some(match control {
         Control::Switch { power } => Control::Switch {
             power: *power && has(FeatureKind::Toggle),
+        },
+        Control::Level { bounds } => Control::Level {
+            bounds: bounds.filter(|_| has(FeatureKind::Brightness)),
         },
         Control::Light {
             power,
@@ -513,6 +518,7 @@ fn inert(node: &mut Node, reason: &str) {
     node.kind = NodeKind::Unsupported;
     node.diagnostic = reason.into();
     node.entity = None;
+    node.capability = None;
     node.recipes = None;
     node.recipe_kind = None;
     node.features.clear();
@@ -540,7 +546,10 @@ pub(super) fn admit(nodes: &mut [Node], view: Option<&CachedView>) -> BTreeMap<N
                 .iter()
                 .enumerate()
                 .filter_map(|(index, capability)| {
-                    ActionTarget::new(id.clone(), &capability.schema_id, &capability.endpoint)?;
+                    let target = CapabilityName::try_from(capability.name.as_str()).ok()?;
+                    if target.entity() != id || node.capability.as_ref() != Some(&target) {
+                        return None;
+                    }
                     let control = Control::parse(capability);
                     if matches!(control, Control::Unsupported) {
                         return None;
@@ -558,7 +567,7 @@ pub(super) fn admit(nodes: &mut [Node], view: Option<&CachedView>) -> BTreeMap<N
                         capability,
                         control,
                         title: if node.title.is_empty() {
-                            crate::cache_view::bounded(&entity.current_alias)
+                            crate::cache_view::bounded(&entity.entity.display_name)
                         } else {
                             node.title.clone()
                         },
@@ -745,52 +754,37 @@ mod tests {
     }
     #[test]
     fn thermostat_step_does_not_release_uncertain_timeout_or_stopped_tracking() {
-        use home_client_actions::{ActionSnapshot, LiveState, SubmissionState};
-        use home_wire_contract::home::actions::v1 as wire;
-        let mut snapshot = ActionSnapshot {
-            id: "synthetic-step".parse().unwrap(),
-            submission: SubmissionState::Uncertain,
-            live: LiveState::NotRequested,
-            response: None,
+        use home_client_actions::capabilities::{
+            CapabilitySnapshot, CapabilitySubmission, CapabilityTracking,
+        };
+        let mut snapshot = CapabilitySnapshot {
+            request_id: home_client_model::api::RequestId::try_from(
+                "12345678-1234-4123-8123-123456789abc",
+            )
+            .unwrap(),
+            submission: CapabilitySubmission::Uncertain,
+            tracking: CapabilityTracking::Waiting,
+            operation: None,
             failure: None,
-            durable: None,
-            progress: None,
             issue: None,
         };
-        assert!(!definitive_failure(&snapshot));
-        for live in [
-            LiveState::Unavailable,
-            LiveState::Interrupted,
-            LiveState::Stopped,
+        assert!(!resolved_step(&snapshot));
+        for tracking in [
+            CapabilityTracking::Unavailable,
+            CapabilityTracking::Interrupted,
+            CapabilityTracking::Stopped,
         ] {
-            snapshot.live = live;
-            assert!(!definitive_failure(&snapshot));
+            snapshot.tracking = tracking;
+            assert!(!resolved_step(&snapshot));
         }
-        snapshot.live = LiveState::Available;
-        for status in [
-            wire::ActionStatus::Indeterminate,
-            wire::ActionStatus::Acknowledged,
-            wire::ActionStatus::Confirmed,
-        ] {
-            snapshot.progress = Some(wire::ActionProgress {
-                status: status.into(),
-                ..Default::default()
-            });
-            assert!(!definitive_failure(&snapshot));
-        }
-        for status in [wire::ActionStatus::Failed, wire::ActionStatus::Cancelled] {
-            snapshot.progress = Some(wire::ActionProgress {
-                status: status.into(),
-                ..Default::default()
-            });
-            assert!(definitive_failure(&snapshot));
-        }
-        snapshot.progress = None;
-        snapshot.submission = SubmissionState::NotSent;
-        assert!(definitive_failure(&snapshot));
+        snapshot.tracking = CapabilityTracking::Waiting;
+        snapshot.submission = CapabilitySubmission::NotSent;
+        assert!(resolved_step(&snapshot));
+        snapshot.submission = CapabilitySubmission::Rejected;
+        assert!(resolved_step(&snapshot));
     }
     #[test]
-    fn thermostat_step_requires_fresh_exact_generation_and_reconciles_only_observed_readback() {
+    fn thermostat_step_requires_fresh_exact_generation_and_never_completes_from_readback() {
         use home_wire_contract::home::state::v1 as state;
         let (request, mut entity) = thermostat_fixture();
         let store = DeviceStore::default();
@@ -818,7 +812,10 @@ mod tests {
             attach_step(
                 &mut state,
                 &prepared.target,
-                &"synthetic-step".parse().unwrap(),
+                &home_client_model::api::RequestId::try_from(
+                    "12345678-1234-4123-8123-123456789abc",
+                )
+                .unwrap(),
             );
         }
         drop(prepared);
@@ -853,7 +850,7 @@ mod tests {
             "20.5"
         );
         assert!(
-            !store.0.lock().unwrap().drafts[&(super::super::CardGeneration(row.generation), 0)]
+            store.0.lock().unwrap().drafts[&(super::super::CardGeneration(row.generation), 0)]
                 .dirty
         );
         entity
@@ -873,7 +870,7 @@ mod tests {
             store.edit(row.token, row.generation, 0, 0, step()),
             Err(Refusal::Unavailable)
         ));
-        assert!(store.0.lock().unwrap().native_steps.pending.is_empty());
+        assert_eq!(store.0.lock().unwrap().native_steps.pending.len(), 1);
     }
     #[test]
     fn thermostat_unresolved_target_survives_route_generation_retirement() {
@@ -896,7 +893,8 @@ mod tests {
         attach_step(
             &mut store.0.lock().unwrap(),
             &prepared.target,
-            &"synthetic-uncertain-step".parse().unwrap(),
+            &home_client_model::api::RequestId::try_from("22345678-1234-4123-8123-123456789abc")
+                .unwrap(),
         );
         drop(prepared);
         // Leaving the view retires every original card generation.
@@ -940,19 +938,17 @@ mod tests {
             Some(&view(&request, vec![entity])),
             &request,
         );
-        assert!(store.0.lock().unwrap().native_steps.pending.is_empty());
-        assert!(
-            store
-                .edit(
-                    returned.token,
-                    returned.generation,
-                    request.revision,
-                    0,
-                    step()
-                )
-                .unwrap()
-                .is_some()
-        );
+        assert_eq!(store.0.lock().unwrap().native_steps.pending.len(), 1);
+        assert!(matches!(
+            store.edit(
+                returned.token,
+                returned.generation,
+                request.revision,
+                0,
+                step()
+            ),
+            Err(Refusal::Capacity)
+        ));
         store.clear_private();
         assert!(store.0.lock().unwrap().native_steps.pending.is_empty());
         assert!(store.0.lock().unwrap().native_steps.observed.is_empty());

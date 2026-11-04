@@ -1,164 +1,117 @@
-//! One visibility decision for rendering and device admission. Only exact
-//! literals from a fresh authorized cache observation enter a predicate.
+//! Typed visibility over the exact capability in the admitted capture.
 use crate::{
     dashboard::Layout,
     dashboard_layout::{NativeLayout, Node, NodeId},
 };
-use buffa::EnumValue;
 use home_client_cache::{CachePhase, CachedView};
-use home_client_model::{EntityId, dashboard::Visibility};
-use home_wire_contract::home::{
-    helpers::v1 as helpers, registry::v1 as registry, state::v1 as state,
+use home_client_model::{
+    api::CapabilityName,
+    dashboard::{FieldBinding, FieldKey, Literal, Visibility},
 };
+use home_wire_contract::home::api::v2 as wire;
 use std::collections::{BTreeMap, BTreeSet};
 
-fn on_off(value: bool) -> &'static str {
-    if value { "on" } else { "off" }
-}
-
-pub(crate) fn fresh(entity: &state::ViewEntity) -> Option<&state::ObservedState> {
-    if !entity.__buffa_unknown_fields.is_empty() {
+pub(crate) fn capability<'a>(
+    view: &'a CachedView,
+    name: &CapabilityName,
+) -> Option<&'a wire::Capability> {
+    let entry = view.get(&name.entity())?;
+    if !entry.__buffa_unknown_fields.is_empty() {
         return None;
-    }
-    let observation = entity.state.as_option()?;
-    let quality = observation.quality.as_option()?;
-    let target = observation.entity.as_option()?;
-    if !observation.__buffa_unknown_fields.is_empty()
-        || !quality.__buffa_unknown_fields.is_empty()
-        || !target.__buffa_unknown_fields.is_empty()
-        || quality.availability != EnumValue::Known(state::Availability::Available)
-        || quality.freshness != EnumValue::Known(state::Freshness::Fresh)
-        || quality.provenance != EnumValue::Known(state::Provenance::Observed)
-        || !matches!(&target.reference, Some(registry::entity_ref::Reference::EntityId(id)) if id == &entity.entity_id)
-    {
+    };
+    let mut values = entry
+        .capabilities
+        .iter()
+        .filter(|value| value.name == name.as_str());
+    let value = values.next()?;
+    if values.next().is_some() || !crate::device_view::observation::fresh(value) {
         return None;
-    }
-    Some(observation)
+    };
+    Some(value)
 }
-pub(crate) fn power(entity: &state::ViewEntity) -> Option<bool> {
-    use state::observed_state::Value;
-    match fresh(entity)?.value.as_ref()? {
-        Value::SwitchOn(value) => Some(*value),
-        Value::Light(value) if value.__buffa_unknown_fields.is_empty() => value.on,
-        Value::Fan(value) if value.__buffa_unknown_fields.is_empty() => match value.speed {
-            EnumValue::Known(state::FanSpeed::Off) => Some(false),
-            EnumValue::Known(
-                state::FanSpeed::Low
-                | state::FanSpeed::Medium
-                | state::FanSpeed::MediumHigh
-                | state::FanSpeed::High,
-            ) => Some(true),
-            EnumValue::Known(state::FanSpeed::Unspecified) | EnumValue::Unknown(_) => None,
+pub(crate) fn power(value: &wire::Capability) -> Option<bool> {
+    crate::device_view::observation::power(value)
+}
+pub(crate) fn literal(view: &CachedView, binding: &FieldBinding) -> Option<Literal> {
+    use wire::{capability::Trait as T, dashboard_literal::Value as V};
+    let capability = capability(view, &binding.capability)?;
+    let value = match (binding.field, capability.r#trait.as_ref()?) {
+        (FieldKey::CurrentTemperature, T::NumericMeasurement(v))
+            if v.unit == "Cel" && v.role == wire::MeasurementRole::Temperature =>
+        {
+            V::NumberValue(v.observation.value?)
+        }
+        (FieldKey::Setpoint, T::TemperatureControl(v)) => match v.observation.setpoint.as_ref()? {
+            wire::temperature_control_observation::Setpoint::SetpointCelsius(v) => {
+                V::NumberValue(*v)
+            }
+            _ => return None,
         },
-        Value::Light(_)
-        | Value::Fan(_)
-        | Value::Measurement(_)
-        | Value::Climate(_)
-        | Value::Helper(_)
-        | Value::Solar(_)
-        | Value::SolarEvent(_)
-        | Value::Cover(_)
-        | Value::Lock(_)
-        | Value::Alarm(_) => None,
-        Value::Weather(_) | Value::Presence(_) | Value::PresenceDetails(_) => None,
-    }
-}
-pub(crate) fn literal(entity: &state::ViewEntity) -> Option<&str> {
-    let observation = fresh(entity)?;
-    use state::observed_state::Value;
-    let value = match observation.value.as_ref()? {
-        Value::SwitchOn(value) => Some(on_off(*value)),
-        Value::Light(value) => {
-            if value.__buffa_unknown_fields.is_empty() {
-                value.on.map(on_off)
-            } else {
-                None
-            }
+        (FieldKey::Measurement | FieldKey::Value, T::NumericMeasurement(v)) => {
+            V::DecimalValue(v.observation.decimal_value.clone()?)
         }
-        Value::Fan(value) => {
+        (FieldKey::State, T::Power(v)) => V::PowerValue(v.observation.value?),
+        (FieldKey::State | FieldKey::Value, T::BinaryObservation(v)) => {
+            V::BooleanValue(v.observation.value?)
+        }
+        (FieldKey::State, T::TemperatureControl(v)) => V::TemperatureMode(v.observation.mode?),
+        (FieldKey::State, T::FanControl(v)) => V::FanSpeed(v.observation.speed?),
+        (FieldKey::State, T::Cover(v)) => {
+            let value = v.observation.value.as_option()?;
             if !value.__buffa_unknown_fields.is_empty() {
                 return None;
-            }
-            match value.speed {
-                EnumValue::Known(state::FanSpeed::Off) => Some("off"),
-                EnumValue::Known(
-                    state::FanSpeed::Low
-                    | state::FanSpeed::Medium
-                    | state::FanSpeed::MediumHigh
-                    | state::FanSpeed::High,
-                ) => Some("on"),
-                EnumValue::Known(state::FanSpeed::Unspecified) | EnumValue::Unknown(_) => None,
-            }
+            };
+            V::CoverState(value.state?)
         }
-        Value::Climate(value) => {
+        (FieldKey::State, T::Lock(v)) => {
+            let value = v.observation.value.as_option()?;
             if !value.__buffa_unknown_fields.is_empty() {
                 return None;
-            }
-            match value.mode {
-                Some(EnumValue::Known(registry::ClimateMode::Off)) => Some("off"),
-                Some(EnumValue::Known(registry::ClimateMode::Heat)) => Some("heat"),
-                Some(EnumValue::Known(registry::ClimateMode::Cool)) => Some("cool"),
-                Some(EnumValue::Known(registry::ClimateMode::Auto)) => Some("auto"),
-                Some(EnumValue::Known(registry::ClimateMode::Dry)) => Some("dry"),
-                Some(EnumValue::Known(registry::ClimateMode::FanOnly)) => Some("fan_only"),
-                Some(EnumValue::Known(registry::ClimateMode::Unspecified))
-                | Some(EnumValue::Unknown(_))
-                | None => None,
-            }
+            };
+            V::LockState(value.state)
         }
-        Value::Helper(value) => {
+        (FieldKey::State, T::Alarm(v)) => {
+            let value = v.observation.value.as_option()?;
             if !value.__buffa_unknown_fields.is_empty() {
                 return None;
-            }
-            use helpers::helper_value::Value;
+            };
+            V::AlarmState(value.state)
+        }
+        (FieldKey::State, T::Weather(v)) => {
+            let value = v.observation.value.as_option()?;
+            if !value.__buffa_unknown_fields.is_empty() {
+                return None;
+            };
+            V::WeatherCondition(value.condition?)
+        }
+        (FieldKey::State, T::Presence(v)) => {
+            let value = v.observation.value.as_option()?;
+            if !value.__buffa_unknown_fields.is_empty() {
+                return None;
+            };
+            V::Residence(value.residence)
+        }
+        (FieldKey::State | FieldKey::Value, T::Helper(v)) => {
+            let value = v.observation.value.as_option()?;
+            if !value.__buffa_unknown_fields.is_empty() {
+                return None;
+            };
             match value.value.as_ref()? {
-                Value::Boolean(value) => Some(on_off(*value)),
-                Value::Text(value) | Value::SelectedOption(value) => Some(value.as_str()),
-                // These typed values do not retain the original HA state
-                // spelling. Never substitute a rounded/localized UI value.
-                Value::Number(_)
-                | Value::Counter(_)
-                | Value::ButtonPressedAt(_)
-                | Value::Date(_)
-                | Value::Time(_)
-                | Value::Datetime(_) => None,
+                wire::helper_value::Value::BooleanValue(v) => V::BooleanValue(*v),
+                wire::helper_value::Value::Counter(v) => V::IntegerValue(*v),
+                wire::helper_value::Value::Number(v) => V::NumberValue(*v),
+                wire::helper_value::Value::Text(v)
+                | wire::helper_value::Value::SelectedOption(v) => V::TextValue(v.clone()),
+                _ => return None,
             }
         }
-        Value::Measurement(value) => {
-            if value.__buffa_unknown_fields.is_empty() && value.value.is_finite() {
-                value
-                    .decimal_value
-                    .as_deref()
-                    .filter(|literal| literal.parse::<f64>().is_ok_and(f64::is_finite))
-            } else {
-                None
-            }
-        }
-        Value::Cover(value) => {
-            home_wire_contract::controls_contract::cover_value(value).then_some(())?;
-            value
-                .state
-                .and_then(home_wire_contract::controls_contract::cover_state)
-                .and_then(crate::control_text::cover_state)
-                .map(|text| text.literal)
-        }
-        Value::Lock(value) => {
-            home_wire_contract::controls_contract::lock_value(value).then_some(())?;
-            home_wire_contract::controls_contract::lock_state(value.state)
-                .and_then(crate::control_text::lock_state)
-                .map(|text| text.literal)
-        }
-        Value::Alarm(value) => {
-            home_wire_contract::controls_contract::alarm_value(value).then_some(())?;
-            home_wire_contract::controls_contract::alarm_state(value.state)
-                .and_then(crate::control_text::alarm_state)
-                .map(|text| text.literal)
-        }
-        Value::Weather(value) => crate::environment_text::weather_literal(value),
-        Value::Presence(value) => crate::environment_text::presence_literal(value),
-        Value::Solar(_) | Value::SolarEvent(_) | Value::PresenceDetails(_) => None,
-    }?;
-    (value.len() <= 256 && !value.contains('\0')).then_some(value)
+        _ => return None,
+    };
+    home_wire_contract::dashboard_contract::decode_literal(&wire::DashboardLiteral {
+        value: Some(value),
+        ..Default::default()
+    })
+    .ok()
 }
 
 pub(crate) fn project(
@@ -183,7 +136,7 @@ pub(crate) fn project(
     let states = if phase == CachePhase::Live {
         dependencies
             .into_iter()
-            .filter_map(|id| Some((id.clone(), literal(view.get(id)?)?)))
+            .filter_map(|id| Some((id.clone(), literal(view, &id)?)))
             .collect()
     } else {
         BTreeMap::new()
@@ -194,14 +147,14 @@ pub(crate) fn project(
 fn project_nodes(
     native: &NativeLayout,
     root: &NodeId,
-    states: &BTreeMap<EntityId, &str>,
+    states: &BTreeMap<FieldBinding, Literal>,
 ) -> Vec<Node> {
     let visibility = |node: &Node| {
         node.recipes
             .as_ref()
             .and_then(|recipes| recipes.visibility.as_ref())
             .map_or(Visibility::Visible, |predicate| {
-                predicate.evaluate(&|id| states.get(id).copied())
+                predicate.evaluate(&|id| states.get(id))
             })
     };
     // Opening a popup must also respect the visibility of its configured

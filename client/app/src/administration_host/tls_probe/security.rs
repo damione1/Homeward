@@ -18,7 +18,7 @@ async fn mfa_login(session: &SessionCoordinator, value: &MfaCredentials, index: 
         .unwrap();
     assert_eq!(session.subscribe().borrow().phase, Phase::Ready);
 }
-fn select_session(owner: &Administration, id: &home_wire_contract::auth_contract::SessionId) {
+fn select_session(owner: &Administration, id: &home_wire_contract::auth_contract::SessionName) {
     let token = {
         let state = owner.0.state.lock().unwrap();
         state
@@ -42,23 +42,19 @@ async fn sessions(
     login(&other, &fixture.admin).await;
     let other_lease = other.access(&cancel).await.unwrap();
     section(owner, Section::Sessions).await;
-    select_session(owner, other_lease.session_id());
+    select_session(owner, other_lease.session_name());
     owner.action(0, generation(owner), ProAdminAction::Revoke);
     owner.editor_action(1, generation(owner), ProAdminAction::Save);
-    until(owner,"other session revocation preserves caller",|state|ready(state)&&state.private.draft().is_none()&&state.private.pane(Section::Sessions).and_then(|pane|pane.content.as_ref()).is_some_and(|payload|matches!(payload,Payload::Sessions(rows) if rows.iter().all(|row|row.id.value!=other_lease.session_id().as_str())))).await;
+    until(owner,"other session revocation preserves caller",|state|ready(state)&&state.private.draft().is_none()&&state.private.pane(Section::Sessions).and_then(|pane|pane.content.as_ref()).is_some_and(|payload|matches!(payload,Payload::Sessions(rows) if rows.iter().all(|row|row.name!=other_lease.session_name().as_str())))).await;
     assert_eq!(
-        session.access(&cancel).await.unwrap().session_id(),
-        current.session_id()
+        session.access(&cancel).await.unwrap().session_name(),
+        current.session_name()
     );
     let refused = connection
         .auth()
         .list_sessions(
             auth::ListSessionsRequest {
-                account_id: auth::AccountId {
-                    value: other_lease.account_id().as_str().into(),
-                    ..Default::default()
-                }
-                .into(),
+                parent: other_lease.account_name().as_str().into(),
                 ..Default::default()
             },
             other_lease.token(),
@@ -71,7 +67,7 @@ async fn sessions(
         refused.kind(),
         home_client_transport::FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated)
     );
-    select_session(owner, current.session_id());
+    select_session(owner, current.session_name());
     owner.action(0, generation(owner), ProAdminAction::Revoke);
     owner.editor_action(1, generation(owner), ProAdminAction::Save);
     until(
@@ -226,8 +222,8 @@ async fn policies(
     let lease = witness.access(&cancel).await.unwrap();
     policy(&admin, true).await;
     assert_eq!(
-        witness.access(&cancel).await.unwrap().session_id(),
-        lease.session_id()
+        witness.access(&cancel).await.unwrap().session_name(),
+        lease.session_name()
     );
     policy(&admin, false).await;
     // A second valid MFA session changes the policy while this editor retains
@@ -239,7 +235,13 @@ async fn policies(
     let api = connection.accounts();
     let current = api
         .get_second_factor_policy(
-            auth::GetSecondFactorPolicyRequest::default(),
+            auth::GetSecondFactorPolicyRequest {
+                name: format!(
+                    "{}/secondFactorPolicy",
+                    second_lease.account_name().home().as_str()
+                ),
+                ..Default::default()
+            },
             second_lease.token(),
             Duration::from_secs(4),
             &cancel,
@@ -247,9 +249,10 @@ async fn policies(
         .await
         .unwrap();
     let changed = api
-        .set_second_factor_policy(
-            auth::SetSecondFactorPolicyRequest {
-                expected: current.policy.version.clone(),
+        .change_second_factor_policy(
+            auth::ChangeSecondFactorPolicyRequest {
+                name: current.name.clone(),
+                etag: current.etag.clone(),
                 require_admin_factor: true,
                 ..Default::default()
             },
@@ -259,9 +262,10 @@ async fn policies(
         )
         .await
         .unwrap();
-    api.set_second_factor_policy(
-        auth::SetSecondFactorPolicyRequest {
-            expected: changed.policy.version.clone(),
+    api.change_second_factor_policy(
+        auth::ChangeSecondFactorPolicyRequest {
+            name: changed.policy.name.clone(),
+            etag: changed.policy.etag.clone(),
             require_admin_factor: false,
             ..Default::default()
         },

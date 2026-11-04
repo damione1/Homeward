@@ -1,7 +1,10 @@
 //! One private camera projection. No pixels enter StateStore, Recorder or disk.
 use crate::raster::{self, Pixels};
-use home_client_model::cameras::{CameraId, EventKey, ImageKey};
-use home_wire_contract::cameras_contract as admit;
+use home_client_model::{
+    api_content::MediaSourceName,
+    cameras::{EventKey, ImageKey},
+};
+use home_wire_contract::camera_content as admit;
 use std::{collections::BTreeMap, sync::Arc, time::Instant};
 use tokio_util::sync::CancellationToken;
 
@@ -19,21 +22,10 @@ pub(crate) enum Status {
     Invalid,
     Unsupported,
 }
-impl Status {
-    pub fn refusal(issue: admit::ReadIssue) -> Self {
-        match issue {
-            admit::ReadIssue::Missing => Self::Missing,
-            admit::ReadIssue::Expired => Self::Expired,
-            admit::ReadIssue::Revoked => Self::Revoked,
-            admit::ReadIssue::WrongCamera => Self::WrongCamera,
-            admit::ReadIssue::Unavailable => Self::Unavailable,
-            admit::ReadIssue::ResyncRequired => Self::Loading,
-        }
-    }
-}
 #[derive(Clone)]
 pub(crate) struct Frame {
     pub key: ImageKey,
+    pub session: home_client_model::api_content::MediaSessionName,
     pub captured_at: std::time::SystemTime,
     pub deadline: Instant,
     pub pixels: Pixels,
@@ -56,6 +48,7 @@ pub(crate) fn decode(image: admit::Image, now: Instant) -> Result<Frame, Status>
     })?;
     Ok(Frame {
         key: image.key,
+        session: image.session,
         captured_at: image.captured_at,
         deadline: image.deadline,
         pixels,
@@ -121,7 +114,7 @@ pub(crate) struct State {
     pub preview_visible: bool,
     pub active: bool,
     pub catalog: Arc<Vec<admit::Camera>>,
-    pub selected: Option<CameraId>,
+    pub selected: Option<MediaSourceName>,
     pub target: Option<ImageKey>,
     pub events: Events,
     pub picture: Option<Arc<Frame>>,
@@ -157,6 +150,24 @@ impl Default for State {
     }
 }
 impl State {
+    pub fn replace_events(&mut self, rows: Vec<admit::Event>) -> Result<(), Status> {
+        self.events = Events::new(rows, &self.events)?;
+        if let Some(ImageKey::EventThumbnail(key)) = &self.target {
+            let unavailable = match self.events.rows.iter().find(|event| &event.key == key) {
+                None => Some(Status::Missing),
+                Some(event) if !event.has_image => Some(Status::Unavailable),
+                Some(_) => None,
+            };
+            if let Some(status) = unavailable {
+                self.image_cancel.cancel();
+                self.image_cancel = CancellationToken::new();
+                self.picture = None;
+                self.status = status;
+                self.image_requested = false;
+            }
+        }
+        Ok(())
+    }
     pub fn bump(&mut self) {
         if self.generation == 0 {
             return;
@@ -193,7 +204,7 @@ impl State {
         self.read_requested = false;
         self.image_requested = false;
     }
-    pub fn select(&mut self, id: CameraId) {
+    pub fn select(&mut self, id: MediaSourceName) {
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
         self.image_cancel.cancel();

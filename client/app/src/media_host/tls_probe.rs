@@ -1,10 +1,15 @@
 //! Actual owner and shared action controller on an opt-in native Go TLS mock.
 //! This is network/lifecycle evidence; native rendering is qualified separately.
 use super::*;
-use home_client_actions::{ActionController, CommandId, SubmissionState};
+use home_client_actions::capabilities::{CapabilityController, CapabilitySubmission};
+use home_client_model::{
+    api::RequestId, api_media::MediaDataProvenance, api_observations::ActionAccess,
+    api_playback::PlaybackState,
+};
 use home_client_session::{SecureStore, StoreFailure};
 use home_client_transport::Connection;
-use home_wire_contract::home::{actions::v1 as actions, state::v1 as observation};
+use home_wire_contract::api_command_operations::CommandPhase;
+use home_wire_contract::home::api::v2 as wire;
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead as _, Read as _, Write as _};
 use zeroize::Zeroizing;
@@ -84,7 +89,7 @@ struct Instruction {
     #[serde(skip_serializing_if = "Option::is_none")]
     command_id: Option<String>,
 }
-async fn control(sequence: &mut u64, action: Control, command: Option<&CommandId>) -> Result<()> {
+async fn control(sequence: &mut u64, action: Control, command: Option<&RequestId>) -> Result<()> {
     *sequence += 1;
     let instruction = Instruction {
         sequence: *sequence,
@@ -136,32 +141,30 @@ async fn until(owner: &Media, label: &str, predicate: impl Fn(&State) -> bool) -
 fn generation(owner: &Media) -> i32 {
     owner.0.state.lock().unwrap().generation
 }
-async fn acknowledged(owner: &Media) -> Result<CommandId> {
+async fn acknowledged(owner: &Media) -> Result<RequestId> {
     until(owner, "acknowledged action", |state| {
         state.progress.as_ref().is_some_and(|p| {
-            p.progress
+            p.operation
                 .as_ref()
-                .is_some_and(|p| p.status == actions::ActionStatus::Acknowledged)
+                .is_some_and(|operation| operation.phase() == CommandPhase::Acknowledged)
         })
     })
     .await?;
     let state = owner.0.state.lock().unwrap();
-    assert!(state.busy());
     Ok(state
         .action
         .as_ref()
         .ok_or("action handle missing")?
-        .id()
-        .clone())
+        .request_id())
 }
-async fn confirmed(owner: &Media, sequence: &mut u64, id: &CommandId) -> Result<()> {
+async fn confirmed(owner: &Media, sequence: &mut u64, id: &RequestId) -> Result<()> {
     control(sequence, Control::Confirm, Some(id)).await?;
     until(owner, "server confirmation", |state| {
         state.progress.as_ref().is_some_and(|p| {
-            p.id == *id
-                && p.progress
+            p.request_id == *id
+                && p.operation
                     .as_ref()
-                    .is_some_and(|p| p.status == actions::ActionStatus::Confirmed)
+                    .is_some_and(|operation| operation.phase() == CommandPhase::Confirmed)
         })
     })
     .await?;
@@ -169,7 +172,7 @@ async fn confirmed(owner: &Media, sequence: &mut u64, id: &CommandId) -> Result<
         state
             .action
             .as_ref()
-            .is_some_and(|a| a.id() == id && a.is_finished())
+            .is_some_and(|a| a.request_id() == *id && a.is_finished())
     })
     .await
 }
@@ -208,13 +211,21 @@ fn commit(owner: &Media, generation: i32) {
         },
     );
 }
-async fn choose_option(owner: &Media, kind: ChoiceKind) -> Result<CommandId> {
+async fn choose_option(owner: &Media, kind: ChoiceKind) -> Result<RequestId> {
     let (generation, token) = {
         let state = owner.0.state.lock().unwrap();
         let data = state.data.as_ref().ok_or("media data missing")?;
         let selected = match kind {
-            ChoiceKind::Source => data.snapshot().source_id.as_deref(),
-            ChoiceKind::Group => data.snapshot().group_id.as_deref(),
+            ChoiceKind::Source => data
+                .snapshot()
+                .observation()
+                .and_then(|v| v.source())
+                .map(|v| v.as_str()),
+            ChoiceKind::Group => data
+                .snapshot()
+                .observation()
+                .and_then(|v| v.group())
+                .map(|v| v.as_str()),
         };
         (
             state.generation,
@@ -257,15 +268,10 @@ async fn qualify(
     {
         let state = owner.0.state.lock().unwrap();
         let data = state.data.as_ref().unwrap();
-        assert!(
-            data.snapshot()
-                .capabilities
-                .volume_basis_points
-                .as_option()
-                .is_none()
-        );
-        assert!(data.snapshot().capabilities.sources.is_empty());
-        assert_eq!(data.snapshot().capabilities.operations.len(), 2);
+        let definition = data.snapshot().definition().unwrap();
+        assert!(definition.volume().is_none());
+        assert!(definition.sources().is_empty());
+        assert_eq!(definition.operations().len(), 2);
         assert!(matches!(state.picture, Picture::Absent));
     }
     owner.operation(1, generation(owner), ProMediaOperation::Play);
@@ -279,16 +285,19 @@ async fn qualify(
             .as_ref()
             .unwrap()
             .snapshot()
-            .playback,
-        wire::PlaybackState::Paused
+            .observation()
+            .unwrap()
+            .playback(),
+        PlaybackState::Paused
     );
     let id = acknowledged(owner).await?;
     confirmed(owner, &mut sequence, &id).await?;
     until(owner, "observed playback", |state| {
-        state
-            .data
-            .as_ref()
-            .is_some_and(|d| d.snapshot().playback == wire::PlaybackState::Playing)
+        state.data.as_ref().is_some_and(|d| {
+            d.snapshot()
+                .observation()
+                .is_some_and(|v| v.playback() == PlaybackState::Playing)
+        })
     })
     .await?;
     control(&mut sequence, Control::RestoreArtwork, None).await?;
@@ -301,8 +310,11 @@ async fn qualify(
         let state = owner.0.state.lock().unwrap();
         let data = state.data.as_ref().unwrap();
         assert_eq!(data.observed(Field::Volume).unwrap().canonical(), 0);
-        assert_eq!(data.snapshot().members.len(), 2);
-        assert!(data.snapshot().provenance.starts_with("MOCK"));
+        assert_eq!(data.snapshot().observation().unwrap().members().len(), 2);
+        assert_eq!(
+            data.snapshot().data_provenance(),
+            MediaDataProvenance::Synthetic
+        );
         if let Picture::Ready(image) = &state.picture {
             assert_eq!(
                 (image.width(), image.height(), image.rgba().len()),
@@ -313,19 +325,27 @@ async fn qualify(
     let id = choose_option(owner, ChoiceKind::Source).await?;
     confirmed(owner, &mut sequence, &id).await?;
     until(owner, "server source observation", |state| {
-        state
-            .data
-            .as_ref()
-            .is_some_and(|d| d.snapshot().source_id.as_deref() == Some("synthetic-radio"))
+        state.data.as_ref().is_some_and(|d| {
+            d.snapshot()
+                .observation()
+                .and_then(|v| v.source())
+                .map(|v| v.as_str())
+                == Some("synthetic-radio")
+        })
     })
     .await?;
     let id = choose_option(owner, ChoiceKind::Group).await?;
     confirmed(owner, &mut sequence, &id).await?;
     until(owner, "server resolved group route", |state| {
         state.data.as_ref().is_some_and(|d| {
-            d.snapshot().group_id.as_deref() == Some("synthetic-solo")
-                && d.snapshot().members.len() == 1
-                && d.coordinator() == &group
+            d.snapshot()
+                .observation()
+                .and_then(|v| v.group())
+                .map(|v| v.as_str())
+                == Some("synthetic-solo")
+                && d.snapshot().observation().unwrap().members().len() == 1
+                && d.coordinator()
+                    .is_some_and(|id| id.as_str() == group.as_str())
         })
     })
     .await?;
@@ -356,7 +376,7 @@ async fn qualify(
         let data = state.data.as_ref().unwrap();
         data.quantity_request(data.parse(Field::Volume, "42").unwrap())
     };
-    let mut stale = admit(stale)?;
+    let stale = admit(stale)?;
     control(&mut sequence, Control::SwitchCoordinator, None).await?;
     until(owner, "new topology generation", |state| {
         state.status == Status::Ready && state.generation != old
@@ -366,58 +386,71 @@ async fn qualify(
     assert!(owner.0.state.lock().unwrap().pending.is_none());
     // Deliberate adversarial protocol probe on this synthetic server: the same
     // route must also be refused when it races past local cancellation.
-    stale.command_id = "nhf014-stale-route-protocol-probe".into();
-    let now = SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)?
-        .as_secs();
-    stale.expires_at = buffa_types::google::protobuf::Timestamp {
-        seconds: (now + 20).try_into()?,
-        ..Default::default()
-    }
-    .into();
     let stop = CancellationToken::new();
     let lease = admit(session.access(&stop).await)?;
     let rejected = connection
-        .actions()
-        .submit_action(
-            actions::SubmitActionRequest {
-                command: stale.into(),
-                ..Default::default()
-            },
+        .capabilities()
+        .execute_capability(
+            home_wire_contract::api_contract::encode_command(&stale),
             lease.token(),
             Duration::from_secs(2),
             &stop,
         )
-        .await?;
-    assert_eq!(rejected.result.status, actions::ActionStatus::Failed);
-    assert_eq!(
-        rejected.result.error.code,
-        actions::ErrorCode::StaleConfiguration
-    );
+        .await
+        .expect_err("stale route must fail admission");
+    let failure = rejected
+        .api_failure()
+        .unwrap()
+        .expect("canonical stale route failure");
+    assert!(matches!(
+        failure.reason(),
+        wire::ApiErrorReason::TopologyChanged | wire::ApiErrorReason::ConfigChanged
+    ));
     control(&mut sequence, Control::LoseNextReply, None).await?;
     let current = generation(owner);
     gesture(owner, current, 0.42);
     commit(owner, current);
-    let id = acknowledged(owner).await?;
-    {
-        let state = owner.0.state.lock().unwrap();
-        let snapshot = state.progress.as_ref().unwrap();
-        assert_eq!(snapshot.id, id);
-        assert!(snapshot.durable.is_some());
-        assert!(snapshot.submission == SubmissionState::Uncertain || snapshot.issue.is_some());
-        assert_ne!(
-            snapshot.progress.as_ref().unwrap().status,
-            actions::ActionStatus::Confirmed
-        );
-    }
-    until(owner, "observed volume after lost response", |state| {
+    until(owner, "lost mutation response remains uncertain", |state| {
         state
-            .data
+            .progress
             .as_ref()
-            .is_some_and(|d| d.snapshot().volume_basis_points == Some(4200))
+            .is_some_and(|p| p.submission == CapabilitySubmission::Uncertain)
     })
     .await?;
-    confirmed(owner, &mut sequence, &id).await?;
+    let id = owner
+        .0
+        .state
+        .lock()
+        .unwrap()
+        .progress
+        .as_ref()
+        .unwrap()
+        .request_id
+        .clone();
+    control(&mut sequence, Control::Confirm, Some(&id)).await?;
+    until(owner, "observed volume after lost response", |state| {
+        state.data.as_ref().is_some_and(|d| {
+            d.observed(Field::Volume)
+                .is_some_and(|v| v.canonical() == 4200)
+        })
+    })
+    .await?;
+    assert_eq!(
+        owner
+            .0
+            .state
+            .lock()
+            .unwrap()
+            .progress
+            .as_ref()
+            .unwrap()
+            .submission,
+        CapabilitySubmission::Uncertain
+    );
+    // Explicit navigation retires local tracking; observation never upgrades the lost result.
+    owner.choose(None, admit(view.invalidate())?);
+    owner.choose(Some(group.clone()), admit(view.invalidate())?);
+    until(owner, "explicit reopen after uncertainty", State::editable).await?;
     let old = generation(owner);
     gesture(owner, old, 0.8);
     control(&mut sequence, Control::RevokeWrite, None).await?;
@@ -425,7 +458,7 @@ async fn qualify(
         state
             .data
             .as_ref()
-            .is_some_and(|d| d.snapshot().action_access == observation::ActionAccess::Denied)
+            .is_some_and(|d| d.snapshot().action_access() == ActionAccess::Denied)
     })
     .await?;
     commit(owner, old);
@@ -523,14 +556,19 @@ async fn real_tls_media_owner_and_single_attempt_actions() {
             .await,
     )
     .unwrap();
-    let (actions, _notices) = ActionController::start(session.clone(), connection.actions());
     let owner = Media::detached();
     let cancel = CancellationToken::new();
+    let actions = CapabilityController::new(
+        session.clone(),
+        connection.capabilities(),
+        connection.operations(),
+        &cancel,
+    );
     let (task_owner, credential, transport, client, stop) = (
         owner.clone(),
         session.clone(),
         connection.media(),
-        actions.client(),
+        actions.clone(),
         cancel.clone(),
     );
     let task = tokio::spawn(async move {
@@ -539,12 +577,12 @@ async fn real_tls_media_owner_and_single_attempt_actions() {
     let result = qualify(&owner, &connection, &session, &fixture).await;
     cancel.cancel();
     let joined = task.await;
-    actions.close().await;
+    actions.shutdown().await;
     session.close().await;
     admit(joined).unwrap();
     result.unwrap();
     println!(
         "NHF014_REPORT {}",
-        serde_json::json!({"pass":true,"actual_media_tls":true,"shared_action_controller":true,"lost_reply_recovered_same_id":true,"stale_route_refused":true,"revocation_purge":true,"no_reconnect_replay":true,"artwork_fallbacks":true,"owners_joined":true,"native_rendering":false,"production_media":false})
+        serde_json::json!({"pass":true,"actual_media_tls":true,"shared_action_controller":true,"lost_reply_remains_uncertain_without_replay":true,"stale_route_refused":true,"revocation_purge":true,"no_reconnect_replay":true,"artwork_fallbacks":true,"owners_joined":true,"native_rendering":false,"production_media":false})
     );
 }

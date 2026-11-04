@@ -204,7 +204,7 @@ def desktop(proof, server_binary, helper, binary):
         native(Command.CLOSE); assert child.wait(timeout=15)==0
         (fixture/'stop').touch(mode=0o600); assert server.wait(timeout=25)==0
         report=json.loads((fixture/'result.json').read_text())
-        assert report['server_joined'] and report['fake_driver_calls']==0 and report['command_driver_entries']==0 and not report['submit_ids']
+        assert report['server_joined'] and report['fake_driver_calls']==0 and report['command_driver_entries']==0 and not report['execute_request_ids']
         assert report['native_login_calls']==1 and report['native_revokes']==1 and report['dashboard_get_calls']>8 and report['dashboard_watch_calls']>5
         receipt.update(status='AUTOMATED_CHECKS_PASS',checks=checks,server=report,binary_sha256=digest(binary),keychain_absent_after_logout=True,captures_require_visual_inspection=True)
     except BaseException as error:

@@ -112,7 +112,7 @@ def qualify(retained_server,retained_client,with_command):
     if final['command_driver_entries']!=expected_drivers or final['connections_remaining']!=0 or not final['server_joined']:
         raise RuntimeError('Isolated fixture cleanup/safety failed')
     if with_command:
-        if final.get('fake_driver_calls')!=1 or final.get('real_device_writes')!=0 or final['action_rpc_calls']<1 or not report['device_actions'] or not report['terminal_notice_after_thaw']:
+        if final.get('fake_driver_calls')!=1 or final.get('real_device_writes')!=0 or final['action_rpc_calls']<1 or not report['device_actions'] or not report['terminal_retained_after_thaw']:
             raise RuntimeError('Exact fake command confirmation missing/replayed')
     elif final['action_rpc_calls']!=0 or report['device_actions']:
         raise RuntimeError('Unexpected command in read-only fixture')

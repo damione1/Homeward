@@ -1,5 +1,7 @@
 use super::*;
+use crate::media::tests::media;
 use home_client_session::{SecureStore, StoreFailure};
+use home_wire_contract::api_playback_contract::playback;
 use slint::Model;
 
 struct EmptyStore;
@@ -55,12 +57,16 @@ fn model_publication_does_not_reenter_state_from_gesture_cancellation() {
     window.set_media_publishing(false);
 }
 fn ready(owner: &Media, session: &SessionCoordinator) {
-    let data = Data::new(crate::media::tests::snapshot(), &"reader".parse().unwrap()).unwrap();
+    let data = Data::new(
+        playback(&crate::media::tests::snapshot()).unwrap().unwrap(),
+        &"homes/test/entities/player".parse().unwrap(),
+    )
+    .unwrap();
     let mut state = owner.0.state.lock().unwrap();
     state.foreground = true;
     state.interactive = true;
     state.active = true;
-    state.entity = Some("reader".parse().unwrap());
+    state.entity = Some("homes/test/entities/player".parse().unwrap());
     state.apply(Arc::new(data), session.generation(), Picture::Absent);
 }
 
@@ -69,13 +75,16 @@ fn a_new_view_cohort_of_the_same_entity_cancels_unsent_media_intent() {
     let owner = Media::detached();
     let session = session();
     let view = ProjectionMailbox::<()>::new();
-    owner.choose(Some("reader".parse().unwrap()), view.generation());
+    owner.choose(
+        Some("homes/test/entities/player".parse().unwrap()),
+        view.generation(),
+    );
     ready(&owner, &session);
     let generation = owner.0.state.lock().unwrap().generation;
     owner.operation(1, generation, ProMediaOperation::Play);
     assert!(owner.0.state.lock().unwrap().pending.is_some());
     let next = view.invalidate().unwrap();
-    owner.choose(Some("reader".parse().unwrap()), next);
+    owner.choose(Some("homes/test/entities/player".parse().unwrap()), next);
     owner.operation(1, generation, ProMediaOperation::Play);
     let state = owner.0.state.lock().unwrap();
     assert!(state.pending.is_none() && state.data.is_none());
@@ -110,11 +119,21 @@ fn polling_preserves_a_draft_but_capability_withdrawal_cancels_its_gesture() {
         },
     );
     let mut snapshot = crate::media::tests::snapshot();
-    snapshot.volume_basis_points = Some(1000);
+    media(&mut snapshot)
+        .observation
+        .as_option_mut()
+        .unwrap()
+        .volume_basis_points = Some(1000);
     {
         let mut state = owner.0.state.lock().unwrap();
         state.apply(
-            Arc::new(Data::new(snapshot.clone(), &"reader".parse().unwrap()).unwrap()),
+            Arc::new(
+                Data::new(
+                    playback(&snapshot).unwrap().unwrap(),
+                    &"homes/test/entities/player".parse().unwrap(),
+                )
+                .unwrap(),
+            ),
             session.generation(),
             Picture::Absent,
         );
@@ -122,13 +141,19 @@ fn polling_preserves_a_draft_but_capability_withdrawal_cancels_its_gesture() {
         assert_eq!(state.volume.text, "72.00");
         assert!(state.volume.gesture);
     }
-    snapshot
-        .capabilities
+    media(&mut snapshot)
+        .definition
         .modify(|c| c.volume_basis_points = Default::default());
     {
         let mut state = owner.0.state.lock().unwrap();
         state.apply(
-            Arc::new(Data::new(snapshot, &"reader".parse().unwrap()).unwrap()),
+            Arc::new(
+                Data::new(
+                    playback(&snapshot).unwrap().unwrap(),
+                    &"homes/test/entities/player".parse().unwrap(),
+                )
+                .unwrap(),
+            ),
             session.generation(),
             Picture::Absent,
         );

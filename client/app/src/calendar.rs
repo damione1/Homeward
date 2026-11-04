@@ -2,8 +2,11 @@
 //! times. The client never guesses a zone offset or an ambiguous occurrence.
 #[cfg(test)]
 mod tests;
-use home_client_model::calendars::{CivilDate, EventKey, EventRevision, RevisionState};
-use home_wire_contract::{calendars_contract as admit, home::calendars::v1 as wire};
+use home_client_model::{
+    api_calendars::{CalendarEventName, CalendarEventVersion, CalendarName},
+    calendars::CivilDate,
+};
+use home_wire_contract::{calendars_contract as admit, home::api::v2 as wire};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Boundary {
@@ -22,15 +25,25 @@ pub(crate) enum EditPhase {
     Pending,
     Conflict,
     Unknown,
-    Withheld,
+}
+#[derive(Clone)]
+pub(crate) struct Candidate {
+    pub instant: String,
+}
+impl Candidate {
+    fn from_wire(value: &wire::CalendarTimeCandidate) -> Result<Self, admit::AdmissionError> {
+        Ok(Self {
+            instant: admit::timestamp_text(&value.selected_time)?,
+        })
+    }
 }
 #[derive(Clone)]
 pub(crate) enum Resolution {
     Unresolved,
     Accepted(String),
-    Unique(wire::LocalTimeCandidate),
+    Unique(Candidate),
     Ambiguous {
-        candidates: [wire::LocalTimeCandidate; 2],
+        candidates: [Candidate; 2],
         selected: Option<usize>,
     },
     Nonexistent,
@@ -83,49 +96,57 @@ pub(crate) enum Temporal {
 }
 #[derive(Clone)]
 pub(crate) struct Draft {
-    pub key: EventKey,
-    pub revision: EventRevision,
-    pub original: wire::Event,
+    pub key: Option<CalendarEventName>,
+    pub parent: CalendarName,
+    pub revision: Option<CalendarEventVersion>,
+    pub original: wire::CalendarEvent,
     pub temporal: Temporal,
     pub phase: EditPhase,
     pub existing: bool,
 }
 impl Draft {
-    pub fn from_server(snapshot: &admit::Admitted<wire::EventSnapshot>) -> Option<Self> {
-        let snapshot = snapshot.wire();
-        let value = snapshot.value.as_option()?;
-        let key = admit::event_key(&snapshot.key).expect("admitted event identity");
+    pub fn from_server(snapshot: &admit::Admitted<wire::CalendarEvent>) -> Option<Self> {
+        let value = snapshot.wire();
+        let revision = admit::event_version(value).ok()?;
+        let key = revision.name().clone();
         let temporal = match &value.span.value {
-            Some(wire::span::Value::Dates(dates)) => Temporal::AllDay {
-                start: dates.start.clone(),
-                end: dates.end_exclusive.clone(),
+            Some(wire::calendar_span::Value::Dates(dates)) => Temporal::AllDay {
+                start: admit::date(&dates.start_date).ok()?.to_string(),
+                end: admit::date(&dates.end_date).ok()?.to_string(),
             },
-            Some(wire::span::Value::Times(times)) => Temporal::Timed {
-                start: Box::new(Wall::from_server(&times.anchor_local, &times.start_instant)),
-                end: Box::new(Wall::from_server(&times.end_local, &times.end_instant)),
-                zone: times.zone.clone(),
+            Some(wire::calendar_span::Value::Times(times)) => Temporal::Timed {
+                start: Box::new(Wall::from_server(
+                    &admit::civil_text(&times.start_local).ok()?,
+                    &admit::timestamp_text(&times.start_time).ok()?,
+                )),
+                end: Box::new(Wall::from_server(
+                    &admit::civil_text(&times.end_local).ok()?,
+                    &admit::timestamp_text(&times.end_time).ok()?,
+                )),
+                zone: times.time_zone.clone(),
             },
             None => unreachable!("admission requires an event span"),
         };
         Some(Self {
-            revision: admit::event_revision(&snapshot.revision, &key)
-                .expect("admitted event revision"),
-            key,
+            parent: key.parent().clone(),
+            revision: Some(revision),
+            key: Some(key),
             original: value.clone(),
             temporal,
             phase: EditPhase::Ready,
             existing: true,
         })
     }
-    pub fn new(key: EventKey, date: &CivilDate) -> Self {
+    pub fn new(parent: CalendarName, date: &CivilDate) -> Self {
         let end = chrono::NaiveDate::parse_from_str(&date.to_string(), "%Y-%m-%d")
             .ok()
             .and_then(|date| date.succ_opt())
             .map_or_else(|| date.to_string(), |date| date.to_string());
         Self {
-            revision: EventRevision::new(key.clone(), RevisionState::Absent),
-            key,
-            original: wire::Event::default(),
+            revision: None,
+            key: None,
+            parent,
+            original: wire::CalendarEvent::default(),
             temporal: Temporal::AllDay {
                 start: date.to_string(),
                 end,
@@ -202,19 +223,20 @@ impl Draft {
             Temporal::AllDay { .. } | Temporal::Timed { .. } => return,
         };
     }
-    pub fn resolution_request(&self, boundary: Boundary) -> Option<wire::ResolveLocalTimeRequest> {
+    pub fn resolution_request(
+        &self,
+        boundary: Boundary,
+    ) -> Option<wire::ResolveCalendarTimeRequest> {
         let request = match &self.temporal {
-            Temporal::Timed { start, end, zone } => Some(wire::ResolveLocalTimeRequest {
-                id: wire::CalendarId {
-                    entity_id: self.key.calendar().entity().as_str().into(),
-                    ..Default::default()
-                }
-                .into(),
-                local: match boundary {
+            Temporal::Timed { start, end, zone } => Some(wire::ResolveCalendarTimeRequest {
+                name: self.parent.as_str().into(),
+                local: admit::parse_civil(&match boundary {
                     Boundary::Start => start.local(),
                     Boundary::End => end.local(),
-                },
-                zone: zone.clone(),
+                })
+                .ok()?
+                .into(),
+                time_zone: zone.clone(),
                 ..Default::default()
             }),
             Temporal::AllDay { .. } => None,
@@ -226,29 +248,32 @@ impl Draft {
     pub fn resolve(
         &mut self,
         boundary: Boundary,
-        request: &wire::ResolveLocalTimeRequest,
-        response: &wire::ResolveLocalTimeResponse,
+        request: &wire::ResolveCalendarTimeRequest,
+        response: &wire::ResolveCalendarTimeResponse,
     ) -> Result<(), admit::AdmissionError> {
         let expected = self
             .resolution_request(boundary)
             .ok_or(admit::AdmissionError::Invalid)?;
         if expected != *request {
-            return Err(admit::AdmissionError::StaleRevision);
+            return Err(admit::AdmissionError::StaleVersion);
         }
         let response = admit::admit_resolution(response, request)?;
         let value = response.wire();
         use buffa::EnumValue;
         let resolution = match value.resolution {
-            EnumValue::Known(wire::LocalTimeResolution::Unique) => {
-                Resolution::Unique(value.candidates[0].clone())
+            EnumValue::Known(wire::CalendarTimeResolution::Unique) => {
+                Resolution::Unique(Candidate::from_wire(&value.candidates[0])?)
             }
-            EnumValue::Known(wire::LocalTimeResolution::Ambiguous) => Resolution::Ambiguous {
-                candidates: [value.candidates[0].clone(), value.candidates[1].clone()],
+            EnumValue::Known(wire::CalendarTimeResolution::Ambiguous) => Resolution::Ambiguous {
+                candidates: [
+                    Candidate::from_wire(&value.candidates[0])?,
+                    Candidate::from_wire(&value.candidates[1])?,
+                ],
                 selected: None,
             },
-            EnumValue::Known(wire::LocalTimeResolution::Nonexistent) => Resolution::Nonexistent,
-            EnumValue::Known(wire::LocalTimeResolution::InvalidZone) => Resolution::InvalidZone,
-            EnumValue::Known(wire::LocalTimeResolution::Unspecified) | EnumValue::Unknown(_) => {
+            EnumValue::Known(wire::CalendarTimeResolution::Nonexistent) => Resolution::Nonexistent,
+            EnumValue::Known(wire::CalendarTimeResolution::InvalidZone) => Resolution::InvalidZone,
+            EnumValue::Known(wire::CalendarTimeResolution::Unspecified) | EnumValue::Unknown(_) => {
                 return Err(admit::AdmissionError::Invalid);
             }
         };
@@ -272,7 +297,7 @@ impl Draft {
             *selected = Some(usize::from(later));
         }
     }
-    pub fn event(&self) -> Option<wire::Event> {
+    pub fn event(&self) -> Option<wire::CalendarEvent> {
         if self.original.summary.is_empty()
             || self.original.summary.len() > 512
             || self.original.description.len() > 4096
@@ -295,9 +320,9 @@ impl Draft {
                 if a >= b {
                     return None;
                 }
-                wire::span::Value::Dates(Box::new(wire::DateSpan {
-                    start: start.clone(),
-                    end_exclusive: end.clone(),
+                wire::calendar_span::Value::Dates(Box::new(wire::CalendarDateSpan {
+                    start_date: admit::date_wire(a).into(),
+                    end_date: admit::date_wire(b).into(),
                     ..Default::default()
                 }))
             }
@@ -309,17 +334,17 @@ impl Draft {
                 {
                     return None;
                 }
-                wire::span::Value::Times(Box::new(wire::TimeSpan {
-                    anchor_local: start.local(),
-                    end_local: end.local(),
-                    start_instant: a.into(),
-                    end_instant: b.into(),
-                    zone: zone.clone(),
+                wire::calendar_span::Value::Times(Box::new(wire::CalendarTimeSpan {
+                    start_local: admit::parse_civil(&start.local()).ok()?.into(),
+                    end_local: admit::parse_civil(&end.local()).ok()?.into(),
+                    start_time: admit::parse_timestamp(a, true).ok()?.into(),
+                    end_time: admit::parse_timestamp(b, true).ok()?.into(),
+                    time_zone: zone.clone(),
                     ..Default::default()
                 }))
             }
         };
-        event.span = wire::Span {
+        event.span = wire::CalendarSpan {
             value: Some(value),
             ..Default::default()
         }

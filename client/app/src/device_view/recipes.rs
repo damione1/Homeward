@@ -9,10 +9,10 @@ use crate::dashboard_layout::{Kind, Node, NodeId};
 use home_client_actions::{AdmissionCheck, WriteAccess};
 use home_client_cache::{CachePhase, CachedView};
 use home_client_model::{
-    EntityId,
+    api::{CapabilityName, EntityName},
     dashboard::{CommandKind, Destination, Gesture, Intention, Interaction, Presentation, Source},
 };
-use home_wire_contract::home::helpers::v1::HelperOperation;
+use home_wire_contract::home::api::v2::HelperOperation;
 use std::{
     collections::BTreeMap,
     sync::Arc,
@@ -44,7 +44,7 @@ impl RecipePresentation {
 }
 
 pub(crate) enum NativeIntent {
-    MoreInfo(EntityId),
+    MoreInfo(EntityName),
     Navigate(Destination),
     Command(Box<Prepared>),
 }
@@ -68,7 +68,7 @@ impl NativePrepared {
 enum BoundIntent {
     None,
     Unavailable(Refusal),
-    MoreInfo(EntityId),
+    MoreInfo(EntityName),
     Navigate(Destination),
     Command {
         token: CardToken,
@@ -102,7 +102,7 @@ struct Snapshot {
     bindings: Vec<Binding>,
     power: BTreeMap<CardToken, bool>,
     titles: Vec<String>,
-    labels: BTreeMap<EntityId, String>,
+    labels: BTreeMap<EntityName, String>,
 }
 #[derive(Default)]
 pub(super) struct Bindings {
@@ -129,7 +129,8 @@ impl Control {
                         Err(Refusal::Unsupported)
                     }
                 }
-                Self::Climate(_)
+                Self::Level { .. }
+                | Self::Climate(_)
                 | Self::Cover(_)
                 | Self::Lock(_)
                 | Self::Alarm(_)
@@ -151,7 +152,8 @@ impl Control {
                             Err(Refusal::Unsupported)
                         }
                     }
-                    Self::Climate(_)
+                    Self::Level { .. }
+                    | Self::Climate(_)
                     | Self::Cover(_)
                     | Self::Lock(_)
                     | Self::Alarm(_)
@@ -173,6 +175,7 @@ impl Control {
                 }
                 Self::Switch { .. }
                 | Self::Light { .. }
+                | Self::Level { .. }
                 | Self::Climate(_)
                 | Self::Fan(_)
                 | Self::Binary
@@ -185,33 +188,33 @@ impl Control {
             },
             CommandKind::CoverOpen => Ok(DeviceIntent::Cover(
                 super::controls::CoverIntent::Operation(
-                    home_wire_contract::home::controls::v1::CoverOperation::Open,
+                    home_wire_contract::home::api::v2::CoverOperation::Open,
                 ),
             )),
             CommandKind::CoverClose => Ok(DeviceIntent::Cover(
                 super::controls::CoverIntent::Operation(
-                    home_wire_contract::home::controls::v1::CoverOperation::Close,
+                    home_wire_contract::home::api::v2::CoverOperation::Close,
                 ),
             )),
             CommandKind::CoverStop => Ok(DeviceIntent::Cover(
                 super::controls::CoverIntent::Operation(
-                    home_wire_contract::home::controls::v1::CoverOperation::Stop,
+                    home_wire_contract::home::api::v2::CoverOperation::Stop,
                 ),
             )),
             CommandKind::Lock => Ok(DeviceIntent::Lock(
-                home_wire_contract::home::controls::v1::LockOperation::Lock,
+                home_wire_contract::home::api::v2::LockOperation::Lock,
             )),
             CommandKind::Unlock => Ok(DeviceIntent::Lock(
-                home_wire_contract::home::controls::v1::LockOperation::Unlock,
+                home_wire_contract::home::api::v2::LockOperation::Unlock,
             )),
             CommandKind::AlarmArmHome => Ok(DeviceIntent::Alarm(
-                home_wire_contract::home::controls::v1::AlarmOperation::ArmHome,
+                home_wire_contract::home::api::v2::AlarmOperation::ArmHome,
             )),
             CommandKind::AlarmArmAway => Ok(DeviceIntent::Alarm(
-                home_wire_contract::home::controls::v1::AlarmOperation::ArmAway,
+                home_wire_contract::home::api::v2::AlarmOperation::ArmAway,
             )),
             CommandKind::AlarmDisarm => Ok(DeviceIntent::Alarm(
-                home_wire_contract::home::controls::v1::AlarmOperation::Disarm,
+                home_wire_contract::home::api::v2::AlarmOperation::Disarm,
             )),
         }
     }
@@ -219,13 +222,13 @@ impl Control {
 
 fn command(
     context: &Context,
-    entity: &EntityId,
+    capability: &CapabilityName,
     kind: CommandKind,
     power: &BTreeMap<CardToken, bool>,
 ) -> BoundIntent {
     let mut candidates = context.slots.iter().enumerate().filter(|(index, slot)| {
         slot.source == super::ControlSource::General
-            && slot.target.entity() == entity
+            && &slot.target == capability
             && slot
                 .control
                 .recipe_intent(kind, power.get(&CardToken(*index as i32)).copied())
@@ -301,7 +304,7 @@ fn bind(
                 BoundIntent::Unavailable(Refusal::Unsupported)
             }
         }
-        Intention::Command { entity, kind } => command(context, entity, *kind, power),
+        Intention::Command { capability, kind } => command(context, capability, *kind, power),
     };
     BoundInteraction {
         intent,
@@ -333,7 +336,7 @@ pub(super) fn project(
         .filter_map(|(index, slot)| {
             Some((
                 CardToken(index as i32),
-                crate::dashboard_visibility::power(view.get(slot.target.entity())?)?,
+                super::observation::power(&slot.capability)?,
             ))
         })
         .collect::<BTreeMap<_, _>>();
@@ -406,7 +409,7 @@ pub(super) fn project(
         .map(|(id, entity)| {
             (
                 id.clone(),
-                crate::cache_view::bounded(&entity.current_alias),
+                crate::cache_view::bounded(&entity.entity.display_name),
             )
         })
         .collect();
@@ -560,7 +563,7 @@ impl DeviceStore {
             BoundIntent::None | BoundIntent::Unavailable(_) => String::new(),
             BoundIntent::MoreInfo(entity) => format!(
                 "Show Details · {}",
-                snapshot.labels.get(entity).map_or("Item", String::as_str)
+                snapshot.labels.get(&entity).map_or("Item", String::as_str)
             ),
             BoundIntent::Navigate(destination) => format!(
                 "Open · {}",
@@ -592,42 +595,42 @@ impl DeviceStore {
                     CommandKind::TurnOff => "Turn Off",
                     CommandKind::Activate => "Enable",
                     CommandKind::CoverOpen => crate::control_text::cover_operation(
-                        home_wire_contract::home::controls::v1::CoverOperation::Open,
+                        home_wire_contract::home::api::v2::CoverOperation::Open,
                     )
                     .expect("known operation"),
                     CommandKind::CoverClose => crate::control_text::cover_operation(
-                        home_wire_contract::home::controls::v1::CoverOperation::Close,
+                        home_wire_contract::home::api::v2::CoverOperation::Close,
                     )
                     .expect("known operation"),
                     CommandKind::CoverStop => crate::control_text::cover_operation(
-                        home_wire_contract::home::controls::v1::CoverOperation::Stop,
+                        home_wire_contract::home::api::v2::CoverOperation::Stop,
                     )
                     .expect("known operation"),
                     CommandKind::Lock => crate::control_text::lock_operation(
-                        home_wire_contract::home::controls::v1::LockOperation::Lock,
+                        home_wire_contract::home::api::v2::LockOperation::Lock,
                     )
                     .expect("known operation"),
                     CommandKind::Unlock => crate::control_text::lock_operation(
-                        home_wire_contract::home::controls::v1::LockOperation::Unlock,
+                        home_wire_contract::home::api::v2::LockOperation::Unlock,
                     )
                     .expect("known operation"),
                     CommandKind::AlarmArmHome => crate::control_text::alarm_operation(
-                        home_wire_contract::home::controls::v1::AlarmOperation::ArmHome,
+                        home_wire_contract::home::api::v2::AlarmOperation::ArmHome,
                     )
                     .expect("known operation"),
                     CommandKind::AlarmArmAway => crate::control_text::alarm_operation(
-                        home_wire_contract::home::controls::v1::AlarmOperation::ArmAway,
+                        home_wire_contract::home::api::v2::AlarmOperation::ArmAway,
                     )
                     .expect("known operation"),
                     CommandKind::AlarmDisarm => crate::control_text::alarm_operation(
-                        home_wire_contract::home::controls::v1::AlarmOperation::Disarm,
+                        home_wire_contract::home::api::v2::AlarmOperation::Disarm,
                     )
                     .expect("known operation"),
                 };
                 let entity = snapshot.fence.slots[token.0 as usize].target.entity();
                 format!(
                     "{verb} · {}",
-                    snapshot.labels.get(entity).map_or("Item", String::as_str)
+                    snapshot.labels.get(&entity).map_or("Item", String::as_str)
                 )
             }
         };

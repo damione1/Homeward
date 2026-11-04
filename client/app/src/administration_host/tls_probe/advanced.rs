@@ -5,8 +5,7 @@ use forms::advanced::{
     ChoiceField, Field,
     policy::{PolicyCommand, PolicyDraft, Preset},
 };
-use home_wire_contract::{auth_contract::AccountId, home::integrationadmin::v1 as integration};
-use sha2::{Digest, Sha256};
+use home_wire_contract::{auth_contract::AccountName, home::integrationadmin::v1 as integration};
 
 fn edit(owner: &Administration, field: Field, value: impl Into<String>) {
     owner.edit(1, generation(owner), field as i32, value.into());
@@ -52,7 +51,7 @@ async fn outcome(owner: &Administration, expected: MutationState) {
         "a failed write is never blindly replayed"
     );
 }
-async fn policy(owner: &Administration, account: &AccountId) {
+async fn policy(owner: &Administration, account: &AccountName) {
     section(owner, Section::Policies).await;
     let token = {
         let state = owner.0.state.lock().unwrap();
@@ -68,7 +67,7 @@ async fn policy(owner: &Administration, account: &AccountId) {
         ready(state) && matches!(state.private.pane(Section::Policies).and_then(|pane|pane.content.as_ref()), Some(Payload::Policy { account: selected, .. }) if selected == account)
     }).await;
 }
-fn policy_response(owner: &Administration) -> auth::GetPolicyResponse {
+fn policy_response(owner: &Administration) -> auth::AuthorizationPolicy {
     let state = owner.0.state.lock().unwrap();
     let Some(Payload::Policy { response, .. }) = state
         .private
@@ -90,14 +89,13 @@ async fn rights(owner: &Administration, connection: &Connection, session: &Sessi
         else {
             panic!("policy account catalogue")
         };
-        AccountId::parse(
-            &accounts
+        AccountName::try_from(
+            accounts
                 .iter()
                 .find(|value| value.login_name == "NHF018 ordinary")
                 .unwrap()
-                .id
-                .value
-                .clone(),
+                .name
+                .as_str(),
         )
         .unwrap()
     };
@@ -127,18 +125,15 @@ async fn rights(owner: &Administration, connection: &Connection, session: &Sessi
     confirm(owner);
     saved(owner).await;
     let after = policy_response(owner);
-    let Some(auth::get_policy_response::Result::Present(value)) = &after.result else {
-        panic!("saved rights")
-    };
+    assert_eq!(after.origin, auth::AuthorizationPolicyOrigin::Stored);
+    let value = &after;
     let source = std::str::from_utf8(&value.yaml_source).unwrap();
     assert!(
         source.contains("family: lists, operation: read")
             && source.contains("family: lists, operation: write")
     );
-    assert_eq!(
-        value.version.source_sha256.as_slice(),
-        &Sha256::digest(&value.yaml_source)[..]
-    );
+    assert!(!value.etag.is_empty());
+    assert_ne!(value.etag, before.etag);
 
     // The second writer wins with exactly the same admitted snapshot; the open
     // UI keeps its old precondition and must force an explicit reread.
@@ -155,7 +150,7 @@ async fn rights(owner: &Administration, connection: &Connection, session: &Sessi
     let lease = session.access(&cancel).await.unwrap();
     connection
         .policies()
-        .replace_policy(request, lease.token(), Duration::from_secs(4), &cancel)
+        .replace_authorization_policy(request, lease.token(), Duration::from_secs(4), &cancel)
         .await
         .unwrap();
     confirm(owner);
@@ -174,11 +169,10 @@ async fn rights(owner: &Administration, connection: &Connection, session: &Sessi
 
     // Source reaches the contract's exact 1 MiB maximum; the protobuf envelope
     // is larger. The policy-specific transport limit must allow both directions.
-    let mut source = format!(
-        "schema: {}\naccount_id: {}\ngrants: []\n#",
-        home_wire_contract::authorization_contract::POLICY_SCHEMA,
-        serde_json::to_string(account.as_str()).unwrap()
-    );
+    // Extend the exact current owner source; no native ID is reconstructed
+    // from a public account name to create a replacement document.
+    let mut source = String::from_utf8(policy_response(owner).yaml_source).unwrap();
+    source.push_str("\n#");
     source.extend(std::iter::repeat_n(
         'x',
         home_wire_contract::authorization_contract::MAX_SOURCE_BYTES - source.len() - 1,
@@ -189,10 +183,7 @@ async fn rights(owner: &Administration, connection: &Connection, session: &Sessi
     edit(owner, Field::PolicySource, source.clone());
     confirm(owner);
     saved(owner).await;
-    let Some(auth::get_policy_response::Result::Present(value)) = policy_response(owner).result
-    else {
-        panic!("maximum source returned")
-    };
+    let value = policy_response(owner);
     assert_eq!(value.yaml_source, source.as_bytes());
     // Leave a concise policy behind for later native fixture scenarios.
     owner.action(0, generation(owner), ProAdminAction::Save);

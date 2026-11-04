@@ -20,7 +20,7 @@ use home_client_transport::{CompanionTransport, Failure, FailureKind, RpcCode};
 use home_wire_contract::{
     auth_contract::{AccountId, SessionId},
     companion_contract as admit,
-    home::companion::v1 as wire,
+    home::testing::companion::v1 as wire,
 };
 use slint::ComponentHandle;
 use state::{Draft, Gate, Identity, Intent, Job, Pending, Stage, State, Write};

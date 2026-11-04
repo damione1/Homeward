@@ -5,11 +5,18 @@ use crate::{
     dashboard::{DashboardId, LayoutState},
     dashboard_catalogue::{Capture, CaptureOutcome},
 };
-use home_client_actions::{ActionController, ActionHandle, ActionSnapshot, SubmissionState};
+use home_client_actions::{
+    CapabilityController, CapabilityHandle, CapabilitySnapshot, CapabilitySubmission,
+};
 use home_client_cache::{Filter, FrameEffect, LiveView, read_snapshot};
 use home_client_session::{SecureStore, SessionCoordinator, StoreFailure};
 use home_client_transport::Connection;
-use home_wire_contract::home::controls::v1 as control;
+use home_wire_contract::api_command_operations::{
+    CommandCompletion, CommandOutcome, CommandPhase, admit_command_operation,
+};
+use home_wire_contract::api_contract::encode_command;
+use home_wire_contract::google::longrunning::GetOperationRequest;
+use home_wire_contract::home::api::v2 as control;
 use serde::{Deserialize, Serialize};
 use std::{io::Write, time::Duration};
 use tokio_util::sync::CancellationToken;
@@ -73,7 +80,7 @@ impl Controls {
         self.0 = self.0.checked_add(1).ok_or("control exhausted")?;
         let mut value = serde_json::json!({"sequence":self.0,"action":action});
         if let Some(id) = id {
-            value["command_id"] = id.into();
+            value["request_id"] = id.into();
         }
         println!("NHF009_CONTROL {value}");
         std::io::stdout().flush()?;
@@ -94,7 +101,10 @@ impl Controls {
         Ok(())
     }
 }
-async fn until(handle: &ActionHandle, check: impl Fn(&ActionSnapshot) -> bool) -> Result<()> {
+async fn until(
+    handle: &CapabilityHandle,
+    check: impl Fn(&CapabilitySnapshot) -> bool,
+) -> Result<()> {
     let mut updates = handle.subscribe();
     tokio::time::timeout(Duration::from_secs(20), async {
         loop {
@@ -110,13 +120,32 @@ async fn until(handle: &ActionHandle, check: impl Fn(&ActionSnapshot) -> bool) -
     .await
     .map_err(|_| "action predicate timed out")?
 }
+fn observed_capability(view: &CachedView, target: &CapabilityName) -> Result<wire::Capability> {
+    view.get(&target.entity())
+        .and_then(|entry| {
+            entry
+                .capabilities
+                .iter()
+                .find(|cap| cap.name == target.as_str())
+        })
+        .cloned()
+        .ok_or_else(|| "exact authorized capability missing".into())
+}
 async fn snapshot(
     connection: &Connection,
     session: &SessionCoordinator,
     cancel: &CancellationToken,
 ) -> Result<CachedView> {
     let lease = admit(session.access(cancel).await)?;
-    Ok(read_snapshot(&connection.state(), &lease, Filter::all(), 2, cancel).await?)
+    Ok(read_snapshot(
+        &connection.entity_views(),
+        &connection.home(),
+        &lease,
+        Filter::all(),
+        2,
+        cancel,
+    )
+    .await?)
 }
 async fn read_request(
     connection: &Connection,
@@ -263,19 +292,19 @@ async fn run(fixture: Fixture) -> Result<()> {
     // The streaming response may not flush headers before its first frame.
     // Keep that read independent from actions, as the actual cache owner does.
     let watch_cancel = cancel.child_token();
-    let state_transport = connection.state();
+    let state_transport = connection.entity_views();
     let state_session = session.clone();
-    let stream_cursor = view.cursor().clone();
-    let stream_filter = view.filter().to_wire();
+    let stream_name = view.name().as_str().to_owned();
+    let stream_checkpoint = view.checkpoint().to_owned();
     let worker_cancel = watch_cancel.clone();
     let (frames, mut state_frames) = tokio::sync::mpsc::channel(16);
     let watch_job = tokio::spawn(async move {
         let lease = admit(state_session.access(&worker_cancel).await)?;
         let mut watch = state_transport
-            .watch_view(
-                state::WatchViewRequest {
-                    cursor: stream_cursor.into(),
-                    filter: stream_filter.into(),
+            .watch_entity_view(
+                wire::WatchEntityViewRequest {
+                    name: stream_name,
+                    resume_token: stream_checkpoint,
                     ..Default::default()
                 },
                 lease.token(),
@@ -284,14 +313,26 @@ async fn run(fixture: Fixture) -> Result<()> {
             )
             .await?;
         loop {
-            let frame = tokio::select! {biased;()=worker_cancel.cancelled()=>return Ok::<(),Box<dyn std::error::Error+Send+Sync>>(()),result=watch.next()=>result?};
-            let Some(frame) = frame else { return Ok(()) };
-            tokio::select! {biased;()=worker_cancel.cancelled()=>return Ok(()),result=frames.send(frame)=>result.map_err(|_|"state frame consumer closed")?};
+            let next = tokio::select! {biased;()=worker_cancel.cancelled()=>return Ok::<(),Box<dyn std::error::Error+Send+Sync>>(()),result=watch.next()=>result};
+            let frame = match next {
+                Ok(Some(frame)) => Ok(frame),
+                Ok(None) => return Ok(()),
+                Err(error) => Err(error),
+            };
+            let terminal = frame.is_err();
+            tokio::select! {biased;()=worker_cancel.cancelled()=>return Ok(()),result=frames.send(frame)=>result.map_err(|_|"view frame consumer closed")?};
+            if terminal {
+                return Ok(());
+            }
         }
     });
     let mut live = LiveView::new(view.clone());
-    let (controller, mut notices) = ActionController::start(session.clone(), connection.actions());
-    let drain = tokio::spawn(async move { while notices.recv().await.is_some() {} });
+    let controller = CapabilityController::new(
+        session.clone(),
+        connection.capabilities(),
+        connection.operations(),
+        &cancel,
+    );
     let mut controls = Controls::default();
     let mut submitted = Vec::new();
     for (index, operation) in [
@@ -339,46 +380,54 @@ async fn run(fixture: Fixture) -> Result<()> {
         let row = row(&store, &view, &request, operation.kind())?;
         let prepared = admit(store.prepare(row.token, row.generation, 0, operation.intent()))?;
         let target = prepared.target.entity().clone();
-        let observed = view.get(&target).unwrap().state.value.clone();
-        let handle = admit(controller.client().submit(prepared.request, prepared.guard))?;
+        let selected = prepared.target.clone();
+        let observed = observed_capability(&view, &selected)?.r#trait;
+        let intention = prepared.request.clone();
+        let handle = admit(controller.submit(prepared.request, prepared.guard))?;
         store.remember(prepared.target, handle.clone());
         until(&handle, |snapshot| {
-            snapshot
-                .progress
-                .as_ref()
-                .is_some_and(|p| p.status == actions::ActionStatus::Acknowledged)
+            snapshot.operation.as_ref().is_some_and(|p| {
+                p.phase() == CommandPhase::Acknowledged
+                    && matches!(p.completion(), CommandCompletion::Pending)
+            })
         })
         .await?;
         if index == 0 {
             match fixture.scenario {
                 Scenario::AckOnly => {
-                    assert_eq!(handle.snapshot().submission, SubmissionState::Replied)
+                    assert_eq!(handle.snapshot().submission, CapabilitySubmission::Accepted)
                 }
                 Scenario::LostSubmit => {
-                    assert_eq!(handle.snapshot().submission, SubmissionState::Uncertain)
+                    assert_eq!(
+                        handle.snapshot().submission,
+                        CapabilitySubmission::Uncertain
+                    )
                 }
             }
         }
         let audit = snapshot(&connection, &session, &cancel).await?;
         assert_eq!(
-            audit.get(&target).unwrap().state.value,
+            observed_capability(&audit, &selected)?.r#trait,
             observed,
             "ACK changed the observation"
         );
-        let id = handle.id().as_str().to_owned();
-        let previous = view.get(&target).unwrap().state.revision;
+        let id = handle.request_id().as_str().to_owned();
+        let previous = observed_capability(&view, &selected)?.r#trait;
         controls.command(Command::ObserveLast, Some(&id)).await?;
         tokio::time::timeout(Duration::from_secs(10), async {
             loop {
-                let frame = state_frames.recv().await.ok_or("state watch ended")?;
-                match admit(live.apply(frame))? {
-                    FrameEffect::Applied => {}
-                    FrameEffect::Resync(_) => return Err("unexpected nominal state resync".into()),
-                }
+                let frame = state_frames.recv().await.ok_or("view watch ended")??;
+                let FrameEffect::Applied = admit(live.apply(frame))?;
                 if live
                     .current()
                     .and_then(|view| view.get(&target))
-                    .is_some_and(|entity| entity.state.revision > previous)
+                    .and_then(|entry| {
+                        entry
+                            .capabilities
+                            .iter()
+                            .find(|cap| cap.name == selected.as_str())
+                    })
+                    .is_some_and(|capability| capability.r#trait != previous)
                 {
                     return Ok::<(), Box<dyn std::error::Error + Send + Sync>>(());
                 }
@@ -387,11 +436,16 @@ async fn run(fixture: Fixture) -> Result<()> {
         .await??;
         view = live.current().ok_or("state cache abandoned")?.clone();
         let lease = admit(session.access(&cancel).await)?;
-        let progress = connection
-            .actions()
-            .get_action(
-                actions::GetActionRequest {
-                    command_id: id.clone(),
+        let snapshot = handle.snapshot();
+        let known = snapshot
+            .operation
+            .as_ref()
+            .ok_or("operation identity missing after ACK")?;
+        let raw = connection
+            .operations()
+            .get_operation(
+                GetOperationRequest {
+                    name: known.name().as_str().into(),
                     ..Default::default()
                 },
                 lease.token(),
@@ -399,16 +453,23 @@ async fn run(fixture: Fixture) -> Result<()> {
                 &cancel,
             )
             .await?;
+        let progress = admit(admit_command_operation(&raw, &intention, Some(known)))?;
         assert!(
-            matches!(progress.live,Some(actions::get_action_response::Live::Progress(point)) if point.status==actions::ActionStatus::Acknowledged),
+            progress.phase() == CommandPhase::Acknowledged
+                && matches!(progress.completion(), CommandCompletion::Pending),
             "correlated observation must not confirm a secure control"
         );
         controls.command(Command::ConfirmLast, Some(&id)).await?;
         until(&handle, |snapshot| {
-            snapshot
-                .progress
-                .as_ref()
-                .is_some_and(|p| p.status == actions::ActionStatus::Confirmed)
+            snapshot.operation.as_ref().is_some_and(|p| {
+                matches!(
+                    p.completion(),
+                    CommandCompletion::Success {
+                        outcome: CommandOutcome::Confirmed,
+                        ..
+                    }
+                )
+            })
         })
         .await?;
         tokio::time::timeout(Duration::from_secs(5), async {
@@ -431,20 +492,21 @@ async fn run(fixture: Fixture) -> Result<()> {
     let frame = tokio::time::timeout(Duration::from_secs(10), state_frames.recv())
         .await?
         .ok_or("withdrawal watch ended without resync")?;
-    assert!(matches!(admit(live.apply(frame))?, FrameEffect::Resync(_)));
-    assert!(live.current().is_none());
+    let failure = frame.expect_err("withdrawn capture continued emitting observations");
+    assert_eq!(
+        admit(failure.api_failure())?
+            .ok_or("untyped capture invalidation")?
+            .reason(),
+        wire::ApiErrorReason::ResyncRequired
+    );
+    drop(live); // A failed capture is discarded; only a fresh capture can resume.
     watch_cancel.cancel();
     watch_job.await??;
 
     view = snapshot(&connection, &session, &cancel).await?;
     store.project(CachePhase::Live, Some(&view), &request);
     assert!(!(held.guard)());
-    assert!(
-        controller
-            .client()
-            .submit(held.request, held.guard)
-            .is_err()
-    );
+    assert!(controller.submit(held.request, held.guard).is_err());
     controls.command(Command::Rediscover, None).await?;
     view = snapshot(&connection, &session, &cancel).await?;
     let restored = row(&store, &view, &request, ProDeviceKind::Cover)?;
@@ -472,23 +534,15 @@ async fn run(fixture: Fixture) -> Result<()> {
     ));
     // Deliberately bypass local UI admission to prove the ordinary authenticated
     // server also refuses this typed command. It must never reach the fake driver.
-    let mut forged = held.request;
-    let denied_id = admit(home_client_actions::CommandId::generate())?
+    let mut forged = encode_command(&held.request);
+    let denied_id = admit(home_client_actions::new_request_id())?
         .as_str()
         .to_owned();
-    forged.command_id = denied_id.clone();
+    forged.request_id = denied_id.clone();
     let lease = admit(session.access(&cancel).await)?;
     let refused = connection
-        .actions()
-        .submit_action(
-            actions::SubmitActionRequest {
-                command: forged.into(),
-                ..Default::default()
-            },
-            lease.token(),
-            Duration::from_secs(10),
-            &cancel,
-        )
+        .capabilities()
+        .execute_capability(forged, lease.token(), Duration::from_secs(10), &cancel)
         .await
         .expect_err("server admitted an unauthorized typed command");
     assert!(matches!(
@@ -496,12 +550,11 @@ async fn run(fixture: Fixture) -> Result<()> {
         home_client_transport::FailureKind::Rpc(home_client_transport::RpcCode::PermissionDenied)
     ));
     controls.command(Command::AllowWrite, None).await?;
-    controller.close().await;
-    drain.await?;
+    controller.shutdown().await;
     session.close().await;
     println!(
         "NHF009_RESULT {}",
-        serde_json::json!({"pass":true,"profile":home_client_model::dashboard::Profile::Recipes.name(),"commands":submitted,"capability_withdrawal":true,"readonly_host_and_server_refusal":true,"denied_command_id":denied_id,"no_real_devices":true})
+        serde_json::json!({"pass":true,"profile":home_client_model::dashboard::Profile::Recipes.name(),"commands":submitted,"capability_withdrawal":true,"readonly_host_and_server_refusal":true,"denied_request_id":denied_id,"no_real_devices":true})
     );
     Ok(())
 }

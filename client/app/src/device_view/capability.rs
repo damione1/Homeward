@@ -7,14 +7,14 @@ use super::{
     light::ColorTemperature,
     number::Bounds,
 };
-use home_wire_contract::home::{actions::v1 as action, registry::v1 as wire};
+use home_wire_contract::home::api::v2 as wire;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ObservationKind {
     Weather,
     Presence,
     Details,
     Solar,
-    SolarEvent(home_wire_contract::home::solar::v1::SolarEventKind),
+    SolarEvent(wire::SolarEventKind),
 }
 #[derive(Clone, PartialEq)]
 pub(super) enum Control {
@@ -25,6 +25,9 @@ pub(super) enum Control {
         power: bool,
         brightness: Option<Bounds>,
         color: Option<ColorTemperature>,
+    },
+    Level {
+        bounds: Option<Bounds>,
     },
     Climate(Climate),
     Fan(Fan),
@@ -46,138 +49,136 @@ impl Power {
     }
 }
 impl Control {
-    pub fn parse(capability: &wire::CapabilityDescription) -> Self {
-        use wire::capability_description::Constraints as C;
-        if capability.major != 1
-            || !capability.__buffa_unknown_fields.is_empty()
-            || !capability.descriptor_set.is_empty()
-            || !capability.descriptor_sha256.is_empty()
-        {
+    pub fn parse(capability: &wire::Capability) -> Self {
+        use wire::capability::Trait as T;
+        if !capability.__buffa_unknown_fields.is_empty() {
             return Self::Unsupported;
         }
-        match capability.constraints.as_ref() {
-            Some(C::Switch(c)) => {
-                if capability.schema_id == "core.switch.v1" && c.__buffa_unknown_fields.is_empty() {
-                    Self::Switch { power: c.set_on }
-                } else {
-                    Self::Unsupported
+        match capability.r#trait.as_ref() {
+            Some(T::Power(value)) if value.__buffa_unknown_fields.is_empty() => Self::Switch {
+                power: value.supports_set,
+            },
+            Some(T::Level(value)) if value.__buffa_unknown_fields.is_empty() => {
+                let bounds = value
+                    .bounds
+                    .as_option()
+                    .and_then(Bounds::percentage_definition);
+                if value.supports_set && bounds.is_none() {
+                    return Self::Unsupported;
+                }
+                Self::Level {
+                    bounds: value.supports_set.then_some(bounds).flatten(),
                 }
             }
-            Some(C::Light(c)) => {
-                if capability.schema_id == "core.light.v1" && c.__buffa_unknown_fields.is_empty() {
-                    Self::Light {
-                        power: c.set_on,
-                        brightness: c
-                            .brightness_percent
-                            .as_option()
-                            .and_then(Bounds::percentage),
-                        color: c
-                            .color_temp_mireds
-                            .as_option()
-                            .and_then(ColorTemperature::parse),
-                    }
-                } else {
-                    Self::Unsupported
-                }
-            }
-            Some(C::Binary(c)) => {
-                if capability.schema_id == "core.binary.v1" && c.__buffa_unknown_fields.is_empty() {
-                    Self::Binary
-                } else {
-                    Self::Unsupported
-                }
-            }
-            Some(C::Measurement(c)) => {
-                if capability.schema_id == "core.measurement.v1"
-                    && c.__buffa_unknown_fields.is_empty()
+            Some(T::LightControl(value)) if value.__buffa_unknown_fields.is_empty() => {
+                let brightness = value
+                    .brightness_percent
+                    .as_option()
+                    .and_then(Bounds::percentage);
+                let color = value
+                    .color_temperature_mireds
+                    .as_option()
+                    .and_then(ColorTemperature::parse);
+                if (value.brightness_percent.is_set() && brightness.is_none())
+                    || (value.color_temperature_mireds.is_set() && color.is_none())
+                    || value
+                        .transition_duration_bounds
+                        .as_option()
+                        .is_some_and(|bounds| Bounds::parse(bounds).is_none())
                 {
-                    Self::Measurement
-                } else {
-                    Self::Unsupported
+                    return Self::Unsupported;
+                }
+                Self::Light {
+                    power: value.supports_power,
+                    brightness,
+                    color,
                 }
             }
-            Some(C::Climate(value)) => {
-                if capability.schema_id == "core.climate.v1" {
-                    Climate::parse(value)
-                        .map(Self::Climate)
-                        .unwrap_or(Self::Unsupported)
-                } else {
-                    Self::Unsupported
-                }
-            }
-            Some(C::Fan(value)) => {
-                if capability.schema_id == "core.fan.v1" {
-                    Fan::parse(value)
-                        .map(Self::Fan)
-                        .unwrap_or(Self::Unsupported)
-                } else {
-                    Self::Unsupported
-                }
-            }
-            Some(C::Helper(value)) => {
-                if capability.schema_id == "core.helper.v1" {
-                    Helper::parse(value)
-                        .map(Self::Helper)
-                        .unwrap_or(Self::Unsupported)
-                } else {
-                    Self::Unsupported
-                }
-            }
-            Some(C::Cover(value)) if capability.schema_id == "core.cover.v1" => Cover::parse(value)
+            Some(T::TemperatureControl(value)) => Climate::parse(value)
+                .map(Self::Climate)
+                .unwrap_or(Self::Unsupported),
+            Some(T::FanControl(value)) => Fan::parse(value)
+                .map(Self::Fan)
+                .unwrap_or(Self::Unsupported),
+            Some(T::Helper(value)) if value.__buffa_unknown_fields.is_empty() => value
+                .definition
+                .as_option()
+                .and_then(Helper::parse)
+                .map(Self::Helper)
+                .unwrap_or(Self::Unsupported),
+            Some(T::Cover(value)) if value.__buffa_unknown_fields.is_empty() => value
+                .definition
+                .as_option()
+                .and_then(Cover::parse)
                 .map(Self::Cover)
                 .unwrap_or(Self::Unsupported),
-            Some(C::Lock(value)) if capability.schema_id == "core.lock.v1" => Lock::parse(value)
+            Some(T::Lock(value)) if value.__buffa_unknown_fields.is_empty() => value
+                .definition
+                .as_option()
+                .and_then(Lock::parse)
                 .map(Self::Lock)
                 .unwrap_or(Self::Unsupported),
-            Some(C::Alarm(value)) if capability.schema_id == "core.alarm.v1" => Alarm::parse(value)
+            Some(T::Alarm(value)) if value.__buffa_unknown_fields.is_empty() => value
+                .definition
+                .as_option()
+                .and_then(Alarm::parse)
                 .map(Self::Alarm)
                 .unwrap_or(Self::Unsupported),
-            Some(C::Weather(value))
-                if capability.schema_id == "core.weather.v1"
-                    && value.__buffa_unknown_fields.is_empty() =>
-            {
+            Some(T::NumericMeasurement(value)) if value.__buffa_unknown_fields.is_empty() => {
+                Self::Measurement
+            }
+            Some(T::BinaryObservation(value)) if value.__buffa_unknown_fields.is_empty() => {
+                Self::Binary
+            }
+            Some(T::Weather(value)) if value.__buffa_unknown_fields.is_empty() => {
                 Self::ReadOnly(ObservationKind::Weather)
             }
-            Some(C::Presence(value))
-                if capability.schema_id == "core.presence.v1"
-                    && value.__buffa_unknown_fields.is_empty() =>
-            {
+            Some(T::Presence(value)) if value.__buffa_unknown_fields.is_empty() => {
                 Self::ReadOnly(ObservationKind::Presence)
             }
-            Some(C::PresenceDetails(value))
-                if capability.schema_id == "core.presence_details.v1"
-                    && value.__buffa_unknown_fields.is_empty() =>
-            {
+            Some(T::PresenceDetails(value)) if value.__buffa_unknown_fields.is_empty() => {
                 Self::ReadOnly(ObservationKind::Details)
             }
-            Some(C::Solar(value))
-                if capability.schema_id == "core.solar.v1"
-                    && value.__buffa_unknown_fields.is_empty() =>
-            {
+            Some(T::Solar(value)) if value.__buffa_unknown_fields.is_empty() => {
                 Self::ReadOnly(ObservationKind::Solar)
             }
-            Some(C::SolarEvent(value))
-                if capability.schema_id == "core.solar_event.v1"
-                    && value.__buffa_unknown_fields.is_empty()
-                    && home_wire_contract::solar_contract::event_kind(value.event) =>
-            {
-                match value.event {
-                    buffa::EnumValue::Known(event) => {
-                        Self::ReadOnly(ObservationKind::SolarEvent(event))
-                    }
-                    buffa::EnumValue::Unknown(_) => Self::Unsupported,
+            Some(T::SolarEvent(value)) if value.__buffa_unknown_fields.is_empty() => {
+                let Some(definition) = value
+                    .definition
+                    .as_option()
+                    .filter(|d| d.__buffa_unknown_fields.is_empty())
+                else {
+                    return Self::Unsupported;
+                };
+                match definition.event.as_known() {
+                    Some(
+                        event @ (wire::SolarEventKind::Dawn
+                        | wire::SolarEventKind::Dusk
+                        | wire::SolarEventKind::Midnight
+                        | wire::SolarEventKind::Noon
+                        | wire::SolarEventKind::Rising
+                        | wire::SolarEventKind::Setting),
+                    ) => Self::ReadOnly(ObservationKind::SolarEvent(event)),
+                    Some(wire::SolarEventKind::Unspecified) | None => Self::Unsupported,
                 }
             }
             Some(
-                C::Extension(_)
-                | C::Solar(_)
-                | C::SolarEvent(_)
-                | C::Cover(_)
-                | C::Lock(_)
-                | C::Alarm(_)
-                | C::Weather(_)
-                | C::Presence(_)
-                | C::PresenceDetails(_),
+                T::Power(_)
+                | T::Level(_)
+                | T::LightControl(_)
+                | T::Helper(_)
+                | T::Cover(_)
+                | T::Lock(_)
+                | T::Alarm(_)
+                | T::NumericMeasurement(_)
+                | T::BinaryObservation(_)
+                | T::Weather(_)
+                | T::Presence(_)
+                | T::PresenceDetails(_)
+                | T::Solar(_)
+                | T::SolarEvent(_)
+                | T::Opaque(_)
+                | T::MediaPlayback(_),
             )
             | None => Self::Unsupported,
         }
@@ -186,218 +187,168 @@ impl Control {
         &self,
         intent: DeviceIntent,
         helper_revision: Option<HelperRevision>,
-    ) -> Result<action::ActionArgs, Refusal> {
-        use action::action_args::Arguments as A;
-        let arguments = match intent {
-            DeviceIntent::Power(value) => match self {
-                Self::Switch { power: true } => A::SetSwitch(
-                    action::SetSwitch {
-                        on: value.on(),
+    ) -> Result<wire::execute_capability_request::Command, Refusal> {
+        use wire::execute_capability_request::Command as C;
+        // Matching both the control and intent prevents one trait borrowing an
+        // unrelated sibling's support. Current action_access is fenced separately.
+        match (self, intent) {
+            (Self::Switch { power: true }, DeviceIntent::Power(value)) => {
+                Ok(C::Power(Box::new(wire::SetPowerCommand {
+                    value: if value.on() {
+                        wire::PowerValue::On
+                    } else {
+                        wire::PowerValue::Off
+                    }
+                    .into(),
+                    ..Default::default()
+                })))
+            }
+            (Self::Light { power: true, .. }, DeviceIntent::Power(value)) => {
+                Ok(C::Light(Box::new(wire::SetLightCommand {
+                    power: wire::SetPowerCommand {
+                        value: if value.on() {
+                            wire::PowerValue::On
+                        } else {
+                            wire::PowerValue::Off
+                        }
+                        .into(),
                         ..Default::default()
                     }
                     .into(),
-                ),
-                Self::Light { power: true, .. } => A::SetLight(
-                    action::SetLight {
-                        on: Some(value.on()),
-                        ..Default::default()
-                    }
-                    .into(),
-                ),
-                Self::Fan(fan) => A::SetFan(fan.power(value)?.into()),
-                Self::Switch { power: false }
-                | Self::Light { power: false, .. }
-                | Self::Binary
-                | Self::Measurement
-                | Self::Climate(_)
-                | Self::Helper(_)
-                | Self::Cover(_)
-                | Self::Lock(_)
-                | Self::Alarm(_)
-                | Self::ReadOnly(_)
-                | Self::Unsupported => return Err(Refusal::Unsupported),
-            },
-            DeviceIntent::Brightness(value) => match self {
+                    ..Default::default()
+                })))
+            }
+            (
                 Self::Light {
                     brightness: Some(bounds),
                     ..
-                } => A::SetLight(
-                    action::SetLight {
-                        brightness_percent: Some(bounds.canonical(value)?),
-                        ..Default::default()
-                    }
-                    .into(),
-                ),
-                Self::Light {
-                    brightness: None, ..
+                },
+                DeviceIntent::Brightness(value),
+            ) => Ok(C::Light(Box::new(wire::SetLightCommand {
+                level: wire::SetLevelCommand {
+                    target: Some(wire::set_level_command::Target::Percentage(
+                        bounds.canonical(value)?,
+                    )),
+                    ..Default::default()
                 }
-                | Self::Switch { .. }
-                | Self::Binary
-                | Self::Measurement
-                | Self::Climate(_)
-                | Self::Fan(_)
-                | Self::Helper(_)
-                | Self::Cover(_)
-                | Self::Lock(_)
-                | Self::Alarm(_)
-                | Self::ReadOnly(_)
-                | Self::Unsupported => return Err(Refusal::Unsupported),
-            },
-            DeviceIntent::ColorTemperature(value) => match self {
+                .into(),
+                ..Default::default()
+            }))),
+            (
+                Self::Level {
+                    bounds: Some(bounds),
+                },
+                DeviceIntent::Brightness(value),
+            ) => Ok(C::Level(Box::new(wire::SetLevelCommand {
+                target: Some(wire::set_level_command::Target::Percentage(
+                    bounds.canonical(value)?,
+                )),
+                ..Default::default()
+            }))),
+            (
                 Self::Light {
                     color: Some(color), ..
-                } => A::SetLight(
-                    action::SetLight {
-                        color_temp_mireds: Some(color.admit(value)?.wire()),
-                        ..Default::default()
-                    }
-                    .into(),
+                },
+                DeviceIntent::ColorTemperature(value),
+            ) => Ok(C::Light(Box::new(wire::SetLightCommand {
+                color_temperature_mireds: Some(
+                    i32::try_from(color.admit(value)?.wire()).map_err(|_| Refusal::InvalidValue)?,
                 ),
-                Self::Light { color: None, .. }
-                | Self::Switch { .. }
-                | Self::Climate(_)
-                | Self::Fan(_)
-                | Self::Helper(_)
-                | Self::Binary
-                | Self::Measurement
-                | Self::Cover(_)
-                | Self::Lock(_)
-                | Self::Alarm(_)
-                | Self::ReadOnly(_)
-                | Self::Unsupported => return Err(Refusal::Unsupported),
-            },
-            DeviceIntent::Climate(intent) => match self {
-                Self::Climate(climate) => A::SetClimate(climate.arguments(intent)?.into()),
+                ..Default::default()
+            }))),
+            (Self::Climate(value), DeviceIntent::Climate(intent)) => {
+                Ok(C::TemperatureControl(Box::new(
+                    home_wire_contract::api_contract::encode_thermal(value.arguments(intent)?),
+                )))
+            }
+            (Self::Fan(value), DeviceIntent::Power(intent)) => Ok(C::Fan(Box::new(
+                home_wire_contract::api_contract::encode_fan(&value.power(intent)?),
+            ))),
+            (Self::Fan(value), DeviceIntent::FanSpeed(intent)) => Ok(C::Fan(Box::new(
+                home_wire_contract::api_contract::encode_fan(&value.speed(intent)?),
+            ))),
+            (Self::Helper(value), DeviceIntent::Helper(intent)) => Ok(C::Helper(Box::new(
+                value.arguments(intent, helper_revision)?,
+            ))),
+            (Self::Cover(value), DeviceIntent::Cover(intent)) => {
+                Ok(C::Cover(Box::new(value.arguments(intent)?)))
+            }
+            (Self::Lock(value), DeviceIntent::Lock(intent)) => {
+                Ok(C::Lock(Box::new(value.arguments(intent)?)))
+            }
+            (Self::Alarm(value), DeviceIntent::Alarm(intent)) => {
+                Ok(C::Alarm(Box::new(value.arguments(intent)?)))
+            }
+            (
                 Self::Switch { .. }
-                | Self::Light { .. }
-                | Self::Fan(_)
-                | Self::Binary
-                | Self::Measurement
-                | Self::Helper(_)
-                | Self::Cover(_)
-                | Self::Lock(_)
-                | Self::Alarm(_)
-                | Self::ReadOnly(_)
-                | Self::Unsupported => return Err(Refusal::Unsupported),
-            },
-            DeviceIntent::FanSpeed(speed) => match self {
-                Self::Fan(fan) => A::SetFan(fan.speed(speed)?.into()),
-                Self::Switch { .. }
-                | Self::Light { .. }
-                | Self::Climate(_)
-                | Self::Binary
-                | Self::Measurement
-                | Self::Helper(_)
-                | Self::Cover(_)
-                | Self::Lock(_)
-                | Self::Alarm(_)
-                | Self::ReadOnly(_)
-                | Self::Unsupported => return Err(Refusal::Unsupported),
-            },
-            DeviceIntent::Helper(intent) => match self {
-                Self::Helper(helper) => {
-                    A::Helper(helper.arguments(intent, helper_revision)?.into())
-                }
-                Self::Switch { .. }
-                | Self::Light { .. }
-                | Self::Climate(_)
-                | Self::Fan(_)
-                | Self::Binary
-                | Self::Measurement
-                | Self::Cover(_)
-                | Self::Lock(_)
-                | Self::Alarm(_)
-                | Self::ReadOnly(_)
-                | Self::Unsupported => return Err(Refusal::Unsupported),
-            },
-            DeviceIntent::Cover(intent) => match self {
-                Self::Cover(control) => A::Cover(control.arguments(intent)?.into()),
-                Self::Switch { .. }
+                | Self::Level { .. }
                 | Self::Light { .. }
                 | Self::Climate(_)
                 | Self::Fan(_)
                 | Self::Helper(_)
-                | Self::Binary
-                | Self::Measurement
-                | Self::Lock(_)
-                | Self::Alarm(_)
-                | Self::ReadOnly(_)
-                | Self::Unsupported => return Err(Refusal::Unsupported),
-            },
-            DeviceIntent::Lock(intent) => match self {
-                Self::Lock(control) => A::Lock(control.arguments(intent)?.into()),
-                Self::Switch { .. }
-                | Self::Light { .. }
-                | Self::Climate(_)
-                | Self::Fan(_)
-                | Self::Helper(_)
-                | Self::Binary
-                | Self::Measurement
-                | Self::Cover(_)
-                | Self::Alarm(_)
-                | Self::ReadOnly(_)
-                | Self::Unsupported => return Err(Refusal::Unsupported),
-            },
-            DeviceIntent::Alarm(intent) => match self {
-                Self::Alarm(control) => A::Alarm(control.arguments(intent)?.into()),
-                Self::Switch { .. }
-                | Self::Light { .. }
-                | Self::Climate(_)
-                | Self::Fan(_)
-                | Self::Helper(_)
-                | Self::Binary
-                | Self::Measurement
                 | Self::Cover(_)
                 | Self::Lock(_)
+                | Self::Alarm(_)
+                | Self::Binary
+                | Self::Measurement
                 | Self::ReadOnly(_)
-                | Self::Unsupported => return Err(Refusal::Unsupported),
-            },
-        };
-        Ok(action::ActionArgs {
-            arguments: Some(arguments),
-            ..Default::default()
-        })
+                | Self::Unsupported,
+                DeviceIntent::Power(_)
+                | DeviceIntent::Brightness(_)
+                | DeviceIntent::ColorTemperature(_)
+                | DeviceIntent::Climate(_)
+                | DeviceIntent::FanSpeed(_)
+                | DeviceIntent::Helper(_)
+                | DeviceIntent::Cover(_)
+                | DeviceIntent::Lock(_)
+                | DeviceIntent::Alarm(_),
+            ) => Err(Refusal::Unsupported),
+        }
     }
 }
 
 #[cfg(test)]
-mod observation_tests {
+mod tests {
     use super::*;
-    use home_wire_contract::home::environment::v1 as env;
-
     #[test]
-    fn environmental_capabilities_are_known_observations_and_cannot_build_power_commands() {
-        use wire::capability_description::Constraints as C;
-        for (schema, constraints) in [
-            (
-                "core.weather.v1",
-                C::Weather(env::WeatherConstraints::default().into()),
-            ),
-            (
-                "core.presence.v1",
-                C::Presence(env::PresenceConstraints::default().into()),
-            ),
-            (
-                "core.presence_details.v1",
-                C::PresenceDetails(env::PresenceDetailsConstraints::default().into()),
-            ),
+    fn observation_traits_never_gain_a_power_intention() {
+        use wire::capability::Trait as T;
+        for trait_value in [
+            T::Weather(Box::default()),
+            T::Presence(Box::default()),
+            T::PresenceDetails(Box::default()),
         ] {
-            let mut description = wire::CapabilityDescription {
-                schema_id: schema.into(),
-                major: 1,
-                endpoint: "value".into(),
-                display_name: "Synthetic observation".into(),
-                constraints: Some(constraints),
+            let capability = wire::Capability {
+                r#trait: Some(trait_value),
                 ..Default::default()
             };
-            let control = Control::parse(&description);
+            let control = Control::parse(&capability);
             assert!(matches!(control, Control::ReadOnly(_)));
-            assert!(matches!(
-                control.arguments(DeviceIntent::Power(Power::On), None),
-                Err(Refusal::Unsupported)
-            ));
-            description.major = 2;
-            assert!(matches!(Control::parse(&description), Control::Unsupported));
+            assert!(
+                control
+                    .arguments(DeviceIntent::Power(Power::On), None)
+                    .is_err()
+            );
         }
+    }
+    #[test]
+    fn level_and_light_intentions_keep_their_exact_trait_and_zero() {
+        let bounds = Bounds::percentage_definition(&wire::PercentageBounds {
+            minimum: 0.,
+            maximum: 100.,
+            ..Default::default()
+        })
+        .unwrap();
+        let level = Control::Level {
+            bounds: Some(bounds),
+        };
+        assert!(
+            matches!(level.arguments(DeviceIntent::Brightness(0.), None).unwrap(), wire::execute_capability_request::Command::Level(value) if value.target == Some(wire::set_level_command::Target::Percentage(0.)))
+        );
+        assert!(
+            level
+                .arguments(DeviceIntent::Power(Power::Off), None)
+                .is_err()
+        );
     }
 }

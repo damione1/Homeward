@@ -49,7 +49,7 @@ impl Projection {
                 .join(" "),
         }
     }
-    fn rows(&self) -> &[Arc<home_wire_contract::home::lists::v1::ItemSnapshot>] {
+    fn rows(&self) -> &[Arc<home_client_model::api_tasks::TaskResource>] {
         self.items
             .as_ref()
             .map_or(&[], |snapshot| match &snapshot.rows {
@@ -59,7 +59,7 @@ impl Projection {
     }
     fn row(&self, index: usize) -> Option<ProTaskRow> {
         let row = self.rows().get(index)?;
-        let key = ItemKey::new(row.list_id.value.parse().ok()?, row.uid.value.parse().ok()?);
+        let key = ItemKey::new(row.key().list().clone(), row.key().uid().clone());
         let draft = self.drafts.get(&key);
         let phase = if self.busy && self.selected.as_ref() == Some(&key) {
             ProTaskPhase::Pending
@@ -73,10 +73,16 @@ impl Projection {
         Some(ProTaskRow {
             token: *self.item_tokens.get(index)?,
             generation: self.generation,
-            title: row.value.summary.clone().into(),
-            completed: row.value.completed == Some(true),
+            title: row.content().summary().as_str().to_owned().into(),
+            completed: row.content().completed(),
             writable: true,
-            detail: row.value.description.clone().unwrap_or_default().into(),
+            detail: row
+                .content()
+                .description()
+                .map(|value| value.as_str())
+                .unwrap_or_default()
+                .to_owned()
+                .into(),
             phase,
             status: match phase {
                 ProTaskPhase::Ready => {
@@ -170,7 +176,7 @@ fn visible_indices(view: &Projection, shopping_only: bool, limit: usize) -> Vec<
     view.rows()
         .iter()
         .enumerate()
-        .filter(|(_, row)| !shopping_only || row.value.completed != Some(true))
+        .filter(|(_, row)| !shopping_only || !row.content().completed())
         .take(limit)
         .map(|(index, _)| index)
         .collect()
@@ -193,7 +199,7 @@ impl Model for Catalog {
         let row = rows.get(index)?;
         Some(ContentItem {
             token: *self.view.catalog_tokens.get(index)?,
-            title: row.name.clone().into(),
+            title: row.display_name().as_str().to_owned().into(),
             link_label: "Open".into(),
             disabled: !self.view.active
                 || self.view.busy
@@ -234,9 +240,9 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
     let old_index = window.get_lists_active_index();
     let old_scroll = window.get_lists_scroll_y();
     let selected = view.selected.as_ref().and_then(|key| {
-        view.rows().iter().position(|row| {
-            row.uid.value == key.uid().as_str() && row.list_id.value == key.list().as_str()
-        })
+        view.rows()
+            .iter()
+            .position(|row| row.key().uid() == key.uid() && row.key().list() == key.list())
     });
     let selection = selected
         .and_then(|index| view.row(index))
@@ -266,7 +272,7 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
                     "Remaining: {} · Saved: {}",
                     view.rows()
                         .iter()
-                        .filter(|row| row.value.completed != Some(true))
+                        .filter(|row| !row.content().completed())
                         .count(),
                     snapshot.count
                 )
@@ -279,7 +285,7 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
             .as_ref()
             .and_then(|snapshot| match &snapshot.metadata {
                 ListReadMetadata::Catalog => None,
-                ListReadMetadata::List(list) => Some(list.name.clone()),
+                ListReadMetadata::List(list) => Some(list.display_name().as_str().to_owned()),
             })
             .unwrap_or_else(|| "Lists".into())
             .into(),
@@ -324,7 +330,7 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
                     Some(OptionRow {
                         token: *view.catalog_tokens.get(index)?,
                         generation: view.generation,
-                        label: row.name.clone().into(),
+                        label: row.display_name().as_str().to_owned().into(),
                         description: "".into(),
                         disabled: !view.active
                             || view.busy
@@ -614,7 +620,7 @@ pub(super) fn render_widget(
         && projection.item_phase == Freshness::Online
         && projection.catalog_phase == Freshness::Online
         && projection.items.as_ref().is_some_and(
-            |snapshot| matches!(&snapshot.rows,CapturedRows::Items{list,..} if list==&target.list),
+            |snapshot| matches!(&snapshot.rows,CapturedRows::Items{list,..} if list==target.list.native_id()),
         );
     let status = if !projection.notice.is_empty() {
         projection.notice.clone()
@@ -718,14 +724,16 @@ mod widget_tests {
         );
         let mut snapshot = Arc::try_unwrap(snapshot).ok().unwrap();
         if let CapturedRows::Items { rows, .. } = &mut snapshot.rows {
-            Arc::make_mut(&mut rows[0])
-                .value
-                .get_or_insert_default()
-                .completed = Some(true);
-            Arc::make_mut(&mut rows[2])
-                .value
-                .get_or_insert_default()
-                .completed = Some(true);
+            rows[0] = Arc::new(
+                rows[0]
+                    .with_content(rows[0].content().with_completed(true))
+                    .unwrap(),
+            );
+            rows[2] = Arc::new(
+                rows[2]
+                    .with_content(rows[2].content().with_completed(true))
+                    .unwrap(),
+            );
         }
         state.publish_items(Arc::new(snapshot)).unwrap();
         let view = Arc::new(Projection::new(&state));

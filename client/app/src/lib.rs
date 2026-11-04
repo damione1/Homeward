@@ -16,7 +16,6 @@ mod calendar;
 mod calendar_host;
 mod camera;
 mod camera_host;
-mod companion_host;
 pub mod configuration;
 mod control_text;
 mod dashboard;
@@ -49,11 +48,9 @@ mod native_touch_tests;
 mod navigation;
 #[cfg(test)]
 use native_touch_tests::touch_guard;
-mod notification_host;
 mod preferences;
 mod profile;
 mod raster;
-mod registration_store;
 mod session_host;
 mod video_host;
 

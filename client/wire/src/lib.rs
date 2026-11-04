@@ -3,34 +3,21 @@
 /// Google's canonical RPC error types, generated from the locked upstream schema.
 #[allow(clippy::all)]
 #[rustfmt::skip]
-pub mod google { pub mod rpc { include!("generated/google.rpc.rs"); } }
+pub mod google {
+    pub mod longrunning { include!("generated/google.longrunning.rs"); } pub mod rpc { include!("generated/google.rpc.rs"); } pub mod r#type { include!("generated/google.type.rs"); } }
 #[allow(clippy::all)]
 #[rustfmt::skip]
 pub mod home {
     pub mod api { pub mod v2 { include!("generated/home.api.v2.rs"); } }
-    pub mod notifications { pub mod v1 { include!("generated/home.notifications.v1.rs"); } }
-    pub mod companion { pub mod v1 { include!("generated/home.companion.v1.rs"); } }
-    pub mod logic { pub mod v1 { include!("generated/home.logic.v1.rs"); } }
-    pub mod cameras { pub mod v1 { include!("generated/home.cameras.v1.rs"); } }
-    pub mod calendars { pub mod v1 { include!("generated/home.calendars.v1.rs"); } }
-    pub mod media { pub mod v1 { include!("generated/home.media.v1.rs"); } }
+    #[cfg(feature = "private-qualification")]
+    pub mod testing {
+        pub mod notifications { pub mod v1 { include!("generated/home.testing.notifications.v1.rs"); } }
+        pub mod companion { pub mod v1 { include!("generated/home.testing.companion.v1.rs"); } }
+        pub mod logic { pub mod v1 { include!("generated/home.testing.logic.v1.rs"); } }
+    }
     pub mod environment { pub mod v1 { include!("generated/home.environment.v1.rs"); } }
     pub mod controls { pub mod v1 { include!("generated/home.controls.v1.rs"); } }
-    pub mod dashboard { pub mod v1 { include!("generated/home.dashboard.v1.rs"); } }
-    pub mod configurationapply { pub mod v1 { include!("generated/home.configurationapply.v1.rs"); } }
-    pub mod configurationsimulation {
-        pub mod v1 {
-            include!("generated/home.configurationsimulation.v1.rs");
-        }
-    }
-    pub mod configurationplan {
-        pub mod v1 {
-            include!("generated/home.configurationplan.v1.rs");
-        }
-    }
-    pub mod integrationadmin { pub mod v1 { include!("generated/home.integrationadmin.v1.rs"); } }
-    pub mod configuration { pub mod v1 { include!("generated/home.configuration.v1.rs"); } }
-    pub mod history { pub mod v1 { include!("generated/home.history.v1.rs"); } }
+    #[cfg(feature = "private-qualification")]
     pub mod observability { pub mod v1 { include!("generated/home.observability.v1.rs"); } }
     pub mod integrations { pub mod v1 { include!("generated/home.integrations.v1.rs"); } }
     pub mod solar { pub mod v1 { include!("generated/home.solar.v1.rs"); } }
@@ -39,33 +26,40 @@ pub mod home {
     pub mod actions { pub mod v1 { include!("generated/home.actions.v1.rs"); } }
     pub mod state { pub mod v1 { include!("generated/home.state.v1.rs"); } }
     pub mod auth { pub mod v1 { include!("generated/home.auth.v1.rs"); } }
-    pub mod lists { pub mod v1 { include!("generated/home.lists.v1.rs"); } }
 }
 
 pub mod actions_contract;
 pub mod api_contract;
+pub mod api_controls_contract;
+pub mod api_environment_contract;
 pub mod api_errors;
+pub mod api_solar_contract;
 pub mod auth_contract;
 pub mod authorization_contract;
 pub mod calendars_contract;
-pub mod camera_video_contract;
-pub mod cameras_contract;
+#[cfg(feature = "private-qualification")]
 pub mod companion_contract;
 pub mod config_plans;
 pub mod configuration_apply_contract;
+pub mod configuration_operations_contract;
+pub mod integration_operations_contract;
 pub mod configuration_contract;
 pub mod configuration_simulation_contract;
 pub mod controls_contract;
 pub mod dashboard_contract;
 pub mod environment_contract;
 pub mod history_contract;
+pub mod recorder_evidence_contract;
 pub mod integration_admin_contract;
-pub mod lists_contract;
+#[cfg(feature = "private-qualification")]
 pub mod logic_contract;
-pub mod media_contract;
+#[cfg(feature = "private-qualification")]
 pub mod notifications_contract;
 pub mod observability_contract;
+#[cfg(feature = "private-qualification")]
+pub mod qualification_identity;
 pub mod solar_contract;
+pub mod tasks_contract;
 
 fn known_helper_set_value(value: &home::helpers::v1::HelperValue) -> bool {
     use home::helpers::v1::helper_value::Value;
@@ -201,3 +195,18 @@ pub fn validate_command(
         | None => Err(fail(ErrorCode::InvalidArgument, "arguments")),
     }
 }
+
+pub mod api_media_contract;
+
+pub mod api_operations;
+
+pub mod api_command_operations;
+pub mod api_observations;
+
+pub mod api_playback_contract;
+
+pub mod content_contract;
+
+pub mod camera_content;
+
+pub mod media_video_contract;

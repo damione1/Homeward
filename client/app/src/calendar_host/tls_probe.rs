@@ -151,7 +151,10 @@ async fn choose(owner: &Calendars, id: &str) {
         (
             s.catalog
                 .iter()
-                .position(|v| v.id.entity_id == id)
+                .position(|v| {
+                    home_client_model::api_calendars::CalendarName::try_from(v.calendar.as_str())
+                        .is_ok_and(|name| name.native_id().entity().as_str() == id)
+                })
                 .expect("authorized calendar") as i32
                 + 1,
             s.generation,
@@ -176,7 +179,12 @@ async fn open(owner: &Calendars, uid: &str) {
                 .unwrap()
                 .occurrences()
                 .iter()
-                .position(|v| v.key.uid == uid)
+                .position(|v| {
+                    home_client_model::api_calendars::CalendarEventName::try_from(
+                        v.calendar_event.as_str(),
+                    )
+                    .is_ok_and(|name| name.native_uid().as_str() == uid)
+                })
                 .expect("occurrence") as i32
                 + 1,
             s.generation,
@@ -185,9 +193,11 @@ async fn open(owner: &Calendars, uid: &str) {
     owner.select(token, generation);
     until(owner, "event editor", |s| {
         ready(s)
-            && s.draft
-                .as_ref()
-                .is_some_and(|v| v.key.uid().as_str() == uid)
+            && s.draft.as_ref().is_some_and(|v| {
+                v.key
+                    .as_ref()
+                    .is_some_and(|name| name.native_uid().as_str() == uid)
+            })
     })
     .await;
 }
@@ -334,12 +344,19 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
     let lease = session.access(&cancel).await.unwrap();
     let key = {
         let s = owner.0.state.lock().unwrap();
-        event_key(&s.draft.as_ref().unwrap().key)
+        s.draft
+            .as_ref()
+            .unwrap()
+            .key
+            .as_ref()
+            .unwrap()
+            .as_str()
+            .to_owned()
     };
     let remote = api
-        .get_event(
-            wire::GetEventRequest {
-                key: key.clone().into(),
+        .get_calendar_event(
+            wire::GetCalendarEventRequest {
+                name: key.clone(),
                 ..Default::default()
             },
             lease.token(),
@@ -348,14 +365,20 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
         )
         .await
         .unwrap();
-    let mut value = remote.event.value.as_option().unwrap().clone();
+    let mut value = remote;
     value.summary = "Concurrent server edit".into();
-    api.mutate_event(
-        wire::MutateEventRequest {
-            key: key.clone().into(),
-            mutation: wire::Mutation::Update.into(),
-            expected_revision: remote.event.revision.clone(),
-            value: value.into(),
+    api.update_calendar_event(
+        wire::UpdateCalendarEventRequest {
+            calendar_event: value.into(),
+            update_mask: buffa_types::google::protobuf::FieldMask {
+                paths: vec!["summary".into()],
+                ..Default::default()
+            }
+            .into(),
+            request_id: home_client_actions::new_request_id()
+                .unwrap()
+                .as_str()
+                .to_owned(),
             ..Default::default()
         },
         lease.token(),
@@ -487,16 +510,24 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
         owner.edit(t, g, |d| d.choose(Boundary::Start, true));
     }
     resolve(&owner, Boundary::End).await;
-    let fold_key = {
-        let s = owner.0.state.lock().unwrap();
-        event_key(&s.draft.as_ref().unwrap().key)
-    };
     action(&owner, ProAgendaAction::Save);
     committed(&owner, "Owner explicit second fold").await;
+    let fold_key = {
+        let s = owner.0.state.lock().unwrap();
+        s.snapshot
+            .as_ref()
+            .unwrap()
+            .occurrences()
+            .iter()
+            .find(|row| row.summary == "Owner explicit second fold")
+            .unwrap()
+            .calendar_event
+            .clone()
+    };
     let fold = api
-        .get_event(
-            wire::GetEventRequest {
-                key: fold_key.into(),
+        .get_calendar_event(
+            wire::GetCalendarEventRequest {
+                name: fold_key,
                 ..Default::default()
             },
             lease.token(),
@@ -506,17 +537,32 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
         .await
         .unwrap();
     assert!(
-        matches!(&fold.event.value.span.value,Some(wire::span::Value::Times(v)) if v.start_instant=="2026-11-01T06:30:00Z"&&v.anchor_local=="2026-11-01T01:30:00")
+        matches!(&fold.span.value,Some(wire::calendar_span::Value::Times(v)) if admit::timestamp_text(&v.start_time).unwrap()=="2026-11-01T06:30:00Z"&&admit::civil_text(&v.start_local).unwrap()=="2026-11-01T01:30:00")
     );
-    let deleted_uid = fold.event.key.uid.clone();
+    let deleted_uid =
+        home_client_model::api_calendars::CalendarEventName::try_from(fold.name.as_str())
+            .unwrap()
+            .key()
+            .uid()
+            .as_str()
+            .to_owned();
     open(&owner, &deleted_uid).await;
     action(&owner, ProAgendaAction::Remove);
     until(&owner, "event deletion reread", |s| {
         ready(s)
             && s.draft.is_none()
-            && s.snapshot
-                .as_ref()
-                .is_some_and(|v| v.occurrences().iter().all(|v| v.key.uid != deleted_uid))
+            && s.snapshot.as_ref().is_some_and(|v| {
+                v.occurrences().iter().all(|v| {
+                    home_client_model::api_calendars::CalendarEventName::try_from(
+                        v.calendar_event.as_str(),
+                    )
+                    .unwrap()
+                    .key()
+                    .uid()
+                    .as_str()
+                        != deleted_uid
+                })
+            })
     })
     .await;
     command(&owner, CalendarCommand::NewEvent, "", "", "");
@@ -607,14 +653,18 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
     until(&owner, "rename", |s| {
         ready(s)
             && s.calendar()
-                .is_some_and(|v| v.name.as_deref() == Some("Owner renamed calendar"))
+                .is_some_and(|v| v.display_name == "Owner renamed calendar")
     })
     .await;
     command(&owner, CalendarCommand::Remove, "", "", "");
     until(&owner, "calendar tombstone", |s| {
-        ready(s)
-            && s.calendar()
-                .is_some_and(|v| v.revision.presence == wire::Presence::Removed)
+        s.active
+            && !s.busy
+            && s.calendar().is_none()
+            && s.catalog.iter().all(|source| {
+                !source.materialized
+                    || source.mutation_access != wire::CalendarMutationAccess::Allowed
+            })
     })
     .await;
     assert!(!owner.0.state.lock().unwrap().editable());

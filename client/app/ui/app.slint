@@ -7,8 +7,6 @@ import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHom
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
 import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.slint";
-import { HomewardNotifications, NotificationPresentation, NotificationAction, NotificationRowAction } from "notifications.slint";
-import { NotificationRow } from "@kit/kit.slint";
 import { HomewardAdministration } from "administration.slint";
 import { ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField, ProAdminChoice } from "@kit-pro/kit-pro.slint";
 export { ProAdminFieldKind } from "@kit-pro/kit-pro.slint";
@@ -346,32 +344,7 @@ export component HomewardWindow inherits Window {
     private property <bool> media-interactive: root.content-interactive && root.view-loaded && root.page == ViewPage.detail;
     changed media-interactive => { root.media-set-interactive(root.media-interactive); }
     in property <string> preferences-status;
-    in property <int> companion-generation;
-    in property <ProAdminStage> companion-stage: ProAdminStage.unavailable;
-    in property <string> companion-status;
-    in property <string> companion-notice;
-    in property <int> companion-active-index: -1;
-    in property <[TableColumn]> companion-columns;
-    in property <[TableRow]> companion-rows;
-    in property <[ProAdminActionRow]> companion-actions;
-    in property <[ProAdminField]> companion-fields;
-    in property <[ProAdminChoice]> companion-choices;
-    in property <bool> companion-editor-visible;
-    in property <string> companion-editor-title;
-    in property <[ProAdminActionRow]> companion-editor-actions;
-    callback companion-visible(bool);
-    callback companion-action(int,int,ProAdminAction);
-    callback companion-editor-action(int,int,ProAdminAction);
-    callback companion-choose(int,int,int,int);
-    callback companion-select(int,int);
-    callback companion-navigate(NavigationStep);
-    in property <NotificationPresentation> notification-view;
-    in property <[NotificationRow]> notification-rows;
-    in property <bool> notification-has-unread;
-    callback notification-visible(bool);
-    callback notification-action(int,NotificationAction);
-    callback notification-row-action(int,int,NotificationRowAction);
-    callback notification-target(int);
+
     in property <string> admin-title: "Server Settings";
     in property <string> admin-status;
     in property <string> admin-notice;
@@ -391,7 +364,7 @@ export component HomewardWindow inherits Window {
     in property <[ProAdminActionRow]> admin-actions;
     in property <[ProAdminActionRow]> admin-editor-actions;
     private property <bool> admin-panel-visible: root.page == ViewPage.settings && root.access-stage == ProAccessStage.connected && root.content-interactive;
-    changed admin-panel-visible => { root.admin-visible(root.admin-panel-visible); root.companion-visible(root.admin-panel-visible); root.notification-visible(root.admin-panel-visible); }
+    changed admin-panel-visible => { root.admin-visible(root.admin-panel-visible); }
     callback admin-visible(bool);
     callback admin-choose-section(int,int);
     callback admin-select(int,int);
@@ -602,9 +575,7 @@ export component HomewardWindow inherits Window {
         floating-navigation: true; compact-breakpoint: 600px;
         subtitle: root.page == ViewPage.home ? "" : root.local-date;
         navigation-glyphs: [KitGlyphs.home(), LucideHome.door-open(), KitGlyphs.cart(), LucideTime.calendar-days(), LucideDevices.video(), KitGlyphs.settings()];
-        notification-label: "Notifications";
-        notification-unread: root.notification-has-unread;
-        notifications-requested => { root.quick-navigation(ViewPage.settings); }
+        notifications-visible: false;
         page-title: root.page == ViewPage.home ? root.dashboard-title : root.page-title;
         status: root.view-loaded ? "" : (root.read-status == "" ? root.session-title : root.read-status);
         navigation-label: "Navigation"; close-label: "Close Navigation";
@@ -882,27 +853,6 @@ export component HomewardWindow inherits Window {
                         text: "Open Inventory"; activated => { root.show-inventory(); } }
                 }
                 HomewardAdministration {
-                    theme: root.theme; title: "This Companion"; description: "Private sharing of this device’s capabilities";
-                    stage: root.companion-stage; status: root.companion-status; notice: root.companion-notice;
-                    generation: root.companion-generation; active-index: root.companion-active-index;
-                    columns: root.companion-columns; rows: root.companion-rows; actions: root.companion-actions;
-                    fields: root.companion-fields; choices: root.companion-choices;
-                    selected-token: 1; editor-visible: root.companion-editor-visible; editable: root.companion-editor-visible;
-                    editor-title: root.companion-editor-title; editor-actions: root.companion-editor-actions;
-                    editor-notice: "Only selected and authorized data is collected. Revoking access stops local collection immediately.";
-                    action(t,g,a) => { root.companion-action(t,g,a); }
-                    editor-action(t,g,a) => { root.companion-editor-action(t,g,a); }
-                    choose(t,g,f,option) => { root.companion-choose(t,g,f,option); }
-                    select(t,g) => { root.companion-select(t,g); }
-                    navigate(step) => { root.companion-navigate(step); }
-                }
-                HomewardNotifications {
-                    theme:root.theme; view:root.notification-view; rows:root.notification-rows;
-                    interactive:root.content-interactive;
-                    action(g,a)=>{root.notification-action(g,a);}
-                    row-action(t,g,a)=>{root.notification-row-action(t,g,a);}
-                }
-                HomewardAdministration {
                     theme: root.theme; title: root.admin-title; status: root.admin-status; notice: root.admin-notice;
                     stage: root.admin-stage; generation: root.admin-generation; active-index: root.admin-active-index;
                     selected-token: root.admin-selected-token; sections: root.admin-sections; columns: root.admin-columns;
@@ -959,7 +909,7 @@ export component HomewardWindow inherits Window {
                 }
                 HomewardConnectionBanner { theme: root.theme; status: root.connection-status; interactive: root.content-interactive; retry => { root.read-protected(); } }
                 detail-scroll := KitScrollArea {
-                    pan-policy: children-first;
+                    mouse-drag-pan-enabled: false;
                     vertical-stretch: 1;
                 if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
                 if !root.media-has-data: HomewardDeviceDetail {

@@ -5,9 +5,11 @@ use crate::{
     HomewardWindow, cache_view,
     dashboard_widgets::{Binding, Content},
 };
-use home_client_model::{calendars::CalendarId, lists::ListId, local_time::DisplayTimeZone};
+use home_client_model::{
+    api_calendars::CalendarName, api_tasks::TaskListName, local_time::DisplayTimeZone,
+};
 use home_client_session::SessionCoordinator;
-use home_client_transport::{CalendarTransport, ListTransport};
+use home_client_transport::{CalendarTransport, TaskTransport};
 use slint::ComponentHandle;
 use std::{
     collections::BTreeMap,
@@ -21,7 +23,7 @@ const MAX_RESOURCE_WIDGETS: usize = 32;
 pub(crate) struct TaskTarget {
     pub token: i32,
     pub generation: i32,
-    pub list: ListId,
+    pub list: TaskListName,
     pub limit: usize,
     pub shopping_only: bool,
 }
@@ -29,7 +31,7 @@ pub(crate) struct TaskTarget {
 pub(crate) struct AgendaTarget {
     pub token: i32,
     pub generation: i32,
-    pub calendar: CalendarId,
+    pub calendar: CalendarName,
     pub zone: DisplayTimeZone,
     pub window_seconds: u32,
     pub limit: usize,
@@ -310,7 +312,7 @@ impl Widgets {
     pub(crate) async fn run(
         &self,
         session: SessionCoordinator,
-        lists: ListTransport,
+        lists: TaskTransport,
         calendars: CalendarTransport,
         cancel: CancellationToken,
     ) {

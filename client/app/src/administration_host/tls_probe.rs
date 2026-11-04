@@ -1,7 +1,7 @@
 //! Actual settings owner over the isolated default Go Run and verified TLS.
 use super::*;
 use home_client_session::{SecureStore, StoreFailure};
-use home_wire_contract::home::auth::v1 as auth;
+use home_wire_contract::home::api::v2 as auth;
 use serde::Deserialize;
 use std::{path::PathBuf, time::Duration};
 use zeroize::Zeroizing;
@@ -115,7 +115,7 @@ fn select_managed(owner: &Administration) {
     let token = {
         let state = owner.0.state.lock().unwrap();
         let account = managed(&state).unwrap();
-        state.rows.iter().find(|row|matches!(&row.target,render::Target::Account(id) if id.as_str()==account.id.value)).unwrap().token
+        state.rows.iter().find(|row|matches!(&row.target,render::Target::Account(id) if id.as_str()==account.name)).unwrap().token
     };
     owner.select(token, generation(owner));
 }
@@ -261,8 +261,7 @@ async fn invitation_forms(owner: &Administration, connection: &Connection) {
             .iter()
             .find(|row| row.login_name == "NHF018 revoked invitation")
             .unwrap()
-            .id
-            .value;
+            .name;
         state
             .rows
             .iter()
@@ -356,11 +355,7 @@ async fn mcp_forms(owner: &Administration, connection: &Connection, session: &Se
             .auth()
             .list_sessions(
                 auth::ListSessionsRequest {
-                    account_id: auth::AccountId {
-                        value: native.account_id().as_str().into(),
-                        ..Default::default()
-                    }
-                    .into(),
+                    parent: native.account_name().as_str().into(),
                     ..Default::default()
                 },
                 &bearer,
@@ -393,17 +388,17 @@ async fn mcp_forms(owner: &Administration, connection: &Connection, session: &Se
         state
             .rows
             .iter()
-            .find(|row| matches!(&row.target,render::Target::Key(id) if id.as_str()==key.id.value))
+            .find(|row| matches!(&row.target,render::Target::Key(id) if id.as_str()==key.name))
             .unwrap()
             .token
     };
     owner.select(row_token, generation(owner));
     owner.action(0, generation(owner), ProAdminAction::Revoke);
     owner.editor_action(1, generation(owner), ProAdminAction::Save);
-    until(owner,"MCP key revoked without revoking native session",|state|ready(state)&&state.private.draft().is_none()&&state.private.pane(Section::McpKeys).and_then(|pane|pane.content.as_ref()).is_some_and(|payload|matches!(payload,Payload::Keys(rows) if rows.iter().any(|key|key.client_name=="NHF018 synthetic MCP client"&&key.revoked_at.is_set())))).await;
+    until(owner,"MCP key revoked without revoking native session",|state|ready(state)&&state.private.draft().is_none()&&state.private.pane(Section::McpKeys).and_then(|pane|pane.content.as_ref()).is_some_and(|payload|matches!(payload,Payload::Keys(rows) if rows.iter().any(|key|key.client_name=="NHF018 synthetic MCP client"&&key.revoke_time.is_set())))).await;
     section(owner, Section::Sessions).await;
     let current = session.access(&cancel).await.unwrap();
-    assert_eq!(current.session_id(), native.session_id());
+    assert_eq!(current.session_name(), native.session_name());
 }
 async fn section(owner: &Administration, section: Section) {
     let token = Section::ALL
@@ -469,11 +464,6 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
         .identity
         .clone();
     for value in Section::ALL {
-        // NHF020's synthetic LogicService is intentionally absent from this
-        // production administration fixture; its owner has a separate harness.
-        if value == Section::Logic {
-            continue;
-        }
         section(&owner, value).await;
     }
     account_forms(&owner).await;
@@ -640,16 +630,35 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
     let keeper = SessionCoordinator::new(connection.auth(), Arc::new(MemoryStore::default()));
     login(&keeper, &fixture.keeper).await;
     let lease = keeper.access(&cancel).await.unwrap();
+    let captured = connection
+        .accounts()
+        .get_account(
+            auth::GetAccountRequest {
+                name: admin_identity.account.as_str().into(),
+                ..Default::default()
+            },
+            lease.token(),
+            Duration::from_secs(4),
+            &cancel,
+        )
+        .await
+        .expect("capture current administrator etag");
     connection
         .accounts()
         .update_account(
             auth::UpdateAccountRequest {
-                account_id: auth::AccountId {
-                    value: admin_identity.account.as_str().into(),
+                account: auth::Account {
+                    name: captured.name,
+                    etag: captured.etag,
+                    role: auth::AccountRole::User.into(),
                     ..Default::default()
                 }
                 .into(),
-                role: Some(auth::AccountRole::User.into()),
+                update_mask: buffa_types::google::protobuf::FieldMask {
+                    paths: vec!["role".into()],
+                    ..Default::default()
+                }
+                .into(),
                 ..Default::default()
             },
             lease.token(),

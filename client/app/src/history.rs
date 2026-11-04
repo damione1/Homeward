@@ -2,7 +2,7 @@
 //! are disposable projections and never become energy or monetary arithmetic.
 use buffa::Message;
 use home_client_cache::history::{Content, Pages, Snapshot};
-use home_wire_contract::home::{history::v1 as wire, state::v1 as state};
+use home_wire_contract::home::api::v2 as wire;
 use slint_kit_pro::charts::{Sample, Series, SeriesId, Timestamp};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -86,8 +86,8 @@ fn canonical_decimal(source: &str) -> bool {
 }
 
 pub struct Group {
-    pub descriptor: wire::NumericDescriptor,
-    pub quality: state::Quality,
+    pub descriptor: wire::HistoryNumericDescriptor,
+    pub quality: wire::ObservationQuality,
     pub series: Arc<Series>,
     sources: Vec<SourceRef>,
     values: Vec<Value>,
@@ -111,8 +111,8 @@ pub struct Data {
     pub unknown_utc: bool,
 }
 struct Pending {
-    descriptor: wire::NumericDescriptor,
-    quality: state::Quality,
+    descriptor: wire::HistoryNumericDescriptor,
+    quality: wire::ObservationQuality,
     points: Vec<(Timestamp, f64, SourceRef, Value)>,
 }
 impl Data {
@@ -124,11 +124,11 @@ impl Data {
         let mut absent = 0;
         let mut incomplete = false;
         let mut unknown_utc = false;
-        let mut record_coverage = |coverage: &wire::Coverage| {
-            incomplete |= coverage.verdict != wire::CoverageVerdict::CompleteUnderPolicy
-                || coverage.analytical_tail_unproven
-                || coverage.recorder_tail.is_set();
-            unknown_utc |= !coverage.logical.gaps.is_empty() || coverage.recorder_tail.is_set();
+        let mut record_coverage = |_coverage: &wire::HistoryCoverage| {
+            // A filtered view cannot establish complete Recorder coverage or
+            // locate gaps in UTC; no global diagnostic is inferred here.
+            incomplete = true;
+            unknown_utc = true;
         };
         match &snapshot.content {
             Content::NotRetained(_) => {}
@@ -138,9 +138,9 @@ impl Data {
                 }
                 for (page_index, page) in pages.iter().enumerate() {
                     record_coverage(&page.coverage);
-                    for (index, point) in page.points.iter().enumerate() {
+                    for (index, point) in page.observations.iter().enumerate() {
                         match &point.state.value {
-                            Some(state::observed_state::Value::Measurement(measurement)) => {
+                            Some(wire::historical_state::Value::Measurement(measurement)) => {
                                 let descriptor = point
                                     .descriptor
                                     .as_option()
@@ -158,7 +158,7 @@ impl Data {
                                     &mut groups,
                                     descriptor,
                                     &point.state.quality,
-                                    timestamp(&point.state.received_at)?,
+                                    timestamp(&point.state.receive_time)?,
                                     value,
                                     SourceRef::Observation {
                                         page: page_index,
@@ -167,19 +167,19 @@ impl Data {
                                 )?;
                             }
                             Some(
-                                state::observed_state::Value::SwitchOn(_)
-                                | state::observed_state::Value::Light(_)
-                                | state::observed_state::Value::Fan(_)
-                                | state::observed_state::Value::Climate(_)
-                                | state::observed_state::Value::Helper(_)
-                                | state::observed_state::Value::Solar(_)
-                                | state::observed_state::Value::SolarEvent(_)
-                                | state::observed_state::Value::Cover(_)
-                                | state::observed_state::Value::Lock(_)
-                                | state::observed_state::Value::Alarm(_)
-                                | state::observed_state::Value::Weather(_)
-                                | state::observed_state::Value::Presence(_)
-                                | state::observed_state::Value::PresenceDetails(_),
+                                wire::historical_state::Value::SwitchOn(_)
+                                | wire::historical_state::Value::Light(_)
+                                | wire::historical_state::Value::FanSpeed(_)
+                                | wire::historical_state::Value::TemperatureControl(_)
+                                | wire::historical_state::Value::Helper(_)
+                                | wire::historical_state::Value::Solar(_)
+                                | wire::historical_state::Value::SolarEvent(_)
+                                | wire::historical_state::Value::Cover(_)
+                                | wire::historical_state::Value::Lock(_)
+                                | wire::historical_state::Value::Alarm(_)
+                                | wire::historical_state::Value::Weather(_)
+                                | wire::historical_state::Value::Presence(_)
+                                | wire::historical_state::Value::PresenceDetails(_),
                             )
                             | None => absent += 1,
                         }
@@ -192,7 +192,7 @@ impl Data {
                 }
                 for (page_index, page) in pages.iter().enumerate() {
                     record_coverage(&page.coverage);
-                    for (index, point) in page.points.iter().enumerate() {
+                    for (index, point) in page.aggregates.iter().enumerate() {
                         let value = match statistic {
                             Statistic::Minimum => point.minimum,
                             Statistic::Maximum => point.maximum,
@@ -256,8 +256,8 @@ impl Data {
 }
 fn add(
     groups: &mut BTreeMap<Vec<u8>, Pending>,
-    descriptor: &wire::NumericDescriptor,
-    quality: &state::Quality,
+    descriptor: &wire::HistoryNumericDescriptor,
+    quality: &wire::ObservationQuality,
     at: Timestamp,
     value: Value,
     source: SourceRef,

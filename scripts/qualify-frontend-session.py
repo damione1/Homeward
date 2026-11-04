@@ -368,14 +368,14 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                                 assert accessible(NativeAction.NAVIGATE, section=NativeNavigationSection.INVENTORY.value).returncode == 0
                                 snapshot('protected-read')
                                 if kind is FixtureKind.CACHE:
-                                    scroll = accessible(NativeAction.SCROLL_END, expectedRowLabel=private['expected_last_alias'])
+                                    scroll = accessible(NativeAction.SCROLL_END, expectedRowLabel=private['expected_last_label'])
                                     assert scroll.returncode == 0, 'last entity was not projected after native scrolling'
                                     write(directory / 'last-row-projected.json', json.loads(scroll.stdout))
                                     time.sleep(.7)
                                     snapshot('last-viewport-before-load', CacheImageExpectation.READY)
                                     load_report = cache_load(control, lambda: child.poll() is None)
                                     snapshot('loaded-850', CacheImageExpectation.READY)
-                                    assert accessible(NativeAction.SCROLL_END, expectedRowLabel=private['expected_last_alias']).returncode == 0
+                                    assert accessible(NativeAction.SCROLL_END, expectedRowLabel=private['expected_last_label']).returncode == 0
                                     time.sleep(.7)
                                     snapshot('last-viewport', CacheImageExpectation.READY)
                                 if lifecycle:
@@ -386,7 +386,7 @@ def desktop(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                                     time.sleep(1)
                                     snapshot('resumed-read', CacheImageExpectation.READY if kind is FixtureKind.CACHE else None)
                                     if kind is FixtureKind.CACHE:
-                                        check = accessible(NativeAction.CHECK_ROW, expectedRowLabel=private['expected_first_alias'])
+                                        check = accessible(NativeAction.CHECK_ROW, expectedRowLabel=private['expected_first_label'])
                                         assert check.returncode == 0, 'resumed table did not reproject its first row'
                                         write(directory / 'resumed-first-row.json', json.loads(check.stdout))
                                 assert accessible(NativeAction.SIGN_OUT).returncode == 0
@@ -521,7 +521,7 @@ def android(proof, server_binary, lifecycle=False, kind=FixtureKind.SESSION):
                                 time.sleep(.7)
                                 device('shell', 'input', 'keyevent', '66')
                                 ui.find('Retour aux éléments')
-                                ui.find(private['expected_last_alias'], match=contains)
+                                ui.find(private['expected_last_label'], match=contains)
                                 ui.tap('Retour aux éléments')
                                 time.sleep(.7)
                                 snapshot('last-viewport', CacheImageExpectation.READY)

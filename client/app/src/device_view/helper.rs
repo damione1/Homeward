@@ -4,32 +4,15 @@ use super::{
     number::{Bounds, NumericInput},
 };
 use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
-use home_wire_contract::home::{helpers::v1 as wire, registry::v1::NumberBounds};
+use home_wire_contract::google::r#type::{Date, TimeOfDay};
+use home_wire_contract::home::api::v2::{self as wire, NumberBounds};
 
-pub(super) fn observation(
-    entity: &home_wire_contract::home::state::v1::ViewEntity,
-) -> Option<&wire::HelperValue> {
-    use home_wire_contract::home::state::v1::observed_state::Value;
-    let state = entity
-        .state
-        .as_option()
-        .filter(|value| value.__buffa_unknown_fields.is_empty())?;
-    match state.value.as_ref()? {
-        Value::Helper(value) => HelperRevision::from_observation(value).map(|_| value.as_ref()),
-        Value::SwitchOn(_)
-        | Value::Measurement(_)
-        | Value::Light(_)
-        | Value::Fan(_)
-        | Value::Climate(_)
-        | Value::Solar(_)
-        | Value::SolarEvent(_)
-        | Value::Cover(_)
-        | Value::Lock(_)
-        | Value::Alarm(_)
-        | Value::Weather(_)
-        | Value::Presence(_)
-        | Value::PresenceDetails(_) => None,
-    }
+pub(super) fn observation(capability: &wire::Capability) -> Option<&wire::HelperValue> {
+    let wire::capability::Trait::Helper(helper) = capability.r#trait.as_ref()? else {
+        return None;
+    };
+    let value = helper.observation.as_option()?.value.as_option()?;
+    HelperRevision::from_observation(value).map(|_| value)
 }
 pub(super) fn draft_text(value: &wire::HelperValue, kind: &Kind) -> Option<String> {
     use wire::helper_value::Value as V;
@@ -40,8 +23,8 @@ pub(super) fn draft_text(value: &wire::HelperValue, kind: &Kind) -> Option<Strin
         V::SelectedOption(_) => matches!(kind, Kind::Select(_)),
         V::Date(_) => matches!(kind, Kind::Date),
         V::Time(_) => matches!(kind, Kind::Time),
-        V::Datetime(_) => matches!(kind, Kind::DateTime),
-        V::Boolean(_) | V::ButtonPressedAt(_) => false,
+        V::LocalValue(_) => matches!(kind, Kind::DateTime),
+        V::BooleanValue(_) | V::TriggerTime(_) => false,
     };
     if !same_kind {
         return None;
@@ -56,34 +39,38 @@ pub(super) fn draft_text(value: &wire::HelperValue, kind: &Kind) -> Option<Strin
         )),
         V::Time(value) => Some(format!(
             "{:02}:{:02}:{:02}",
-            value.hour, value.minute, value.second
+            value.hours, value.minutes, value.seconds
         )),
-        V::Datetime(value) => {
+        V::LocalValue(value) => {
             let date = value.date.as_option()?;
             let time = value.time.as_option()?;
             Some(format!(
                 "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}",
-                date.year, date.month, date.day, time.hour, time.minute, time.second
+                date.year, date.month, date.day, time.hours, time.minutes, time.seconds
             ))
         }
-        V::Boolean(_) | V::ButtonPressedAt(_) => None,
+        V::BooleanValue(_) | V::TriggerTime(_) => None,
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct HelperRevision(u64);
+pub(super) struct HelperRevision(i64);
 impl HelperRevision {
     pub fn from_observation(value: &wire::HelperValue) -> Option<Self> {
         use wire::helper_value::Value as V;
         let known = match value.value.as_ref() {
             Some(
-                V::Boolean(_) | V::Number(_) | V::Counter(_) | V::SelectedOption(_) | V::Text(_),
+                V::BooleanValue(_)
+                | V::Number(_)
+                | V::Counter(_)
+                | V::SelectedOption(_)
+                | V::Text(_),
             )
             | None => true,
-            Some(V::ButtonPressedAt(value)) => value.__buffa_unknown_fields.is_empty(),
+            Some(V::TriggerTime(value)) => value.__buffa_unknown_fields.is_empty(),
             Some(V::Date(value)) => value.__buffa_unknown_fields.is_empty(),
             Some(V::Time(value)) => value.__buffa_unknown_fields.is_empty(),
-            Some(V::Datetime(value)) => {
+            Some(V::LocalValue(value)) => {
                 value.__buffa_unknown_fields.is_empty()
                     && value
                         .date
@@ -95,9 +82,7 @@ impl HelperRevision {
                         .is_none_or(|value| value.__buffa_unknown_fields.is_empty())
             }
         };
-        (known
-            && value.__buffa_unknown_fields.is_empty()
-            && value.helper_revision <= i64::MAX as u64)
+        (known && value.__buffa_unknown_fields.is_empty() && value.helper_revision >= 0)
             .then_some(Self(value.helper_revision))
     }
 }
@@ -116,8 +101,8 @@ pub(super) enum Kind {
     DateTime,
     Select(Vec<String>),
     Text {
-        minimum: u32,
-        maximum: u32,
+        minimum: i32,
+        maximum: i32,
     },
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -200,7 +185,7 @@ impl Helper {
         self.validated_action(intent.clone())?;
         Ok(intent)
     }
-    pub fn parse(value: &wire::HelperConstraints) -> Option<Self> {
+    pub fn parse(value: &wire::HelperDefinition) -> Option<Self> {
         if !value.__buffa_unknown_fields.is_empty()
             || value.operations.len() > 8
             || value.select_options.len() > 256
@@ -253,7 +238,7 @@ impl Helper {
             wire::HelperKind::Text => {
                 let minimum = value.text_minimum_length?;
                 let maximum = value.text_maximum_length?;
-                if minimum > maximum || maximum > 255 {
+                if minimum < 0 || minimum > maximum || maximum > 255 {
                     return None;
                 }
                 Kind::Text { minimum, maximum }
@@ -313,15 +298,15 @@ impl Helper {
         &self,
         intent: HelperIntent,
         revision: Option<HelperRevision>,
-    ) -> Result<wire::HelperAction, Refusal> {
+    ) -> Result<wire::SetHelperCommand, Refusal> {
         let revision = revision.ok_or(Refusal::Unavailable)?;
         let mut action = self.validated_action(intent)?;
         action.expected_helper_revision = Some(revision.0);
         Ok(action)
     }
-    fn validated_action(&self, intent: HelperIntent) -> Result<wire::HelperAction, Refusal> {
+    fn validated_action(&self, intent: HelperIntent) -> Result<wire::SetHelperCommand, Refusal> {
         use wire::HelperOperation as O;
-        use wire::helper_value::Value as V;
+        use wire::helper_input_value::Value as V;
         if self.unavailable != wire::HelperReason::Unspecified {
             return Err(Refusal::Unsupported);
         }
@@ -332,7 +317,7 @@ impl Helper {
             return Err(Refusal::Unsupported);
         }
         let (operation, value) = match intent {
-            HelperIntent::Boolean(value) => (O::Set, Some(V::Boolean(value))),
+            HelperIntent::Boolean(value) => (O::Set, Some(V::BooleanValue(value))),
             HelperIntent::Number(value) => {
                 let Kind::Number(bounds) = self.kind else {
                     return Err(Refusal::Unsupported);
@@ -397,8 +382,8 @@ impl Helper {
                     .map_err(|_| Refusal::InvalidValue)?;
                 (
                     O::Set,
-                    Some(V::Datetime(
-                        wire::CivilDateTime {
+                    Some(V::LocalValue(
+                        wire::LocalDateTime {
                             date: civil_date(value.date())?.into(),
                             time: civil_time(value.time())?.into(),
                             ..Default::default()
@@ -417,13 +402,12 @@ impl Helper {
         if !self.operations.contains(&operation) {
             return Err(Refusal::Unsupported);
         }
-        Ok(wire::HelperAction {
+        Ok(wire::SetHelperCommand {
             operation: operation.into(),
             value: value
                 .map(|value| {
-                    wire::HelperValue {
+                    wire::HelperInputValue {
                         value: Some(value),
-                        helper_revision: 0,
                         ..Default::default()
                     }
                     .into()
@@ -463,24 +447,24 @@ impl HelperIntent {
         })
     }
 }
-fn date(text: &str) -> Result<wire::CivilDate, Refusal> {
+fn date(text: &str) -> Result<Date, Refusal> {
     if text.len() > 16 {
         return Err(Refusal::InvalidValue);
     }
     civil_date(NaiveDate::parse_from_str(text, "%Y-%m-%d").map_err(|_| Refusal::InvalidValue)?)
 }
-fn civil_date(value: NaiveDate) -> Result<wire::CivilDate, Refusal> {
+fn civil_date(value: NaiveDate) -> Result<Date, Refusal> {
     if !(1..=9999).contains(&value.year()) {
         return Err(Refusal::InvalidValue);
     }
-    Ok(wire::CivilDate {
-        year: value.year() as u32,
-        month: value.month(),
-        day: value.day(),
+    Ok(Date {
+        year: value.year(),
+        month: value.month() as i32,
+        day: value.day() as i32,
         ..Default::default()
     })
 }
-fn clock(text: &str) -> Result<wire::CivilTime, Refusal> {
+fn clock(text: &str) -> Result<TimeOfDay, Refusal> {
     if text.len() > 16 {
         return Err(Refusal::InvalidValue);
     }
@@ -490,14 +474,14 @@ fn clock(text: &str) -> Result<wire::CivilTime, Refusal> {
             .map_err(|_| Refusal::InvalidValue)?,
     )
 }
-fn civil_time(value: NaiveTime) -> Result<wire::CivilTime, Refusal> {
+fn civil_time(value: NaiveTime) -> Result<TimeOfDay, Refusal> {
     if value.nanosecond() != 0 {
         return Err(Refusal::InvalidValue);
     }
-    Ok(wire::CivilTime {
-        hour: value.hour(),
-        minute: value.minute(),
-        second: value.second(),
+    Ok(TimeOfDay {
+        hours: value.hour() as i32,
+        minutes: value.minute() as i32,
+        seconds: value.second() as i32,
         ..Default::default()
     })
 }
@@ -506,15 +490,15 @@ fn civil_time(value: NaiveTime) -> Result<wire::CivilTime, Refusal> {
 mod tests {
     use super::*;
     use buffa::Message;
-    use wire::{HelperKind as K, HelperOperation as O, helper_value::Value as V};
-    fn constraints(kind: K, operations: &[O]) -> wire::HelperConstraints {
-        wire::HelperConstraints {
+    use wire::{HelperKind as K, HelperOperation as O, helper_input_value::Value as V};
+    fn constraints(kind: K, operations: &[O]) -> wire::HelperDefinition {
+        wire::HelperDefinition {
             kind: kind.into(),
             operations: operations.iter().copied().map(Into::into).collect(),
             ..Default::default()
         }
     }
-    fn revision(value: u64) -> Option<HelperRevision> {
+    fn revision(value: i64) -> Option<HelperRevision> {
         HelperRevision::from_observation(&wire::HelperValue {
             helper_revision: value,
             ..Default::default()
@@ -527,13 +511,13 @@ mod tests {
             .arguments(HelperIntent::Boolean(false), revision(0))
             .unwrap();
         assert_eq!(action.expected_helper_revision, Some(0));
-        assert_eq!(action.value.value, Some(V::Boolean(false)));
-        assert_eq!(action.value.helper_revision, 0);
+        assert_eq!(action.value.value, Some(V::BooleanValue(false)));
+        // HelperInputValue cannot carry an observation revision.
         assert!(matches!(
             helper.arguments(HelperIntent::Boolean(true), None),
             Err(Refusal::Unavailable)
         ));
-        assert!(revision(i64::MAX as u64 + 1).is_none());
+        assert!(revision(-1).is_none());
         assert!(
             helper
                 .arguments(HelperIntent::Operation(O::Toggle), revision(0))
@@ -688,7 +672,7 @@ mod tests {
             .arguments(HelperIntent::Time("00:00".into()), revision(2))
             .unwrap();
         assert!(
-            matches!(&action.value.value,Some(V::Time(value)) if value.hour==0 && value.minute==0 && value.second==0)
+            matches!(&action.value.value,Some(V::Time(value)) if value.hours==0 && value.minutes==0 && value.seconds==0)
         );
         assert!(matches!(
             clock.arguments(HelperIntent::Time("23:59:60".into()), revision(2)),

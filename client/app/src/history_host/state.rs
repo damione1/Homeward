@@ -1,6 +1,6 @@
 use crate::history::{Data, Statistic};
 use home_client_cache::history::Query;
-use home_client_model::EntityId;
+use home_client_model::api::EntityName;
 use slint_kit_pro::charts::{PreparationId, PreparedFrame};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -27,7 +27,7 @@ pub(super) enum Failure {
 }
 pub(super) struct State {
     pub generation: i32,
-    pub entity: Option<EntityId>,
+    pub entity: Option<EntityName>,
     pub foreground: bool,
     pub active: bool,
     pub pending: Option<(Query, Statistic)>,

@@ -1,26 +1,26 @@
 //! Stable, session-local dashboard choice. The server owns the catalogue.
-use crate::dashboard::{DashboardId, LayoutFailure};
+use crate::dashboard::{DashboardName, LayoutFailure};
 use crate::{HomewardWindow, OptionRow, SelectState, SelectionAvailability, SelectionRef};
-use home_wire_contract::home::dashboard::v1 as wire;
+use home_wire_contract::home::api::v2 as wire;
 use slint::{ComponentHandle, ModelRc, VecModel};
 use slint_kit::{DismissReason, Ownership, SelectBinding, SelectOption, SelectionIntent};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Choice {
-    pub id: DashboardId,
+    pub id: DashboardName,
     pub title: String,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Catalogue {
     pub choices: Vec<Choice>,
-    pub selected: Option<DashboardId>,
+    pub selected: Option<DashboardName>,
     pub snapshot: Option<Arc<crate::dashboard_catalogue::Snapshot>>,
 }
 impl Catalogue {
     pub fn from_wire(
         value: &wire::ListDashboardsResponse,
-        requested: Option<&DashboardId>,
+        requested: Option<&DashboardName>,
     ) -> Result<Self, LayoutFailure> {
         if value.dashboards.len() > 128 {
             return Err(LayoutFailure::Budget);
@@ -32,18 +32,18 @@ impl Catalogue {
         let mut choices = Vec::new();
         for entry in &value.dashboards {
             let id =
-                DashboardId::parse(&entry.id.as_option().ok_or(LayoutFailure::Invalid)?.value)?;
+                DashboardName::try_from(entry.name.as_str()).map_err(|_| LayoutFailure::Invalid)?;
             if !seen.insert(id.clone()) {
                 return Err(LayoutFailure::Invalid);
             }
-            if entry.title.len() > 256 || entry.title.chars().any(char::is_control) {
+            if entry.display_name.len() > 256 || entry.display_name.chars().any(char::is_control) {
                 return Err(LayoutFailure::Invalid);
             }
             choices.push(Choice {
-                title: if entry.title.is_empty() {
+                title: if entry.display_name.is_empty() {
                     id.as_str().to_owned()
                 } else {
-                    entry.title.clone()
+                    entry.display_name.clone()
                 },
                 id,
             });
@@ -106,7 +106,7 @@ impl Choices {
     pub fn select_authorized(
         &self,
         snapshot: &crate::dashboard_catalogue::Snapshot,
-        id: &DashboardId,
+        id: &DashboardName,
     ) -> bool {
         let mut state = self.0.lock().expect("dashboard choice mutex");
         if state.catalogue.snapshot.as_deref() != Some(snapshot)
@@ -121,7 +121,7 @@ impl Choices {
         state.catalogue.selected = Some(id.clone());
         true
     }
-    pub fn select(&self, id: DashboardId) -> bool {
+    pub fn select(&self, id: DashboardName) -> bool {
         let mut state = self.0.lock().expect("dashboard choice mutex");
         if state.catalogue.selected.as_ref() == Some(&id)
             || !state.catalogue.choices.iter().any(|choice| choice.id == id)
@@ -149,7 +149,7 @@ pub(crate) fn bind(window: &HomewardWindow, choices: Choices, changed: impl Fn()
     let weak = window.as_weak();
     let binding = SelectBinding::new(
         Vec::new(),
-        None::<DashboardId>,
+        None::<DashboardName>,
         Ownership::Controlled,
         move |snapshot| {
             if let Some(window) = weak.upgrade() {
@@ -248,9 +248,9 @@ mod tests {
     #[test]
     fn a_cohort_publication_preserves_local_navigation_and_cannot_restore_a_retired_selection() {
         let mut one = crate::dashboard::fixture();
-        one.id = DashboardId::parse("one").unwrap();
+        one.id = DashboardName::parse("one").unwrap();
         let mut two = one.clone();
-        two.id = DashboardId::parse("two").unwrap();
+        two.id = DashboardName::parse("two").unwrap();
         let snapshot = crate::dashboard_catalogue::Snapshot::fixture(
             "cohort-a",
             vec![Arc::new(one.clone()), Arc::new(two)],
@@ -259,7 +259,7 @@ mod tests {
         let mut incoming = catalogue();
         incoming.snapshot = Some(snapshot.clone());
         assert!(choices.accept(0, incoming.clone()));
-        let target = DashboardId::parse("two").unwrap();
+        let target = DashboardName::parse("two").unwrap();
         assert!(choices.select_authorized(&snapshot, &target));
         assert_eq!(
             choices.snapshot().0,
@@ -288,15 +288,15 @@ mod tests {
         Catalogue {
             choices: vec![
                 Choice {
-                    id: DashboardId::parse("one").unwrap(),
+                    id: DashboardName::parse("one").unwrap(),
                     title: "One".into(),
                 },
                 Choice {
-                    id: DashboardId::parse("two").unwrap(),
+                    id: DashboardName::parse("two").unwrap(),
                     title: "Two".into(),
                 },
             ],
-            selected: Some(DashboardId::parse("one").unwrap()),
+            selected: Some(DashboardName::parse("one").unwrap()),
             snapshot: None,
         }
     }
@@ -305,7 +305,7 @@ mod tests {
         let choices = Choices::default();
         let (revision, _) = choices.snapshot();
         assert!(choices.accept(revision, catalogue()));
-        assert!(choices.select(DashboardId::parse("two").unwrap()));
+        assert!(choices.select(DashboardName::parse("two").unwrap()));
         assert!(!choices.accept(revision, catalogue()));
         assert_eq!(choices.snapshot().1.selected.unwrap().as_str(), "two");
         let revision = choices.snapshot().0;
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn deletion_selects_an_authorized_survivor_and_duplicate_ids_are_rejected() {
         let metadata = |id: &str| wire::Metadata {
-            id: wire::DashboardId {
+            id: wire::DashboardName {
                 value: id.into(),
                 ..Default::default()
             }
@@ -327,7 +327,7 @@ mod tests {
             dashboards: vec![metadata("one"), metadata("two")],
             ..Default::default()
         };
-        let two = DashboardId::parse("two").unwrap();
+        let two = DashboardName::parse("two").unwrap();
         assert_eq!(
             Catalogue::from_wire(&list, Some(&two)).unwrap().selected,
             Some(two.clone())

@@ -1,11 +1,9 @@
 //! Exact media adapter. The server owns routing and capabilities; quantities
 //! remain integer basis points/milliseconds until the renderer projects them.
-use buffa::Message;
-use home_client_actions::ActionTarget;
-use home_client_model::EntityId;
-use home_wire_contract::{
-    home::{actions::v1 as actions, media::v1 as wire, registry::v1 as registry},
-    media_contract as admit,
+use home_client_model::{
+    api::{Command, Deadline, EntityName, Intent},
+    api_media::{MediaAction, MediaDataProvenance, MediaIntent},
+    api_playback::{Playback, QuantityBounds},
 };
 use std::{
     sync::Arc,
@@ -80,10 +78,20 @@ impl Quantity {
             width = places as usize
         )
     }
-    fn command(self) -> wire::media_action::Command {
+    fn command(self) -> Result<MediaAction, Refusal> {
         match self {
-            Self::Volume(v) => wire::media_action::Command::VolumeBasisPoints(v.0),
-            Self::Position(v) => wire::media_action::Command::PositionMillis(v.0),
+            Self::Volume(v) => Ok(MediaAction::Volume(
+                home_client_model::api_media::VolumeBasisPoints::try_from(
+                    i32::try_from(v.0).map_err(|_| Refusal::Bounds)?,
+                )
+                .map_err(|_| Refusal::Bounds)?,
+            )),
+            Self::Position(v) => Ok(MediaAction::Position(
+                home_client_model::api_media::PositionMillis::try_from(
+                    i64::try_from(v.0).map_err(|_| Refusal::Bounds)?,
+                )
+                .map_err(|_| Refusal::Bounds)?,
+            )),
         }
     }
     fn new(field: Field, value: u64) -> Result<Self, Refusal> {
@@ -93,7 +101,7 @@ impl Quantity {
                 .filter(|v| *v <= 10_000)
                 .map(|v| Self::Volume(VolumeBasisPoints(v)))
                 .ok_or(Refusal::Bounds),
-            Field::Position => (value <= admit::MAX_POSITION_MILLIS)
+            Field::Position => (value <= home_client_model::api_media::MAX_POSITION_MILLIS as u64)
                 .then_some(Self::Position(PositionMillis(value)))
                 .ok_or(Refusal::Bounds),
         }
@@ -101,6 +109,7 @@ impl Quantity {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
+    ContextUnavailable,
     Contract,
     Unsupported,
     Permission,
@@ -111,16 +120,15 @@ pub enum Refusal {
 }
 #[derive(Clone)]
 pub struct Data {
-    snapshot: wire::Snapshot,
-    target: ActionTarget,
-    coordinator: EntityId,
+    playback: Playback,
 }
 impl Data {
     pub fn moved(&self, value: Quantity, motion: Motion) -> Result<Quantity, Refusal> {
         let limits = self.limits(value.field()).ok_or(Refusal::Unsupported)?;
-        let count = (limits.maximum - limits.minimum) / limits.step;
-        let current = (value.canonical().clamp(limits.minimum, limits.maximum) - limits.minimum)
-            / limits.step;
+        let count = (limits.maximum() - limits.minimum()) / limits.step();
+        let current = (value.canonical().clamp(limits.minimum(), limits.maximum())
+            - limits.minimum())
+            / limits.step();
         let next = match motion {
             Motion::Previous => current.saturating_sub(1),
             Motion::Next => current.saturating_add(1).min(count),
@@ -129,67 +137,70 @@ impl Data {
             Motion::PagePrevious => current.saturating_sub(10),
             Motion::PageNext => current.saturating_add(10).min(count),
         };
-        Quantity::new(value.field(), limits.minimum + next * limits.step)
+        Quantity::new(value.field(), limits.minimum() + next * limits.step())
     }
-    pub fn new(snapshot: wire::Snapshot, expected: &EntityId) -> Result<Self, Refusal> {
-        if !admit::snapshot(&snapshot, expected.as_str()) {
+    pub fn new(playback: Playback, expected: &EntityName) -> Result<Self, Refusal> {
+        if playback
+            .name()
+            .as_str()
+            .rsplit_once("/capabilities/")
+            .map(|(entity, _)| entity)
+            != Some(expected.as_str())
+        {
             return Err(Refusal::Contract);
         }
-        let route = snapshot.route.as_option().ok_or(Refusal::Contract)?;
-        let target = ActionTarget::new(expected.clone(), admit::ACTION_SCHEMA, &route.endpoint)
-            .ok_or(Refusal::Contract)?;
-        let coordinator = route
-            .coordinator_entity_id
-            .parse()
-            .map_err(|_| Refusal::Contract)?;
-        Ok(Self {
-            snapshot,
-            target,
-            coordinator,
-        })
+        Ok(Self { playback })
     }
-    pub fn snapshot(&self) -> &wire::Snapshot {
-        &self.snapshot
+    pub fn snapshot(&self) -> &Playback {
+        &self.playback
     }
-    pub fn target(&self) -> &ActionTarget {
-        &self.target
-    }
-    pub fn coordinator(&self) -> &EntityId {
-        &self.coordinator
+    pub fn coordinator(&self) -> Option<&EntityName> {
+        self.playback
+            .observation()?
+            .route()
+            .map(|route| route.coordinator())
     }
     pub fn same_controls(&self, other: &Self) -> bool {
-        self.snapshot.route == other.snapshot.route
-            && self.snapshot.capabilities == other.snapshot.capabilities
-            && self.snapshot.action_access == other.snapshot.action_access
-            && self.snapshot.quality == other.snapshot.quality
-            && self.snapshot.descriptor_sha256 == other.snapshot.descriptor_sha256
+        self.playback.name() == other.playback.name()
+            && self.playback.etag() == other.playback.etag()
+            && self.playback.action_access() == other.playback.action_access()
+            && self.playback.media_access() == other.playback.media_access()
+            && self.playback.definition() == other.playback.definition()
+            && self.playback.data_provenance() == other.playback.data_provenance()
+            && self
+                .playback
+                .observation()
+                .map(|reading| (reading.route(), reading.quality()))
+                == other
+                    .playback
+                    .observation()
+                    .map(|reading| (reading.route(), reading.quality()))
     }
-    pub fn limits(&self, field: Field) -> Option<&wire::QuantityBounds> {
-        let limits = self.snapshot.capabilities.as_option()?;
+    pub fn limits(&self, field: Field) -> Option<QuantityBounds> {
+        let definition = self.playback.definition()?;
         match field {
-            Field::Volume => limits.volume_basis_points.as_option(),
-            Field::Position => limits.position_millis.as_option(),
+            Field::Volume => definition.volume().map(|bounds| bounds.quantity()),
+            Field::Position => definition.position().map(|bounds| bounds.quantity()),
         }
     }
     pub fn observed(&self, field: Field) -> Option<Quantity> {
+        let reading = self.playback.observation()?;
         match field {
-            Field::Volume => self
-                .snapshot
-                .volume_basis_points
-                .map(|v| Quantity::Volume(VolumeBasisPoints(v))),
-            Field::Position => self
-                .snapshot
-                .position_millis
-                .map(|v| Quantity::Position(PositionMillis(v))),
+            Field::Volume => reading
+                .volume()
+                .map(|value| Quantity::Volume(VolumeBasisPoints(value.value() as u32))),
+            Field::Position => reading
+                .position()
+                .map(|value| Quantity::Position(PositionMillis(value.value() as u64))),
         }
     }
     pub fn parse(&self, field: Field, text: &str) -> Result<Quantity, Refusal> {
         let limits = self.limits(field).ok_or(Refusal::Unsupported)?;
         let value = parse_fixed(text, field.decimals())?;
-        if value < limits.minimum || value > limits.maximum {
+        if value < limits.minimum() || value > limits.maximum() {
             return Err(Refusal::Bounds);
         }
-        if !admit::quantity(value, limits) {
+        if !limits.admits(value) {
             return Err(Refusal::Step);
         }
         Quantity::new(field, value)
@@ -201,13 +212,13 @@ impl Data {
             return Err(Refusal::Invalid);
         }
         let limits = self.limits(field).ok_or(Refusal::Unsupported)?;
-        let count = (limits.maximum - limits.minimum) / limits.step;
+        let count = (limits.maximum() - limits.minimum()) / limits.step();
         let step = (f64::from(position.clamp(0., 1.)) * count as f64).round() as u64;
         let value = limits
-            .minimum
-            .checked_add(step.checked_mul(limits.step).ok_or(Refusal::Bounds)?)
+            .minimum()
+            .checked_add(step.checked_mul(limits.step()).ok_or(Refusal::Bounds)?)
             .ok_or(Refusal::Bounds)?;
-        if !admit::quantity(value, limits) {
+        if !limits.admits(value) {
             return Err(Refusal::Bounds);
         }
         Quantity::new(field, value)
@@ -216,58 +227,53 @@ impl Data {
         let Some(limits) = self.limits(quantity.field()) else {
             return 0.;
         };
-        if limits.maximum == limits.minimum {
+        if limits.maximum() == limits.minimum() {
             return 0.;
         }
-        ((quantity.canonical().saturating_sub(limits.minimum) as f64
-            / (limits.maximum - limits.minimum) as f64)
+        ((quantity.canonical().saturating_sub(limits.minimum()) as f64
+            / (limits.maximum() - limits.minimum()) as f64)
             .clamp(0., 1.)) as f32
     }
-    pub fn quantity_request(&self, value: Quantity) -> Result<actions::CommandRequest, Refusal> {
-        self.request(value.command())
+    pub fn quantity_request(&self, value: Quantity) -> Result<Command, Refusal> {
+        self.request(value.command()?)
     }
-    pub fn request(
-        &self,
-        command: wire::media_action::Command,
-    ) -> Result<actions::CommandRequest, Refusal> {
-        let action = wire::MediaAction {
-            route: self.snapshot.route.clone(),
-            command: Some(command),
-            ..Default::default()
-        };
-        if !admit::action(&action, &self.snapshot) {
+    pub fn request(&self, action: MediaAction) -> Result<Command, Refusal> {
+        if !self.playback.can_prepare()
+            || !self
+                .playback
+                .definition()
+                .is_some_and(|definition| definition.supports(&action))
+        {
             return Err(Refusal::Permission);
         }
-        let route = self.snapshot.route.as_option().ok_or(Refusal::Contract)?;
-        Ok(actions::CommandRequest {
-            admission_epoch: route.admission_epoch.clone(),
-            config_revision: route.config_revision,
-            target: registry::EntityRef {
-                reference: Some(registry::entity_ref::Reference::EntityId(
-                    self.target.entity().as_str().into(),
-                )),
-                ..Default::default()
-            }
-            .into(),
-            capability_schema_id: admit::ACTION_SCHEMA.into(),
-            endpoint: route.endpoint.clone(),
-            arguments: actions::ActionArgs {
-                arguments: Some(actions::action_args::Arguments::Extension(Box::new(
-                    actions::ExtensionPayload {
-                        schema_id: admit::ACTION_SCHEMA.into(),
-                        major: 1,
-                        descriptor_sha256: self.snapshot.descriptor_sha256.clone(),
-                        protobuf_payload: action.encode_to_vec(),
-                        ..Default::default()
-                    },
-                ))),
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        })
+        let route = self
+            .playback
+            .observation()
+            .and_then(|reading| reading.route())
+            .ok_or(Refusal::Unsupported)?
+            .clone();
+        let etag = self.playback.etag().ok_or(Refusal::Permission)?.clone();
+        let expires = SystemTime::now()
+            .checked_add(Duration::from_secs(10))
+            .and_then(|value| value.duration_since(UNIX_EPOCH).ok())
+            .ok_or(Refusal::ContextUnavailable)?;
+        let deadline = Deadline::new(
+            i64::try_from(expires.as_secs()).map_err(|_| Refusal::ContextUnavailable)?,
+            expires.subsec_nanos() as i32,
+        )
+        .map_err(|_| Refusal::ContextUnavailable)?;
+        let request_id =
+            home_client_actions::new_request_id().map_err(|_| Refusal::ContextUnavailable)?;
+        Ok(Command::new(
+            self.playback.name().clone(),
+            Intent::Media(MediaIntent::new(route, action)),
+            Some(request_id),
+            deadline,
+        )
+        .with_definition_etag(etag))
     }
 }
+
 fn parse_fixed(text: &str, decimals: u32) -> Result<u64, Refusal> {
     let text = text.trim();
     if text.is_empty() || text.len() > 64 {
@@ -312,12 +318,17 @@ pub enum ArtworkFailure {
 }
 #[derive(Clone)]
 pub struct Artwork {
+    provenance: MediaDataProvenance,
     width: u32,
     height: u32,
     rgba: Arc<[u8]>,
     expires: SystemTime,
+    deadline: std::time::Instant,
 }
 impl Artwork {
+    pub fn provenance(&self) -> MediaDataProvenance {
+        self.provenance
+    }
     pub fn width(&self) -> u32 {
         self.width
     }
@@ -327,15 +338,18 @@ impl Artwork {
     pub fn rgba(&self) -> &[u8] {
         &self.rgba
     }
+    pub fn deadline(&self) -> std::time::Instant {
+        self.deadline
+    }
     pub fn expires(&self) -> SystemTime {
         self.expires
     }
 }
 pub fn expiry(
-    value: &buffa_types::google::protobuf::Timestamp,
+    value: home_client_model::local_time::UtcInstant,
 ) -> Result<SystemTime, ArtworkFailure> {
-    let seconds = u64::try_from(value.seconds).map_err(|_| ArtworkFailure::Expired)?;
-    let nanos = u32::try_from(value.nanos)
+    let seconds = u64::try_from(value.seconds()).map_err(|_| ArtworkFailure::Expired)?;
+    let nanos = u32::try_from(value.nanos())
         .ok()
         .filter(|n| *n < 1_000_000_000)
         .ok_or(ArtworkFailure::Invalid)?;
@@ -349,14 +363,16 @@ pub fn decode_artwork(
     bytes: &[u8],
     expires: SystemTime,
     now: SystemTime,
+    deadline: std::time::Instant,
+    provenance: MediaDataProvenance,
 ) -> Result<Artwork, ArtworkFailure> {
-    if expires <= now {
+    if expires <= now || deadline <= std::time::Instant::now() {
         return Err(ArtworkFailure::Expired);
     }
     let pixels = crate::raster::decode_png(
         bytes,
         crate::raster::Limits {
-            encoded: admit::MAX_ARTWORK_BYTES,
+            encoded: 128 * 1024,
             side: 512,
             decoded: 512 * 512 * 4,
             decoder: 4 * 1024 * 1024,
@@ -368,10 +384,12 @@ pub fn decode_artwork(
     })?;
 
     Ok(Artwork {
+        provenance,
         width: pixels.width,
         height: pixels.height,
         rgba: pixels.rgba,
         expires,
+        deadline,
     })
 }
 

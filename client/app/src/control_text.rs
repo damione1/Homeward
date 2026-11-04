@@ -1,5 +1,5 @@
 //! Product labels and exact HA predicate literals for typed control observations.
-use home_wire_contract::{controls_contract as admit, home::controls::v1 as wire};
+use home_wire_contract::{api_controls_contract as admit, home::api::v2 as wire};
 
 pub(crate) struct StateText {
     pub label: &'static str,

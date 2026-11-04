@@ -1,7 +1,7 @@
 //! Labels for independent read-only fields; unknown units never become °C.
 use crate::control_text::StateText;
 use buffa::EnumValue;
-use home_wire_contract::{environment_contract as admit, home::environment::v1 as env};
+use home_wire_contract::{api_environment_contract as admit, home::api::v2 as env};
 
 fn condition(value: EnumValue<env::WeatherCondition>) -> Option<StateText> {
     use env::WeatherCondition as C;

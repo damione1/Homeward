@@ -1,7 +1,7 @@
 //! Anonymous acceptance uses the verified profile transport. It never creates a
 //! native session, retries a write, persists the invitation, or logs its inputs.
 use home_client_transport::{AccountTransport, FailureKind, RpcCode};
-use home_wire_contract::{auth_contract, home::auth::v1 as auth};
+use home_wire_contract::{auth_contract, home::api::v2 as auth};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
@@ -57,7 +57,7 @@ pub(crate) async fn accept(
             if response.__buffa_unknown_fields.is_empty()
                 && let Some(account) = response.account.into_option()
                 && auth_contract::admit_account(&account).is_ok()
-                && account.status == auth::AccountStatus::Active
+                && account.state == auth::AccountState::Active
                 && account.login_name.len() <= 256
             {
                 Outcome::Accepted {

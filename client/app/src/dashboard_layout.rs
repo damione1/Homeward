@@ -1,11 +1,11 @@
 //! Validated layout forest. Server source identities are never row indices.
 use crate::dashboard::LayoutFailure;
 use buffa::EnumValue;
-use home_client_model::EntityId;
+use home_client_model::api::{CapabilityName, EntityName};
+use home_client_model::dashboard::Recipes;
 pub(crate) use home_client_model::dashboard::{NodeId, Source};
-use home_client_model::dashboard::{Profile, Recipes};
-use home_wire_contract::dashboard_contract::{RecipeFailure, decode_recipes};
-use home_wire_contract::home::dashboard::v1 as wire;
+use home_wire_contract::dashboard_contract::{decode_interactions, decode_predicate};
+use home_wire_contract::home::api::v2 as wire;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) const MAX_NODES: usize = 128 + 256 + 2048;
@@ -69,7 +69,7 @@ pub(crate) struct Node {
     pub id: NodeId,
     pub route: Option<crate::dashboard::RoomId>,
     pub kind: Kind,
-    pub icon: wire::NativeIcon,
+    pub icon: wire::DashboardIcon,
     pub source: Source,
     pub title: String,
     pub secondary: String,
@@ -77,7 +77,8 @@ pub(crate) struct Node {
     pub recipes: Option<Recipes>,
     pub features: Vec<FeatureKind>,
     pub summary_only: bool,
-    pub entity: Option<EntityId>,
+    pub entity: Option<EntityName>,
+    pub capability: Option<CapabilityName>,
     pub children: Vec<NodeId>,
     pub diagnostic: String,
     pub columns: Option<u8>,
@@ -131,7 +132,6 @@ impl Node {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct NativeLayout {
-    pub version: u32,
     pub views: Vec<NodeId>,
     pub nodes: BTreeMap<NodeId, Node>,
 }
@@ -141,120 +141,74 @@ fn bounded(value: &str, empty: bool, maximum: usize) -> bool {
 fn identity(value: &str) -> Result<NodeId, LayoutFailure> {
     NodeId::parse(value).map_err(|_| LayoutFailure::Invalid)
 }
-fn dimension(value: Option<&wire::LayoutDimension>) -> Result<Option<Dimension>, LayoutFailure> {
+fn dimension(
+    value: Option<&wire::DashboardLayoutDimension>,
+) -> Result<Option<Dimension>, LayoutFailure> {
     value
-        .map(|value| {
-            if !value.__buffa_unknown_fields.is_empty() {
+        .map(|v| {
+            if !v.__buffa_unknown_fields.is_empty() {
                 return Err(LayoutFailure::Unsupported);
-            }
-            match value.kind {
-                EnumValue::Known(wire::LayoutDimensionKind::Count)
-                    if (1..=12).contains(&value.count) =>
-                {
-                    Ok(Dimension::Count(value.count as u8))
+            };
+            match v.size.as_ref() {
+                Some(wire::dashboard_layout_dimension::Size::Count(v)) if (1..=12).contains(v) => {
+                    Ok(Dimension::Count(*v as u8))
                 }
-                EnumValue::Known(wire::LayoutDimensionKind::Full) if value.count == 0 => {
+                Some(wire::dashboard_layout_dimension::Size::Full(v))
+                    if v.__buffa_unknown_fields.is_empty() =>
+                {
                     Ok(Dimension::Full)
                 }
-                EnumValue::Known(wire::LayoutDimensionKind::Auto) if value.count == 0 => {
+                Some(wire::dashboard_layout_dimension::Size::Auto(v))
+                    if v.__buffa_unknown_fields.is_empty() =>
+                {
                     Ok(Dimension::Auto)
                 }
-                EnumValue::Known(
-                    wire::LayoutDimensionKind::Count
-                    | wire::LayoutDimensionKind::Full
-                    | wire::LayoutDimensionKind::Auto
-                    | wire::LayoutDimensionKind::Unspecified,
-                )
-                | EnumValue::Unknown(_) => Err(LayoutFailure::Unsupported),
+                _ => Err(LayoutFailure::Unsupported),
             }
         })
         .transpose()
 }
-fn kind(value: EnumValue<wire::LayoutKind>) -> Kind {
-    match value {
-        EnumValue::Known(wire::LayoutKind::View) => Kind::View,
-        EnumValue::Known(wire::LayoutKind::Section) => Kind::Section,
-        EnumValue::Known(wire::LayoutKind::Grid) => Kind::Grid,
-        EnumValue::Known(wire::LayoutKind::HorizontalStack) => Kind::HorizontalStack,
-        EnumValue::Known(wire::LayoutKind::Heading) => Kind::Heading,
-        EnumValue::Known(wire::LayoutKind::Tile) => Kind::Tile,
-        EnumValue::Known(wire::LayoutKind::Widget) => Kind::Widget,
-        EnumValue::Known(wire::LayoutKind::Recipe) => Kind::Recipe,
-        EnumValue::Known(wire::LayoutKind::VerticalStack) => Kind::VerticalStack,
-        EnumValue::Known(wire::LayoutKind::Popup) => Kind::Popup,
-        EnumValue::Known(wire::LayoutKind::ChipGroup) => Kind::ChipGroup,
-        EnumValue::Known(wire::LayoutKind::Unsupported | wire::LayoutKind::Unspecified)
-        | EnumValue::Unknown(_) => Kind::Unsupported,
-    }
-}
-fn recipe_kind(value: EnumValue<wire::NativeRecipeKind>) -> Result<Option<RecipeKind>, ()> {
+fn recipe_kind(value: EnumValue<wire::DashboardRecipeKind>) -> Result<Option<RecipeKind>, ()> {
     Ok(match value {
-        EnumValue::Known(wire::NativeRecipeKind::Unspecified) => None,
-        EnumValue::Known(wire::NativeRecipeKind::Template) => Some(RecipeKind::Template),
-        EnumValue::Known(wire::NativeRecipeKind::Select) => Some(RecipeKind::Select),
-        EnumValue::Known(wire::NativeRecipeKind::Alarm) => Some(RecipeKind::Alarm),
-        EnumValue::Known(wire::NativeRecipeKind::BubbleButton) => Some(RecipeKind::BubbleButton),
-        EnumValue::Known(wire::NativeRecipeKind::BubblePopup) => Some(RecipeKind::BubblePopup),
-        EnumValue::Known(wire::NativeRecipeKind::Chips) => Some(RecipeKind::Chips),
-        EnumValue::Known(wire::NativeRecipeKind::TemplateChip) => Some(RecipeKind::TemplateChip),
-        EnumValue::Known(wire::NativeRecipeKind::Button) => Some(RecipeKind::Button),
-        EnumValue::Known(wire::NativeRecipeKind::Entity) => Some(RecipeKind::Entity),
-        EnumValue::Known(wire::NativeRecipeKind::Text) => Some(RecipeKind::Text),
+        EnumValue::Known(wire::DashboardRecipeKind::Unspecified) => None,
+        EnumValue::Known(wire::DashboardRecipeKind::Template) => Some(RecipeKind::Template),
+        EnumValue::Known(wire::DashboardRecipeKind::Select) => Some(RecipeKind::Select),
+        EnumValue::Known(wire::DashboardRecipeKind::Alarm) => Some(RecipeKind::Alarm),
+        EnumValue::Known(wire::DashboardRecipeKind::BubbleButton) => Some(RecipeKind::BubbleButton),
+        EnumValue::Known(wire::DashboardRecipeKind::BubblePopup) => Some(RecipeKind::BubblePopup),
+        EnumValue::Known(wire::DashboardRecipeKind::Chips) => Some(RecipeKind::Chips),
+        EnumValue::Known(wire::DashboardRecipeKind::TemplateChip) => Some(RecipeKind::TemplateChip),
+        EnumValue::Known(wire::DashboardRecipeKind::Button) => Some(RecipeKind::Button),
+        EnumValue::Known(wire::DashboardRecipeKind::Entity) => Some(RecipeKind::Entity),
+        EnumValue::Known(wire::DashboardRecipeKind::Text) => Some(RecipeKind::Text),
         EnumValue::Unknown(_) => return Err(()),
     })
 }
-fn feature_kind(value: EnumValue<wire::NativeFeatureKind>) -> Option<FeatureKind> {
+fn feature_kind(value: EnumValue<wire::DashboardFeatureKind>) -> Option<FeatureKind> {
     match value {
-        EnumValue::Known(wire::NativeFeatureKind::Toggle) => Some(FeatureKind::Toggle),
-        EnumValue::Known(wire::NativeFeatureKind::Brightness) => Some(FeatureKind::Brightness),
-        EnumValue::Known(wire::NativeFeatureKind::ColorTemperature) => {
+        EnumValue::Known(wire::DashboardFeatureKind::Toggle) => Some(FeatureKind::Toggle),
+        EnumValue::Known(wire::DashboardFeatureKind::Brightness) => Some(FeatureKind::Brightness),
+        EnumValue::Known(wire::DashboardFeatureKind::ColorTemperature) => {
             Some(FeatureKind::ColorTemperature)
         }
-        EnumValue::Known(wire::NativeFeatureKind::TargetTemperature) => {
+        EnumValue::Known(wire::DashboardFeatureKind::TargetTemperature) => {
             Some(FeatureKind::TargetTemperature)
         }
-        EnumValue::Known(wire::NativeFeatureKind::ClimateModes) => Some(FeatureKind::ClimateModes),
-        EnumValue::Known(wire::NativeFeatureKind::FanSpeed) => Some(FeatureKind::FanSpeed),
-        EnumValue::Known(wire::NativeFeatureKind::NumericInput) => Some(FeatureKind::NumericInput),
-        EnumValue::Known(wire::NativeFeatureKind::CoverOpenClose) => {
+        EnumValue::Known(wire::DashboardFeatureKind::ClimateModes) => {
+            Some(FeatureKind::ClimateModes)
+        }
+        EnumValue::Known(wire::DashboardFeatureKind::FanSpeed) => Some(FeatureKind::FanSpeed),
+        EnumValue::Known(wire::DashboardFeatureKind::NumericInput) => {
+            Some(FeatureKind::NumericInput)
+        }
+        EnumValue::Known(wire::DashboardFeatureKind::CoverOpenClose) => {
             Some(FeatureKind::CoverOpenClose)
         }
-        EnumValue::Known(wire::NativeFeatureKind::CoverPosition) => {
+        EnumValue::Known(wire::DashboardFeatureKind::CoverPosition) => {
             Some(FeatureKind::CoverPosition)
         }
-        EnumValue::Known(wire::NativeFeatureKind::AlarmModes) => Some(FeatureKind::AlarmModes),
-        EnumValue::Known(wire::NativeFeatureKind::Unspecified) | EnumValue::Unknown(_) => None,
-    }
-}
-fn recipe_shape(node: &Node) -> bool {
-    if !node.features.is_empty() && node.kind != Kind::Tile {
-        return false;
-    }
-    match node.kind {
-        Kind::Recipe => match node.recipe_kind {
-            Some(RecipeKind::Select | RecipeKind::Alarm | RecipeKind::Entity) => {
-                node.entity.is_some()
-            }
-            Some(
-                RecipeKind::Template
-                | RecipeKind::BubbleButton
-                | RecipeKind::TemplateChip
-                | RecipeKind::Button
-                | RecipeKind::Text,
-            ) => true,
-            Some(RecipeKind::BubblePopup | RecipeKind::Chips) | None => false,
-        },
-        Kind::Popup => node.recipe_kind == Some(RecipeKind::BubblePopup),
-        Kind::ChipGroup => node.recipe_kind == Some(RecipeKind::Chips),
-        Kind::View
-        | Kind::Section
-        | Kind::Grid
-        | Kind::HorizontalStack
-        | Kind::VerticalStack
-        | Kind::Heading
-        | Kind::Tile => node.recipe_kind.is_none(),
-        Kind::Widget => node.recipe_kind.is_none() && node.widget.is_some(),
-        Kind::Unsupported => true,
+        EnumValue::Known(wire::DashboardFeatureKind::AlarmModes) => Some(FeatureKind::AlarmModes),
+        EnumValue::Known(wire::DashboardFeatureKind::Unspecified) | EnumValue::Unknown(_) => None,
     }
 }
 impl Kind {
@@ -291,6 +245,7 @@ impl Node {
     pub(crate) fn inert(&mut self, diagnostic: &str) {
         self.kind = Kind::Unsupported;
         self.entity = None;
+        self.capability = None;
         self.recipes = None;
         self.features.clear();
         self.viewport_min_width = 0;
@@ -330,323 +285,36 @@ impl NativeLayout {
         result
     }
 }
-impl TryFrom<&wire::NativeLayout> for NativeLayout {
+impl TryFrom<&wire::DashboardLayout> for NativeLayout {
     type Error = LayoutFailure;
-    fn try_from(value: &wire::NativeLayout) -> Result<Self, Self::Error> {
+    fn try_from(value: &wire::DashboardLayout) -> Result<Self, Self::Error> {
         if value.nodes.len() > MAX_NODES || value.views.len() > 128 {
             return Err(LayoutFailure::Budget);
-        }
-        if value.version == 3
-            && value.views.is_empty()
-            && value.nodes.is_empty()
-            && value.__buffa_unknown_fields.is_empty()
-        {
-            return Ok(Self {
-                version: 3,
-                views: Vec::new(),
-                nodes: BTreeMap::new(),
-            });
-        }
-        if value.views.is_empty() || value.nodes.is_empty() {
-            return Err(LayoutFailure::Invalid);
-        }
-        let profile = match value.version {
-            1 => Some(Profile::Basic),
-            2 => Some(Profile::Recipes),
-            3 => Some(Profile::Widgets),
-            _ => None,
         };
-        let future = profile.is_none() || !value.__buffa_unknown_fields.is_empty();
+        if !value.__buffa_unknown_fields.is_empty() {
+            return Err(LayoutFailure::Unsupported);
+        };
         let mut nodes = BTreeMap::new();
-        let mut child_count = 0usize;
         let mut widget_bindings = 0usize;
         let mut resource_widgets = 0usize;
-        for node in &value.nodes {
-            let id = identity(&node.id)?;
-            let source = node.source.as_option().ok_or(LayoutFailure::Invalid)?;
-            if !bounded(&source.file, false, 4096)
-                || !bounded(&source.path, false, 4096)
-                || !bounded(&source.variant, false, 4096)
-                || node.title.len() > 4096
-                || node.title.contains('\0')
-                || node.secondary.len() > 512
-                || node.secondary.contains('\0')
-                || !bounded(&node.diagnostic, true, 4096)
-            {
-                return Err(LayoutFailure::Invalid);
-            }
-            child_count = child_count.saturating_add(node.children.len());
-            if child_count > MAX_NODES {
-                return Err(LayoutFailure::Budget);
-            }
-            let mut parsed = Node {
-                id: id.clone(),
-                route: if node.route.is_empty() {
-                    None
-                } else {
-                    Some(crate::dashboard::RoomId::parse(&node.route)?)
-                },
-                kind: kind(node.kind),
-                icon: match node.icon {
-                    EnumValue::Known(icon) => icon,
-                    EnumValue::Unknown(_) => wire::NativeIcon::Unspecified,
-                },
-                source: Source {
-                    file: source.file.clone(),
-                    line: source.line,
-                    column: source.column,
-                    path: source.path.clone(),
-                    variant: source.variant.clone(),
-                },
-                title: node.title.clone(),
-                secondary: node.secondary.clone(),
-                recipe_kind: None,
-                recipes: None,
-                features: Vec::new(),
-                summary_only: node.control_presentation == wire::NativeControlPresentation::Summary,
-                entity: None,
-                children: node
-                    .children
-                    .iter()
-                    .map(|id| identity(id))
-                    .collect::<Result<_, _>>()?,
-                diagnostic: node.diagnostic.clone(),
-                columns: None,
-                column_span: None,
-                row_span: None,
-                square: node.square,
-                vertical: node.vertical,
-                hide_state: node.hide_state,
-                heading_style: HeadingStyle::Default,
-                widget: None,
-                minimum_column_width: None,
-                gap: None,
-                responsive_spans: Vec::new(),
-                viewport_min_width: 0,
-                viewport_max_width: 0,
-            };
-            let columns = if node.columns == 0 {
-                Some(None)
-            } else if node.columns <= 12 {
-                Some(Some(node.columns as u8))
-            } else {
-                None
-            };
-            let style = match node.heading_style {
-                EnumValue::Known(
-                    wire::NativeHeadingStyle::Default | wire::NativeHeadingStyle::Unspecified,
-                ) => Some(HeadingStyle::Default),
-                EnumValue::Known(wire::NativeHeadingStyle::Title) => Some(HeadingStyle::Title),
-                EnumValue::Known(wire::NativeHeadingStyle::Subtitle) => {
-                    Some(HeadingStyle::Subtitle)
-                }
-                EnumValue::Unknown(_) => None,
-            };
-            match (
-                dimension(node.column_span.as_option()),
-                dimension(node.row_span.as_option()),
-                columns,
-                style,
-            ) {
-                (Ok(column_span), Ok(row_span), Some(columns), Some(style)) => {
-                    parsed.column_span = column_span;
-                    parsed.row_span = row_span;
-                    parsed.columns = columns;
-                    parsed.heading_style = style;
-                }
-                _ => {
-                    parsed.kind = Kind::Unsupported;
-                }
-            }
-            if future
-                || matches!(node.control_presentation, EnumValue::Unknown(_))
-                || (profile != Some(Profile::Widgets) && parsed.summary_only)
-                || matches!(node.icon, EnumValue::Unknown(_))
-                || !node.__buffa_unknown_fields.is_empty()
-                || !source.__buffa_unknown_fields.is_empty()
-                || (profile != Some(Profile::Widgets)
-                    && (node.widget.as_option().is_some()
-                        || node.minimum_column_width != 0
-                        || node.gap != 0
-                        || !node.responsive_spans.is_empty()
-                        || node.screen_visibility.as_option().is_some()
-                        || parsed.kind == Kind::Widget))
-                || (profile == Some(Profile::Basic)
-                    && (node.recipes.as_option().is_some()
-                        || node.recipe_kind
-                            != EnumValue::Known(wire::NativeRecipeKind::Unspecified)
-                        || !node.secondary.is_empty()
-                        || !node.features.is_empty()
-                        || matches!(
-                            parsed.kind,
-                            Kind::Recipe | Kind::VerticalStack | Kind::Popup | Kind::ChipGroup
-                        )))
-            {
-                parsed.kind = Kind::Unsupported;
-            }
-            if matches!(profile, Some(Profile::Recipes | Profile::Widgets))
-                && parsed.kind != Kind::Unsupported
-            {
-                match recipe_kind(node.recipe_kind) {
-                    Ok(kind) => parsed.recipe_kind = kind,
-                    Err(()) => parsed.kind = Kind::Unsupported,
-                }
-                if node.features.len() > 16 {
+        for raw in &value.nodes {
+            let parsed = parse_node(raw)?;
+            if let Some(widget) = &parsed.widget {
+                widget_bindings = widget_bindings.saturating_add(widget.binding_count());
+                if matches!(
+                    widget.content,
+                    crate::dashboard_widgets::Content::Agenda { .. }
+                        | crate::dashboard_widgets::Content::Tasks { .. }
+                ) {
+                    resource_widgets += 1
+                };
+                if widget_bindings > 4096 || resource_widgets > 32 {
                     return Err(LayoutFailure::Budget);
                 }
-                let mut features = BTreeSet::new();
-                for value in &node.features {
-                    match feature_kind(*value) {
-                        Some(feature) if features.insert(feature) => parsed.features.push(feature),
-                        Some(_) | None => {
-                            parsed.kind = Kind::Unsupported;
-                        }
-                    }
-                }
-                if let Some(recipes) = node.recipes.as_option() {
-                    match decode_recipes(recipes) {
-                        Ok(recipes) => parsed.recipes = Some(recipes),
-                        Err(RecipeFailure::Budget) => return Err(LayoutFailure::Budget),
-                        Err(RecipeFailure::Invalid | RecipeFailure::Unsupported) => {
-                            parsed.kind = Kind::Unsupported
-                        }
-                    }
-                }
-            }
-            if profile == Some(Profile::Widgets) && parsed.kind != Kind::Unsupported {
-                if node.minimum_column_width > 4096
-                    || node.gap > 256
-                    || node.responsive_spans.len() > 12
-                {
-                    return Err(LayoutFailure::Budget);
-                }
-                if let Some(screen) = node.screen_visibility.as_option() {
-                    if !screen.__buffa_unknown_fields.is_empty()
-                        || screen.min_width > 65535
-                        || screen.max_width > 65535
-                        || (screen.max_width != 0 && screen.min_width > screen.max_width)
-                    {
-                        parsed.kind = Kind::Unsupported;
-                    } else {
-                        parsed.viewport_min_width = screen.min_width as i32;
-                        parsed.viewport_max_width = screen.max_width as i32;
-                    }
-                }
-                parsed.minimum_column_width =
-                    (node.minimum_column_width > 0).then_some(node.minimum_column_width);
-                parsed.gap = Some(node.gap);
-                let mut columns = BTreeSet::new();
-                for rule in &node.responsive_spans {
-                    if !rule.__buffa_unknown_fields.is_empty() {
-                        return Err(LayoutFailure::Unsupported);
-                    }
-                    if !(1..=12).contains(&rule.columns)
-                        || !(1..=rule.columns).contains(&rule.span)
-                        || !columns.insert(rule.columns)
-                    {
-                        return Err(LayoutFailure::Invalid);
-                    }
-                    parsed
-                        .responsive_spans
-                        .push((rule.columns as u8, rule.span as u8));
-                }
-                if parsed.kind == Kind::Widget {
-                    if !parsed.children.is_empty() || !node.entity_id.is_empty() {
-                        return Err(LayoutFailure::Invalid);
-                    }
-                    match node
-                        .widget
-                        .as_option()
-                        .map(crate::dashboard_widgets::Widget::try_from)
-                    {
-                        Some(Ok(widget)) => {
-                            widget_bindings =
-                                widget_bindings.saturating_add(widget.binding_count());
-                            if matches!(
-                                widget.content,
-                                crate::dashboard_widgets::Content::Agenda { .. }
-                                    | crate::dashboard_widgets::Content::Tasks { .. }
-                            ) {
-                                resource_widgets += 1;
-                            }
-                            if widget_bindings > 4096 || resource_widgets > 32 {
-                                return Err(LayoutFailure::Budget);
-                            }
-                            if let crate::dashboard_widgets::Content::Thermostat {
-                                entity, ..
-                            } = &widget.content
-                            {
-                                parsed.entity = Some(entity.clone());
-                            }
-                            if let Some(destination) = widget.destination() {
-                                use home_client_model::dashboard::{
-                                    Gesture, Intention, Interaction,
-                                };
-                                let interaction = Interaction {
-                                    intention: Intention::Navigate(destination.clone()),
-                                    confirmation: None,
-                                    source: parsed.source.clone(),
-                                };
-                                let recipes = parsed.recipes.get_or_insert_with(|| Recipes {
-                                    interactions: BTreeMap::new(),
-                                    visibility: None,
-                                });
-                                if recipes
-                                    .interactions
-                                    .get(&Gesture::Tap)
-                                    .is_some_and(|existing| {
-                                        existing.intention != interaction.intention
-                                            || existing.confirmation != interaction.confirmation
-                                    })
-                                {
-                                    parsed.kind = Kind::Unsupported;
-                                } else {
-                                    recipes
-                                        .interactions
-                                        .entry(Gesture::Tap)
-                                        .or_insert(interaction);
-                                }
-                            }
-                            parsed.widget = Some(widget);
-                        }
-                        Some(Err(LayoutFailure::Budget)) => return Err(LayoutFailure::Budget),
-                        Some(Err(LayoutFailure::Invalid | LayoutFailure::Unsupported)) | None => {
-                            parsed.kind = Kind::Unsupported
-                        }
-                    }
-                } else if node.widget.as_option().is_some() {
-                    parsed.kind = Kind::Unsupported;
-                }
-            }
-            if parsed.kind == Kind::Tile
-                || (parsed.kind == Kind::Recipe && !node.entity_id.is_empty())
-            {
-                if !bounded(&node.entity_id, false, 4096) {
-                    return Err(LayoutFailure::Invalid);
-                }
-                parsed.entity = Some(node.entity_id.parse().map_err(|_| LayoutFailure::Invalid)?);
-                if !parsed.children.is_empty() {
-                    return Err(LayoutFailure::Invalid);
-                }
-            } else if !node.entity_id.is_empty() && parsed.kind != Kind::Unsupported {
+            };
+            if nodes.insert(parsed.id.clone(), parsed).is_some() {
                 return Err(LayoutFailure::Invalid);
-            }
-            if matches!(parsed.kind, Kind::Heading | Kind::Recipe) && !parsed.children.is_empty() {
-                return Err(LayoutFailure::Invalid);
-            }
-            if !recipe_shape(&parsed) {
-                parsed.kind = Kind::Unsupported;
-            }
-            if parsed.kind == Kind::Unsupported {
-                parsed.inert(if future {
-                    "Unsupported layout version."
-                } else {
-                    "Unsupported item or property."
-                });
-            }
-            if nodes.insert(id, parsed).is_some() {
-                return Err(LayoutFailure::Invalid);
-            }
+            };
         }
         let views = value
             .views
@@ -690,12 +358,331 @@ impl TryFrom<&wire::NativeLayout> for NativeLayout {
         if visited.len() != nodes.len() {
             return Err(LayoutFailure::Invalid);
         }
-        Ok(Self {
-            version: value.version,
-            views,
-            nodes,
-        })
+        Ok(Self { views, nodes })
     }
+}
+
+fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
+    use wire::dashboard_layout_node::Content as C;
+    if !raw.__buffa_unknown_fields.is_empty() {
+        return Err(LayoutFailure::Unsupported);
+    };
+    let source = raw.source.as_option().ok_or(LayoutFailure::Invalid)?;
+    if !source.__buffa_unknown_fields.is_empty()
+        || !bounded(&source.file, false, 4096)
+        || !bounded(&source.path, false, 4096)
+        || !bounded(&source.variant, true, 4096)
+        || raw.display_name.len() > 4096
+        || raw.display_name.contains('\0')
+    {
+        return Err(LayoutFailure::Invalid);
+    };
+    let icon = match raw.icon {
+        EnumValue::Known(v) => v,
+        _ => return Err(LayoutFailure::Unsupported),
+    };
+    let mut node = Node {
+        id: identity(&raw.id)?,
+        route: None,
+        kind: Kind::Unsupported,
+        icon,
+        source: Source {
+            file: source.file.clone(),
+            line: source.line,
+            column: source.column,
+            path: source.path.clone(),
+            variant: source.variant.clone(),
+        },
+        title: raw.display_name.clone(),
+        secondary: String::new(),
+        recipe_kind: None,
+        recipes: None,
+        features: Vec::new(),
+        summary_only: false,
+        entity: None,
+        capability: None,
+        children: Vec::new(),
+        diagnostic: String::new(),
+        columns: None,
+        column_span: None,
+        row_span: None,
+        square: None,
+        vertical: None,
+        hide_state: None,
+        heading_style: HeadingStyle::Default,
+        widget: None,
+        minimum_column_width: None,
+        gap: None,
+        responsive_spans: Vec::new(),
+        viewport_min_width: 0,
+        viewport_max_width: 0,
+    };
+    if let Some(placement) = raw.placement.as_option() {
+        if !placement.__buffa_unknown_fields.is_empty() {
+            return Err(LayoutFailure::Unsupported);
+        };
+        node.column_span = dimension(placement.column_span.as_option())?;
+        node.row_span = dimension(placement.row_span.as_option())?;
+        if placement.responsive_spans.len() > 12 {
+            return Err(LayoutFailure::Budget);
+        };
+        let mut seen = BTreeSet::new();
+        for span in &placement.responsive_spans {
+            if !span.__buffa_unknown_fields.is_empty()
+                || !(1..=12).contains(&span.columns)
+                || !(1..=span.columns).contains(&span.span)
+                || !seen.insert(span.columns)
+            {
+                return Err(LayoutFailure::Invalid);
+            };
+            node.responsive_spans
+                .push((span.columns as u8, span.span as u8))
+        }
+    }
+    if let Some(screen) = raw.screen_visibility.as_option() {
+        if !screen.__buffa_unknown_fields.is_empty()
+            || screen.min_width > 65535
+            || screen.max_width > 65535
+            || (screen.max_width != 0 && screen.min_width > screen.max_width)
+        {
+            return Err(LayoutFailure::Invalid);
+        };
+        node.viewport_min_width = screen.min_width as i32;
+        node.viewport_max_width = screen.max_width as i32
+    }
+    let mut interactions = None;
+    let mut children = None;
+    let mut width = 0;
+    match raw.content.as_ref().ok_or(LayoutFailure::Unsupported)? {
+        C::View(v) => {
+            if !v.__buffa_unknown_fields.is_empty() {
+                return Err(LayoutFailure::Unsupported);
+            };
+            node.kind = Kind::View;
+            node.route = if v.route.is_empty() {
+                None
+            } else {
+                Some(crate::dashboard::RoomId::parse(&v.route)?)
+            };
+            children = v.children.as_option();
+            node.columns = columns(v.maximum_columns)?;
+            width = v.minimum_column_width
+        }
+        C::Section(v) => {
+            if !v.__buffa_unknown_fields.is_empty() {
+                return Err(LayoutFailure::Unsupported);
+            };
+            node.kind = Kind::Section;
+            children = v.children.as_option();
+            width = v.minimum_column_width
+        }
+        C::Grid(v) => {
+            if !v.__buffa_unknown_fields.is_empty() {
+                return Err(LayoutFailure::Unsupported);
+            };
+            node.kind = Kind::Grid;
+            children = v.children.as_option();
+            node.columns = columns(v.columns)?;
+            width = v.minimum_column_width;
+            node.square = v.square;
+            interactions = v.interactions.as_option()
+        }
+        C::HorizontalStack(v) | C::VerticalStack(v) => {
+            if !v.__buffa_unknown_fields.is_empty() {
+                return Err(LayoutFailure::Unsupported);
+            };
+            node.kind = if matches!(raw.content.as_ref(), Some(C::HorizontalStack(_))) {
+                Kind::HorizontalStack
+            } else {
+                Kind::VerticalStack
+            };
+            children = v.children.as_option();
+            interactions = v.interactions.as_option()
+        }
+        C::Heading(v) => {
+            if !v.__buffa_unknown_fields.is_empty() {
+                return Err(LayoutFailure::Unsupported);
+            };
+            node.kind = Kind::Heading;
+            node.heading_style = match v.style {
+                EnumValue::Known(wire::DashboardHeadingStyle::Default) => HeadingStyle::Default,
+                EnumValue::Known(wire::DashboardHeadingStyle::Title) => HeadingStyle::Title,
+                EnumValue::Known(wire::DashboardHeadingStyle::Subtitle) => HeadingStyle::Subtitle,
+                _ => return Err(LayoutFailure::Unsupported),
+            };
+            interactions = v.interactions.as_option()
+        }
+        C::Tile(v) => {
+            if !v.__buffa_unknown_fields.is_empty() {
+                return Err(LayoutFailure::Unsupported);
+            };
+            node.kind = Kind::Tile;
+            bind_node(&mut node, &v.capability)?;
+            node.features = features(&v.features)?;
+            node.summary_only = presentation(v.presentation)?;
+            node.vertical = v.vertical;
+            node.hide_state = v.hide_observation;
+            interactions = v.interactions.as_option()
+        }
+        C::Recipe(v) => {
+            if !v.__buffa_unknown_fields.is_empty() {
+                return Err(LayoutFailure::Unsupported);
+            };
+            node.kind = Kind::Recipe;
+            node.recipe_kind = recipe_kind(v.kind).map_err(|_| LayoutFailure::Unsupported)?;
+            if node.recipe_kind.is_none() {
+                return Err(LayoutFailure::Unsupported);
+            };
+            if !v.capability.is_empty() {
+                bind_node(&mut node, &v.capability)?
+            };
+            node.features = features(&v.features)?;
+            node.summary_only = presentation(v.presentation)?;
+            if v.secondary.len() > 512 || v.secondary.contains('\0') {
+                return Err(LayoutFailure::Invalid);
+            };
+            node.secondary = v.secondary.clone();
+            interactions = v.interactions.as_option()
+        }
+        C::Popup(v) => {
+            if !v.__buffa_unknown_fields.is_empty() {
+                return Err(LayoutFailure::Unsupported);
+            };
+            node.kind = Kind::Popup;
+            children = v.children.as_option();
+            interactions = v.interactions.as_option()
+        }
+        C::ChipGroup(v) => {
+            if !v.__buffa_unknown_fields.is_empty() {
+                return Err(LayoutFailure::Unsupported);
+            };
+            node.kind = Kind::ChipGroup;
+            children = v.children.as_option();
+            interactions = v.interactions.as_option()
+        }
+        C::Widget(v) => {
+            node.kind = Kind::Widget;
+            let widget = crate::dashboard_widgets::Widget::try_from(v.as_ref())?;
+            if let crate::dashboard_widgets::Content::Thermostat { entity, target, .. } =
+                &widget.content
+            {
+                node.entity = Some(entity.clone());
+                node.capability = Some(target.capability.clone())
+            };
+            node.widget = Some(widget);
+            interactions = v.interactions.as_option()
+        }
+        C::Unsupported(v) => {
+            if !v.__buffa_unknown_fields.is_empty() || !bounded(&v.diagnostic, true, 4096) {
+                return Err(LayoutFailure::Unsupported);
+            };
+            node.diagnostic = v.diagnostic.clone();
+            node.children = v
+                .children
+                .iter()
+                .map(|v| identity(v))
+                .collect::<Result<_, _>>()?;
+            if raw.visibility.as_option().is_some() {
+                return Err(LayoutFailure::Invalid);
+            }
+        }
+    }
+    if width > 4096 {
+        return Err(LayoutFailure::Budget);
+    };
+    node.minimum_column_width = (width > 0).then_some(width);
+    if let Some(children) = children {
+        if !children.__buffa_unknown_fields.is_empty()
+            || children.gap > 256
+            || children.children.len() > MAX_NODES
+        {
+            return Err(LayoutFailure::Budget);
+        };
+        node.children = children
+            .children
+            .iter()
+            .map(|v| identity(v))
+            .collect::<Result<_, _>>()?;
+        node.gap = Some(children.gap)
+    }
+    let visibility = raw
+        .visibility
+        .as_option()
+        .map(decode_predicate)
+        .transpose()
+        .map_err(|_| LayoutFailure::Unsupported)?;
+    if interactions.is_some() || visibility.is_some() {
+        node.recipes = Some(Recipes {
+            interactions: interactions
+                .map(decode_interactions)
+                .transpose()
+                .map_err(|_| LayoutFailure::Unsupported)?
+                .unwrap_or_default(),
+            visibility,
+        })
+    };
+    if let Some(destination) = node.widget.as_ref().and_then(|w| w.destination()).cloned() {
+        use home_client_model::dashboard::{Gesture, Intention, Interaction};
+        let interaction = Interaction {
+            intention: Intention::Navigate(destination),
+            confirmation: None,
+            source: node.source.clone(),
+        };
+        let recipes = node.recipes.get_or_insert_with(|| Recipes {
+            interactions: BTreeMap::new(),
+            visibility: None,
+        });
+        if recipes
+            .interactions
+            .get(&Gesture::Tap)
+            .is_some_and(|v| v.intention != interaction.intention || v.confirmation.is_some())
+        {
+            return Err(LayoutFailure::Invalid);
+        };
+        recipes
+            .interactions
+            .entry(Gesture::Tap)
+            .or_insert(interaction);
+    }
+    Ok(node)
+}
+fn columns(value: u32) -> Result<Option<u8>, LayoutFailure> {
+    if value > 12 {
+        Err(LayoutFailure::Budget)
+    } else {
+        Ok((value > 0).then_some(value as u8))
+    }
+}
+fn bind_node(node: &mut Node, value: &str) -> Result<(), LayoutFailure> {
+    let capability = CapabilityName::try_from(value).map_err(|_| LayoutFailure::Invalid)?;
+    node.entity = Some(capability.entity());
+    node.capability = Some(capability);
+    Ok(())
+}
+fn presentation(
+    value: EnumValue<wire::DashboardControlPresentation>,
+) -> Result<bool, LayoutFailure> {
+    match value {
+        EnumValue::Known(wire::DashboardControlPresentation::Controls) => Ok(false),
+        EnumValue::Known(wire::DashboardControlPresentation::Summary) => Ok(true),
+        _ => Err(LayoutFailure::Unsupported),
+    }
+}
+fn features(
+    values: &[EnumValue<wire::DashboardFeatureKind>],
+) -> Result<Vec<FeatureKind>, LayoutFailure> {
+    if values.len() > 16 {
+        return Err(LayoutFailure::Budget);
+    };
+    let mut result = Vec::new();
+    for value in values {
+        let feature = feature_kind(*value).ok_or(LayoutFailure::Unsupported)?;
+        if result.contains(&feature) {
+            return Err(LayoutFailure::Invalid);
+        };
+        result.push(feature)
+    }
+    Ok(result)
 }
 
 #[cfg(test)]

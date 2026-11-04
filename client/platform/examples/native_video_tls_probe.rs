@@ -2,13 +2,13 @@
 //! VideoToolbox worker. No Slint rendering or Android qualification is claimed.
 #[cfg(target_os = "macos")]
 mod probe {
-    use home_client_model::{cameras::CameraId, video::VideoDimensions};
+    use home_client_model::{api_content::MediaSourceName, video::VideoDimensions};
     use home_client_platform::video::{DecoderBackend, H264Decoder};
-    use home_client_transport::{AccessToken, CameraTransport, Connection};
+    use home_client_transport::{AccessToken, Connection, MediaTransport};
     use home_wire_contract::{
-        camera_video_contract::{VideoFrame, VideoStream},
-        cameras_contract as camera,
-        home::{auth::v1 as auth, cameras::v1 as wire},
+        camera_content as camera, content_contract,
+        home::{api::v2 as wire, api::v2 as auth},
+        media_video_contract::{VideoFrame, VideoStream},
     };
     use serde::{Deserialize, Serialize};
     use sha2::{Digest, Sha256};
@@ -103,13 +103,6 @@ mod probe {
                     hashes.insert(format!("{:x}", Sha256::digest(frame.pixels())));
                     count += 1;
                 }
-                VideoFrame::Expired
-                | VideoFrame::Revoked
-                | VideoFrame::Unavailable
-                | VideoFrame::Unsupported
-                | VideoFrame::ResyncRequired => {
-                    return Err("unexpected positive-stream terminal".into());
-                }
             }
         }
         if count != 6 || hashes.len() != 6 {
@@ -121,40 +114,59 @@ mod probe {
         )
     }
 
+    fn request_id() -> home_client_model::api::RequestId {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        format!(
+            "12345678-1234-4000-8000-{:012x}",
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        )
+        .as_str()
+        .try_into()
+        .unwrap()
+    }
     async fn open(
-        api: &CameraTransport,
-        id: &CameraId,
+        api: &MediaTransport,
+        id: &MediaSourceName,
         token: &AccessToken,
         cancel: &CancellationToken,
     ) -> camera::Lease {
         let response = api
-            .open_session(
-                wire::OpenSessionRequest {
-                    entity_id: id.entity().as_str().into(),
-                    ..Default::default()
-                },
+            .create_media_session(
+                content_contract::create_session_request(
+                    id,
+                    home_client_model::api_content::ContentKind::Camera,
+                    None,
+                    request_id(),
+                )
+                .unwrap(),
                 token,
                 Duration::from_secs(5),
                 cancel,
             )
             .await
             .expect("open synthetic camera lease");
-        let camera::Outcome::Value(lease) =
-            camera::lease(&response, id, SystemTime::now(), Instant::now())
-                .expect("camera lease admission")
-        else {
-            panic!("synthetic camera unavailable")
-        };
-        lease
+        camera::lease(
+            &response,
+            id,
+            home_client_model::api_content::ContentKind::Camera,
+            SystemTime::now(),
+            Instant::now(),
+        )
+        .expect("camera lease admission")
     }
-    async fn play(api: &CameraTransport, id: &CameraId, token: &AccessToken) -> serde_json::Value {
+    async fn play(
+        api: &MediaTransport,
+        id: &MediaSourceName,
+        token: &AccessToken,
+    ) -> serde_json::Value {
         let cancel = CancellationToken::new();
+        let delete_request_id = request_id();
         let lease = open(api, id, token, &cancel).await;
         let mut admission = VideoStream::new(lease.clone());
         let mut stream = api
-            .read_video(
-                wire::ReadVideoRequest {
-                    session: lease.wire_reference().into(),
+            .stream_media_session(
+                wire::StreamMediaSessionRequest {
+                    name: lease.name().as_str().into(),
                     ..Default::default()
                 },
                 token,
@@ -178,11 +190,6 @@ mod probe {
             match &frame {
                 VideoFrame::Sample(_) => samples += 1,
                 VideoFrame::Header(_) => {}
-                VideoFrame::Expired
-                | VideoFrame::Revoked
-                | VideoFrame::Unavailable
-                | VideoFrame::Unsupported
-                | VideoFrame::ResyncRequired => panic!("unexpected video refusal"),
             }
             assert!(send.send(frame).await.is_ok(), "decoder stopped");
         }
@@ -195,9 +202,10 @@ mod probe {
             .expect("native actual moving frames");
         // Cleanup uses a separate live cancellation token. Never reuse a read token
         // that was cancelled to stop the body, and never retry a write.
-        api.close_session(
-            wire::CloseSessionRequest {
-                session: lease.wire_reference().into(),
+        api.delete_media_session(
+            wire::DeleteMediaSessionRequest {
+                request_id: delete_request_id.as_str().into(),
+                name: lease.name().as_str().into(),
                 ..Default::default()
             },
             token,
@@ -278,17 +286,37 @@ mod probe {
             panic!("native authentication required")
         };
         let token = AccessToken::parse(&tokens.access_token).unwrap();
-        let api = connection.cameras();
-        let raw = api
-            .list_cameras(
-                wire::ListCamerasRequest::default(),
+        let api = connection.media();
+        let homes = connection
+            .home()
+            .list_homes(
+                wire::ListHomesRequest {
+                    page_size: 2,
+                    ..Default::default()
+                },
                 &token,
                 Duration::from_secs(5),
                 &cancel,
             )
             .await
             .unwrap();
-        let cameras = camera::catalog(&raw).unwrap();
+        assert_eq!(homes.homes.len(), 1);
+        assert!(homes.next_page_token.is_empty());
+        let home =
+            home_client_model::api::HomeName::try_from(homes.homes[0].name.as_str()).unwrap();
+        let raw = api
+            .list_media_sources(
+                wire::ListMediaSourcesRequest {
+                    parent: home.as_str().into(),
+                    ..Default::default()
+                },
+                &token,
+                Duration::from_secs(5),
+                &cancel,
+            )
+            .await
+            .unwrap();
+        let cameras = camera::catalog(&raw, &home).unwrap();
         assert_eq!(cameras.len(), 2);
         assert_ne!(cameras[0].id, cameras[1].id);
         let mut results = Vec::new();

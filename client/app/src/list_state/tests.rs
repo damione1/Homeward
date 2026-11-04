@@ -4,20 +4,29 @@ use home_client_transport::FailureKind;
 use std::time::SystemTime;
 
 pub(crate) const LIST: &str = " list / α ";
-fn list(id: &str, revision: u64) -> wire::ListSnapshot {
-    let mut list = wire::ListSnapshot {
-        name: format!("Synthetic {id}"),
-        origin: wire::ListOrigin::Native.into(),
-        ..Default::default()
-    };
-    list.id.get_or_insert_default().value = id.into();
-    list.revision.get_or_insert_default().list_id = list.id.clone();
-    list.revision.get_or_insert_default().number = revision;
-    list.updated_at.get_or_insert_default().seconds = 1;
-    list
+fn home() -> home_client_model::api::HomeName {
+    home_client_model::api::HomeName::try_from("homes/synthetic").unwrap()
+}
+fn etag(value: u64) -> home_client_model::api_tasks::TaskEtag {
+    home_client_model::api_tasks::TaskEtag::try_from(format!("\"opaque-{value}\"").as_str())
+        .unwrap()
+}
+fn list(id: &str, revision: u64) -> home_client_model::api_tasks::TaskListResource {
+    use home_client_model::{api_tasks::*, local_time::UtcInstant};
+    TaskListResource::new(
+        TaskListRevision::new(
+            TaskListName::new(home(), id.parse().unwrap()),
+            etag(revision),
+        ),
+        TaskText::try_from(format!("Synthetic {id}").as_str()).unwrap(),
+        TaskListOrigin::Native,
+        UtcInstant::new(1, 0).unwrap(),
+    )
+    .unwrap()
 }
 pub(crate) fn catalog(ids: &[&str]) -> Arc<ListReadSnapshot> {
     Arc::new(ListReadSnapshot {
+        home: home(),
         metadata: ListReadMetadata::Catalog,
         rows: CapturedRows::Catalog(ids.iter().map(|id| Arc::new(list(id, 10))).collect()),
         count: ids.len() as u64,
@@ -29,27 +38,34 @@ pub(crate) fn items(
     revision: u64,
     values: &[(&str, u64, &str)],
 ) -> Arc<ListReadSnapshot> {
+    use home_client_model::api_tasks::*;
+    let list = list(id, revision);
     let rows = values
         .iter()
         .enumerate()
-        .map(|(index, (uid, revision, summary))| {
-            let mut item = wire::ItemSnapshot {
-                position: index as i64,
-                ..Default::default()
-            };
-            item.list_id.get_or_insert_default().value = id.into();
-            item.uid.get_or_insert_default().value = (*uid).into();
-            item.revision.get_or_insert_default().list_id = item.list_id.clone();
-            item.revision.get_or_insert_default().item_uid = item.uid.clone();
-            item.revision.get_or_insert_default().number = *revision;
-            item.value.get_or_insert_default().summary = (*summary).into();
-            item.value.get_or_insert_default().completed = Some(false);
-            item.value.get_or_insert_default().description = Some(String::new());
-            Arc::new(item)
+        .map(|(position, (uid, revision, summary))| {
+            Arc::new(
+                TaskResource::new(
+                    TaskRevision::new(
+                        TaskName::new(list.name().clone(), uid.parse().unwrap()),
+                        etag(*revision),
+                    ),
+                    TaskContent::new(
+                        TaskText::try_from(*summary).unwrap(),
+                        false,
+                        Some(TaskDescription::try_from("").unwrap()),
+                        TaskDue::None,
+                    ),
+                    position as i64,
+                    None,
+                )
+                .unwrap(),
+            )
         })
         .collect();
     Arc::new(ListReadSnapshot {
-        metadata: ListReadMetadata::List(Arc::new(list(id, revision))),
+        home: home(),
+        metadata: ListReadMetadata::List(Arc::new(list)),
         rows: CapturedRows::Items {
             list: id.parse().unwrap(),
             rows,
@@ -179,7 +195,7 @@ fn conflict_keeps_the_draft_and_requires_rereading_then_explicit_resolution() {
     let draft = state.drafts.get(&key).unwrap();
     assert_eq!(draft.text, "Local draft");
     assert!(draft.phase == DraftPhase::Conflict);
-    assert_eq!(draft.base.item_revision().number().get(), 3);
+    assert_eq!(draft.base.item_revision().etag(), &etag(3));
     assert!(matches!(
         state.prepare(state.generation, Write::Save),
         Err(Refusal::Stale)
@@ -187,8 +203,8 @@ fn conflict_keeps_the_draft_and_requires_rereading_then_explicit_resolution() {
     state.resolve(state.generation).unwrap();
     let draft = state.drafts.get(&key).unwrap();
     assert_eq!(draft.text, "Local draft");
-    assert_eq!(draft.base.item_revision().number().get(), 4);
-    assert_eq!(draft.base.list_revision().number().get(), 11);
+    assert_eq!(draft.base.item_revision().etag(), &etag(4));
+    assert_eq!(draft.base.list_revision().etag(), &etag(11));
     assert!(!state.busy(), "resolution itself must not submit a write");
     assert!(state.prepare(state.generation, Write::Save).is_ok());
 }
@@ -206,8 +222,8 @@ fn snapshot_changes_preserve_dirty_text_and_never_silently_rebase_its_preconditi
         .unwrap();
     let draft = state.drafts.get(&key).unwrap();
     assert_eq!(draft.text, "Local draft");
-    assert_eq!(draft.base.list_revision().number().get(), 10);
-    assert_eq!(draft.base.item_revision().number().get(), 3);
+    assert_eq!(draft.base.list_revision().etag(), &etag(10));
+    assert_eq!(draft.base.item_revision().etag(), &etag(3));
     assert!(draft.phase == DraftPhase::Conflict);
     state
         .edit(
@@ -436,4 +452,18 @@ fn resync_during_a_write_reports_uncertainty_and_never_revives_its_admission() {
     state.publish_catalog(catalog(&[LIST])).unwrap();
     assert!(!state.admits(prepared.context, prepared.id));
     assert!(!state.busy());
+}
+
+#[test]
+fn another_home_cannot_reuse_native_keys_drafts_or_write_admission() {
+    let mut state = dirty();
+    let prepared = state.prepare(state.generation, Write::Save).unwrap();
+    let mut foreign = Arc::try_unwrap(catalog(&[LIST])).ok().unwrap();
+    foreign.home = home_client_model::api::HomeName::try_from("homes/other").unwrap();
+    assert_eq!(
+        state.publish_catalog(Arc::new(foreign)),
+        Err(Refusal::Stale)
+    );
+    assert!(state.catalog.is_none() && state.items.is_none() && state.drafts.is_empty());
+    assert!(!state.admits(prepared.context, prepared.id));
 }

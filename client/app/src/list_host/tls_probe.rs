@@ -3,10 +3,11 @@
 use super::*;
 use crate::list_state::DraftPhase;
 use home_client_actions::lists::{ListWriteIntent, ListWriteOutcome, PreparedListMutation};
+use home_client_model::api_tasks::{TaskListName, TaskListResource, TaskResource, TaskText};
 use home_client_model::lists::{ItemKey, ListId};
 use home_client_session::{SecureStore, StoreFailure};
 use home_client_transport::Connection;
-use home_wire_contract::home::lists::v1 as wire;
+use home_wire_contract::home::api::v2 as wire;
 use serde::{Deserialize, Serialize};
 use std::io::Write as _;
 use zeroize::Zeroizing;
@@ -131,13 +132,13 @@ fn online(state: &State) -> bool {
         && state.catalog_phase == Freshness::Online
         && (state.selected_list.is_none() || state.item_phase == Freshness::Online)
 }
-fn catalog(state: &State) -> &[Arc<wire::ListSnapshot>] {
+fn catalog(state: &State) -> &[Arc<TaskListResource>] {
     match state.catalog.as_deref().map(|snapshot| &snapshot.rows) {
         Some(CapturedRows::Catalog(rows)) => rows,
         Some(CapturedRows::Items { .. }) | None => &[],
     }
 }
-fn rows(state: &State) -> &[Arc<wire::ItemSnapshot>] {
+fn rows(state: &State) -> &[Arc<TaskResource>] {
     match state.items.as_deref().map(|snapshot| &snapshot.rows) {
         Some(CapturedRows::Items { rows, .. }) => rows,
         Some(CapturedRows::Catalog(_)) | None => &[],
@@ -149,7 +150,7 @@ async fn choose_list(owner: &Lists, id: &ListId) -> Result<()> {
         let mut state = owner.0.state.lock().unwrap();
         let index = catalog(&state)
             .iter()
-            .position(|row| row.id.value == id.as_str())
+            .position(|row| row.native_id() == id)
             .ok_or("list not in authorized catalog")?;
         let (token, generation) = (state.catalog_tokens[index], state.generation);
         admit(state.select_list(token, generation))?;
@@ -209,7 +210,7 @@ fn start(
     let (owner, session, transport, cancel) = (
         owner.clone(),
         session.clone(),
-        connection.lists(),
+        connection.tasks(),
         cancel.child_token(),
     );
     tokio::spawn(async move { owner.run(session, transport, cancel).await })
@@ -247,27 +248,25 @@ async fn run(fixture: Fixture) -> Result<()> {
         assert_eq!(state.catalog.as_ref().unwrap().count, 1);
         assert_eq!(rows(&state).len(), 10000);
         assert_eq!(state.items.as_ref().unwrap().count, 10000);
-        assert_eq!(rows(&state)[9999].uid.value, "synthetic-10000");
+        assert_eq!(rows(&state)[9999].key().uid().as_str(), "synthetic-10000");
     }
     write(&owner, Write::Create("Qualification TLS".into()), true).await?;
     let created: ListId = {
         let state = owner.0.state.lock().unwrap();
-        admit(
-            catalog(&state)
-                .iter()
-                .find(|row| row.name == "Qualification TLS")
-                .ok_or("created list absent")?
-                .id
-                .value
-                .parse(),
-        )?
+        catalog(&state)
+            .iter()
+            .find(|row| row.display_name().as_str() == "Qualification TLS")
+            .ok_or("created list absent")?
+            .native_id()
+            .clone()
     };
     choose_list(&owner, &created).await?;
     write(&owner, Write::Rename("Qualification renommée".into()), true).await?;
     assert!(
         catalog(&owner.0.state.lock().unwrap())
             .iter()
-            .any(|row| row.id.value == created.as_str() && row.name == "Qualification renommée")
+            .any(|row| row.native_id() == &created
+                && row.display_name().as_str() == "Qualification renommée")
     );
     write(&owner, Write::Add("Premier élément".into()), true).await?;
     write(&owner, Write::Add("Deuxième élément".into()), true).await?;
@@ -280,32 +279,49 @@ async fn run(fixture: Fixture) -> Result<()> {
     write(&owner, Write::Save, true).await?;
     write(&owner, Write::Complete(true), true).await?;
     assert_eq!(
-        rows(&owner.0.state.lock().unwrap())[0].value.completed,
-        Some(true)
+        rows(&owner.0.state.lock().unwrap())[0]
+            .content()
+            .completed(),
+        true
     );
     write(&owner, Write::Complete(false), true).await?;
     let lease = admit(admin.access(&cancel).await)?;
-    let mut request = wire::GetItemRequest::default();
-    request.list_id.get_or_insert_default().value = created.as_str().into();
-    request.item_uid.get_or_insert_default().value = first.uid().as_str().into();
+    let task_name = {
+        let state = owner.0.state.lock().unwrap();
+        state
+            .selected_target()
+            .ok_or("selected target missing")?
+            .0
+            .name()
+            .as_str()
+            .to_owned()
+    };
     let fetched = admit(
         connection
-            .lists()
-            .get_item(request, lease.token(), Duration::from_secs(10), &cancel)
+            .tasks()
+            .get_task(
+                wire::GetTaskRequest {
+                    name: task_name,
+                    ..Default::default()
+                },
+                lease.token(),
+                Duration::from_secs(10),
+                &cancel,
+            )
             .await,
     )?;
-    assert_eq!(fetched.item.value.completed, Some(false));
-    assert_eq!(fetched.item.value.summary, "Édition explicite");
+    assert!(!fetched.completed);
+    assert_eq!(fetched.summary, "Édition explicite");
     write(&owner, Write::MoveDown, true).await?;
     {
         let state = owner.0.state.lock().unwrap();
-        assert_eq!(rows(&state)[1].uid.value, first.uid().as_str());
+        assert_eq!(rows(&state)[1].key().uid().as_str(), first.uid().as_str());
         assert_eq!(state.item_tokens[1], first_token);
         assert_eq!(state.selected_item.as_ref(), Some(&first));
     }
     write(&owner, Write::MoveFirst, true).await?;
     assert_eq!(
-        rows(&owner.0.state.lock().unwrap())[0].uid.value,
+        rows(&owner.0.state.lock().unwrap())[0].key().uid().as_str(),
         first.uid().as_str()
     );
     // Two writes are prepared against the very same revisions. The external
@@ -315,13 +331,14 @@ async fn run(fixture: Fixture) -> Result<()> {
         let generation = state.generation;
         admit(state.edit(first_token, generation, "Mon brouillon conservé".into()))?;
         let (row, target) = state.selected_target().ok_or("selected target missing")?;
-        let mut payload = (*row.value).clone();
-        payload.summary = "Autre client".into();
+        let payload = row
+            .content()
+            .with_summary(admit(TaskText::try_from("Autre client"))?);
         let external = admit(PreparedListMutation::new(ListWriteIntent::Edit {
             target: target.clone(),
             payload: payload.clone(),
         }))?;
-        payload.summary = "Écriture périmée".into();
+        let payload = payload.with_summary(admit(TaskText::try_from("Écriture périmée"))?);
         (
             external,
             admit(PreparedListMutation::new(ListWriteIntent::Edit {
@@ -330,7 +347,7 @@ async fn run(fixture: Fixture) -> Result<()> {
             }))?,
         )
     };
-    let api = connection.lists();
+    let api = connection.tasks();
     assert!(matches!(
         external
             .submit(&api, &admin, &cancel, Arc::new(|| true))
@@ -346,7 +363,7 @@ async fn run(fixture: Fixture) -> Result<()> {
             && state.drafts.get(&first).is_some_and(|draft| {
                 draft.phase == DraftPhase::Conflict && draft.text == "Mon brouillon conservé"
             })
-            && rows(state)[0].value.summary == "Autre client"
+            && rows(state)[0].content().summary().as_str() == "Autre client"
     })
     .await?;
     let before_resolution = controls.stats().await?.mutation_requests;
@@ -366,7 +383,10 @@ async fn run(fixture: Fixture) -> Result<()> {
     );
     write(&owner, Write::Save, true).await?;
     assert_eq!(
-        rows(&owner.0.state.lock().unwrap())[0].value.summary,
+        rows(&owner.0.state.lock().unwrap())[0]
+            .content()
+            .summary()
+            .as_str(),
         "Mon brouillon conservé"
     );
     // READ never implies WRITE. Denial is observed through the actual owner.
@@ -374,11 +394,29 @@ async fn run(fixture: Fixture) -> Result<()> {
     assert_eq!(rows(&reader_owner.0.state.lock().unwrap()).len(), 10000);
     assert_eq!(catalog(&reader_owner.0.state.lock().unwrap()).len(), 1);
     let lease = admit(reader.access(&cancel).await)?;
-    let mut request = wire::GetListRequest::default();
-    request.list_id.get_or_insert_default().value = created.as_str().into();
+    let parent = {
+        let state = owner.0.state.lock().unwrap();
+        TaskListName::new(
+            state
+                .catalog
+                .as_ref()
+                .ok_or("catalog missing")?
+                .home
+                .clone(),
+            created.clone(),
+        )
+    };
     let denied = connection
-        .lists()
-        .get_list(request, lease.token(), Duration::from_secs(10), &cancel)
+        .tasks()
+        .get_task_list(
+            wire::GetTaskListRequest {
+                name: parent.as_str().to_owned(),
+                ..Default::default()
+            },
+            lease.token(),
+            Duration::from_secs(10),
+            &cancel,
+        )
         .await
         .err()
         .ok_or("foreign list leaked")?;
@@ -430,7 +468,10 @@ async fn run(fixture: Fixture) -> Result<()> {
         "Brouillon hors ligne"
     );
     assert_eq!(
-        rows(&owner.0.state.lock().unwrap())[0].value.summary,
+        rows(&owner.0.state.lock().unwrap())[0]
+            .content()
+            .summary()
+            .as_str(),
         "Mon brouillon conservé"
     );
     assert_eq!(
@@ -480,15 +521,18 @@ async fn run(fixture: Fixture) -> Result<()> {
         assert!(!state.item_tokens.contains(&first_token));
         assert!(!state.drafts.contains_key(&first));
     }
+    write(&owner, Write::DeleteList, false).await?;
+    choose_item(&owner, 0)?;
+    write(&owner, Write::DeleteItem, true).await?;
     write(&owner, Write::DeleteList, true).await?;
     assert!(
         !catalog(&owner.0.state.lock().unwrap())
             .iter()
-            .any(|row| row.id.value == created.as_str())
+            .any(|row| row.native_id() == &created)
     );
     let mutations = controls.stats().await?.mutation_requests;
     assert_eq!(
-        mutations, 15,
+        mutations, 17,
         "every intended write has one and only one network attempt"
     );
     cancel.cancel();
@@ -522,7 +566,7 @@ async fn run(fixture: Fixture) -> Result<()> {
     Ok(())
 }
 #[test]
-#[ignore = "explicit isolated Go ListService TLS fixture only"]
+#[ignore = "explicit isolated Go TaskService TLS fixture only"]
 fn real_tls_lists_owner_and_cas() -> Result<()> {
     let path = std::env::var("HOMEWARD_NHF011_READY")?;
     let fixture = serde_json::from_slice(&std::fs::read(path)?)?;

@@ -7,13 +7,7 @@ use base64::{
 use buffa::{Message, MessageName};
 use connectrpc::{ConnectError, ErrorCode};
 use home_wire_contract::home::{
-    auth::v1::{
-        AuthError, AuthorizationPolicyError, AuthorizationTermination, SecondFactorPolicyError,
-    },
-    calendars::v1::CalendarError,
-    configuration::v1::ConfigurationError,
-    integrationadmin::v1::IntegrationError,
-    observability::v1::ObservabilityError,
+    auth::v1::AuthorizationTermination,
 };
 use home_wire_contract::{
     api_errors::{self, ApiFailure, InvalidApiError},
@@ -94,12 +88,11 @@ impl Failure {
                         | ErrorCode::ResourceExhausted
                 )
         ) && matches!(self.authorization_termination(), Ok(None))
-            && matches!(self.auth_error(), Ok(None))
             && self.canonical_read_recovery()
     }
 
     /// Only the identified, durably saved renewal operation may use this
-    /// recovery policy, after admitting any AuthError. It never authorizes
+    /// recovery policy, after admitting its canonical error. It never authorizes
     /// replaying another mutation.
     pub fn may_recover_renewal(&self) -> bool {
         use crate::RpcCode;
@@ -131,43 +124,6 @@ impl Failure {
     pub fn authorization_termination(
         &self,
     ) -> Result<Option<AuthorizationTermination>, DetailFailure> {
-        self.typed_detail()
-    }
-
-    /// Calendar conflict/uncertainty is an explicit domain outcome; an Aborted
-    /// RPC status alone cannot distinguish them and never permits a replay.
-    pub fn calendar_error(&self) -> Result<Option<CalendarError>, DetailFailure> {
-        self.typed_detail()
-    }
-
-    pub fn auth_error(&self) -> Result<Option<AuthError>, DetailFailure> {
-        self.typed_detail()
-    }
-
-    pub fn second_factor_policy_error(
-        &self,
-    ) -> Result<Option<SecondFactorPolicyError>, DetailFailure> {
-        self.typed_detail()
-    }
-
-    pub fn authorization_policy_error(
-        &self,
-    ) -> Result<Option<AuthorizationPolicyError>, DetailFailure> {
-        self.typed_detail()
-    }
-
-    /// Preserve the exact conflicting document version; a conflict never permits retry.
-    pub fn integration_error(&self) -> Result<Option<IntegrationError>, DetailFailure> {
-        self.typed_detail()
-    }
-
-    /// SQL version/workspace conflicts and uncertain commits remain typed.
-    /// Neither an RPC error nor this detail authorizes a mutation replay.
-    pub fn configuration_error(&self) -> Result<Option<ConfigurationError>, DetailFailure> {
-        self.typed_detail()
-    }
-
-    pub fn observability_error(&self) -> Result<Option<ObservabilityError>, DetailFailure> {
         self.typed_detail()
     }
 

@@ -2,11 +2,9 @@ use crate::administration::{self, Authority, Identity, IntegrationId, MAX_ROWS, 
 use home_client_session::{AccessLease, SessionCoordinator, SessionFailure};
 use home_client_transport::{Connection, FailureKind, RpcCode};
 use home_wire_contract::{
-    auth_contract::{self, AccountId},
-    authorization_contract, configuration_contract,
-    home::{
-        auth::v1 as auth, integrationadmin::v1 as integration, observability::v1 as observation,
-    },
+    auth_contract::{self, AccountName},
+    authorization_contract,
+    home::{api::v2 as auth, api::v2 as integration, api::v2 as observation},
     observability_contract,
 };
 use sha2::{Digest, Sha256};
@@ -15,10 +13,9 @@ use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 pub(super) enum Selection {
-    Account(AccountId),
+    Account(AccountName),
     Integration(IntegrationId),
     Configuration(super::configuration::Selection),
-    Logic(super::logic::Selection),
 }
 #[derive(Clone)]
 pub(super) struct PageToken(String);
@@ -33,10 +30,43 @@ impl PageToken {
         &self.0
     }
     pub fn parse(value: &str) -> Result<Self, ReadError> {
-        if value.is_empty() || value.len() > 512 || value.contains(['\0', '\r', '\n']) {
+        if value.is_empty() || value.len() > 2048 || value.contains(['\0', '\r', '\n']) {
             return Err(ReadError::Invalid);
         }
         Ok(Self(value.into()))
+    }
+}
+#[derive(Clone)]
+pub(super) struct ResourcePage<T> {
+    rows: Vec<T>,
+    pub next: Option<PageToken>,
+}
+impl<T> ResourcePage<T> {
+    fn new(rows: Vec<T>, next: String) -> Result<Self, ReadError> {
+        if rows.len() > 100 {
+            return Err(ReadError::Invalid);
+        }
+        Ok(Self {
+            rows,
+            next: if next.is_empty() {
+                None
+            } else {
+                Some(PageToken::parse(&next)?)
+            },
+        })
+    }
+}
+impl<T> std::ops::Deref for ResourcePage<T> {
+    type Target = [T];
+    fn deref(&self) -> &[T] {
+        &self.rows
+    }
+}
+impl<'a, T> IntoIterator for &'a ResourcePage<T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.rows.iter()
     }
 }
 #[derive(Clone)]
@@ -44,35 +74,35 @@ pub(super) enum Payload {
     Personal {
         profile: Option<auth::Account>,
     },
-    Sessions(Vec<auth::Session>),
-    Factors(Vec<auth::FactorCredential>),
+    Sessions(ResourcePage<auth::Session>),
+    Factors(ResourcePage<auth::FactorCredential>),
     MfaPolicy(auth::SecondFactorPolicy),
-    Keys(Vec<auth::McpKey>),
-    Accounts(Vec<auth::Account>),
-    Invitations(Vec<auth::Invitation>),
+    Keys(ResourcePage<auth::McpKey>),
+    Accounts(ResourcePage<auth::Account>),
+    Invitations(ResourcePage<auth::Invitation>),
     Policy {
-        account: AccountId,
-        response: auth::GetPolicyResponse,
+        account: AccountName,
+        response: auth::AuthorizationPolicy,
     },
     Integrations(Box<IntegrationList>),
     Integration(Box<IntegrationDetail>),
     Configuration(Box<super::configuration::Payload>),
-    Logic(Box<super::logic::Payload>),
-    Health(Box<observation::GetHealthResponse>),
-    Metrics(Box<observation::GetMetricsResponse>),
+    Health(Box<observation::Health>),
+    Metrics(Box<observation::Metrics>),
     Logs(Box<observation::QueryRuntimeLogsResponse>),
     Audits(Box<observation::QueryAuditsResponse>),
 }
 #[derive(Clone)]
 pub(super) struct IntegrationList {
+    pub parent: String,
     pub types: Vec<integration::IntegrationType>,
-    pub response: integration::ListInstancesResponse,
+    pub response: integration::ListIntegrationInstancesResponse,
 }
 #[derive(Clone)]
 pub(super) struct IntegrationDetail {
-    pub response: integration::GetInstanceResponse,
+    pub instance: integration::IntegrationInstance,
     pub kind: Result<integration::IntegrationType, ReadError>,
-    pub health: Result<observation::GetIntegrationHealthResponse, ReadError>,
+    pub health: Result<observation::IntegrationHealth, ReadError>,
 }
 #[derive(Clone, Copy, Debug)]
 pub(super) enum ReadError {
@@ -121,9 +151,9 @@ pub(super) async fn admitted_lease(
     if lease.generation != expected || !session.is_current(expected) {
         return Err(ReadError::Cancelled);
     }
-    if [lease.account_id().as_str(), lease.session_id().as_str()]
+    if [lease.account_name().as_str(), lease.session_name().as_str()]
         .iter()
-        .any(|value| value.len() > 128 || value.contains(['\0', '\r', '\n']))
+        .any(|value| value.len() > 256 || value.contains(['\0', '\r', '\n']))
     {
         return Err(ReadError::Invalid);
     }
@@ -136,25 +166,21 @@ async fn authority(
     cancel: &CancellationToken,
 ) -> Result<Authority, ReadError> {
     let identity = Identity {
-        account: lease.account_id().clone(),
-        session: lease.session_id().clone(),
+        account: lease.account_name().clone(),
+        session: lease.session_name().clone(),
     };
     let api = connection.accounts();
     let profile = tokio::select! {biased;
         ()=cancel.cancelled()=>return Err(ReadError::Cancelled),
         ()=lease.cancellation.cancelled()=>return Err(ReadError::Cancelled),
-        result=api.get_account(auth::GetAccountRequest{account_id:auth::AccountId{value:identity.account.as_str().into(),..Default::default()}.into(),..Default::default()},lease.token(),TIMEOUT,cancel)=>result,
+        result=api.get_account(auth::GetAccountRequest{name:identity.account.as_str().into(),..Default::default()},lease.token(),TIMEOUT,cancel)=>result,
     };
     let authority = match profile {
         Ok(response) => {
             if !response.__buffa_unknown_fields.is_empty() {
                 return Err(ReadError::Invalid);
             }
-            Authority::admit(
-                identity,
-                response.account.into_option().ok_or(ReadError::Invalid)?,
-            )
-            .map_err(|_| ReadError::Invalid)?
+            Authority::admit(identity, response).map_err(|_| ReadError::Invalid)?
         }
         Err(error) => {
             if !matches!(error.authorization_termination(), Ok(None))
@@ -228,7 +254,8 @@ fn distinct<'a>(values: impl Iterator<Item = &'a str>) -> Result<(), ReadError> 
 }
 fn kind(value: &integration::IntegrationType) -> Result<(), ReadError> {
     if !value.__buffa_unknown_fields.is_empty()
-        || IntegrationId::parse(&value.type_id).is_err()
+        || IntegrationId::parse(&value.name).is_err()
+        || IntegrationId::parse(&value.type_key).is_err()
         || value.manifest_version.is_empty()
         || value.manifest_version.len() > 256
         || value.schema_version.is_empty()
@@ -260,32 +287,20 @@ async fn read_section(
     page: Option<PageToken>,
     cancel: &CancellationToken,
 ) -> Result<Payload, ReadError> {
-    let own = auth::AccountId {
-        value: lease.account_id().as_str().into(),
-        ..Default::default()
-    };
+    let own = lease.account_name().as_str().to_owned();
+    let home = lease.account_name().home().as_str().to_owned();
+    let page_token = page.as_ref().map_or("", PageToken::as_str).to_owned();
     match section {
         Section::Configuration => {
             let selection = match selection {
                 Some(Selection::Configuration(value)) => value,
-                Some(Selection::Account(_) | Selection::Integration(_) | Selection::Logic(_))
-                | None => super::configuration::Selection::Documents,
+                Some(Selection::Account(_) | Selection::Integration(_)) | None => {
+                    super::configuration::Selection::Documents
+                }
             };
             super::configuration::load(session, connection, lease, selection, page, cancel)
                 .await
                 .map(|value| Payload::Configuration(Box::new(value)))
-        }
-        Section::Logic => {
-            let selection = match selection {
-                Some(Selection::Logic(value)) => value,
-                Some(
-                    Selection::Account(_) | Selection::Integration(_) | Selection::Configuration(_),
-                )
-                | None => super::logic::Selection::Catalogue,
-            };
-            super::logic::load(session, connection, lease, selection, cancel)
-                .await
-                .map(|value| Payload::Logic(Box::new(value)))
         }
         Section::MfaPolicy => {
             let response = call!(
@@ -294,13 +309,13 @@ async fn read_section(
                 cancel,
                 connection.accounts(),
                 get_second_factor_policy,
-                auth::GetSecondFactorPolicyRequest::default()
+                auth::GetSecondFactorPolicyRequest {
+                    name: format!("{home}/secondFactorPolicy"),
+                    ..Default::default()
+                }
             );
-            auth_contract::admit_get_second_factor_policy_response(&response)
-                .map_err(|_| ReadError::Invalid)?;
-            Ok(Payload::MfaPolicy(
-                response.policy.into_option().ok_or(ReadError::Invalid)?,
-            ))
+            auth_contract::admit_second_factor_policy(&response).map_err(|_| ReadError::Invalid)?;
+            Ok(Payload::MfaPolicy(response))
         }
         Section::Account => Ok(Payload::Personal { profile: None }),
         Section::Sessions => {
@@ -311,7 +326,9 @@ async fn read_section(
                 connection.auth(),
                 list_sessions,
                 auth::ListSessionsRequest {
-                    account_id: own.into(),
+                    parent: own.clone(),
+                    page_size: 100,
+                    page_token: page_token.clone(),
                     ..Default::default()
                 }
             );
@@ -320,10 +337,14 @@ async fn read_section(
             }
             metadata(&response.sessions, |row| {
                 auth_contract::admit_session_metadata(row).is_ok()
-                    && row.account_id.value == lease.account_id().as_str()
+                    && auth_contract::SessionName::try_from(row.name.as_str())
+                        .is_ok_and(|name| &name.account() == lease.account_name())
             })?;
-            distinct(response.sessions.iter().map(|row| row.id.value.as_str()))?;
-            Ok(Payload::Sessions(response.sessions))
+            distinct(response.sessions.iter().map(|row| row.name.as_str()))?;
+            Ok(Payload::Sessions(ResourcePage::new(
+                response.sessions,
+                response.next_page_token,
+            )?))
         }
         Section::Factors => {
             let response = call!(
@@ -331,21 +352,32 @@ async fn read_section(
                 lease,
                 cancel,
                 connection.auth(),
-                list_factors,
-                auth::ListFactorsRequest {
-                    account_id: own.into(),
+                list_factor_credentials,
+                auth::ListFactorCredentialsRequest {
+                    parent: own.clone(),
+                    page_size: 100,
+                    page_token: page_token.clone(),
                     ..Default::default()
                 }
             );
             if !response.__buffa_unknown_fields.is_empty() {
                 return Err(ReadError::Invalid);
             }
-            metadata(&response.factors, |row| {
+            metadata(&response.factor_credentials, |row| {
                 auth_contract::admit_factor_metadata(row).is_ok()
-                    && row.account_id.value == lease.account_id().as_str()
+                    && auth_contract::FactorCredentialName::try_from(row.name.as_str())
+                        .is_ok_and(|name| &name.account() == lease.account_name())
             })?;
-            distinct(response.factors.iter().map(|row| row.id.value.as_str()))?;
-            Ok(Payload::Factors(response.factors))
+            distinct(
+                response
+                    .factor_credentials
+                    .iter()
+                    .map(|row| row.name.as_str()),
+            )?;
+            Ok(Payload::Factors(ResourcePage::new(
+                response.factor_credentials,
+                response.next_page_token,
+            )?))
         }
         Section::McpKeys => {
             let response = call!(
@@ -355,19 +387,25 @@ async fn read_section(
                 connection.mcp_keys(),
                 list_mcp_keys,
                 auth::ListMcpKeysRequest {
-                    account_id: own.into(),
+                    parent: own.clone(),
+                    page_size: 100,
+                    page_token: page_token.clone(),
                     ..Default::default()
                 }
             );
             if !response.__buffa_unknown_fields.is_empty() {
                 return Err(ReadError::Invalid);
             }
-            metadata(&response.keys, |row| {
+            metadata(&response.mcp_keys, |row| {
                 auth_contract::admit_mcp_key_metadata(row).is_ok()
-                    && row.account_id.value == lease.account_id().as_str()
+                    && auth_contract::McpKeyName::try_from(row.name.as_str())
+                        .is_ok_and(|name| &name.account() == lease.account_name())
             })?;
-            distinct(response.keys.iter().map(|row| row.id.value.as_str()))?;
-            Ok(Payload::Keys(response.keys))
+            distinct(response.mcp_keys.iter().map(|row| row.name.as_str()))?;
+            Ok(Payload::Keys(ResourcePage::new(
+                response.mcp_keys,
+                response.next_page_token,
+            )?))
         }
         Section::Accounts => {
             let response = call!(
@@ -376,11 +414,17 @@ async fn read_section(
                 cancel,
                 connection.accounts(),
                 list_accounts,
-                auth::ListAccountsRequest::default()
+                auth::ListAccountsRequest {
+                    parent: home.clone(),
+                    page_size: 100,
+                    page_token: page_token.clone(),
+                    ..Default::default()
+                }
             );
-            Ok(Payload::Accounts(
-                administration::admit_accounts(response).map_err(|_| ReadError::Invalid)?,
-            ))
+            Ok(Payload::Accounts(ResourcePage::new(
+                administration::admit_accounts(response.clone()).map_err(|_| ReadError::Invalid)?,
+                response.next_page_token,
+            )?))
         }
         Section::Invitations => {
             let response = call!(
@@ -389,7 +433,12 @@ async fn read_section(
                 cancel,
                 connection.accounts(),
                 list_invitations,
-                auth::ListInvitationsRequest::default()
+                auth::ListInvitationsRequest {
+                    parent: home.clone(),
+                    page_size: 100,
+                    page_token: page_token.clone(),
+                    ..Default::default()
+                }
             );
             if !response.__buffa_unknown_fields.is_empty() {
                 return Err(ReadError::Invalid);
@@ -397,103 +446,89 @@ async fn read_section(
             metadata(&response.invitations, |row| {
                 auth_contract::admit_invitation_metadata(row).is_ok()
             })?;
-            distinct(response.invitations.iter().map(|row| row.id.value.as_str()))?;
-            Ok(Payload::Invitations(response.invitations))
+            distinct(response.invitations.iter().map(|row| row.name.as_str()))?;
+            Ok(Payload::Invitations(ResourcePage::new(
+                response.invitations,
+                response.next_page_token,
+            )?))
         }
         Section::Policies => match selection {
             Some(Selection::Account(account)) => {
+                let name = format!("{}/authorizationPolicy", account.as_str());
                 let response = call!(
                     session,
                     lease,
                     cancel,
                     connection.policies(),
-                    get_policy,
-                    auth::GetPolicyRequest {
-                        account_id: auth::AccountId {
-                            value: account.as_str().into(),
-                            ..Default::default()
-                        }
-                        .into(),
+                    get_authorization_policy,
+                    auth::GetAuthorizationPolicyRequest {
+                        name: name.clone(),
                         ..Default::default()
                     }
                 );
                 authorization_contract::admit_get_response(&response)
                     .map_err(|_| ReadError::Invalid)?;
-                if let Some(auth::get_policy_response::Result::Present(value)) = &response.result
-                    && (value.account_id.value != account.as_str()
-                        || value.yaml_source.contains(&0)
-                        || value.version.source_sha256.as_slice()
-                            != &Sha256::digest(&value.yaml_source)[..])
-                {
+                if response.name != name || response.yaml_source.contains(&0) {
                     return Err(ReadError::Invalid);
                 }
                 Ok(Payload::Policy { account, response })
             }
-            Some(Selection::Integration(_) | Selection::Configuration(_) | Selection::Logic(_))
-            | None => {
+            Some(Selection::Integration(_) | Selection::Configuration(_)) | None => {
                 let response = call!(
                     session,
                     lease,
                     cancel,
                     connection.accounts(),
                     list_accounts,
-                    auth::ListAccountsRequest::default()
+                    auth::ListAccountsRequest {
+                        parent: home.clone(),
+                        page_size: 100,
+                        page_token: page_token.clone(),
+                        ..Default::default()
+                    }
                 );
-                Ok(Payload::Accounts(
-                    administration::admit_accounts(response).map_err(|_| ReadError::Invalid)?,
-                ))
+                Ok(Payload::Accounts(ResourcePage::new(
+                    administration::admit_accounts(response.clone())
+                        .map_err(|_| ReadError::Invalid)?,
+                    response.next_page_token,
+                )?))
             }
         },
         Section::Integrations => match selection {
             Some(Selection::Integration(id)) => {
-                let response = call!(
+                let instance = call!(
                     session,
                     lease,
                     cancel,
                     connection.integrations(),
                     get_instance,
-                    integration::GetInstanceRequest {
-                        integration_instance_id: id.as_str().into(),
+                    integration::GetIntegrationInstanceRequest {
+                        name: id.as_str().into(),
                         ..Default::default()
                     }
                 );
-                if !response.__buffa_unknown_fields.is_empty()
-                    || response.instance.integration_instance_id != id.as_str()
-                {
+                if instance.name != id.as_str() {
                     return Err(ReadError::Invalid);
                 }
-                administration::admit_integration_instance(
-                    response.instance.as_option().ok_or(ReadError::Invalid)?,
-                )
-                .map_err(|_| ReadError::Invalid)?;
-                configuration_contract::admit_configuration_read(
-                    response.document.as_option().ok_or(ReadError::Invalid)?,
-                )
-                .map_err(|_| ReadError::Invalid)?;
+                administration::admit_integration_instance(&instance)
+                    .map_err(|_| ReadError::Invalid)?;
                 let kind = (async {
-                    if response.instance.type_id.is_empty() {
+                    if instance.integration_type.is_empty() {
                         return Err(ReadError::Unsupported);
                     }
-                    let kind_response = call!(
+                    let kind = call!(
                         session,
                         lease,
                         cancel,
                         connection.integrations(),
                         get_type,
                         integration::GetIntegrationTypeRequest {
-                            type_id: response.instance.type_id.clone(),
+                            name: instance.integration_type.clone(),
                             ..Default::default()
                         }
                     );
-                    if !kind_response.__buffa_unknown_fields.is_empty() {
-                        return Err(ReadError::Invalid);
-                    }
-                    let kind = kind_response
-                        .r#type
-                        .into_option()
-                        .ok_or(ReadError::Invalid)?;
                     self::kind(&kind)?;
-                    if kind.type_id != response.instance.type_id {
+                    if kind.name != instance.integration_type {
                         return Err(ReadError::Invalid);
                     }
                     Ok(kind)
@@ -507,93 +542,132 @@ async fn read_section(
                         connection.observability(),
                         get_integration_health,
                         observation::GetIntegrationHealthRequest {
-                            integration_instance_id: id.as_str().into(),
+                            name: format!("{}/health", instance.name),
                             ..Default::default()
                         }
                     );
+                    if health.name != format!("{}/health", instance.name) {
+                        return Err(ReadError::Invalid);
+                    }
                     observability_contract::admit_integration_health_response(&health)
                         .map_err(|_| ReadError::Invalid)?;
                     Ok(health)
                 })
                 .await;
                 Ok(Payload::Integration(Box::new(IntegrationDetail {
-                    response,
+                    instance,
                     kind,
                     health,
                 })))
             }
-            Some(Selection::Account(_) | Selection::Configuration(_) | Selection::Logic(_))
-            | None => {
+            Some(Selection::Account(_) | Selection::Configuration(_)) | None => {
+                let parent =
+                    super::configuration::home_name(session, connection, lease, cancel).await?;
                 let types = call!(
                     session,
                     lease,
                     cancel,
                     connection.integrations(),
                     list_types,
-                    integration::ListIntegrationTypesRequest::default()
+                    integration::ListIntegrationTypesRequest {
+                        parent: parent.clone(),
+                        page_size: 64,
+                        ..Default::default()
+                    }
                 );
-                if !types.__buffa_unknown_fields.is_empty() {
+                if !types.__buffa_unknown_fields.is_empty() || !types.next_page_token.is_empty() {
                     return Err(ReadError::Invalid);
                 }
-                metadata(&types.types, |row| kind(row).is_ok())?;
-                distinct(types.types.iter().map(|row| row.type_id.as_str()))?;
+                metadata(&types.integration_types, |row| kind(row).is_ok())?;
+                distinct(types.integration_types.iter().map(|row| row.name.as_str()))?;
+                distinct(
+                    types
+                        .integration_types
+                        .iter()
+                        .map(|row| row.type_key.as_str()),
+                )?;
                 let response = call!(
                     session,
                     lease,
                     cancel,
                     connection.integrations(),
                     list_instances,
-                    integration::ListInstancesRequest::default()
+                    integration::ListIntegrationInstancesRequest {
+                        parent: parent.clone(),
+                        page_size: 100,
+                        ..Default::default()
+                    }
                 );
                 if !response.__buffa_unknown_fields.is_empty() {
                     return Err(ReadError::Invalid);
                 }
-                metadata(&response.instances, |row| {
+                metadata(&response.integration_instances, |row| {
                     administration::admit_integration_instance(row).is_ok()
                 })?;
                 distinct(
                     response
-                        .instances
+                        .integration_instances
                         .iter()
-                        .map(|row| row.integration_instance_id.as_str()),
+                        .map(|row| row.name.as_str()),
                 )?;
-                configuration_contract::admit_configuration_read(
-                    response.document.as_option().ok_or(ReadError::Invalid)?,
-                )
-                .map_err(|_| ReadError::Invalid)?;
+                distinct(
+                    response
+                        .integration_instances
+                        .iter()
+                        .map(|row| row.instance_key.as_str()),
+                )?;
                 Ok(Payload::Integrations(Box::new(IntegrationList {
-                    types: types.types,
+                    parent,
+                    types: types.integration_types,
                     response,
                 })))
             }
         },
         Section::Health => {
+            let parent =
+                super::configuration::home_name(session, connection, lease, cancel).await?;
             let response = call!(
                 session,
                 lease,
                 cancel,
                 connection.observability(),
                 get_health,
-                observation::GetHealthRequest::default()
+                observation::GetHealthRequest {
+                    name: format!("{parent}/health"),
+                    ..Default::default()
+                }
             );
+            if response.name != format!("{parent}/health") {
+                return Err(ReadError::Invalid);
+            }
             observability_contract::admit_health_response(&response)
                 .map_err(|_| ReadError::Invalid)?;
             Ok(Payload::Health(Box::new(response)))
         }
         Section::Metrics => {
+            let parent =
+                super::configuration::home_name(session, connection, lease, cancel).await?;
             let response = call!(
                 session,
                 lease,
                 cancel,
                 connection.observability(),
                 get_metrics,
-                observation::GetMetricsRequest::default()
+                observation::GetMetricsRequest {
+                    name: format!("{parent}/metrics"),
+                    ..Default::default()
+                }
             );
+            if response.name != format!("{parent}/metrics") {
+                return Err(ReadError::Invalid);
+            }
             observability_contract::admit_metrics_response(&response)
                 .map_err(|_| ReadError::Invalid)?;
             Ok(Payload::Metrics(Box::new(response)))
         }
         Section::Logs => {
+            let parent =
+                super::configuration::home_name(session, connection, lease, cancel).await?;
             let response = call!(
                 session,
                 lease,
@@ -601,8 +675,9 @@ async fn read_section(
                 connection.observability(),
                 query_runtime_logs,
                 observation::QueryRuntimeLogsRequest {
-                    page_size: Some(100),
-                    page_token: page.map(|value| value.0),
+                    parent,
+                    page_size: 100,
+                    page_token: page.map(|value| value.0).unwrap_or_default(),
                     ..Default::default()
                 }
             );
@@ -611,6 +686,8 @@ async fn read_section(
             Ok(Payload::Logs(Box::new(response)))
         }
         Section::Audits | Section::SecretAudits => {
+            let parent =
+                super::configuration::home_name(session, connection, lease, cancel).await?;
             let response = call!(
                 session,
                 lease,
@@ -618,9 +695,10 @@ async fn read_section(
                 connection.observability(),
                 query_audits,
                 observation::QueryAuditsRequest {
+                    parent,
                     source: section.audit_source().expect("audit section").into(),
-                    page_size: Some(100),
-                    page_token: page.map(|value| value.0),
+                    page_size: 100,
+                    page_token: page.map(|value| value.0).unwrap_or_default(),
                     ..Default::default()
                 }
             );

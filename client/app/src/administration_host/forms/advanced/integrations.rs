@@ -2,7 +2,8 @@ use super::super::super::read::{IntegrationDetail, IntegrationList};
 use super::*;
 use crate::administration::{self, IntegrationDraft, IntegrationId};
 use home_wire_contract::{
-    home::{configuration::v1 as config, integrationadmin::v1 as integration},
+    google::longrunning,
+    home::api::v2 as integration,
     integration_admin_contract::{self, IntegrationAdminRequest},
 };
 
@@ -12,10 +13,10 @@ pub(in crate::administration_host) enum DesiredState {
     Disabled,
 }
 impl DesiredState {
-    fn wire(self) -> integration::DesiredState {
+    fn wire(self) -> integration::IntegrationDesiredState {
         match self {
-            Self::Enabled => integration::DesiredState::Enabled,
-            Self::Disabled => integration::DesiredState::Disabled,
+            Self::Enabled => integration::IntegrationDesiredState::Enabled,
+            Self::Disabled => integration::IntegrationDesiredState::Disabled,
         }
     }
 }
@@ -58,50 +59,56 @@ impl IntegrationCommand {
 }
 pub(in crate::administration_host::forms) enum IntegrationForm {
     Create {
+        parent: String,
         types: Vec<integration::IntegrationType>,
         selected: Option<IntegrationTypeId>,
         id: String,
         source: Zeroizing<String>,
         references: Zeroizing<String>,
-        expected: integration::MutationPrecondition,
     },
     Update(IntegrationDraft),
     Delete {
-        id: IntegrationId,
-        expected: integration::MutationPrecondition,
+        name: IntegrationId,
+        instance_key: String,
+        etag: String,
     },
-    SetEnabled(integration::SetInstanceEnabledRequest),
+    SetEnabled {
+        instance_key: String,
+        request: integration::UpdateIntegrationInstanceRequest,
+    },
 }
 impl IntegrationForm {
     pub fn open(command: &IntegrationCommand) -> Result<Self, &'static str> {
         match command {
             IntegrationCommand::Create(value) => Ok(Self::Create {
+                parent: value.parent.clone(),
                 types: value.types.clone(),
                 selected: None,
                 id: String::new(),
                 source: Zeroizing::new(String::new()),
                 references: Zeroizing::new(String::new()),
-                expected: administration::mutation_precondition(&value.response.document)
-                    .map_err(|_| "The workspace version is unavailable for writing.")?,
             }),
-            IntegrationCommand::Update(value) => {
-                IntegrationDraft::open(&value.response.instance, &value.response.document)
-                    .map(Self::Update)
-                    .map_err(|_| "This configuration is read-only.")
+            IntegrationCommand::Update(value) => IntegrationDraft::open(&value.instance)
+                .map(Self::Update)
+                .map_err(|_| "This configuration is read-only."),
+            IntegrationCommand::Delete(value) => {
+                administration::admit_integration_instance(&value.instance)
+                    .map_err(|_| "The workspace version is unavailable for writing.")?;
+                Ok(Self::Delete {
+                    name: IntegrationId::parse(&value.instance.name)
+                        .map_err(|_| "Invalid identity.")?,
+                    instance_key: value.instance.instance_key.clone(),
+                    etag: value.instance.etag.clone(),
+                })
             }
-            IntegrationCommand::Delete(value) => Ok(Self::Delete {
-                id: IntegrationId::parse(&value.response.instance.integration_instance_id)
-                    .map_err(|_| "Invalid identity.")?,
-                expected: administration::mutation_precondition(&value.response.document)
-                    .map_err(|_| "The workspace version is unavailable for writing.")?,
-            }),
-            IntegrationCommand::SetEnabled { detail, state } => administration::prepare_enabled(
-                &detail.response.instance,
-                &detail.response.document,
-                state.wire(),
-            )
-            .map(Self::SetEnabled)
-            .map_err(|_| "The workspace version is unavailable for writing."),
+            IntegrationCommand::SetEnabled { detail, state } => {
+                let request = administration::prepare_enabled(&detail.instance, state.wire())
+                    .map_err(|_| "The workspace version is unavailable for writing.")?;
+                Ok(Self::SetEnabled {
+                    instance_key: detail.instance.instance_key.clone(),
+                    request,
+                })
+            }
         }
     }
     pub fn fields(&self) -> Vec<ProAdminField> {
@@ -127,7 +134,7 @@ impl IntegrationForm {
                 ];
                 if let Some(kind) = selected
                     .as_ref()
-                    .and_then(|id| types.iter().find(|kind| kind.type_id == id.0.as_str()))
+                    .and_then(|id| types.iter().find(|kind| kind.name == id.0.as_str()))
                 {
                     fields.push(field(
                         Field::Schema,
@@ -144,7 +151,7 @@ impl IntegrationForm {
                     field(
                         Field::Identity,
                         "Affected Instance",
-                        value.id().as_str(),
+                        value.instance_key(),
                         false,
                         false,
                     ),
@@ -160,24 +167,24 @@ impl IntegrationForm {
                     fields.push(field(
                         Field::References,
                         &format!("Retained reference · {}", reference.field),
-                        &reference.name,
+                        &reference.secret_key,
                         false,
                         false,
                     ));
                 }
                 fields
             }
-            Self::Delete { id, .. } => vec![field(
+            Self::Delete { instance_key, .. } => vec![field(
                 Field::Identity,
                 "Instance to Delete",
-                id.as_str(),
+                instance_key,
                 false,
                 false,
             )],
-            Self::SetEnabled(request) => vec![field(
+            Self::SetEnabled { instance_key, .. } => vec![field(
                 Field::Identity,
                 "Affected Instance",
-                &request.integration_instance_id,
+                instance_key,
                 false,
                 false,
             )],
@@ -194,14 +201,14 @@ impl IntegrationForm {
                     choice(
                         ChoiceField::IntegrationType,
                         i32::try_from(index + 1).expect("bounded catalogue"),
-                        &kind.type_id,
+                        &kind.type_key,
                         selected
                             .as_ref()
-                            .is_some_and(|id| id.0.as_str() == kind.type_id),
+                            .is_some_and(|id| id.0.as_str() == kind.name),
                     )
                 })
                 .collect(),
-            Self::Update(_) | Self::Delete { .. } | Self::SetEnabled(_) => Vec::new(),
+            Self::Update(_) | Self::Delete { .. } | Self::SetEnabled { .. } => Vec::new(),
         }
     }
     pub fn edit(&mut self, token: i32, value: String) -> Result<(), &'static str> {
@@ -240,7 +247,7 @@ impl IntegrationForm {
                         .map_err(|_| "The public fragment is invalid or no longer editable.")?;
                 }
             }
-            Self::Delete { .. } | Self::SetEnabled(_) => (),
+            Self::Delete { .. } | Self::SetEnabled { .. } => (),
         }
         Ok(())
     }
@@ -257,7 +264,7 @@ impl IntegrationForm {
             && index < types.len()
         {
             *selected = Some(IntegrationTypeId(
-                IntegrationId::parse(&types[index].type_id)
+                IntegrationId::parse(&types[index].name)
                     .map_err(|_| "Invalid integration type.")?,
             ));
         }
@@ -266,16 +273,16 @@ impl IntegrationForm {
     pub fn submit(&self) -> Result<Operation, &'static str> {
         match self {
             Self::Create {
+                parent,
                 types,
                 selected,
                 id,
                 source,
                 references,
-                expected,
             } => {
                 let kind = selected
                     .as_ref()
-                    .and_then(|id| types.iter().find(|kind| kind.type_id == id.0.as_str()))
+                    .and_then(|id| types.iter().find(|kind| kind.name == id.0.as_str()))
                     .ok_or("Select a server-provided integration type.")?;
                 IntegrationId::parse(id).map_err(|_| "Enter a valid instance ID.")?;
                 fragment(source)?;
@@ -296,25 +303,32 @@ impl IntegrationForm {
                     {
                         return Err("A reference is empty, duplicated or invalid.");
                     }
-                    secrets.push(integration::SecretReference {
+                    secrets.push(integration::IntegrationSecretReference {
                         field: field.into(),
-                        name: name.into(),
-                        integration_instance_id: id.clone(),
+                        secret_key: name.into(),
+                        instance_key: id.clone(),
                         ..Default::default()
                     });
                 }
-                let request = integration::CreateInstanceRequest {
-                    type_id: kind.type_id.clone(),
-                    integration_instance_id: id.clone(),
-                    desired_state: integration::DesiredState::Disabled.into(),
-                    configuration: integration::PublicConfiguration {
-                        schema_version: kind.schema_version.clone(),
-                        yaml_source: source.as_bytes().to_vec(),
-                        secrets,
+                let request = integration::CreateIntegrationInstanceRequest {
+                    parent: parent.clone(),
+                    integration_instance: integration::IntegrationInstance {
+                        integration_type: kind.name.clone(),
+                        instance_key: id.clone(),
+                        desired_state: integration::IntegrationDesiredState::Disabled.into(),
+                        configuration: Some(
+                            integration::integration_instance::Configuration::Editable(Box::new(
+                                integration::IntegrationConfiguration {
+                                    schema_version: kind.schema_version.clone(),
+                                    yaml_source: source.as_bytes().to_vec(),
+                                    secrets,
+                                    ..Default::default()
+                                },
+                            )),
+                        ),
                         ..Default::default()
                     }
                     .into(),
-                    precondition: expected.clone().into(),
                     ..Default::default()
                 };
                 integration_admin_contract::admit_integration_admin_request(
@@ -327,10 +341,10 @@ impl IntegrationForm {
                 .prepare_update()
                 .map(Operation::Update)
                 .map_err(|_| "The public fragment or its references are invalid."),
-            Self::Delete { id, expected } => {
-                let request = integration::DeleteInstanceRequest {
-                    integration_instance_id: id.as_str().into(),
-                    precondition: expected.clone().into(),
+            Self::Delete { name, etag, .. } => {
+                let request = integration::DeleteIntegrationInstanceRequest {
+                    name: name.as_str().into(),
+                    etag: etag.clone(),
                     ..Default::default()
                 };
                 integration_admin_contract::admit_integration_admin_request(
@@ -339,7 +353,7 @@ impl IntegrationForm {
                 .map_err(|_| "Invalid deletion preconditions.")?;
                 Ok(Operation::Delete(request))
             }
-            Self::SetEnabled(request) => Ok(Operation::SetEnabled(request.clone())),
+            Self::SetEnabled { request, .. } => Ok(Operation::Update(request.clone())),
         }
     }
 }
@@ -350,15 +364,6 @@ fn fragment(value: &str) -> Result<(), &'static str> {
         Ok(())
     }
 }
-pub(super) fn activation(
-    value: &config::ActivationResult,
-    document: &config::ReadDocumentResponse,
-) -> Completion {
-    let state =
-        if home_wire_contract::configuration_contract::admit_configuration_read(document).is_ok() {
-            MutationState::activation(value).unwrap_or(MutationState::Uncertain)
-        } else {
-            MutationState::Uncertain
-        };
-    Completion::state(state)
+pub(super) fn operation(value: &longrunning::Operation) -> Completion {
+    Completion::state(MutationState::integration_operation(value).unwrap_or(MutationState::Uncertain))
 }

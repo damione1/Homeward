@@ -6,7 +6,7 @@ use crate::{
     dashboard_layout::NodeId,
     device_view::{DeviceStore, NativePrepared},
 };
-use home_client_model::{EntityId, dashboard::Destination};
+use home_client_model::{api::EntityName, dashboard::Destination};
 use slint::ComponentHandle;
 use std::{cell::RefCell, rc::Rc, sync::Arc, time::Duration};
 
@@ -33,7 +33,7 @@ pub(crate) struct SavedView {
     query: String,
     room: Option<RoomId>,
     native: Option<Destination>,
-    detail: Option<EntityId>,
+    detail: Option<EntityName>,
     origin: Option<NodeId>,
     home_scroll: f32,
     room_scroll: f32,

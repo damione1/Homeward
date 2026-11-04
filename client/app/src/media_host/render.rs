@@ -4,14 +4,14 @@ use crate::{
     ProMediaOption, ProMediaOptionKind, ProMediaPresentation, ProValueKind, ProValueMode,
     media::{Data, Field, Refusal},
 };
-use buffa::EnumValue;
-use home_client_session::{Generation, SessionCoordinator};
-use home_wire_contract::{
-    home::{media::v1 as wire, state::v1 as observation},
-    media_contract as admit,
+use home_client_model::{
+    api_media::{MediaDataProvenance, MediaOperation},
+    api_observations::{Availability, Freshness, Provenance},
+    api_playback::PlaybackState,
 };
+use home_client_session::{Generation, SessionCoordinator};
 use slint::{Model, ModelRc, SharedString};
-use std::{collections::BTreeMap, sync::Arc, time::SystemTime};
+use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) struct Projection {
     guard: Option<(SessionCoordinator, Generation)>,
@@ -29,8 +29,7 @@ pub(super) struct Projection {
 }
 impl Projection {
     pub fn new(state: &State, guard: Option<(SessionCoordinator, Generation)>) -> Self {
-        let (_, label, detail) =
-            crate::device_view::progress::presentation(state.progress.as_deref());
+        let (_, label, detail) = super::progress::presentation(state.progress.as_deref());
         Self {
             guard,
             generation: state.generation,
@@ -74,20 +73,20 @@ pub(super) fn refusal(value: Refusal) -> &'static str {
         Refusal::Contract => "The server response is incompatible.",
         Refusal::Unsupported => "This action is not declared for this player.",
         Refusal::Permission => "Command not sent: permissions or capabilities changed.",
-        Refusal::Invalid => "Enter a positive number without an exponent.",
+        Refusal::Invalid => "Enter a nonnegative number without an exponent.",
+        Refusal::ContextUnavailable => "Unable to prepare this command. No request was sent.",
         Refusal::Precision => "Too many decimal places for this quantity.",
         Refusal::Bounds => "The value exceeds the player’s limits.",
         Refusal::Step => "The value does not match the player’s step.",
     }
 }
-fn operation(value: wire::Operation) -> Option<(ProMediaOperation, &'static str)> {
+fn operation(value: MediaOperation) -> (ProMediaOperation, &'static str) {
     match value {
-        wire::Operation::Play => Some((ProMediaOperation::Play, "Play")),
-        wire::Operation::Pause => Some((ProMediaOperation::Pause, "Pause")),
-        wire::Operation::Stop => Some((ProMediaOperation::Stop, "Stop")),
-        wire::Operation::Previous => Some((ProMediaOperation::Previous, "Previous")),
-        wire::Operation::Next => Some((ProMediaOperation::Next, "Next")),
-        wire::Operation::Unspecified => None,
+        MediaOperation::Play => (ProMediaOperation::Play, "Play"),
+        MediaOperation::Pause => (ProMediaOperation::Pause, "Pause"),
+        MediaOperation::Stop => (ProMediaOperation::Stop, "Stop"),
+        MediaOperation::Previous => (ProMediaOperation::Previous, "Previous"),
+        MediaOperation::Next => (ProMediaOperation::Next, "Next"),
     }
 }
 fn field(data: &Data, field: Field, draft: &Draft) -> Option<ProDeviceValue> {
@@ -109,8 +108,8 @@ fn field(data: &Data, field: Field, draft: &Draft) -> Option<ProDeviceValue> {
         description: format!("Server observation: {reading}. Editing is a separate action.").into(),
         lower: draft.text.clone().into(),
         lower_position: draft.value.map_or(0., |q| data.position(q)),
-        slider_enabled: limits.minimum < limits.maximum,
-        can_step: limits.minimum < limits.maximum,
+        slider_enabled: draft.value.is_some() && limits.minimum() < limits.maximum(),
+        can_step: draft.value.is_some() && limits.minimum() < limits.maximum(),
         error: draft.error.clone().into(),
         ..Default::default()
     })
@@ -193,9 +192,16 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         return;
     };
     let snapshot = data.snapshot();
-    let progress = snapshot
-        .position_millis
-        .zip(snapshot.duration_millis)
+    let reading = snapshot.observation();
+    let definition = snapshot.definition();
+    let position = reading
+        .and_then(|reading| reading.position())
+        .map(|value| value.value() as u64);
+    let duration = reading
+        .and_then(|reading| reading.duration())
+        .map(|value| value.value() as u64);
+    let progress = position
+        .zip(duration)
         .filter(|(position, duration)| *duration > 0 && position <= duration);
     window.set_media_progress_known(progress.is_some());
     window.set_media_progress(
@@ -214,61 +220,76 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             format!("{}:{:02}", seconds / 60, seconds % 60)
         }
     };
-    window.set_media_position_label(
-        snapshot
-            .position_millis
-            .map(time_label)
-            .unwrap_or_default()
-            .into(),
-    );
-    window.set_media_duration_label(
-        snapshot
-            .duration_millis
-            .map(time_label)
-            .unwrap_or_default()
-            .into(),
-    );
-    let playback = match snapshot.playback {
-        EnumValue::Known(wire::PlaybackState::Playing) => "Playing",
-        EnumValue::Known(wire::PlaybackState::Paused) => "Paused",
-        EnumValue::Known(wire::PlaybackState::Stopped) => "Stopped",
-        EnumValue::Known(wire::PlaybackState::Buffering) => "Buffering",
-        EnumValue::Known(wire::PlaybackState::Unspecified) => match snapshot.powered_on {
-            Some(true) => "On",
-            Some(false) => "Off",
-            None => "Playback unknown",
-        },
-        EnumValue::Unknown(_) => "Playback unsupported",
+    window.set_media_position_label(position.map(time_label).unwrap_or_default().into());
+    window.set_media_duration_label(duration.map(time_label).unwrap_or_default().into());
+    let playback = match reading
+        .map(|reading| reading.playback())
+        .unwrap_or(PlaybackState::Unknown)
+    {
+        PlaybackState::Playing => "Playing",
+        PlaybackState::Paused => "Paused",
+        PlaybackState::Stopped => "Stopped",
+        PlaybackState::Buffering => "Buffering",
+        PlaybackState::Unknown => "Playback unknown",
     };
-    let quality = crate::cache_view::quality_text(&observation::ObservedState {
-        quality: snapshot.quality.clone(),
-        ..Default::default()
-    });
-    let received = snapshot
-        .received_at
-        .as_option()
-        .and_then(|t| chrono::DateTime::<chrono::Utc>::from_timestamp(t.seconds, t.nanos as u32))
-        .map(|t| format!("Received {}", t.format("%Y-%m-%d %H:%M:%S%.3f UTC")))
-        .unwrap_or_else(|| "Timestamp not provided".into());
+    let playback = match reading.and_then(|reading| reading.powered_on()) {
+        Some(true) => format!("{playback} · Power ON"),
+        Some(false) => format!("{playback} · Power OFF"),
+        None => playback.to_owned(),
+    };
+    let quality = reading
+        .map(|reading| {
+            let quality = reading.quality();
+            let availability = match quality.availability() {
+                Availability::Available => "Available",
+                Availability::Unavailable => "Unavailable",
+                Availability::Unknown => "Availability unknown",
+                Availability::Unspecified => "Availability not specified",
+            };
+            let freshness = match quality.freshness() {
+                Freshness::Current => "Current",
+                Freshness::Stale => "Stale",
+                Freshness::Unspecified => "Freshness unknown",
+            };
+            let provenance = match quality.provenance() {
+                Provenance::Observed => "Observed",
+                Provenance::Derived => "Derived",
+                Provenance::Restored => "Restored",
+                Provenance::Estimated => "Estimated",
+                Provenance::Unspecified => "Observation origin unknown",
+            };
+            format!("{availability} · {freshness} · {provenance}")
+        })
+        .unwrap_or_else(|| "Observation not provided".to_owned());
+    let data_origin = match snapshot.data_provenance() {
+        MediaDataProvenance::Observed => "Installation data",
+        MediaDataProvenance::Synthetic => "ISOLATED MOCK · No real devices",
+    };
+    let observed = reading
+        .and_then(|reading| reading.observed_time())
+        .and_then(|time| {
+            chrono::DateTime::<chrono::Utc>::from_timestamp(time.seconds(), time.nanos() as u32)
+        })
+        .map(|time| format!("Observed {}", time.format("%Y-%m-%d %H:%M:%S%.3f UTC")))
+        .unwrap_or_else(|| "Observation time not provided".to_owned());
     let mut presentation = ProMediaPresentation {
         token: 1,
         generation: value.generation,
-        title: snapshot
-            .title
-            .clone()
-            .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| "Title not provided".into())
+        title: reading
+            .and_then(|reading| reading.title())
+            .unwrap_or("Title not provided")
             .into(),
-        subtitle: snapshot.artist.clone().unwrap_or_default().into(),
-        collection: snapshot.collection.clone().unwrap_or_default().into(),
+        subtitle: reading
+            .and_then(|reading| reading.artist())
+            .unwrap_or_default()
+            .into(),
+        collection: reading
+            .and_then(|reading| reading.collection())
+            .unwrap_or_default()
+            .into(),
         playback: playback.into(),
-        quality: [quality.as_str(), snapshot.provenance.as_str()]
-            .into_iter()
-            .filter(|v| !v.is_empty())
-            .collect::<Vec<_>>()
-            .join(" · ")
-            .into(),
-        freshness: received.into(),
+        quality: format!("{quality} · {data_origin}").into(),
+        freshness: observed.into(),
         notice: value.action.into(),
         ..Default::default()
     };
@@ -279,8 +300,11 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         Picture::Denied => (ProArtworkState::Denied, "Artwork unauthorized"),
         Picture::Expired => (ProArtworkState::Expired, "Artwork expired"),
         Picture::Failed => (ProArtworkState::Failed, "Artwork unavailable"),
-        Picture::Ready(image) => match image.expires().duration_since(SystemTime::now()) {
-            Ok(duration) => {
+        Picture::Ready(image) => match image
+            .deadline()
+            .checked_duration_since(std::time::Instant::now())
+        {
+            Some(duration) => {
                 remaining = duration.as_millis().saturating_add(1).min(i32::MAX as u128) as i32;
                 presentation.artwork = if window.get_media_artwork_id() == value.picture_id {
                     window.get_media_data().artwork
@@ -294,9 +318,15 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                     )
                 };
                 window.set_media_artwork_id(value.picture_id);
-                (ProArtworkState::Ready, "Media Artwork")
+                (
+                    ProArtworkState::Ready,
+                    match image.provenance() {
+                        MediaDataProvenance::Observed => "Installation artwork",
+                        MediaDataProvenance::Synthetic => "ISOLATED MOCK · Synthetic artwork",
+                    },
+                )
             }
-            Err(_) => (ProArtworkState::Expired, "Artwork expired"),
+            None => (ProArtworkState::Expired, "Artwork expired"),
         },
     };
     if state != ProArtworkState::Ready {
@@ -306,11 +336,12 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     presentation.artwork_label = label.into();
     window.set_media_artwork_remaining_ms(remaining);
     window.set_media_data(presentation);
-    let actions = snapshot
-        .capabilities
-        .operations
+    let actions = definition
+        .map(|definition| definition.operations())
+        .unwrap_or_default()
         .iter()
-        .filter_map(|op| admit::operation(*op).and_then(operation))
+        .copied()
+        .map(operation)
         .map(|(operation, label)| ProMediaAction {
             operation,
             label: label.into(),
@@ -332,55 +363,61 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             let (kind, options, selected) = match choice.kind {
                 ChoiceKind::Source => (
                     ProMediaOptionKind::Source,
-                    &snapshot.capabilities.sources,
-                    snapshot.source_id.as_deref(),
+                    definition
+                        .map(|definition| definition.sources())
+                        .unwrap_or_default(),
+                    reading
+                        .and_then(|reading| reading.source())
+                        .map(|source| source.as_str()),
                 ),
                 ChoiceKind::Group => (
                     ProMediaOptionKind::Group,
-                    &snapshot.capabilities.groups,
-                    snapshot.group_id.as_deref(),
+                    definition
+                        .map(|definition| definition.groups())
+                        .unwrap_or_default(),
+                    reading
+                        .and_then(|reading| reading.group())
+                        .map(|group| group.as_str()),
                 ),
             };
             options
                 .iter()
-                .find(|option| option.id == choice.id.0)
+                .find(|option| option.id().as_str() == choice.id.0)
                 .map(|option| ProMediaOption {
                     token: token.0,
                     kind,
-                    label: option.label.clone().into(),
+                    label: option.display_name().into(),
                     selected: selected == Some(choice.id.0.as_str()),
                 })
         })
         .collect::<Vec<_>>();
     window.set_media_options(rows(window.get_media_options(), options));
-    let group = snapshot
-        .group_id
-        .as_ref()
-        .and_then(|id| snapshot.capabilities.groups.iter().find(|g| g.id == *id))
-        .map(|g| g.label.as_str())
+    let group_id = reading.and_then(|reading| reading.group());
+    let groups = definition
+        .map(|definition| definition.groups())
+        .unwrap_or_default();
+    let members = reading.map(|reading| reading.members()).unwrap_or_default();
+    let group = group_id
+        .and_then(|id| groups.iter().find(|group| group.id() == id))
+        .map(|group| group.display_name())
         .unwrap_or("Media Group");
-    window.set_media_group_title(
-        if snapshot.group_id.is_some() || snapshot.members.len() > 1 {
-            group.into()
-        } else {
-            "".into()
-        },
-    );
+    window.set_media_group_title(if group_id.is_some() || members.len() > 1 {
+        group.into()
+    } else {
+        "".into()
+    });
     window.set_media_coordinator(
-        snapshot
-            .members
-            .iter()
-            .find(|m| m.entity_id == data.coordinator().as_str())
-            .map(|m| format!("Coordinator: {}", m.label))
-            .unwrap_or_else(|| "Coordinator not exposed".into())
+        data.coordinator()
+            .and_then(|coordinator| members.iter().find(|member| member.entity() == coordinator))
+            .map(|member| format!("Coordinator: {}", member.display_name()))
+            .unwrap_or_else(|| "Coordinator not exposed".to_owned())
             .into(),
     );
     window.set_media_members(rows(
         window.get_media_members(),
-        snapshot
-            .members
+        members
             .iter()
-            .map(|m| SharedString::from(m.label.as_str()))
+            .map(|member| SharedString::from(member.display_name()))
             .collect::<Vec<_>>(),
     ));
     window.set_media_publishing(false);

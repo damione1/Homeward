@@ -2,165 +2,165 @@
 
 ///Shorthand for `OwnedView<DescribeNotificationsRequestView<'static>>`.
 pub type OwnedDescribeNotificationsRequestView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::DescribeNotificationsRequestView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::DescribeNotificationsRequestView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<DescribeNotificationsResponseView<'static>>`.
 pub type OwnedDescribeNotificationsResponseView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::DescribeNotificationsResponseView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::DescribeNotificationsResponseView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<RegisterDestinationRequestView<'static>>`.
 pub type OwnedRegisterDestinationRequestView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::RegisterDestinationRequestView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RegisterDestinationRequestView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<RegisterDestinationResponseView<'static>>`.
 pub type OwnedRegisterDestinationResponseView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::RegisterDestinationResponseView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RegisterDestinationResponseView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<GetDestinationRequestView<'static>>`.
 pub type OwnedGetDestinationRequestView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::GetDestinationRequestView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDestinationRequestView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<GetDestinationResponseView<'static>>`.
 pub type OwnedGetDestinationResponseView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::GetDestinationResponseView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDestinationResponseView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<UpdateDestinationRequestView<'static>>`.
 pub type OwnedUpdateDestinationRequestView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::UpdateDestinationRequestView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::UpdateDestinationRequestView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<UpdateDestinationResponseView<'static>>`.
 pub type OwnedUpdateDestinationResponseView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::UpdateDestinationResponseView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::UpdateDestinationResponseView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<ReadInboxRequestView<'static>>`.
 pub type OwnedReadInboxRequestView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::ReadInboxRequestView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ReadInboxRequestView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<ReadInboxResponseView<'static>>`.
 pub type OwnedReadInboxResponseView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::ReadInboxResponseView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ReadInboxResponseView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<AcknowledgeDeliveryRequestView<'static>>`.
 pub type OwnedAcknowledgeDeliveryRequestView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::AcknowledgeDeliveryRequestView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::AcknowledgeDeliveryRequestView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<AcknowledgeDeliveryResponseView<'static>>`.
 pub type OwnedAcknowledgeDeliveryResponseView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::AcknowledgeDeliveryResponseView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::AcknowledgeDeliveryResponseView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<GetDeliveryRequestView<'static>>`.
 pub type OwnedGetDeliveryRequestView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::GetDeliveryRequestView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDeliveryRequestView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<GetDeliveryResponseView<'static>>`.
 pub type OwnedGetDeliveryResponseView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::GetDeliveryResponseView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDeliveryResponseView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<ResolveOpenRequestView<'static>>`.
 pub type OwnedResolveOpenRequestView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::ResolveOpenRequestView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ResolveOpenRequestView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<ResolveOpenResponseView<'static>>`.
 pub type OwnedResolveOpenResponseView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::ResolveOpenResponseView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ResolveOpenResponseView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<RevokeDestinationRequestView<'static>>`.
 pub type OwnedRevokeDestinationRequestView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::RevokeDestinationRequestView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RevokeDestinationRequestView<
         'static,
     >,
 >;
 ///Shorthand for `OwnedView<RevokeDestinationResponseView<'static>>`.
 pub type OwnedRevokeDestinationResponseView = ::buffa::view::OwnedView<
-    ::home_wire_contract::home::notifications::v1::__buffa::view::RevokeDestinationResponseView<
+    ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RevokeDestinationResponseView<
         'static,
     >,
 >;
 /// Full service name for this service.
-pub const NOTIFICATION_SERVICE_SERVICE_NAME: &str = "home.notifications.v1.NotificationService";
+pub const NOTIFICATION_SERVICE_SERVICE_NAME: &str = "home.testing.notifications.v1.NotificationService";
 /// Static [`Spec`](::connectrpc::Spec) for the `DescribeNotifications` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const NOTIFICATION_SERVICE_DESCRIBE_NOTIFICATIONS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/home.notifications.v1.NotificationService/DescribeNotifications",
+        "/home.testing.notifications.v1.NotificationService/DescribeNotifications",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `RegisterDestination` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const NOTIFICATION_SERVICE_REGISTER_DESTINATION_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/home.notifications.v1.NotificationService/RegisterDestination",
+        "/home.testing.notifications.v1.NotificationService/RegisterDestination",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `GetDestination` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const NOTIFICATION_SERVICE_GET_DESTINATION_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/home.notifications.v1.NotificationService/GetDestination",
+        "/home.testing.notifications.v1.NotificationService/GetDestination",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `UpdateDestination` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const NOTIFICATION_SERVICE_UPDATE_DESTINATION_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/home.notifications.v1.NotificationService/UpdateDestination",
+        "/home.testing.notifications.v1.NotificationService/UpdateDestination",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `ReadInbox` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const NOTIFICATION_SERVICE_READ_INBOX_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/home.notifications.v1.NotificationService/ReadInbox",
+        "/home.testing.notifications.v1.NotificationService/ReadInbox",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `AcknowledgeDelivery` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const NOTIFICATION_SERVICE_ACKNOWLEDGE_DELIVERY_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/home.notifications.v1.NotificationService/AcknowledgeDelivery",
+        "/home.testing.notifications.v1.NotificationService/AcknowledgeDelivery",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `GetDelivery` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const NOTIFICATION_SERVICE_GET_DELIVERY_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/home.notifications.v1.NotificationService/GetDelivery",
+        "/home.testing.notifications.v1.NotificationService/GetDelivery",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `ResolveOpen` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const NOTIFICATION_SERVICE_RESOLVE_OPEN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/home.notifications.v1.NotificationService/ResolveOpen",
+        "/home.testing.notifications.v1.NotificationService/ResolveOpen",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `RevokeDestination` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const NOTIFICATION_SERVICE_REVOKE_DESTINATION_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/home.notifications.v1.NotificationService/RevokeDestination",
+        "/home.testing.notifications.v1.NotificationService/RevokeDestination",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
@@ -229,12 +229,12 @@ pub trait NotificationService: Send + Sync + 'static {
         ctx: ::connectrpc::RequestContext,
         request: ::connectrpc::ServiceRequest<
             '_,
-            ::home_wire_contract::home::notifications::v1::DescribeNotificationsRequest,
+            ::home_wire_contract::home::testing::notifications::v1::DescribeNotificationsRequest,
         >,
     ) -> impl ::std::future::Future<
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
-                ::home_wire_contract::home::notifications::v1::DescribeNotificationsResponse,
+                ::home_wire_contract::home::testing::notifications::v1::DescribeNotificationsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -252,12 +252,12 @@ pub trait NotificationService: Send + Sync + 'static {
         ctx: ::connectrpc::RequestContext,
         request: ::connectrpc::ServiceRequest<
             '_,
-            ::home_wire_contract::home::notifications::v1::RegisterDestinationRequest,
+            ::home_wire_contract::home::testing::notifications::v1::RegisterDestinationRequest,
         >,
     ) -> impl ::std::future::Future<
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
-                ::home_wire_contract::home::notifications::v1::RegisterDestinationResponse,
+                ::home_wire_contract::home::testing::notifications::v1::RegisterDestinationResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -275,12 +275,12 @@ pub trait NotificationService: Send + Sync + 'static {
         ctx: ::connectrpc::RequestContext,
         request: ::connectrpc::ServiceRequest<
             '_,
-            ::home_wire_contract::home::notifications::v1::GetDestinationRequest,
+            ::home_wire_contract::home::testing::notifications::v1::GetDestinationRequest,
         >,
     ) -> impl ::std::future::Future<
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
-                ::home_wire_contract::home::notifications::v1::GetDestinationResponse,
+                ::home_wire_contract::home::testing::notifications::v1::GetDestinationResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -298,12 +298,12 @@ pub trait NotificationService: Send + Sync + 'static {
         ctx: ::connectrpc::RequestContext,
         request: ::connectrpc::ServiceRequest<
             '_,
-            ::home_wire_contract::home::notifications::v1::UpdateDestinationRequest,
+            ::home_wire_contract::home::testing::notifications::v1::UpdateDestinationRequest,
         >,
     ) -> impl ::std::future::Future<
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
-                ::home_wire_contract::home::notifications::v1::UpdateDestinationResponse,
+                ::home_wire_contract::home::testing::notifications::v1::UpdateDestinationResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -321,12 +321,12 @@ pub trait NotificationService: Send + Sync + 'static {
         ctx: ::connectrpc::RequestContext,
         request: ::connectrpc::ServiceRequest<
             '_,
-            ::home_wire_contract::home::notifications::v1::ReadInboxRequest,
+            ::home_wire_contract::home::testing::notifications::v1::ReadInboxRequest,
         >,
     ) -> impl ::std::future::Future<
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
-                ::home_wire_contract::home::notifications::v1::ReadInboxResponse,
+                ::home_wire_contract::home::testing::notifications::v1::ReadInboxResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -344,12 +344,12 @@ pub trait NotificationService: Send + Sync + 'static {
         ctx: ::connectrpc::RequestContext,
         request: ::connectrpc::ServiceRequest<
             '_,
-            ::home_wire_contract::home::notifications::v1::AcknowledgeDeliveryRequest,
+            ::home_wire_contract::home::testing::notifications::v1::AcknowledgeDeliveryRequest,
         >,
     ) -> impl ::std::future::Future<
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
-                ::home_wire_contract::home::notifications::v1::AcknowledgeDeliveryResponse,
+                ::home_wire_contract::home::testing::notifications::v1::AcknowledgeDeliveryResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -367,12 +367,12 @@ pub trait NotificationService: Send + Sync + 'static {
         ctx: ::connectrpc::RequestContext,
         request: ::connectrpc::ServiceRequest<
             '_,
-            ::home_wire_contract::home::notifications::v1::GetDeliveryRequest,
+            ::home_wire_contract::home::testing::notifications::v1::GetDeliveryRequest,
         >,
     ) -> impl ::std::future::Future<
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
-                ::home_wire_contract::home::notifications::v1::GetDeliveryResponse,
+                ::home_wire_contract::home::testing::notifications::v1::GetDeliveryResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -390,12 +390,12 @@ pub trait NotificationService: Send + Sync + 'static {
         ctx: ::connectrpc::RequestContext,
         request: ::connectrpc::ServiceRequest<
             '_,
-            ::home_wire_contract::home::notifications::v1::ResolveOpenRequest,
+            ::home_wire_contract::home::testing::notifications::v1::ResolveOpenRequest,
         >,
     ) -> impl ::std::future::Future<
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
-                ::home_wire_contract::home::notifications::v1::ResolveOpenResponse,
+                ::home_wire_contract::home::testing::notifications::v1::ResolveOpenResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -413,12 +413,12 @@ pub trait NotificationService: Send + Sync + 'static {
         ctx: ::connectrpc::RequestContext,
         request: ::connectrpc::ServiceRequest<
             '_,
-            ::home_wire_contract::home::notifications::v1::RevokeDestinationRequest,
+            ::home_wire_contract::home::testing::notifications::v1::RevokeDestinationRequest,
         >,
     ) -> impl ::std::future::Future<
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
-                ::home_wire_contract::home::notifications::v1::RevokeDestinationResponse,
+                ::home_wire_contract::home::testing::notifications::v1::RevokeDestinationResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -462,7 +462,7 @@ impl<S: NotificationService> NotificationServiceExt for S {
                     ::connectrpc::view_handler_fn(move |
                         ctx,
                         req: ::buffa::view::OwnedView<
-                            ::home_wire_contract::home::notifications::v1::__buffa::view::DescribeNotificationsRequestView<
+                            ::home_wire_contract::home::testing::notifications::v1::__buffa::view::DescribeNotificationsRequestView<
                                 'static,
                             >,
                         >,
@@ -471,12 +471,12 @@ impl<S: NotificationService> NotificationServiceExt for S {
                         let svc = ::std::sync::Arc::clone(&svc);
                         async move {
                             let sreq = ::connectrpc::ServiceRequest::<
-                                ::home_wire_contract::home::notifications::v1::DescribeNotificationsRequest,
+                                ::home_wire_contract::home::testing::notifications::v1::DescribeNotificationsRequest,
                             >::from_parts(req.reborrow(), req.bytes());
                             svc.describe_notifications(ctx, sreq)
                                 .await?
                                 .encode::<
-                                    ::home_wire_contract::home::notifications::v1::DescribeNotificationsResponse,
+                                    ::home_wire_contract::home::testing::notifications::v1::DescribeNotificationsResponse,
                                 >(format)
                         }
                     })
@@ -491,7 +491,7 @@ impl<S: NotificationService> NotificationServiceExt for S {
                     ::connectrpc::view_handler_fn(move |
                         ctx,
                         req: ::buffa::view::OwnedView<
-                            ::home_wire_contract::home::notifications::v1::__buffa::view::RegisterDestinationRequestView<
+                            ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RegisterDestinationRequestView<
                                 'static,
                             >,
                         >,
@@ -500,12 +500,12 @@ impl<S: NotificationService> NotificationServiceExt for S {
                         let svc = ::std::sync::Arc::clone(&svc);
                         async move {
                             let sreq = ::connectrpc::ServiceRequest::<
-                                ::home_wire_contract::home::notifications::v1::RegisterDestinationRequest,
+                                ::home_wire_contract::home::testing::notifications::v1::RegisterDestinationRequest,
                             >::from_parts(req.reborrow(), req.bytes());
                             svc.register_destination(ctx, sreq)
                                 .await?
                                 .encode::<
-                                    ::home_wire_contract::home::notifications::v1::RegisterDestinationResponse,
+                                    ::home_wire_contract::home::testing::notifications::v1::RegisterDestinationResponse,
                                 >(format)
                         }
                     })
@@ -520,7 +520,7 @@ impl<S: NotificationService> NotificationServiceExt for S {
                     ::connectrpc::view_handler_fn(move |
                         ctx,
                         req: ::buffa::view::OwnedView<
-                            ::home_wire_contract::home::notifications::v1::__buffa::view::GetDestinationRequestView<
+                            ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDestinationRequestView<
                                 'static,
                             >,
                         >,
@@ -529,12 +529,12 @@ impl<S: NotificationService> NotificationServiceExt for S {
                         let svc = ::std::sync::Arc::clone(&svc);
                         async move {
                             let sreq = ::connectrpc::ServiceRequest::<
-                                ::home_wire_contract::home::notifications::v1::GetDestinationRequest,
+                                ::home_wire_contract::home::testing::notifications::v1::GetDestinationRequest,
                             >::from_parts(req.reborrow(), req.bytes());
                             svc.get_destination(ctx, sreq)
                                 .await?
                                 .encode::<
-                                    ::home_wire_contract::home::notifications::v1::GetDestinationResponse,
+                                    ::home_wire_contract::home::testing::notifications::v1::GetDestinationResponse,
                                 >(format)
                         }
                     })
@@ -549,7 +549,7 @@ impl<S: NotificationService> NotificationServiceExt for S {
                     ::connectrpc::view_handler_fn(move |
                         ctx,
                         req: ::buffa::view::OwnedView<
-                            ::home_wire_contract::home::notifications::v1::__buffa::view::UpdateDestinationRequestView<
+                            ::home_wire_contract::home::testing::notifications::v1::__buffa::view::UpdateDestinationRequestView<
                                 'static,
                             >,
                         >,
@@ -558,12 +558,12 @@ impl<S: NotificationService> NotificationServiceExt for S {
                         let svc = ::std::sync::Arc::clone(&svc);
                         async move {
                             let sreq = ::connectrpc::ServiceRequest::<
-                                ::home_wire_contract::home::notifications::v1::UpdateDestinationRequest,
+                                ::home_wire_contract::home::testing::notifications::v1::UpdateDestinationRequest,
                             >::from_parts(req.reborrow(), req.bytes());
                             svc.update_destination(ctx, sreq)
                                 .await?
                                 .encode::<
-                                    ::home_wire_contract::home::notifications::v1::UpdateDestinationResponse,
+                                    ::home_wire_contract::home::testing::notifications::v1::UpdateDestinationResponse,
                                 >(format)
                         }
                     })
@@ -578,7 +578,7 @@ impl<S: NotificationService> NotificationServiceExt for S {
                     ::connectrpc::view_handler_fn(move |
                         ctx,
                         req: ::buffa::view::OwnedView<
-                            ::home_wire_contract::home::notifications::v1::__buffa::view::ReadInboxRequestView<
+                            ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ReadInboxRequestView<
                                 'static,
                             >,
                         >,
@@ -587,12 +587,12 @@ impl<S: NotificationService> NotificationServiceExt for S {
                         let svc = ::std::sync::Arc::clone(&svc);
                         async move {
                             let sreq = ::connectrpc::ServiceRequest::<
-                                ::home_wire_contract::home::notifications::v1::ReadInboxRequest,
+                                ::home_wire_contract::home::testing::notifications::v1::ReadInboxRequest,
                             >::from_parts(req.reborrow(), req.bytes());
                             svc.read_inbox(ctx, sreq)
                                 .await?
                                 .encode::<
-                                    ::home_wire_contract::home::notifications::v1::ReadInboxResponse,
+                                    ::home_wire_contract::home::testing::notifications::v1::ReadInboxResponse,
                                 >(format)
                         }
                     })
@@ -607,7 +607,7 @@ impl<S: NotificationService> NotificationServiceExt for S {
                     ::connectrpc::view_handler_fn(move |
                         ctx,
                         req: ::buffa::view::OwnedView<
-                            ::home_wire_contract::home::notifications::v1::__buffa::view::AcknowledgeDeliveryRequestView<
+                            ::home_wire_contract::home::testing::notifications::v1::__buffa::view::AcknowledgeDeliveryRequestView<
                                 'static,
                             >,
                         >,
@@ -616,12 +616,12 @@ impl<S: NotificationService> NotificationServiceExt for S {
                         let svc = ::std::sync::Arc::clone(&svc);
                         async move {
                             let sreq = ::connectrpc::ServiceRequest::<
-                                ::home_wire_contract::home::notifications::v1::AcknowledgeDeliveryRequest,
+                                ::home_wire_contract::home::testing::notifications::v1::AcknowledgeDeliveryRequest,
                             >::from_parts(req.reborrow(), req.bytes());
                             svc.acknowledge_delivery(ctx, sreq)
                                 .await?
                                 .encode::<
-                                    ::home_wire_contract::home::notifications::v1::AcknowledgeDeliveryResponse,
+                                    ::home_wire_contract::home::testing::notifications::v1::AcknowledgeDeliveryResponse,
                                 >(format)
                         }
                     })
@@ -636,7 +636,7 @@ impl<S: NotificationService> NotificationServiceExt for S {
                     ::connectrpc::view_handler_fn(move |
                         ctx,
                         req: ::buffa::view::OwnedView<
-                            ::home_wire_contract::home::notifications::v1::__buffa::view::GetDeliveryRequestView<
+                            ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDeliveryRequestView<
                                 'static,
                             >,
                         >,
@@ -645,12 +645,12 @@ impl<S: NotificationService> NotificationServiceExt for S {
                         let svc = ::std::sync::Arc::clone(&svc);
                         async move {
                             let sreq = ::connectrpc::ServiceRequest::<
-                                ::home_wire_contract::home::notifications::v1::GetDeliveryRequest,
+                                ::home_wire_contract::home::testing::notifications::v1::GetDeliveryRequest,
                             >::from_parts(req.reborrow(), req.bytes());
                             svc.get_delivery(ctx, sreq)
                                 .await?
                                 .encode::<
-                                    ::home_wire_contract::home::notifications::v1::GetDeliveryResponse,
+                                    ::home_wire_contract::home::testing::notifications::v1::GetDeliveryResponse,
                                 >(format)
                         }
                     })
@@ -665,7 +665,7 @@ impl<S: NotificationService> NotificationServiceExt for S {
                     ::connectrpc::view_handler_fn(move |
                         ctx,
                         req: ::buffa::view::OwnedView<
-                            ::home_wire_contract::home::notifications::v1::__buffa::view::ResolveOpenRequestView<
+                            ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ResolveOpenRequestView<
                                 'static,
                             >,
                         >,
@@ -674,12 +674,12 @@ impl<S: NotificationService> NotificationServiceExt for S {
                         let svc = ::std::sync::Arc::clone(&svc);
                         async move {
                             let sreq = ::connectrpc::ServiceRequest::<
-                                ::home_wire_contract::home::notifications::v1::ResolveOpenRequest,
+                                ::home_wire_contract::home::testing::notifications::v1::ResolveOpenRequest,
                             >::from_parts(req.reborrow(), req.bytes());
                             svc.resolve_open(ctx, sreq)
                                 .await?
                                 .encode::<
-                                    ::home_wire_contract::home::notifications::v1::ResolveOpenResponse,
+                                    ::home_wire_contract::home::testing::notifications::v1::ResolveOpenResponse,
                                 >(format)
                         }
                     })
@@ -694,7 +694,7 @@ impl<S: NotificationService> NotificationServiceExt for S {
                     ::connectrpc::view_handler_fn(move |
                         ctx,
                         req: ::buffa::view::OwnedView<
-                            ::home_wire_contract::home::notifications::v1::__buffa::view::RevokeDestinationRequestView<
+                            ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RevokeDestinationRequestView<
                                 'static,
                             >,
                         >,
@@ -703,12 +703,12 @@ impl<S: NotificationService> NotificationServiceExt for S {
                         let svc = ::std::sync::Arc::clone(&svc);
                         async move {
                             let sreq = ::connectrpc::ServiceRequest::<
-                                ::home_wire_contract::home::notifications::v1::RevokeDestinationRequest,
+                                ::home_wire_contract::home::testing::notifications::v1::RevokeDestinationRequest,
                             >::from_parts(req.reborrow(), req.bytes());
                             svc.revoke_destination(ctx, sreq)
                                 .await?
                                 .encode::<
-                                    ::home_wire_contract::home::notifications::v1::RevokeDestinationResponse,
+                                    ::home_wire_contract::home::testing::notifications::v1::RevokeDestinationResponse,
                                 >(format)
                         }
                     })
@@ -769,7 +769,8 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
         &self,
         path: &str,
     ) -> Option<::connectrpc::dispatcher::codegen::MethodDescriptor> {
-        let method = path.strip_prefix("home.notifications.v1.NotificationService/")?;
+        let method = path
+            .strip_prefix("home.testing.notifications.v1.NotificationService/")?;
         match method {
             "DescribeNotifications" => {
                 Some(
@@ -836,7 +837,7 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
         format: ::connectrpc::CodecFormat,
     ) -> ::connectrpc::dispatcher::codegen::UnaryResult {
         let Some(method) = path
-            .strip_prefix("home.notifications.v1.NotificationService/") else {
+            .strip_prefix("home.testing.notifications.v1.NotificationService/") else {
             return ::connectrpc::dispatcher::codegen::unimplemented_unary(path);
         };
         let _ = (&ctx, &request, &format);
@@ -845,21 +846,21 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
                     let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        ::home_wire_contract::home::notifications::v1::DescribeNotificationsRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::DescribeNotificationsRequest,
                     >(request.encoded()?, format)?;
-                    let req: ::home_wire_contract::home::notifications::v1::__buffa::view::DescribeNotificationsRequestView<
+                    let req: ::home_wire_contract::home::testing::notifications::v1::__buffa::view::DescribeNotificationsRequestView<
                         '_,
                     > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
                         &body,
                         ctx.decode_options(),
                     )?;
                     let req = ::connectrpc::ServiceRequest::<
-                        ::home_wire_contract::home::notifications::v1::DescribeNotificationsRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::DescribeNotificationsRequest,
                     >::from_parts(&req, &body);
                     svc.describe_notifications(ctx, req)
                         .await?
                         .encode::<
-                            ::home_wire_contract::home::notifications::v1::DescribeNotificationsResponse,
+                            ::home_wire_contract::home::testing::notifications::v1::DescribeNotificationsResponse,
                         >(format)
                 })
             }
@@ -867,21 +868,21 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
                     let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        ::home_wire_contract::home::notifications::v1::RegisterDestinationRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::RegisterDestinationRequest,
                     >(request.encoded()?, format)?;
-                    let req: ::home_wire_contract::home::notifications::v1::__buffa::view::RegisterDestinationRequestView<
+                    let req: ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RegisterDestinationRequestView<
                         '_,
                     > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
                         &body,
                         ctx.decode_options(),
                     )?;
                     let req = ::connectrpc::ServiceRequest::<
-                        ::home_wire_contract::home::notifications::v1::RegisterDestinationRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::RegisterDestinationRequest,
                     >::from_parts(&req, &body);
                     svc.register_destination(ctx, req)
                         .await?
                         .encode::<
-                            ::home_wire_contract::home::notifications::v1::RegisterDestinationResponse,
+                            ::home_wire_contract::home::testing::notifications::v1::RegisterDestinationResponse,
                         >(format)
                 })
             }
@@ -889,21 +890,21 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
                     let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        ::home_wire_contract::home::notifications::v1::GetDestinationRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::GetDestinationRequest,
                     >(request.encoded()?, format)?;
-                    let req: ::home_wire_contract::home::notifications::v1::__buffa::view::GetDestinationRequestView<
+                    let req: ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDestinationRequestView<
                         '_,
                     > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
                         &body,
                         ctx.decode_options(),
                     )?;
                     let req = ::connectrpc::ServiceRequest::<
-                        ::home_wire_contract::home::notifications::v1::GetDestinationRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::GetDestinationRequest,
                     >::from_parts(&req, &body);
                     svc.get_destination(ctx, req)
                         .await?
                         .encode::<
-                            ::home_wire_contract::home::notifications::v1::GetDestinationResponse,
+                            ::home_wire_contract::home::testing::notifications::v1::GetDestinationResponse,
                         >(format)
                 })
             }
@@ -911,21 +912,21 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
                     let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        ::home_wire_contract::home::notifications::v1::UpdateDestinationRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::UpdateDestinationRequest,
                     >(request.encoded()?, format)?;
-                    let req: ::home_wire_contract::home::notifications::v1::__buffa::view::UpdateDestinationRequestView<
+                    let req: ::home_wire_contract::home::testing::notifications::v1::__buffa::view::UpdateDestinationRequestView<
                         '_,
                     > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
                         &body,
                         ctx.decode_options(),
                     )?;
                     let req = ::connectrpc::ServiceRequest::<
-                        ::home_wire_contract::home::notifications::v1::UpdateDestinationRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::UpdateDestinationRequest,
                     >::from_parts(&req, &body);
                     svc.update_destination(ctx, req)
                         .await?
                         .encode::<
-                            ::home_wire_contract::home::notifications::v1::UpdateDestinationResponse,
+                            ::home_wire_contract::home::testing::notifications::v1::UpdateDestinationResponse,
                         >(format)
                 })
             }
@@ -933,21 +934,21 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
                     let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        ::home_wire_contract::home::notifications::v1::ReadInboxRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::ReadInboxRequest,
                     >(request.encoded()?, format)?;
-                    let req: ::home_wire_contract::home::notifications::v1::__buffa::view::ReadInboxRequestView<
+                    let req: ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ReadInboxRequestView<
                         '_,
                     > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
                         &body,
                         ctx.decode_options(),
                     )?;
                     let req = ::connectrpc::ServiceRequest::<
-                        ::home_wire_contract::home::notifications::v1::ReadInboxRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::ReadInboxRequest,
                     >::from_parts(&req, &body);
                     svc.read_inbox(ctx, req)
                         .await?
                         .encode::<
-                            ::home_wire_contract::home::notifications::v1::ReadInboxResponse,
+                            ::home_wire_contract::home::testing::notifications::v1::ReadInboxResponse,
                         >(format)
                 })
             }
@@ -955,21 +956,21 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
                     let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        ::home_wire_contract::home::notifications::v1::AcknowledgeDeliveryRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::AcknowledgeDeliveryRequest,
                     >(request.encoded()?, format)?;
-                    let req: ::home_wire_contract::home::notifications::v1::__buffa::view::AcknowledgeDeliveryRequestView<
+                    let req: ::home_wire_contract::home::testing::notifications::v1::__buffa::view::AcknowledgeDeliveryRequestView<
                         '_,
                     > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
                         &body,
                         ctx.decode_options(),
                     )?;
                     let req = ::connectrpc::ServiceRequest::<
-                        ::home_wire_contract::home::notifications::v1::AcknowledgeDeliveryRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::AcknowledgeDeliveryRequest,
                     >::from_parts(&req, &body);
                     svc.acknowledge_delivery(ctx, req)
                         .await?
                         .encode::<
-                            ::home_wire_contract::home::notifications::v1::AcknowledgeDeliveryResponse,
+                            ::home_wire_contract::home::testing::notifications::v1::AcknowledgeDeliveryResponse,
                         >(format)
                 })
             }
@@ -977,21 +978,21 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
                     let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        ::home_wire_contract::home::notifications::v1::GetDeliveryRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::GetDeliveryRequest,
                     >(request.encoded()?, format)?;
-                    let req: ::home_wire_contract::home::notifications::v1::__buffa::view::GetDeliveryRequestView<
+                    let req: ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDeliveryRequestView<
                         '_,
                     > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
                         &body,
                         ctx.decode_options(),
                     )?;
                     let req = ::connectrpc::ServiceRequest::<
-                        ::home_wire_contract::home::notifications::v1::GetDeliveryRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::GetDeliveryRequest,
                     >::from_parts(&req, &body);
                     svc.get_delivery(ctx, req)
                         .await?
                         .encode::<
-                            ::home_wire_contract::home::notifications::v1::GetDeliveryResponse,
+                            ::home_wire_contract::home::testing::notifications::v1::GetDeliveryResponse,
                         >(format)
                 })
             }
@@ -999,21 +1000,21 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
                     let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        ::home_wire_contract::home::notifications::v1::ResolveOpenRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::ResolveOpenRequest,
                     >(request.encoded()?, format)?;
-                    let req: ::home_wire_contract::home::notifications::v1::__buffa::view::ResolveOpenRequestView<
+                    let req: ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ResolveOpenRequestView<
                         '_,
                     > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
                         &body,
                         ctx.decode_options(),
                     )?;
                     let req = ::connectrpc::ServiceRequest::<
-                        ::home_wire_contract::home::notifications::v1::ResolveOpenRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::ResolveOpenRequest,
                     >::from_parts(&req, &body);
                     svc.resolve_open(ctx, req)
                         .await?
                         .encode::<
-                            ::home_wire_contract::home::notifications::v1::ResolveOpenResponse,
+                            ::home_wire_contract::home::testing::notifications::v1::ResolveOpenResponse,
                         >(format)
                 })
             }
@@ -1021,21 +1022,21 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
                     let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        ::home_wire_contract::home::notifications::v1::RevokeDestinationRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::RevokeDestinationRequest,
                     >(request.encoded()?, format)?;
-                    let req: ::home_wire_contract::home::notifications::v1::__buffa::view::RevokeDestinationRequestView<
+                    let req: ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RevokeDestinationRequestView<
                         '_,
                     > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
                         &body,
                         ctx.decode_options(),
                     )?;
                     let req = ::connectrpc::ServiceRequest::<
-                        ::home_wire_contract::home::notifications::v1::RevokeDestinationRequest,
+                        ::home_wire_contract::home::testing::notifications::v1::RevokeDestinationRequest,
                     >::from_parts(&req, &body);
                     svc.revoke_destination(ctx, req)
                         .await?
                         .encode::<
-                            ::home_wire_contract::home::notifications::v1::RevokeDestinationResponse,
+                            ::home_wire_contract::home::testing::notifications::v1::RevokeDestinationResponse,
                         >(format)
                 })
             }
@@ -1050,7 +1051,7 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
         format: ::connectrpc::CodecFormat,
     ) -> ::connectrpc::dispatcher::codegen::StreamingResult {
         let Some(method) = path
-            .strip_prefix("home.notifications.v1.NotificationService/") else {
+            .strip_prefix("home.testing.notifications.v1.NotificationService/") else {
             return ::connectrpc::dispatcher::codegen::unimplemented_streaming(path);
         };
         let _ = (&ctx, &request, &format);
@@ -1066,7 +1067,7 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
         format: ::connectrpc::CodecFormat,
     ) -> ::connectrpc::dispatcher::codegen::UnaryResult {
         let Some(method) = path
-            .strip_prefix("home.notifications.v1.NotificationService/") else {
+            .strip_prefix("home.testing.notifications.v1.NotificationService/") else {
             return ::connectrpc::dispatcher::codegen::unimplemented_unary(path);
         };
         let _ = (&ctx, &requests, &format);
@@ -1082,7 +1083,7 @@ impl<T: NotificationService> ::connectrpc::Dispatcher for NotificationServiceSer
         format: ::connectrpc::CodecFormat,
     ) -> ::connectrpc::dispatcher::codegen::StreamingResult {
         let Some(method) = path
-            .strip_prefix("home.notifications.v1.NotificationService/") else {
+            .strip_prefix("home.testing.notifications.v1.NotificationService/") else {
             return ::connectrpc::dispatcher::codegen::unimplemented_streaming(path);
         };
         let _ = (&ctx, &requests, &format);
@@ -1170,14 +1171,14 @@ where
     pub fn config_mut(&mut self) -> &mut ::connectrpc::client::ClientConfig {
         &mut self.config
     }
-    /// Call the DescribeNotifications RPC. Sends a request to /home.notifications.v1.NotificationService/DescribeNotifications.
+    /// Call the DescribeNotifications RPC. Sends a request to /home.testing.notifications.v1.NotificationService/DescribeNotifications.
     pub async fn describe_notifications(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::DescribeNotificationsRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::DescribeNotificationsRequest,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::DescribeNotificationsResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::DescribeNotificationsResponseView<
                     'static,
                 >,
             >,
@@ -1193,12 +1194,12 @@ where
     /// Call the DescribeNotifications RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
     pub async fn describe_notifications_with_options(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::DescribeNotificationsRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::DescribeNotificationsRequest,
         options: ::connectrpc::client::CallOptions,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::DescribeNotificationsResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::DescribeNotificationsResponseView<
                     'static,
                 >,
             >,
@@ -1215,14 +1216,14 @@ where
             )
             .await
     }
-    /// Call the RegisterDestination RPC. Sends a request to /home.notifications.v1.NotificationService/RegisterDestination.
+    /// Call the RegisterDestination RPC. Sends a request to /home.testing.notifications.v1.NotificationService/RegisterDestination.
     pub async fn register_destination(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::RegisterDestinationRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::RegisterDestinationRequest,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::RegisterDestinationResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RegisterDestinationResponseView<
                     'static,
                 >,
             >,
@@ -1238,12 +1239,12 @@ where
     /// Call the RegisterDestination RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
     pub async fn register_destination_with_options(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::RegisterDestinationRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::RegisterDestinationRequest,
         options: ::connectrpc::client::CallOptions,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::RegisterDestinationResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RegisterDestinationResponseView<
                     'static,
                 >,
             >,
@@ -1260,14 +1261,14 @@ where
             )
             .await
     }
-    /// Call the GetDestination RPC. Sends a request to /home.notifications.v1.NotificationService/GetDestination.
+    /// Call the GetDestination RPC. Sends a request to /home.testing.notifications.v1.NotificationService/GetDestination.
     pub async fn get_destination(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::GetDestinationRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::GetDestinationRequest,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::GetDestinationResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDestinationResponseView<
                     'static,
                 >,
             >,
@@ -1283,12 +1284,12 @@ where
     /// Call the GetDestination RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
     pub async fn get_destination_with_options(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::GetDestinationRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::GetDestinationRequest,
         options: ::connectrpc::client::CallOptions,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::GetDestinationResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDestinationResponseView<
                     'static,
                 >,
             >,
@@ -1305,14 +1306,14 @@ where
             )
             .await
     }
-    /// Call the UpdateDestination RPC. Sends a request to /home.notifications.v1.NotificationService/UpdateDestination.
+    /// Call the UpdateDestination RPC. Sends a request to /home.testing.notifications.v1.NotificationService/UpdateDestination.
     pub async fn update_destination(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::UpdateDestinationRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::UpdateDestinationRequest,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::UpdateDestinationResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::UpdateDestinationResponseView<
                     'static,
                 >,
             >,
@@ -1328,12 +1329,12 @@ where
     /// Call the UpdateDestination RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
     pub async fn update_destination_with_options(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::UpdateDestinationRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::UpdateDestinationRequest,
         options: ::connectrpc::client::CallOptions,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::UpdateDestinationResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::UpdateDestinationResponseView<
                     'static,
                 >,
             >,
@@ -1350,14 +1351,14 @@ where
             )
             .await
     }
-    /// Call the ReadInbox RPC. Sends a request to /home.notifications.v1.NotificationService/ReadInbox.
+    /// Call the ReadInbox RPC. Sends a request to /home.testing.notifications.v1.NotificationService/ReadInbox.
     pub async fn read_inbox(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::ReadInboxRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::ReadInboxRequest,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::ReadInboxResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ReadInboxResponseView<
                     'static,
                 >,
             >,
@@ -1373,12 +1374,12 @@ where
     /// Call the ReadInbox RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
     pub async fn read_inbox_with_options(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::ReadInboxRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::ReadInboxRequest,
         options: ::connectrpc::client::CallOptions,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::ReadInboxResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ReadInboxResponseView<
                     'static,
                 >,
             >,
@@ -1395,14 +1396,14 @@ where
             )
             .await
     }
-    /// Call the AcknowledgeDelivery RPC. Sends a request to /home.notifications.v1.NotificationService/AcknowledgeDelivery.
+    /// Call the AcknowledgeDelivery RPC. Sends a request to /home.testing.notifications.v1.NotificationService/AcknowledgeDelivery.
     pub async fn acknowledge_delivery(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::AcknowledgeDeliveryRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::AcknowledgeDeliveryRequest,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::AcknowledgeDeliveryResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::AcknowledgeDeliveryResponseView<
                     'static,
                 >,
             >,
@@ -1418,12 +1419,12 @@ where
     /// Call the AcknowledgeDelivery RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
     pub async fn acknowledge_delivery_with_options(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::AcknowledgeDeliveryRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::AcknowledgeDeliveryRequest,
         options: ::connectrpc::client::CallOptions,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::AcknowledgeDeliveryResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::AcknowledgeDeliveryResponseView<
                     'static,
                 >,
             >,
@@ -1440,14 +1441,14 @@ where
             )
             .await
     }
-    /// Call the GetDelivery RPC. Sends a request to /home.notifications.v1.NotificationService/GetDelivery.
+    /// Call the GetDelivery RPC. Sends a request to /home.testing.notifications.v1.NotificationService/GetDelivery.
     pub async fn get_delivery(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::GetDeliveryRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::GetDeliveryRequest,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::GetDeliveryResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDeliveryResponseView<
                     'static,
                 >,
             >,
@@ -1463,12 +1464,12 @@ where
     /// Call the GetDelivery RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
     pub async fn get_delivery_with_options(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::GetDeliveryRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::GetDeliveryRequest,
         options: ::connectrpc::client::CallOptions,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::GetDeliveryResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::GetDeliveryResponseView<
                     'static,
                 >,
             >,
@@ -1485,14 +1486,14 @@ where
             )
             .await
     }
-    /// Call the ResolveOpen RPC. Sends a request to /home.notifications.v1.NotificationService/ResolveOpen.
+    /// Call the ResolveOpen RPC. Sends a request to /home.testing.notifications.v1.NotificationService/ResolveOpen.
     pub async fn resolve_open(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::ResolveOpenRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::ResolveOpenRequest,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::ResolveOpenResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ResolveOpenResponseView<
                     'static,
                 >,
             >,
@@ -1508,12 +1509,12 @@ where
     /// Call the ResolveOpen RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
     pub async fn resolve_open_with_options(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::ResolveOpenRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::ResolveOpenRequest,
         options: ::connectrpc::client::CallOptions,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::ResolveOpenResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::ResolveOpenResponseView<
                     'static,
                 >,
             >,
@@ -1530,14 +1531,14 @@ where
             )
             .await
     }
-    /// Call the RevokeDestination RPC. Sends a request to /home.notifications.v1.NotificationService/RevokeDestination.
+    /// Call the RevokeDestination RPC. Sends a request to /home.testing.notifications.v1.NotificationService/RevokeDestination.
     pub async fn revoke_destination(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::RevokeDestinationRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::RevokeDestinationRequest,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::RevokeDestinationResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RevokeDestinationResponseView<
                     'static,
                 >,
             >,
@@ -1553,12 +1554,12 @@ where
     /// Call the RevokeDestination RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
     pub async fn revoke_destination_with_options(
         &self,
-        request: ::home_wire_contract::home::notifications::v1::RevokeDestinationRequest,
+        request: ::home_wire_contract::home::testing::notifications::v1::RevokeDestinationRequest,
         options: ::connectrpc::client::CallOptions,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                ::home_wire_contract::home::notifications::v1::__buffa::view::RevokeDestinationResponseView<
+                ::home_wire_contract::home::testing::notifications::v1::__buffa::view::RevokeDestinationResponseView<
                     'static,
                 >,
             >,

@@ -1,7 +1,7 @@
 //! Server-owned numeric bounds. Text admission never silently snaps a draft;
 //! renderer positions alone may be rounded back onto the advertised grid.
 use super::Refusal;
-use home_wire_contract::home::registry::v1::NumberBounds;
+use home_wire_contract::home::api::v2::NumberBounds;
 
 #[derive(Clone, Debug)]
 pub(crate) enum NumericInput {
@@ -44,6 +44,30 @@ impl Bounds {
             && value.minimum <= value.maximum
             && value.step.is_none_or(|step| step.is_finite() && step > 0.))
         .then_some(Self {
+            minimum: value.minimum,
+            maximum: value.maximum,
+            step: value.step,
+        })
+    }
+
+    /// Percentage traits use their own wire definition, admitted directly;
+    /// no legacy registry descriptor is reconstructed for the renderer.
+    pub fn percentage_definition(
+        value: &home_wire_contract::home::api::v2::PercentageBounds,
+    ) -> Option<Self> {
+        if !value.__buffa_unknown_fields.is_empty()
+            || !value.minimum.is_finite()
+            || !value.maximum.is_finite()
+            || value.minimum < 0.
+            || value.maximum > 100.
+            || value.minimum > value.maximum
+            || value
+                .step
+                .is_some_and(|step| !step.is_finite() || step <= 0.)
+        {
+            return None;
+        }
+        Some(Self {
             minimum: value.minimum,
             maximum: value.maximum,
             step: value.step,

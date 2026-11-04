@@ -9,10 +9,7 @@ use crate::{
 use buffa::EnumValue;
 use buffa_types::google::protobuf::Timestamp;
 use home_client_model::local_time::{Age, DisplayTimeZone, UtcInstant};
-use home_wire_contract::{
-    environment_contract as admit,
-    home::{environment::v1 as env, solar::v1 as solar, state::v1 as state},
-};
+use home_wire_contract::{api_environment_contract as admit, home::api::v2 as wire};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum ProfileZone {
@@ -22,13 +19,10 @@ pub(crate) enum ProfileZone {
     Known(DisplayTimeZone),
 }
 impl ProfileZone {
-    pub fn from_profile(profile: Option<&env::DisplayProfile>) -> Self {
-        match profile {
+    pub fn from_time_zone(value: Option<&str>) -> Self {
+        match value {
             None => Self::Missing,
-            Some(profile) if admit::display_profile(profile) => {
-                Self::Known(profile.time_zone.parse().expect("admitted timezone"))
-            }
-            Some(_) => Self::Unsupported,
+            Some(value) => value.parse().map(Self::Known).unwrap_or(Self::Unsupported),
         }
     }
     pub fn timestamp(self, value: Option<&Timestamp>) -> String {
@@ -111,22 +105,20 @@ fn age(at: Option<&Timestamp>, now: UtcInstant) -> String {
     }
 }
 pub(crate) fn observed_age(
-    observation: Option<&state::ObservedState>,
+    capability: Option<&wire::Capability>,
     zone: ProfileZone,
     now: UtcInstant,
 ) -> String {
-    match observation {
-        Some(value) if value.observed_at.is_set() => format!(
+    match capability
+        .and_then(crate::device_view::observation::evidence)
+        .and_then(|(_, time)| time)
+    {
+        Some(time) => format!(
             "Observed {} · {}",
-            age(value.observed_at.as_option(), now),
-            zone.timestamp(value.observed_at.as_option())
+            age(Some(time), now),
+            zone.timestamp(Some(time))
         ),
-        Some(value) if value.received_at.is_set() => format!(
-            "Received {} · {}",
-            age(value.received_at.as_option(), now),
-            zone.timestamp(value.received_at.as_option())
-        ),
-        Some(_) | None => "Observation date not provided".into(),
+        None => "Observation date not provided".into(),
     }
 }
 fn fact(label: &str, value: String) -> ProEnvironmentFact {
@@ -216,7 +208,7 @@ impl Presentation {
     }
 }
 
-fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Weather {
+fn weather(value: &wire::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Weather {
     let mut row = Weather {
         notice: zone.label(),
         temperature: value
@@ -252,11 +244,11 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
     if let Some(wind) = value.wind.as_option() {
         let text = if admit::wind(wind) {
             let unit = match wind.unit {
-                EnumValue::Known(env::SpeedUnit::MetersPerSecond) => "m/s",
-                EnumValue::Known(env::SpeedUnit::KilometersPerHour) => "km/h",
-                EnumValue::Known(env::SpeedUnit::MilesPerHour) => "mph",
-                EnumValue::Known(env::SpeedUnit::Knots) => "kn",
-                EnumValue::Known(env::SpeedUnit::Unspecified) | EnumValue::Unknown(_) => {
+                EnumValue::Known(wire::SpeedUnit::MetersPerSecond) => "m/s",
+                EnumValue::Known(wire::SpeedUnit::KilometersPerHour) => "km/h",
+                EnumValue::Known(wire::SpeedUnit::MilesPerHour) => "mph",
+                EnumValue::Known(wire::SpeedUnit::Knots) => "kn",
+                EnumValue::Known(wire::SpeedUnit::Unspecified) | EnumValue::Unknown(_) => {
                     "unsupported unit"
                 }
             };
@@ -281,7 +273,7 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
         return row;
     }
     let expired = forecast
-        .valid_until
+        .expire_time
         .as_option()
         .and_then(instant)
         .is_some_and(|until| until <= now);
@@ -292,8 +284,8 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
         } else {
             "Dated forecast"
         },
-        age(forecast.issued_at.as_option(), now),
-        zone.timestamp(forecast.valid_until.as_option())
+        age(forecast.issue_time.as_option(), now),
+        zone.timestamp(forecast.expire_time.as_option())
     );
     for period in &forecast.periods {
         let mut temperatures = Vec::new();
@@ -316,9 +308,9 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
         }
         if let Some(v) = period.precipitation.as_option() {
             let unit = match v.unit {
-                EnumValue::Known(env::PrecipitationUnit::Millimeters) => Some("mm"),
-                EnumValue::Known(env::PrecipitationUnit::Inches) => Some("in"),
-                EnumValue::Known(env::PrecipitationUnit::Unspecified) | EnumValue::Unknown(_) => {
+                EnumValue::Known(wire::PrecipitationUnit::Millimeters) => Some("mm"),
+                EnumValue::Known(wire::PrecipitationUnit::Inches) => Some("in"),
+                EnumValue::Known(wire::PrecipitationUnit::Unspecified) | EnumValue::Unknown(_) => {
                     None
                 }
             };
@@ -332,8 +324,8 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
         row.forecast.push(ProForecastRow {
             period: format!(
                 "{} → {}",
-                zone.timestamp(period.starts_at.as_option()),
-                zone.timestamp(period.ends_at.as_option())
+                zone.timestamp(period.start_time.as_option()),
+                zone.timestamp(period.end_time.as_option())
             )
             .into(),
             temperature: if temperatures.is_empty() {
@@ -352,32 +344,32 @@ fn weather(value: &env::WeatherValue, zone: ProfileZone, now: UtcInstant) -> Wea
     row
 }
 
-fn event_label(event: solar::SolarEventKind) -> &'static str {
+fn event_label(event: wire::SolarEventKind) -> &'static str {
     match event {
-        solar::SolarEventKind::Dawn => "Dawn",
-        solar::SolarEventKind::Dusk => "Twilight",
-        solar::SolarEventKind::Midnight => "Solar Midnight",
-        solar::SolarEventKind::Noon => "Solar Noon",
-        solar::SolarEventKind::Rising => "Sunrise",
-        solar::SolarEventKind::Setting => "Sunset",
-        solar::SolarEventKind::Unspecified => "Unsupported event",
+        wire::SolarEventKind::Dawn => "Dawn",
+        wire::SolarEventKind::Dusk => "Twilight",
+        wire::SolarEventKind::Midnight => "Solar Midnight",
+        wire::SolarEventKind::Noon => "Solar Noon",
+        wire::SolarEventKind::Rising => "Sunrise",
+        wire::SolarEventKind::Setting => "Sunset",
+        wire::SolarEventKind::Unspecified => "Unsupported event",
     }
 }
-fn occurrence(value: Option<&solar::SolarOccurrence>, zone: ProfileZone) -> String {
-    use solar::solar_occurrence::Occurrence;
+fn occurrence(value: Option<&wire::SolarOccurrence>, zone: ProfileZone) -> String {
+    use wire::solar_occurrence::Occurrence;
     match value
         .and_then(|v| v.__buffa_unknown_fields.is_empty().then_some(v))
         .and_then(|v| v.occurrence.as_ref())
     {
-        Some(Occurrence::At(at)) => zone.timestamp(Some(at)),
+        Some(Occurrence::EventTime(at)) => zone.timestamp(Some(at)),
         Some(Occurrence::Absent(reason)) => match reason {
-            EnumValue::Known(solar::SolarAbsenceReason::NoEventWithinSearchHorizon) => {
+            EnumValue::Known(wire::SolarAbsenceReason::NoEventWithinSearchHorizon) => {
                 "Not found within the search range".into()
             }
-            EnumValue::Known(solar::SolarAbsenceReason::NoTransitOnDate) => {
+            EnumValue::Known(wire::SolarAbsenceReason::NoTransitOnDate) => {
                 "Not found on this date".into()
             }
-            EnumValue::Known(solar::SolarAbsenceReason::Unspecified) | EnumValue::Unknown(_) => {
+            EnumValue::Known(wire::SolarAbsenceReason::Unspecified) | EnumValue::Unknown(_) => {
                 "Unsupported absence value".into()
             }
         },
@@ -386,84 +378,71 @@ fn occurrence(value: Option<&solar::SolarOccurrence>, zone: ProfileZone) -> Stri
 }
 pub(crate) fn project(
     kind: crate::device_view::capability::ObservationKind,
-    observation: Option<&state::ObservedState>,
+    capability: Option<&wire::Capability>,
     zone: ProfileZone,
     now: UtcInstant,
 ) -> Presentation {
     use crate::device_view::capability::ObservationKind as K;
-    let value = observation
-        .filter(|v| v.__buffa_unknown_fields.is_empty())
-        .and_then(|v| v.value.as_ref());
+    use wire::capability::Trait as T;
+    let trait_value = capability
+        .filter(|capability| crate::device_view::observation::evidence(capability).is_some())
+        .and_then(|capability| capability.r#trait.as_ref());
     match kind {
-        K::Weather => Presentation::Weather(match value {
-            Some(state::observed_state::Value::Weather(value)) => weather(value, zone, now),
-            Some(
-                state::observed_state::Value::SwitchOn(_)
-                | state::observed_state::Value::Measurement(_)
-                | state::observed_state::Value::Light(_)
-                | state::observed_state::Value::Fan(_)
-                | state::observed_state::Value::Climate(_)
-                | state::observed_state::Value::Helper(_)
-                | state::observed_state::Value::Solar(_)
-                | state::observed_state::Value::SolarEvent(_)
-                | state::observed_state::Value::Cover(_)
-                | state::observed_state::Value::Lock(_)
-                | state::observed_state::Value::Alarm(_)
-                | state::observed_state::Value::Presence(_)
-                | state::observed_state::Value::PresenceDetails(_),
+        K::Weather => {
+            let weather_value = if let Some(T::Weather(value)) = trait_value {
+                value.observation.value.as_option()
+            } else {
+                None
+            };
+            Presentation::Weather(
+                weather_value
+                    .map(|value| weather(value, zone, now))
+                    .unwrap_or_else(|| Weather {
+                        temperature: "Weather missing or unsupported".into(),
+                        ..Default::default()
+                    }),
             )
-            | None => Weather {
-                temperature: "Weather missing or unsupported".into(),
-                ..Default::default()
-            },
-        }),
-        K::Presence => Presentation::Presence(match value {
-            Some(state::observed_state::Value::Presence(value)) if admit::presence_value(value) => {
-                ProPresenceData {
+        }
+        K::Presence => {
+            let presence_value = if let Some(T::Presence(value)) = trait_value {
+                value
+                    .observation
+                    .value
+                    .as_option()
+                    .filter(|value| admit::presence_value(value))
+            } else {
+                None
+            };
+            Presentation::Presence(match presence_value {
+                Some(value) => ProPresenceData {
                     status: match value.residence {
-                        EnumValue::Known(env::Residence::Home) => ProPresenceStatus::Home,
-                        EnumValue::Known(env::Residence::Away) => ProPresenceStatus::Away,
-                        EnumValue::Known(env::Residence::Unknown) => ProPresenceStatus::Unknown,
-                        EnumValue::Known(env::Residence::Unspecified) | EnumValue::Unknown(_) => {
+                        EnumValue::Known(wire::Residence::Home) => ProPresenceStatus::Home,
+                        EnumValue::Known(wire::Residence::Away) => ProPresenceStatus::Away,
+                        EnumValue::Known(wire::Residence::Unknown) => ProPresenceStatus::Unknown,
+                        EnumValue::Known(wire::Residence::Unspecified) | EnumValue::Unknown(_) => {
                             ProPresenceStatus::Unsupported
                         }
                     },
                     summary: environment_text::presence(value).into(),
                     detail: match value.confidence {
-                        EnumValue::Known(env::PresenceConfidence::Unknown) => "Confidence unknown",
-                        EnumValue::Known(env::PresenceConfidence::Low) => "Low confidence",
-                        EnumValue::Known(env::PresenceConfidence::Medium) => "Medium confidence",
-                        EnumValue::Known(env::PresenceConfidence::High) => "High confidence",
-                        EnumValue::Known(env::PresenceConfidence::Unspecified)
+                        EnumValue::Known(wire::PresenceConfidence::Unknown) => "Confidence unknown",
+                        EnumValue::Known(wire::PresenceConfidence::Low) => "Low confidence",
+                        EnumValue::Known(wire::PresenceConfidence::Medium) => "Medium confidence",
+                        EnumValue::Known(wire::PresenceConfidence::High) => "High confidence",
+                        EnumValue::Known(wire::PresenceConfidence::Unspecified)
                         | EnumValue::Unknown(_) => "Unsupported confidence value",
                     }
                     .into(),
                     provenance: format!("Source · {}", bounded(&value.source_label)).into(),
                     ..Default::default()
-                }
-            }
-            Some(
-                state::observed_state::Value::SwitchOn(_)
-                | state::observed_state::Value::Measurement(_)
-                | state::observed_state::Value::Light(_)
-                | state::observed_state::Value::Fan(_)
-                | state::observed_state::Value::Climate(_)
-                | state::observed_state::Value::Helper(_)
-                | state::observed_state::Value::Solar(_)
-                | state::observed_state::Value::SolarEvent(_)
-                | state::observed_state::Value::Cover(_)
-                | state::observed_state::Value::Lock(_)
-                | state::observed_state::Value::Alarm(_)
-                | state::observed_state::Value::Weather(_)
-                | state::observed_state::Value::Presence(_)
-                | state::observed_state::Value::PresenceDetails(_),
-            )
-            | None => ProPresenceData {
-                status: ProPresenceStatus::Unsupported,
-                summary: "Presence missing or unsupported".into(),
-                ..Default::default()
-            },
-        }),
+                },
+                None => ProPresenceData {
+                    status: ProPresenceStatus::Unsupported,
+                    summary: "Presence missing or unsupported".into(),
+                    ..Default::default()
+                },
+            })
+        }
         K::Details => Presentation::Absent,
         K::Solar | K::SolarEvent(_) => {
             let (clock, date) = zone.clock(now);
@@ -477,65 +456,56 @@ pub(crate) fn project(
                 row.date = local.date();
                 row.time_zone = format!("{} · {}", zone.name(), local.offset());
             }
-            match value {
-                Some(state::observed_state::Value::Solar(value))
-                    if kind == K::Solar
-                        && home_wire_contract::solar_contract::admit_solar_value(value).is_ok() =>
-                {
-                    row.position = match value.horizon {
-                        EnumValue::Known(solar::SolarHorizon::Above) => "Above the horizon",
-                        EnumValue::Known(solar::SolarHorizon::Below) => "Below the horizon",
-                        EnumValue::Known(solar::SolarHorizon::Unspecified)
-                        | EnumValue::Unknown(_) => "Unsupported horizon",
-                    }
-                    .into();
-                    for (kind, at) in [
-                        (solar::SolarEventKind::Rising, value.next_rising.as_option()),
-                        (
-                            solar::SolarEventKind::Setting,
-                            value.next_setting.as_option(),
-                        ),
-                        (solar::SolarEventKind::Dawn, value.next_dawn.as_option()),
-                        (solar::SolarEventKind::Dusk, value.next_dusk.as_option()),
-                        (solar::SolarEventKind::Noon, value.next_noon.as_option()),
-                        (
-                            solar::SolarEventKind::Midnight,
-                            value.next_midnight.as_option(),
-                        ),
-                    ] {
-                        row.events
-                            .push(fact(event_label(kind), occurrence(at, zone)));
+            let value = if let Some(T::Solar(value)) = trait_value {
+                value.observation.value.as_option().filter(|value| {
+                    home_wire_contract::api_solar_contract::admit_solar_value(value).is_ok()
+                })
+            } else {
+                None
+            };
+            let event = if let Some(T::SolarEvent(value)) = trait_value {
+                value.observation.value.as_option().filter(|value| {
+                    home_wire_contract::api_solar_contract::admit_solar_event_value(value).is_ok()
+                })
+            } else {
+                None
+            };
+            if let Some(value) = value.filter(|_| kind == K::Solar) {
+                row.position = match value.horizon {
+                    EnumValue::Known(wire::SolarHorizon::Above) => "Above the horizon",
+                    EnumValue::Known(wire::SolarHorizon::Below) => "Below the horizon",
+                    EnumValue::Known(wire::SolarHorizon::Unspecified) | EnumValue::Unknown(_) => {
+                        "Unsupported horizon"
                     }
                 }
-                Some(state::observed_state::Value::SolarEvent(value))
-                    if home_wire_contract::solar_contract::admit_solar_event_value(value)
-                        .is_ok()
-                        && matches!(kind,K::SolarEvent(event) if value.event==event) =>
-                {
-                    if let K::SolarEvent(event) = kind {
-                        row.events.push(fact(
-                            event_label(event),
-                            occurrence(value.occurrence.as_option(), zone),
-                        ));
-                    }
+                .into();
+                for (kind, at) in [
+                    (wire::SolarEventKind::Rising, value.next_rising.as_option()),
+                    (
+                        wire::SolarEventKind::Setting,
+                        value.next_setting.as_option(),
+                    ),
+                    (wire::SolarEventKind::Dawn, value.next_dawn.as_option()),
+                    (wire::SolarEventKind::Dusk, value.next_dusk.as_option()),
+                    (wire::SolarEventKind::Noon, value.next_noon.as_option()),
+                    (
+                        wire::SolarEventKind::Midnight,
+                        value.next_midnight.as_option(),
+                    ),
+                ] {
+                    row.events
+                        .push(fact(event_label(kind), occurrence(at, zone)));
                 }
-                Some(
-                    state::observed_state::Value::SwitchOn(_)
-                    | state::observed_state::Value::Measurement(_)
-                    | state::observed_state::Value::Light(_)
-                    | state::observed_state::Value::Fan(_)
-                    | state::observed_state::Value::Climate(_)
-                    | state::observed_state::Value::Helper(_)
-                    | state::observed_state::Value::Solar(_)
-                    | state::observed_state::Value::SolarEvent(_)
-                    | state::observed_state::Value::Cover(_)
-                    | state::observed_state::Value::Lock(_)
-                    | state::observed_state::Value::Alarm(_)
-                    | state::observed_state::Value::Weather(_)
-                    | state::observed_state::Value::Presence(_)
-                    | state::observed_state::Value::PresenceDetails(_),
-                )
-                | None => row.notice = "Solar events missing or unsupported".into(),
+            } else if let Some(value) = event
+                && let K::SolarEvent(event) = kind
+                && value.event == event
+            {
+                row.events.push(fact(
+                    event_label(event),
+                    occurrence(value.occurrence.as_option(), zone),
+                ));
+            } else {
+                row.notice = "Solar events missing or unsupported".into();
             }
             Presentation::Solar(row)
         }
@@ -659,24 +629,24 @@ mod tests {
 
     #[test]
     fn forecast_preserves_fold_offsets_expiry_zero_and_independent_unsupported_fields() {
-        let value = env::WeatherValue {
-            temperature: env::Temperature {
+        let value = wire::WeatherValue {
+            temperature: wire::Temperature {
                 value: Some(0.),
-                unit: env::TemperatureUnit::Celsius.into(),
+                unit: wire::TemperatureUnit::Celsius.into(),
                 ..Default::default()
             }
             .into(),
-            condition: Some(env::WeatherCondition::Rainy.into()),
+            condition: Some(wire::WeatherCondition::Rainy.into()),
             humidity_percent: Some(0.),
-            forecast: env::Forecast {
-                issued_at: at("2026-11-01T04:00:00Z").into(),
-                valid_until: at("2026-11-01T07:00:00Z").into(),
-                periods: vec![env::ForecastPeriod {
-                    starts_at: at("2026-11-01T05:30:00Z").into(),
-                    ends_at: at("2026-11-01T06:30:00Z").into(),
-                    kind: env::ForecastKind::Hourly.into(),
-                    condition: Some(env::WeatherCondition::Rainy.into()),
-                    temperature: env::Temperature {
+            forecast: wire::Forecast {
+                issue_time: at("2026-11-01T04:00:00Z").into(),
+                expire_time: at("2026-11-01T07:00:00Z").into(),
+                periods: vec![wire::ForecastPeriod {
+                    start_time: at("2026-11-01T05:30:00Z").into(),
+                    end_time: at("2026-11-01T06:30:00Z").into(),
+                    kind: wire::ForecastKind::Hourly.into(),
+                    condition: Some(wire::WeatherCondition::Rainy.into()),
+                    temperature: wire::Temperature {
                         value: Some(0.),
                         unit: EnumValue::Unknown(255),
                         ..Default::default()
@@ -709,11 +679,11 @@ mod tests {
         );
         assert!(paris.forecast[0].period.contains("06:30 +01:00"));
         assert_eq!(
-            value.forecast.periods[0].starts_at.as_option(),
+            value.forecast.periods[0].start_time.as_option(),
             Some(&at("2026-11-01T05:30:00Z"))
         );
         let mut malformed = value.clone();
-        malformed.forecast.as_option_mut().unwrap().periods[0].ends_at =
+        malformed.forecast.as_option_mut().unwrap().periods[0].end_time =
             at("2026-11-01T04:30:00Z").into();
         let refused = weather(&malformed, toronto(), now);
         assert!(refused.forecast.is_empty());
@@ -728,12 +698,8 @@ mod tests {
         assert_eq!(toronto().clock(now).0, "01:30");
         assert!(toronto().clock(now).1.contains("-05:00"));
         assert_eq!(ProfileZone::Missing.clock(now).0, "—");
-        let invalid = env::DisplayProfile {
-            time_zone: "future/zone".into(),
-            ..Default::default()
-        };
         assert_eq!(
-            ProfileZone::from_profile(Some(&invalid)),
+            ProfileZone::from_time_zone(Some("future/zone")),
             ProfileZone::Unsupported
         );
         assert!(
@@ -741,23 +707,32 @@ mod tests {
                 .timestamp(Some(&at))
                 .contains("unsupported")
         );
-        let event = solar::SolarEventValue {
-            event: solar::SolarEventKind::Rising.into(),
-            occurrence: solar::SolarOccurrence {
-                occurrence: Some(solar::solar_occurrence::Occurrence::Absent(
-                    solar::SolarAbsenceReason::NoEventWithinSearchHorizon.into(),
+        let event = wire::SolarEventValue {
+            event: wire::SolarEventKind::Rising.into(),
+            occurrence: wire::SolarOccurrence {
+                occurrence: Some(wire::solar_occurrence::Occurrence::Absent(
+                    wire::SolarAbsenceReason::NoEventWithinSearchHorizon.into(),
                 )),
                 ..Default::default()
             }
             .into(),
             ..Default::default()
         };
-        let observed = state::ObservedState {
-            value: Some(state::observed_state::Value::SolarEvent(Box::new(event))),
+        let observed = wire::Capability {
+            r#trait: Some(wire::capability::Trait::SolarEvent(Box::new(
+                wire::SolarEventCapability {
+                    observation: wire::SolarEventObservation {
+                        value: event.into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                },
+            ))),
             ..Default::default()
         };
         let Presentation::Solar(row) = project(
-            ObservationKind::SolarEvent(solar::SolarEventKind::Rising),
+            ObservationKind::SolarEvent(wire::SolarEventKind::Rising),
             Some(&observed),
             toronto(),
             now,
@@ -767,7 +742,7 @@ mod tests {
         assert_eq!(row.events.len(), 1);
         assert_eq!(row.events[0].value, "Not found within the search range");
         let Presentation::Solar(mismatched) = project(
-            ObservationKind::SolarEvent(solar::SolarEventKind::Setting),
+            ObservationKind::SolarEvent(wire::SolarEventKind::Setting),
             Some(&observed),
             toronto(),
             now,

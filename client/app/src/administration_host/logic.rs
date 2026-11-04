@@ -4,7 +4,7 @@ mod read;
 mod render;
 mod workflow;
 use home_wire_contract::{
-    home::{configuration::v1 as cfg, logic::v1 as wire},
+    home::{api::v2 as cfg, testing::logic::v1 as wire},
     logic_contract::{DefinitionId, RunId},
 };
 pub(super) use read::load;

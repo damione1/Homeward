@@ -141,7 +141,7 @@ def fixture(directory, binary, scenario):
 
 def validate_server(directory, scenario):
     report = json.loads((directory / 'fixture/result.json').read_text())
-    ids = report['submit_ids'] or []
+    ids = report['execute_request_ids'] or []
     submitted = 0 if scenario.unsent() else 1
     dispatched = 0 if scenario.unsent() or scenario is Scenario.REFUSAL else 1
     if (not report['server_joined'] or report['entity_count'] != 4
@@ -149,12 +149,14 @@ def validate_server(directory, scenario):
             or len(ids) != submitted or report['native_login_calls'] != 1
             or report['native_revokes'] != 1):
         raise AssertionError('Native gesture did not produce exactly one isolated command')
-    reads = (report['get_ids'] or []) + (report['watch_ids'] or [])
-    if dispatched and (not report['get_ids'] or not report['watch_ids'] or any(value != ids[0] for value in reads)):
+    reads = (report['get_operation_names'] or []) + (report['wait_operation_names'] or [])
+    if dispatched and (not report['get_operation_names'] or not report['wait_operation_names'] or any(value != report['admitted_operations'].get(ids[0]) for value in reads)):
         raise AssertionError('Recovery did not read the original command ID')
+    if dispatched and set(report['admitted_operations']) != set(ids):
+        raise AssertionError('Missing request-to-operation admission provenance')
     if not dispatched and reads:
         raise AssertionError('Unsent/refused command was tracked')
-    if scenario is Scenario.RECONNECT and (len(report['get_ids']) < 2 or len(report['watch_ids']) < 2):
+    if scenario is Scenario.RECONNECT and (len(report['get_operation_names']) < 2 or len(report['wait_operation_names']) < 2):
         raise AssertionError('Connection recovery did not reopen Get/Watch')
     if report['lost_responses'] != int(scenario is Scenario.LOST_SUBMIT):
         raise AssertionError('Lost Submit response fault count differs')

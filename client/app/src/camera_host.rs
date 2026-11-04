@@ -13,7 +13,7 @@ use crate::{
 use home_client_cache::{ProjectionMailbox, Publication};
 use home_client_model::cameras::ImageKey;
 use home_client_session::{Generation, Phase, SessionCoordinator};
-use home_client_transport::CameraTransport;
+use home_client_transport::MediaTransport;
 use slint::ComponentHandle;
 use std::{
     sync::{Arc, Mutex},
@@ -218,9 +218,17 @@ impl Cameras {
         let Some(key) = state.events.key(token).cloned() else {
             return;
         };
-        if state.selected.as_ref() != Some(key.camera()) {
+        if state.selected.as_ref() != Some(key.source()) {
             return;
         };
+        if !state
+            .events
+            .rows
+            .iter()
+            .any(|event| event.key == key && event.has_image)
+        {
+            return;
+        }
         self.0.videos.stop();
         state.set_target(ImageKey::EventThumbnail(key));
         self.retired(&state);
@@ -399,7 +407,7 @@ impl Cameras {
     pub async fn run(
         &self,
         session: SessionCoordinator,
-        api: CameraTransport,
+        api: MediaTransport,
         cancel: CancellationToken,
     ) {
         let sibling = cancel.child_token();
@@ -420,7 +428,7 @@ impl Cameras {
     async fn run_cameras(
         &self,
         session: SessionCoordinator,
-        api: CameraTransport,
+        api: MediaTransport,
         cancel: CancellationToken,
     ) {
         let mut phases = session.subscribe();

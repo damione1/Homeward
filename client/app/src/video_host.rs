@@ -7,8 +7,8 @@ mod tests;
 use crate::{HomewardWindow, ProVideoAction};
 use home_client_cache::{ProjectionMailbox, Publication};
 use home_client_session::{Generation, Phase, SessionCoordinator};
-use home_client_transport::CameraTransport;
-use home_wire_contract::cameras_contract::Camera;
+use home_client_transport::MediaTransport;
+use home_wire_contract::camera_content::Camera;
 use slint::ComponentHandle;
 use std::{
     sync::{
@@ -38,7 +38,7 @@ pub(super) enum RetirementReason {
 }
 #[derive(Clone)]
 pub(super) struct CameraRetirement {
-    pub camera: home_client_model::cameras::CameraId,
+    pub camera: home_client_model::api_content::MediaSourceName,
     pub context: u64,
     pub authority: Generation,
     pub reason: RetirementReason,
@@ -434,7 +434,7 @@ impl Videos {
     pub(super) async fn run(
         &self,
         session: SessionCoordinator,
-        api: CameraTransport,
+        api: MediaTransport,
         cancel: CancellationToken,
     ) {
         let mut phases = session.subscribe();

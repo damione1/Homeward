@@ -1,9 +1,12 @@
 use crate::calendar::{Draft, EditPhase};
 use home_client_actions::calendars::PreparedCalendarMutation;
 use home_client_cache::calendars::CalendarReadSnapshot;
-use home_client_model::calendars::{CalendarId, CalendarRevision, CivilDate, EventKey};
+use home_client_model::{
+    api_calendars::{CalendarEventName, CalendarName},
+    calendars::{CalendarId, CivilDate},
+};
 use home_client_session::Generation;
-use home_wire_contract::{calendars_contract as admit, home::calendars::v1 as wire};
+use home_wire_contract::{calendars_contract as admit, home::api::v2 as wire};
 use std::{sync::Arc, time::SystemTime};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,8 +25,8 @@ pub(super) enum Open {
     Rebase,
 }
 pub(super) enum Job {
-    Open(EventKey, Open),
-    Resolve(crate::calendar::Boundary, wire::ResolveLocalTimeRequest),
+    Open(CalendarEventName, Open),
+    Resolve(crate::calendar::Boundary, wire::ResolveCalendarTimeRequest),
     Write(PreparedCalendarMutation),
 }
 pub(super) struct State {
@@ -35,12 +38,11 @@ pub(super) struct State {
     pub active: bool,
     pub status: Status,
     pub source: Option<Generation>,
-    pub catalog: Vec<wire::Calendar>,
+    pub catalog: Vec<wire::CalendarSource>,
     pub catalog_needed: bool,
     pub selected: Option<CalendarId>,
     pub snapshot: Option<Arc<CalendarReadSnapshot>>,
     pub ready: bool,
-    pub minimum_revision: Option<CalendarRevision>,
     pub start: String,
     pub end: String,
     pub zone: String,
@@ -72,7 +74,6 @@ impl Default for State {
             selected: None,
             snapshot: None,
             ready: false,
-            minimum_revision: None,
             start: today.to_string(),
             end: today
                 .checked_add_days(chrono::Days::new(7))
@@ -106,7 +107,6 @@ impl State {
         }
     }
     pub fn reset_reads(&mut self) {
-        self.minimum_revision = None;
         self.context = self.context.checked_add(1).unwrap_or(0);
         self.ready = false;
         self.bump();
@@ -125,86 +125,79 @@ impl State {
         self.catalog_needed = true;
         self.uncertain = false;
     }
+    pub fn selected_source(&self) -> Option<&wire::CalendarSource> {
+        self.catalog.iter().find(|source| {
+            CalendarName::try_from(source.calendar.as_str())
+                .ok()
+                .as_ref()
+                .map(CalendarName::native_id)
+                == self.selected.as_ref()
+        })
+    }
+    pub fn selected_name(&self) -> Option<CalendarName> {
+        CalendarName::try_from(self.selected_source()?.calendar.as_str()).ok()
+    }
     pub fn calendar(&self) -> Option<&wire::Calendar> {
-        self.snapshot
-            .as_ref()
-            .map(|snapshot| snapshot.calendar())
-            .or_else(|| {
-                self.catalog.iter().find(|calendar| {
-                    admit::calendar_id(&calendar.id).as_ref() == self.selected.as_ref()
-                })
-            })
+        self.snapshot.as_ref().map(|snapshot| snapshot.calendar())
     }
     pub fn current(&self) -> Option<admit::Admitted<wire::Calendar>> {
-        admit::admit_calendar(self.calendar()?, self.selected.as_ref()?).ok()
+        admit::admit_calendar(self.calendar()?, &self.selected_name()?).ok()
     }
     pub fn editable(&self) -> bool {
-        self.active
-            && self.interactive
-            && self.ready
-            && !self.uncertain
-            && self.status == Status::Ready
-            && self.snapshot.as_ref().is_some_and(|snapshot| {
-                snapshot.freshness() == home_client_cache::calendars::CalendarFreshness::Fresh
-                    && snapshot.expiry_bounds().all(|until| {
-                        chrono::DateTime::parse_from_rfc3339(until).is_ok_and(|until| {
-                            SystemTime::from(until.with_timezone(&chrono::Utc)) > SystemTime::now()
-                        })
+        if !self.active
+            || !self.interactive
+            || !self.ready
+            || self.uncertain
+            || self.status != Status::Ready
+        {
+            return false;
+        }
+        let Some(source) = self.selected_source() else {
+            return false;
+        };
+        if source.origin != wire::CalendarOrigin::Local
+            || source.mutation_access != wire::CalendarMutationAccess::Allowed
+        {
+            return false;
+        }
+        if !self.present() {
+            return !source.materialized;
+        }
+        self.snapshot.as_ref().is_some_and(|snapshot| {
+            snapshot.freshness() == home_client_cache::calendars::CalendarFreshness::Fresh
+                && snapshot.expiry_bounds().all(|until| {
+                    chrono::DateTime::parse_from_rfc3339(until).is_ok_and(|until| {
+                        SystemTime::from(until.with_timezone(&chrono::Utc)) > SystemTime::now()
                     })
-            })
-            && self.current().is_some_and(|calendar| {
-                self.selected
-                    .as_ref()
-                    .and_then(|id| admit::calendar_revision(&calendar.wire().revision, id))
-                    .is_some_and(|revision| match revision.state() {
-                        home_client_model::calendars::RevisionState::Absent
-                        | home_client_model::calendars::RevisionState::Present(_) => true,
-                        home_client_model::calendars::RevisionState::Removed(_) => false,
-                    })
-                    && admit::calendar_editable(&calendar)
-                    && calendar.wire().quality == wire::Quality::Fresh
-                    && calendar.wire().fresh_until.as_deref().is_none_or(|until| {
-                        chrono::DateTime::parse_from_rfc3339(until).is_ok_and(|until| {
-                            SystemTime::from(until.with_timezone(&chrono::Utc)) > SystemTime::now()
-                        })
-                    })
-            })
+                })
+        }) && self.current().is_some_and(|calendar| {
+            admit::calendar_editable(&calendar)
+                && calendar.wire().freshness == wire::CalendarFreshness::Fresh
+        })
     }
     pub fn present(&self) -> bool {
-        self.calendar()
-            .and_then(|calendar| {
-                self.selected
-                    .as_ref()
-                    .and_then(|id| admit::calendar_revision(&calendar.revision, id))
-            })
-            .is_some_and(|revision| match revision.state() {
-                home_client_model::calendars::RevisionState::Present(_) => true,
-                home_client_model::calendars::RevisionState::Absent
-                | home_client_model::calendars::RevisionState::Removed(_) => false,
-            })
+        self.snapshot.is_some()
     }
     pub fn query(&self) -> Option<wire::QueryOccurrencesRequest> {
+        let name = self.selected_name()?;
         if let Some(query) = &self.query_override {
-            return (self.selected.as_ref() == admit::calendar_id(&query.id).as_ref())
-                .then(|| query.clone());
+            return (admit::query_parent(&query.parent).ok()?.0 == name).then(|| query.clone());
         }
         let query = wire::QueryOccurrencesRequest {
-            id: wire::CalendarId {
-                entity_id: self.selected.as_ref()?.entity().as_str().into(),
+            parent: format!("{}/events/-", name.as_str()),
+            window: wire::CalendarWindow {
+                time_zone: self.zone.clone(),
+                bounds: Some(wire::calendar_window::Bounds::Dates(Box::new(
+                    wire::CalendarDateSpan {
+                        start_date: admit::date_wire(self.start.parse().ok()?).into(),
+                        end_date: admit::date_wire(self.end.parse().ok()?).into(),
+                        ..Default::default()
+                    },
+                ))),
                 ..Default::default()
             }
             .into(),
-            window: wire::Window {
-                zone: self.zone.clone(),
-                bounds: Some(wire::window::Bounds::Dates(Box::new(wire::DateSpan {
-                    start: self.start.clone(),
-                    end_exclusive: self.end.clone(),
-                    ..Default::default()
-                }))),
-                ..Default::default()
-            }
-            .into(),
-            page_size: 1000,
+            page_size: 256,
             ..Default::default()
         };
         admit::admit_query(&query)
@@ -243,18 +236,16 @@ impl State {
         self.context == context && self.active && self.interactive && self.busy
     }
     pub fn snapshot(&mut self, snapshot: Arc<CalendarReadSnapshot>, source: Generation) {
-        if self.selected.as_ref() != admit::calendar_id(&snapshot.calendar().id).as_ref() {
+        let Ok(version) = admit::calendar_version(snapshot.calendar()) else {
+            return;
+        };
+        if self.selected_name().as_ref() != Some(version.name()) {
             return;
         }
-        if self.minimum_revision.as_ref().is_some_and(|minimum| {
-            admit::calendar_revision(&snapshot.calendar().revision, minimum.calendar())
-                .is_none_or(|revision| revision.state().number() < minimum.state().number())
-        }) {
-            return;
-        }
-        self.minimum_revision = None;
-        if let Some(old) = &self.snapshot
-            && old.calendar().revision != snapshot.calendar().revision
+        if self
+            .snapshot
+            .as_ref()
+            .is_some_and(|old| old.calendar().etag != snapshot.calendar().etag)
         {
             self.bump();
             if let Some(draft) = &mut self.draft
@@ -263,9 +254,12 @@ impl State {
                 draft.phase = EditPhase::Conflict;
             }
         }
-        for calendar in &mut self.catalog {
-            if calendar.id == snapshot.calendar().id {
-                *calendar = snapshot.calendar().clone();
+        for metadata in &mut self.catalog {
+            if metadata.calendar == snapshot.calendar().name {
+                metadata.materialized = true;
+                metadata.display_name = snapshot.calendar().display_name.clone();
+                metadata.mutation_access = snapshot.calendar().mutation_access;
+                metadata.provenance = snapshot.calendar().provenance;
             }
         }
         self.snapshot = Some(snapshot);
@@ -280,16 +274,12 @@ impl State {
                 .iter()
                 .enumerate()
                 .filter_map(|(index, row)| {
-                    let local = match &row.span.value {
-                        Some(wire::span::Value::Dates(value)) => &value.start,
-                        Some(wire::span::Value::Times(value)) => &value.anchor_local,
-                        None => return None,
-                    };
-                    if self.week
-                        && self
-                            .day
-                            .is_some_and(|day| local.get(..10) != Some(day.to_string().as_str()))
-                    {
+                    let span = admit::span(&row.span).ok()?;
+                    let date = span
+                        .date_bounds()
+                        .map(|(start, _)| start)
+                        .or_else(|| span.timed().map(|time| time.start_local().date()))?;
+                    if self.week && self.day.is_some_and(|day| day != date) {
                         None
                     } else {
                         Some(index)
@@ -304,9 +294,11 @@ impl State {
 /// No civil-time resolution or fallback calendar is performed in the client.
 pub(super) fn widget_query(
     target: &crate::dashboard_widget_host::AgendaTarget,
+    name: &CalendarName,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Option<wire::QueryOccurrencesRequest> {
-    if target.limit == 0
+    if &target.calendar != name
+        || target.limit == 0
         || target.limit > 1000
         || target.window_seconds == 0
         || target.window_seconds > 31_622_400
@@ -317,26 +309,33 @@ pub(super) fn widget_query(
     let end =
         start.checked_add_signed(chrono::Duration::seconds(i64::from(target.window_seconds)))?;
     let query = wire::QueryOccurrencesRequest {
-        id: wire::CalendarId {
-            entity_id: target.calendar.entity().as_str().into(),
+        parent: format!("{}/events/-", name.as_str()),
+        window: wire::CalendarWindow {
+            time_zone: target.zone.name().into(),
+            bounds: Some(wire::calendar_window::Bounds::Times(Box::new(
+                wire::CalendarInstantRange {
+                    start_time: admit::parse_timestamp(
+                        &start.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                        true,
+                    )
+                    .ok()?
+                    .into(),
+                    end_time: admit::parse_timestamp(
+                        &end.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                        true,
+                    )
+                    .ok()?
+                    .into(),
+                    ..Default::default()
+                },
+            ))),
             ..Default::default()
         }
         .into(),
-        window: wire::Window {
-            zone: target.zone.name().into(),
-            bounds: Some(wire::window::Bounds::Times(Box::new(wire::TimeSpan {
-                start_instant: start.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-                end_instant: end.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-                zone: target.zone.name().into(),
-                ..Default::default()
-            }))),
-            ..Default::default()
-        }
-        .into(),
-        page_size: u32::try_from(target.limit).ok()?,
+        page_size: i32::try_from(target.limit.min(256)).ok()?,
         ..Default::default()
     };
     admit::admit_query(&query)
         .ok()
-        .map(|query| query.wire().clone())
+        .map(|value| value.wire().clone())
 }

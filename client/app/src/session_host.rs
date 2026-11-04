@@ -7,7 +7,7 @@ use crate::{
     preferences::Preferences,
     profile::{ProfileFailure, TrustedEndpoint},
 };
-use home_client_actions::{ActionController, ControllerError, NoticeKind};
+use home_client_actions::capabilities::{CapabilityController, CapabilityControllerError};
 use home_client_cache::{
     ActivationPermit, CacheHandle, CacheOwner, DeliveryTicket, Filter, ProjectionMailbox,
     Publication, PublicationRefusal, Viewport,
@@ -172,8 +172,6 @@ pub(crate) struct LifecycleBridge {
     calendars: Arc<Mutex<Option<crate::calendar_host::Calendars>>>,
     cameras: Arc<Mutex<Option<crate::camera_host::Cameras>>>,
     administration: Arc<Mutex<Option<crate::administration_host::Administration>>>,
-    companion: Arc<Mutex<Option<crate::companion_host::Companion>>>,
-    notifications: Arc<Mutex<Option<crate::notification_host::Notifications>>>,
 }
 impl LifecycleBridge {
     pub(crate) fn new() -> Self {
@@ -192,8 +190,6 @@ impl LifecycleBridge {
             calendars: Arc::new(Mutex::new(None)),
             cameras: Arc::new(Mutex::new(None)),
             administration: Arc::new(Mutex::new(None)),
-            companion: Arc::new(Mutex::new(None)),
-            notifications: Arc::new(Mutex::new(None)),
         }
     }
     // Called by native event listeners on the UI thread. Cancel publication and
@@ -210,22 +206,6 @@ impl LifecycleBridge {
             .as_ref()
         {
             administration.foreground(state == Lifecycle::Foreground);
-        }
-        if let Some(notifications) = self
-            .notifications
-            .lock()
-            .expect("lifecycle notifications")
-            .as_ref()
-        {
-            notifications.foreground(state == Lifecycle::Foreground);
-        }
-        if let Some(companion) = self
-            .companion
-            .lock()
-            .expect("lifecycle companion mutex")
-            .as_ref()
-        {
-            companion.foreground(state == Lifecycle::Foreground);
         }
         if let Some(widgets) = self
             .dashboard_widgets
@@ -390,8 +370,6 @@ struct Ui {
     calendars: crate::calendar_host::Calendars,
     cameras: crate::camera_host::Cameras,
     administration: crate::administration_host::Administration,
-    companion: crate::companion_host::Companion,
-    notifications: crate::notification_host::Notifications,
 }
 impl Ui {
     fn current_devices(&self) -> Result<(DeviceBinding, i32), Refusal> {
@@ -430,8 +408,6 @@ impl Ui {
     }
     fn invalidate_cache(&self) {
         *self.startup_read.lock().expect("startup read mutex") = StartupRead::Cancelled;
-        self.companion.clear();
-        self.notifications.clear();
         self.administration.clear();
         self.history.clear();
         self.media.clear();
@@ -828,13 +804,11 @@ struct Profile {
     owner: SessionCoordinator,
     cache: CacheOwner<CacheProjection>,
     cancel: CancellationToken,
-    actions: ActionController,
+    actions: CapabilityController,
     devices: DeviceStore,
     accounts: home_client_transport::AccountTransport,
 }
 async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, ui: &Ui) {
-    ui.companion.clear();
-    ui.notifications.clear();
     ui.administration.clear();
     ui.history.clear();
     ui.media.clear();
@@ -858,12 +832,10 @@ async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, u
         previous.cancel.cancel();
         previous.devices.clear_private();
         *ui.devices.lock().expect("device binding mutex") = None;
-        previous.actions.close().await;
+        previous.actions.shutdown().await;
         previous.cache.close().await;
         previous.owner.close().await;
         while tasks.join_next().await.is_some() {}
-        ui.companion.set_registrations(None);
-        ui.notifications.set_registrations(None);
         // Drop the OS process lease before constructing a replacement profile.
     }
 }
@@ -875,58 +847,20 @@ async fn install_profile(
     tasks: &mut JoinSet<()>,
 ) -> Result<Profile, StoreFailure> {
     let store = services.store(endpoint.key())?;
-    let registrations = crate::registration_store::Registrations::new(services.store(
-        crate::registration_store::Registrations::key(endpoint.key()),
-    )?);
     endpoint
         .save(&services.directory()?)
         .map_err(|_| StoreFailure::Unavailable)?;
     let connection = endpoint.connection();
     let owner = SessionCoordinator::new(connection.auth(), store);
     let devices = DeviceStore::default();
-    let (actions, mut action_notices) =
-        ActionController::start(owner.clone(), connection.actions());
-    let mut action_updates = actions.subscribe_updates();
     let cancel = CancellationToken::new();
-    ui.companion.clear();
-    ui.notifications.clear();
-    ui.companion.set_registrations(Some(registrations.clone()));
-    ui.notifications.set_registrations(Some(registrations));
+    let actions = CapabilityController::new(
+        owner.clone(),
+        connection.capabilities(),
+        connection.operations(),
+        &cancel,
+    );
     ui.administration.clear();
-    let (
-        notifications,
-        notification_session,
-        notification_connection,
-        notification_parent,
-        notification_cancel,
-    ) = (
-        ui.notifications.clone(),
-        owner.clone(),
-        connection.clone(),
-        ui.companion.clone(),
-        cancel.clone(),
-    );
-    tasks.spawn(async move {
-        notifications
-            .run(
-                notification_session,
-                notification_connection,
-                notification_parent,
-                notification_cancel,
-            )
-            .await;
-    });
-    let (companion, companion_session, companion_api, companion_cancel) = (
-        ui.companion.clone(),
-        owner.clone(),
-        connection.companion(),
-        cancel.clone(),
-    );
-    tasks.spawn(async move {
-        companion
-            .run(companion_session, companion_api, companion_cancel)
-            .await;
-    });
     let (administration, admin_session, admin_connection, admin_cancel) = (
         ui.administration.clone(),
         owner.clone(),
@@ -945,7 +879,7 @@ async fn install_profile(
     let (cameras, camera_session, camera_transport, camera_cancel) = (
         ui.cameras.clone(),
         owner.clone(),
-        connection.cameras(),
+        connection.media(),
         cancel.clone(),
     );
     tasks.spawn(async move {
@@ -968,7 +902,7 @@ async fn install_profile(
         ui.media.clone(),
         owner.clone(),
         connection.media(),
-        actions.client(),
+        actions.clone(),
         cancel.clone(),
     );
     tasks.spawn(async move {
@@ -992,7 +926,7 @@ async fn install_profile(
     let (lists, list_session, list_transport, list_cancel) = (
         ui.lists.clone(),
         owner.clone(),
-        connection.lists(),
+        connection.tasks(),
         cancel.clone(),
     );
     tasks.spawn(async move {
@@ -1001,7 +935,7 @@ async fn install_profile(
     let (widgets, widget_session, widget_lists, widget_calendars, widget_cancel) = (
         ui.dashboard_widgets.clone(),
         owner.clone(),
-        connection.lists(),
+        connection.tasks(),
         connection.calendars(),
         cancel.clone(),
     );
@@ -1038,11 +972,23 @@ async fn install_profile(
     let cache_target = ui.projection_target(epoch);
     let presentation = ui.projection_request.clone();
     let projected_devices = devices.clone();
+    let (dashboard_capture, dashboard_captures) =
+        tokio::sync::watch::channel::<Option<Arc<home_client_cache::CachedView>>>(None);
     let (cache, mut events) = CacheOwner::start(
         owner.clone(),
-        connection.state(),
+        connection.entity_views(),
+        connection.home(),
         Filter::all(),
         move |phase, view, viewport| {
+            let current = view.filter(|_| phase == home_client_cache::CachePhase::Live);
+            dashboard_capture.send_if_modified(|previous| {
+                if previous.as_deref().map(|v| v.incarnation()) == current.map(|v| v.incarnation())
+                {
+                    return false;
+                }
+                *previous = current.map(|v| Arc::new(v.clone()));
+                true
+            });
             let request = presentation
                 .lock()
                 .expect("presentation request mutex poisoned")
@@ -1055,38 +1001,6 @@ async fn install_profile(
     *ui.devices.lock().expect("device binding mutex") = Some(DeviceBinding {
         epoch,
         store: devices.clone(),
-    });
-    let (action_ui, action_cancel, action_cache) =
-        (ui.clone(), cancel.clone(), cache_handle.clone());
-    tasks.spawn(async move {
-        loop {
-            tokio::select! { biased;
-                () = action_cancel.cancelled() => break,
-                changed = action_updates.changed() => {
-                    if changed.is_err() {break;}
-                    let _ = action_cache.viewport(*action_ui.viewport.borrow());
-                }
-            }
-        }
-    });
-    let (notice_ui, notice_cancel) = (ui.clone(), cancel.clone());
-    tasks.spawn(async move {
-        loop {
-            let notice = tokio::select!{biased; ()=notice_cancel.cancelled()=>break, notice=action_notices.recv()=>notice};
-            let Some(notice) = notice else {break;};
-            let message = match notice.kind {
-                NoticeKind::NotSent => Some("Command not sent: the gesture context changed."),
-                NoticeKind::SubmissionUncertain => Some("Submission response lost. Checking the same command without resubmitting it."),
-                NoticeKind::TrackingUnavailable => Some("Live tracking is unavailable for this command."),
-                NoticeKind::TrackingInterrupted => Some("Tracking was interrupted. The command will not be resubmitted."),
-                NoticeKind::SubmissionResult | NoticeKind::Terminal | NoticeKind::Stopped => None,
-            };
-            if let Some(message) = message {
-                let (ack, received) = oneshot::channel();
-                notice_ui.post(epoch,move|window|{window.set_action_feedback(message.into());let _=ack.send(());});
-                tokio::select!{biased; ()=notice_cancel.cancelled()=>break, _=received=>{}}
-            }
-        }
     });
     let (dashboard_session, dashboard_ui, dashboard_cancel) =
         (owner.clone(), ui.clone(), cancel.clone());
@@ -1103,6 +1017,7 @@ async fn install_profile(
             dashboard_cancel,
             dashboard_retry,
             dashboard_choices,
+            dashboard_captures,
             move |generation, revision, catalogue, layout| {
                 let ticket = match mailbox.publish(
                     mailbox.generation(),
@@ -1225,8 +1140,6 @@ async fn session_action(
 ) {
     match action {
         Action::Login { login, password } => {
-            ui.companion.clear();
-            ui.notifications.clear();
             let _ = cache.invalidate();
             let _ = owner.login(login, password).await;
         }
@@ -1234,14 +1147,10 @@ async fn session_action(
             let _ = owner.complete_recovery(code).await;
         }
         Action::Cancel => {
-            ui.companion.clear();
-            ui.notifications.clear();
             let _ = cache.invalidate();
             let _ = owner.logout_local().await;
         }
         Action::Logout => {
-            ui.companion.clear();
-            ui.notifications.clear();
             let _ = cache.invalidate();
             if let Ok(ServerRevocation::Uncertain) = owner.logout().await {
                 ui.post(epoch, |window| {
@@ -1349,17 +1258,33 @@ async fn worker(
                 Some(Intent::Device { epoch, prepared }) => {
                     if let Some(profile)=&profile && profile.epoch==epoch && ui.epoch.load(Ordering::SeqCst)==epoch.0 {
                         let Prepared{target,request,guard,layout:_}=*prepared;
-                        match profile.actions.client().submit(request,guard.clone()) {
+                        match profile.actions.submit(request,guard.clone()) {
                             Ok(handle)=>{
-                                profile.devices.remember(target,handle);
+                                let mut updates = handle.subscribe();
+                                profile.devices.remember(target,handle.clone());
+                                let (action_ui, action_cancel, action_cache) =
+                                    (ui.clone(), profile.cancel.clone(), profile.cache.handle());
+                                tasks.spawn(async move {
+                                    loop {
+                                        let snapshot = updates.borrow_and_update().clone();
+                                        let (_, title, detail) = crate::device_view::progress::presentation(Some(&snapshot));
+                                        let feedback = if title.is_empty() { String::new() } else { format!("{title}. {detail}") };
+                                        action_ui.post(epoch, move |window| window.set_action_feedback(feedback.into()));
+                                        let _ = action_cache.viewport(*action_ui.viewport.borrow());
+                                        if handle.is_finished() { break; }
+                                        tokio::select! { biased;
+                                            () = action_cancel.cancelled() => break,
+                                            changed = updates.changed() => if changed.is_err() { break; },
+                                        }
+                                    }
+                                });
                                 let _=profile.cache.handle().viewport(*ui.viewport.borrow());
                                 ui.post(epoch,|window|window.set_action_feedback("".into()));
                             }
                             Err(error)=>ui.refuse(epoch,match error {
-                                ControllerError::Busy|ControllerError::Capacity=>Refusal::Capacity,
-                                ControllerError::Closed|ControllerError::NotReady=>Refusal::Stale,
-                                ControllerError::InvalidRequest=>Refusal::InvalidValue,
-                                ControllerError::IdentityUnavailable=>Refusal::Unavailable,
+                                CapabilityControllerError::Busy|CapabilityControllerError::Capacity=>Refusal::Capacity,
+                                CapabilityControllerError::Closed|CapabilityControllerError::NotReady=>Refusal::Stale,
+                                CapabilityControllerError::InvalidCommand=>Refusal::InvalidValue,
                             }),
                         }
                         drop(guard);
@@ -1552,16 +1477,6 @@ pub(crate) fn run_with_lifecycle(
     let calendars = crate::calendar_host::Calendars::bind(&window);
     let cameras = crate::camera_host::Cameras::bind(&window);
     let administration = crate::administration_host::Administration::bind(&window);
-    let companion = crate::companion_host::Companion::bind(&window);
-    let notifications = crate::notification_host::Notifications::bind(&window);
-    *lifecycle
-        .notifications
-        .lock()
-        .expect("lifecycle notifications") = Some(notifications.clone());
-    *lifecycle
-        .companion
-        .lock()
-        .expect("lifecycle companion mutex") = Some(companion.clone());
     *lifecycle
         .administration
         .lock()
@@ -1594,8 +1509,6 @@ pub(crate) fn run_with_lifecycle(
         calendars,
         cameras,
         administration,
-        companion,
-        notifications,
     };
     let (sender, input) = mpsc::channel(16);
     let presentation_ui = ui.clone();
@@ -1627,22 +1540,6 @@ pub(crate) fn run_with_lifecycle(
         },
     );
     let recipe_ui = ui.clone();
-    let notification_ui = ui.clone();
-    let notification_navigation = native_navigation.clone();
-    window.on_notification_target(move |generation| {
-        if let Some(target) = notification_ui.notifications.take_navigation(generation) {
-            #[cfg(debug_assertions)]
-            eprintln!("homeward: notification navigation authorized");
-            match target {
-                crate::notification_host::NavigationTarget::Home => {
-                    notification_navigation.notification_home()
-                }
-                crate::notification_host::NavigationTarget::Entity(id) => {
-                    let _ = notification_navigation.more_info(id, None);
-                }
-            }
-        }
-    });
     native_navigation.attach_catalogue(ui.dashboard_choices.clone());
     let dispatch_ui = ui.clone();
     let recipe_sender = sender.clone();
@@ -2047,7 +1944,8 @@ mod tests {
         let session = SessionCoordinator::new(connection.auth(), Arc::new(UnusedCredentialStore));
         let (owner, _events) = CacheOwner::start(
             session.clone(),
-            connection.state(),
+            connection.entity_views(),
+            connection.home(),
             Filter::all(),
             cache_view::project,
             drop,
@@ -2080,8 +1978,6 @@ mod tests {
             calendars: crate::calendar_host::Calendars::detached(),
             cameras: crate::camera_host::Cameras::detached(),
             administration: crate::administration_host::Administration::detached(),
-            companion: crate::companion_host::Companion::detached(),
-            notifications: crate::notification_host::Notifications::detached(),
         };
         ui.request_view(epoch);
 
@@ -2179,8 +2075,6 @@ mod tests {
             calendars: crate::calendar_host::Calendars::detached(),
             cameras: crate::camera_host::Cameras::detached(),
             administration: crate::administration_host::Administration::detached(),
-            companion: crate::companion_host::Companion::detached(),
-            notifications: crate::notification_host::Notifications::detached(),
         };
         let slot = Arc::downgrade(&ui.cache_handle);
         let target = ui.projection_target(ProfileEpoch(0));

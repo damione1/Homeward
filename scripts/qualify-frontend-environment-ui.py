@@ -257,7 +257,7 @@ def run_case(proof, build, role, case):
             assert server.wait(timeout=25) == 0
             final = json.loads((fixture / 'result.json').read_text())
             assert final['server_joined'] and final['native_login_calls'] == final['native_revokes'] == 1
-            assert final['command_driver_entries'] == final['fake_driver_calls'] == final['real_device_writes'] == 0 and not final['submit_ids']
+            assert final['command_driver_entries'] == final['fake_driver_calls'] == final['real_device_writes'] == 0 and not final['execute_request_ids']
             assert final['dashboard_get_calls'] >= 1 and final['dashboard_watch_calls'] >= 1
             assert not (directory / 'app.log').read_bytes()
             result = dict(status='AUTOMATED_PASS_REQUIRES_VISUAL_INSPECTION', role=role.value, case=case.value, checks=checks, server=final, controls=sequence, children_joined=True)

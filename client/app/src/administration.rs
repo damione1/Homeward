@@ -3,12 +3,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use buffa::EnumValue;
+use buffa_types::google::protobuf::FieldMask;
 use home_wire_contract::{
-    auth_contract::{self, AccountId, SessionId},
+    auth_contract::{self, AccountName, SessionName},
     configuration_contract,
-    home::{auth::v1 as auth, configuration::v1 as config, integrationadmin::v1 as integration},
+    google::longrunning,
+    home::api::v2 as auth,
+    home::api::v2 as config,
     integration_admin_contract::{self, IntegrationAdminRequest},
-    observability_contract,
+    integration_operations_contract, observability_contract,
 };
 use zeroize::Zeroizing;
 
@@ -30,7 +33,6 @@ pub enum Section {
     Policies,
     Integrations,
     Configuration,
-    Logic,
     Health,
     Metrics,
     Logs,
@@ -38,7 +40,7 @@ pub enum Section {
     SecretAudits,
 }
 impl Section {
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 15] = [
         Self::Account,
         Self::Sessions,
         Self::Factors,
@@ -49,7 +51,6 @@ impl Section {
         Self::Policies,
         Self::Integrations,
         Self::Configuration,
-        Self::Logic,
         Self::Health,
         Self::Metrics,
         Self::Logs,
@@ -68,7 +69,6 @@ impl Section {
             Self::Policies => "Permissions",
             Self::Integrations => "Integrations",
             Self::Configuration => "Configuration",
-            Self::Logic => "Logic and Traces",
             Self::Health => "Health",
             Self::Metrics => "Metrics",
             Self::Logs => "Logs",
@@ -76,8 +76,8 @@ impl Section {
             Self::SecretAudits => "Secret Audits",
         }
     }
-    pub fn audit_source(self) -> Option<home_wire_contract::home::observability::v1::AuditSource> {
-        use home_wire_contract::home::observability::v1::AuditSource;
+    pub fn audit_source(self) -> Option<home_wire_contract::home::api::v2::ObservationAuditSource> {
+        use home_wire_contract::home::api::v2::ObservationAuditSource as AuditSource;
         match self {
             Self::Audits => Some(AuditSource::Authentication),
             Self::SecretAudits => Some(AuditSource::SecretAccess),
@@ -91,7 +91,6 @@ impl Section {
             | Self::Policies
             | Self::Integrations
             | Self::Configuration
-            | Self::Logic
             | Self::Health
             | Self::Metrics
             | Self::Logs => None,
@@ -106,7 +105,6 @@ impl Section {
             | Self::Policies
             | Self::Integrations
             | Self::Configuration
-            | Self::Logic
             | Self::Health
             | Self::Metrics
             | Self::Logs
@@ -128,8 +126,8 @@ pub enum Refusal {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Identity {
-    pub account: AccountId,
-    pub session: SessionId,
+    pub account: AccountName,
+    pub session: SessionName,
 }
 
 pub struct Authority {
@@ -139,8 +137,9 @@ pub struct Authority {
 impl Authority {
     pub fn admit(identity: Identity, account: auth::Account) -> Result<Self, Refusal> {
         auth_contract::admit_account(&account).map_err(|_| Refusal::Invalid)?;
-        let received = AccountId::try_from(&*account.id).map_err(|_| Refusal::Invalid)?;
-        if received != identity.account || account.status != auth::AccountStatus::Active {
+        let received =
+            AccountName::try_from(account.name.as_str()).map_err(|_| Refusal::Invalid)?;
+        if received != identity.account || account.state != auth::AccountState::Active {
             return Err(Refusal::Denied);
         }
         Ok(Self {
@@ -343,6 +342,18 @@ impl MutationState {
             }
         }
     }
+    pub fn integration_operation(value: &longrunning::Operation) -> Result<Self, Refusal> {
+        let receipt =
+            integration_operations_contract::admit_response(value).map_err(|_| Refusal::Invalid)?;
+        match receipt.phase() {
+            config::IntegrationOperationPhase::Published
+            | config::IntegrationOperationPhase::NoChange => Ok(Self::Published),
+            config::IntegrationOperationPhase::Accepted
+            | config::IntegrationOperationPhase::Committed => Ok(Self::Reconciling),
+            config::IntegrationOperationPhase::Failed => Ok(Self::Rejected),
+            config::IntegrationOperationPhase::Unspecified => Err(Refusal::Unsupported),
+        }
+    }
     pub fn submit_allowed(self) -> bool {
         self == Self::Draft
     }
@@ -364,139 +375,193 @@ impl IntegrationId {
 fn bounded_text(value: &str, limit: usize) -> bool {
     !value.trim().is_empty() && value.len() <= limit && !value.contains(['\0', '\r', '\n'])
 }
-fn references(values: &[integration::SecretReference], id: &IntegrationId) -> bool {
+fn resource_home<'a>(value: &'a str, collection: &str) -> Option<&'a str> {
+    let (home, id) = value.split_once(&format!("/{collection}/"))?;
+    if configuration_contract::home_name(home)
+        && !id.is_empty()
+        && id.len() <= 63
+        && !id.starts_with('-')
+        && !id.ends_with('-')
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    {
+        Some(home)
+    } else {
+        None
+    }
+}
+fn valid_etag(value: &str) -> bool {
+    value.len() > 4
+        && value.len() <= 256
+        && value.starts_with("W/\"")
+        && value.ends_with('"')
+        && value[3..value.len() - 1]
+            .chars()
+            .all(|c| c >= '\u{21}' && c != '\u{7f}' && c != '"')
+}
+fn references(
+    values: &[config::IntegrationSecretReference],
+    instance_key: &str,
+    opaque: bool,
+) -> bool {
     let mut fields = BTreeSet::new();
     values.len() <= 32
         && values.iter().all(|value| {
             value.__buffa_unknown_fields.is_empty()
                 && bounded_text(&value.field, 256)
-                && bounded_text(&value.name, 256)
-                && value.integration_instance_id == id.as_str()
-                && fields.insert(value.field.as_str())
+                && bounded_text(&value.secret_key, 256)
+                && value.instance_key == instance_key
+                && (!opaque || value.field == "secret_names")
+                && fields.insert(if opaque {
+                    value.secret_key.as_str()
+                } else {
+                    value.field.as_str()
+                })
         })
 }
 
-pub fn admit_integration_instance(value: &integration::IntegrationInstance) -> Result<(), Refusal> {
+pub fn admit_integration_instance(value: &config::IntegrationInstance) -> Result<(), Refusal> {
     if !value.__buffa_unknown_fields.is_empty()
-        || !(bounded_text(&value.type_id, 256)
-            || value.type_id.is_empty()
-                && matches!(
-                    value.configuration,
-                    Some(integration::integration_instance::Configuration::Opaque(_))
-                ))
+        || !bounded_text(&value.instance_key, 256)
+        || !valid_etag(&value.etag)
     {
         return Err(Refusal::Invalid);
     }
-    let id = IntegrationId::parse(&value.integration_instance_id)?;
+    let home = resource_home(&value.name, "integrationInstances").ok_or(Refusal::Invalid)?;
+    if resource_home(&value.configuration_document, "configurationDocuments") != Some(home) {
+        return Err(Refusal::Invalid);
+    }
     match value.desired_state {
         EnumValue::Known(
-            integration::DesiredState::Enabled | integration::DesiredState::Disabled,
+            config::IntegrationDesiredState::Enabled | config::IntegrationDesiredState::Disabled,
         ) => (),
-        EnumValue::Known(integration::DesiredState::Unspecified) | EnumValue::Unknown(_) => {
+        EnumValue::Known(config::IntegrationDesiredState::Unspecified) | EnumValue::Unknown(_) => {
             return Err(Refusal::Unsupported);
         }
     }
     match value.configuration.as_ref() {
-        Some(integration::integration_instance::Configuration::Editable(source)) => {
-            if !source.__buffa_unknown_fields.is_empty()
+        Some(config::integration_instance::Configuration::Editable(source)) => {
+            if resource_home(&value.integration_type, "integrationTypes") != Some(home)
+                || !source.__buffa_unknown_fields.is_empty()
                 || !bounded_text(&source.schema_version, 256)
                 || source.yaml_source.is_empty()
                 || source.yaml_source.len() > MAX_FRAGMENT_BYTES
                 || std::str::from_utf8(&source.yaml_source).is_err()
                 || source.yaml_source.contains(&0)
-                || !references(&source.secrets, &id)
+                || !references(&source.secrets, &value.instance_key, false)
             {
                 return Err(Refusal::Invalid);
             }
         }
-        Some(integration::integration_instance::Configuration::Opaque(source)) => {
-            if !source.__buffa_unknown_fields.is_empty() || !references(&source.secrets, &id) {
+        Some(config::integration_instance::Configuration::Opaque(source)) => {
+            if !value.integration_type.is_empty()
+                || !source.__buffa_unknown_fields.is_empty()
+                || !references(&source.secrets, &value.instance_key, true)
+            {
                 return Err(Refusal::Invalid);
             }
         }
         None => return Err(Refusal::Invalid),
     }
-    admit_integration_health(
-        &home_wire_contract::home::observability::v1::GetIntegrationHealthResponse {
-            report: value.report.clone(),
-            supervision: value.supervision.clone(),
-            ..Default::default()
-        },
-    )
+    if let Some(health) = &value.observed_health {
+        match health {
+            config::integration_instance::ObservedHealth::NoHealthReport(empty) => {
+                if !empty.__buffa_unknown_fields.is_empty() {
+                    return Err(Refusal::Invalid);
+                }
+            }
+            config::integration_instance::ObservedHealth::HealthReport(report) => {
+                if !report.__buffa_unknown_fields.is_empty() {
+                    return Err(Refusal::Invalid);
+                }
+                match report.status {
+                    EnumValue::Known(
+                        config::IntegrationHealthStatus::Ready
+                        | config::IntegrationHealthStatus::Degraded
+                        | config::IntegrationHealthStatus::Unavailable,
+                    ) => (),
+                    EnumValue::Known(config::IntegrationHealthStatus::Unspecified)
+                    | EnumValue::Unknown(_) => return Err(Refusal::Unsupported),
+                }
+                match &report.admission {
+                    Some(config::integration_health_report::Admission::AdmissionTime(ts)) => {
+                        if !configuration_contract::timestamp(ts) {
+                            return Err(Refusal::Invalid);
+                        }
+                    }
+                    Some(config::integration_health_report::Admission::AdmissionNotRecorded(
+                        empty,
+                    )) => {
+                        if !empty.__buffa_unknown_fields.is_empty() {
+                            return Err(Refusal::Invalid);
+                        }
+                    }
+                    None => return Err(Refusal::Invalid),
+                }
+            }
+        }
+    }
+    if let Some(supervision) = &value.observed_supervision {
+        match supervision {
+            config::integration_instance::ObservedSupervision::NotSupervised(empty) => {
+                if !empty.__buffa_unknown_fields.is_empty() {
+                    return Err(Refusal::Invalid);
+                }
+            }
+            config::integration_instance::ObservedSupervision::Supervision(snapshot) => {
+                if !snapshot.__buffa_unknown_fields.is_empty()
+                    || snapshot.attempts < 0
+                    || snapshot.tasks < 0
+                {
+                    return Err(Refusal::Invalid);
+                }
+                match snapshot.lifecycle {
+                    EnumValue::Known(
+                        config::IntegrationLifecycle::Starting
+                        | config::IntegrationLifecycle::Running
+                        | config::IntegrationLifecycle::Retrying
+                        | config::IntegrationLifecycle::Degraded
+                        | config::IntegrationLifecycle::Stopped,
+                    ) => (),
+                    EnumValue::Known(config::IntegrationLifecycle::Unspecified)
+                    | EnumValue::Unknown(_) => return Err(Refusal::Unsupported),
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The editor retains the exact server secret references outside the editable YAML.
 /// Opaque configurations remain read-only. No global redacted document is rebuilt.
 pub struct IntegrationDraft {
     id: IntegrationId,
-    type_id: String,
-    source: integration::PublicConfiguration,
-    expected: integration::MutationPrecondition,
+    instance_key: String,
+    integration_type: String,
+    etag: String,
+    source: config::IntegrationConfiguration,
     state: MutationState,
 }
-pub(crate) fn mutation_precondition(
-    document: &config::ReadDocumentResponse,
-) -> Result<integration::MutationPrecondition, Refusal> {
-    configuration_contract::admit_configuration_read(document).map_err(|_| Refusal::Invalid)?;
-    let metadata = document.document.as_option().ok_or(Refusal::Invalid)?;
-    if metadata.id.value != "operational.main"
-        || metadata.kind != config::DocumentKind::OperationalYaml
-    {
-        return Err(Refusal::Invalid);
-    }
-    let workspace = match metadata.workspace_state.as_ref() {
-        Some(config::document::WorkspaceState::Workspace(value)) => value,
-        Some(config::document::WorkspaceState::WorkspaceUnobserved(_)) => {
-            return Err(Refusal::ReadOnly);
-        }
-        None => return Err(Refusal::Invalid),
-    };
-    Ok(integration::MutationPrecondition {
-        expected: metadata.version.clone(),
-        expected_workspace_sha256: workspace.source_sha256.clone(),
-        ..Default::default()
-    })
-}
 impl IntegrationDraft {
-    pub fn open(
-        instance: &integration::IntegrationInstance,
-        document: &config::ReadDocumentResponse,
-    ) -> Result<Self, Refusal> {
-        Self::from_parts(instance, mutation_precondition(document)?)
-    }
-    fn from_parts(
-        instance: &integration::IntegrationInstance,
-        expected: integration::MutationPrecondition,
-    ) -> Result<Self, Refusal> {
-        if !instance.__buffa_unknown_fields.is_empty() || !bounded_text(&instance.type_id, 256) {
-            return Err(Refusal::Invalid);
-        }
-        let id = IntegrationId::parse(&instance.integration_instance_id)?;
-        match instance.desired_state {
-            EnumValue::Known(
-                integration::DesiredState::Enabled | integration::DesiredState::Disabled,
-            ) => (),
-            EnumValue::Known(integration::DesiredState::Unspecified) | EnumValue::Unknown(_) => {
-                return Err(Refusal::Unsupported);
-            }
-        }
+    pub fn open(instance: &config::IntegrationInstance) -> Result<Self, Refusal> {
+        admit_integration_instance(instance)?;
+        let id = IntegrationId::parse(&instance.name)?;
         let source = match instance.configuration.as_ref() {
-            Some(integration::integration_instance::Configuration::Editable(value)) => {
+            Some(config::integration_instance::Configuration::Editable(value)) => {
                 value.as_ref().clone()
             }
-            Some(integration::integration_instance::Configuration::Opaque(_)) => {
+            Some(config::integration_instance::Configuration::Opaque(_)) => {
                 return Err(Refusal::ReadOnly);
             }
             None => return Err(Refusal::Invalid),
         };
-        if !references(&source.secrets, &id) {
-            return Err(Refusal::Invalid);
-        }
         let draft = Self {
             id,
-            type_id: instance.type_id.clone(),
+            instance_key: instance.instance_key.clone(),
+            integration_type: instance.integration_type.clone(),
+            etag: instance.etag.clone(),
             source,
-            expected,
             state: MutationState::Draft,
         };
         draft.prepare_update()?;
@@ -505,13 +570,16 @@ impl IntegrationDraft {
     pub fn id(&self) -> &IntegrationId {
         &self.id
     }
+    pub fn instance_key(&self) -> &str {
+        &self.instance_key
+    }
     pub fn state(&self) -> MutationState {
         self.state
     }
     pub fn yaml(&self) -> &str {
         std::str::from_utf8(&self.source.yaml_source).expect("admitted UTF-8 fragment")
     }
-    pub fn secret_references(&self) -> &[integration::SecretReference] {
+    pub fn secret_references(&self) -> &[config::IntegrationSecretReference] {
         &self.source.secrets
     }
     pub fn edit_yaml(&mut self, value: &str) -> Result<(), Refusal> {
@@ -524,7 +592,7 @@ impl IntegrationDraft {
         self.source.yaml_source = value.as_bytes().to_vec();
         Ok(())
     }
-    pub fn prepare_update(&self) -> Result<integration::UpdateInstanceRequest, Refusal> {
+    pub fn prepare_update(&self) -> Result<config::UpdateIntegrationInstanceRequest, Refusal> {
         if !self.state.submit_allowed() {
             return Err(Refusal::Stale);
         }
@@ -532,11 +600,23 @@ impl IntegrationDraft {
         if source.contains('\0') {
             return Err(Refusal::Invalid);
         }
-        let request = integration::UpdateInstanceRequest {
-            type_id: self.type_id.clone(),
-            integration_instance_id: self.id.as_str().into(),
-            configuration: self.source.clone().into(),
-            precondition: self.expected.clone().into(),
+        let request = config::UpdateIntegrationInstanceRequest {
+            integration_instance: config::IntegrationInstance {
+                name: self.id.as_str().into(),
+                instance_key: self.instance_key.clone(),
+                integration_type: self.integration_type.clone(),
+                etag: self.etag.clone(),
+                configuration: Some(config::integration_instance::Configuration::Editable(
+                    Box::new(self.source.clone()),
+                )),
+                ..Default::default()
+            }
+            .into(),
+            update_mask: FieldMask {
+                paths: vec!["editable".into()],
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         };
         integration_admin_contract::admit_integration_admin_request(
@@ -545,7 +625,7 @@ impl IntegrationDraft {
         .map_err(|_| Refusal::Invalid)?;
         Ok(request)
     }
-    pub fn begin_update(&mut self) -> Result<integration::UpdateInstanceRequest, Refusal> {
+    pub fn begin_update(&mut self) -> Result<config::UpdateIntegrationInstanceRequest, Refusal> {
         let request = self.prepare_update()?;
         self.state = MutationState::InFlight;
         Ok(request)
@@ -561,19 +641,28 @@ impl IntegrationDraft {
     }
     pub fn set_enabled(
         &self,
-        state: integration::DesiredState,
-    ) -> Result<integration::SetInstanceEnabledRequest, Refusal> {
+        state: config::IntegrationDesiredState,
+    ) -> Result<config::UpdateIntegrationInstanceRequest, Refusal> {
         if !self.state.submit_allowed() {
             return Err(Refusal::Stale);
         }
-        let request = integration::SetInstanceEnabledRequest {
-            integration_instance_id: self.id.as_str().into(),
-            desired_state: state.into(),
-            precondition: self.expected.clone().into(),
+        let request = config::UpdateIntegrationInstanceRequest {
+            integration_instance: config::IntegrationInstance {
+                name: self.id.as_str().into(),
+                desired_state: state.into(),
+                etag: self.etag.clone(),
+                ..Default::default()
+            }
+            .into(),
+            update_mask: FieldMask {
+                paths: vec!["desired_state".into()],
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         };
         integration_admin_contract::admit_integration_admin_request(
-            IntegrationAdminRequest::SetEnabled(&request),
+            IntegrationAdminRequest::Update(&request),
         )
         .map_err(|_| Refusal::Invalid)?;
         Ok(request)
@@ -581,31 +670,31 @@ impl IntegrationDraft {
 }
 
 /// Opaque source stays read-only, but the server still exposes desired-state
-/// changes and deletion with the same exact document/workspace preconditions.
+/// changes and deletion with the same exact resource etag precondition.
 pub fn prepare_enabled(
-    instance: &integration::IntegrationInstance,
-    document: &config::ReadDocumentResponse,
-    state: integration::DesiredState,
-) -> Result<integration::SetInstanceEnabledRequest, Refusal> {
+    instance: &config::IntegrationInstance,
+    state: config::IntegrationDesiredState,
+) -> Result<config::UpdateIntegrationInstanceRequest, Refusal> {
     admit_integration_instance(instance)?;
-    match instance.desired_state {
-        EnumValue::Known(
-            integration::DesiredState::Enabled | integration::DesiredState::Disabled,
-        ) => (),
-        EnumValue::Known(integration::DesiredState::Unspecified) | EnumValue::Unknown(_) => {
-            return Err(Refusal::Unsupported);
+    let id = IntegrationId::parse(&instance.name)?;
+    let request = config::UpdateIntegrationInstanceRequest {
+        integration_instance: config::IntegrationInstance {
+            name: id.as_str().into(),
+            desired_state: state.into(),
+            etag: instance.etag.clone(),
+            ..Default::default()
         }
-    }
-    let id = IntegrationId::parse(&instance.integration_instance_id)?;
-    let request = integration::SetInstanceEnabledRequest {
-        integration_instance_id: id.as_str().into(),
-        desired_state: state.into(),
-        precondition: mutation_precondition(document)?.into(),
+        .into(),
+        update_mask: FieldMask {
+            paths: vec!["desired_state".into()],
+            ..Default::default()
+        }
+        .into(),
         ..Default::default()
     };
-    integration_admin_contract::admit_integration_admin_request(
-        IntegrationAdminRequest::SetEnabled(&request),
-    )
+    integration_admin_contract::admit_integration_admin_request(IntegrationAdminRequest::Update(
+        &request,
+    ))
     .map_err(|_| Refusal::Invalid)?;
     Ok(request)
 }
@@ -619,9 +708,9 @@ pub fn admit_accounts(response: auth::ListAccountsResponse) -> Result<Vec<auth::
     for account in &response.accounts {
         auth_contract::admit_account(account).map_err(|_| Refusal::Invalid)?;
         if !bounded_text(&account.login_name, 256)
-            || !bounded_text(&account.id.value, 128)
+            || !bounded_text(&account.name, 256)
             || account.display_name.len() > 256
-            || !identities.insert(account.id.value.as_str())
+            || !identities.insert(account.name.as_str())
         {
             return Err(Refusal::Invalid);
         }
@@ -630,7 +719,7 @@ pub fn admit_accounts(response: auth::ListAccountsResponse) -> Result<Vec<auth::
 }
 
 pub fn admit_integration_health(
-    value: &home_wire_contract::home::observability::v1::GetIntegrationHealthResponse,
+    value: &home_wire_contract::home::api::v2::IntegrationHealth,
 ) -> Result<(), Refusal> {
     observability_contract::admit_integration_health_response(value)
         .map(|_| ())

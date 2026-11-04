@@ -11,7 +11,7 @@ use crate::{
 pub(super) use activation::Field as ActivationField;
 pub(super) use activation::{HistoryQuery, HistoryReply, ReferenceRead};
 use buffa::EnumValue;
-use home_wire_contract::home::configurationplan::v1 as wire;
+use home_wire_contract::home::api::v2 as wire;
 #[cfg(test)]
 pub(super) use simulation::Field as SimulationField;
 use zeroize::Zeroizing;
@@ -86,11 +86,11 @@ impl File {
 pub(super) enum Operation {
     References(ReferenceRead),
     History(HistoryQuery),
-    Apply(Box<home_wire_contract::home::configurationapply::v1::ApplyRequest>),
-    Rollback(Box<home_wire_contract::home::configurationapply::v1::RollbackRequest>),
-    Build(wire::BuildPlanRequest),
-    Revalidate(wire::RevalidatePlanRequest),
-    Simulate(home_wire_contract::home::configurationsimulation::v1::SimulatePlanRequest),
+    Apply(Box<home_wire_contract::home::api::v2::ApplyConfigurationPlanRequest>),
+    Rollback(Box<home_wire_contract::home::api::v2::RollbackConfigurationRequest>),
+    Build(wire::CreateConfigurationPlanRequest),
+    Revalidate(wire::RevalidateConfigurationPlanRequest),
+    Simulate(home_wire_contract::home::api::v2::SimulateConfigurationPlanRequest),
 }
 pub(super) struct Editor {
     activation: activation::Activation,
@@ -102,7 +102,7 @@ pub(super) struct Editor {
     files: Vec<File>,
     selected: FileKey,
     next_file: Option<u64>,
-    plan: Option<wire::Plan>,
+    plan: Option<wire::ConfigurationPlan>,
     stale: bool,
     notice: &'static str,
 }
@@ -144,7 +144,7 @@ impl Editor {
         self.notice
     }
     #[cfg(test)]
-    pub fn plan_state(&self) -> Option<wire::PlanState> {
+    pub fn plan_state(&self) -> Option<wire::ConfigurationPlanState> {
         self.plan.as_ref().and_then(|plan| match plan.state {
             EnumValue::Known(state) => Some(state),
             EnumValue::Unknown(_) => None,
@@ -153,7 +153,7 @@ impl Editor {
     #[cfg(test)]
     pub fn simulation_report(
         &self,
-    ) -> Option<&home_wire_contract::home::configurationsimulation::v1::Report> {
+    ) -> Option<&home_wire_contract::home::api::v2::ConfigurationSimulationReport> {
         self.simulation.report()
     }
     fn selected(&self) -> &File {
@@ -290,9 +290,10 @@ impl Editor {
             ProAdminAction::Apply => return self.prepare_apply(),
             ProAdminAction::Rollback => return self.prepare_rollback(),
             ProAdminAction::Simulate => {
-                let request = self
-                    .candidate()
-                    .and_then(|candidate| self.simulation.request(&candidate));
+                let request = self.candidate().and_then(|candidate| {
+                    self.simulation
+                        .request(&candidate, self.captured.id().home())
+                });
                 match request {
                     Ok(request) => {
                         self.notice =
@@ -341,7 +342,10 @@ impl Editor {
                 };
                 if action == ProAdminAction::Preview {
                     self.notice = "Building preview; nothing will be activated.";
-                    return Some(Operation::Build(candidate.build_request()));
+                    let mut request = candidate.build_request();
+                    request.request_id =
+                        home_client_actions::new_request_id().ok()?.as_str().into();
+                    return Some(Operation::Build(request));
                 }
                 let Some(plan) = &self.plan else {
                     return None;
@@ -350,11 +354,15 @@ impl Editor {
                     return None;
                 }
                 self.notice = "Revalidating preview; nothing will be activated.";
-                return Some(Operation::Revalidate(wire::RevalidatePlanRequest {
-                    candidate: candidate.to_wire().into(),
-                    receipt: plan.receipt.clone(),
-                    ..Default::default()
-                }));
+                return Some(Operation::Revalidate(
+                    wire::RevalidateConfigurationPlanRequest {
+                        request_id: home_client_actions::new_request_id().ok()?.as_str().into(),
+                        candidate: candidate.to_wire().into(),
+                        name: plan.name.clone(),
+                        etag: plan.etag.clone(),
+                        ..Default::default()
+                    },
+                ));
             }
             ProAdminAction::Create
             | ProAdminAction::Save
@@ -368,22 +376,22 @@ impl Editor {
         }
         None
     }
-    pub fn accept(&mut self, plan: wire::Plan) -> bool {
+    pub fn accept(&mut self, plan: wire::ConfigurationPlan) -> bool {
         if plan.family != self.family.to_wire() || plan.identity != self.identity {
             self.failed();
             return false;
         }
         self.notice = match plan.state {
-            EnumValue::Known(wire::PlanState::Admitted) => {
+            EnumValue::Known(wire::ConfigurationPlanState::Admitted) => {
                 "Preview accepted. Its receipt is diagnostic only; no configuration is activated."
             }
-            EnumValue::Known(wire::PlanState::Rejected) => {
+            EnumValue::Known(wire::ConfigurationPlanState::Rejected) => {
                 "Candidate rejected. Review the diagnostics; nothing was activated."
             }
-            EnumValue::Known(wire::PlanState::Stale) => {
+            EnumValue::Known(wire::ConfigurationPlanState::Stale) => {
                 "Preview outdated. Reload the references and build a new preview."
             }
-            EnumValue::Known(wire::PlanState::Unspecified) | EnumValue::Unknown(_) => {
+            EnumValue::Known(wire::ConfigurationPlanState::Unspecified) | EnumValue::Unknown(_) => {
                 self.failed();
                 return false;
             }
@@ -401,7 +409,7 @@ impl Editor {
     }
     pub fn accept_simulation(
         &mut self,
-        response: home_wire_contract::home::configurationsimulation::v1::SimulatePlanResponse,
+        response: home_wire_contract::home::api::v2::SimulateConfigurationPlanResponse,
     ) {
         if self.simulation.accept(response) {
             self.notice = "Simulation report received. Actions are synthetic; no configuration was published and no device was validated.";
@@ -546,21 +554,25 @@ impl Editor {
         ];
         if let Some(plan) = &self.plan {
             let state = match plan.state {
-                EnumValue::Known(wire::PlanState::Admitted) => "Accepted",
-                EnumValue::Known(wire::PlanState::Rejected) => "Rejected",
-                EnumValue::Known(wire::PlanState::Stale) => "Outdated",
-                EnumValue::Known(wire::PlanState::Unspecified) | EnumValue::Unknown(_) => {
-                    "Unsupported"
-                }
+                EnumValue::Known(wire::ConfigurationPlanState::Admitted) => "Accepted",
+                EnumValue::Known(wire::ConfigurationPlanState::Rejected) => "Rejected",
+                EnumValue::Known(wire::ConfigurationPlanState::Stale) => "Outdated",
+                EnumValue::Known(wire::ConfigurationPlanState::Unspecified)
+                | EnumValue::Unknown(_) => "Unsupported",
             };
             fields.push(field(Field::Plan,format!("{} · {}\nAuthor {}\nFamily {} · identity {}\nScope: {}\nSource {}\nSemantics {}\nGeneration {} · {}\nPlan workspace {}\nDiagnostic receipt: {}\nThis preview proves neither saving nor publication",state,plan.schema_version,plan.author,self.family.label(),plan.identity,effect(plan.effect),render::hex(&plan.source_sha256),plan.semantic_sha256.as_ref().map_or_else(||"missing".into(),|value|render::hex(value)),plan.generation_revision,render::hex(&plan.manifest_sha256),render::hex(&plan.observed_workspace_sha256),if plan.receipt.is_empty(){"missing"}else{"provided by the server"}),false));
             let kind = match plan.base.kind {
-                EnumValue::Known(wire::BaseKind::ActiveSql) => "Active SQL Version",
-                EnumValue::Known(wire::BaseKind::ImmutableReference) => "Immutable Reference",
-                EnumValue::Known(wire::BaseKind::NoActiveDocument) => "No active document",
-                EnumValue::Known(wire::BaseKind::Unspecified) | EnumValue::Unknown(_) => {
-                    "Unsupported"
+                EnumValue::Known(wire::ConfigurationPlanBaseKind::ActiveSql) => {
+                    "Active SQL Version"
                 }
+                EnumValue::Known(wire::ConfigurationPlanBaseKind::ImmutableReference) => {
+                    "Immutable Reference"
+                }
+                EnumValue::Known(wire::ConfigurationPlanBaseKind::NoActiveDocument) => {
+                    "No active document"
+                }
+                EnumValue::Known(wire::ConfigurationPlanBaseKind::Unspecified)
+                | EnumValue::Unknown(_) => "Unsupported",
             };
             fields.push(field(
                 Field::Base,
@@ -585,10 +597,17 @@ impl Editor {
                         format!(
                             "{} · {} · {} · references +{} / -{}",
                             match change.operation {
-                                EnumValue::Known(wire::ChangeOperation::Added) => "Added",
-                                EnumValue::Known(wire::ChangeOperation::Removed) => "Removed",
-                                EnumValue::Known(wire::ChangeOperation::Replaced) => "Replaced",
-                                EnumValue::Known(wire::ChangeOperation::Unspecified)
+                                EnumValue::Known(wire::ConfigurationPlanChangeOperation::Added) =>
+                                    "Added",
+                                EnumValue::Known(
+                                    wire::ConfigurationPlanChangeOperation::Removed,
+                                ) => "Removed",
+                                EnumValue::Known(
+                                    wire::ConfigurationPlanChangeOperation::Replaced,
+                                ) => "Replaced",
+                                EnumValue::Known(
+                                    wire::ConfigurationPlanChangeOperation::Unspecified,
+                                )
                                 | EnumValue::Unknown(_) => "Unsupported",
                             },
                             change.field,
@@ -606,18 +625,22 @@ impl Editor {
                 plan.diagnostics
                     .iter()
                     .map(|code| match code {
-                        EnumValue::Known(wire::DiagnosticCode::InvalidSchema) => "Invalid schema",
-                        EnumValue::Known(wire::DiagnosticCode::ExcludedReference) => {
-                            "Excluded Reference"
+                        EnumValue::Known(wire::ConfigurationPlanDiagnosticCode::InvalidSchema) => {
+                            "Invalid schema"
                         }
-                        EnumValue::Known(wire::DiagnosticCode::UnsupportedSource) => {
-                            "Unsupported source"
+                        EnumValue::Known(
+                            wire::ConfigurationPlanDiagnosticCode::ExcludedReference,
+                        ) => "Excluded Reference",
+                        EnumValue::Known(
+                            wire::ConfigurationPlanDiagnosticCode::UnsupportedSource,
+                        ) => "Unsupported source",
+                        EnumValue::Known(wire::ConfigurationPlanDiagnosticCode::Capacity) => {
+                            "Capacity exceeded"
                         }
-                        EnumValue::Known(wire::DiagnosticCode::Capacity) => "Capacity exceeded",
-                        EnumValue::Known(wire::DiagnosticCode::BaseUnavailable) => {
-                            "Baseline unavailable"
-                        }
-                        EnumValue::Known(wire::DiagnosticCode::Unspecified)
+                        EnumValue::Known(
+                            wire::ConfigurationPlanDiagnosticCode::BaseUnavailable,
+                        ) => "Baseline unavailable",
+                        EnumValue::Known(wire::ConfigurationPlanDiagnosticCode::Unspecified)
                         | EnumValue::Unknown(_) => "Unsupported diagnostic",
                     })
                     .collect::<Vec<_>>()
@@ -647,15 +670,19 @@ impl Editor {
         values
     }
 }
-fn effect(value: EnumValue<wire::Effect>) -> &'static str {
+fn effect(value: EnumValue<wire::ConfigurationPlanEffect>) -> &'static str {
     match value {
-        EnumValue::Known(wire::Effect::None) => "No changes",
-        EnumValue::Known(wire::Effect::Dashboard) => "Dashboard",
-        EnumValue::Known(wire::Effect::Configuration) => "Server Configuration",
-        EnumValue::Known(wire::Effect::HumanRights) => "User Permissions",
-        EnumValue::Known(wire::Effect::TechnicalOwnership) => "Technical Ownership",
-        EnumValue::Known(wire::Effect::RunTargets) => "Logic Execution Targets",
-        EnumValue::Known(wire::Effect::Unspecified) | EnumValue::Unknown(_) => "Unsupported scope",
+        EnumValue::Known(wire::ConfigurationPlanEffect::None) => "No changes",
+        EnumValue::Known(wire::ConfigurationPlanEffect::Dashboard) => "Dashboard",
+        EnumValue::Known(wire::ConfigurationPlanEffect::Configuration) => "Server Configuration",
+        EnumValue::Known(wire::ConfigurationPlanEffect::HumanRights) => "User Permissions",
+        EnumValue::Known(wire::ConfigurationPlanEffect::TechnicalOwnership) => {
+            "Technical Ownership"
+        }
+        EnumValue::Known(wire::ConfigurationPlanEffect::RunTargets) => "Logic Execution Targets",
+        EnumValue::Known(wire::ConfigurationPlanEffect::Unspecified) | EnumValue::Unknown(_) => {
+            "Unsupported scope"
+        }
     }
 }
 fn field(field: Field, value: String, editable: bool) -> ProAdminField {
@@ -708,17 +735,35 @@ mod tests {
         editor.edit(Field::Source as i32, "views: []\n".into());
         editor
     }
-    pub(super) fn plan() -> wire::Plan {
-        wire::Plan {
-            state: wire::PlanState::Admitted.into(),
-            author: "synthetic-admin".into(),
-            family: wire::SourceFamily::Dashboard.into(),
+    pub(super) fn plan() -> wire::ConfigurationPlan {
+        wire::ConfigurationPlan {
+            name: "homes/test/configurationPlans/p-synthetic".into(),
+            etag: "synthetic-plan-etag".into(),
+            create_time: buffa_types::google::protobuf::Timestamp {
+                seconds: 1700000000,
+                ..Default::default()
+            }
+            .into(),
+            update_time: buffa_types::google::protobuf::Timestamp {
+                seconds: 1700000000,
+                ..Default::default()
+            }
+            .into(),
+            expire_time: buffa_types::google::protobuf::Timestamp {
+                seconds: 1700000600,
+                ..Default::default()
+            }
+            .into(),
+
+            state: wire::ConfigurationPlanState::Admitted.into(),
+            author: "homes/synthetic/accounts/admin".into(),
+            family: wire::ConfigurationPlanSourceFamily::Dashboard.into(),
             identity: "synthetic-preview".into(),
             schema_version: "homeward-dashboard-1".into(),
             source_sha256: vec![1; 32],
             semantic_sha256: Some(vec![5; 32]),
-            base: wire::Base {
-                kind: wire::BaseKind::ActiveSql.into(),
+            base: wire::ConfigurationPlanBase {
+                kind: wire::ConfigurationPlanBaseKind::ActiveSql.into(),
                 revision: Some(7),
                 source_sha256: Some(vec![1; 32]),
                 ..Default::default()
@@ -727,7 +772,7 @@ mod tests {
             generation_revision: 6,
             manifest_sha256: vec![4; 32],
             observed_workspace_sha256: vec![2; 32],
-            effect: wire::Effect::None.into(),
+            effect: wire::ConfigurationPlanEffect::None.into(),
             receipt: "r".repeat(44),
             ..Default::default()
         }
@@ -737,7 +782,7 @@ mod tests {
         let mut editor = editor();
         editor.choose(Field::Family as i32, 8);
         let mut plan = plan();
-        plan.family = wire::SourceFamily::Script.into();
+        plan.family = wire::ConfigurationPlanSourceFamily::Script.into();
         assert!(editor.accept(plan));
         editor.simulation_failed();
         assert!(editor.plan.is_some());
@@ -782,21 +827,24 @@ mod tests {
         let Some(Operation::Build(request)) = editor.action(ProAdminAction::Preview) else {
             panic!("build")
         };
-        assert_eq!(request.candidate.files[0].exact_source, b"views: []\n");
-        let response = wire::BuildPlanResponse {
-            plan: plan().into(),
-            ..Default::default()
-        };
+        assert_eq!(
+            request.configuration_plan.candidate.files[0].exact_source,
+            b"views: []\n"
+        );
+        let response = plan();
         home_wire_contract::config_plans::admit_plan_response(
             home_wire_contract::config_plans::PlanResponse::Build(&response),
         )
         .unwrap();
-        assert!(editor.accept(response.plan.into_option().unwrap()));
+        assert!(editor.accept(response));
         let Some(Operation::Revalidate(request)) = editor.action(ProAdminAction::Revalidate) else {
             panic!("revalidate")
         };
         assert_eq!(request.receipt, "r".repeat(44));
-        assert_eq!(request.candidate.files[0].exact_source, b"views: []\n");
+        assert_eq!(
+            request.configuration_plan.candidate.files[0].exact_source,
+            b"views: []\n"
+        );
         editor.edit(Field::Source as i32, "# replacement\nviews: []\n".into());
         assert!(editor.plan.is_none());
         assert!(editor.action(ProAdminAction::Revalidate).is_none());

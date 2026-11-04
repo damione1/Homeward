@@ -5,7 +5,7 @@
 
 use home_client_session::{Phase, SecureStore, ServerRevocation, SessionCoordinator, StoreFailure};
 use home_client_transport::Connection;
-use home_wire_contract::home::auth::v1 as auth;
+use home_wire_contract::home::api::v2 as auth;
 use serde::{Deserialize, Serialize, de::IntoDeserializer};
 use std::{
     fs::{self, File, OpenOptions},
@@ -56,7 +56,7 @@ struct Fixture {
     ca_pem: String,
     login_name: String,
     password: String,
-    account_id: String,
+    account_name: String,
     namespace_nonce: String,
 }
 #[derive(Serialize, Deserialize)]
@@ -166,15 +166,18 @@ async fn protected_read(
     fixture: &Fixture,
 ) -> Result<()> {
     let lease = owner.access(&CancellationToken::new()).await?;
+    let expected =
+        home_wire_contract::auth_contract::AccountName::try_from(fixture.account_name.as_str())
+            .map_err(|_| "invalid fixture account name")?;
+    require(
+        lease.account_name() == &expected,
+        "fixture account differs from admitted owner",
+    )?;
     let response = connection
         .auth()
         .list_sessions(
             auth::ListSessionsRequest {
-                account_id: auth::AccountId {
-                    value: fixture.account_id.clone(),
-                    ..Default::default()
-                }
-                .into(),
+                parent: fixture.account_name.clone(),
                 ..Default::default()
             },
             lease.token(),
@@ -186,7 +189,7 @@ async fn protected_read(
         response
             .sessions
             .iter()
-            .any(|session| session.id.value == lease.session_id().as_str()),
+            .any(|session| session.name == lease.session_name().as_str()),
         "session missing from real protected read",
     )
 }

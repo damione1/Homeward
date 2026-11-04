@@ -1,14 +1,14 @@
 //! Product projection: private identities/cursors stay in the Rust cache. Slint
 //! keeps the inventory virtualized at 64 rows. Configured dashboard forests
 //! are separately bounded by their negotiated profile.
+use crate::device_view::observation;
 use crate::{
     ConnectionStatus, HomewardWindow, KitGlyphs, ProObservationRow, ProRoomRow, TableRow,
     dashboard::{self, Icon, Layout, ProjectionRequest},
 };
-use buffa::EnumValue;
 use home_client_cache::{CacheEvent, CachePhase, CachedView, ProjectionGeneration, Viewport};
-use home_client_model::EntityId;
-use home_wire_contract::home::{helpers::v1 as helpers, state::v1 as state};
+use home_client_model::api::EntityName;
+use home_wire_contract::home::api::v2 as wire;
 use slint::{ComponentHandle, Model, ModelNotify, ModelRc, ModelTracker, SharedString};
 use std::{
     cell::{Cell, RefCell},
@@ -17,13 +17,13 @@ use std::{
 
 #[derive(Clone, PartialEq, Eq)]
 struct Row {
-    id: Option<EntityId>,
+    id: Option<EntityName>,
     index: usize,
     cells: [String; 3],
 }
 
 pub(crate) struct CacheProjection {
-    history_entity: Option<EntityId>,
+    history_entity: Option<EntityName>,
     revision: i32,
     phase: CachePhase,
     authorized_total: usize,
@@ -35,7 +35,7 @@ pub(crate) struct CacheProjection {
     profile_zone: crate::environment_view::ProfileZone,
 }
 impl CacheProjection {
-    pub(crate) fn history_target(&self, revision: i32) -> Option<Option<EntityId>> {
+    pub(crate) fn history_target(&self, revision: i32) -> Option<Option<EntityName>> {
         if !self.home.captured {
             return Some(None);
         }
@@ -47,7 +47,7 @@ struct Observation {
     token: i32,
     label: String,
     icon: Icon,
-    id: Option<EntityId>,
+    id: Option<EntityName>,
     value: String,
     description: String,
 }
@@ -105,13 +105,17 @@ pub(crate) fn project_devices(
         .dashboard
         .layout()
         .filter(|layout| view.is_some_and(|view| layout.compatible(view)));
-    let matches = |id: &EntityId, entity: &state::ViewEntity| {
+    let matches = |id: &EntityName, entity: &wire::EntityViewEntry| {
         request.room.as_ref().is_none_or(|room_id| {
             layout
                 .and_then(|layout| layout.room(room_id))
                 .is_some_and(|room| room.entities.contains(id))
         }) && (request.query.is_empty()
-            || entity.current_alias.to_lowercase().contains(&request.query))
+            || entity
+                .entity
+                .display_name
+                .to_lowercase()
+                .contains(&request.query))
     };
     let total = view.map_or(0, |view| {
         view.entities()
@@ -126,15 +130,12 @@ pub(crate) fn project_devices(
                 .skip(viewport.first())
                 .take(viewport.count())
                 .map(|(index, (id, entity))| {
-                    let title = if entity.current_alias.is_empty() {
+                    let title = if entity.entity.display_name.is_empty() {
                         "Unnamed Item".into()
                     } else {
-                        bounded(&entity.current_alias)
+                        bounded(&entity.entity.display_name)
                     };
-                    let (value, quality) = match entity.state.as_option() {
-                        Some(observation) => (value_text(observation), quality_text(observation)),
-                        None => ("No observation".into(), "Not provided".into()),
-                    };
+                    let (value, quality) = (entity_value(entity), entity_quality(entity));
                     Row {
                         id: Some(id.clone()),
                         index,
@@ -167,8 +168,7 @@ pub(crate) fn project_devices(
                 .map(|(index, item)| {
                     let entity = view.and_then(|view| view.get(&item.entity));
                     let value = entity
-                        .and_then(|entity| entity.state.as_option())
-                        .map(summary_text)
+                        .map(entity_value)
                         .unwrap_or_else(|| "No observation".into());
                     Observation {
                         token: dashboard::OBSERVATION_TOKEN_BASE + index as i32,
@@ -177,8 +177,7 @@ pub(crate) fn project_devices(
                         id: entity.map(|_| item.entity.clone()),
                         value: bounded(&value),
                         description: entity
-                            .and_then(|entity| entity.state.as_option())
-                            .map(quality_text)
+                            .map(entity_quality)
                             .unwrap_or_else(|| "No authorized observation for this item.".into()),
                     }
                 })
@@ -190,34 +189,27 @@ pub(crate) fn project_devices(
         .as_ref()
         .and_then(|id| view.and_then(|view| view.get(id)))
         .map(|entity| {
-            let (value, quality, date) = match entity.state.as_option() {
-                Some(observation) => (
-                    value_text(observation),
-                    quality_text(observation),
-                    observation
-                        .observed_at
-                        .as_option()
-                        .and_then(|at| {
-                            chrono::DateTime::from_timestamp(at.seconds, at.nanos as u32)
-                        })
-                        .map(|at| at.to_rfc3339())
-                        .unwrap_or_else(|| "Date not provided".into()),
-                ),
-                None => (
-                    "No observation".into(),
-                    "Not provided".into(),
-                    "Date not provided".into(),
-                ),
-            };
+            let value = entity_value(entity);
+            let quality = entity_quality(entity);
+            let date = entity
+                .capabilities
+                .iter()
+                .filter_map(observation::observed_time)
+                .max()
+                .map(|time| time.to_rfc3339())
+                .unwrap_or_else(|| "Date not provided".into());
             [
-                bounded(&entity.current_alias),
+                bounded(&entity.entity.display_name),
                 bounded(&value),
                 bounded(&quality),
                 date,
             ]
         });
-    let profile_zone =
-        crate::environment_view::ProfileZone::from_profile(view.and_then(|v| v.display_profile()));
+    // Dashboard v2 supplies the declared display profile separately. No time
+    // zone is manufactured from a capture, a location or the system locale.
+    let profile_zone = layout.map_or(crate::environment_view::ProfileZone::Missing, |layout| {
+        layout.profile_zone
+    });
     let devices = devices.project(phase, view, request);
     let board = crate::dashboard_presentation::Board::project(layout, request, &devices, view);
     CacheProjection {
@@ -265,217 +257,33 @@ pub(crate) fn number(value: f64) -> String {
         "Unsupported value".into()
     }
 }
-fn helper_text(value: &helpers::HelperValue) -> String {
-    use helpers::helper_value::Value;
-    match value.value.as_ref() {
-        Some(Value::Boolean(value)) => on_off(*value).into(),
-        Some(Value::Number(value)) => number(*value),
-        Some(Value::Counter(value)) => value.to_string(),
-        Some(Value::SelectedOption(value) | Value::Text(value)) => {
-            if value.is_empty() {
-                "Empty text".into()
-            } else {
-                bounded(value)
-            }
-        }
-        Some(Value::Date(date)) => format!("{:04}-{:02}-{:02}", date.year, date.month, date.day),
-        Some(Value::Time(time)) => {
-            format!("{:02}:{:02}:{:02}", time.hour, time.minute, time.second)
-        }
-        Some(Value::Datetime(value)) => match (value.date.as_option(), value.time.as_option()) {
-            (Some(date), Some(time)) => format!(
-                "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-                date.year, date.month, date.day, time.hour, time.minute, time.second
-            ),
-            (None, _) | (_, None) => "Date or time missing".into(),
-        },
-        Some(Value::ButtonPressedAt(_)) => "Activation observed".into(),
-        None => "Value not provided".into(),
-    }
+pub(crate) fn value_text(capability: &wire::Capability) -> String {
+    observation::value_text(capability)
 }
-
-fn summary_text(observation: &state::ObservedState) -> String {
-    if !observation.__buffa_unknown_fields.is_empty() {
-        return value_text(observation);
-    }
-    match observation.value.as_ref() {
-        Some(state::observed_state::Value::Climate(climate)) => climate
-            .current_temperature_celsius
-            .map(|value| format!("{} °C", number(value)))
-            .unwrap_or_else(|| value_text(observation)),
-        Some(
-            state::observed_state::Value::SwitchOn(_)
-            | state::observed_state::Value::Measurement(_)
-            | state::observed_state::Value::Light(_)
-            | state::observed_state::Value::Fan(_)
-            | state::observed_state::Value::Helper(_)
-            | state::observed_state::Value::Solar(_)
-            | state::observed_state::Value::SolarEvent(_)
-            | state::observed_state::Value::Cover(_)
-            | state::observed_state::Value::Lock(_)
-            | state::observed_state::Value::Alarm(_)
-            | state::observed_state::Value::Weather(_)
-            | state::observed_state::Value::Presence(_)
-            | state::observed_state::Value::PresenceDetails(_),
-        )
-        | None => value_text(observation),
-    }
+pub(crate) fn quality_text(capability: &wire::Capability) -> String {
+    observation::quality_text(capability)
 }
-
-pub(crate) fn value_text(observation: &state::ObservedState) -> String {
-    if !observation.__buffa_unknown_fields.is_empty() {
-        return "Unsupported value".into();
+fn entity_value(entity: &wire::EntityViewEntry) -> String {
+    if entity.capabilities.is_empty() {
+        return "No observation".into();
     }
-    use state::observed_state::Value;
-    match observation.value.as_ref() {
-        Some(Value::Cover(value)) => crate::control_text::cover(value),
-        Some(Value::Lock(value)) => crate::control_text::lock(value).into(),
-        Some(Value::Alarm(value)) => crate::control_text::alarm(value).into(),
-        Some(Value::SwitchOn(value)) => on_off(*value).into(),
-        Some(Value::Measurement(value)) => format!(
-            "{} {}",
-            value
-                .decimal_value
-                .as_deref()
-                .map(bounded)
-                .unwrap_or_else(|| number(value.value)),
-            bounded(&value.unit)
-        )
-        .trim()
-        .to_owned(),
-        Some(Value::Light(value)) => {
-            let mut parts = Vec::new();
-            if let Some(on) = value.on {
-                parts.push(on_off(on).to_owned());
-            }
-            if let Some(brightness) = value.brightness_percent {
-                parts.push(format!("{} %", number(brightness)));
-            }
-            if let Some(value) = value
-                .color_temp_mireds
-                .and_then(crate::device_view::color_temperature_text)
-            {
-                parts.push(value);
-            }
-            if parts.is_empty() {
-                "Value not provided".into()
-            } else {
-                parts.join(" · ")
-            }
-        }
-        Some(Value::Fan(value)) => match value.speed {
-            EnumValue::Known(state::FanSpeed::Unspecified) => "Speed not provided",
-            EnumValue::Known(state::FanSpeed::Off) => "Off",
-            EnumValue::Known(state::FanSpeed::Low) => "Low",
-            EnumValue::Known(state::FanSpeed::Medium) => "Medium",
-            EnumValue::Known(state::FanSpeed::MediumHigh) => "Medium high",
-            EnumValue::Known(state::FanSpeed::High) => "High",
-            EnumValue::Unknown(_) => "Unsupported speed",
-        }
-        .into(),
-        Some(Value::Climate(value)) => {
-            let mut parts = Vec::new();
-            if let Some(temperature) = value.current_temperature_celsius {
-                parts.push(format!("{} °C", number(temperature)));
-            }
-            match value.setpoint.as_ref() {
-                Some(state::climate_value::Setpoint::SetpointCelsius(value)) => {
-                    parts.push(format!("Setpoint {} °C", number(*value)))
-                }
-                Some(state::climate_value::Setpoint::SetpointRangeCelsius(range)) => {
-                    if let Some(low) = range.low_celsius {
-                        parts.push(format!("Minimum {} °C", number(low)));
-                    }
-                    if let Some(high) = range.high_celsius {
-                        parts.push(format!("Maximum {} °C", number(high)));
-                    }
-                }
-                None => {}
-            }
-            if let Some(humidity) = value.humidity_percent {
-                parts.push(format!("{} %", number(humidity)));
-            }
-            if let Some(active) = value.fan_active {
-                parts.push(if active { "Fan active" } else { "Fan inactive" }.into());
-            }
-            if parts.is_empty() {
-                "Climate observation received".into()
-            } else {
-                parts.join(" · ")
-            }
-        }
-        Some(Value::Weather(value)) => crate::environment_text::weather(value),
-        Some(Value::Presence(value)) => crate::environment_text::presence(value),
-        Some(Value::PresenceDetails(value)) => crate::environment_text::details(value),
-        Some(Value::Helper(value)) => helper_text(value),
-        Some(Value::Solar(value)) => {
-            let mut parts = Vec::new();
-            if let Some(elevation) = value.elevation_degrees {
-                parts.push(format!("Elevation {}°", number(elevation)));
-            }
-            if let Some(azimuth) = value.azimuth_degrees {
-                parts.push(format!("Azimuth {}°", number(azimuth)));
-            }
-            if let Some(rising) = value.rising {
-                parts.push(if rising { "Rising" } else { "Falling" }.into());
-            }
-            if parts.is_empty() {
-                "Solar observation received".into()
-            } else {
-                parts.join(" · ")
-            }
-        }
-        Some(Value::SolarEvent(value)) => match value
-            .occurrence
-            .as_option()
-            .and_then(|value| value.occurrence.as_ref())
-        {
-            Some(home_wire_contract::home::solar::v1::solar_occurrence::Occurrence::At(_)) => {
-                "Calculated event"
-            }
-            Some(home_wire_contract::home::solar::v1::solar_occurrence::Occurrence::Absent(_)) => {
-                "Event missing from calculation"
-            }
-            None => "Event not provided",
-        }
-        .into(),
-        None => if observation.__buffa_unknown_fields.is_empty() {
-            "Value not provided"
-        } else {
-            "Unsupported value"
-        }
-        .into(),
-    }
+    entity
+        .capabilities
+        .iter()
+        .map(value_text)
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
-
-pub(crate) fn quality_text(observation: &state::ObservedState) -> String {
-    let Some(quality) = observation.quality.as_option() else {
-        return "Quality missing".into();
-    };
-    if !quality.__buffa_unknown_fields.is_empty() {
-        return "Unsupported quality".into();
+fn entity_quality(entity: &wire::EntityViewEntry) -> String {
+    if entity.capabilities.is_empty() {
+        return "Quality not provided".into();
     }
-    let availability = match quality.availability {
-        EnumValue::Known(state::Availability::Unspecified) => "Availability missing",
-        EnumValue::Known(state::Availability::Available) => "Available",
-        EnumValue::Known(state::Availability::Unknown) => "State unknown",
-        EnumValue::Known(state::Availability::Unavailable) => "Unavailable",
-        EnumValue::Unknown(_) => "Availability unrecognized",
-    };
-    let freshness = match quality.freshness {
-        EnumValue::Known(state::Freshness::Unspecified) => "Freshness missing",
-        EnumValue::Known(state::Freshness::Fresh) => "Up to date",
-        EnumValue::Known(state::Freshness::Stale) => "Dated",
-        EnumValue::Unknown(_) => "Freshness unrecognized",
-    };
-    let provenance = match quality.provenance {
-        EnumValue::Known(state::Provenance::Unspecified) => "Origin not provided",
-        EnumValue::Known(state::Provenance::Observed) => "Observed",
-        EnumValue::Known(state::Provenance::Restored) => "Restored",
-        EnumValue::Known(state::Provenance::Estimated) => "Estimated",
-        EnumValue::Unknown(_) => "Unsupported origin",
-    };
-    format!("{availability} · {freshness} · {provenance}")
+    entity
+        .capabilities
+        .iter()
+        .map(quality_text)
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 
 #[derive(Default)]
@@ -484,7 +292,7 @@ struct RowStore {
     total: usize,
     rows: BTreeMap<usize, (Row, TableRow)>,
     revision: i32,
-    observations: BTreeMap<i32, EntityId>,
+    observations: BTreeMap<i32, EntityName>,
     layout: Option<Layout>,
 }
 #[derive(Default)]
@@ -623,7 +431,7 @@ impl CacheRows {
         *self.focused_widget_item.borrow_mut() = None;
         *self.widget_focus_mapping.borrow_mut() = None;
     }
-    pub(crate) fn resolve(&self, token: i32, generation: i32, revision: i32) -> Option<EntityId> {
+    pub(crate) fn resolve(&self, token: i32, generation: i32, revision: i32) -> Option<EntityName> {
         if generation != self.serial.get() || self.state.borrow().revision != revision {
             return None;
         }
@@ -656,7 +464,7 @@ impl CacheRows {
         token: i32,
         generation: i32,
         revision: i32,
-    ) -> Option<EntityId> {
+    ) -> Option<EntityName> {
         if generation != self.home_serial.get() || self.state.borrow().revision != revision {
             return None;
         }
@@ -901,9 +709,6 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.set_action_feedback("".into());
     window.set_dashboard_title("Home".into());
     window.set_dashboard_synthetic(false);
-    window.set_dashboard_status("Dashboard unavailable".into());
-    window.set_home_focus(crate::FocusRequest::default());
-    window.invoke_native_route_changed();
     let model = window.get_cache_rows();
     if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
         model.profile_zone.set(Default::default());
@@ -1000,11 +805,7 @@ pub(crate) fn render(
             .map_or("Home", |layout| layout.title.as_str())
             .into(),
     );
-    window.set_dashboard_synthetic(
-        home.layout
-            .as_ref()
-            .is_some_and(|layout| layout.mode == dashboard::ServingMode::Synthetic),
-    );
+    window.set_dashboard_synthetic(false);
     let rooms = home
         .layout
         .as_ref()
@@ -1569,7 +1370,7 @@ mod tests {
             state: state::ObservedState {
                 entity: home_wire_contract::home::registry::v1::EntityRef {
                     reference: Some(
-                        home_wire_contract::home::registry::v1::entity_ref::Reference::EntityId(
+                        home_wire_contract::home::registry::v1::entity_ref::Reference::EntityName(
                             entities[index]["id"].as_str().unwrap().into(),
                         ),
                     ),
@@ -1732,7 +1533,7 @@ mod tests {
                 state: state::ObservedState {
                     entity: home_wire_contract::home::registry::v1::EntityRef {
                         reference: Some(
-                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityId(
+                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityName(
                                 id,
                             ),
                         ),
@@ -1819,7 +1620,7 @@ mod tests {
                 state: state::ObservedState {
                     entity: home_wire_contract::home::registry::v1::EntityRef {
                         reference: Some(
-                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityId(
+                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityName(
                                 id,
                             ),
                         ),
@@ -1903,7 +1704,7 @@ mod tests {
     #[test]
     fn widget_thermostat_uses_the_canonical_field_and_preserves_observed_values_during_drafts() {
         use crate::dashboard_widgets::{Content, Field, FieldKey};
-        let entity: EntityId = "climate.configured".parse().unwrap();
+        let entity: EntityName = "climate.configured".parse().unwrap();
         let node = widget_node(Content::Thermostat {
             detailed: false,
             summary_only: false,
@@ -2050,13 +1851,14 @@ mod tests {
             ..Default::default()
         };
         let observed = |on: bool, revision: u64| {
-            view_with(1, |_| state::ViewEntity {
+            view_with(1, |_| {
+                state::ViewEntity {
                 entity_id: "condition".into(),
                 current_alias: "Condition du serveur".into(),
                 state: state::ObservedState {
                     entity: home_wire_contract::home::registry::v1::EntityRef {
                         reference: Some(
-                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityId(
+                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityName(
                                 "condition".into(),
                             ),
                         ),
@@ -2076,6 +1878,7 @@ mod tests {
                 }
                 .into(),
                 ..Default::default()
+            }
             })
         };
         let generation = ProjectionMailbox::<()>::new().generation();
@@ -2278,7 +2081,7 @@ mod tests {
             "value-only updates retain pointer/keyboard gestures"
         );
         let mut replaced = project(CachePhase::Live, Some(&view), Viewport::default());
-        let replacement = "private-replacement".parse::<EntityId>().unwrap();
+        let replacement = "private-replacement".parse::<EntityName>().unwrap();
         replaced.rows[0].id = Some(replacement.clone());
         model.apply(generation, replaced);
         assert!(model.resolve(0, first, 0).is_none());
@@ -2613,110 +2416,137 @@ mod tests {
 
     #[test]
     fn visible_text_preserves_false_zero_absence_and_decimal_precision() {
-        use state::observed_state::Value;
-        let mut observation = state::ObservedState {
-            value: Some(Value::SwitchOn(false)),
+        use wire::capability::Trait as T;
+        let capability = |value| wire::Capability {
+            r#trait: Some(value),
             ..Default::default()
         };
-        assert_eq!(value_text(&observation), "Off");
-        observation.value = Some(Value::Light(Box::new(state::LightValue {
-            on: Some(false),
-            color_temp_mireds: Some(334),
+        let off = capability(T::Power(Box::new(wire::PowerCapability {
+            observation: wire::PowerObservation {
+                value: Some(wire::PowerValue::Off.into()),
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         })));
-        assert_eq!(value_text(&observation), "Off · ≈ 2994.012 K · 334 mireds");
-        for color_temp_mireds in [None, Some(0), Some(1001)] {
-            observation.value = Some(Value::Light(Box::new(state::LightValue {
-                color_temp_mireds,
+        assert_eq!(value_text(&off), "Off");
+        let light = |on, brightness_percent, color_temperature_mireds| {
+            capability(T::LightControl(Box::new(wire::LightControlCapability {
+                observation: wire::LightControlObservation {
+                    on,
+                    brightness_percent,
+                    color_temperature_mireds,
+                    ..Default::default()
+                }
+                .into(),
                 ..Default::default()
-            })));
-            assert_eq!(value_text(&observation), "Value not provided");
+            })))
+        };
+        assert_eq!(
+            value_text(&light(Some(false), None, Some(334))),
+            "Off · ≈ 2994.012 K · 334 mireds"
+        );
+        for color in [None, Some(0), Some(1001)] {
+            assert_eq!(value_text(&light(None, None, color)), "No observation");
         }
-        observation.value = Some(Value::SwitchOn(false));
-        let mut extended = observation.encode_to_vec();
-        extended.extend_from_slice(&[0x9a, 0x06, 0x02, 0x08, 0x01]);
-        let extended = state::ObservedState::decode_from_slice(&extended).unwrap();
-        assert_eq!(value_text(&extended), "Unsupported value");
-        observation.value = Some(Value::Measurement(Box::new(state::Measurement {
-            value: 0.0,
-            unit: "W".into(),
-            ..Default::default()
-        })));
-        assert_eq!(value_text(&observation), "0 W");
-        observation.value = Some(Value::Measurement(Box::new(state::Measurement {
-            value: 0.0,
-            unit: "CAD".into(),
-            decimal_value: Some("0.0100".into()),
-            ..Default::default()
-        })));
-        assert_eq!(value_text(&observation), "0.0100 CAD");
-        observation.value = Some(Value::Light(Box::new(state::LightValue {
-            on: Some(false),
-            brightness_percent: Some(0.0),
-            ..Default::default()
-        })));
-        assert_eq!(value_text(&observation), "Off · 0 %");
-        observation.value = Some(Value::Light(Box::new(state::LightValue {
-            on: Some(false),
-            ..Default::default()
-        })));
-        assert_eq!(value_text(&observation), "Off");
-        observation.value = None;
-        assert_eq!(value_text(&observation), "Value not provided");
-        let mut bytes = observation.encode_to_vec();
-        bytes.extend_from_slice(&[0x9a, 0x06, 0x02, 0x08, 0x01]);
-        let future = state::ObservedState::decode_from_slice(&bytes).unwrap();
-        assert_eq!(value_text(&future), "Unsupported value");
-        let climate = state::ObservedState {
-            value: Some(Value::Climate(Box::new(state::ClimateValue {
-                current_temperature_celsius: Some(21.5),
-                ..Default::default()
-            }))),
-            ..Default::default()
+        assert_eq!(
+            value_text(&light(Some(false), Some(0.0), None)),
+            "Off · 0 %"
+        );
+        assert_eq!(value_text(&light(Some(false), None, None)), "Off");
+        let measurement = |value, unit: &str, decimal: Option<&str>| {
+            capability(T::NumericMeasurement(Box::new(
+                wire::NumericMeasurementCapability {
+                    unit: unit.into(),
+                    observation: wire::NumericObservation {
+                        value,
+                        decimal_value: decimal.map(str::to_owned),
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                },
+            )))
         };
-        assert_eq!(summary_text(&climate), "21.5 °C");
-        let mut future_climate = climate.encode_to_vec();
-        future_climate.extend_from_slice(&[0x9a, 0x06, 0x02, 0x08, 0x01]);
-        let future_climate = state::ObservedState::decode_from_slice(&future_climate).unwrap();
-        assert_eq!(summary_text(&future_climate), "Unsupported value");
+        assert_eq!(value_text(&measurement(Some(0.0), "W", None)), "0 W");
+        assert_eq!(
+            value_text(&measurement(Some(0.0), "CAD", Some("0.0100"))),
+            "0.0100 CAD"
+        );
+        assert_eq!(value_text(&measurement(Some(21.5), "°C", None)), "21.5 °C");
+        assert_eq!(value_text(&measurement(None, "W", None)), "No observation");
+        assert_eq!(value_text(&wire::Capability::default()), "No observation");
+        for known in [off, measurement(Some(21.5), "°C", None)] {
+            let mut bytes = known.encode_to_vec();
+            bytes.extend_from_slice(&[0x9a, 0x06, 0x02, 0x08, 0x01]);
+            let future = wire::Capability::decode_from_slice(&bytes).unwrap();
+            assert_eq!(
+                value_text(&future),
+                "No observation",
+                "future trait evidence is never admitted as a known observation"
+            );
+        }
     }
 
     #[test]
     fn qualities_are_visible_and_long_unicode_values_stay_bounded() {
-        let mut observation = state::ObservedState {
-            quality: state::Quality {
-                availability: state::Availability::Available.into(),
-                freshness: state::Freshness::Stale.into(),
-                provenance: state::Provenance::Restored.into(),
+        use wire::capability::Trait as T;
+        let mut observation = wire::PowerObservation {
+            quality: wire::ObservationQuality {
+                availability: wire::Availability::Available.into(),
+                freshness: wire::Freshness::Stale.into(),
+                provenance: wire::Provenance::Restored.into(),
                 ..Default::default()
             }
             .into(),
             ..Default::default()
         };
-        assert_eq!(quality_text(&observation), "Available · Dated · Restored");
-        observation.quality.as_option_mut().unwrap().provenance =
-            state::Provenance::Estimated.into();
-        assert_eq!(quality_text(&observation), "Available · Dated · Estimated");
-        observation.quality.as_option_mut().unwrap().availability = EnumValue::Unknown(99);
-        assert!(quality_text(&observation).starts_with("Availability unrecognized"));
-        let text = "🪟".repeat(4096);
-        let clipped = helper_text(&helpers::HelperValue {
-            value: Some(helpers::helper_value::Value::Text(text)),
+        let cap = |observation: wire::PowerObservation| wire::Capability {
+            r#trait: Some(T::Power(Box::new(wire::PowerCapability {
+                observation: observation.into(),
+                ..Default::default()
+            }))),
             ..Default::default()
-        });
+        };
+        assert_eq!(
+            quality_text(&cap(observation.clone())),
+            "Available · Stale · Restored"
+        );
+        observation.quality.as_option_mut().unwrap().provenance =
+            wire::Provenance::Estimated.into();
+        assert_eq!(
+            quality_text(&cap(observation.clone())),
+            "Available · Stale · Estimated"
+        );
+        observation.quality.as_option_mut().unwrap().availability = EnumValue::Unknown(99);
+        assert_eq!(quality_text(&cap(observation)), "Quality not provided");
+        let helper = |value| wire::Capability {
+            r#trait: Some(T::Helper(Box::new(wire::HelperCapability {
+                observation: wire::HelperObservation {
+                    value: wire::HelperValue {
+                        value,
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            }))),
+            ..Default::default()
+        };
+        let clipped = value_text(&helper(Some(wire::helper_value::Value::Text(
+            "🪟".repeat(4096),
+        ))));
         assert_eq!(clipped.chars().count(), 257);
         assert!(clipped.ends_with('…'));
         assert_eq!(
-            helper_text(&helpers::HelperValue {
-                value: Some(helpers::helper_value::Value::Text(String::new())),
-                ..Default::default()
-            }),
+            value_text(&helper(Some(
+                wire::helper_value::Value::Text(String::new())
+            ))),
             "Empty text"
         );
-        assert_eq!(
-            helper_text(&helpers::HelperValue::default()),
-            "Value not provided"
-        );
+        assert_eq!(value_text(&helper(None)), "No observation");
     }
     #[test]
     fn native_layout_models_survive_switching_and_private_clear_without_losing_their_binding() {

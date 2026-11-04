@@ -152,7 +152,7 @@ def qualify(proof, server_binary, client_binary):
                 raise RuntimeError('incomplete actual Rust host evidence')
             if not (final['server_joined'] and final['real_device_writes'] == 0
                     and final['command_driver_entries'] == final['fake_driver_calls'] == 0
-                    and not final['submit_ids'] and final['entity_count'] == 4
+                    and not final['execute_request_ids'] and final['entity_count'] == 4
                     and final['native_login_calls'] == final['native_revokes'] == 2):
                 raise RuntimeError('server/auth/readonly count or cleanup mismatch')
             return dict(client=report, server=final, controls=controls)

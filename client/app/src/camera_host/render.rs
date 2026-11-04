@@ -2,14 +2,14 @@ use super::*;
 use crate::{
     CameraPresentation, ContentItem, ProCameraEventRow, ProCameraPresentation, ProCameraState,
 };
-use home_client_model::cameras::Provenance;
+use home_client_model::api_media::MediaDataProvenance as Provenance;
 use slint::{Model, ModelNotify, ModelRc, ModelTracker};
 use std::time::SystemTime;
 pub(super) struct Projection {
     source: Option<(SessionCoordinator, Generation)>,
     generation: i32,
-    catalog: Arc<Vec<home_wire_contract::cameras_contract::Camera>>,
-    selected: Option<home_client_model::cameras::CameraId>,
+    catalog: Arc<Vec<home_wire_contract::camera_content::Camera>>,
+    selected: Option<home_client_model::api_content::MediaSourceName>,
     events: Events,
     target: Option<ImageKey>,
     picture: Option<Arc<crate::camera::Frame>>,
@@ -90,7 +90,7 @@ impl Model for Rows {
             captured: timestamp(event.captured_at).into(),
             identity: format!(
                 "{} · {}",
-                event.key.camera().entity().as_str(),
+                event.key.source().as_str(),
                 event.key.event().as_str()
             )
             .into(),
@@ -131,7 +131,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         .map(|(index, camera)| ContentItem {
             token: i32::try_from(index + 1).unwrap_or(0),
             title: camera.title.clone().into(),
-            metadata: format!("{} · {}", camera.source, camera.id.entity().as_str()).into(),
+            metadata: format!("{} · {}", camera.source, camera.id.as_str()).into(),
             selected: value.selected.as_ref() == Some(&camera.id),
             ..Default::default()
         })
@@ -148,19 +148,15 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         camera.token = i32::try_from(index + 1).unwrap_or(0);
         camera.title = metadata.title.clone().into();
         camera.source = metadata.source.clone().into();
-        camera.identity = metadata.id.entity().as_str().into();
+        camera.identity = metadata.id.as_str().into();
         camera.provenance = match metadata.provenance {
             Provenance::Observed => "Server observation",
             Provenance::Synthetic => "ISOLATED MOCK · No real devices",
         }
         .into();
         if let Some(ImageKey::EventThumbnail(key)) = &value.target {
-            camera.identity = format!(
-                "{} · {}",
-                key.camera().entity().as_str(),
-                key.event().as_str()
-            )
-            .into();
+            camera.identity =
+                format!("{} · {}", key.source().as_str(), key.event().as_str()).into();
         }
     }
     let mut picture_status = value.status;

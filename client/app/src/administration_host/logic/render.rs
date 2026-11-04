@@ -1,9 +1,7 @@
 use super::*;
 use crate::administration_host::render::{self, Row, Target};
 use buffa::EnumValue;
-use home_wire_contract::home::{
-    configurationplan::v1 as plan, history::v1 as history, observability::v1 as obs,
-};
+use home_wire_contract::home::{api::v2 as plan, api::v2 as history, observability::v1 as obs};
 
 macro_rules! label {
     ($fn:ident,$ty:path,$($variant:ident => $text:literal),+ $(,)?) => {
@@ -22,20 +20,20 @@ label!(diagnostic,wire::Diagnostic,InvalidSchema=>"Invalid schema",ExcludedRefer
 label!(gap,wire::GapReason,Evicted=>"Evicted Events",Redacted=>"Redacted Events",NotRetained=>"Unretained Events");
 label!(action,obs::TraceActionKind,Variables=>"Variables",Sequence=>"Sequence",Choose=>"Choose",If=>"Condition",Repeat=>"Repeat",Parallel=>"Parallel",Wait=>"Wait",Stop=>"Off",Call=>"Call",Delay=>"Delay",WaitTemplate=>"Waiting for template");
 label!(stage,obs::TraceNodeStage,Entered=>"Entry",Completed=>"Done",Stopped=>"Stopped",Cancelled=>"Cancelled",Failed=>"Failed",Waiting=>"Pending");
-label!(outcome,history::CommandOutcome,Accepted=>"Accepted",Dispatched=>"Dispatched",Acknowledged=>"Acknowledged",Confirmed=>"Confirmed",Indeterminate=>"Uncertain",Refused=>"Rejected",NotAttempted=>"Not attempted");
-fn family(value: EnumValue<plan::SourceFamily>) -> &'static str {
+label!(outcome,history::HistoryCommandOutcome,Accepted=>"Accepted",Dispatched=>"Dispatched",Acknowledged=>"Acknowledged",Confirmed=>"Confirmed",Indeterminate=>"Uncertain",Refused=>"Rejected",NotAttempted=>"Not attempted");
+fn family(value: EnumValue<plan::ConfigurationPlanSourceFamily>) -> &'static str {
     match value {
-        EnumValue::Known(plan::SourceFamily::Automation) => "Automation",
-        EnumValue::Known(plan::SourceFamily::Script) => "Script",
-        EnumValue::Known(plan::SourceFamily::Scene) => "Scene",
+        EnumValue::Known(plan::ConfigurationPlanSourceFamily::Automation) => "Automation",
+        EnumValue::Known(plan::ConfigurationPlanSourceFamily::Script) => "Script",
+        EnumValue::Known(plan::ConfigurationPlanSourceFamily::Scene) => "Scene",
         EnumValue::Known(
-            plan::SourceFamily::Operational
-            | plan::SourceFamily::DeclarativeV1
-            | plan::SourceFamily::DeclarativeV2
-            | plan::SourceFamily::Authorization
-            | plan::SourceFamily::Ownership
-            | plan::SourceFamily::Dashboard
-            | plan::SourceFamily::Unspecified,
+            plan::ConfigurationPlanSourceFamily::Operational
+            | plan::ConfigurationPlanSourceFamily::DeclarativeV1
+            | plan::ConfigurationPlanSourceFamily::DeclarativeV2
+            | plan::ConfigurationPlanSourceFamily::Authorization
+            | plan::ConfigurationPlanSourceFamily::Ownership
+            | plan::ConfigurationPlanSourceFamily::Dashboard
+            | plan::ConfigurationPlanSourceFamily::Unspecified,
         )
         | EnumValue::Unknown(_) => "Unsupported family",
     }

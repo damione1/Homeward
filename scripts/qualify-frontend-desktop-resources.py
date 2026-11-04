@@ -259,7 +259,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                 native(Command.FILL_LOGIN,loginName=private['login_name'],password=private['password'])
                 wait('Afficher ma maison')
                 native(Command.READ)
-                wait(private['expected_first_alias'])
+                wait(private['expected_first_label'])
                 native(Command.NAVIGATE,section=NavigationSection.HOME.value)
                 wait('Ma maison'); wait('Confort principal')
                 if appearance is Appearance.DARK or text_scale is TextScale.DOUBLE:
@@ -342,15 +342,15 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                     table_tabs=None
                     for attempt in range(1,9):
                         key(NativeKey.TAB); key(NativeKey.END)
-                        if any(private['expected_last_alias'] in (row['title'],row['description'],row['text']) for row in tree()):
+                        if any(private['expected_last_label'] in (row['title'],row['description'],row['text']) for row in tree()):
                             table_tabs=attempt; break
                     if table_tabs is None: raise RuntimeError('Keyboard Tab/End did not reach the last inventory row')
-                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_last_alias'])
-                    key(NativeKey.ENTER); wait('Retour aux éléments'); wait(private['expected_last_alias'])
+                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_last_label'])
+                    key(NativeKey.ENTER); wait('Retour aux éléments'); wait(private['expected_last_label'])
                     capture(KeyboardStage.LAST_DETAIL.value)
                     key(NativeKey.ENTER); wait('Inventaire')
-                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_last_alias'])
-                    key(NativeKey.ENTER); wait('Retour aux éléments'); wait(private['expected_last_alias'])
+                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_last_label'])
+                    key(NativeKey.ENTER); wait('Retour aux éléments'); wait(private['expected_last_label'])
                     capture(KeyboardStage.RESTORED_DETAIL.value)
                     key(NativeKey.ENTER); wait('Inventaire')
                     original_bounds=native(Command.INFO)['bounds']
@@ -495,7 +495,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                         # successful empty authorized capture, not an auth error.
                         wait('Aucun élément autorisé dans cette vue.')
                         rows=tree()
-                        if any(private['expected_first_alias'] in str(row.get(key,'')) or 'Confort principal' in str(row.get(key,'')) for row in rows for key in ['title','description','text']):
+                        if any(private['expected_first_label'] in str(row.get(key,'')) or 'Confort principal' in str(row.get(key,'')) for row in rows for key in ['title','description','text']):
                             raise RuntimeError('Startup disclosed a former protected projection after denial')
                         capture('startup-withdrawn-view-cleared')
                         native(Command.MINIMIZE)
@@ -515,18 +515,18 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                 if scope is QualificationScope.RECOVERY:
                     native(Command.NAVIGATE,section=NavigationSection.INVENTORY.value)
                     wait('États à jour')
-                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
+                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_label'])
                     checkpoint('recovery-live-before-outage')
                     try:
                         control_recovery(RecoveryAction.OUTAGE)
                         wait('Hors ligne · dernières données reçues')
-                        native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
+                        native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_label'])
                         checkpoint('recovery-dated-view-offline')
                     finally:
                         # Restore only this isolated fixture, also after a failed UI assertion.
                         control_recovery(RecoveryAction.RESTORE)
                     wait('États à jour')
-                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
+                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_label'])
                     checkpoint('recovery-live-after-outage')
                     control_recovery(RecoveryAction.RESTART)
                     # An actual OS suspension/resume forces a fresh capture after
@@ -537,7 +537,7 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                     if not hidden['minimized'] or hidden['on_screen']: raise RuntimeError('Recovery window did not minimize')
                     native(Command.RESTORE)
                     wait('États à jour',timeout=35)
-                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
+                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_label'])
                     visible=native(Command.LIFECYCLE)
                     if visible['minimized'] or not visible['on_screen']: raise RuntimeError('Recovery window did not restore')
                     checkpoint('recovery-live-after-server-restart-and-resume')
@@ -575,8 +575,8 @@ def qualify(profile, retained_server, scope, appearance, text_scale, retained_ap
                     capture('home-after-load')
                     loaded=idle_window()
                     native(Command.NAVIGATE,section=NavigationSection.INVENTORY.value)
-                    wait(private['expected_first_alias'])
-                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_alias'])
+                    wait(private['expected_first_label'])
+                    native(Command.CHECK_ROW,expectedRowLabel=private['expected_first_label'])
                     capture('inventory-after-load')
                     write(proof/'after-load-resources.json',loaded)
                 if scope is QualificationScope.LATENCY_LOAD:

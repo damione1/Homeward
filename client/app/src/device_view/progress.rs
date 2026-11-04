@@ -1,134 +1,107 @@
 use crate::ProActionPhase as Phase;
-use buffa::EnumValue;
-use home_client_actions::{ActionSnapshot, LiveState, SubmissionState};
-use home_wire_contract::home::actions::v1 as wire;
+use home_client_actions::capabilities::{
+    CapabilitySnapshot, CapabilitySubmission, CapabilityTracking,
+};
+use home_wire_contract::api_command_operations::{CommandCompletion, CommandOutcome, CommandPhase};
+use home_wire_contract::home::api::v2::ApiErrorReason;
+
 type Presentation = (Phase, &'static str, &'static str);
-fn contract_error(error: &wire::ContractError) -> &'static str {
-    match error.code {
-        EnumValue::Known(wire::ErrorCode::InvalidArgument) => {
-            "The requested value was rejected before admission."
-        }
-        EnumValue::Known(wire::ErrorCode::UnsupportedCapability) => {
-            "This capability can no longer be controlled."
-        }
-        EnumValue::Known(wire::ErrorCode::StaleEpoch) => {
-            "The server restarted. Repeat the gesture in the new view."
-        }
-        EnumValue::Known(wire::ErrorCode::StaleConfiguration) => {
-            "The configuration changed. Repeat the gesture in the new view."
-        }
-        EnumValue::Known(wire::ErrorCode::PermissionDenied) => "Your authorization was removed.",
-        EnumValue::Known(wire::ErrorCode::Unspecified) | EnumValue::Unknown(_) => {
-            "This version does not recognize the rejection."
-        }
-    }
-}
-pub(crate) fn presentation(snapshot: Option<&ActionSnapshot>) -> Presentation {
+
+pub(crate) fn presentation(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
     let Some(action) = snapshot else {
         return (Phase::Idle, "", "");
     };
-    // Only live server progress can assert confirmation. A durable dispatch
-    // result, a matching cached value or a Submit response cannot do so.
-    if let Some(point) = &action.progress {
-        match point.status {
-            EnumValue::Known(wire::ActionStatus::Confirmed) => {
+    if let Some(operation) = &action.operation {
+        match operation.completion() {
+            CommandCompletion::Success {
+                outcome: CommandOutcome::Confirmed,
+                ..
+            } => {
                 return (
                     Phase::Confirmed,
                     "Effect confirmed",
-                    "Server confirmation received; the observed state remains separate.",
+                    "The server recorded confirmation. Observed state remains separate.",
                 );
             }
-            EnumValue::Known(wire::ActionStatus::Failed) => {
+            CommandCompletion::Success {
+                outcome: CommandOutcome::AcknowledgedUnverified,
+                ..
+            } => {
+                return (
+                    Phase::Acknowledged,
+                    "Acknowledged · effect unverified",
+                    "Tracking has ended. The acknowledgement does not establish the physical result.",
+                );
+            }
+            CommandCompletion::Failure(failure) => {
+                if failure.uncertainty().is_some() {
+                    return (
+                        Phase::Indeterminate,
+                        "Couldn’t confirm the result",
+                        "The command may have executed. It will not be submitted again automatically.",
+                    );
+                }
+                if failure.reason() == ApiErrorReason::RequestCancelled {
+                    return (
+                        Phase::Cancelled,
+                        "Command ended as cancelled",
+                        "Only the server’s recorded result establishes this status.",
+                    );
+                }
                 return (
                     Phase::Failed,
                     "Command failed",
-                    "Server tracking reports a failure. The observed state is unchanged.",
+                    "The server recorded a failure. No observed value is used to infer an effect.",
                 );
             }
-            EnumValue::Known(wire::ActionStatus::Cancelled) => {
-                return (
-                    Phase::Cancelled,
-                    "Command cancelled",
-                    "The server ended this action as cancelled.",
-                );
-            }
-            EnumValue::Known(wire::ActionStatus::Indeterminate) => {
-                return (
-                    Phase::Indeterminate,
-                    "Couldn’t confirm the result",
-                    "The command may have executed. It will not be submitted again automatically.",
-                );
-            }
-            EnumValue::Known(
-                wire::ActionStatus::Accepted
-                | wire::ActionStatus::Dispatched
-                | wire::ActionStatus::Acknowledged,
-            ) => {}
-            EnumValue::Known(wire::ActionStatus::Unspecified) | EnumValue::Unknown(_) => {
-                return (
-                    Phase::Unavailable,
-                    "Unrecognized progress",
-                    "This version cannot interpret the received command status.",
-                );
-            }
+            CommandCompletion::Pending => {}
         }
     }
-    match action.live {
-        LiveState::Stopped => {
+    match action.tracking {
+        CapabilityTracking::Stopped => {
             return (
                 Phase::Stopped,
                 "Tracking stopped on this device",
                 "This does not cancel a command the server has already accepted.",
             );
         }
-        LiveState::Unavailable => {
+        CapabilityTracking::Unavailable => {
             return (
                 Phase::Unavailable,
                 "Live tracking unavailable",
-                "The saved result is retained. No additional physical effect is inferred.",
+                "The recorded progress is retained. No additional physical effect is inferred.",
             );
         }
-        LiveState::Interrupted => {
+        CapabilityTracking::Interrupted => {
             return (
                 Phase::Interrupted,
                 "Tracking interrupted",
-                "Checking the same command again; no new submission.",
+                "The outcome remains unconfirmed. No new submission will be made.",
             );
         }
-        LiveState::NotRequested | LiveState::Available => {}
+        CapabilityTracking::Waiting | CapabilityTracking::Live | CapabilityTracking::Complete => {}
     }
-    if let Some(response) = &action.response
-        && response.status == wire::ActionStatus::Failed
-        && let Some(error) = response.error.as_option()
-    {
-        return (Phase::Refused, "Rejected", contract_error(error));
-    }
-    if let Some(point) = &action.progress {
-        let detail = if action.submission == SubmissionState::Uncertain {
-            "Initial response lost; the same command was found."
-        } else {
-            "The observed state remains independent of this command."
-        };
-        return match point.status {
-            EnumValue::Known(wire::ActionStatus::Accepted) => {
-                (Phase::Accepted, "Command accepted", detail)
-            }
-            EnumValue::Known(wire::ActionStatus::Dispatched) => {
-                (Phase::Dispatched, "Command forwarded", detail)
-            }
-            EnumValue::Known(wire::ActionStatus::Acknowledged) => (
+    if let Some(operation) = &action.operation {
+        return match operation.phase() {
+            CommandPhase::Accepted => (
+                Phase::Accepted,
+                "Command accepted",
+                "The durable admission does not establish an effect.",
+            ),
+            CommandPhase::Dispatched => (
+                Phase::Dispatched,
+                "Command forwarded",
+                "The physical result has not been confirmed.",
+            ),
+            CommandPhase::Acknowledged => (
                 Phase::Acknowledged,
                 "Acknowledged · waiting for confirmation",
-                detail,
+                "The observed state remains independent of this command.",
             ),
-            EnumValue::Known(
-                wire::ActionStatus::Confirmed
-                | wire::ActionStatus::Failed
-                | wire::ActionStatus::Cancelled
-                | wire::ActionStatus::Indeterminate
-                | wire::ActionStatus::Unspecified,
-            )
-            | EnumValue::Unknown(_) => (
+            CommandPhase::Confirmed
+            | CommandPhase::Failed
+            | CommandPhase::Cancelled
+            | CommandPhase::Indeterminate => (
                 Phase::Unavailable,
                 "Tracking unavailable",
                 "No additional confirmation is inferred.",
@@ -136,30 +109,40 @@ pub(crate) fn presentation(snapshot: Option<&ActionSnapshot>) -> Presentation {
         };
     }
     match action.submission {
-        SubmissionState::Prepared => (
+        CapabilitySubmission::Prepared => (
             Phase::Preparing,
-            "Checking Command",
-            "The action will be discarded if the view or your permissions change.",
+            "Checking command",
+            "The gesture is discarded if its view or permissions change.",
         ),
-        SubmissionState::InFlight => (
+        CapabilitySubmission::Sending => (
             Phase::Sending,
             "Sending",
             "This action is submitted only once.",
         ),
-        SubmissionState::Replied => (
+        CapabilitySubmission::Accepted => (
             Phase::Accepted,
-            "Response received · tracking",
-            "The submission response does not confirm the physical effect.",
+            "Command accepted",
+            "Tracking the same operation without another submission.",
         ),
-        SubmissionState::Uncertain => (
+        CapabilitySubmission::Rejected => (
+            Phase::Refused,
+            "Rejected",
+            "The server refused this intention. Refresh the view before another gesture.",
+        ),
+        CapabilitySubmission::Uncertain => (
             Phase::Uncertain,
             "Submission uncertain",
-            "Checking the same command; it will not be resubmitted automatically.",
+            "The command may have executed. It will not be submitted again automatically.",
         ),
-        SubmissionState::NotSent => (
+        CapabilitySubmission::NotSent => (
             Phase::Refused,
             "Not sent",
             "The gesture context was no longer valid before submission.",
+        ),
+        CapabilitySubmission::Closed => (
+            Phase::Stopped,
+            "Tracking closed",
+            "Closing this device’s tracking does not cancel a physical effect.",
         ),
     }
 }
@@ -167,70 +150,87 @@ pub(crate) fn presentation(snapshot: Option<&ActionSnapshot>) -> Presentation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn snapshot() -> ActionSnapshot {
-        ActionSnapshot {
-            id: "synthetic-command".parse().unwrap(),
-            submission: SubmissionState::Replied,
-            live: LiveState::NotRequested,
-            response: Some(wire::CommandResponse {
-                command_id: "synthetic-command".into(),
-                status: wire::ActionStatus::Confirmed.into(),
+    use buffa::Message;
+    use buffa_types::google::protobuf::{Any, Timestamp};
+    use home_client_model::api::{CapabilityName, Command, Deadline, Intent, Power, RequestId};
+    use home_wire_contract::{
+        api_command_operations::admit_command_operation, google::longrunning, home::api::v2 as wire,
+    };
+
+    fn snapshot(outcome: Option<wire::CommandOutcome>) -> CapabilitySnapshot {
+        let id = RequestId::try_from("12345678-1234-4123-8123-123456789abc").unwrap();
+        let target =
+            CapabilityName::try_from("homes/synthetic/entities/relay/capabilities/power").unwrap();
+        let command = Command::new(
+            target.clone(),
+            Intent::Power(Power::On),
+            Some(id.clone()),
+            Deadline::new(1800000000, 0).unwrap(),
+        );
+        let phase = if outcome == Some(wire::CommandOutcome::Confirmed) {
+            wire::CommandPhase::Confirmed
+        } else {
+            wire::CommandPhase::Acknowledged
+        };
+        let metadata = wire::CommandMetadata {
+            capability: target.as_str().into(),
+            request_id: id.as_str().into(),
+            create_time: Timestamp::from_unix_secs(1700000000).into(),
+            phase: phase.into(),
+            live_progress_available: outcome.is_none(),
+            ..Default::default()
+        };
+        let raw = longrunning::Operation {
+            name: "homes/synthetic/operations/cmd-test".into(),
+            done: outcome.is_some(),
+            metadata: Any {
+                type_url: "type.googleapis.com/home.api.v2.CommandMetadata".into(),
+                value: metadata.encode_to_vec().into(),
                 ..Default::default()
+            }
+            .into(),
+            result: outcome.map(|outcome| {
+                longrunning::operation::Result::Response(Box::new(Any {
+                    type_url: "type.googleapis.com/home.api.v2.ExecuteCapabilityResponse".into(),
+                    value: wire::ExecuteCapabilityResponse {
+                        capability: target.as_str().into(),
+                        outcome: outcome.into(),
+                        ..Default::default()
+                    }
+                    .encode_to_vec()
+                    .into(),
+                    ..Default::default()
+                }))
             }),
+            ..Default::default()
+        };
+        CapabilitySnapshot {
+            request_id: id,
+            submission: CapabilitySubmission::Accepted,
+            tracking: CapabilityTracking::Live,
+            operation: Some(admit_command_operation(&raw, &command, None).unwrap()),
             failure: None,
-            durable: None,
-            progress: None,
             issue: None,
         }
     }
     #[test]
-    fn dispatch_results_never_become_confirmation_and_ack_expiry_and_refusal_stay_distinct() {
-        let mut action = snapshot();
-        assert_eq!(presentation(Some(&action)).0, Phase::Accepted);
-        action.live = LiveState::Unavailable;
-        action.durable = Some(wire::DurableActionResult {
-            response: action.response.clone().into(),
-            state: wire::DurableActionState::Result.into(),
-            error: wire::DurableActionError::None.into(),
-            ..Default::default()
-        });
-        assert_eq!(presentation(Some(&action)).0, Phase::Unavailable);
-        action.live = LiveState::Available;
-        action.progress = Some(wire::ActionProgress {
-            admission_epoch: "aabbccddeeff00112233445566778899".into(),
-            config_revision: 1,
-            sequence: 3,
-            status: wire::ActionStatus::Acknowledged.into(),
-            ..Default::default()
-        });
-        assert_eq!(presentation(Some(&action)).0, Phase::Acknowledged);
-        action.progress.as_mut().unwrap().status = wire::ActionStatus::Indeterminate.into();
-        assert_eq!(presentation(Some(&action)).0, Phase::Indeterminate);
-        action.progress = None;
-        action.response.as_mut().unwrap().status = wire::ActionStatus::Failed.into();
-        action.response.as_mut().unwrap().error = wire::ContractError {
-            code: wire::ErrorCode::StaleConfiguration.into(),
-            ..Default::default()
-        }
-        .into();
-        let refused = presentation(Some(&action));
-        assert_eq!(refused.0, Phase::Refused);
-        assert!(refused.2.contains("configuration"));
-        action.progress = Some(wire::ActionProgress {
-            status: wire::ActionStatus::Confirmed.into(),
-            ..Default::default()
-        });
-        assert_eq!(presentation(Some(&action)).0, Phase::Confirmed);
+    fn pending_and_terminal_ack_never_render_confirmation() {
+        let pending = snapshot(None);
+        assert_eq!(presentation(Some(&pending)).0, Phase::Acknowledged);
+        assert!(presentation(Some(&pending)).1.contains("waiting"));
+        let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
+        assert_eq!(presentation(Some(&terminal)).0, Phase::Acknowledged);
+        assert!(presentation(Some(&terminal)).1.contains("unverified"));
+        let confirmed = snapshot(Some(wire::CommandOutcome::Confirmed));
+        assert_eq!(presentation(Some(&confirmed)).0, Phase::Confirmed);
     }
     #[test]
-    fn stopping_local_tracking_does_not_render_a_physical_cancellation() {
-        let mut action = snapshot();
-        action.live = LiveState::Stopped;
-        assert_eq!(presentation(Some(&action)).0, Phase::Stopped);
-        action.progress = Some(wire::ActionProgress {
-            status: wire::ActionStatus::Cancelled.into(),
-            ..Default::default()
-        });
-        assert_eq!(presentation(Some(&action)).0, Phase::Cancelled);
+    fn stopping_tracking_cannot_cancel_an_effect_or_erase_a_recorded_confirmation() {
+        let mut pending = snapshot(None);
+        pending.tracking = CapabilityTracking::Stopped;
+        assert_eq!(presentation(Some(&pending)).0, Phase::Stopped);
+        let mut confirmed = snapshot(Some(wire::CommandOutcome::Confirmed));
+        confirmed.tracking = CapabilityTracking::Stopped;
+        assert_eq!(presentation(Some(&confirmed)).0, Phase::Confirmed);
     }
 }

@@ -79,18 +79,18 @@ def qualify(proof, server_binary, client_binary, platform, scenario):
             result = json.loads((fixture / 'result.json').read_text())
             submitted = 0 if scenario is Scenario.WITHDRAWN else 1
             dispatched = 0 if scenario in (Scenario.WITHDRAWN, Scenario.REFUSAL) else 1
-            command_id = reports[0]['command_id']
+            request_id = reports[0]['request_id']
             if not result['server_joined'] or result['fake_driver_calls'] != dispatched or result['command_driver_entries'] != dispatched:
                 raise RuntimeError('Host/fake driver count or joined server mismatch')
-            if (result['submit_ids'] or []) != [command_id] * submitted:
+            if (result['execute_request_ids'] or []) != [request_id] * submitted:
                 raise RuntimeError('Command was resubmitted or identity changed')
-            reads = (result['get_ids'] or []) + (result['watch_ids'] or [])
-            if any(value != command_id for value in reads):
+            reads = (result['get_operation_names'] or []) + (result['wait_operation_names'] or [])
+            if any(value != result['admitted_operations'].get(request_id) for value in reads):
                 raise RuntimeError('Recovery read a different command ID')
-            if dispatched and not result['get_ids']:
-                raise RuntimeError('Missing actual GetAction recovery')
-            if scenario in (Scenario.LOST_SUBMIT, Scenario.ACK_ONLY, Scenario.EXPIRE) and not result['watch_ids']:
-                raise RuntimeError('Missing actual WatchAction')
+            if dispatched and not result['get_operation_names']:
+                raise RuntimeError('Missing actual GetOperation recovery')
+            if scenario in (Scenario.LOST_SUBMIT, Scenario.ACK_ONLY, Scenario.EXPIRE) and not result['wait_operation_names']:
+                raise RuntimeError('Missing actual WaitOperation')
             if scenario in (Scenario.REFUSAL, Scenario.WITHDRAWN) and reads:
                 raise RuntimeError('Unsent/refused action unexpectedly tracked')
             if result['lost_responses'] != int(scenario is Scenario.LOST_SUBMIT):
@@ -132,7 +132,7 @@ def qualify_native_fixture(proof, server_binary):
             result = json.loads((fixture / 'result.json').read_text())
             if (not result['server_joined'] or result['entity_count'] != 4
                     or result['command_driver_entries'] != 0 or result['fake_driver_calls'] != 0
-                    or result['dashboard_get_calls'] != 1 or result['submit_ids']):
+                    or result['dashboard_get_calls'] != 1 or result['execute_request_ids']):
                 raise RuntimeError('Four-family registry/dashboard readiness gate failed')
             return dict(status='PASS', server=result, native_ui_qualified=False)
         finally:

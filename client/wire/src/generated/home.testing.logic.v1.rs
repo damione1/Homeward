@@ -662,8 +662,8 @@ pub struct Context {
     pub catalog_revision: u64,
     /// Field 4: `generation`
     pub generation: ::buffa::MessageField<
-        super::super::configuration::v1::ActiveGeneration,
-        ::buffa::Inline<super::super::configuration::v1::ActiveGeneration>,
+        super::super::super::api::v2::ActiveGeneration,
+        ::buffa::Inline<super::super::super::api::v2::ActiveGeneration>,
     >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -683,14 +683,14 @@ impl Context {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Context";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Context";
 }
 ::buffa::impl_default_instance!(Context);
 impl ::buffa::MessageName for Context {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "Context";
-    const FULL_NAME: &'static str = "home.logic.v1.Context";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Context";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.Context";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Context";
 }
 impl ::buffa::Message for Context {
     /// Returns the total encoded size in bytes.
@@ -820,7 +820,7 @@ impl ::buffa::Message for Context {
     }
 }
 impl ::buffa::ExtensionSet for Context {
-    const PROTO_FQN: &'static str = "home.logic.v1.Context";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.Context";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -844,14 +844,14 @@ impl Continuation {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Continuation";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Continuation";
 }
 ::buffa::impl_default_instance!(Continuation);
 impl ::buffa::MessageName for Continuation {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "Continuation";
-    const FULL_NAME: &'static str = "home.logic.v1.Continuation";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Continuation";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.Continuation";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Continuation";
 }
 impl ::buffa::Message for Continuation {
     /// Returns the total encoded size in bytes.
@@ -963,7 +963,7 @@ impl ::buffa::Message for Continuation {
     }
 }
 impl ::buffa::ExtensionSet for Continuation {
-    const PROTO_FQN: &'static str = "home.logic.v1.Continuation";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.Continuation";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -985,8 +985,8 @@ pub struct DefinitionRef {
     pub id: ::buffa::alloc::string::String,
     /// Field 2: `version`
     pub version: ::buffa::MessageField<
-        super::super::configuration::v1::DocumentVersion,
-        ::buffa::Inline<super::super::configuration::v1::DocumentVersion>,
+        super::super::super::api::v2::DocumentVersion,
+        ::buffa::Inline<super::super::super::api::v2::DocumentVersion>,
     >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1004,14 +1004,14 @@ impl DefinitionRef {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.DefinitionRef";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.DefinitionRef";
 }
 ::buffa::impl_default_instance!(DefinitionRef);
 impl ::buffa::MessageName for DefinitionRef {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "DefinitionRef";
-    const FULL_NAME: &'static str = "home.logic.v1.DefinitionRef";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.DefinitionRef";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.DefinitionRef";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.DefinitionRef";
 }
 impl ::buffa::Message for DefinitionRef {
     /// Returns the total encoded size in bytes.
@@ -1103,7 +1103,7 @@ impl ::buffa::Message for DefinitionRef {
     }
 }
 impl ::buffa::ExtensionSet for DefinitionRef {
-    const PROTO_FQN: &'static str = "home.logic.v1.DefinitionRef";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.DefinitionRef";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1120,11 +1120,13 @@ pub struct Definition {
     /// Only AUTOMATION, SCRIPT and SCENE are admitted by this surface.
     ///
     /// Field 3: `family`
-    pub family: ::buffa::EnumValue<super::super::configurationplan::v1::SourceFamily>,
+    pub family: ::buffa::EnumValue<
+        super::super::super::api::v2::ConfigurationPlanSourceFamily,
+    >,
     /// Field 4: `source_document`
     pub source_document: ::buffa::MessageField<
-        super::super::configuration::v1::DocumentId,
-        ::buffa::Inline<super::super::configuration::v1::DocumentId>,
+        super::super::super::api::v2::DocumentId,
+        ::buffa::Inline<super::super::super::api::v2::DocumentId>,
     >,
     /// Protected metadata, NEVER editable YAML or an inferred source preview.
     ///
@@ -1169,14 +1171,14 @@ impl Definition {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Definition";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Definition";
 }
 ::buffa::impl_default_instance!(Definition);
 impl ::buffa::MessageName for Definition {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "Definition";
-    const FULL_NAME: &'static str = "home.logic.v1.Definition";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Definition";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.Definition";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Definition";
 }
 impl ::buffa::Message for Definition {
     /// Returns the total encoded size in bytes.
@@ -1483,7 +1485,7 @@ impl ::buffa::Message for Definition {
     }
 }
 impl ::buffa::ExtensionSet for Definition {
-    const PROTO_FQN: &'static str = "home.logic.v1.Definition";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.Definition";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1513,7 +1515,7 @@ impl ListDefinitionsRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListDefinitionsRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListDefinitionsRequest";
 }
 impl ListDefinitionsRequest {
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
@@ -1529,10 +1531,10 @@ impl ListDefinitionsRequest {
 }
 ::buffa::impl_default_instance!(ListDefinitionsRequest);
 impl ::buffa::MessageName for ListDefinitionsRequest {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "ListDefinitionsRequest";
-    const FULL_NAME: &'static str = "home.logic.v1.ListDefinitionsRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListDefinitionsRequest";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.ListDefinitionsRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListDefinitionsRequest";
 }
 impl ::buffa::Message for ListDefinitionsRequest {
     /// Returns the total encoded size in bytes.
@@ -1615,7 +1617,7 @@ impl ::buffa::Message for ListDefinitionsRequest {
     }
 }
 impl ::buffa::ExtensionSet for ListDefinitionsRequest {
-    const PROTO_FQN: &'static str = "home.logic.v1.ListDefinitionsRequest";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.ListDefinitionsRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1654,14 +1656,14 @@ impl ListDefinitionsResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListDefinitionsResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListDefinitionsResponse";
 }
 ::buffa::impl_default_instance!(ListDefinitionsResponse);
 impl ::buffa::MessageName for ListDefinitionsResponse {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "ListDefinitionsResponse";
-    const FULL_NAME: &'static str = "home.logic.v1.ListDefinitionsResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListDefinitionsResponse";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.ListDefinitionsResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListDefinitionsResponse";
 }
 impl ::buffa::Message for ListDefinitionsResponse {
     /// Returns the total encoded size in bytes.
@@ -1826,7 +1828,7 @@ impl ::buffa::Message for ListDefinitionsResponse {
     }
 }
 impl ::buffa::ExtensionSet for ListDefinitionsResponse {
-    const PROTO_FQN: &'static str = "home.logic.v1.ListDefinitionsResponse";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.ListDefinitionsResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1850,14 +1852,14 @@ impl Actor {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Actor";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Actor";
 }
 ::buffa::impl_default_instance!(Actor);
 impl ::buffa::MessageName for Actor {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "Actor";
-    const FULL_NAME: &'static str = "home.logic.v1.Actor";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Actor";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.Actor";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Actor";
 }
 impl ::buffa::Message for Actor {
     /// Returns the total encoded size in bytes.
@@ -2024,7 +2026,7 @@ impl ::buffa::Message for Actor {
     }
 }
 impl ::buffa::ExtensionSet for Actor {
-    const PROTO_FQN: &'static str = "home.logic.v1.Actor";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.Actor";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2048,8 +2050,8 @@ pub struct Run {
     pub definition: ::buffa::MessageField<DefinitionRef, ::buffa::Inline<DefinitionRef>>,
     /// Field 3: `generation`
     pub generation: ::buffa::MessageField<
-        super::super::configuration::v1::ActiveGeneration,
-        ::buffa::Inline<super::super::configuration::v1::ActiveGeneration>,
+        super::super::super::api::v2::ActiveGeneration,
+        ::buffa::Inline<super::super::super::api::v2::ActiveGeneration>,
     >,
     /// Field 4: `actor`
     pub actor: ::buffa::MessageField<Actor, ::buffa::Inline<Actor>>,
@@ -2100,14 +2102,14 @@ impl Run {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Run";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Run";
 }
 ::buffa::impl_default_instance!(Run);
 impl ::buffa::MessageName for Run {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "Run";
-    const FULL_NAME: &'static str = "home.logic.v1.Run";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Run";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.Run";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Run";
 }
 impl ::buffa::Message for Run {
     /// Returns the total encoded size in bytes.
@@ -2405,7 +2407,7 @@ impl ::buffa::Message for Run {
     }
 }
 impl ::buffa::ExtensionSet for Run {
-    const PROTO_FQN: &'static str = "home.logic.v1.Run";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.Run";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2441,7 +2443,7 @@ impl ListRunsRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListRunsRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListRunsRequest";
 }
 impl ListRunsRequest {
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
@@ -2457,10 +2459,10 @@ impl ListRunsRequest {
 }
 ::buffa::impl_default_instance!(ListRunsRequest);
 impl ::buffa::MessageName for ListRunsRequest {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "ListRunsRequest";
-    const FULL_NAME: &'static str = "home.logic.v1.ListRunsRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListRunsRequest";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.ListRunsRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListRunsRequest";
 }
 impl ::buffa::Message for ListRunsRequest {
     /// Returns the total encoded size in bytes.
@@ -2586,7 +2588,7 @@ impl ::buffa::Message for ListRunsRequest {
     }
 }
 impl ::buffa::ExtensionSet for ListRunsRequest {
-    const PROTO_FQN: &'static str = "home.logic.v1.ListRunsRequest";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.ListRunsRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2619,14 +2621,14 @@ impl ListRunsResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListRunsResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListRunsResponse";
 }
 ::buffa::impl_default_instance!(ListRunsResponse);
 impl ::buffa::MessageName for ListRunsResponse {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "ListRunsResponse";
-    const FULL_NAME: &'static str = "home.logic.v1.ListRunsResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListRunsResponse";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.ListRunsResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListRunsResponse";
 }
 impl ::buffa::Message for ListRunsResponse {
     /// Returns the total encoded size in bytes.
@@ -2761,7 +2763,7 @@ impl ::buffa::Message for ListRunsResponse {
     }
 }
 impl ::buffa::ExtensionSet for ListRunsResponse {
-    const PROTO_FQN: &'static str = "home.logic.v1.ListRunsResponse";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.ListRunsResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2796,14 +2798,14 @@ impl StartRunRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.StartRunRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.StartRunRequest";
 }
 ::buffa::impl_default_instance!(StartRunRequest);
 impl ::buffa::MessageName for StartRunRequest {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "StartRunRequest";
-    const FULL_NAME: &'static str = "home.logic.v1.StartRunRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.StartRunRequest";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.StartRunRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.StartRunRequest";
 }
 impl ::buffa::Message for StartRunRequest {
     /// Returns the total encoded size in bytes.
@@ -2923,7 +2925,7 @@ impl ::buffa::Message for StartRunRequest {
     }
 }
 impl ::buffa::ExtensionSet for StartRunRequest {
-    const PROTO_FQN: &'static str = "home.logic.v1.StartRunRequest";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.StartRunRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2953,14 +2955,14 @@ impl StartRunResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.StartRunResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.StartRunResponse";
 }
 ::buffa::impl_default_instance!(StartRunResponse);
 impl ::buffa::MessageName for StartRunResponse {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "StartRunResponse";
-    const FULL_NAME: &'static str = "home.logic.v1.StartRunResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.StartRunResponse";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.StartRunResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.StartRunResponse";
 }
 impl ::buffa::Message for StartRunResponse {
     /// Returns the total encoded size in bytes.
@@ -3066,7 +3068,7 @@ impl ::buffa::Message for StartRunResponse {
     }
 }
 impl ::buffa::ExtensionSet for StartRunResponse {
-    const PROTO_FQN: &'static str = "home.logic.v1.StartRunResponse";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.StartRunResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3095,14 +3097,14 @@ impl GetRunRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.GetRunRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.GetRunRequest";
 }
 ::buffa::impl_default_instance!(GetRunRequest);
 impl ::buffa::MessageName for GetRunRequest {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "GetRunRequest";
-    const FULL_NAME: &'static str = "home.logic.v1.GetRunRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.GetRunRequest";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.GetRunRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.GetRunRequest";
 }
 impl ::buffa::Message for GetRunRequest {
     /// Returns the total encoded size in bytes.
@@ -3223,7 +3225,7 @@ impl ::buffa::Message for GetRunRequest {
     }
 }
 impl ::buffa::ExtensionSet for GetRunRequest {
-    const PROTO_FQN: &'static str = "home.logic.v1.GetRunRequest";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.GetRunRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3261,14 +3263,14 @@ impl GetRunResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.GetRunResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.GetRunResponse";
 }
 ::buffa::impl_default_instance!(GetRunResponse);
 impl ::buffa::MessageName for GetRunResponse {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "GetRunResponse";
-    const FULL_NAME: &'static str = "home.logic.v1.GetRunResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.GetRunResponse";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.GetRunResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.GetRunResponse";
 }
 impl ::buffa::Message for GetRunResponse {
     /// Returns the total encoded size in bytes.
@@ -3374,7 +3376,7 @@ impl ::buffa::Message for GetRunResponse {
     }
 }
 impl ::buffa::ExtensionSet for GetRunResponse {
-    const PROTO_FQN: &'static str = "home.logic.v1.GetRunResponse";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.GetRunResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3407,14 +3409,14 @@ impl CancelRunRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.CancelRunRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.CancelRunRequest";
 }
 ::buffa::impl_default_instance!(CancelRunRequest);
 impl ::buffa::MessageName for CancelRunRequest {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "CancelRunRequest";
-    const FULL_NAME: &'static str = "home.logic.v1.CancelRunRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.CancelRunRequest";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.CancelRunRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.CancelRunRequest";
 }
 impl ::buffa::Message for CancelRunRequest {
     /// Returns the total encoded size in bytes.
@@ -3520,7 +3522,7 @@ impl ::buffa::Message for CancelRunRequest {
     }
 }
 impl ::buffa::ExtensionSet for CancelRunRequest {
-    const PROTO_FQN: &'static str = "home.logic.v1.CancelRunRequest";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.CancelRunRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3558,14 +3560,14 @@ impl CancelRunResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.CancelRunResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.CancelRunResponse";
 }
 ::buffa::impl_default_instance!(CancelRunResponse);
 impl ::buffa::MessageName for CancelRunResponse {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "CancelRunResponse";
-    const FULL_NAME: &'static str = "home.logic.v1.CancelRunResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.CancelRunResponse";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.CancelRunResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.CancelRunResponse";
 }
 impl ::buffa::Message for CancelRunResponse {
     /// Returns the total encoded size in bytes.
@@ -3707,7 +3709,7 @@ impl ::buffa::Message for CancelRunResponse {
     }
 }
 impl ::buffa::ExtensionSet for CancelRunResponse {
-    const PROTO_FQN: &'static str = "home.logic.v1.CancelRunResponse";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.CancelRunResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3743,14 +3745,14 @@ impl SourcePosition {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.SourcePosition";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.SourcePosition";
 }
 ::buffa::impl_default_instance!(SourcePosition);
 impl ::buffa::MessageName for SourcePosition {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "SourcePosition";
-    const FULL_NAME: &'static str = "home.logic.v1.SourcePosition";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.SourcePosition";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.SourcePosition";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.SourcePosition";
 }
 impl ::buffa::Message for SourcePosition {
     /// Returns the total encoded size in bytes.
@@ -3856,7 +3858,7 @@ impl ::buffa::Message for SourcePosition {
     }
 }
 impl ::buffa::ExtensionSet for SourcePosition {
-    const PROTO_FQN: &'static str = "home.logic.v1.SourcePosition";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.SourcePosition";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3867,9 +3869,13 @@ impl ::buffa::ExtensionSet for SourcePosition {
 #[derive(Clone, PartialEq, Default)]
 pub struct Node {
     /// Field 1: `kind`
-    pub kind: ::buffa::EnumValue<super::super::observability::v1::TraceActionKind>,
+    pub kind: ::buffa::EnumValue<
+        super::super::super::observability::v1::TraceActionKind,
+    >,
     /// Field 2: `stage`
-    pub stage: ::buffa::EnumValue<super::super::observability::v1::TraceNodeStage>,
+    pub stage: ::buffa::EnumValue<
+        super::super::super::observability::v1::TraceNodeStage,
+    >,
     pub source: ::core::option::Option<__buffa::oneof::node::Source>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3888,14 +3894,14 @@ impl Node {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Node";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Node";
 }
 ::buffa::impl_default_instance!(Node);
 impl ::buffa::MessageName for Node {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "Node";
-    const FULL_NAME: &'static str = "home.logic.v1.Node";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Node";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.Node";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Node";
 }
 impl ::buffa::Message for Node {
     /// Returns the total encoded size in bytes.
@@ -4104,7 +4110,7 @@ impl ::buffa::Message for Node {
     }
 }
 impl ::buffa::ExtensionSet for Node {
-    const PROTO_FQN: &'static str = "home.logic.v1.Node";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.Node";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4127,7 +4133,7 @@ pub struct Command {
     /// No device aliases, command arguments, credentials or observed values.
     ///
     /// Field 2: `outcome`
-    pub outcome: ::buffa::EnumValue<super::super::history::v1::CommandOutcome>,
+    pub outcome: ::buffa::EnumValue<super::super::super::api::v2::HistoryCommandOutcome>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -4144,14 +4150,14 @@ impl Command {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Command";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Command";
 }
 ::buffa::impl_default_instance!(Command);
 impl ::buffa::MessageName for Command {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "Command";
-    const FULL_NAME: &'static str = "home.logic.v1.Command";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Command";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.Command";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Command";
 }
 impl ::buffa::Message for Command {
     /// Returns the total encoded size in bytes.
@@ -4237,7 +4243,7 @@ impl ::buffa::Message for Command {
     }
 }
 impl ::buffa::ExtensionSet for Command {
-    const PROTO_FQN: &'static str = "home.logic.v1.Command";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.Command";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4274,14 +4280,14 @@ impl Gap {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Gap";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Gap";
 }
 ::buffa::impl_default_instance!(Gap);
 impl ::buffa::MessageName for Gap {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "Gap";
-    const FULL_NAME: &'static str = "home.logic.v1.Gap";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Gap";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.Gap";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Gap";
 }
 impl ::buffa::Message for Gap {
     /// Returns the total encoded size in bytes.
@@ -4384,7 +4390,7 @@ impl ::buffa::Message for Gap {
     }
 }
 impl ::buffa::ExtensionSet for Gap {
-    const PROTO_FQN: &'static str = "home.logic.v1.Gap";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.Gap";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4419,14 +4425,14 @@ impl TraceRow {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.TraceRow";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.TraceRow";
 }
 ::buffa::impl_default_instance!(TraceRow);
 impl ::buffa::MessageName for TraceRow {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "TraceRow";
-    const FULL_NAME: &'static str = "home.logic.v1.TraceRow";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.TraceRow";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.TraceRow";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.TraceRow";
 }
 impl ::buffa::Message for TraceRow {
     /// Returns the total encoded size in bytes.
@@ -4652,7 +4658,7 @@ impl ::buffa::Message for TraceRow {
     }
 }
 impl ::buffa::ExtensionSet for TraceRow {
-    const PROTO_FQN: &'static str = "home.logic.v1.TraceRow";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.TraceRow";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4696,7 +4702,7 @@ impl ReadTraceRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ReadTraceRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ReadTraceRequest";
 }
 impl ReadTraceRequest {
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
@@ -4712,10 +4718,10 @@ impl ReadTraceRequest {
 }
 ::buffa::impl_default_instance!(ReadTraceRequest);
 impl ::buffa::MessageName for ReadTraceRequest {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "ReadTraceRequest";
-    const FULL_NAME: &'static str = "home.logic.v1.ReadTraceRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ReadTraceRequest";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.ReadTraceRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ReadTraceRequest";
 }
 impl ::buffa::Message for ReadTraceRequest {
     /// Returns the total encoded size in bytes.
@@ -4840,7 +4846,7 @@ impl ::buffa::Message for ReadTraceRequest {
     }
 }
 impl ::buffa::ExtensionSet for ReadTraceRequest {
-    const PROTO_FQN: &'static str = "home.logic.v1.ReadTraceRequest";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.ReadTraceRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4881,14 +4887,14 @@ impl ReadTraceResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ReadTraceResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ReadTraceResponse";
 }
 ::buffa::impl_default_instance!(ReadTraceResponse);
 impl ::buffa::MessageName for ReadTraceResponse {
-    const PACKAGE: &'static str = "home.logic.v1";
+    const PACKAGE: &'static str = "home.testing.logic.v1";
     const NAME: &'static str = "ReadTraceResponse";
-    const FULL_NAME: &'static str = "home.logic.v1.ReadTraceResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ReadTraceResponse";
+    const FULL_NAME: &'static str = "home.testing.logic.v1.ReadTraceResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ReadTraceResponse";
 }
 impl ::buffa::Message for ReadTraceResponse {
     /// Returns the total encoded size in bytes.
@@ -5065,7 +5071,7 @@ impl ::buffa::Message for ReadTraceResponse {
     }
 }
 impl ::buffa::ExtensionSet for ReadTraceResponse {
-    const PROTO_FQN: &'static str = "home.logic.v1.ReadTraceResponse";
+    const PROTO_FQN: &'static str = "home.testing.logic.v1.ReadTraceResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -5102,7 +5108,7 @@ pub mod __buffa {
             pub catalog_revision: u64,
             /// Field 4: `generation`
             pub generation: ::buffa::MessageFieldView<
-                super::super::super::super::configuration::v1::__buffa::view::ActiveGenerationView<
+                super::super::super::super::super::api::v2::__buffa::view::ActiveGenerationView<
                     'a,
                 >,
             >,
@@ -5184,7 +5190,7 @@ pub mod __buffa {
                             }
                             None => {
                                 view.generation = ::buffa::MessageFieldView::set(
-                                    <super::super::super::super::configuration::v1::__buffa::view::ActiveGenerationView as ::buffa::MessageView>::decode_view_ctx(
+                                    <super::super::super::super::super::api::v2::__buffa::view::ActiveGenerationView as ::buffa::MessageView>::decode_view_ctx(
                                         sub,
                                         __sub_ctx,
                                     )?,
@@ -5221,9 +5227,9 @@ pub mod __buffa {
                     generation: match self.generation.as_option() {
                         Some(v) => {
                             ::buffa::MessageField::<
-                                super::super::super::super::configuration::v1::ActiveGeneration,
+                                super::super::super::super::super::api::v2::ActiveGeneration,
                                 ::buffa::Inline<
-                                    super::super::super::super::configuration::v1::ActiveGeneration,
+                                    super::super::super::super::super::api::v2::ActiveGeneration,
                                 >,
                             >::some(v.to_owned_from_source(__buffa_src)?)
                         }
@@ -5302,10 +5308,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ContextView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "Context";
-            const FULL_NAME: &'static str = "home.logic.v1.Context";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Context";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.Context";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Context";
         }
         ::buffa::impl_default_view_instance!(ContextView);
         ::buffa::impl_view_reborrow!(ContextView);
@@ -5413,7 +5419,7 @@ pub mod __buffa {
             pub fn generation(
                 &self,
             ) -> &::buffa::MessageFieldView<
-                super::super::super::super::configuration::v1::__buffa::view::ActiveGenerationView<
+                super::super::super::super::super::api::v2::__buffa::view::ActiveGenerationView<
                     '_,
                 >,
             > {
@@ -5648,10 +5654,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ContinuationView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "Continuation";
-            const FULL_NAME: &'static str = "home.logic.v1.Continuation";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Continuation";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.Continuation";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Continuation";
         }
         ::buffa::impl_default_view_instance!(ContinuationView);
         ::buffa::impl_view_reborrow!(ContinuationView);
@@ -5775,7 +5781,7 @@ pub mod __buffa {
             pub id: &'a str,
             /// Field 2: `version`
             pub version: ::buffa::MessageFieldView<
-                super::super::super::super::configuration::v1::__buffa::view::DocumentVersionView<
+                super::super::super::super::super::api::v2::__buffa::view::DocumentVersionView<
                     'a,
                 >,
             >,
@@ -5841,7 +5847,7 @@ pub mod __buffa {
                             }
                             None => {
                                 view.version = ::buffa::MessageFieldView::set(
-                                    <super::super::super::super::configuration::v1::__buffa::view::DocumentVersionView as ::buffa::MessageView>::decode_view_ctx(
+                                    <super::super::super::super::super::api::v2::__buffa::view::DocumentVersionView as ::buffa::MessageView>::decode_view_ctx(
                                         sub,
                                         __sub_ctx,
                                     )?,
@@ -5882,9 +5888,9 @@ pub mod __buffa {
                     version: match self.version.as_option() {
                         Some(v) => {
                             ::buffa::MessageField::<
-                                super::super::super::super::configuration::v1::DocumentVersion,
+                                super::super::super::super::super::api::v2::DocumentVersion,
                                 ::buffa::Inline<
-                                    super::super::super::super::configuration::v1::DocumentVersion,
+                                    super::super::super::super::super::api::v2::DocumentVersion,
                                 >,
                             >::some(v.to_owned_from_source(__buffa_src)?)
                         }
@@ -5941,10 +5947,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for DefinitionRefView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "DefinitionRef";
-            const FULL_NAME: &'static str = "home.logic.v1.DefinitionRef";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.DefinitionRef";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.DefinitionRef";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.DefinitionRef";
         }
         ::buffa::impl_default_view_instance!(DefinitionRefView);
         ::buffa::impl_view_reborrow!(DefinitionRefView);
@@ -6042,7 +6048,7 @@ pub mod __buffa {
             pub fn version(
                 &self,
             ) -> &::buffa::MessageFieldView<
-                super::super::super::super::configuration::v1::__buffa::view::DocumentVersionView<
+                super::super::super::super::super::api::v2::__buffa::view::DocumentVersionView<
                     '_,
                 >,
             > {
@@ -6083,11 +6089,11 @@ pub mod __buffa {
             ///
             /// Field 3: `family`
             pub family: ::buffa::EnumValue<
-                super::super::super::super::configurationplan::v1::SourceFamily,
+                super::super::super::super::super::api::v2::ConfigurationPlanSourceFamily,
             >,
             /// Field 4: `source_document`
             pub source_document: ::buffa::MessageFieldView<
-                super::super::super::super::configuration::v1::__buffa::view::DocumentIdView<
+                super::super::super::super::super::api::v2::__buffa::view::DocumentIdView<
                     'a,
                 >,
             >,
@@ -6208,7 +6214,7 @@ pub mod __buffa {
                             }
                             None => {
                                 view.source_document = ::buffa::MessageFieldView::set(
-                                    <super::super::super::super::configuration::v1::__buffa::view::DocumentIdView as ::buffa::MessageView>::decode_view_ctx(
+                                    <super::super::super::super::super::api::v2::__buffa::view::DocumentIdView as ::buffa::MessageView>::decode_view_ctx(
                                         sub,
                                         __sub_ctx,
                                     )?,
@@ -6334,9 +6340,9 @@ pub mod __buffa {
                     source_document: match self.source_document.as_option() {
                         Some(v) => {
                             ::buffa::MessageField::<
-                                super::super::super::super::configuration::v1::DocumentId,
+                                super::super::super::super::super::api::v2::DocumentId,
                                 ::buffa::Inline<
-                                    super::super::super::super::configuration::v1::DocumentId,
+                                    super::super::super::super::super::api::v2::DocumentId,
                                 >,
                             >::some(v.to_owned_from_source(__buffa_src)?)
                         }
@@ -6510,10 +6516,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for DefinitionView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "Definition";
-            const FULL_NAME: &'static str = "home.logic.v1.Definition";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Definition";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.Definition";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Definition";
         }
         ::buffa::impl_default_view_instance!(DefinitionView);
         ::buffa::impl_view_reborrow!(DefinitionView);
@@ -6620,7 +6626,7 @@ pub mod __buffa {
             pub fn family(
                 &self,
             ) -> ::buffa::EnumValue<
-                super::super::super::super::configurationplan::v1::SourceFamily,
+                super::super::super::super::super::api::v2::ConfigurationPlanSourceFamily,
             > {
                 self.0.reborrow().family
             }
@@ -6629,7 +6635,7 @@ pub mod __buffa {
             pub fn source_document(
                 &self,
             ) -> &::buffa::MessageFieldView<
-                super::super::super::super::configuration::v1::__buffa::view::DocumentIdView<
+                super::super::super::super::super::api::v2::__buffa::view::DocumentIdView<
                     '_,
                 >,
             > {
@@ -6836,10 +6842,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ListDefinitionsRequestView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "ListDefinitionsRequest";
-            const FULL_NAME: &'static str = "home.logic.v1.ListDefinitionsRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListDefinitionsRequest";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.ListDefinitionsRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListDefinitionsRequest";
         }
         ::buffa::impl_default_view_instance!(ListDefinitionsRequestView);
         ::buffa::impl_view_reborrow!(ListDefinitionsRequestView);
@@ -7256,10 +7262,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ListDefinitionsResponseView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "ListDefinitionsResponse";
-            const FULL_NAME: &'static str = "home.logic.v1.ListDefinitionsResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListDefinitionsResponse";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.ListDefinitionsResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListDefinitionsResponse";
         }
         ::buffa::impl_default_view_instance!(ListDefinitionsResponseView);
         ::buffa::impl_view_reborrow!(ListDefinitionsResponseView);
@@ -7481,7 +7487,7 @@ pub mod __buffa {
                             view.observation = Some(
                                 super::super::__buffa::view::oneof::actor::Observation::Account(
                                     ::buffa::alloc::boxed::Box::new(
-                                        <super::super::super::super::auth::v1::__buffa::view::AccountIdView as ::buffa::MessageView>::decode_view_ctx(
+                                        <super::super::super::super::super::auth::v1::__buffa::view::AccountIdView as ::buffa::MessageView>::decode_view_ctx(
                                             sub,
                                             __sub_ctx,
                                         )?,
@@ -7708,10 +7714,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ActorView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "Actor";
-            const FULL_NAME: &'static str = "home.logic.v1.Actor";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Actor";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.Actor";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Actor";
         }
         ::buffa::impl_default_view_instance!(ActorView);
         ::buffa::impl_view_reborrow!(ActorView);
@@ -7837,7 +7843,7 @@ pub mod __buffa {
             >,
             /// Field 3: `generation`
             pub generation: ::buffa::MessageFieldView<
-                super::super::super::super::configuration::v1::__buffa::view::ActiveGenerationView<
+                super::super::super::super::super::api::v2::__buffa::view::ActiveGenerationView<
                     'a,
                 >,
             >,
@@ -7952,7 +7958,7 @@ pub mod __buffa {
                             }
                             None => {
                                 view.generation = ::buffa::MessageFieldView::set(
-                                    <super::super::super::super::configuration::v1::__buffa::view::ActiveGenerationView as ::buffa::MessageView>::decode_view_ctx(
+                                    <super::super::super::super::super::api::v2::__buffa::view::ActiveGenerationView as ::buffa::MessageView>::decode_view_ctx(
                                         sub,
                                         __sub_ctx,
                                     )?,
@@ -8101,9 +8107,9 @@ pub mod __buffa {
                     generation: match self.generation.as_option() {
                         Some(v) => {
                             ::buffa::MessageField::<
-                                super::super::super::super::configuration::v1::ActiveGeneration,
+                                super::super::super::super::super::api::v2::ActiveGeneration,
                                 ::buffa::Inline<
-                                    super::super::super::super::configuration::v1::ActiveGeneration,
+                                    super::super::super::super::super::api::v2::ActiveGeneration,
                                 >,
                             >::some(v.to_owned_from_source(__buffa_src)?)
                         }
@@ -8296,10 +8302,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for RunView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "Run";
-            const FULL_NAME: &'static str = "home.logic.v1.Run";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Run";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.Run";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Run";
         }
         ::buffa::impl_default_view_instance!(RunView);
         ::buffa::impl_view_reborrow!(RunView);
@@ -8402,7 +8408,7 @@ pub mod __buffa {
             pub fn generation(
                 &self,
             ) -> &::buffa::MessageFieldView<
-                super::super::super::super::configuration::v1::__buffa::view::ActiveGenerationView<
+                super::super::super::super::super::api::v2::__buffa::view::ActiveGenerationView<
                     '_,
                 >,
             > {
@@ -8689,10 +8695,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ListRunsRequestView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "ListRunsRequest";
-            const FULL_NAME: &'static str = "home.logic.v1.ListRunsRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListRunsRequest";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.ListRunsRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListRunsRequest";
         }
         ::buffa::impl_default_view_instance!(ListRunsRequestView);
         ::buffa::impl_view_reborrow!(ListRunsRequestView);
@@ -9079,10 +9085,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ListRunsResponseView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "ListRunsResponse";
-            const FULL_NAME: &'static str = "home.logic.v1.ListRunsResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ListRunsResponse";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.ListRunsResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ListRunsResponse";
         }
         ::buffa::impl_default_view_instance!(ListRunsResponseView);
         ::buffa::impl_view_reborrow!(ListRunsResponseView);
@@ -9445,10 +9451,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for StartRunRequestView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "StartRunRequest";
-            const FULL_NAME: &'static str = "home.logic.v1.StartRunRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.StartRunRequest";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.StartRunRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.StartRunRequest";
         }
         ::buffa::impl_default_view_instance!(StartRunRequestView);
         ::buffa::impl_view_reborrow!(StartRunRequestView);
@@ -9788,10 +9794,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for StartRunResponseView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "StartRunResponse";
-            const FULL_NAME: &'static str = "home.logic.v1.StartRunResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.StartRunResponse";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.StartRunResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.StartRunResponse";
         }
         ::buffa::impl_default_view_instance!(StartRunResponseView);
         ::buffa::impl_view_reborrow!(StartRunResponseView);
@@ -10142,10 +10148,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for GetRunRequestView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "GetRunRequest";
-            const FULL_NAME: &'static str = "home.logic.v1.GetRunRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.GetRunRequest";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.GetRunRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.GetRunRequest";
         }
         ::buffa::impl_default_view_instance!(GetRunRequestView);
         ::buffa::impl_view_reborrow!(GetRunRequestView);
@@ -10478,10 +10484,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for GetRunResponseView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "GetRunResponse";
-            const FULL_NAME: &'static str = "home.logic.v1.GetRunResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.GetRunResponse";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.GetRunResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.GetRunResponse";
         }
         ::buffa::impl_default_view_instance!(GetRunResponseView);
         ::buffa::impl_view_reborrow!(GetRunResponseView);
@@ -10797,10 +10803,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for CancelRunRequestView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "CancelRunRequest";
-            const FULL_NAME: &'static str = "home.logic.v1.CancelRunRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.CancelRunRequest";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.CancelRunRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.CancelRunRequest";
         }
         ::buffa::impl_default_view_instance!(CancelRunRequestView);
         ::buffa::impl_view_reborrow!(CancelRunRequestView);
@@ -11182,10 +11188,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for CancelRunResponseView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "CancelRunResponse";
-            const FULL_NAME: &'static str = "home.logic.v1.CancelRunResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.CancelRunResponse";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.CancelRunResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.CancelRunResponse";
         }
         ::buffa::impl_default_view_instance!(CancelRunResponseView);
         ::buffa::impl_view_reborrow!(CancelRunResponseView);
@@ -11489,10 +11495,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for SourcePositionView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "SourcePosition";
-            const FULL_NAME: &'static str = "home.logic.v1.SourcePosition";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.SourcePosition";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.SourcePosition";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.SourcePosition";
         }
         ::buffa::impl_default_view_instance!(SourcePositionView);
         ::buffa::impl_view_reborrow!(SourcePositionView);
@@ -11627,11 +11633,11 @@ pub mod __buffa {
         pub struct NodeView<'a> {
             /// Field 1: `kind`
             pub kind: ::buffa::EnumValue<
-                super::super::super::super::observability::v1::TraceActionKind,
+                super::super::super::super::super::observability::v1::TraceActionKind,
             >,
             /// Field 2: `stage`
             pub stage: ::buffa::EnumValue<
-                super::super::super::super::observability::v1::TraceNodeStage,
+                super::super::super::super::super::observability::v1::TraceNodeStage,
             >,
             pub source: ::core::option::Option<
                 super::super::__buffa::view::oneof::node::Source<'a>,
@@ -11967,10 +11973,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for NodeView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "Node";
-            const FULL_NAME: &'static str = "home.logic.v1.Node";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Node";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.Node";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Node";
         }
         ::buffa::impl_default_view_instance!(NodeView);
         ::buffa::impl_view_reborrow!(NodeView);
@@ -12059,7 +12065,7 @@ pub mod __buffa {
             pub fn kind(
                 &self,
             ) -> ::buffa::EnumValue<
-                super::super::super::super::observability::v1::TraceActionKind,
+                super::super::super::super::super::observability::v1::TraceActionKind,
             > {
                 self.0.reborrow().kind
             }
@@ -12068,7 +12074,7 @@ pub mod __buffa {
             pub fn stage(
                 &self,
             ) -> ::buffa::EnumValue<
-                super::super::super::super::observability::v1::TraceNodeStage,
+                super::super::super::super::super::observability::v1::TraceNodeStage,
             > {
                 self.0.reborrow().stage
             }
@@ -12112,7 +12118,7 @@ pub mod __buffa {
             ///
             /// Field 2: `outcome`
             pub outcome: ::buffa::EnumValue<
-                super::super::super::super::history::v1::CommandOutcome,
+                super::super::super::super::super::api::v2::HistoryCommandOutcome,
             >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
@@ -12243,10 +12249,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for CommandView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "Command";
-            const FULL_NAME: &'static str = "home.logic.v1.Command";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Command";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.Command";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Command";
         }
         ::buffa::impl_default_view_instance!(CommandView);
         ::buffa::impl_view_reborrow!(CommandView);
@@ -12344,7 +12350,7 @@ pub mod __buffa {
             pub fn outcome(
                 &self,
             ) -> ::buffa::EnumValue<
-                super::super::super::super::history::v1::CommandOutcome,
+                super::super::super::super::super::api::v2::HistoryCommandOutcome,
             > {
                 self.0.reborrow().outcome
             }
@@ -12533,10 +12539,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for GapView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "Gap";
-            const FULL_NAME: &'static str = "home.logic.v1.Gap";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.Gap";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.Gap";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.Gap";
         }
         ::buffa::impl_default_view_instance!(GapView);
         ::buffa::impl_view_reborrow!(GapView);
@@ -13054,10 +13060,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for TraceRowView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "TraceRow";
-            const FULL_NAME: &'static str = "home.logic.v1.TraceRow";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.TraceRow";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.TraceRow";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.TraceRow";
         }
         ::buffa::impl_default_view_instance!(TraceRowView);
         ::buffa::impl_view_reborrow!(TraceRowView);
@@ -13393,10 +13399,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ReadTraceRequestView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "ReadTraceRequest";
-            const FULL_NAME: &'static str = "home.logic.v1.ReadTraceRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ReadTraceRequest";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.ReadTraceRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ReadTraceRequest";
         }
         ::buffa::impl_default_view_instance!(ReadTraceRequestView);
         ::buffa::impl_view_reborrow!(ReadTraceRequestView);
@@ -13856,10 +13862,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ReadTraceResponseView<'a> {
-            const PACKAGE: &'static str = "home.logic.v1";
+            const PACKAGE: &'static str = "home.testing.logic.v1";
             const NAME: &'static str = "ReadTraceResponse";
-            const FULL_NAME: &'static str = "home.logic.v1.ReadTraceResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.logic.v1.ReadTraceResponse";
+            const FULL_NAME: &'static str = "home.testing.logic.v1.ReadTraceResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.logic.v1.ReadTraceResponse";
         }
         ::buffa::impl_default_view_instance!(ReadTraceResponseView);
         ::buffa::impl_view_reborrow!(ReadTraceResponseView);
@@ -14035,7 +14041,7 @@ pub mod __buffa {
                 pub enum Observation<'a> {
                     Account(
                         ::buffa::alloc::boxed::Box<
-                            super::super::super::super::super::super::auth::v1::__buffa::view::AccountIdView<
+                            super::super::super::super::super::super::super::auth::v1::__buffa::view::AccountIdView<
                                 'a,
                             >,
                         >,
@@ -14137,7 +14143,7 @@ pub mod __buffa {
             pub enum Observation {
                 Account(
                     ::buffa::alloc::boxed::Box<
-                        super::super::super::super::super::auth::v1::AccountId,
+                        super::super::super::super::super::super::auth::v1::AccountId,
                     >,
                 ),
                 Redacted(
@@ -14148,18 +14154,18 @@ pub mod __buffa {
                 ),
             }
             impl ::buffa::Oneof for Observation {}
-            impl From<super::super::super::super::super::auth::v1::AccountId>
+            impl From<super::super::super::super::super::super::auth::v1::AccountId>
             for Observation {
                 fn from(
-                    v: super::super::super::super::super::auth::v1::AccountId,
+                    v: super::super::super::super::super::super::auth::v1::AccountId,
                 ) -> Self {
                     Self::Account(::buffa::alloc::boxed::Box::new(v))
                 }
             }
-            impl From<super::super::super::super::super::auth::v1::AccountId>
+            impl From<super::super::super::super::super::super::auth::v1::AccountId>
             for ::core::option::Option<Observation> {
                 fn from(
-                    v: super::super::super::super::super::auth::v1::AccountId,
+                    v: super::super::super::super::super::super::auth::v1::AccountId,
                 ) -> Self {
                     Self::Some(Observation::from(v))
                 }

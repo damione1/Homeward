@@ -148,11 +148,27 @@ def environment(config):
 def leases(config):
     handles = []
     try:
-        for name in ['cohort', 'go', 'cargo', 'tools']:
-            path = Path(config['backend_cache']) / 'qualification' / ('parallel-' + name + '.lock')
-            handle = path.open('a')
-            handles.append(handle)
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        directory = Path(config['backend_cache']) / 'qualification'
+        print('Waiting for the shared Cargo lease.', flush=True)
+        while True:
+            # Join the same blocking queue as independent SDK builders. Never
+            # hold another lease while waiting for Cargo: that would starve
+            # other owners and could deadlock their normal acquisition order.
+            cargo = (directory / 'parallel-cargo.lock').open('a')
+            handles.append(cargo)
+            fcntl.flock(cargo, fcntl.LOCK_EX)
+            try:
+                for name in ['cohort', 'go', 'tools']:
+                    handle = (directory / ('parallel-' + name + '.lock')).open('a')
+                    handles.append(handle)
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                for handle in reversed(handles):
+                    handle.close()
+                handles.clear()
+                time.sleep(0.25)
+                continue
+            break
         yield
     finally:
         for handle in reversed(handles):
@@ -224,6 +240,29 @@ def stop_owned_process(process):
         process.wait()
 
 
+def refresh_local_inputs(proof):
+    """Invalidate local Cargo inputs after a checkout change without deleting artifacts."""
+    manifests = json.loads((proof / 'sources.json').read_text())
+    refreshed = []
+    for name, manifest in manifests.items():
+        root = Path(manifest['path'])
+        for relative, expected in manifest['files'].items():
+            path = root / relative
+            local = relative.startswith(('client/', 'sdk/')) if name == 'homeward' else relative.startswith('crates/')
+            if not local or path.suffix not in {'.rs', '.slint', '.toml'}:
+                continue
+            before = path.stat()
+            if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                raise RuntimeError('source changed before Cargo: ' + str(path))
+            os.utime(path, ns=(before.st_atime_ns, time.time_ns()))
+            if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                raise RuntimeError('source changed while refreshing Cargo inputs: ' + str(path))
+            refreshed.append({'path': str(path), 'sha256': expected,
+                              'before_mtime_ns': before.st_mtime_ns,
+                              'after_mtime_ns': path.stat().st_mtime_ns})
+    write(proof / 'refreshed-local-inputs.json', refreshed)
+
+
 def execute(config, argv, reserve, uses_cargo=False):
     if argv[:1] == ['--']:
         argv = argv[1:]
@@ -245,10 +284,7 @@ def execute(config, argv, reserve, uses_cargo=False):
         if uses_cargo:
             write(owner_path, {'owner': str(REPO), 'key': fingerprint, 'status': 'invalid'})
         if uses_cargo and (previous.get('owner') != str(REPO) or previous.get('status') != 'valid' or previous.get('key') != fingerprint):
-            clean = ['cargo', 'clean']
-            for name in PACKAGES:
-                clean.extend(['-p', name])
-            subprocess.run(clean, cwd=REPO, env=env, check=True)
+            refresh_local_inputs(proof)
         write(proof / 'command.json', {'argv': argv, 'cwd': str(REPO), 'source_manifest': fingerprint})
         started = time.monotonic()
         with (proof / 'output.log').open('wb') as log:
@@ -274,14 +310,6 @@ def execute(config, argv, reserve, uses_cargo=False):
                 stop_owned_process(process)
                 code = 1
             retention = None
-            if code == 0 and reserve > 0:
-                # Builders have joined; the four leases still exclude another
-                # build. Retain current/last SQL and recent native candidates,
-                # rather than accumulating another copy after every round.
-                cleanup = subprocess.run(
-                    [sys.executable, str(REPO / 'scripts/prune-frontend-cache.py'), '--apply'],
-                    cwd=REPO, env=env, stdout=log, stderr=subprocess.STDOUT)
-                retention = cleanup.returncode
             after = measure(config)
             if uses_cargo and code == 0:
                 write(owner_path, {'owner': str(REPO), 'key': fingerprint, 'status': 'valid'})

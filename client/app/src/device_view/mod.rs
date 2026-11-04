@@ -7,6 +7,7 @@ mod helper;
 mod light;
 mod native;
 mod number;
+pub(crate) mod observation;
 mod panel;
 pub(crate) use panel::mode_label;
 pub(crate) mod presentation;
@@ -15,16 +16,15 @@ mod recipes;
 mod selection;
 use crate::{
     ProControlAccess, ProDeviceKind,
-    cache_view::{bounded, quality_text, value_text},
+    cache_view::bounded,
     dashboard::{Layout, ProjectionRequest},
 };
 use capability::Control;
-use home_client_actions::{ActionHandle, ActionTarget, AdmissionCheck, WriteAccess, write_access};
+use home_client_actions::capabilities::CapabilityHandle;
+use home_client_actions::{AdmissionCheck, WriteAccess, write_access};
 use home_client_cache::{CachePhase, CachedView};
-use home_client_model::EntityId;
-use home_wire_contract::home::{
-    actions::v1 as actions, registry::v1 as registry, state::v1 as state,
-};
+use home_client_model::api::{CapabilityName, Command, EntityName, EntityViewName};
+use home_wire_contract::home::api::v2 as wire;
 use presentation::CardRow;
 pub(crate) use recipes::{GestureAccess, NativeIntent, NativePrepared, RecipePresentation};
 use std::{
@@ -49,11 +49,11 @@ pub(crate) enum DeviceIntent {
     Brightness(f64),
     ColorTemperature(light::Mireds),
     Climate(climate::ClimateIntent),
-    FanSpeed(state::FanSpeed),
+    FanSpeed(home_wire_contract::home::api::v2::FanSpeed),
     Helper(helper::HelperIntent),
     Cover(controls::CoverIntent),
-    Lock(home_wire_contract::home::controls::v1::LockOperation),
-    Alarm(home_wire_contract::home::controls::v1::AlarmOperation),
+    Lock(home_wire_contract::home::api::v2::LockOperation),
+    Alarm(home_wire_contract::home::api::v2::AlarmOperation),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Refusal {
@@ -80,8 +80,8 @@ impl Refusal {
 struct Slot {
     source: ControlSource,
     generation: CardGeneration,
-    target: ActionTarget,
-    capability: registry::CapabilityDescription,
+    target: CapabilityName,
+    capability: wire::Capability,
     access: WriteAccess,
     control: Control,
     helper_revision: Option<helper::HelperRevision>,
@@ -90,7 +90,7 @@ impl Slot {
     fn same_admission(&self, other: &Self) -> bool {
         self.source == other.source
             && self.target == other.target
-            && self.capability == other.capability
+            && self.capability.etag == other.capability.etag
             && self.access == other.access
             && self.control == other.control
             && self.helper_revision == other.helper_revision
@@ -104,24 +104,23 @@ enum ControlSource {
 struct CardInput<'a> {
     source: ControlSource,
     title: String,
-    entity: &'a state::ViewEntity,
-    capability: &'a registry::CapabilityDescription,
-    target: ActionTarget,
+    entity: &'a wire::EntityViewEntry,
+    capability: &'a wire::Capability,
+    target: CapabilityName,
     control: Control,
 }
 impl<'a> CardInput<'a> {
     fn new(
         source: ControlSource,
         title: String,
-        entity: &'a state::ViewEntity,
-        capability: &'a registry::CapabilityDescription,
+        entity: &'a wire::EntityViewEntry,
+        capability: &'a wire::Capability,
         control: Control,
     ) -> Option<Self> {
-        let target = ActionTarget::new(
-            entity.entity_id.parse().ok()?,
-            &capability.schema_id,
-            &capability.endpoint,
-        )?;
+        let target = CapabilityName::try_from(capability.name.as_str()).ok()?;
+        if target.entity().as_str() != entity.entity.name {
+            return None;
+        }
         Some(Self {
             source,
             title,
@@ -137,10 +136,9 @@ struct Context {
     revision: i32,
     layout: Arc<Layout>,
     catalogue: Option<crate::dashboard_catalogue::CatalogueToken>,
-    epoch: String,
-    config_revision: u64,
-    authorization_revision: u64,
-    grant_hash: Vec<u8>,
+    capture: EntityViewName,
+    incarnation: home_client_cache::CaptureIncarnation,
+    expires: buffa_types::google::protobuf::Timestamp,
     slots: Vec<Slot>,
     live: bool,
     native_nodes: Vec<(
@@ -153,10 +151,9 @@ impl Context {
         self.revision == other.revision
             && self.layout == other.layout
             && self.catalogue == other.catalogue
-            && self.epoch == other.epoch
-            && self.config_revision == other.config_revision
-            && self.authorization_revision == other.authorization_revision
-            && self.grant_hash == other.grant_hash
+            && self.capture == other.capture
+            && self.incarnation == other.incarnation
+            && self.expires == other.expires
             && self.live == other.live
             && self.native_nodes == other.native_nodes
     }
@@ -164,7 +161,7 @@ impl Context {
 struct State {
     serial: CardGeneration,
     context: Option<Context>,
-    actions: VecDeque<(ActionTarget, ActionHandle)>,
+    actions: VecDeque<(CapabilityName, CapabilityHandle)>,
     drafts: BTreeMap<(CardGeneration, i32), panel::Draft>,
     selections: BTreeMap<CardGeneration, selection::Selection>,
     recipe_bindings: recipes::Bindings,
@@ -176,15 +173,15 @@ pub(crate) struct DeviceStore(Arc<Mutex<State>>);
 pub(crate) struct DeviceProjection {
     pub rows: Vec<CardRow>,
     pub ready: bool,
-    pub represented: BTreeSet<EntityId>,
-    pub entities: Vec<EntityId>,
+    pub represented: BTreeSet<EntityName>,
+    pub entities: Vec<EntityName>,
     pub native_nodes: Vec<crate::dashboard_layout::Node>,
     pub native_devices: BTreeMap<crate::dashboard_layout::NodeId, CardRow>,
     pub recipes: BTreeMap<crate::dashboard_layout::NodeId, RecipePresentation>,
 }
 pub(crate) struct Prepared {
-    pub target: ActionTarget,
-    pub request: actions::CommandRequest,
+    pub target: CapabilityName,
+    pub request: Command,
     pub guard: AdmissionCheck,
     pub layout: Arc<Layout>,
 }
@@ -206,11 +203,11 @@ fn selected<'a>(
     layout: &Layout,
     request: &ProjectionRequest,
     native_nodes: &[crate::dashboard_layout::Node],
-) -> Vec<(String, &'a state::ViewEntity)> {
+) -> Vec<(String, &'a wire::EntityViewEntry)> {
     if let Some(id) = &request.detail {
         return view
             .get(id)
-            .map(|entity| vec![(bounded(&entity.current_alias), entity)])
+            .map(|entity| vec![(bounded(&entity.entity.display_name), entity)])
             .unwrap_or_default();
     }
     if layout.native.is_some() {
@@ -220,12 +217,14 @@ fn selected<'a>(
             .flat_map(|node| {
                 node.entity
                     .iter()
+                    .cloned()
                     .chain(node.recipes.iter().flat_map(|recipes| {
                         recipes.interactions.values().filter_map(|interaction| {
                             match &interaction.intention {
                                 home_client_model::dashboard::Intention::Command {
-                                    entity, ..
-                                } => Some(entity),
+                                    capability,
+                                    ..
+                                } => Some(capability.entity()),
                                 home_client_model::dashboard::Intention::None
                                 | home_client_model::dashboard::Intention::MoreInfo(_)
                                 | home_client_model::dashboard::Intention::Navigate(_) => None,
@@ -239,17 +238,21 @@ fn selected<'a>(
                 if !seen.insert(id.clone()) {
                     return None;
                 }
-                let entity = view.get(id)?;
+                let entity = view.get(&id)?;
                 if !request.query.is_empty()
-                    && !entity.current_alias.to_lowercase().contains(&request.query)
+                    && !entity
+                        .entity
+                        .display_name
+                        .to_lowercase()
+                        .contains(&request.query)
                 {
                     return None;
                 }
                 Some((
                     if node.title.is_empty()
-                        || (node.widget.is_some() && node.entity.as_ref() != Some(id))
+                        || (node.widget.is_some() && node.entity.as_ref() != Some(&id))
                     {
-                        bounded(&entity.current_alias)
+                        bounded(&entity.entity.display_name)
                     } else {
                         node.title.clone()
                     },
@@ -266,7 +269,7 @@ fn selected<'a>(
                     .iter()
                     .filter_map(|id| {
                         view.get(id)
-                            .map(|entity| (bounded(&entity.current_alias), entity))
+                            .map(|entity| (bounded(&entity.entity.display_name), entity))
                     })
                     .collect()
             })
@@ -283,7 +286,12 @@ fn selected<'a>(
     entries
         .into_iter()
         .filter(|(_, entity)| {
-            request.query.is_empty() || entity.current_alias.to_lowercase().contains(&request.query)
+            request.query.is_empty()
+                || entity
+                    .entity
+                    .display_name
+                    .to_lowercase()
+                    .contains(&request.query)
         })
         .collect()
 }
@@ -334,11 +342,7 @@ impl DeviceStore {
                 entity.capabilities.iter().filter_map(move |capability| {
                     CardInput::new(
                         ControlSource::General,
-                        if request.detail.is_some() && !capability.display_name.trim().is_empty() {
-                            bounded(&capability.display_name)
-                        } else {
-                            title.clone()
-                        },
+                        title.clone(),
                         entity,
                         capability,
                         Control::parse(capability),
@@ -390,63 +394,47 @@ impl DeviceStore {
                         .any(|node| node.kind == crate::dashboard_layout::Kind::View)
                 })
             }) {
-                write_access(entity, target.schema(), target.endpoint())
+                write_access(entity, &target)
             } else {
                 WriteAccess::Denied
             };
-            let helper_revision = if matches!(&control, Control::Helper(_)) {
-                entity
-                    .state
-                    .as_option()
-                    .filter(|value| value.__buffa_unknown_fields.is_empty())
-                    .and_then(|value| match value.value.as_ref() {
-                        Some(state::observed_state::Value::Helper(value)) => {
-                            helper::HelperRevision::from_observation(value)
-                        }
-                        Some(
-                            state::observed_state::Value::SwitchOn(_)
-                            | state::observed_state::Value::Measurement(_)
-                            | state::observed_state::Value::Light(_)
-                            | state::observed_state::Value::Fan(_)
-                            | state::observed_state::Value::Climate(_)
-                            | state::observed_state::Value::Solar(_)
-                            | state::observed_state::Value::SolarEvent(_)
-                            | state::observed_state::Value::Cover(_)
-                            | state::observed_state::Value::Lock(_)
-                            | state::observed_state::Value::Alarm(_)
-                            | state::observed_state::Value::Weather(_)
-                            | state::observed_state::Value::Presence(_)
-                            | state::observed_state::Value::PresenceDetails(_),
-                        )
-                        | None => None,
-                    })
-            } else {
-                None
-            };
-            fresh_observations.push(crate::dashboard_visibility::fresh(entity).is_some());
-            let mut row = card(&title, entity, &control, access);
+            let helper_revision =
+                helper::observation(capability).and_then(helper::HelperRevision::from_observation);
+            fresh_observations.push(observation::fresh(capability));
+            let mut row = card(&title, capability, &control, access);
             if let Control::ReadOnly(kind) = &control {
-                let zone = crate::environment_view::ProfileZone::from_profile(
-                    view.and_then(|v| v.display_profile()),
-                );
+                let zone = layout.map_or(crate::environment_view::ProfileZone::Missing, |layout| {
+                    layout.profile_zone
+                });
                 let now = crate::environment_view::now();
                 row.environment =
-                    crate::environment_view::project(*kind, entity.state.as_option(), zone, now);
+                    crate::environment_view::project(*kind, Some(capability), zone, now);
                 row.freshness =
-                    crate::environment_view::observed_age(entity.state.as_option(), zone, now)
-                        .into();
+                    crate::environment_view::observed_age(Some(capability), zone, now).into();
             }
             if let Control::Helper(helper) = &control {
                 row.command_unavailable = helper_revision.is_none() || !helper.available();
             }
-            helper_selections.push(helper::observation(entity).and_then(|value|match value.value.as_ref() {
-                    Some(home_wire_contract::home::helpers::v1::helper_value::Value::SelectedOption(value)) => Some(value.clone()),
-                    Some(home_wire_contract::home::helpers::v1::helper_value::Value::Boolean(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Number(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Counter(_) | home_wire_contract::home::helpers::v1::helper_value::Value::ButtonPressedAt(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Date(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Time(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Datetime(_) | home_wire_contract::home::helpers::v1::helper_value::Value::Text(_)) | None => None,
-                }));
+            helper_selections.push(helper::observation(capability).and_then(|value| {
+                match value.value.as_ref() {
+                    Some(wire::helper_value::Value::SelectedOption(value)) => Some(value.clone()),
+                    Some(
+                        wire::helper_value::Value::BooleanValue(_)
+                        | wire::helper_value::Value::Number(_)
+                        | wire::helper_value::Value::Counter(_)
+                        | wire::helper_value::Value::TriggerTime(_)
+                        | wire::helper_value::Value::Date(_)
+                        | wire::helper_value::Value::Time(_)
+                        | wire::helper_value::Value::LocalValue(_)
+                        | wire::helper_value::Value::Text(_),
+                    )
+                    | None => None,
+                }
+            }));
             editors.push(
                 panel::editors(&control)
                     .into_iter()
-                    .map(|editor| (editor, editor.initial(entity, &control)))
+                    .map(|editor| (editor, editor.initial(capability, &control)))
                     .collect::<Vec<_>>(),
             );
             slots.push(Slot {
@@ -471,10 +459,9 @@ impl DeviceStore {
                     .dashboard
                     .shared_layout()
                     .expect("compatible layout"),
-                epoch: view.cursor().epoch.clone(),
-                config_revision: view.cursor().config_revision,
-                authorization_revision: view.cursor().authorization_revision,
-                grant_hash: view.cursor().grant_sha256.clone(),
+                capture: view.name().clone(),
+                incarnation: view.incarnation().clone(),
+                expires: view.expires().clone(),
                 slots,
                 live: phase == CachePhase::Live,
                 native_nodes: native_nodes
@@ -655,7 +642,7 @@ impl DeviceStore {
             represented,
         }
     }
-    pub fn entity(&self, token: i32, generation: i32, revision: i32) -> Option<EntityId> {
+    pub fn entity(&self, token: i32, generation: i32, revision: i32) -> Option<EntityName> {
         let state = self.0.lock().expect("device store mutex");
         let context = state.context.as_ref()?;
         if context.revision != revision {
@@ -751,9 +738,9 @@ impl DeviceStore {
             handle.stop_tracking();
         }
     }
-    pub fn remember(&self, target: ActionTarget, handle: ActionHandle) {
+    pub fn remember(&self, target: CapabilityName, handle: CapabilityHandle) {
         let mut state = self.0.lock().expect("device store mutex");
-        native::attach_step(&mut state, &target, handle.id());
+        native::attach_step(&mut state, &target, &handle.request_id());
         state.actions.retain(|(old, _)| old != &target);
         // At most 32 controller records can still be active. Retaining 64
         // presentation records permits eviction of a finished older record.
@@ -793,33 +780,26 @@ impl DeviceStore {
             return Err(Refusal::ReadOnly);
         }
         let arguments = slot.control.arguments(intent, slot.helper_revision)?;
-        let request = actions::CommandRequest {
-            expires_at: buffa_types::google::protobuf::Timestamp::from_unix_secs(
-                i64::try_from(
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map_err(|_| Refusal::Unavailable)?
-                        .as_secs(),
+        let request_id = home_client_actions::new_request_id().map_err(|_| Refusal::Unavailable)?;
+        let expires = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| Refusal::Unavailable)?
+            .as_secs()
+            .checked_add(30)
+            .ok_or(Refusal::Unavailable)?;
+        let request =
+            home_wire_contract::api_contract::parse_command(&wire::ExecuteCapabilityRequest {
+                name: slot.target.as_str().into(),
+                request_id: request_id.as_str().into(),
+                etag: slot.capability.etag.clone(),
+                expire_time: buffa_types::google::protobuf::Timestamp::from_unix_secs(
+                    i64::try_from(expires).map_err(|_| Refusal::Unavailable)?,
                 )
-                .map_err(|_| Refusal::Unavailable)?
-                .checked_add(30)
-                .ok_or(Refusal::Unavailable)?,
-            )
-            .into(),
-            admission_epoch: context.epoch.clone(),
-            config_revision: context.config_revision,
-            target: registry::EntityRef {
-                reference: Some(registry::entity_ref::Reference::EntityId(
-                    slot.target.entity().as_str().into(),
-                )),
+                .into(),
+                command: Some(arguments),
                 ..Default::default()
-            }
-            .into(),
-            capability_schema_id: slot.target.schema().into(),
-            endpoint: slot.target.endpoint().into(),
-            arguments: arguments.into(),
-            ..Default::default()
-        };
+            })
+            .map_err(|_| Refusal::InvalidValue)?;
         let target = slot.target.clone();
         let expected = slot.clone();
         let weak = Arc::downgrade(&self.0);
@@ -834,7 +814,9 @@ impl DeviceStore {
                 && state.context.as_ref().is_some_and(|current| {
                     current.live
                         && current.revision == revision
-                        && current.slots.get(token as usize) == Some(&expected)
+                        && current.slots.get(token as usize).is_some_and(|slot| {
+                            slot.generation == expected.generation && slot.same_admission(&expected)
+                        })
                 })
         });
         Ok(Prepared {
@@ -879,24 +861,15 @@ mod tests;
 
 fn card(
     title: &str,
-    entity: &state::ViewEntity,
+    capability: &wire::Capability,
     control: &Control,
     access: WriteAccess,
 ) -> CardRow {
+    use wire::capability::Trait as T;
     let mut row = CardRow {
         title: bounded(title).into(),
-        value: entity
-            .state
-            .as_option()
-            .map(value_text)
-            .unwrap_or_else(|| "No observation".into())
-            .into(),
-        quality: entity
-            .state
-            .as_option()
-            .map(quality_text)
-            .unwrap_or_else(|| "Quality missing".into())
-            .into(),
+        value: observation::value_text(capability).into(),
+        quality: observation::quality_text(capability).into(),
         kind: ProDeviceKind::Unsupported,
         access: match access {
             WriteAccess::Allowed => ProControlAccess::Allowed,
@@ -905,19 +878,36 @@ fn card(
         },
         ..Default::default()
     };
-    let observation = entity
-        .state
-        .as_option()
-        .filter(|state| state.__buffa_unknown_fields.is_empty());
     match control {
         Control::Switch { power } => {
             row.kind = ProDeviceKind::Switch;
             row.can_power = *power;
-            if let Some(state::observed_state::Value::SwitchOn(on)) =
-                observation.and_then(|state| state.value.as_ref())
+            if let Some(T::Power(value)) = capability.r#trait.as_ref()
+                && observation::evidence(capability).is_some()
+                && let Some(power) = value.observation.value.and_then(|value| value.as_known())
             {
-                row.power_known = true;
-                row.power_on = *on;
+                match power {
+                    wire::PowerValue::On => {
+                        row.power_known = true;
+                        row.power_on = true;
+                    }
+                    wire::PowerValue::Off => row.power_known = true,
+                    wire::PowerValue::Unspecified => {}
+                }
+            }
+        }
+        Control::Level { bounds } => {
+            row.kind = ProDeviceKind::Light;
+            brightness_bounds(&mut row, *bounds);
+            if let Some(T::Level(value)) = capability.r#trait.as_ref()
+                && observation::evidence(capability).is_some()
+            {
+                let value = value
+                    .observation
+                    .percentage
+                    .filter(|value| value.is_finite() && (0.0..=100.0).contains(value));
+                row.brightness_known = value.is_some();
+                row.brightness_percent = value.unwrap_or(0.) as f32;
             }
         }
         Control::Light {
@@ -925,72 +915,38 @@ fn card(
         } => {
             row.kind = ProDeviceKind::Light;
             row.can_power = *power;
-            if let Some(bounds) = brightness {
-                row.can_brightness = true;
-                row.brightness_minimum = bounds.minimum() as f32;
-                row.brightness_maximum = bounds.maximum() as f32;
-                row.brightness_step = bounds
-                    .step()
-                    .unwrap_or(1_f64.min(bounds.maximum() - bounds.minimum()))
-                    as f32;
-            }
-            if let Some(state::observed_state::Value::Light(value)) =
-                observation.and_then(|state| state.value.as_ref())
-                && value.__buffa_unknown_fields.is_empty()
+            brightness_bounds(&mut row, *brightness);
+            if let Some(T::LightControl(value)) = capability.r#trait.as_ref()
+                && observation::evidence(capability).is_some()
             {
-                row.power_known = value.on.is_some();
-                row.power_on = value.on.unwrap_or(false);
-                row.brightness_known = value.brightness_percent.is_some_and(f64::is_finite);
-                row.brightness_percent = value.brightness_percent.unwrap_or(0.) as f32;
+                row.power_known = value.observation.on.is_some();
+                row.power_on = value.observation.on.unwrap_or(false);
+                let value = value
+                    .observation
+                    .brightness_percent
+                    .filter(|value| value.is_finite() && (0.0..=100.0).contains(value));
+                row.brightness_known = value.is_some();
+                row.brightness_percent = value.unwrap_or(0.) as f32;
             }
         }
-        Control::Binary => {
-            row.kind = ProDeviceKind::Binary;
-            if let Some(state::observed_state::Value::SwitchOn(on)) =
-                observation.and_then(|state| state.value.as_ref())
-            {
-                row.value = if *on { "Active" } else { "Inactive" }.into();
-            }
-        }
+        Control::Binary => row.kind = ProDeviceKind::Binary,
         Control::Cover(_) => row.kind = ProDeviceKind::Cover,
         Control::Lock(_) => row.kind = ProDeviceKind::Lock,
         Control::Alarm(_) => row.kind = ProDeviceKind::Alarm,
         Control::Measurement => row.kind = ProDeviceKind::Measurement,
         Control::Climate(_) => {
             row.kind = ProDeviceKind::Climate;
-            row.value = "Climate".into();
-            row.readings = panel::readings(control, entity).into();
+            row.readings = panel::readings(control, capability).into();
         }
         Control::Fan(fan) => {
             row.kind = ProDeviceKind::Fan;
             row.can_power = fan.can_power();
-            if let Some(state::observed_state::Value::Fan(value)) =
-                observation.and_then(|value| value.value.as_ref())
-                && value.__buffa_unknown_fields.is_empty()
-            {
-                match value.speed.as_known() {
-                    Some(state::FanSpeed::Off) => {
-                        row.power_known = true;
-                        row.power_on = false;
-                    }
-                    Some(
-                        state::FanSpeed::Low
-                        | state::FanSpeed::Medium
-                        | state::FanSpeed::MediumHigh
-                        | state::FanSpeed::High,
-                    ) => {
-                        row.power_known = true;
-                        row.power_on = true;
-                    }
-                    Some(state::FanSpeed::Unspecified) | None => {}
-                }
-            }
         }
         Control::Helper(helper) => {
             row.kind = ProDeviceKind::Helper;
             if !helper.available() {
                 row.quality = format!("{} · No authorized target", row.quality).into();
-            } else if helper::observation(entity).is_none() {
+            } else if helper::observation(capability).is_none() {
                 row.quality = format!("{} · Helper revision unavailable", row.quality).into();
             }
         }
@@ -999,22 +955,29 @@ fn card(
             row.quality = format!("{} · Read-only", row.quality).into();
         }
         Control::Unsupported => {
-            row.quality = format!("{} · Unsupported capability", row.quality).into();
+            row.quality = format!("{} · Unsupported capability", row.quality).into()
         }
     }
     row.choices = panel::choice_rows(control);
     row.cover_operations = panel::cover_rows(control);
     row.lock_operations = panel::lock_rows(control);
     row.alarm_operations = panel::alarm_rows(control);
-    row.freshness = entity
-        .state
-        .as_option()
-        .and_then(|state| state.received_at.as_option())
-        .and_then(|at| chrono::DateTime::from_timestamp(at.seconds, at.nanos as u32))
-        .map(|at| format!("Received on {}", at.to_rfc3339()))
+    row.freshness = observation::observed_time(capability)
+        .map(|time| format!("Observed on {}", time.to_rfc3339()))
         .unwrap_or_else(|| "Date not provided".into())
         .into();
     row
+}
+fn brightness_bounds(row: &mut CardRow, bounds: Option<number::Bounds>) {
+    if let Some(bounds) = bounds {
+        row.can_brightness = bounds.minimum() < bounds.maximum();
+        row.brightness_minimum = bounds.minimum() as f32;
+        row.brightness_maximum = bounds.maximum() as f32;
+        row.brightness_step = bounds
+            .step()
+            .unwrap_or(1_f64.min(bounds.maximum() - bounds.minimum()))
+            as f32;
+    }
 }
 
 pub(crate) fn color_temperature_text(value: u32) -> Option<String> {

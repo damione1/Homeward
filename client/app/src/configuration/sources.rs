@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use crate::administration::Refusal;
 use home_wire_contract::{
     config_plans::{self, PlanRequest},
-    home::configurationplan::v1 as wire,
+    home::api::v2 as wire,
 };
 use zeroize::Zeroizing;
 
@@ -62,17 +62,17 @@ impl SourceFamily {
             Self::Scene => "Scene",
         }
     }
-    pub fn to_wire(self) -> wire::SourceFamily {
+    pub fn to_wire(self) -> wire::ConfigurationPlanSourceFamily {
         match self {
-            Self::Operational => wire::SourceFamily::Operational,
-            Self::DeclarativeV1 => wire::SourceFamily::DeclarativeV1,
-            Self::DeclarativeV2 => wire::SourceFamily::DeclarativeV2,
-            Self::Authorization => wire::SourceFamily::Authorization,
-            Self::Ownership => wire::SourceFamily::Ownership,
-            Self::Dashboard => wire::SourceFamily::Dashboard,
-            Self::Automation => wire::SourceFamily::Automation,
-            Self::Script => wire::SourceFamily::Script,
-            Self::Scene => wire::SourceFamily::Scene,
+            Self::Operational => wire::ConfigurationPlanSourceFamily::Operational,
+            Self::DeclarativeV1 => wire::ConfigurationPlanSourceFamily::DeclarativeV1,
+            Self::DeclarativeV2 => wire::ConfigurationPlanSourceFamily::DeclarativeV2,
+            Self::Authorization => wire::ConfigurationPlanSourceFamily::Authorization,
+            Self::Ownership => wire::ConfigurationPlanSourceFamily::Ownership,
+            Self::Dashboard => wire::ConfigurationPlanSourceFamily::Dashboard,
+            Self::Automation => wire::ConfigurationPlanSourceFamily::Automation,
+            Self::Script => wire::ConfigurationPlanSourceFamily::Script,
+            Self::Scene => wire::ConfigurationPlanSourceFamily::Scene,
         }
     }
     pub fn simulatable(self) -> bool {
@@ -192,15 +192,15 @@ impl Candidate {
     pub fn files(&self) -> &[SourceFile] {
         &self.files
     }
-    pub fn to_wire(&self) -> wire::Candidate {
-        wire::Candidate {
+    pub fn to_wire(&self) -> wire::ConfigurationPlanCandidate {
+        wire::ConfigurationPlanCandidate {
             family: self.family.to_wire().into(),
             identity: self.identity.0.clone(),
             entry: self.entry.0.clone(),
             files: self
                 .files
                 .iter()
-                .map(|value| wire::SourceFile {
+                .map(|value| wire::ConfigurationPlanSourceFile {
                     logical_path: value.path.0.clone(),
                     exact_source: value.source.bytes().to_vec(),
                     ..Default::default()
@@ -209,9 +209,13 @@ impl Candidate {
             ..Default::default()
         }
     }
-    pub fn build_request(&self) -> wire::BuildPlanRequest {
-        wire::BuildPlanRequest {
-            candidate: self.to_wire().into(),
+    pub fn build_request(&self) -> wire::CreateConfigurationPlanRequest {
+        wire::CreateConfigurationPlanRequest {
+            configuration_plan: wire::ConfigurationPlan {
+                candidate: self.to_wire().into(),
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         }
     }

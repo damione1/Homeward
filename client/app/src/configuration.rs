@@ -5,9 +5,81 @@ mod sources;
 mod tests;
 pub use sources::{Candidate, LogicalPath, SourceFamily, SourceFile, SourceIdentity, UserSource};
 
+#[cfg(test)]
+pub(crate) fn operation_for_test(
+    home: &str,
+    published: bool,
+    revision: i64,
+    manifest: u8,
+) -> home_wire_contract::google::longrunning::Operation {
+    use buffa::Message;
+    use buffa_types::google::protobuf::{Any, Timestamp};
+    use home_wire_contract::google::longrunning::{self, operation};
+    let generation = format!("{home}/configurationGenerations/g-{revision}");
+    let metadata = wire::ConfigurationOperationMetadata {
+        create_time: Timestamp {
+            seconds: 1_700_000_000,
+            ..Default::default()
+        }
+        .into(),
+        commit_time: Timestamp {
+            seconds: 1_700_000_001,
+            ..Default::default()
+        }
+        .into(),
+        generation: generation.clone(),
+        generation_revision: revision,
+        manifest_sha256: vec![manifest; 32],
+        phase: if published {
+            wire::ConfigurationOperationPhase::Published
+        } else {
+            wire::ConfigurationOperationPhase::Committed
+        }
+        .into(),
+        ..Default::default()
+    };
+    longrunning::Operation {
+        name: format!("{home}/operations/config-11111111111111111111111111111111"),
+        metadata: Any {
+            type_url: "type.googleapis.com/home.api.v2.ConfigurationOperationMetadata".into(),
+            value: metadata.encode_to_vec(),
+            ..Default::default()
+        }
+        .into(),
+        done: published,
+        result: published.then(|| {
+            operation::Result::Response(Box::new(Any {
+                type_url: "type.googleapis.com/home.api.v2.ConfigurationActivationResult".into(),
+                value: wire::ConfigurationActivationResult {
+                    generation,
+                    generation_revision: revision,
+                    manifest_sha256: vec![manifest; 32],
+                    ..Default::default()
+                }
+                .encode_to_vec(),
+                ..Default::default()
+            }))
+        }),
+        ..Default::default()
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn publication_for_test(
+    home: &str,
+    published: bool,
+    revision: i64,
+    manifest: u8,
+) -> home_wire_contract::configuration_operations_contract::Publication {
+    home_wire_contract::configuration_operations_contract::admit_response(&operation_for_test(
+        home, published, revision, manifest,
+    ))
+    .unwrap()
+}
+
 use crate::administration::Refusal;
 use buffa::EnumValue;
-use home_wire_contract::{configuration_contract, home::configuration::v1 as wire};
+use home_wire_contract::{configuration_contract, home::api::v2 as wire};
 
 macro_rules! hash_type {
     ($name:ident) => {
@@ -48,6 +120,27 @@ impl DocumentId {
             value: self.0.clone(),
             ..Default::default()
         }
+    }
+}
+
+// Resource identity is separate from the compiler's native source binding key.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DocumentName(String);
+impl DocumentName {
+    pub fn parse(value: &str) -> Result<Self, Refusal> {
+        if !configuration_contract::document_name(value) {
+            return Err(Refusal::Invalid);
+        };
+        Ok(Self(value.into()))
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+    pub fn home(&self) -> &str {
+        self.0
+            .split_once("/configurationDocuments/")
+            .expect("admitted document name")
+            .0
     }
 }
 
@@ -165,22 +258,22 @@ impl Workspace {
 
 #[derive(Clone)]
 pub struct Capture {
-    response: wire::ReadDocumentResponse,
-    id: DocumentId,
+    response: wire::ConfigurationDocument,
+    id: DocumentName,
     sql: SqlVersion,
     active: ActiveGeneration,
     workspace: Workspace,
 }
 impl Capture {
-    pub fn admit(response: wire::ReadDocumentResponse) -> Result<Self, Refusal> {
+    pub fn admit(response: wire::ConfigurationDocument) -> Result<Self, Refusal> {
         configuration_contract::admit_configuration_read(&response)
             .map_err(|_| Refusal::Invalid)?;
-        let document = &response.document;
-        let id = DocumentId::parse(&document.id.value)?;
+        let document = &response;
+        let id = DocumentName::parse(&document.name)?;
         let sql = SqlVersion::admit(&document.version)?;
         let active = ActiveGeneration::admit(&response.active_generation)?;
         let workspace = match &document.workspace_state {
-            Some(wire::document::WorkspaceState::Workspace(value)) => {
+            Some(wire::configuration_document::WorkspaceState::Workspace(value)) => {
                 let dirty = match value.dirty {
                     EnumValue::Known(wire::DirtyState::Clean) => Dirty::Clean,
                     EnumValue::Known(wire::DirtyState::Unvalidated) => Dirty::Unvalidated,
@@ -196,7 +289,7 @@ impl Capture {
                     dirty,
                 }
             }
-            Some(wire::document::WorkspaceState::WorkspaceUnobserved(value)) => {
+            Some(wire::configuration_document::WorkspaceState::WorkspaceUnobserved(value)) => {
                 Workspace::Unobserved(match value.reason {
                     EnumValue::Known(wire::WorkspaceUnobservedReason::NoPhysicalLocator) => {
                         UnobservedReason::NoPhysicalLocator
@@ -218,7 +311,10 @@ impl Capture {
             workspace,
         })
     }
-    pub fn id(&self) -> &DocumentId {
+    pub fn name(&self) -> &str {
+        &self.response.name
+    }
+    pub fn id(&self) -> &DocumentName {
         &self.id
     }
     pub fn sql(&self) -> &SqlVersion {
@@ -230,8 +326,8 @@ impl Capture {
     pub fn workspace(&self) -> &Workspace {
         &self.workspace
     }
-    pub fn document(&self) -> &wire::Document {
-        &self.response.document
+    pub fn document(&self) -> &wire::ConfigurationDocument {
+        &self.response
     }
     pub fn resume_token(&self) -> &str {
         &self.response.resume_token
@@ -241,16 +337,14 @@ impl Capture {
 /// Captures all three references without equating their revisions or hashes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Anchor {
-    id: DocumentId,
+    id: DocumentName,
     sql: SqlVersion,
     workspace: WorkspaceHash,
     active: ActiveGeneration,
 }
 impl Anchor {
     pub fn capture(value: &Capture) -> Result<Self, Refusal> {
-        if value.id.as_str() != "operational.main"
-            || value.document().kind != wire::DocumentKind::OperationalYaml
-        {
+        if value.document().kind != wire::DocumentKind::OperationalYaml {
             return Err(Refusal::ReadOnly);
         }
         Ok(Self {
@@ -309,12 +403,13 @@ pub enum Transaction {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PublicationEvidence {
     Observed(ActiveGeneration),
-    Reported { revision: i64 },
+    Reported(ActiveGeneration),
 }
 pub struct Receipt {
+    pub operation: home_client_model::api::OperationName,
     pub outcome: Outcome,
     pub transaction: Transaction,
-    pub diagnostics: Vec<wire::DiagnosticCode>,
+    pub diagnostics: Vec<wire::ConfigurationDiagnosticCode>,
     pub target_generation: Option<i64>,
     pub publication: Option<PublicationEvidence>,
     displayed_active: ActiveGeneration,
@@ -323,89 +418,77 @@ pub struct Receipt {
 impl Receipt {
     pub fn admit(
         previous: &Capture,
-        activation: &wire::ActivationResult,
-        current: Option<wire::ReadDocumentResponse>,
+        admitted: &home_wire_contract::configuration_operations_contract::Publication,
+        current: Option<wire::ConfigurationDocument>,
     ) -> Result<Self, Refusal> {
-        configuration_contract::admit_configuration_activation(activation)
-            .map_err(|_| Refusal::Invalid)?;
-        let outcome = match activation.outcome {
-            EnumValue::Known(wire::ActivationOutcome::RejectedBeforeCommit) => {
-                Outcome::RejectedBeforeCommit
-            }
-            EnumValue::Known(wire::ActivationOutcome::NotCommitted) => Outcome::NotCommitted,
-            EnumValue::Known(wire::ActivationOutcome::CommitUnknown) => Outcome::CommitUnknown,
-            EnumValue::Known(wire::ActivationOutcome::CommittedReconciling) => {
-                Outcome::CommittedReconciling
-            }
-            EnumValue::Known(wire::ActivationOutcome::RestartRequired) => Outcome::RestartRequired,
-            EnumValue::Known(wire::ActivationOutcome::Published) => Outcome::Published,
-            EnumValue::Known(wire::ActivationOutcome::Unspecified) | EnumValue::Unknown(_) => {
-                return Err(Refusal::Unsupported);
-            }
-        };
-        let transaction = match activation.transaction {
-            EnumValue::Known(wire::TransactionOutcome::NotCommitted) => Transaction::NotCommitted,
-            EnumValue::Known(wire::TransactionOutcome::CommitUnknown) => Transaction::Unknown,
-            EnumValue::Known(wire::TransactionOutcome::Committed) => Transaction::Committed,
-            EnumValue::Known(wire::TransactionOutcome::NoTransaction) => Transaction::NoTransaction,
-            EnumValue::Known(wire::TransactionOutcome::Unspecified) | EnumValue::Unknown(_) => {
-                return Err(Refusal::Unsupported);
-            }
-        };
-        let current = current.map(Capture::admit).transpose()?;
-        if current
-            .as_ref()
-            .is_some_and(|value| value.id != previous.id)
+        use home_wire_contract::configuration_operations_contract::Phase;
+        if admitted
+            .name()
+            .as_str()
+            .split_once("/operations/")
+            .map(|(home, _)| home)
+            != Some(previous.id.home())
         {
             return Err(Refusal::Invalid);
         }
-        let publication = if outcome == Outcome::Published {
-            let revision = activation.generation_revision.ok_or(Refusal::Invalid)?;
-            if revision < previous.active.revision {
+        let outcome = match admitted.phase() {
+            Phase::Accepted => Outcome::CommitUnknown,
+            Phase::Committed => Outcome::CommittedReconciling,
+            Phase::Published => Outcome::Published,
+            Phase::Failed => {
+                if admitted.failure().is_some_and(|failure| {
+                    failure.reason() == wire::ApiErrorReason::ConfigRestartRequired
+                }) {
+                    Outcome::RestartRequired
+                } else {
+                    Outcome::RejectedBeforeCommit
+                }
+            }
+        };
+        let current = current.map(Capture::admit).transpose()?;
+        if current.as_ref().is_some_and(|value| {
+            value.id != previous.id
+                || value.active.revision < previous.active.revision
+                || value.active.revision == previous.active.revision
+                    && value.active != previous.active
+        }) {
+            return Err(Refusal::Invalid);
+        }
+        let publication = if admitted.phase() == Phase::Published {
+            let target = admitted.target().ok_or(Refusal::Invalid)?;
+            let generation = ActiveGeneration {
+                revision: target.revision(),
+                manifest: ManifestHash::parse(target.manifest())?,
+            };
+            if generation.revision < previous.active.revision {
                 return Err(Refusal::Invalid);
             }
-            if let Some(published) = current.as_ref() {
-                if published.active.revision < previous.active.revision
-                    || published.active.revision == previous.active.revision
-                        && published.active != previous.active
-                {
-                    return Err(Refusal::Invalid);
+            match &current {
+                Some(current) if current.active == generation => {
+                    Some(PublicationEvidence::Observed(generation))
                 }
-                if revision == published.active.revision {
-                    Some(PublicationEvidence::Observed(published.active.clone()))
-                } else {
-                    // Apply and its follow-up Read are separate cuts. A later
-                    // publication does not erase this attempt's known result.
-                    Some(PublicationEvidence::Reported { revision })
-                }
-            } else {
-                // Published is an authoritative business result even when the
-                // following metadata read failed. Never invent its manifest.
-                Some(PublicationEvidence::Reported { revision })
+                Some(_) | None => Some(PublicationEvidence::Reported(generation)),
             }
         } else {
             None
         };
-        let displayed_active = match &publication {
-            Some(PublicationEvidence::Observed(value)) => value.clone(),
-            Some(PublicationEvidence::Reported { .. }) => current
+        let displayed_active = if publication.is_some() {
+            current
                 .as_ref()
-                .map_or_else(|| previous.active.clone(), |value| value.active.clone()),
-            None => previous.active.clone(),
+                .map_or_else(|| previous.active.clone(), |value| value.active.clone())
+        } else {
+            previous.active.clone()
         };
-        let diagnostics = activation
-            .diagnostics
-            .iter()
-            .map(|value| match value {
-                EnumValue::Known(value) => Ok(*value),
-                EnumValue::Unknown(_) => Err(Refusal::Unsupported),
-            })
-            .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
+            operation: admitted.name().clone(),
             outcome,
-            transaction,
-            diagnostics,
-            target_generation: activation.generation_revision,
+            transaction: match admitted.phase() {
+                Phase::Accepted => Transaction::Unknown,
+                Phase::Committed | Phase::Published => Transaction::Committed,
+                Phase::Failed => Transaction::NotCommitted,
+            },
+            diagnostics: Vec::new(),
+            target_generation: admitted.target().map(|target| target.revision()),
             publication,
             displayed_active,
             current,
@@ -485,7 +568,7 @@ impl SourceEdit {
     pub fn prepare_write(
         &mut self,
         current: &Capture,
-    ) -> Result<wire::WriteDocumentRequest, Refusal> {
+    ) -> Result<wire::PublishConfigurationDocumentRequest, Refusal> {
         if self.stage != EditStage::Draft {
             return Err(Refusal::Stale);
         }
@@ -493,8 +576,12 @@ impl SourceEdit {
             self.stage = EditStage::Conflict;
             return Err(Refusal::Stale);
         }
-        let request = wire::WriteDocumentRequest {
-            id: self.anchor.id.to_wire().into(),
+        let request = wire::PublishConfigurationDocumentRequest {
+            request_id: home_client_actions::new_request_id()
+                .map_err(|_| Refusal::Invalid)?
+                .as_str()
+                .into(),
+            name: self.anchor.id.as_str().into(),
             expected: self.anchor.sql.to_wire().into(),
             expected_workspace_sha256: self.anchor.workspace.0.to_vec(),
             exact_yaml_source: self
@@ -517,6 +604,11 @@ impl SourceEdit {
             self.stage = EditStage::Uncertain;
         }
     }
+    pub fn restart_required(&mut self) {
+        if self.stage == EditStage::InFlight {
+            self.stage = EditStage::Completed(Outcome::RestartRequired);
+        }
+    }
     pub fn rejected_before_commit(&mut self) {
         if self.stage == EditStage::InFlight {
             self.stage = EditStage::Completed(Outcome::RejectedBeforeCommit);
@@ -529,13 +621,13 @@ impl SourceEdit {
     }
     pub fn complete(
         &mut self,
-        activation: &wire::ActivationResult,
-        current: Option<wire::ReadDocumentResponse>,
+        admitted: &home_wire_contract::configuration_operations_contract::Publication,
+        current: Option<wire::ConfigurationDocument>,
     ) -> Result<Receipt, Refusal> {
         if self.stage != EditStage::InFlight {
             return Err(Refusal::Stale);
         }
-        match Receipt::admit(&self.previous, activation, current) {
+        match Receipt::admit(&self.previous, admitted, current) {
             Ok(receipt) => {
                 self.stage = EditStage::Completed(receipt.outcome);
                 Ok(receipt)

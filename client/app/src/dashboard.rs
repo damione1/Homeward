@@ -1,10 +1,10 @@
 //! Server-owned dashboard data. Compiled code contains only bounded native
 //! component vocabulary; installation names and exact bindings arrive by RPC.
-use buffa::EnumValue;
 use home_client_cache::CachedView;
-use home_client_model::EntityId;
-use home_client_model::dashboard::{Destination, NodeId, Presentation, Profile};
-use home_wire_contract::home::dashboard::v1 as wire;
+pub(crate) use home_client_model::api::DashboardName;
+use home_client_model::api::EntityName;
+use home_client_model::dashboard::{Destination, NodeId, Presentation};
+use home_wire_contract::home::api::v2 as wire;
 use std::{
     collections::BTreeSet,
     sync::{Arc, Mutex},
@@ -15,7 +15,7 @@ pub(crate) const MAX_OBSERVATIONS: usize = 64;
 pub(crate) const ROOM_TOKEN_BASE: i32 = 1000;
 pub(crate) const OBSERVATION_TOKEN_BASE: i32 = 2000;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct RoomId(String);
 impl RoomId {
     pub(crate) fn parse(value: &str) -> Result<Self, LayoutFailure> {
@@ -26,31 +26,17 @@ impl RoomId {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct DashboardId(String);
-impl DashboardId {
-    pub fn parse(value: &str) -> Result<Self, LayoutFailure> {
-        if text(value) {
-            Ok(Self(value.to_owned()))
-        } else {
-            Err(LayoutFailure::Invalid)
-        }
-    }
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ObservationId(String);
 /// Server order plus a derived membership index. Room cards preserve the wire
 /// order; inventory filtering keeps logarithmic membership checks.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct RoomEntities {
-    ordered: Vec<EntityId>,
-    membership: BTreeSet<EntityId>,
+    ordered: Vec<EntityName>,
+    membership: BTreeSet<EntityName>,
 }
 impl RoomEntities {
-    pub(crate) fn new(ordered: Vec<EntityId>) -> Result<Self, LayoutFailure> {
+    pub(crate) fn new(ordered: Vec<EntityName>) -> Result<Self, LayoutFailure> {
         let membership = ordered.iter().cloned().collect::<BTreeSet<_>>();
         if membership.len() != ordered.len() {
             return Err(LayoutFailure::Invalid);
@@ -60,10 +46,10 @@ impl RoomEntities {
             membership,
         })
     }
-    pub fn contains(&self, id: &EntityId) -> bool {
+    pub fn contains(&self, id: &EntityName) -> bool {
         self.membership.contains(id)
     }
-    pub fn iter(&self) -> impl Iterator<Item = &EntityId> {
+    pub fn iter(&self) -> impl Iterator<Item = &EntityName> {
         self.ordered.iter()
     }
 }
@@ -80,28 +66,21 @@ pub(crate) enum Icon {
     Clock,
     Grid,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ServingMode {
-    Configured,
-    Synthetic,
-}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Observation {
     pub id: ObservationId,
     pub label: String,
-    pub entity: EntityId,
+    pub entity: EntityName,
     pub icon: Icon,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Layout {
-    pub id: DashboardId,
-    pub document_revision: i64,
-    pub document_hash: [u8; 32],
-    pub config_revision: u64,
-    pub authorization_revision: u64,
-    pub config_hash: [u8; 32],
+    pub id: DashboardName,
+    pub etag: String,
     pub title: String,
-    pub mode: ServingMode,
+    pub profile_zone: crate::environment_view::ProfileZone,
+    pub capture: Option<home_client_cache::CaptureIncarnation>,
+    pub binding_expires: Option<(i64, i32)>,
     pub rooms: Vec<Room>,
     pub observations: Vec<Observation>,
     pub native: Option<crate::dashboard_layout::NativeLayout>,
@@ -115,166 +94,124 @@ pub(crate) enum LayoutFailure {
 fn text(value: &str) -> bool {
     !value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control)
 }
-fn hash(value: &[u8]) -> Result<[u8; 32], LayoutFailure> {
-    let result: [u8; 32] = value.try_into().map_err(|_| LayoutFailure::Invalid)?;
-    if result == [0; 32] {
-        return Err(LayoutFailure::Invalid);
-    }
-    Ok(result)
-}
 impl TryFrom<&wire::Dashboard> for Layout {
     type Error = LayoutFailure;
     fn try_from(value: &wire::Dashboard) -> Result<Self, Self::Error> {
-        let metadata = value.metadata.as_option().ok_or(LayoutFailure::Invalid)?;
-        let id = metadata.id.as_option().ok_or(LayoutFailure::Invalid)?;
-        let version = metadata.version.as_option().ok_or(LayoutFailure::Invalid)?;
-        let overview = value
-            .native_overview
-            .as_option()
-            .ok_or(LayoutFailure::Unsupported)?;
-        let profile =
-            Profile::try_from(metadata.profile.as_str()).map_err(|_| LayoutFailure::Unsupported)?;
-        // Recipes require their native tree. An overview alone cannot safely
-        // substitute for configured gestures, visibility or popup ownership.
-        match profile {
-            Profile::Basic => {}
-            Profile::Recipes | Profile::Widgets => {
-                if value.native_layout.as_option().is_none() {
-                    return Err(LayoutFailure::Unsupported);
-                }
-            }
-        }
-        if value
-            .native_layout
-            .as_option()
-            .is_some_and(|layout| layout.version != profile.layout_version())
-            || overview.version != 1
-            || !metadata.__buffa_unknown_fields.is_empty()
-            || !overview.__buffa_unknown_fields.is_empty()
-            || !version.__buffa_unknown_fields.is_empty()
-        {
+        if !value.__buffa_unknown_fields.is_empty() {
             return Err(LayoutFailure::Unsupported);
-        }
-        if !text(&id.value)
-            || !text(&overview.title)
-            || version.revision <= 0
-            || overview.config_revision == 0
-            || overview.authorization_revision == 0
+        };
+        let id =
+            DashboardName::try_from(value.name.as_str()).map_err(|_| LayoutFailure::Invalid)?;
+        if !text(&value.display_name)
+            || value.etag.is_empty()
+            || value.etag.len() > 4096
+            || value.etag.chars().any(char::is_control)
         {
             return Err(LayoutFailure::Invalid);
-        }
-        if overview.rooms.len() > MAX_ROOMS || overview.observations.len() > MAX_OBSERVATIONS {
-            return Err(LayoutFailure::Budget);
-        }
-        let mode = match overview.mode {
-            EnumValue::Known(wire::ServingMode::Configured) => ServingMode::Configured,
-            EnumValue::Known(wire::ServingMode::Synthetic) => ServingMode::Synthetic,
-            EnumValue::Known(wire::ServingMode::Unspecified) | EnumValue::Unknown(_) => {
-                return Err(LayoutFailure::Unsupported);
+        };
+        let native = crate::dashboard_layout::NativeLayout::try_from(
+            value.layout.as_option().ok_or(LayoutFailure::Invalid)?,
+        )?;
+        let profile_zone = match value.display_profile.as_option() {
+            None => crate::environment_view::ProfileZone::Missing,
+            Some(profile) => {
+                if !profile.__buffa_unknown_fields.is_empty() {
+                    return Err(LayoutFailure::Unsupported);
+                };
+                crate::environment_view::ProfileZone::from_time_zone(Some(&profile.time_zone))
             }
         };
-        let mut room_ids = BTreeSet::new();
-        let mut binding_count = 0usize;
+        let value_home = id.home();
         let mut rooms = Vec::new();
-        for room in &overview.rooms {
-            if !room.__buffa_unknown_fields.is_empty() {
-                return Err(LayoutFailure::Unsupported);
-            }
-            if !text(&room.id) || !text(&room.title) || !room_ids.insert(room.id.clone()) {
-                return Err(LayoutFailure::Invalid);
-            }
-            binding_count = binding_count.saturating_add(room.entity_ids.len());
-            if binding_count > 4096 {
-                return Err(LayoutFailure::Budget);
-            }
-            let mut entities = Vec::new();
-            for id in &room.entity_ids {
-                if !text(id) {
+        let mut room_ids = BTreeSet::new();
+        for root in &native.views {
+            let node = native.nodes.get(root).ok_or(LayoutFailure::Invalid)?;
+            if let Some(route) = &node.route {
+                if !room_ids.insert(route.clone()) {
                     return Err(LayoutFailure::Invalid);
+                };
+                let mut entities = Vec::new();
+                let mut seen = BTreeSet::new();
+                for child in native.ordered_nodes(root) {
+                    let mut ids = child.entity.iter().cloned().collect::<Vec<_>>();
+                    if let Some(widget) = &child.widget {
+                        ids.extend(widget.entities())
+                    };
+                    for id in ids {
+                        if id.home() != value_home {
+                            return Err(LayoutFailure::Invalid);
+                        };
+                        if seen.insert(id.clone()) {
+                            entities.push(id)
+                        }
+                    }
                 }
-                entities.push(id.parse().map_err(|_| LayoutFailure::Invalid)?);
+                rooms.push(Room {
+                    id: route.clone(),
+                    label: node.title.clone(),
+                    entities: RoomEntities::new(entities)?,
+                })
             }
-            rooms.push(Room {
-                id: RoomId(room.id.clone()),
-                label: room.title.clone(),
-                entities: RoomEntities::new(entities)?,
-            });
         }
-        let mut observation_ids = BTreeSet::new();
-        let mut observations = Vec::new();
-        for item in &overview.observations {
-            if !item.__buffa_unknown_fields.is_empty() {
-                return Err(LayoutFailure::Unsupported);
-            }
-            if !text(&item.id)
-                || !text(&item.title)
-                || !text(&item.entity_id)
-                || !observation_ids.insert(item.id.clone())
-            {
-                return Err(LayoutFailure::Invalid);
-            }
-            let icon = match item.icon {
-                EnumValue::Known(wire::NativeIcon::Home) => Icon::Home,
-                EnumValue::Known(wire::NativeIcon::Information) => Icon::Information,
-                EnumValue::Known(wire::NativeIcon::Clock) => Icon::Clock,
-                EnumValue::Known(wire::NativeIcon::Grid) => Icon::Grid,
-                EnumValue::Known(
-                    wire::NativeIcon::Sofa
-                    | wire::NativeIcon::Kitchen
-                    | wire::NativeIcon::Bed
-                    | wire::NativeIcon::Light
-                    | wire::NativeIcon::Fan
-                    | wire::NativeIcon::Thermostat
-                    | wire::NativeIcon::Music
-                    | wire::NativeIcon::Garage
-                    | wire::NativeIcon::Lock
-                    | wire::NativeIcon::Shield
-                    | wire::NativeIcon::Water
-                    | wire::NativeIcon::Sun
-                    | wire::NativeIcon::Tree
-                    | wire::NativeIcon::Office
-                    | wire::NativeIcon::Bath
-                    | wire::NativeIcon::Child
-                    | wire::NativeIcon::Shopping
-                    | wire::NativeIcon::Scene
-                    | wire::NativeIcon::Battery
-                    | wire::NativeIcon::Power,
-                ) => Icon::Information,
-                EnumValue::Known(wire::NativeIcon::Unspecified) | EnumValue::Unknown(_) => {
-                    return Err(LayoutFailure::Unsupported);
-                }
-            };
-            observations.push(Observation {
-                id: ObservationId(item.id.clone()),
-                label: item.title.clone(),
-                entity: item.entity_id.parse().map_err(|_| LayoutFailure::Invalid)?,
-                icon,
-            });
-        }
+        if rooms.len() > MAX_ROOMS {
+            return Err(LayoutFailure::Budget);
+        };
         Ok(Self {
-            id: DashboardId::parse(&id.value)?,
-            document_revision: version.revision,
-            document_hash: hash(&version.source_sha256)?,
-            config_revision: overview.config_revision,
-            authorization_revision: overview.authorization_revision,
-            config_hash: hash(&overview.config_sha256)?,
-            title: overview.title.clone(),
-            mode,
+            id,
+            etag: value.etag.clone(),
+            title: value.display_name.clone(),
+            profile_zone,
+            capture: None,
+            binding_expires: None,
             rooms,
-            observations,
-            native: value
-                .native_layout
-                .as_option()
-                .map(crate::dashboard_layout::NativeLayout::try_from)
-                .transpose()?,
+            observations: Vec::new(),
+            native: Some(native),
         })
     }
 }
 impl Layout {
+    pub fn join(
+        response: &wire::QueryDashboardResponse,
+        expected: &DashboardName,
+        view: &CachedView,
+    ) -> Result<Self, LayoutFailure> {
+        if !response.__buffa_unknown_fields.is_empty()
+            || response.entity_view != view.name().as_str()
+            || response.resume_token != view.checkpoint()
+            || response.binding.is_empty()
+            || response.binding.len() > 4096
+        {
+            return Err(LayoutFailure::Invalid);
+        };
+        let expires = response
+            .expire_time
+            .as_option()
+            .ok_or(LayoutFailure::Invalid)?;
+        if !expires.__buffa_unknown_fields.is_empty()
+            || (expires.seconds, expires.nanos) > (view.expires().seconds, view.expires().nanos)
+            || !(0..1_000_000_000).contains(&expires.nanos)
+        {
+            return Err(LayoutFailure::Invalid);
+        };
+        let mut layout = Self::try_from(
+            response
+                .dashboard
+                .as_option()
+                .ok_or(LayoutFailure::Invalid)?,
+        )?;
+        if &layout.id != expected {
+            return Err(LayoutFailure::Invalid);
+        };
+        layout.capture = Some(view.incarnation().clone());
+        layout.binding_expires = Some((expires.seconds, expires.nanos));
+        Ok(layout)
+    }
     pub fn compatible(&self, view: &CachedView) -> bool {
-        self.authorization_revision == view.cursor().authorization_revision
-            && self.config_revision == view.cursor().config_revision
-            && self.config_hash.as_slice() == view.cursor().config_sha256
+        self.capture.as_ref() == Some(view.incarnation())
+            && self.binding_expires.is_some_and(|expires| {
+                let now = chrono::Utc::now();
+                expires > (now.timestamp(), now.timestamp_subsec_nanos() as i32)
+            })
     }
     pub fn room(&self, id: &RoomId) -> Option<&Room> {
         self.rooms.iter().find(|room| room.id == *id)
@@ -290,36 +227,8 @@ pub(crate) enum LayoutState {
     Ready(Arc<Layout>),
 }
 impl LayoutState {
-    pub fn unsupported(value: &wire::Dashboard) -> Self {
-        let label = |text: &str| {
-            if !text.is_empty() && text.len() <= 256 && !text.chars().any(char::is_control) {
-                text.to_owned()
-            } else {
-                "unspecified".into()
-            }
-        };
-        let profile = label(
-            value
-                .metadata
-                .as_option()
-                .map_or("", |metadata| metadata.profile.as_str()),
-        );
-        let source = label(
-            value
-                .definition
-                .as_option()
-                .map_or("", |definition| definition.entry.as_str()),
-        );
-        let version = value
-            .native_overview
-            .as_option()
-            .map_or(0, |overview| overview.version);
-        Self::Unsupported(
-            format!(
-                "Unsupported dashboard profile: {profile} · version {version} · source {source}"
-            )
-            .into(),
-        )
+    pub fn unsupported(_value: &wire::Dashboard) -> Self {
+        Self::Unsupported("Unsupported dashboard configuration.".into())
     }
     pub fn message(&self) -> &str {
         match self {
@@ -353,7 +262,7 @@ pub(crate) enum Route {
     Cameras,
     Room(RoomId),
     Native(Destination),
-    Detail(EntityId),
+    Detail(EntityName),
     Settings,
 }
 #[derive(Clone, Default)]
@@ -361,7 +270,7 @@ pub(crate) struct ProjectionRequest {
     pub revision: i32,
     pub query: String,
     pub room: Option<RoomId>,
-    pub detail: Option<EntityId>,
+    pub detail: Option<EntityName>,
     pub dashboard: LayoutState,
     pub catalogue: Option<Arc<crate::dashboard_catalogue::Snapshot>>,
     pub native: Option<Destination>,

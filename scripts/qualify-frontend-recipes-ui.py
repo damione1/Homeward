@@ -408,10 +408,11 @@ def run_case(proof, build, scenario, case):
             assert server.wait(timeout=25) == 0
             final = json.loads((fixture / 'result.json').read_text())
             expected = [operation.arguments() for operation in scenario.operations()]
-            submitted = final['submit_ids'] or []
+            submitted = final['execute_request_ids'] or []
             assert final['server_joined'] and final['fake_driver_calls'] == final['command_driver_entries'] == len(submitted) == len(set(submitted)) == len(expected)
             assert final['device_arguments'] == expected and final['protocol_confirmations'] == final['observed_effects'] == final['real_device_writes'] == 0
-            assert all((id in submitted for id in (final['get_ids'] or []) + (final['watch_ids'] or [])))
+            assert set(final['admitted_operations']) == set(submitted)
+            assert all(name in final['admitted_operations'].values() for name in (final['get_operation_names'] or []) + (final['wait_operation_names'] or []))
             assert final['native_login_calls'] == final['native_revokes'] == 1 and final['dashboard_get_calls'] >= 2 and (final['dashboard_watch_calls'] >= 1)
             report = dict(status='AUTOMATED_PASS_REQUIRES_VISUAL_INSPECTION', scenario=scenario.value, case=case.value, checks=checks, server=final, runtime_sources={p.name: sha(p) for p in source.iterdir() if p.is_file()}, children_joined=True, mode='synthetic-only')
             write(directory / 'result.json', report)

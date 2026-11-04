@@ -1073,14 +1073,14 @@ impl DestinationId {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DestinationId";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DestinationId";
 }
 ::buffa::impl_default_instance!(DestinationId);
 impl ::buffa::MessageName for DestinationId {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "DestinationId";
-    const FULL_NAME: &'static str = "home.notifications.v1.DestinationId";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DestinationId";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.DestinationId";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DestinationId";
 }
 impl ::buffa::Message for DestinationId {
     /// Returns the total encoded size in bytes.
@@ -1144,7 +1144,7 @@ impl ::buffa::Message for DestinationId {
     }
 }
 impl ::buffa::ExtensionSet for DestinationId {
-    const PROTO_FQN: &'static str = "home.notifications.v1.DestinationId";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.DestinationId";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1169,14 +1169,14 @@ impl DeliveryId {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DeliveryId";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DeliveryId";
 }
 ::buffa::impl_default_instance!(DeliveryId);
 impl ::buffa::MessageName for DeliveryId {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "DeliveryId";
-    const FULL_NAME: &'static str = "home.notifications.v1.DeliveryId";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DeliveryId";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.DeliveryId";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DeliveryId";
 }
 impl ::buffa::Message for DeliveryId {
     /// Returns the total encoded size in bytes.
@@ -1240,7 +1240,7 @@ impl ::buffa::Message for DeliveryId {
     }
 }
 impl ::buffa::ExtensionSet for DeliveryId {
-    const PROTO_FQN: &'static str = "home.notifications.v1.DeliveryId";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.DeliveryId";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1276,14 +1276,14 @@ impl PermissionSnapshot {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.PermissionSnapshot";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.PermissionSnapshot";
 }
 ::buffa::impl_default_instance!(PermissionSnapshot);
 impl ::buffa::MessageName for PermissionSnapshot {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "PermissionSnapshot";
-    const FULL_NAME: &'static str = "home.notifications.v1.PermissionSnapshot";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.PermissionSnapshot";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.PermissionSnapshot";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.PermissionSnapshot";
 }
 impl ::buffa::Message for PermissionSnapshot {
     /// Returns the total encoded size in bytes.
@@ -1421,7 +1421,7 @@ impl ::buffa::Message for PermissionSnapshot {
     }
 }
 impl ::buffa::ExtensionSet for PermissionSnapshot {
-    const PROTO_FQN: &'static str = "home.notifications.v1.PermissionSnapshot";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.PermissionSnapshot";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1447,13 +1447,13 @@ pub struct Destination {
     >,
     /// Field 4: `account_id`
     pub account_id: ::buffa::MessageField<
-        super::super::auth::v1::AccountId,
-        ::buffa::Inline<super::super::auth::v1::AccountId>,
+        super::super::super::auth::v1::AccountId,
+        ::buffa::Inline<super::super::super::auth::v1::AccountId>,
     >,
     /// Field 5: `session_id`
     pub session_id: ::buffa::MessageField<
-        super::super::auth::v1::SessionId,
-        ::buffa::Inline<super::super::auth::v1::SessionId>,
+        super::super::super::auth::v1::SessionId,
+        ::buffa::Inline<super::super::super::auth::v1::SessionId>,
     >,
     /// Field 6: `platform`
     pub platform: ::buffa::EnumValue<super::super::companion::v1::Platform>,
@@ -1504,14 +1504,14 @@ impl Destination {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.Destination";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.Destination";
 }
 ::buffa::impl_default_instance!(Destination);
 impl ::buffa::MessageName for Destination {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "Destination";
-    const FULL_NAME: &'static str = "home.notifications.v1.Destination";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.Destination";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.Destination";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.Destination";
 }
 impl ::buffa::Message for Destination {
     /// Returns the total encoded size in bytes.
@@ -1862,7 +1862,7 @@ impl ::buffa::Message for Destination {
     }
 }
 impl ::buffa::ExtensionSet for Destination {
-    const PROTO_FQN: &'static str = "home.notifications.v1.Destination";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.Destination";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1889,14 +1889,14 @@ impl Target {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.Target";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.Target";
 }
 ::buffa::impl_default_instance!(Target);
 impl ::buffa::MessageName for Target {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "Target";
-    const FULL_NAME: &'static str = "home.notifications.v1.Target";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.Target";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.Target";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.Target";
 }
 impl ::buffa::Message for Target {
     /// Returns the total encoded size in bytes.
@@ -2027,7 +2027,7 @@ impl ::buffa::Message for Target {
     }
 }
 impl ::buffa::ExtensionSet for Target {
-    const PROTO_FQN: &'static str = "home.notifications.v1.Target";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.Target";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2110,14 +2110,14 @@ impl Delivery {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.Delivery";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.Delivery";
 }
 ::buffa::impl_default_instance!(Delivery);
 impl ::buffa::MessageName for Delivery {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "Delivery";
-    const FULL_NAME: &'static str = "home.notifications.v1.Delivery";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.Delivery";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.Delivery";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.Delivery";
 }
 impl ::buffa::Message for Delivery {
     /// Returns the total encoded size in bytes.
@@ -2475,7 +2475,7 @@ impl ::buffa::Message for Delivery {
     }
 }
 impl ::buffa::ExtensionSet for Delivery {
-    const PROTO_FQN: &'static str = "home.notifications.v1.Delivery";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.Delivery";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2498,14 +2498,14 @@ impl DescribeNotificationsRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DescribeNotificationsRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DescribeNotificationsRequest";
 }
 ::buffa::impl_default_instance!(DescribeNotificationsRequest);
 impl ::buffa::MessageName for DescribeNotificationsRequest {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "DescribeNotificationsRequest";
-    const FULL_NAME: &'static str = "home.notifications.v1.DescribeNotificationsRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DescribeNotificationsRequest";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.DescribeNotificationsRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DescribeNotificationsRequest";
 }
 impl ::buffa::Message for DescribeNotificationsRequest {
     /// Returns the total encoded size in bytes.
@@ -2555,7 +2555,7 @@ impl ::buffa::Message for DescribeNotificationsRequest {
     }
 }
 impl ::buffa::ExtensionSet for DescribeNotificationsRequest {
-    const PROTO_FQN: &'static str = "home.notifications.v1.DescribeNotificationsRequest";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.DescribeNotificationsRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2609,14 +2609,14 @@ impl DescribeNotificationsResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DescribeNotificationsResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DescribeNotificationsResponse";
 }
 ::buffa::impl_default_instance!(DescribeNotificationsResponse);
 impl ::buffa::MessageName for DescribeNotificationsResponse {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "DescribeNotificationsResponse";
-    const FULL_NAME: &'static str = "home.notifications.v1.DescribeNotificationsResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DescribeNotificationsResponse";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.DescribeNotificationsResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DescribeNotificationsResponse";
 }
 impl ::buffa::Message for DescribeNotificationsResponse {
     /// Returns the total encoded size in bytes.
@@ -2836,7 +2836,7 @@ impl ::buffa::Message for DescribeNotificationsResponse {
     }
 }
 impl ::buffa::ExtensionSet for DescribeNotificationsResponse {
-    const PROTO_FQN: &'static str = "home.notifications.v1.DescribeNotificationsResponse";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.DescribeNotificationsResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -2881,14 +2881,14 @@ impl RegisterDestinationRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RegisterDestinationRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RegisterDestinationRequest";
 }
 ::buffa::impl_default_instance!(RegisterDestinationRequest);
 impl ::buffa::MessageName for RegisterDestinationRequest {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "RegisterDestinationRequest";
-    const FULL_NAME: &'static str = "home.notifications.v1.RegisterDestinationRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RegisterDestinationRequest";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.RegisterDestinationRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RegisterDestinationRequest";
 }
 impl ::buffa::Message for RegisterDestinationRequest {
     /// Returns the total encoded size in bytes.
@@ -3036,7 +3036,7 @@ impl ::buffa::Message for RegisterDestinationRequest {
     }
 }
 impl ::buffa::ExtensionSet for RegisterDestinationRequest {
-    const PROTO_FQN: &'static str = "home.notifications.v1.RegisterDestinationRequest";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.RegisterDestinationRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3069,14 +3069,14 @@ impl RegisterDestinationResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RegisterDestinationResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RegisterDestinationResponse";
 }
 ::buffa::impl_default_instance!(RegisterDestinationResponse);
 impl ::buffa::MessageName for RegisterDestinationResponse {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "RegisterDestinationResponse";
-    const FULL_NAME: &'static str = "home.notifications.v1.RegisterDestinationResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RegisterDestinationResponse";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.RegisterDestinationResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RegisterDestinationResponse";
 }
 impl ::buffa::Message for RegisterDestinationResponse {
     /// Returns the total encoded size in bytes.
@@ -3182,7 +3182,7 @@ impl ::buffa::Message for RegisterDestinationResponse {
     }
 }
 impl ::buffa::ExtensionSet for RegisterDestinationResponse {
-    const PROTO_FQN: &'static str = "home.notifications.v1.RegisterDestinationResponse";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.RegisterDestinationResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3210,14 +3210,14 @@ impl GetDestinationRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDestinationRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDestinationRequest";
 }
 ::buffa::impl_default_instance!(GetDestinationRequest);
 impl ::buffa::MessageName for GetDestinationRequest {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "GetDestinationRequest";
-    const FULL_NAME: &'static str = "home.notifications.v1.GetDestinationRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDestinationRequest";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.GetDestinationRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDestinationRequest";
 }
 impl ::buffa::Message for GetDestinationRequest {
     /// Returns the total encoded size in bytes.
@@ -3335,7 +3335,7 @@ impl ::buffa::Message for GetDestinationRequest {
     }
 }
 impl ::buffa::ExtensionSet for GetDestinationRequest {
-    const PROTO_FQN: &'static str = "home.notifications.v1.GetDestinationRequest";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.GetDestinationRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3376,14 +3376,14 @@ impl GetDestinationResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDestinationResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDestinationResponse";
 }
 ::buffa::impl_default_instance!(GetDestinationResponse);
 impl ::buffa::MessageName for GetDestinationResponse {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "GetDestinationResponse";
-    const FULL_NAME: &'static str = "home.notifications.v1.GetDestinationResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDestinationResponse";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.GetDestinationResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDestinationResponse";
 }
 impl ::buffa::Message for GetDestinationResponse {
     /// Returns the total encoded size in bytes.
@@ -3489,7 +3489,7 @@ impl ::buffa::Message for GetDestinationResponse {
     }
 }
 impl ::buffa::ExtensionSet for GetDestinationResponse {
-    const PROTO_FQN: &'static str = "home.notifications.v1.GetDestinationResponse";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.GetDestinationResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3537,14 +3537,14 @@ impl UpdateDestinationRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.UpdateDestinationRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.UpdateDestinationRequest";
 }
 ::buffa::impl_default_instance!(UpdateDestinationRequest);
 impl ::buffa::MessageName for UpdateDestinationRequest {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "UpdateDestinationRequest";
-    const FULL_NAME: &'static str = "home.notifications.v1.UpdateDestinationRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.UpdateDestinationRequest";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.UpdateDestinationRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.UpdateDestinationRequest";
 }
 impl ::buffa::Message for UpdateDestinationRequest {
     /// Returns the total encoded size in bytes.
@@ -3722,7 +3722,7 @@ impl ::buffa::Message for UpdateDestinationRequest {
     }
 }
 impl ::buffa::ExtensionSet for UpdateDestinationRequest {
-    const PROTO_FQN: &'static str = "home.notifications.v1.UpdateDestinationRequest";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.UpdateDestinationRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3755,14 +3755,14 @@ impl UpdateDestinationResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.UpdateDestinationResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.UpdateDestinationResponse";
 }
 ::buffa::impl_default_instance!(UpdateDestinationResponse);
 impl ::buffa::MessageName for UpdateDestinationResponse {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "UpdateDestinationResponse";
-    const FULL_NAME: &'static str = "home.notifications.v1.UpdateDestinationResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.UpdateDestinationResponse";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.UpdateDestinationResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.UpdateDestinationResponse";
 }
 impl ::buffa::Message for UpdateDestinationResponse {
     /// Returns the total encoded size in bytes.
@@ -3868,7 +3868,7 @@ impl ::buffa::Message for UpdateDestinationResponse {
     }
 }
 impl ::buffa::ExtensionSet for UpdateDestinationResponse {
-    const PROTO_FQN: &'static str = "home.notifications.v1.UpdateDestinationResponse";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.UpdateDestinationResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -3895,14 +3895,14 @@ impl ReadInboxRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ReadInboxRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ReadInboxRequest";
 }
 ::buffa::impl_default_instance!(ReadInboxRequest);
 impl ::buffa::MessageName for ReadInboxRequest {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "ReadInboxRequest";
-    const FULL_NAME: &'static str = "home.notifications.v1.ReadInboxRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ReadInboxRequest";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.ReadInboxRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ReadInboxRequest";
 }
 impl ::buffa::Message for ReadInboxRequest {
     /// Returns the total encoded size in bytes.
@@ -3980,7 +3980,7 @@ impl ::buffa::Message for ReadInboxRequest {
     }
 }
 impl ::buffa::ExtensionSet for ReadInboxRequest {
-    const PROTO_FQN: &'static str = "home.notifications.v1.ReadInboxRequest";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.ReadInboxRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4019,14 +4019,14 @@ impl ReadInboxResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ReadInboxResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ReadInboxResponse";
 }
 ::buffa::impl_default_instance!(ReadInboxResponse);
 impl ::buffa::MessageName for ReadInboxResponse {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "ReadInboxResponse";
-    const FULL_NAME: &'static str = "home.notifications.v1.ReadInboxResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ReadInboxResponse";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.ReadInboxResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ReadInboxResponse";
 }
 impl ::buffa::Message for ReadInboxResponse {
     /// Returns the total encoded size in bytes.
@@ -4175,7 +4175,7 @@ impl ::buffa::Message for ReadInboxResponse {
     }
 }
 impl ::buffa::ExtensionSet for ReadInboxResponse {
-    const PROTO_FQN: &'static str = "home.notifications.v1.ReadInboxResponse";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.ReadInboxResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4229,14 +4229,14 @@ impl AcknowledgeDeliveryRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.AcknowledgeDeliveryRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.AcknowledgeDeliveryRequest";
 }
 ::buffa::impl_default_instance!(AcknowledgeDeliveryRequest);
 impl ::buffa::MessageName for AcknowledgeDeliveryRequest {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "AcknowledgeDeliveryRequest";
-    const FULL_NAME: &'static str = "home.notifications.v1.AcknowledgeDeliveryRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.AcknowledgeDeliveryRequest";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.AcknowledgeDeliveryRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.AcknowledgeDeliveryRequest";
 }
 impl ::buffa::Message for AcknowledgeDeliveryRequest {
     /// Returns the total encoded size in bytes.
@@ -4448,7 +4448,7 @@ impl ::buffa::Message for AcknowledgeDeliveryRequest {
     }
 }
 impl ::buffa::ExtensionSet for AcknowledgeDeliveryRequest {
-    const PROTO_FQN: &'static str = "home.notifications.v1.AcknowledgeDeliveryRequest";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.AcknowledgeDeliveryRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4481,14 +4481,14 @@ impl AcknowledgeDeliveryResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.AcknowledgeDeliveryResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.AcknowledgeDeliveryResponse";
 }
 ::buffa::impl_default_instance!(AcknowledgeDeliveryResponse);
 impl ::buffa::MessageName for AcknowledgeDeliveryResponse {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "AcknowledgeDeliveryResponse";
-    const FULL_NAME: &'static str = "home.notifications.v1.AcknowledgeDeliveryResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.AcknowledgeDeliveryResponse";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.AcknowledgeDeliveryResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.AcknowledgeDeliveryResponse";
 }
 impl ::buffa::Message for AcknowledgeDeliveryResponse {
     /// Returns the total encoded size in bytes.
@@ -4594,7 +4594,7 @@ impl ::buffa::Message for AcknowledgeDeliveryResponse {
     }
 }
 impl ::buffa::ExtensionSet for AcknowledgeDeliveryResponse {
-    const PROTO_FQN: &'static str = "home.notifications.v1.AcknowledgeDeliveryResponse";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.AcknowledgeDeliveryResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4628,14 +4628,14 @@ impl GetDeliveryRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDeliveryRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDeliveryRequest";
 }
 ::buffa::impl_default_instance!(GetDeliveryRequest);
 impl ::buffa::MessageName for GetDeliveryRequest {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "GetDeliveryRequest";
-    const FULL_NAME: &'static str = "home.notifications.v1.GetDeliveryRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDeliveryRequest";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.GetDeliveryRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDeliveryRequest";
 }
 impl ::buffa::Message for GetDeliveryRequest {
     /// Returns the total encoded size in bytes.
@@ -4741,7 +4741,7 @@ impl ::buffa::Message for GetDeliveryRequest {
     }
 }
 impl ::buffa::ExtensionSet for GetDeliveryRequest {
-    const PROTO_FQN: &'static str = "home.notifications.v1.GetDeliveryRequest";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.GetDeliveryRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4774,14 +4774,14 @@ impl GetDeliveryResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDeliveryResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDeliveryResponse";
 }
 ::buffa::impl_default_instance!(GetDeliveryResponse);
 impl ::buffa::MessageName for GetDeliveryResponse {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "GetDeliveryResponse";
-    const FULL_NAME: &'static str = "home.notifications.v1.GetDeliveryResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDeliveryResponse";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.GetDeliveryResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDeliveryResponse";
 }
 impl ::buffa::Message for GetDeliveryResponse {
     /// Returns the total encoded size in bytes.
@@ -4887,7 +4887,7 @@ impl ::buffa::Message for GetDeliveryResponse {
     }
 }
 impl ::buffa::ExtensionSet for GetDeliveryResponse {
-    const PROTO_FQN: &'static str = "home.notifications.v1.GetDeliveryResponse";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.GetDeliveryResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -4920,14 +4920,14 @@ impl ResolveOpenRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ResolveOpenRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ResolveOpenRequest";
 }
 ::buffa::impl_default_instance!(ResolveOpenRequest);
 impl ::buffa::MessageName for ResolveOpenRequest {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "ResolveOpenRequest";
-    const FULL_NAME: &'static str = "home.notifications.v1.ResolveOpenRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ResolveOpenRequest";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.ResolveOpenRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ResolveOpenRequest";
 }
 impl ::buffa::Message for ResolveOpenRequest {
     /// Returns the total encoded size in bytes.
@@ -5033,7 +5033,7 @@ impl ::buffa::Message for ResolveOpenRequest {
     }
 }
 impl ::buffa::ExtensionSet for ResolveOpenRequest {
-    const PROTO_FQN: &'static str = "home.notifications.v1.ResolveOpenRequest";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.ResolveOpenRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -5091,14 +5091,14 @@ impl ResolveOpenResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ResolveOpenResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ResolveOpenResponse";
 }
 ::buffa::impl_default_instance!(ResolveOpenResponse);
 impl ::buffa::MessageName for ResolveOpenResponse {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "ResolveOpenResponse";
-    const FULL_NAME: &'static str = "home.notifications.v1.ResolveOpenResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ResolveOpenResponse";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.ResolveOpenResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ResolveOpenResponse";
 }
 impl ::buffa::Message for ResolveOpenResponse {
     /// Returns the total encoded size in bytes.
@@ -5316,7 +5316,7 @@ impl ::buffa::Message for ResolveOpenResponse {
     }
 }
 impl ::buffa::ExtensionSet for ResolveOpenResponse {
-    const PROTO_FQN: &'static str = "home.notifications.v1.ResolveOpenResponse";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.ResolveOpenResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -5355,14 +5355,14 @@ impl RevokeDestinationRequest {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RevokeDestinationRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RevokeDestinationRequest";
 }
 ::buffa::impl_default_instance!(RevokeDestinationRequest);
 impl ::buffa::MessageName for RevokeDestinationRequest {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "RevokeDestinationRequest";
-    const FULL_NAME: &'static str = "home.notifications.v1.RevokeDestinationRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RevokeDestinationRequest";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.RevokeDestinationRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RevokeDestinationRequest";
 }
 impl ::buffa::Message for RevokeDestinationRequest {
     /// Returns the total encoded size in bytes.
@@ -5498,7 +5498,7 @@ impl ::buffa::Message for RevokeDestinationRequest {
     }
 }
 impl ::buffa::ExtensionSet for RevokeDestinationRequest {
-    const PROTO_FQN: &'static str = "home.notifications.v1.RevokeDestinationRequest";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.RevokeDestinationRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -5531,14 +5531,14 @@ impl RevokeDestinationResponse {
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RevokeDestinationResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RevokeDestinationResponse";
 }
 ::buffa::impl_default_instance!(RevokeDestinationResponse);
 impl ::buffa::MessageName for RevokeDestinationResponse {
-    const PACKAGE: &'static str = "home.notifications.v1";
+    const PACKAGE: &'static str = "home.testing.notifications.v1";
     const NAME: &'static str = "RevokeDestinationResponse";
-    const FULL_NAME: &'static str = "home.notifications.v1.RevokeDestinationResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RevokeDestinationResponse";
+    const FULL_NAME: &'static str = "home.testing.notifications.v1.RevokeDestinationResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RevokeDestinationResponse";
 }
 impl ::buffa::Message for RevokeDestinationResponse {
     /// Returns the total encoded size in bytes.
@@ -5644,7 +5644,7 @@ impl ::buffa::Message for RevokeDestinationResponse {
     }
 }
 impl ::buffa::ExtensionSet for RevokeDestinationResponse {
-    const PROTO_FQN: &'static str = "home.notifications.v1.RevokeDestinationResponse";
+    const PROTO_FQN: &'static str = "home.testing.notifications.v1.RevokeDestinationResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -5786,10 +5786,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for DestinationIdView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "DestinationId";
-            const FULL_NAME: &'static str = "home.notifications.v1.DestinationId";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DestinationId";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.DestinationId";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DestinationId";
         }
         ::buffa::impl_default_view_instance!(DestinationIdView);
         ::buffa::impl_view_reborrow!(DestinationIdView);
@@ -6014,10 +6014,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for DeliveryIdView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "DeliveryId";
-            const FULL_NAME: &'static str = "home.notifications.v1.DeliveryId";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DeliveryId";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.DeliveryId";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DeliveryId";
         }
         ::buffa::impl_default_view_instance!(DeliveryIdView);
         ::buffa::impl_view_reborrow!(DeliveryIdView);
@@ -6325,10 +6325,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for PermissionSnapshotView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "PermissionSnapshot";
-            const FULL_NAME: &'static str = "home.notifications.v1.PermissionSnapshot";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.PermissionSnapshot";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.PermissionSnapshot";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.PermissionSnapshot";
         }
         ::buffa::impl_default_view_instance!(PermissionSnapshotView);
         ::buffa::impl_view_reborrow!(PermissionSnapshotView);
@@ -6483,11 +6483,15 @@ pub mod __buffa {
             >,
             /// Field 4: `account_id`
             pub account_id: ::buffa::MessageFieldView<
-                super::super::super::super::auth::v1::__buffa::view::AccountIdView<'a>,
+                super::super::super::super::super::auth::v1::__buffa::view::AccountIdView<
+                    'a,
+                >,
             >,
             /// Field 5: `session_id`
             pub session_id: ::buffa::MessageFieldView<
-                super::super::super::super::auth::v1::__buffa::view::SessionIdView<'a>,
+                super::super::super::super::super::auth::v1::__buffa::view::SessionIdView<
+                    'a,
+                >,
             >,
             /// Field 6: `platform`
             pub platform: ::buffa::EnumValue<
@@ -6641,7 +6645,7 @@ pub mod __buffa {
                             }
                             None => {
                                 view.account_id = ::buffa::MessageFieldView::set(
-                                    <super::super::super::super::auth::v1::__buffa::view::AccountIdView as ::buffa::MessageView>::decode_view_ctx(
+                                    <super::super::super::super::super::auth::v1::__buffa::view::AccountIdView as ::buffa::MessageView>::decode_view_ctx(
                                         sub,
                                         __sub_ctx,
                                     )?,
@@ -6666,7 +6670,7 @@ pub mod __buffa {
                             }
                             None => {
                                 view.session_id = ::buffa::MessageFieldView::set(
-                                    <super::super::super::super::auth::v1::__buffa::view::SessionIdView as ::buffa::MessageView>::decode_view_ctx(
+                                    <super::super::super::super::super::auth::v1::__buffa::view::SessionIdView as ::buffa::MessageView>::decode_view_ctx(
                                         sub,
                                         __sub_ctx,
                                     )?,
@@ -6835,9 +6839,9 @@ pub mod __buffa {
                     account_id: match self.account_id.as_option() {
                         Some(v) => {
                             ::buffa::MessageField::<
-                                super::super::super::super::auth::v1::AccountId,
+                                super::super::super::super::super::auth::v1::AccountId,
                                 ::buffa::Inline<
-                                    super::super::super::super::auth::v1::AccountId,
+                                    super::super::super::super::super::auth::v1::AccountId,
                                 >,
                             >::some(v.to_owned_from_source(__buffa_src)?)
                         }
@@ -6846,9 +6850,9 @@ pub mod __buffa {
                     session_id: match self.session_id.as_option() {
                         Some(v) => {
                             ::buffa::MessageField::<
-                                super::super::super::super::auth::v1::SessionId,
+                                super::super::super::super::super::auth::v1::SessionId,
                                 ::buffa::Inline<
-                                    super::super::super::super::auth::v1::SessionId,
+                                    super::super::super::super::super::auth::v1::SessionId,
                                 >,
                             >::some(v.to_owned_from_source(__buffa_src)?)
                         }
@@ -7080,10 +7084,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for DestinationView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "Destination";
-            const FULL_NAME: &'static str = "home.notifications.v1.Destination";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.Destination";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.Destination";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.Destination";
         }
         ::buffa::impl_default_view_instance!(DestinationView);
         ::buffa::impl_view_reborrow!(DestinationView);
@@ -7205,7 +7209,9 @@ pub mod __buffa {
             pub fn account_id(
                 &self,
             ) -> &::buffa::MessageFieldView<
-                super::super::super::super::auth::v1::__buffa::view::AccountIdView<'_>,
+                super::super::super::super::super::auth::v1::__buffa::view::AccountIdView<
+                    '_,
+                >,
             > {
                 &self.0.reborrow().account_id
             }
@@ -7214,7 +7220,9 @@ pub mod __buffa {
             pub fn session_id(
                 &self,
             ) -> &::buffa::MessageFieldView<
-                super::super::super::super::auth::v1::__buffa::view::SessionIdView<'_>,
+                super::super::super::super::super::auth::v1::__buffa::view::SessionIdView<
+                    '_,
+                >,
             > {
                 &self.0.reborrow().session_id
             }
@@ -7392,7 +7400,7 @@ pub mod __buffa {
                             view.resource = Some(
                                 super::super::__buffa::view::oneof::target::Resource::Entity(
                                     ::buffa::alloc::boxed::Box::new(
-                                        <super::super::super::super::registry::v1::__buffa::view::EntityIdView as ::buffa::MessageView>::decode_view_ctx(
+                                        <super::super::super::super::super::registry::v1::__buffa::view::EntityIdView as ::buffa::MessageView>::decode_view_ctx(
                                             sub,
                                             __sub_ctx,
                                         )?,
@@ -7528,10 +7536,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for TargetView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "Target";
-            const FULL_NAME: &'static str = "home.notifications.v1.Target";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.Target";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.Target";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.Target";
         }
         ::buffa::impl_default_view_instance!(TargetView);
         ::buffa::impl_view_reborrow!(TargetView);
@@ -8203,10 +8211,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for DeliveryView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "Delivery";
-            const FULL_NAME: &'static str = "home.notifications.v1.Delivery";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.Delivery";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.Delivery";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.Delivery";
         }
         ::buffa::impl_default_view_instance!(DeliveryView);
         ::buffa::impl_view_reborrow!(DeliveryView);
@@ -8509,10 +8517,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for DescribeNotificationsRequestView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "DescribeNotificationsRequest";
-            const FULL_NAME: &'static str = "home.notifications.v1.DescribeNotificationsRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DescribeNotificationsRequest";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.DescribeNotificationsRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DescribeNotificationsRequest";
         }
         ::buffa::impl_default_view_instance!(DescribeNotificationsRequestView);
         ::buffa::impl_view_reborrow!(DescribeNotificationsRequestView);
@@ -8964,10 +8972,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for DescribeNotificationsResponseView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "DescribeNotificationsResponse";
-            const FULL_NAME: &'static str = "home.notifications.v1.DescribeNotificationsResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.DescribeNotificationsResponse";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.DescribeNotificationsResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.DescribeNotificationsResponse";
         }
         ::buffa::impl_default_view_instance!(DescribeNotificationsResponseView);
         ::buffa::impl_view_reborrow!(DescribeNotificationsResponseView);
@@ -9425,10 +9433,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for RegisterDestinationRequestView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "RegisterDestinationRequest";
-            const FULL_NAME: &'static str = "home.notifications.v1.RegisterDestinationRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RegisterDestinationRequest";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.RegisterDestinationRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RegisterDestinationRequest";
         }
         ::buffa::impl_default_view_instance!(RegisterDestinationRequestView);
         ::buffa::impl_view_reborrow!(RegisterDestinationRequestView);
@@ -9791,10 +9799,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for RegisterDestinationResponseView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "RegisterDestinationResponse";
-            const FULL_NAME: &'static str = "home.notifications.v1.RegisterDestinationResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RegisterDestinationResponse";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.RegisterDestinationResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RegisterDestinationResponse";
         }
         ::buffa::impl_default_view_instance!(RegisterDestinationResponseView);
         ::buffa::impl_view_reborrow!(RegisterDestinationResponseView);
@@ -10139,10 +10147,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for GetDestinationRequestView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "GetDestinationRequest";
-            const FULL_NAME: &'static str = "home.notifications.v1.GetDestinationRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDestinationRequest";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.GetDestinationRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDestinationRequest";
         }
         ::buffa::impl_default_view_instance!(GetDestinationRequestView);
         ::buffa::impl_view_reborrow!(GetDestinationRequestView);
@@ -10476,10 +10484,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for GetDestinationResponseView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "GetDestinationResponse";
-            const FULL_NAME: &'static str = "home.notifications.v1.GetDestinationResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDestinationResponse";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.GetDestinationResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDestinationResponse";
         }
         ::buffa::impl_default_view_instance!(GetDestinationResponseView);
         ::buffa::impl_view_reborrow!(GetDestinationResponseView);
@@ -10932,10 +10940,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for UpdateDestinationRequestView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "UpdateDestinationRequest";
-            const FULL_NAME: &'static str = "home.notifications.v1.UpdateDestinationRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.UpdateDestinationRequest";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.UpdateDestinationRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.UpdateDestinationRequest";
         }
         ::buffa::impl_default_view_instance!(UpdateDestinationRequestView);
         ::buffa::impl_view_reborrow!(UpdateDestinationRequestView);
@@ -11304,10 +11312,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for UpdateDestinationResponseView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "UpdateDestinationResponse";
-            const FULL_NAME: &'static str = "home.notifications.v1.UpdateDestinationResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.UpdateDestinationResponse";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.UpdateDestinationResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.UpdateDestinationResponse";
         }
         ::buffa::impl_default_view_instance!(UpdateDestinationResponseView);
         ::buffa::impl_view_reborrow!(UpdateDestinationResponseView);
@@ -11600,10 +11608,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ReadInboxRequestView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "ReadInboxRequest";
-            const FULL_NAME: &'static str = "home.notifications.v1.ReadInboxRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ReadInboxRequest";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.ReadInboxRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ReadInboxRequest";
         }
         ::buffa::impl_default_view_instance!(ReadInboxRequestView);
         ::buffa::impl_view_reborrow!(ReadInboxRequestView);
@@ -11995,10 +12003,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ReadInboxResponseView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "ReadInboxResponse";
-            const FULL_NAME: &'static str = "home.notifications.v1.ReadInboxResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ReadInboxResponse";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.ReadInboxResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ReadInboxResponse";
         }
         ::buffa::impl_default_view_instance!(ReadInboxResponseView);
         ::buffa::impl_view_reborrow!(ReadInboxResponseView);
@@ -12522,10 +12530,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for AcknowledgeDeliveryRequestView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "AcknowledgeDeliveryRequest";
-            const FULL_NAME: &'static str = "home.notifications.v1.AcknowledgeDeliveryRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.AcknowledgeDeliveryRequest";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.AcknowledgeDeliveryRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.AcknowledgeDeliveryRequest";
         }
         ::buffa::impl_default_view_instance!(AcknowledgeDeliveryRequestView);
         ::buffa::impl_view_reborrow!(AcknowledgeDeliveryRequestView);
@@ -12905,10 +12913,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for AcknowledgeDeliveryResponseView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "AcknowledgeDeliveryResponse";
-            const FULL_NAME: &'static str = "home.notifications.v1.AcknowledgeDeliveryResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.AcknowledgeDeliveryResponse";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.AcknowledgeDeliveryResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.AcknowledgeDeliveryResponse";
         }
         ::buffa::impl_default_view_instance!(AcknowledgeDeliveryResponseView);
         ::buffa::impl_view_reborrow!(AcknowledgeDeliveryResponseView);
@@ -13254,10 +13262,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for GetDeliveryRequestView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "GetDeliveryRequest";
-            const FULL_NAME: &'static str = "home.notifications.v1.GetDeliveryRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDeliveryRequest";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.GetDeliveryRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDeliveryRequest";
         }
         ::buffa::impl_default_view_instance!(GetDeliveryRequestView);
         ::buffa::impl_view_reborrow!(GetDeliveryRequestView);
@@ -13594,10 +13602,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for GetDeliveryResponseView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "GetDeliveryResponse";
-            const FULL_NAME: &'static str = "home.notifications.v1.GetDeliveryResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.GetDeliveryResponse";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.GetDeliveryResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.GetDeliveryResponse";
         }
         ::buffa::impl_default_view_instance!(GetDeliveryResponseView);
         ::buffa::impl_view_reborrow!(GetDeliveryResponseView);
@@ -13934,10 +13942,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ResolveOpenRequestView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "ResolveOpenRequest";
-            const FULL_NAME: &'static str = "home.notifications.v1.ResolveOpenRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ResolveOpenRequest";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.ResolveOpenRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ResolveOpenRequest";
         }
         ::buffa::impl_default_view_instance!(ResolveOpenRequestView);
         ::buffa::impl_view_reborrow!(ResolveOpenRequestView);
@@ -14494,10 +14502,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for ResolveOpenResponseView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "ResolveOpenResponse";
-            const FULL_NAME: &'static str = "home.notifications.v1.ResolveOpenResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.ResolveOpenResponse";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.ResolveOpenResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.ResolveOpenResponse";
         }
         ::buffa::impl_default_view_instance!(ResolveOpenResponseView);
         ::buffa::impl_view_reborrow!(ResolveOpenResponseView);
@@ -14916,10 +14924,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for RevokeDestinationRequestView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "RevokeDestinationRequest";
-            const FULL_NAME: &'static str = "home.notifications.v1.RevokeDestinationRequest";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RevokeDestinationRequest";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.RevokeDestinationRequest";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RevokeDestinationRequest";
         }
         ::buffa::impl_default_view_instance!(RevokeDestinationRequestView);
         ::buffa::impl_view_reborrow!(RevokeDestinationRequestView);
@@ -15274,10 +15282,10 @@ pub mod __buffa {
             }
         }
         impl<'a> ::buffa::MessageName for RevokeDestinationResponseView<'a> {
-            const PACKAGE: &'static str = "home.notifications.v1";
+            const PACKAGE: &'static str = "home.testing.notifications.v1";
             const NAME: &'static str = "RevokeDestinationResponse";
-            const FULL_NAME: &'static str = "home.notifications.v1.RevokeDestinationResponse";
-            const TYPE_URL: &'static str = "type.googleapis.com/home.notifications.v1.RevokeDestinationResponse";
+            const FULL_NAME: &'static str = "home.testing.notifications.v1.RevokeDestinationResponse";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.testing.notifications.v1.RevokeDestinationResponse";
         }
         ::buffa::impl_default_view_instance!(RevokeDestinationResponseView);
         ::buffa::impl_view_reborrow!(RevokeDestinationResponseView);
@@ -15431,7 +15439,7 @@ pub mod __buffa {
                     ),
                     Entity(
                         ::buffa::alloc::boxed::Box<
-                            super::super::super::super::super::super::registry::v1::__buffa::view::EntityIdView<
+                            super::super::super::super::super::super::super::registry::v1::__buffa::view::EntityIdView<
                                 'a,
                             >,
                         >,
@@ -15466,7 +15474,7 @@ pub mod __buffa {
                 Home(::buffa::alloc::boxed::Box<::buffa_types::google::protobuf::Empty>),
                 Entity(
                     ::buffa::alloc::boxed::Box<
-                        super::super::super::super::super::registry::v1::EntityId,
+                        super::super::super::super::super::super::registry::v1::EntityId,
                     >,
                 ),
             }
@@ -15476,18 +15484,18 @@ pub mod __buffa {
                     Self::Home(::buffa::alloc::boxed::Box::new(v))
                 }
             }
-            impl From<super::super::super::super::super::registry::v1::EntityId>
+            impl From<super::super::super::super::super::super::registry::v1::EntityId>
             for Resource {
                 fn from(
-                    v: super::super::super::super::super::registry::v1::EntityId,
+                    v: super::super::super::super::super::super::registry::v1::EntityId,
                 ) -> Self {
                     Self::Entity(::buffa::alloc::boxed::Box::new(v))
                 }
             }
-            impl From<super::super::super::super::super::registry::v1::EntityId>
+            impl From<super::super::super::super::super::super::registry::v1::EntityId>
             for ::core::option::Option<Resource> {
                 fn from(
-                    v: super::super::super::super::super::registry::v1::EntityId,
+                    v: super::super::super::super::super::super::registry::v1::EntityId,
                 ) -> Self {
                     Self::Some(Resource::from(v))
                 }

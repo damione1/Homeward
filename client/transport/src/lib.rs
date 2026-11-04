@@ -1,32 +1,35 @@
 //! Native asynchronous transport over the existing Buffa wire types.
 #![deny(clippy::wildcard_enum_match_arm)]
 
-mod actions;
 mod administration;
 mod auth;
 mod calendars;
-mod cameras;
-mod client;
+mod credential;
+mod entity_views;
+pub use entity_views::{EntityViewTransport, EntityViewWatch};
+#[cfg(feature = "private-qualification")]
 mod companion;
 mod configuration;
 mod connection;
 mod dashboard;
 mod failure;
 mod history;
-mod lists;
+mod home;
+#[cfg(feature = "private-qualification")]
 mod logic;
 mod media;
+#[cfg(feature = "private-qualification")]
 mod notifications;
+mod operations;
 mod reconnect;
-pub use actions::{ActionTransport, ActionWatch};
+mod tasks;
 pub use administration::{
     AccountTransport, IntegrationTransport, McpKeyTransport, ObservabilityTransport,
     PolicyTransport,
 };
 pub use auth::AuthTransport;
 pub use calendars::{CalendarTransport, CalendarWatch};
-pub use cameras::{CameraTransport, CameraWatch};
-pub use client::{AccessToken, StateTransport, StateWatch};
+#[cfg(feature = "private-qualification")]
 pub use companion::CompanionTransport;
 pub use configuration::{
     ConfigurationApplyTransport, ConfigurationPlanTransport, ConfigurationSimulationTransport,
@@ -36,71 +39,36 @@ pub use connection::Connection;
 #[cfg(target_os = "android")]
 pub use connection::initialize_android_trust;
 pub use connectrpc::ErrorCode as RpcCode;
+pub use credential::AccessToken;
 pub use dashboard::{DashboardTransport, DashboardWatch};
 pub use failure::{DetailFailure, Failure, FailureKind};
 pub use history::HistoryTransport;
+pub use home::HomeTransport;
 pub use home_wire_contract::api_errors::{ApiFailure, InvalidApiError};
-pub use lists::{ListTransport, ListWatch};
+#[cfg(feature = "private-qualification")]
 pub use logic::LogicTransport;
-pub use media::MediaTransport;
+#[cfg(feature = "private-qualification")]
 pub use notifications::NotificationTransport;
+pub use operations::OperationsTransport;
 pub use reconnect::{FibonacciBackoff, ReconnectPolicy};
+pub use tasks::{TaskTransport, TaskWatch};
 
 #[allow(clippy::all)]
 #[rustfmt::skip]
 pub mod services {
+    pub mod google { pub mod longrunning { include!("generated/google.longrunning.rs"); } }
     pub mod home {
-        pub mod notifications { pub mod v1 { include!("generated/home.notifications.v1.rs"); } }
-        pub mod companion {
-            pub mod v1 { include!("generated/home.companion.v1.rs"); }
-        }
-        pub mod logic {
-            pub mod v1 { include!("generated/home.logic.v1.rs"); }
-        }
-        pub mod configuration {
-            pub mod v1 { include!("generated/home.configuration.v1.rs"); }
-        }
-        pub mod configurationplan {
-            pub mod v1 { include!("generated/home.configurationplan.v1.rs"); }
-        }
-        pub mod configurationsimulation {
-            pub mod v1 { include!("generated/home.configurationsimulation.v1.rs"); }
-        }
-        pub mod configurationapply {
-            pub mod v1 { include!("generated/home.configurationapply.v1.rs"); }
-        }
-        pub mod cameras {
-            pub mod v1 { include!("generated/home.cameras.v1.rs"); }
-        }
-        pub mod calendars {
-            pub mod v1 { include!("generated/home.calendars.v1.rs"); }
-        }
-        pub mod media {
-            pub mod v1 { include!("generated/home.media.v1.rs"); }
-        }
-        pub mod actions {
-            pub mod v1 { include!("generated/home.actions.v1.rs"); }
-        }
-        pub mod auth {
-            pub mod v1 { include!("generated/home.auth.v1.rs"); }
-        }
-        pub mod integrationadmin {
-            pub mod v1 { include!("generated/home.integrationadmin.v1.rs"); }
-        }
-        pub mod observability {
-            pub mod v1 { include!("generated/home.observability.v1.rs"); }
-        }
-        pub mod state {
-            pub mod v1 { include!("generated/home.state.v1.rs"); }
-        }
-        pub mod dashboard {
-            pub mod v1 { include!("generated/home.dashboard.v1.rs"); }
-        }
-        pub mod history {
-            pub mod v1 { include!("generated/home.history.v1.rs"); }
-        }
-        pub mod lists {
-            pub mod v1 { include!("generated/home.lists.v1.rs"); }
+        pub mod api { pub mod v2 { include!("generated/home.api.v2.rs"); } }
+        #[cfg(feature = "private-qualification")]
+        pub mod testing {
+            pub mod notifications { pub mod v1 { include!("generated/home.testing.notifications.v1.rs"); } }
+            pub mod companion { pub mod v1 { include!("generated/home.testing.companion.v1.rs"); } }
+            pub mod logic { pub mod v1 { include!("generated/home.testing.logic.v1.rs"); } }
         }
     }
 }
+
+mod capabilities;
+pub use capabilities::CapabilityTransport;
+
+pub use media::{MediaSessionWatch, MediaTransport, MediaVideoWatch};

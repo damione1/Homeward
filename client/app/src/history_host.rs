@@ -12,7 +12,7 @@ use home_client_cache::{
     ProjectionMailbox, Publication,
     history::{self, Content, Query, Resolution},
 };
-use home_client_model::EntityId;
+use home_client_model::api::EntityName;
 use home_client_session::{Phase, SessionCoordinator};
 use home_client_transport::{FailureKind, HistoryTransport, RpcCode};
 use slint::ComponentHandle;
@@ -132,7 +132,7 @@ impl History {
             });
         }
     }
-    pub fn choose(&self, entity: Option<EntityId>) {
+    pub fn choose(&self, entity: Option<EntityName>) {
         let mut state = self.0.state.lock().expect("history state");
         if state.entity == entity {
             return;
@@ -436,7 +436,7 @@ impl History {
 fn failure(error: history::ReadError) -> Failure {
     match error {
         history::ReadError::StaleCursor => Failure::Stale,
-        history::ReadError::ServerBudget(_)
+        history::ReadError::ServerBudget
         | history::ReadError::Deadline
         | history::ReadError::Contract(history::ReadFailure::BudgetExceeded) => Failure::Capacity,
         history::ReadError::Contract(_) | history::ReadError::Cancelled => Failure::Contract,
@@ -463,7 +463,7 @@ fn index(current: usize, count: usize, step: NavigationStep) -> usize {
     }
 }
 fn parse_query(
-    entity: Option<EntityId>,
+    entity: Option<EntityName>,
     start: &str,
     end: &str,
     statistic: HistoryStatistic,
@@ -494,7 +494,7 @@ fn parse_query(
     } else {
         Resolution::Hourly
     };
-    let period = home_wire_contract::home::history::v1::Period {
+    let period = home_wire_contract::home::api::v2::HistoryPeriod {
         start: parse(start)?.into(),
         end: parse(end)?.into(),
         ..Default::default()

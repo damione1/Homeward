@@ -186,7 +186,7 @@ pub enum CommandResultKind {
     COMMAND_RESULT_KIND_UNSPECIFIED = 0i32,
     COMMAND_RESULT_KIND_ACCEPTED = 1i32,
     COMMAND_RESULT_KIND_FAILED = 2i32,
-    /// Host 1.1 only: the bridge acknowledged the command, before any observed state.
+    /// The bridge acknowledged the command, before any observed state.
     COMMAND_RESULT_KIND_ACKNOWLEDGED = 3i32,
 }
 impl CommandResultKind {

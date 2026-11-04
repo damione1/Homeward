@@ -25,7 +25,7 @@ pub(super) fn transport(failure: &Failure) -> Recovery {
         Err(_) => return Recovery::Stop,
     };
     match detail.reason() {
-        Code::ResyncRequired => Recovery::Reconnect,
+        Code::ResyncRequired => Recovery::Reset,
         Code::ServiceUnavailable => Recovery::Offline,
         Code::ResourceNotFound => Recovery::Reset,
         Code::AuthenticationRequired
@@ -38,6 +38,8 @@ pub(super) fn transport(failure: &Failure) -> Recovery {
         | Code::TopologyChanged
         | Code::CapabilityUnavailable
         | Code::SourceReadOnly
+        | Code::StatePreconditionFailed
+        | Code::ConfigRestartRequired
         | Code::RateLimited
         | Code::RequestTooLarge
         | Code::StreamCapacity
@@ -73,11 +75,11 @@ mod tests {
         )
     }
     #[test]
-    fn stale_cursor_recaptures_but_denial_future_details_and_authority_errors_purge() {
+    fn resync_recaptures_after_reset_and_denial_future_details_and_authority_errors_purge() {
         let stale = Failure::from(
             ConnectError::failed_precondition("fixture").with_detail(detail(Code::ResyncRequired)),
         );
-        assert_eq!(transport(&stale), Recovery::Reconnect);
+        assert_eq!(transport(&stale), Recovery::Reset);
         let denied = Failure::from(
             ConnectError::permission_denied("fixture").with_detail(detail(Code::AccessDenied)),
         );
