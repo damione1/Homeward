@@ -989,3 +989,6 @@ mod secure_tests;
 
 #[cfg(test)]
 mod tls_probe;
+
+#[cfg(test)]
+pub(crate) mod fixture;

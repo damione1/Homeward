@@ -170,12 +170,19 @@ fn read_stop(value: read::ReadError) -> Stop {
     }
 }
 fn transport_stop(value: &Failure) -> Stop {
-    if !matches!(value.authorization_termination(), Ok(None))
-        || matches!(
-            value.kind(),
-            FailureKind::Rpc(RpcCode::PermissionDenied | RpcCode::Unauthenticated)
-        )
-    {
+    if match value.api_failure() {
+        Err(_) => true,
+        Ok(Some(detail)) => matches!(
+            detail.reason(),
+            home_wire_contract::home::api::v2::ApiErrorReason::AuthorityUnavailable
+                | home_wire_contract::home::api::v2::ApiErrorReason::AuthenticationRequired
+                | home_wire_contract::home::api::v2::ApiErrorReason::AccessDenied
+        ),
+        Ok(None) => false,
+    } || matches!(
+        value.kind(),
+        FailureKind::Rpc(RpcCode::PermissionDenied | RpcCode::Unauthenticated)
+    ) {
         return Stop::Denied;
     }
     if value.may_resume_read() {

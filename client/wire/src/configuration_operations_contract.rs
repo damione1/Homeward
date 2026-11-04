@@ -241,10 +241,6 @@ pub fn admit_operation(
                     return Err(InvalidConfigurationOperation);
                 }
                 let result = match response.type_url.as_str() {
-                    "type.googleapis.com/home.api.v2.ConfigurationActivationResult" => {
-                        wire::ConfigurationActivationResult::decode_from_slice(&response.value)
-                            .map_err(|_| InvalidConfigurationOperation)?
-                    }
                     "type.googleapis.com/home.api.v2.PublishConfigurationDocumentResponse" => {
                         let value = wire::PublishConfigurationDocumentResponse::decode_from_slice(
                             &response.value,
@@ -264,6 +260,33 @@ pub fn admit_operation(
                             &response.value,
                         )
                         .map_err(|_| InvalidConfigurationOperation)?;
+                        if !value.__buffa_unknown_fields.is_empty() {
+                            return Err(InvalidConfigurationOperation);
+                        }
+                        value
+                            .result
+                            .as_option()
+                            .ok_or(InvalidConfigurationOperation)?
+                            .clone()
+                    }
+                    "type.googleapis.com/home.api.v2.ApplyConfigurationPlanResponse" => {
+                        let value = wire::ApplyConfigurationPlanResponse::decode_from_slice(
+                            &response.value,
+                        )
+                        .map_err(|_| InvalidConfigurationOperation)?;
+                        if !value.__buffa_unknown_fields.is_empty() {
+                            return Err(InvalidConfigurationOperation);
+                        }
+                        value
+                            .result
+                            .as_option()
+                            .ok_or(InvalidConfigurationOperation)?
+                            .clone()
+                    }
+                    "type.googleapis.com/home.api.v2.RollbackConfigurationResponse" => {
+                        let value =
+                            wire::RollbackConfigurationResponse::decode_from_slice(&response.value)
+                                .map_err(|_| InvalidConfigurationOperation)?;
                         if !value.__buffa_unknown_fields.is_empty() {
                             return Err(InvalidConfigurationOperation);
                         }

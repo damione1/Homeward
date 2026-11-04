@@ -36,7 +36,7 @@ func TestNHA056AdministrativeReadUsesCurrentRoleExactCeilingAndBinding(t *testin
 	if err := authority.Hydrate([]authorization.AccountState{state}); err != nil {
 		t.Fatal(err)
 	}
-	h := &observationHandler{runtime: &observationRuntime{authority: authority}}
+	h := &observationReader{runtime: &observationRuntime{authority: authority}}
 	key, err := contracts.ParseMcpKeyID("nha056-admitted-scoped-key")
 	if err != nil {
 		t.Fatal(err)

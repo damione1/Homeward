@@ -299,12 +299,12 @@ func TestNHA052ActualRunSDKReadsScopesPaginationRevocationExpiryAndNoActions(t *
 	}
 	var schemas configuration.ListConfigurationSchemasResponse
 	nha052Call(t, f.ctx, configClient, "homeward.list_configuration_schemas", map[string]any{"parent": nha052ConfigurationHome(t, f), "pageSize": 1}, &schemas)
-	if len(schemas.Schemas) != 1 || schemas.NextPageToken == "" {
+	if len(schemas.ConfigurationSchemas) != 1 || schemas.NextPageToken == "" {
 		t.Fatal("configuration pagination", &schemas)
 	}
 	var second configuration.ListConfigurationSchemasResponse
 	nha052Call(t, f.ctx, configClient, "homeward.list_configuration_schemas", map[string]any{"parent": nha052ConfigurationHome(t, f), "pageSize": 1, "pageToken": schemas.NextPageToken}, &second)
-	if len(second.Schemas) != 1 || proto.Equal(schemas.Schemas[0], second.Schemas[0]) {
+	if len(second.ConfigurationSchemas) != 1 || proto.Equal(schemas.ConfigurationSchemas[0], second.ConfigurationSchemas[0]) {
 		t.Fatal("configuration page repeats")
 	}
 	var document configuration.ConfigurationDocument

@@ -25,12 +25,18 @@ func ParseConfigurationActivationResult(raw *anypb.Any) (*api.ConfigurationActiv
 			return nil, ErrInvalidConfigurationOperation
 		}
 		return value.Result, nil
-	case "type.googleapis.com/home.api.v2.ConfigurationActivationResult":
-		value := new(api.ConfigurationActivationResult)
-		if !configurationOperationPayload(value, raw) {
+	case "type.googleapis.com/home.api.v2.ApplyConfigurationPlanResponse":
+		value := new(api.ApplyConfigurationPlanResponse)
+		if !configurationOperationPayload(value, raw) || value.Result == nil {
 			return nil, ErrInvalidConfigurationOperation
 		}
-		return value, nil
+		return value.Result, nil
+	case "type.googleapis.com/home.api.v2.RollbackConfigurationResponse":
+		value := new(api.RollbackConfigurationResponse)
+		if !configurationOperationPayload(value, raw) || value.Result == nil {
+			return nil, ErrInvalidConfigurationOperation
+		}
+		return value.Result, nil
 	default:
 		return nil, ErrInvalidConfigurationOperation
 	}

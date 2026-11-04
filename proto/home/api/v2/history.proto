@@ -333,7 +333,8 @@ message HistoryAggregate {
   // Typed provenance, freshness and validity of the observation.
   ObservationQuality quality = 3;
   // Duration in nanoseconds.
-  int64 duration_nanos = 4; // Inclusive range 0..3600000000000.
+  // Inclusive range 0..3600000000000 nanoseconds.
+  int64 duration_nanos = 4;
   // The minimum represented by double.
   optional double minimum = 5;
   // The maximum represented by double.
@@ -414,7 +415,7 @@ enum HistoryResolution {
 
 // A next token may accompany zero points after a bounded candidate scan. That
 // page is progress, not a complete empty history; only end terminates the scan.
-
+//
 // Historical entity reads never disclose global Recorder positions, queue
 // sizes, policy-excluded counts or loss envelopes. The diagnostic service owns
 // those separately authorized facts.

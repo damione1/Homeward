@@ -6,8 +6,8 @@ use super::{
     number::NumericInput,
     tests::{light, request, view},
 };
-use actions::action_args::Arguments;
-use home_wire_contract::home::controls::v1 as wire;
+use home_wire_contract::home::api::v2 as wire;
+use wire::execute_capability_request::Command as Arguments;
 #[derive(Clone, Copy)]
 enum Family {
     Cover,
@@ -15,96 +15,88 @@ enum Family {
     Alarm,
 }
 impl Family {
-    fn entity(self, request: &ProjectionRequest) -> state::ViewEntity {
+    fn entity(self, request: &ProjectionRequest) -> wire::EntityViewEntry {
         let mut entity = light(request);
-        let (schema, constraints, observed) = match self {
-            Self::Cover => (
-                "core.cover.v1",
-                registry::capability_description::Constraints::Cover(
-                    wire::CoverConstraints {
-                        operations: vec![
-                            wire::CoverOperation::Stop.into(),
-                            wire::CoverOperation::Open.into(),
-                            wire::CoverOperation::Close.into(),
-                        ],
-                        set_position_percent: wire::PercentBounds {
-                            minimum: 10.,
-                            maximum: 90.,
-                            step: Some(5.),
-                            ..Default::default()
-                        }
-                        .into(),
-                        observed_states: vec![wire::CoverState::Open.into()],
-                        observes_position_percent: true,
-                        observes_obstruction: true,
+        entity.capabilities[0].r#trait = Some(match self {
+            Self::Cover => wire::capability::Trait::Cover(Box::new(wire::CoverCapability {
+                definition: wire::CoverDefinition {
+                    operations: vec![
+                        wire::CoverOperation::Stop.into(),
+                        wire::CoverOperation::Open.into(),
+                        wire::CoverOperation::Close.into(),
+                    ],
+                    observed_states: vec![wire::CoverState::Open.into()],
+                    set_position_percent: wire::PercentageBounds {
+                        minimum: 10.,
+                        maximum: 90.,
+                        step: Some(5.),
                         ..Default::default()
                     }
                     .into(),
-                ),
-                state::observed_state::Value::Cover(
-                    wire::CoverValue {
+                    observes_position_percent: true,
+                    observes_obstruction: true,
+                    ..Default::default()
+                }
+                .into(),
+                observation: wire::CoverObservation {
+                    value: wire::CoverValue {
                         state: Some(wire::CoverState::Open.into()),
                         position_percent: Some(35.),
                         obstructed: Some(false),
                         ..Default::default()
                     }
                     .into(),
-                ),
-            ),
-            Self::Lock => (
-                "core.lock.v1",
-                registry::capability_description::Constraints::Lock(
-                    wire::LockConstraints {
-                        operations: vec![
-                            wire::LockOperation::Unlock.into(),
-                            wire::LockOperation::Lock.into(),
-                        ],
-                        observed_states: vec![wire::LockState::Jammed.into()],
-                        ..Default::default()
-                    }
-                    .into(),
-                ),
-                state::observed_state::Value::Lock(
-                    wire::LockValue {
+                    quality: fixture::quality().into(),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            })),
+            Self::Lock => wire::capability::Trait::Lock(Box::new(wire::LockCapability {
+                definition: wire::LockDefinition {
+                    operations: vec![
+                        wire::LockOperation::Unlock.into(),
+                        wire::LockOperation::Lock.into(),
+                    ],
+                    observed_states: vec![wire::LockState::Jammed.into()],
+                    ..Default::default()
+                }
+                .into(),
+                observation: wire::LockObservation {
+                    value: wire::LockValue {
                         state: wire::LockState::Jammed.into(),
                         ..Default::default()
                     }
                     .into(),
-                ),
-            ),
-            Self::Alarm => (
-                "core.alarm.v1",
-                registry::capability_description::Constraints::Alarm(
-                    wire::AlarmConstraints {
-                        operations: vec![
-                            wire::AlarmOperation::Disarm.into(),
-                            wire::AlarmOperation::ArmAway.into(),
-                        ],
-                        observed_states: vec![wire::AlarmState::Triggered.into()],
-                        ..Default::default()
-                    }
-                    .into(),
-                ),
-                state::observed_state::Value::Alarm(
-                    wire::AlarmValue {
+                    quality: fixture::quality().into(),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            })),
+            Self::Alarm => wire::capability::Trait::Alarm(Box::new(wire::AlarmCapability {
+                definition: wire::AlarmDefinition {
+                    operations: vec![
+                        wire::AlarmOperation::Disarm.into(),
+                        wire::AlarmOperation::ArmAway.into(),
+                    ],
+                    observed_states: vec![wire::AlarmState::Triggered.into()],
+                    ..Default::default()
+                }
+                .into(),
+                observation: wire::AlarmObservation {
+                    value: wire::AlarmValue {
                         state: wire::AlarmState::Triggered.into(),
                         ..Default::default()
                     }
                     .into(),
-                ),
-            ),
-        };
-        entity.state.as_option_mut().unwrap().quality = state::Quality {
-            availability: state::Availability::Available.into(),
-            freshness: state::Freshness::Fresh.into(),
-            provenance: state::Provenance::Observed.into(),
-            ..Default::default()
-        }
-        .into();
-        entity.capabilities[0].schema_id = schema.into();
-        entity.capabilities[0].constraints = Some(constraints);
-        entity.action_access[0].schema_id = schema.into();
-        entity.state.as_option_mut().unwrap().value = Some(observed);
+                    quality: fixture::quality().into(),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            })),
+        });
         entity
     }
     fn kind(self) -> ProDeviceKind {
@@ -114,32 +106,35 @@ impl Family {
             Self::Alarm => ProDeviceKind::Alarm,
         }
     }
-    fn withdraw(self, entity: &mut state::ViewEntity) {
-        use registry::capability_description::Constraints as C;
-        match entity.capabilities[0].constraints.as_mut().unwrap() {
-            C::Cover(c) => c.operations.clear(),
-            C::Lock(c) => c.operations.clear(),
-            C::Alarm(c) => c.operations.clear(),
-            C::Light(_)
-            | C::Switch(_)
-            | C::Climate(_)
-            | C::Fan(_)
-            | C::Helper(_)
-            | C::Measurement(_)
-            | C::Binary(_)
-            | C::Solar(_)
-            | C::SolarEvent(_)
-            | C::Extension(_)
-            | C::Weather(_)
-            | C::Presence(_)
-            | C::PresenceDetails(_) => panic!("fixture family"),
+    fn withdraw(self, entity: &mut wire::EntityViewEntry) {
+        use wire::capability::Trait as C;
+        match entity.capabilities[0].r#trait.as_mut().unwrap() {
+            C::Cover(c) => c.definition.as_option_mut().unwrap().operations.clear(),
+            C::Lock(c) => c.definition.as_option_mut().unwrap().operations.clear(),
+            C::Alarm(c) => c.definition.as_option_mut().unwrap().operations.clear(),
+            _ => panic!("fixture family"),
         }
+        entity.capabilities[0].etag = "withdrawn-operations".into();
     }
 }
+fn cover_value(entity: &mut wire::EntityViewEntry) -> &mut wire::CoverValue {
+    let Some(wire::capability::Trait::Cover(value)) = entity.capabilities[0].r#trait.as_mut()
+    else {
+        panic!("cover fixture")
+    };
+    value
+        .observation
+        .as_option_mut()
+        .unwrap()
+        .value
+        .as_option_mut()
+        .unwrap()
+}
+
 fn first(
     store: &DeviceStore,
-    request: &ProjectionRequest,
-    entity: &state::ViewEntity,
+    request: &fixture::Scenario,
+    entity: &wire::EntityViewEntry,
     phase: CachePhase,
 ) -> CardRow {
     store
@@ -173,8 +168,8 @@ fn typed_sdk_choices_resolve_to_the_same_host_choice_and_exact_wire_operation() 
                 );
                 assert!(row.lock_operations.is_empty() && row.alarm_operations.is_empty());
                 Arguments::Cover(
-                    wire::CoverAction {
-                        command: Some(wire::cover_action::Command::Operation(
+                    wire::SetCoverCommand {
+                        target: Some(wire::set_cover_command::Target::Operation(
                             wire::CoverOperation::Stop.into(),
                         )),
                         ..Default::default()
@@ -190,7 +185,7 @@ fn typed_sdk_choices_resolve_to_the_same_host_choice_and_exact_wire_operation() 
                 assert!(row.cover_operations.is_empty() && row.alarm_operations.is_empty());
                 assert!(row.value.contains("jammed"));
                 Arguments::Lock(
-                    wire::LockAction {
+                    wire::SetLockCommand {
                         operation: wire::LockOperation::Unlock.into(),
                         ..Default::default()
                     }
@@ -205,7 +200,7 @@ fn typed_sdk_choices_resolve_to_the_same_host_choice_and_exact_wire_operation() 
                 assert!(row.cover_operations.is_empty() && row.lock_operations.is_empty());
                 assert!(row.value.contains("triggered"));
                 Arguments::Alarm(
-                    wire::AlarmAction {
+                    wire::SetAlarmCommand {
                         operation: wire::AlarmOperation::Disarm.into(),
                         ..Default::default()
                     }
@@ -215,7 +210,10 @@ fn typed_sdk_choices_resolve_to_the_same_host_choice_and_exact_wire_operation() 
         };
         let intent = store.choose(row.token, row.generation, 0, 0).unwrap();
         let prepared = store.prepare(row.token, row.generation, 0, intent).unwrap();
-        assert_eq!(prepared.request.arguments.arguments, Some(expected));
+        assert_eq!(
+            home_wire_contract::api_contract::encode_command(&prepared.request).command,
+            Some(expected)
+        );
         assert!((prepared.guard)());
         assert!(store.choose(row.token, row.generation, 0, -1).is_err());
         assert!(store.choose(row.token, row.generation, 0, 99).is_err());
@@ -272,7 +270,7 @@ fn readonly_and_offline_revoke_each_secure_family_without_mutating_observations(
         let held = store
             .prepare(row.token, row.generation, 0, intent.clone())
             .unwrap();
-        entity.action_access[0].access = state::ActionAccess::Denied.into();
+        entity.capabilities[0].action_access = wire::ActionAccess::Denied.into();
         let denied = first(&store, &request, &entity, CachePhase::Live);
         assert_eq!(denied.access, ProControlAccess::Denied);
         assert_eq!(denied.value, row.value);
@@ -281,7 +279,7 @@ fn readonly_and_offline_revoke_each_secure_family_without_mutating_observations(
             store.prepare(denied.token, denied.generation, 0, intent.clone()),
             Err(Refusal::ReadOnly)
         ));
-        entity.action_access[0].access = state::ActionAccess::Allowed.into();
+        entity.capabilities[0].action_access = wire::ActionAccess::Allowed.into();
         let live = first(&store, &request, &entity, CachePhase::Live);
         let held = store
             .prepare(live.token, live.generation, 0, intent.clone())
@@ -315,11 +313,7 @@ fn cover_drafts_remain_separate_from_observations_and_require_explicit_valid_sub
             )
             .is_err()
     );
-    let Some(state::observed_state::Value::Cover(value)) =
-        entity.state.as_option_mut().unwrap().value.as_mut()
-    else {
-        panic!()
-    };
+    let value = cover_value(&mut entity);
     value.position_percent = Some(50.);
     let refreshed = first(&store, &request, &entity, CachePhase::Live);
     assert_eq!(refreshed.generation, row.generation);
@@ -360,7 +354,7 @@ fn cover_drafts_remain_separate_from_observations_and_require_explicit_valid_sub
         .unwrap();
     let prepared = store.prepare(row.token, row.generation, 0, intent).unwrap();
     assert!(
-        matches!(prepared.request.arguments.arguments.as_ref(),Some(Arguments::Cover(value)) if value.command==Some(wire::cover_action::Command::PositionPercent(40.)))
+        matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command.as_ref(),Some(Arguments::Cover(value)) if value.target==Some(wire::set_cover_command::Target::PositionPercent(40.)))
     );
     let row = first(&store, &request, &entity, CachePhase::Live);
     assert_eq!(row.values[0].lower, "40");
@@ -381,11 +375,7 @@ fn missing_and_outside_command_position_are_not_used_as_an_initial_command() {
     for position in [None, Some(0.), Some(35.)] {
         let request = request();
         let mut entity = Family::Cover.entity(&request);
-        let Some(state::observed_state::Value::Cover(value)) =
-            entity.state.as_option_mut().unwrap().value.as_mut()
-        else {
-            panic!()
-        };
+        let value = cover_value(&mut entity);
         value.position_percent = position;
         let row = first(&DeviceStore::default(), &request, &entity, CachePhase::Live);
         assert_eq!(
@@ -399,11 +389,11 @@ fn missing_and_outside_command_position_are_not_used_as_an_initial_command() {
 }
 
 fn native_request(
-    mut request: ProjectionRequest,
-    entity: &state::ViewEntity,
+    mut request: fixture::Scenario,
+    entity: &wire::EntityViewEntry,
     features: Vec<crate::dashboard_layout::FeatureKind>,
     command: home_client_model::dashboard::CommandKind,
-) -> ProjectionRequest {
+) -> fixture::Scenario {
     use crate::dashboard_layout::{NativeLayout, NodeId};
     use home_client_model::dashboard::{Gesture, Intention, Interaction, Recipes};
     let mut layout = request.dashboard.layout().unwrap().clone();
@@ -411,7 +401,9 @@ fn native_request(
         NativeLayout::try_from(&crate::dashboard_layout::tests::extended_forest()).unwrap();
     for node in native.nodes.values_mut() {
         if node.entity.is_some() {
-            node.entity = Some(entity.entity_id.parse().unwrap());
+            node.entity = Some(EntityName::try_from(entity.entity.name.as_str()).unwrap());
+            node.capability =
+                Some(CapabilityName::try_from(entity.capabilities[0].name.as_str()).unwrap());
         }
         node.recipes = None;
     }
@@ -425,7 +417,8 @@ fn native_request(
             Gesture::Tap,
             Interaction {
                 intention: Intention::Command {
-                    entity: entity.entity_id.parse().unwrap(),
+                    capability: CapabilityName::try_from(entity.capabilities[0].name.as_str())
+                        .unwrap(),
                     kind: command,
                 },
                 confirmation: Some("Confirmer la commande synthétique".into()),
@@ -491,7 +484,7 @@ fn cover_body_features_and_header_recipes_have_distinct_admission_without_extra_
         panic!()
     };
     assert!(
-        matches!(command.request.arguments.arguments.as_ref(),Some(Arguments::Cover(value)) if value.command==Some(wire::cover_action::Command::Operation(wire::CoverOperation::Open.into())))
+        matches!(home_wire_contract::api_contract::encode_command(&command.request).command.as_ref(),Some(Arguments::Cover(value)) if value.target==Some(wire::set_cover_command::Target::Operation(wire::CoverOperation::Open.into())))
     );
     let mut entity = entity;
     Family::Cover.withdraw(&mut entity);

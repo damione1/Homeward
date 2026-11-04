@@ -76,7 +76,10 @@ func (scope *publicResponseScope) invalidate(cause error) {
 	// Preserve native deadline/client cancellation. Native policy revocation
 	// becomes the existing transport termination vocabulary, not a new permit.
 	reason := auth.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED
+	var termination authorizationTerminationCause
 	switch {
+	case errors.As(cause, &termination):
+		reason = termination.reason
 	case errors.Is(cause, authorization.ErrUnavailable):
 		reason = auth.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE
 	case errors.Is(cause, context.Canceled), errors.Is(cause, context.DeadlineExceeded):

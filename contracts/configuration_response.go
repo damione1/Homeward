@@ -222,9 +222,9 @@ func AdmitConfigurationResponse(message proto.Message) error {
 	case *wire.ConfigurationDocument:
 		valid = configurationRead(value)
 	case *wire.ListConfigurationDocumentsResponse:
-		valid = value != nil && len(value.Documents) <= 100 && len(value.NextPageToken) <= 1200
+		valid = value != nil && len(value.ConfigurationDocuments) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
-			for _, document := range value.Documents {
+			for _, document := range value.ConfigurationDocuments {
 				if !configurationDocument(document) {
 					valid = false
 					break
@@ -232,9 +232,9 @@ func AdmitConfigurationResponse(message proto.Message) error {
 			}
 		}
 	case *wire.ListConfigurationRevisionsResponse:
-		valid = value != nil && len(value.Versions) <= 100 && len(value.NextPageToken) <= 1200
+		valid = value != nil && len(value.ConfigurationRevisions) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
-			for _, entry := range value.Versions {
+			for _, entry := range value.ConfigurationRevisions {
 				if !configurationRevisionResource(entry) {
 					valid = false
 					break
@@ -242,9 +242,9 @@ func AdmitConfigurationResponse(message proto.Message) error {
 			}
 		}
 	case *wire.ListConfigurationGenerationsResponse:
-		valid = value != nil && len(value.Generations) <= 100 && len(value.NextPageToken) <= 1200
+		valid = value != nil && len(value.ConfigurationGenerations) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
-			for _, entry := range value.Generations {
+			for _, entry := range value.ConfigurationGenerations {
 				if !configurationGenerationResource(entry) {
 					valid = false
 					break
@@ -252,9 +252,9 @@ func AdmitConfigurationResponse(message proto.Message) error {
 			}
 		}
 	case *wire.ListConfigurationSchemasResponse:
-		valid = value != nil && len(value.Schemas) <= 100 && len(value.NextPageToken) <= 1200
+		valid = value != nil && len(value.ConfigurationSchemas) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
-			for _, entry := range value.Schemas {
+			for _, entry := range value.ConfigurationSchemas {
 				if !configurationSchemaResource(entry) {
 					valid = false
 					break

@@ -6,10 +6,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	auth "github.com/damione1/Homeward/gen/home/api/v2"
-	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
-	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
-	obs "github.com/damione1/Homeward/gen/home/observability/v1"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/registry"
@@ -25,13 +22,13 @@ func TestNHA114LifecycleAndUnboundManifestTargetProduceNoCommands(t *testing.T) 
 	f.noCommands(t, 0)
 	before := f.read(t)
 	raw := append(bytes.Clone(f.raw), []byte("# NHA114 hot publication without action\n")...)
-	candidate := nha053WireCandidate(planwire.SourceFamily_SOURCE_FAMILY_OPERATIONAL, "operational.main", raw)
+	candidate := nha053WireCandidate(api.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL, "operational.main", raw)
 	plan := f.build(t, candidate)
-	if plan.State != planwire.PlanState_PLAN_STATE_ADMITTED || plan.Receipt == "" {
+	if plan.State != api.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_ADMITTED || plan.Receipt == "" {
 		t.Fatalf("hot refresh plan was not admitted: state=%s diagnostics=%v", plan.State, plan.Diagnostics)
 	}
-	r, err := f.apply.Apply(f.ctx, nha056SessionRequest(nha055Request(before, candidate, &plan.Receipt), f.token))
-	if err != nil || r.Msg.Activation.Outcome != configuration.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED {
+	r, err := f.apply.ApplyConfigurationPlan(f.ctx, nha056SessionRequest(nha055Request(before, candidate, plan), f.token))
+	if err != nil || !r.Msg.Done || r.Msg.GetError() != nil || f.read(t).ActiveGeneration.Revision != before.ActiveGeneration.Revision+1 {
 		t.Fatal("actual hot refresh", err)
 	}
 	f.refreshPublicView(t)
@@ -60,7 +57,7 @@ func TestNHA114LifecycleAndUnboundManifestTargetProduceNoCommands(t *testing.T) 
 	if _, err := f.actual.sequence.ResolveCommandAlias(alias); !errors.Is(err, integrations.ErrCommandRouteUnavailable) {
 		t.Fatal("negative target unexpectedly has a route", err)
 	}
-	policy, err := f.policies.GetAuthorizationPolicy(f.ctx, nha056SessionRequest(&auth.GetAuthorizationPolicyRequest{Name: nha203SessionAccount(t, f.tokens.Session).String() + "/authorizationPolicy"}, f.token))
+	policy, err := f.policies.GetAuthorizationPolicy(f.ctx, nha056SessionRequest(&api.GetAuthorizationPolicyRequest{Name: nha203SessionAccount(t, f.tokens.Session).String() + "/authorizationPolicy"}, f.token))
 	if err != nil || policy.Msg == nil || !bytes.Equal(policy.Msg.YamlSource, f.policySource) {
 		t.Fatal("public policy no longer proves actions-all permission", err)
 	}
@@ -86,16 +83,16 @@ func TestNHA114LifecycleAndUnboundManifestTargetProduceNoCommands(t *testing.T) 
 	f.refreshClients(t)
 	f.waitBindings(t)
 	f.noCommands(t, 0)
-	metrics, err := f.observation.GetMetrics(f.ctx, nha056SessionRequest(&obs.GetMetricsRequest{}, f.token))
+	metrics, err := f.observation.GetMetrics(f.ctx, nha056SessionRequest(&api.GetMetricsRequest{Name: f.home + "/metrics"}, f.token))
 	if err != nil {
 		t.Fatal(err)
 	}
-	handle := metrics.Msg.Metrics.Runs.GetInstalled().GetController()
-	if handle == nil {
+	handle := metrics.Msg.Runs.GetInstalled().GetController()
+	if handle == "" {
 		t.Fatal("published automation was not restored")
 	}
-	trace, err := f.observation.ReadRunTrace(f.ctx, nha056SessionRequest(&obs.ReadRunTraceRequest{Controller: handle, RunId: 1}, f.token))
-	if err != nil || trace.Msg.GetNotRetained() == nil {
+	trace, err := f.observation.QueryRunTrace(f.ctx, nha056SessionRequest(&api.QueryRunTraceRequest{Parent: nha203ObservationRun(t, handle, 1)}, f.token))
+	if connect.CodeOf(err) != connect.CodeNotFound || trace != nil {
 		t.Fatal("startup/reconnect/hot refresh fabricated an automation occurrence", err)
 	}
 	f.noCommands(t, 0)

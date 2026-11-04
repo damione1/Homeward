@@ -81,10 +81,9 @@ type MediaServiceClient interface {
 	// Retires the lease and cancels/joins native reads; never renews another lease.
 	DeleteMediaSession(context.Context, *connect.Request[v2.DeleteMediaSessionRequest]) (*connect.Response[emptypb.Empty], error)
 	// Reads one bounded PNG projection under the exact live session and target.
-	// (-- api-linter: core::0131::synonyms=disabled
 	//
-	//	aip.dev/not-precedent: This custom AIP136 method reads bounded source
-	//	bytes. It does not Get a persistent image resource or session metadata. --)
+	//	This custom AIP136 method reads bounded source
+	//	bytes. It does not Get a persistent image resource or session metadata.
 	ReadMediaSession(context.Context, *connect.Request[v2.ReadMediaSessionRequest]) (*connect.Response[v2.ReadMediaSessionResponse], error)
 	// Queries a bounded current event projection. Tokens bind the same collection
 	// image, session, caller and authority; no event has an independent lifecycle.
@@ -250,10 +249,9 @@ type MediaServiceHandler interface {
 	// Retires the lease and cancels/joins native reads; never renews another lease.
 	DeleteMediaSession(context.Context, *connect.Request[v2.DeleteMediaSessionRequest]) (*connect.Response[emptypb.Empty], error)
 	// Reads one bounded PNG projection under the exact live session and target.
-	// (-- api-linter: core::0131::synonyms=disabled
 	//
-	//	aip.dev/not-precedent: This custom AIP136 method reads bounded source
-	//	bytes. It does not Get a persistent image resource or session metadata. --)
+	//	This custom AIP136 method reads bounded source
+	//	bytes. It does not Get a persistent image resource or session metadata.
 	ReadMediaSession(context.Context, *connect.Request[v2.ReadMediaSessionRequest]) (*connect.Response[v2.ReadMediaSessionResponse], error)
 	// Queries a bounded current event projection. Tokens bind the same collection
 	// image, session, caller and authority; no event has an independent lifecycle.

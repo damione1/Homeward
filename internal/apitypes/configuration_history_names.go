@@ -39,10 +39,10 @@ func configurationRevisionID(id, prefix string) (int64, error) {
 	return n, nil
 }
 func ParseConfigurationRevisionName(value string) (ConfigurationRevisionName, error) {
-	if resourceName(value, "homes", "configurationDocuments", "revisions") != nil {
+	if resourceName(value, "homes", "configurationDocuments", "configurationRevisions") != nil {
 		return ConfigurationRevisionName{}, ErrResourceName
 	}
-	parent, id, _ := strings.Cut(value, "/revisions/")
+	parent, id, _ := strings.Cut(value, "/configurationRevisions/")
 	p, err := ParseConfigurationDocumentName(parent)
 	if err != nil {
 		return ConfigurationRevisionName{}, err

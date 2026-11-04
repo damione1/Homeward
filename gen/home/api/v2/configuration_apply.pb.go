@@ -396,6 +396,98 @@ func (x *RollbackConfigurationRequest) GetRequestId() string {
 	return ""
 }
 
+// Reports publication established by the native configuration owner after Apply.
+type ApplyConfigurationPlanResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Shared immutable publication evidence, without changing the native ledger.
+	Result        *ConfigurationActivationResult `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApplyConfigurationPlanResponse) Reset() {
+	*x = ApplyConfigurationPlanResponse{}
+	mi := &file_home_api_v2_configuration_apply_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyConfigurationPlanResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyConfigurationPlanResponse) ProtoMessage() {}
+
+func (x *ApplyConfigurationPlanResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_configuration_apply_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyConfigurationPlanResponse.ProtoReflect.Descriptor instead.
+func (*ApplyConfigurationPlanResponse) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_configuration_apply_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ApplyConfigurationPlanResponse) GetResult() *ConfigurationActivationResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+// Reports publication established by the native configuration owner after rollback.
+type RollbackConfigurationResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Shared immutable publication evidence; rollback does not restore an old ledger.
+	Result        *ConfigurationActivationResult `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RollbackConfigurationResponse) Reset() {
+	*x = RollbackConfigurationResponse{}
+	mi := &file_home_api_v2_configuration_apply_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollbackConfigurationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollbackConfigurationResponse) ProtoMessage() {}
+
+func (x *RollbackConfigurationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_configuration_apply_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollbackConfigurationResponse.ProtoReflect.Descriptor instead.
+func (*RollbackConfigurationResponse) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_configuration_apply_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RollbackConfigurationResponse) GetResult() *ConfigurationActivationResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
 var File_home_api_v2_configuration_apply_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_configuration_apply_proto_rawDesc = "" +
@@ -434,12 +526,16 @@ const file_home_api_v2_configuration_apply_proto_rawDesc = "" +
 	"\bidentity\x18\a \x01(\tB\x04\xe2A\x01\x01R\bidentity\x12^\n" +
 	"\x19historical_policy_version\x18\b \x01(\v2\x1c.home.api.v2.DocumentVersionB\x04\xe2A\x01\x01R\x17historicalPolicyVersion\x12+\n" +
 	"\n" +
-	"request_id\x18\t \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId2\xe4\x04\n" +
-	"\x19ConfigurationApplyService\x12\x9c\x02\n" +
-	"\x16ApplyConfigurationPlan\x12*.home.api.v2.ApplyConfigurationPlanRequest\x1a\x1d.google.longrunning.Operation\"\xb6\x01\xcaA?\n" +
-	"\x1dConfigurationActivationResult\x12\x1eConfigurationOperationMetadata\xdaA9name,candidate,expected,expected_workspace_sha256,sources\x82\xd3\xe4\x93\x022:\x01*\"-/v2/{name=homes/*/configurationPlans/*}:apply\x12\xa7\x02\n" +
+	"request_id\x18\t \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId\"j\n" +
+	"\x1eApplyConfigurationPlanResponse\x12H\n" +
+	"\x06result\x18\x01 \x01(\v2*.home.api.v2.ConfigurationActivationResultB\x04\xe2A\x01\x03R\x06result\"i\n" +
+	"\x1dRollbackConfigurationResponse\x12H\n" +
+	"\x06result\x18\x01 \x01(\v2*.home.api.v2.ConfigurationActivationResultB\x04\xe2A\x01\x03R\x06result2\xea\x04\n" +
+	"\x19ConfigurationApplyService\x12\xa2\x02\n" +
+	"\x16ApplyConfigurationPlan\x12*.home.api.v2.ApplyConfigurationPlanRequest\x1a\x1d.google.longrunning.Operation\"\xbc\x01\xcaA@\n" +
+	"\x1eApplyConfigurationPlanResponse\x12\x1eConfigurationOperationMetadata\xdaA>name,candidate,expected,expected_workspace_sha256,sources,etag\x82\xd3\xe4\x93\x022:\x01*\"-/v2/{name=homes/*/configurationPlans/*}:apply\x12\xa7\x02\n" +
 	"\x15RollbackConfiguration\x12).home.api.v2.RollbackConfigurationRequest\x1a\x1d.google.longrunning.Operation\"\xc3\x01\xcaA?\n" +
-	"\x1dConfigurationActivationResult\x12\x1eConfigurationOperationMetadata\xdaA2name,expected,expected_workspace_sha256,historical\x82\xd3\xe4\x93\x02F:\x01*\"A/v2/{name=homes/*/configurationDocuments/*}:rollbackConfigurationB`\n" +
+	"\x1dRollbackConfigurationResponse\x12\x1eConfigurationOperationMetadata\xdaA2name,expected,expected_workspace_sha256,historical\x82\xd3\xe4\x93\x02F:\x01*\"A/v2/{name=homes/*/configurationDocuments/*}:rollbackConfigurationB`\n" +
 	"\x0fcom.home.api.v2B\x17ConfigurationApplyProtoP\x01Z2github.com/damione1/Homeward/gen/home/api/v2;apiv2b\x06proto3"
 
 var (
@@ -454,41 +550,46 @@ func file_home_api_v2_configuration_apply_proto_rawDescGZIP() []byte {
 	return file_home_api_v2_configuration_apply_proto_rawDescData
 }
 
-var file_home_api_v2_configuration_apply_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_home_api_v2_configuration_apply_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_home_api_v2_configuration_apply_proto_goTypes = []any{
-	(*SourcePrecondition)(nil),            // 0: home.api.v2.SourcePrecondition
-	(*ApplyConfigurationPlanRequest)(nil), // 1: home.api.v2.ApplyConfigurationPlanRequest
-	(*RollbackConfigurationRequest)(nil),  // 2: home.api.v2.RollbackConfigurationRequest
-	(*DocumentId)(nil),                    // 3: home.api.v2.DocumentId
-	(*DocumentVersion)(nil),               // 4: home.api.v2.DocumentVersion
-	(*emptypb.Empty)(nil),                 // 5: google.protobuf.Empty
-	(*ConfigurationPlanCandidate)(nil),    // 6: home.api.v2.ConfigurationPlanCandidate
-	(*ActiveGeneration)(nil),              // 7: home.api.v2.ActiveGeneration
-	(ConfigurationPlanSourceFamily)(0),    // 8: home.api.v2.ConfigurationPlanSourceFamily
-	(*longrunningpb.Operation)(nil),       // 9: google.longrunning.Operation
+	(*SourcePrecondition)(nil),             // 0: home.api.v2.SourcePrecondition
+	(*ApplyConfigurationPlanRequest)(nil),  // 1: home.api.v2.ApplyConfigurationPlanRequest
+	(*RollbackConfigurationRequest)(nil),   // 2: home.api.v2.RollbackConfigurationRequest
+	(*ApplyConfigurationPlanResponse)(nil), // 3: home.api.v2.ApplyConfigurationPlanResponse
+	(*RollbackConfigurationResponse)(nil),  // 4: home.api.v2.RollbackConfigurationResponse
+	(*DocumentId)(nil),                     // 5: home.api.v2.DocumentId
+	(*DocumentVersion)(nil),                // 6: home.api.v2.DocumentVersion
+	(*emptypb.Empty)(nil),                  // 7: google.protobuf.Empty
+	(*ConfigurationPlanCandidate)(nil),     // 8: home.api.v2.ConfigurationPlanCandidate
+	(*ActiveGeneration)(nil),               // 9: home.api.v2.ActiveGeneration
+	(ConfigurationPlanSourceFamily)(0),     // 10: home.api.v2.ConfigurationPlanSourceFamily
+	(*ConfigurationActivationResult)(nil),  // 11: home.api.v2.ConfigurationActivationResult
+	(*longrunningpb.Operation)(nil),        // 12: google.longrunning.Operation
 }
 var file_home_api_v2_configuration_apply_proto_depIdxs = []int32{
-	3,  // 0: home.api.v2.SourcePrecondition.id:type_name -> home.api.v2.DocumentId
-	4,  // 1: home.api.v2.SourcePrecondition.existing:type_name -> home.api.v2.DocumentVersion
-	5,  // 2: home.api.v2.SourcePrecondition.sql_absent:type_name -> google.protobuf.Empty
-	5,  // 3: home.api.v2.SourcePrecondition.workspace_absent:type_name -> google.protobuf.Empty
-	6,  // 4: home.api.v2.ApplyConfigurationPlanRequest.candidate:type_name -> home.api.v2.ConfigurationPlanCandidate
-	4,  // 5: home.api.v2.ApplyConfigurationPlanRequest.expected:type_name -> home.api.v2.DocumentVersion
+	5,  // 0: home.api.v2.SourcePrecondition.id:type_name -> home.api.v2.DocumentId
+	6,  // 1: home.api.v2.SourcePrecondition.existing:type_name -> home.api.v2.DocumentVersion
+	7,  // 2: home.api.v2.SourcePrecondition.sql_absent:type_name -> google.protobuf.Empty
+	7,  // 3: home.api.v2.SourcePrecondition.workspace_absent:type_name -> google.protobuf.Empty
+	8,  // 4: home.api.v2.ApplyConfigurationPlanRequest.candidate:type_name -> home.api.v2.ConfigurationPlanCandidate
+	6,  // 5: home.api.v2.ApplyConfigurationPlanRequest.expected:type_name -> home.api.v2.DocumentVersion
 	0,  // 6: home.api.v2.ApplyConfigurationPlanRequest.sources:type_name -> home.api.v2.SourcePrecondition
-	4,  // 7: home.api.v2.RollbackConfigurationRequest.expected:type_name -> home.api.v2.DocumentVersion
-	7,  // 8: home.api.v2.RollbackConfigurationRequest.historical:type_name -> home.api.v2.ActiveGeneration
+	6,  // 7: home.api.v2.RollbackConfigurationRequest.expected:type_name -> home.api.v2.DocumentVersion
+	9,  // 8: home.api.v2.RollbackConfigurationRequest.historical:type_name -> home.api.v2.ActiveGeneration
 	0,  // 9: home.api.v2.RollbackConfigurationRequest.sources:type_name -> home.api.v2.SourcePrecondition
-	8,  // 10: home.api.v2.RollbackConfigurationRequest.family:type_name -> home.api.v2.ConfigurationPlanSourceFamily
-	4,  // 11: home.api.v2.RollbackConfigurationRequest.historical_policy_version:type_name -> home.api.v2.DocumentVersion
-	1,  // 12: home.api.v2.ConfigurationApplyService.ApplyConfigurationPlan:input_type -> home.api.v2.ApplyConfigurationPlanRequest
-	2,  // 13: home.api.v2.ConfigurationApplyService.RollbackConfiguration:input_type -> home.api.v2.RollbackConfigurationRequest
-	9,  // 14: home.api.v2.ConfigurationApplyService.ApplyConfigurationPlan:output_type -> google.longrunning.Operation
-	9,  // 15: home.api.v2.ConfigurationApplyService.RollbackConfiguration:output_type -> google.longrunning.Operation
-	14, // [14:16] is the sub-list for method output_type
-	12, // [12:14] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	10, // 10: home.api.v2.RollbackConfigurationRequest.family:type_name -> home.api.v2.ConfigurationPlanSourceFamily
+	6,  // 11: home.api.v2.RollbackConfigurationRequest.historical_policy_version:type_name -> home.api.v2.DocumentVersion
+	11, // 12: home.api.v2.ApplyConfigurationPlanResponse.result:type_name -> home.api.v2.ConfigurationActivationResult
+	11, // 13: home.api.v2.RollbackConfigurationResponse.result:type_name -> home.api.v2.ConfigurationActivationResult
+	1,  // 14: home.api.v2.ConfigurationApplyService.ApplyConfigurationPlan:input_type -> home.api.v2.ApplyConfigurationPlanRequest
+	2,  // 15: home.api.v2.ConfigurationApplyService.RollbackConfiguration:input_type -> home.api.v2.RollbackConfigurationRequest
+	12, // 16: home.api.v2.ConfigurationApplyService.ApplyConfigurationPlan:output_type -> google.longrunning.Operation
+	12, // 17: home.api.v2.ConfigurationApplyService.RollbackConfiguration:output_type -> google.longrunning.Operation
+	16, // [16:18] is the sub-list for method output_type
+	14, // [14:16] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_home_api_v2_configuration_apply_proto_init() }
@@ -510,7 +611,7 @@ func file_home_api_v2_configuration_apply_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_api_v2_configuration_apply_proto_rawDesc), len(file_home_api_v2_configuration_apply_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

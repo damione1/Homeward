@@ -183,8 +183,16 @@ async fn authority(
             Authority::admit(identity, response).map_err(|_| ReadError::Invalid)?
         }
         Err(error) => {
-            if !matches!(error.authorization_termination(), Ok(None))
-                || error.kind() == FailureKind::Rpc(RpcCode::Unauthenticated)
+            if match error.api_failure() {
+                Err(_) => true,
+                Ok(Some(detail)) => matches!(
+                    detail.reason(),
+                    home_wire_contract::home::api::v2::ApiErrorReason::AuthorityUnavailable
+                        | home_wire_contract::home::api::v2::ApiErrorReason::AuthenticationRequired
+                        | home_wire_contract::home::api::v2::ApiErrorReason::AccessDenied
+                ),
+                Ok(None) => false,
+            } || error.kind() == FailureKind::Rpc(RpcCode::Unauthenticated)
             {
                 let _ = session.observe_failure(lease.generation, &error).await;
                 return Err(ReadError::Transport(error.kind()));
@@ -542,11 +550,11 @@ async fn read_section(
                         connection.observability(),
                         get_integration_health,
                         observation::GetIntegrationHealthRequest {
-                            name: format!("{}/health", instance.name),
+                            name: format!("{}/integrationHealth", instance.name),
                             ..Default::default()
                         }
                     );
-                    if health.name != format!("{}/health", instance.name) {
+                    if health.name != format!("{}/integrationHealth", instance.name) {
                         return Err(ReadError::Invalid);
                     }
                     observability_contract::admit_integration_health_response(&health)

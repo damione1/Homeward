@@ -81,7 +81,7 @@ fn canonical_revision(value: &str, prefix: &str) -> Option<i64> {
     (number > 0 && raw == number.to_string()).then_some(number)
 }
 fn revision_name(value: &str) -> Option<i64> {
-    let (parent, id) = value.split_once("/revisions/")?;
+    let (parent, id) = value.split_once("/configurationRevisions/")?;
     if !document_name(parent) {
         return None;
     };
@@ -416,30 +416,39 @@ pub fn admit_configuration_response(
         ConfigurationResponse::Watch(value) => return admit_configuration_watch(value),
         ConfigurationResponse::Documents(value) => {
             value.__buffa_unknown_fields.is_empty()
-                && value.documents.len() <= 100
+                && value.configuration_documents.len() <= 100
                 && value.next_page_token.len() <= 1200
                 && value
-                    .documents
+                    .configuration_documents
                     .iter()
                     .all(|document| admit_document(document).is_ok())
         }
         ConfigurationResponse::Versions(value) => {
             value.__buffa_unknown_fields.is_empty()
-                && value.versions.len() <= 100
+                && value.configuration_revisions.len() <= 100
                 && value.next_page_token.len() <= 1200
-                && value.versions.iter().all(admit_revision_resource)
+                && value
+                    .configuration_revisions
+                    .iter()
+                    .all(admit_revision_resource)
         }
         ConfigurationResponse::Generations(value) => {
             value.__buffa_unknown_fields.is_empty()
-                && value.generations.len() <= 100
+                && value.configuration_generations.len() <= 100
                 && value.next_page_token.len() <= 1200
-                && value.generations.iter().all(admit_generation_resource)
+                && value
+                    .configuration_generations
+                    .iter()
+                    .all(admit_generation_resource)
         }
         ConfigurationResponse::Schemas(value) => {
             value.__buffa_unknown_fields.is_empty()
-                && value.schemas.len() <= 100
+                && value.configuration_schemas.len() <= 100
                 && value.next_page_token.len() <= 1200
-                && value.schemas.iter().all(admit_schema_resource)
+                && value
+                    .configuration_schemas
+                    .iter()
+                    .all(admit_schema_resource)
         }
         ConfigurationResponse::Write(value) | ConfigurationResponse::Restore(value) => {
             crate::configuration_operations_contract::admit_response(value).is_ok()

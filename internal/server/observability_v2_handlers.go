@@ -215,7 +215,7 @@ func (h *observationV2Handler) GetIntegrationHealth(ctx context.Context, r *conn
 		request = r.Msg
 	}
 	return observationRead(ctx, h, auth.ScopeFamily_SCOPE_FAMILY_INTEGRATIONS, request, func(p *observationProjection) (*api.IntegrationHealth, error) {
-		text, ok := strings.CutSuffix(request.Name, "/health")
+		text, ok := strings.CutSuffix(request.Name, "/integrationHealth")
 		if !ok {
 			return nil, contracts.ErrInvalidObservabilityContract
 		}

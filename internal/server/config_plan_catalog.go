@@ -142,9 +142,13 @@ func (c *configurationPlanCatalog) prepareAddLocked(home apitypes.HomeName, bind
 	if err != nil {
 		return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_VALIDATION_FAILED)
 	}
-	_, pending := c.pending[name.String()]
-	if _, exists := c.records[name.String()]; exists || pending {
-		return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_RESOURCE_ALREADY_EXISTS)
+	for _, entries := range []map[string]configurationPlanRecord{c.records, c.pending} {
+		if existing, exists := entries[name.String()]; exists {
+			if existing.binding != binding {
+				return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_ACCESS_DENIED)
+			}
+			return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_RESOURCE_ALREADY_EXISTS)
+		}
 	}
 	now := c.now()
 	if !nativeExpiry.After(now) {
@@ -182,7 +186,7 @@ func (c *configurationPlanCatalog) replace(name apitypes.ConfigurationPlanName, 
 	}
 	return c.publishLocked(record), nil
 }
-func (c *configurationPlanCatalog) prepareReplaceLocked(name apitypes.ConfigurationPlanName, binding configDocumentsBinding, expectedVersion uint64, metadata *api.ConfigurationPlan, nativeExpiry time.Time, requested *storage.APIRequestedResourceID) (configurationPlanRecord, error) {
+func (c *configurationPlanCatalog) prepareReplaceLocked(name apitypes.ConfigurationPlanName, binding configDocumentsBinding, expectedVersion uint64, metadata *api.ConfigurationPlan, nativeExpiry time.Time) (configurationPlanRecord, error) {
 	if c == nil || !c.valid || !binding.valid() || !name.Valid() || metadata == nil || proto.Size(metadata) > configurationPlanMetadataBytes || contracts.AdmitConfigurationPlanMetadata(metadata) != nil {
 		return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_SERVICE_UNAVAILABLE)
 	}

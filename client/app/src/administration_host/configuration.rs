@@ -89,7 +89,7 @@ pub(super) async fn load(
             .map_err(|_| ReadError::Invalid)?;
             let mut ids = BTreeSet::new();
             if response
-                .documents
+                .configuration_documents
                 .iter()
                 .any(|value| !ids.insert(value.id.value.as_str()))
             {
@@ -138,7 +138,7 @@ pub(super) async fn load(
             ))
             .map_err(|_| ReadError::Invalid)?;
             let mut revisions = BTreeSet::new();
-            if response.versions.iter().any(|value| {
+            if response.configuration_revisions.iter().any(|value| {
                 value.id.value != id.as_str() || !revisions.insert(value.version.revision)
             }) {
                 return Err(ReadError::Invalid);
@@ -164,7 +164,7 @@ pub(super) async fn load(
             ))
             .map_err(|_| ReadError::Invalid)?;
             let mut keys = BTreeSet::new();
-            if response.schemas.iter().any(|value| {
+            if response.configuration_schemas.iter().any(|value| {
                 !keys.insert((value.schema_version.as_str(), value.syntax_profile.as_str()))
             }) {
                 return Err(ReadError::Invalid);
@@ -191,7 +191,7 @@ pub(super) async fn load(
             .map_err(|_| ReadError::Invalid)?;
             let mut revisions = BTreeSet::new();
             if response
-                .generations
+                .configuration_generations
                 .iter()
                 .any(|value| !revisions.insert(value.generation.revision))
             {
@@ -235,7 +235,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                 "Generations".into(),
                 "Publication History and Restore Availability".into(),
             );
-            for value in &value.documents {
+            for value in &value.configuration_documents {
                 let id = DocumentId::parse(&value.name).expect("admitted document");
                 push(
                     navigate(Selection::Document(id)),
@@ -307,7 +307,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                 "Current Document".into(),
                 id.as_str().into(),
             );
-            for value in &response.versions {
+            for value in &response.configuration_revisions {
                 let detail = match value.availability {
                     EnumValue::Known(wire::VersionAvailability::Retained) => format!(
                         "Retained · {} · {}",
@@ -334,7 +334,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                 "Documents".into(),
                 "Back to Catalogue".into(),
             );
-            for (index, value) in value.schemas.iter().enumerate() {
+            for (index, value) in value.configuration_schemas.iter().enumerate() {
                 push(
                     render::fact(format!("configuration/schema/{index}")),
                     value.schema_version.clone(),
@@ -357,7 +357,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                 "Documents".into(),
                 "Back to Catalogue".into(),
             );
-            for value in &value.generations {
+            for value in &value.configuration_generations {
                 let availability = match value.availability {
                     EnumValue::Known(wire::GenerationAvailability::Complete) => "Complete History",
                     EnumValue::Known(wire::GenerationAvailability::PartiallyPurged) => {
@@ -439,7 +439,7 @@ pub(super) async fn operational_capture(
             &page,
         ))
         .map_err(|_| ReadError::Invalid)?;
-        for document in page.documents {
+        for document in page.configuration_documents {
             if !seen.insert(document.name.clone()) || seen.len() > crate::administration::MAX_ROWS {
                 return Err(ReadError::Invalid);
             }
@@ -497,7 +497,7 @@ pub(super) async fn source_document_name(
             &page,
         ))
         .map_err(|_| ReadError::Invalid)?;
-        for document in page.documents {
+        for document in page.configuration_documents {
             if !seen.insert(document.name.clone()) || seen.len() > crate::administration::MAX_ROWS {
                 return Err(ReadError::Invalid);
             }

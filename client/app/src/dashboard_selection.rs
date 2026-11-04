@@ -248,9 +248,9 @@ mod tests {
     #[test]
     fn a_cohort_publication_preserves_local_navigation_and_cannot_restore_a_retired_selection() {
         let mut one = crate::dashboard::fixture();
-        one.id = DashboardName::parse("one").unwrap();
+        one.id = DashboardName::try_from("homes/synthetic/dashboards/one").unwrap();
         let mut two = one.clone();
-        two.id = DashboardName::parse("two").unwrap();
+        two.id = DashboardName::try_from("homes/synthetic/dashboards/two").unwrap();
         let snapshot = crate::dashboard_catalogue::Snapshot::fixture(
             "cohort-a",
             vec![Arc::new(one.clone()), Arc::new(two)],
@@ -259,7 +259,7 @@ mod tests {
         let mut incoming = catalogue();
         incoming.snapshot = Some(snapshot.clone());
         assert!(choices.accept(0, incoming.clone()));
-        let target = DashboardName::parse("two").unwrap();
+        let target = DashboardName::try_from("homes/synthetic/dashboards/two").unwrap();
         assert!(choices.select_authorized(&snapshot, &target));
         assert_eq!(
             choices.snapshot().0,
@@ -275,10 +275,13 @@ mod tests {
         let mut remaining = catalogue();
         remaining
             .choices
-            .retain(|choice| choice.id.as_str() == "one");
+            .retain(|choice| choice.id.as_str() == "homes/synthetic/dashboards/one");
         remaining.snapshot = Some(replacement);
         assert!(choices.accept(0, remaining));
-        assert_eq!(choices.snapshot().1.selected.unwrap().as_str(), "one");
+        assert_eq!(
+            choices.snapshot().1.selected.unwrap().as_str(),
+            "homes/synthetic/dashboards/one"
+        );
         assert!(!choices.select_authorized(&snapshot, &target));
         choices.clear();
         assert!(!choices.accept(0, catalogue()));
@@ -288,15 +291,15 @@ mod tests {
         Catalogue {
             choices: vec![
                 Choice {
-                    id: DashboardName::parse("one").unwrap(),
+                    id: DashboardName::try_from("homes/synthetic/dashboards/one").unwrap(),
                     title: "One".into(),
                 },
                 Choice {
-                    id: DashboardName::parse("two").unwrap(),
+                    id: DashboardName::try_from("homes/synthetic/dashboards/two").unwrap(),
                     title: "Two".into(),
                 },
             ],
-            selected: Some(DashboardName::parse("one").unwrap()),
+            selected: Some(DashboardName::try_from("homes/synthetic/dashboards/one").unwrap()),
             snapshot: None,
         }
     }
@@ -305,9 +308,12 @@ mod tests {
         let choices = Choices::default();
         let (revision, _) = choices.snapshot();
         assert!(choices.accept(revision, catalogue()));
-        assert!(choices.select(DashboardName::parse("two").unwrap()));
+        assert!(choices.select(DashboardName::try_from("homes/synthetic/dashboards/two").unwrap()));
         assert!(!choices.accept(revision, catalogue()));
-        assert_eq!(choices.snapshot().1.selected.unwrap().as_str(), "two");
+        assert_eq!(
+            choices.snapshot().1.selected.unwrap().as_str(),
+            "homes/synthetic/dashboards/two"
+        );
         let revision = choices.snapshot().0;
         choices.clear();
         assert!(!choices.accept(revision, catalogue()));
@@ -315,19 +321,16 @@ mod tests {
     }
     #[test]
     fn deletion_selects_an_authorized_survivor_and_duplicate_ids_are_rejected() {
-        let metadata = |id: &str| wire::Metadata {
-            id: wire::DashboardName {
-                value: id.into(),
-                ..Default::default()
-            }
-            .into(),
+        let metadata = |id: &str| wire::Dashboard {
+            name: format!("homes/synthetic/dashboards/{id}"),
+            display_name: id.into(),
             ..Default::default()
         };
         let mut list = wire::ListDashboardsResponse {
             dashboards: vec![metadata("one"), metadata("two")],
             ..Default::default()
         };
-        let two = DashboardName::parse("two").unwrap();
+        let two = DashboardName::try_from("homes/synthetic/dashboards/two").unwrap();
         assert_eq!(
             Catalogue::from_wire(&list, Some(&two)).unwrap().selected,
             Some(two.clone())
@@ -339,7 +342,7 @@ mod tests {
                 .selected
                 .unwrap()
                 .as_str(),
-            "one"
+            "homes/synthetic/dashboards/one"
         );
         list.dashboards.push(metadata("one"));
         assert_eq!(

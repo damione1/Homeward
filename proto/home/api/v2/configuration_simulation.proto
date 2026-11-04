@@ -24,13 +24,13 @@ service ConfigurationSimulationService {
       post: "/v2/{name=homes/*}:simulateConfigurationPlan"
       body: "*"
     };
-    option (google.api.method_signature) = "name,candidate";
+    option (google.api.method_signature) = "name,candidate,now,time_zone,virtual_limit_millis";
   }
 }
 
 // Represents configuration simulation attribute.
 message ConfigurationSimulationAttribute {
-  // Canonical resource name. Uses the pattern declared on the resource message.
+  // Attribute key within the simulated entity; not a resource name.
   string name = 1 [(google.api.field_behavior) = REQUIRED];
   oneof value {
     // The text associated with this message.
@@ -115,8 +115,8 @@ message LightIntent {
   optional double brightness_percent = 2;
   // Value of brightness step in percent.
   optional double brightness_step_percent = 3;
-  // The brightness 255 represented as a bounded nonnegative integer.
-  optional int32 brightness_255 = 4;
+  // Absolute brightness in the inclusive integer range 0..255.
+  optional int32 brightness_level = 4;
   // The color temp mireds represented as a bounded nonnegative integer.
   optional int64 color_temp_mireds = 5;
   // The transition seconds represented by double.

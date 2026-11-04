@@ -322,7 +322,7 @@ func TestNHA164NativeRunTLSHistoryOwnerGenerationAndRevocation(t *testing.T) {
 		t.Fatal("native nonempty aggregate TLS", err)
 	}
 	aggregate := aggregates.Msg.Aggregates[0]
-	if aggregate.Mean == nil || *aggregate.Mean != 25 || aggregate.DurationNanos != uint64(time.Hour) {
+	if aggregate.Mean == nil || *aggregate.Mean != 25 || aggregate.DurationNanos != int64(time.Hour) {
 		t.Fatal("032 weighted value lost through native TLS")
 	}
 
@@ -434,7 +434,11 @@ func TestNHA164NativeRunTLSHistoryOwnerGenerationAndRevocation(t *testing.T) {
 				progress.pages++
 				progress.points += len(page.ExecutionTraces)
 				progress.losses += len(page.Losses)
-				progress.checkpoint = page.Checkpoint
+				checkpoint, parseErr := apitypes.ParseDecimalUint64(page.Checkpoint)
+				if parseErr != nil {
+					t.Fatal(parseErr)
+				}
+				progress.checkpoint = checkpoint.Value()
 				for _, point := range page.ExecutionTraces {
 					if point.Run == nil || *point.Run != expectedRun.String() {
 						continue

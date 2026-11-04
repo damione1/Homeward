@@ -169,11 +169,11 @@ func TestNHA149ActualRunTLSConcurrentCASAndRestoreCreatesNewRevision(t *testing.
 		t.Fatal("restoration failed to update the same editable YAML", err)
 	}
 	versions, err := f.api.ListConfigurationRevisions(f.ctx, nha056SessionRequest(&wire.ListConfigurationRevisionsRequest{Parent: before.Name, PageSize: 1}, f.token))
-	if err != nil || len(versions.Msg.Versions) != 1 || versions.Msg.NextPageToken == "" {
+	if err != nil || len(versions.Msg.ConfigurationRevisions) != 1 || versions.Msg.NextPageToken == "" {
 		t.Fatal("real version keyset page failed", err)
 	}
 	schemas, err := f.api.ListConfigurationSchemas(f.ctx, nha056SessionRequest(&wire.ListConfigurationSchemasRequest{Parent: f.home, PageSize: 1}, f.token))
-	if err != nil || len(schemas.Msg.Schemas) != 1 || schemas.Msg.NextPageToken == "" {
+	if err != nil || len(schemas.Msg.ConfigurationSchemas) != 1 || schemas.Msg.NextPageToken == "" {
 		t.Fatal("real SQL schema page failed", err)
 	}
 }
@@ -365,7 +365,7 @@ func TestNHA149ActualRunTLSReadsEveryDeliveredDocumentKind(t *testing.T) {
 	}
 	kinds := make(map[wire.DocumentKind]bool)
 	var yamlRead *wire.ConfigurationDocument
-	for _, listed := range page.Msg.Documents {
+	for _, listed := range page.Msg.ConfigurationDocuments {
 		response, err := f.api.GetConfigurationDocument(f.ctx, nha056SessionRequest(&wire.GetConfigurationDocumentRequest{Name: listed.Name}, f.token))
 		if err != nil || contracts.AdmitConfigurationResponse(response.Msg) != nil {
 			t.Fatal("delivered document kind failed generic read", listed.Kind, err)

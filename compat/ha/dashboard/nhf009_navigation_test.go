@@ -3,7 +3,6 @@ package dashboard
 import (
 	"strings"
 	"testing"
-
 )
 
 func TestNHF009NativeNavigationResolvesConfiguredPagesAndViewScopedPopups(t *testing.T) {

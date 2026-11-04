@@ -456,7 +456,7 @@ func (ConfigurationSimulationNodeStage) EnumDescriptor() ([]byte, []int) {
 // Represents configuration simulation attribute.
 type ConfigurationSimulationAttribute struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Canonical resource name. Uses the pattern declared on the resource message.
+	// Attribute key within the simulated entity; not a resource name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Types that are valid to be assigned to Value:
 	//
@@ -963,8 +963,8 @@ type LightIntent struct {
 	BrightnessPercent *float64 `protobuf:"fixed64,2,opt,name=brightness_percent,json=brightnessPercent,proto3,oneof" json:"brightness_percent,omitempty"`
 	// Value of brightness step in percent.
 	BrightnessStepPercent *float64 `protobuf:"fixed64,3,opt,name=brightness_step_percent,json=brightnessStepPercent,proto3,oneof" json:"brightness_step_percent,omitempty"`
-	// The brightness 255 represented as a bounded nonnegative integer.
-	Brightness_255 *int32 `protobuf:"varint,4,opt,name=brightness_255,json=brightness255,proto3,oneof" json:"brightness_255,omitempty"`
+	// Absolute brightness in the inclusive integer range 0..255.
+	BrightnessLevel *int32 `protobuf:"varint,4,opt,name=brightness_level,json=brightnessLevel,proto3,oneof" json:"brightness_level,omitempty"`
 	// The color temp mireds represented as a bounded nonnegative integer.
 	ColorTempMireds *int64 `protobuf:"varint,5,opt,name=color_temp_mireds,json=colorTempMireds,proto3,oneof" json:"color_temp_mireds,omitempty"`
 	// The transition seconds represented by double.
@@ -1024,9 +1024,9 @@ func (x *LightIntent) GetBrightnessStepPercent() float64 {
 	return 0
 }
 
-func (x *LightIntent) GetBrightness_255() int32 {
-	if x != nil && x.Brightness_255 != nil {
-		return *x.Brightness_255
+func (x *LightIntent) GetBrightnessLevel() int32 {
+	if x != nil && x.BrightnessLevel != nil {
+		return *x.BrightnessLevel
 	}
 	return 0
 }
@@ -1625,18 +1625,18 @@ const file_home_api_v2_configuration_simulation_proto_rawDesc = "" +
 	"\x04code\x18\x01 \x01(\x0e22.home.api.v2.ConfigurationSimulationDiagnosticCodeR\x04code\x12H\n" +
 	"\bposition\x18\x02 \x01(\v2,.home.api.v2.ConfigurationSimulationPositionR\bposition\"\x1e\n" +
 	"\fSwitchIntent\x12\x0e\n" +
-	"\x02on\x18\x01 \x01(\bR\x02on\"\x9e\x03\n" +
+	"\x02on\x18\x01 \x01(\bR\x02on\"\xa4\x03\n" +
 	"\vLightIntent\x12\x13\n" +
 	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x122\n" +
 	"\x12brightness_percent\x18\x02 \x01(\x01H\x01R\x11brightnessPercent\x88\x01\x01\x12;\n" +
-	"\x17brightness_step_percent\x18\x03 \x01(\x01H\x02R\x15brightnessStepPercent\x88\x01\x01\x12*\n" +
-	"\x0ebrightness_255\x18\x04 \x01(\x05H\x03R\rbrightness255\x88\x01\x01\x12/\n" +
+	"\x17brightness_step_percent\x18\x03 \x01(\x01H\x02R\x15brightnessStepPercent\x88\x01\x01\x12.\n" +
+	"\x10brightness_level\x18\x04 \x01(\x05H\x03R\x0fbrightnessLevel\x88\x01\x01\x12/\n" +
 	"\x11color_temp_mireds\x18\x05 \x01(\x03H\x04R\x0fcolorTempMireds\x88\x01\x01\x122\n" +
 	"\x12transition_seconds\x18\x06 \x01(\x01H\x05R\x11transitionSeconds\x88\x01\x01B\x05\n" +
 	"\x03_onB\x15\n" +
 	"\x13_brightness_percentB\x1a\n" +
-	"\x18_brightness_step_percentB\x11\n" +
-	"\x0f_brightness_255B\x14\n" +
+	"\x18_brightness_step_percentB\x13\n" +
+	"\x11_brightness_levelB\x14\n" +
 	"\x12_color_temp_miredsB\x15\n" +
 	"\x13_transition_seconds\"\xc5\x02\n" +
 	"\rClimateIntent\x124\n" +
@@ -1740,9 +1740,9 @@ const file_home_api_v2_configuration_simulation_proto_rawDesc = "" +
 	"+CONFIGURATION_SIMULATION_NODE_STAGE_STOPPED\x10\x03\x121\n" +
 	"-CONFIGURATION_SIMULATION_NODE_STAGE_CANCELLED\x10\x04\x12.\n" +
 	"*CONFIGURATION_SIMULATION_NODE_STAGE_FAILED\x10\x05\x12/\n" +
-	"+CONFIGURATION_SIMULATION_NODE_STAGE_WAITING\x10\x062\xe7\x01\n" +
-	"\x1eConfigurationSimulationService\x12\xc4\x01\n" +
-	"\x19SimulateConfigurationPlan\x12-.home.api.v2.SimulateConfigurationPlanRequest\x1a..home.api.v2.SimulateConfigurationPlanResponse\"H\xdaA\x0ename,candidate\x82\xd3\xe4\x93\x021:\x01*\",/v2/{name=homes/*}:simulateConfigurationPlanBe\n" +
+	"+CONFIGURATION_SIMULATION_NODE_STAGE_WAITING\x10\x062\x8a\x02\n" +
+	"\x1eConfigurationSimulationService\x12\xe7\x01\n" +
+	"\x19SimulateConfigurationPlan\x12-.home.api.v2.SimulateConfigurationPlanRequest\x1a..home.api.v2.SimulateConfigurationPlanResponse\"k\xdaA1name,candidate,now,time_zone,virtual_limit_millis\x82\xd3\xe4\x93\x021:\x01*\",/v2/{name=homes/*}:simulateConfigurationPlanBe\n" +
 	"\x0fcom.home.api.v2B\x1cConfigurationSimulationProtoP\x01Z2github.com/damione1/Homeward/gen/home/api/v2;apiv2b\x06proto3"
 
 var (

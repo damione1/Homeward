@@ -197,9 +197,8 @@ message GetTaskListRequest {
 }
 
 // Create task list request.
-// (-- api-linter: core::0133::request-id-field=disabled
-//     aip.dev/not-precedent: AIP133 permits data-plane IDs to be server-assigned.
-//     Imported identities remain lossless; this request creates an opaque ID. --)
+//     AIP133 permits data-plane IDs to be server-assigned.
+//     Imported identities remain lossless; this request creates an opaque ID.
 message CreateTaskListRequest {
   // Canonical parent resource name.
   string parent = 1 [

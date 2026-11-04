@@ -198,7 +198,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	defer operatorHTTP.CloseIdleConnections()
 	operator := operatorv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
 	const password = "NHA147 synthetic native local password"
-	_, err = operator.BootstrapAdmin(ctx, connect.NewRequest(&authv1.BootstrapAdminRequest{LoginName: "NHA147 Admin", DisplayName: "NHA147 Admin", Password: password}))
+	_, err := operator.BootstrapAdmin(ctx, connect.NewRequest(&authv1.BootstrapAdminRequest{LoginName: "NHA147 Admin", DisplayName: "NHA147 Admin", Password: password}))
 	if err != nil {
 		t.Fatal(err)
 	}

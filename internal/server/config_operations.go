@@ -121,12 +121,19 @@ func configurationActivationEnvelope(attempt storage.ConfigActivationAttempt, re
 		return &api.PublishConfigurationDocumentResponse{Result: result}
 	case storage.ConfigurationRollbackDocument:
 		return &api.RollbackConfigurationDocumentResponse{Result: result}
+	case storage.ConfigurationApplyPlan:
+		return &api.ApplyConfigurationPlanResponse{Result: result}
+	case storage.ConfigurationRollback:
+		return &api.RollbackConfigurationResponse{Result: result}
 	default:
-		return result
+		return nil
 	}
 }
 
 func configurationOperationType(message proto.Message) string {
+	if message == nil || !message.ProtoReflect().IsValid() {
+		return ""
+	}
 	return "type.googleapis.com/" + string(message.ProtoReflect().Descriptor().FullName())
 }
 

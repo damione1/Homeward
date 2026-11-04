@@ -8,9 +8,6 @@ use home_wire_contract::{camera_content as admit, content_contract, home::api::v
 use std::{collections::BTreeSet, time::SystemTime};
 const TIMEOUT: Duration = Duration::from_secs(5);
 fn failure(error: &Failure) -> Status {
-    if !matches!(error.authorization_termination(), Ok(None)) {
-        return Status::Revoked;
-    }
     match error.api_failure() {
         Err(_) => Status::Invalid,
         Ok(Some(error)) => {
@@ -31,7 +28,8 @@ fn failure(error: &Failure) -> Status {
                 | R::RequestTooLarge
                 | R::StreamCapacity
                 | R::QueryBudgetExceeded => Status::Unavailable,
-                R::ValidationFailed
+                R::AuthorityUnavailable
+                | R::ValidationFailed
                 | R::ResourceAlreadyExists
                 | R::RequestIdReused
                 | R::EtagMismatch

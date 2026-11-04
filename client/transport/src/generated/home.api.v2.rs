@@ -17822,10 +17822,9 @@ pub trait MediaService: Send + Sync + 'static {
         >,
     > + Send;
     /// Reads one bounded PNG projection under the exact live session and target.
-    /// (-- api-linter: core::0131::synonyms=disabled
     /// ```text
-    /// aip.dev/not-precedent: This custom AIP136 method reads bounded source
-    /// bytes. It does not Get a persistent image resource or session metadata. --)
+    /// This custom AIP136 method reads bounded source
+    /// bytes. It does not Get a persistent image resource or session metadata.
     /// ```
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).

@@ -39,7 +39,7 @@ func (p *nhf005Publication) document(ctx context.Context, identity string) (*api
 		if err != nil {
 			return nil, err
 		}
-		for _, document := range response.Msg.Documents {
+		for _, document := range response.Msg.ConfigurationDocuments {
 			if document.GetId().GetValue() == identity {
 				read, err := service.GetConfigurationDocument(ctx, nha056SessionRequest(&api.GetConfigurationDocumentRequest{Name: document.Name}, p.token))
 				if err != nil {

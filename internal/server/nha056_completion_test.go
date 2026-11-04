@@ -100,7 +100,7 @@ func TestNHA056RealRunCloudFailuresKeepReadyAndCoreDrainsBeforeListenerClose(t *
 	assertReady := func(t *testing.T) {
 		t.Helper()
 		response, err := reader.GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, token))
-		if err != nil || contracts.AdmitObservationResponse(response.Msg) != nil || response.Msg.Liveness != obsv2.ObservationLiveness_OBSERVATION_LIVENESS_LIVE || response.Msg.Server.Readiness != obsv2.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY || response.Msg.Server.Generation.GetPresent().GetValue() != revision {
+		if err != nil || contracts.AdmitObservationResponse(response.Msg) != nil || response.Msg.Liveness != obsv2.ObservationLiveness_OBSERVATION_LIVENESS_LIVE || response.Msg.Server.Readiness != obsv2.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY || nha204UnsignedNonnegative(t, response.Msg.Server.Generation.GetPresent().GetValue()) != revision {
 			t.Fatal("cloud failure changed actual Run readiness", err)
 		}
 	}

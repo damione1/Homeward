@@ -1350,12 +1350,12 @@ const file_home_api_v2_configuration_plans_proto_rawDesc = "" +
 	"5CONFIGURATION_PLAN_DIAGNOSTIC_CODE_EXCLUDED_REFERENCE\x10\x02\x129\n" +
 	"5CONFIGURATION_PLAN_DIAGNOSTIC_CODE_UNSUPPORTED_SOURCE\x10\x03\x12/\n" +
 	"+CONFIGURATION_PLAN_DIAGNOSTIC_CODE_CAPACITY\x10\x04\x127\n" +
-	"3CONFIGURATION_PLAN_DIAGNOSTIC_CODE_BASE_UNAVAILABLE\x10\x052\x82\x06\n" +
-	"\x18ConfigurationPlanService\x12\xc7\x01\n" +
-	"\x17CreateConfigurationPlan\x12+.home.api.v2.CreateConfigurationPlanRequest\x1a\x1e.home.api.v2.ConfigurationPlan\"_\xdaA\x19parent,configuration_plan\x82\xd3\xe4\x93\x02=:\x12configuration_plan\"'/v2/{parent=homes/*}/configurationPlans\x12\x98\x01\n" +
+	"3CONFIGURATION_PLAN_DIAGNOSTIC_CODE_BASE_UNAVAILABLE\x10\x052\xa7\x06\n" +
+	"\x18ConfigurationPlanService\x12\xdd\x01\n" +
+	"\x17CreateConfigurationPlan\x12+.home.api.v2.CreateConfigurationPlanRequest\x1a\x1e.home.api.v2.ConfigurationPlan\"u\xdaA/parent,configuration_plan,configuration_plan_id\x82\xd3\xe4\x93\x02=:\x12configuration_plan\"'/v2/{parent=homes/*}/configurationPlans\x12\x98\x01\n" +
 	"\x14GetConfigurationPlan\x12(.home.api.v2.GetConfigurationPlanRequest\x1a\x1e.home.api.v2.ConfigurationPlan\"6\xdaA\x04name\x82\xd3\xe4\x93\x02)\x12'/v2/{name=homes/*/configurationPlans/*}\x12\xab\x01\n" +
-	"\x16ListConfigurationPlans\x12*.home.api.v2.ListConfigurationPlansRequest\x1a+.home.api.v2.ListConfigurationPlansResponse\"8\xdaA\x06parent\x82\xd3\xe4\x93\x02)\x12'/v2/{parent=homes/*}/configurationPlans\x12\xb4\x01\n" +
-	"\x1bRevalidateConfigurationPlan\x12/.home.api.v2.RevalidateConfigurationPlanRequest\x1a\x1e.home.api.v2.ConfigurationPlan\"D\xdaA\x04name\x82\xd3\xe4\x93\x027:\x01*\"2/v2/{name=homes/*/configurationPlans/*}:revalidate\x1a\x1c\xcaA\x19homeward.damiengoehrig.caB`\n" +
+	"\x16ListConfigurationPlans\x12*.home.api.v2.ListConfigurationPlansRequest\x1a+.home.api.v2.ListConfigurationPlansResponse\"8\xdaA\x06parent\x82\xd3\xe4\x93\x02)\x12'/v2/{parent=homes/*}/configurationPlans\x12\xc3\x01\n" +
+	"\x1bRevalidateConfigurationPlan\x12/.home.api.v2.RevalidateConfigurationPlanRequest\x1a\x1e.home.api.v2.ConfigurationPlan\"S\xdaA\x13name,candidate,etag\x82\xd3\xe4\x93\x027:\x01*\"2/v2/{name=homes/*/configurationPlans/*}:revalidate\x1a\x1c\xcaA\x19homeward.damiengoehrig.caB`\n" +
 	"\x0fcom.home.api.v2B\x17ConfigurationPlansProtoP\x01Z2github.com/damione1/Homeward/gen/home/api/v2;apiv2b\x06proto3"
 
 var (

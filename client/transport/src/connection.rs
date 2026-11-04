@@ -9,11 +9,10 @@ use crate::{CompanionTransport, LogicTransport, NotificationTransport};
 use crate::{HomeTransport, OperationsTransport};
 
 use crate::{
-    AccountTransport, AuthTransport, CalendarTransport,
-    ConfigurationApplyTransport, ConfigurationPlanTransport, ConfigurationSimulationTransport,
-    ConfigurationTransport, DashboardTransport, Failure, HistoryTransport, IntegrationTransport,
-    McpKeyTransport, MediaTransport, ObservabilityTransport,
-    PolicyTransport, TaskTransport, services::home,
+    AccountTransport, AuthTransport, CalendarTransport, ConfigurationApplyTransport,
+    ConfigurationPlanTransport, ConfigurationSimulationTransport, ConfigurationTransport,
+    DashboardTransport, Failure, HistoryTransport, IntegrationTransport, McpKeyTransport,
+    MediaTransport, ObservabilityTransport, PolicyTransport, TaskTransport, services::home,
 };
 
 /// A shared verified TLS connection configuration. Service facades reuse the

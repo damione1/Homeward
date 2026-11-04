@@ -573,7 +573,6 @@ func (s *Service) openView(ctx context.Context, actor ActorID, filter Filter, pa
 			name = *selection.requested
 		}
 		c.name, c.selection, c.catalogue, c.created = name, selection, catalogue, now
-		c.lifetime, c.cancel = context.WithCancel(context.Background())
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -581,7 +580,6 @@ func (s *Service) openView(ctx context.Context, actor ActorID, filter Filter, pa
 	if c.name.Valid() {
 		for _, existing := range s.captures {
 			if existing.name == c.name {
-				c.cancel()
 				if existing.actor != actor {
 					return Page{}, authorization.ErrDenied
 				}
@@ -599,6 +597,9 @@ func (s *Service) openView(ctx context.Context, actor ActorID, filter Filter, pa
 	if err != nil {
 		return Page{}, err
 	}
+	// Internal read captures and named EntityViews share the same retirement
+	// lifetime, including unary responses retained through the HTTP flush.
+	c.lifetime, c.cancel = context.WithCancel(context.Background())
 	s.captures[token] = c
 	s.used += bytes
 	return page, nil

@@ -42,7 +42,7 @@ service ObservabilityService {
   }
   // Gets the authorized integration health.
   rpc GetIntegrationHealth(GetIntegrationHealthRequest) returns (IntegrationHealth) {
-    option (google.api.http) = {get: "/v2/{name=homes/*/integrationInstances/*/health}"};
+    option (google.api.http) = {get: "/v2/{name=homes/*/integrationInstances/*/integrationHealth}"};
     option (google.api.method_signature) = "name";
   }
   // Reads a bounded redacted projection of native runtime logs.
@@ -720,7 +720,7 @@ message ObservationTraceCutMetadata {
 message IntegrationHealth {
   option (google.api.resource) = {
     type: "homeward.damiengoehrig.ca/IntegrationHealth"
-    pattern: "homes/{home}/integrationInstances/{integration_instance}/health"
+    pattern: "homes/{home}/integrationInstances/{integration_instance}/integrationHealth"
     singular: "integrationHealth"
     plural: "integrationHealths"
   };
@@ -825,10 +825,10 @@ message QueryRunTraceRequest {
 
 // Successful result of query run trace.
 message QueryRunTraceResponse {
-  // Exact native run selected by the request, including its process controller.
-  string run = 5 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/RuntimeRun"];
   // Authorized rows selected for this bounded query.
   repeated ObservationTraceRow rows = 1;
+  // Exact native run selected by the request, including its process controller.
+  string run = 5 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/RuntimeRun"];
   // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
   // The cuts represented by ObservationTraceCutMetadata.

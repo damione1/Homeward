@@ -296,7 +296,7 @@ func (h *configDocumentsHandler) ListConfigurationDocuments(ctx context.Context,
 		if document.Ref().Document() == operational && document.Ref() != snapshot.Document().Ref() {
 			return nil, configDocumentsRPCError(ctx, authorization.ErrUnavailable, nil)
 		}
-		result.Documents = append(result.Documents, h.documentWireNamed(document, &snapshot, names[document.Ref().Document().String()]))
+		result.ConfigurationDocuments = append(result.ConfigurationDocuments, h.documentWireNamed(document, &snapshot, names[document.Ref().Document().String()]))
 		after = document.Ref().Document().String()
 	}
 	result.NextPageToken, err = h.continuation(page.More(), configdocuments.PageDocuments, storage.ConfigDocumentID{}, after, 0, page.Cut().SHA256(), binding.digest)
@@ -333,7 +333,7 @@ func (h *configDocumentsHandler) ListConfigurationRevisions(ctx context.Context,
 	var before int64
 	for _, version := range page.Documents() {
 		entry := configurationRevisionWire(r.Msg.Parent, version)
-		result.Versions = append(result.Versions, entry)
+		result.ConfigurationRevisions = append(result.ConfigurationRevisions, entry)
 		before = version.Ref().Revision().Number()
 	}
 	result.NextPageToken, err = h.continuation(page.More(), configdocuments.PageVersions, id, "", before, page.Cut().SHA256(), binding.digest)
@@ -367,7 +367,7 @@ func (h *configDocumentsHandler) ListConfigurationGenerations(ctx context.Contex
 	result := &wire.ListConfigurationGenerationsResponse{}
 	var before int64
 	for _, generation := range page.Generations() {
-		result.Generations = append(result.Generations, configurationGenerationWire(r.Msg.Parent, generation))
+		result.ConfigurationGenerations = append(result.ConfigurationGenerations, configurationGenerationWire(r.Msg.Parent, generation))
 		before = generation.Revision().Number()
 	}
 	result.NextPageToken, err = h.continuation(page.More(), configdocuments.PageGenerations, storage.ConfigDocumentID{}, "", before, page.Cut().SHA256(), binding.digest)
@@ -418,7 +418,7 @@ func (h *configDocumentsHandler) ListConfigurationSchemas(ctx context.Context, r
 		if err != nil {
 			return nil, configDocumentsRPCError(ctx, err, nil)
 		}
-		result.Schemas = append(result.Schemas, entry)
+		result.ConfigurationSchemas = append(result.ConfigurationSchemas, entry)
 	}
 	result.NextPageToken, err = h.continuation(through < len(schemas), configdocuments.PageSchemas, storage.ConfigDocumentID{}, "", int64(through), cut, binding.digest)
 	if err != nil {

@@ -24,7 +24,6 @@ import (
 	"github.com/damione1/Homeward/gen/google/longrunning/longrunningpbconnect"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	applywire "github.com/damione1/Homeward/gen/home/api/v2"
-	configuration "github.com/damione1/Homeward/gen/home/api/v2"
 	planwire "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/apitypes"

@@ -22,7 +22,7 @@ service ConfigurationService {
   option (google.api.default_host) = "homeward.damiengoehrig.ca";
   // Reads one authorized ConfigurationRevision, including its retained or purged state.
   rpc GetConfigurationRevision(GetConfigurationRevisionRequest) returns (ConfigurationRevision) {
-    option (google.api.http) = {get: "/v2/{name=homes/*/configurationDocuments/*/revisions/*}"};
+    option (google.api.http) = {get: "/v2/{name=homes/*/configurationDocuments/*/configurationRevisions/*}"};
     option (google.api.method_signature) = "name";
   }
   // Reads one authorized ConfigurationGeneration, including its retained or purged state.
@@ -47,7 +47,7 @@ service ConfigurationService {
   }
   // Lists the authorized configuration revisions using bounded opaque pagination.
   rpc ListConfigurationRevisions(ListConfigurationRevisionsRequest) returns (ListConfigurationRevisionsResponse) {
-    option (google.api.http) = {get: "/v2/{parent=homes/*/configurationDocuments/*}/revisions"};
+    option (google.api.http) = {get: "/v2/{parent=homes/*/configurationDocuments/*}/configurationRevisions"};
     option (google.api.method_signature) = "parent";
   }
   // Lists the authorized configuration generations using bounded opaque pagination.
@@ -66,7 +66,7 @@ service ConfigurationService {
       post: "/v2/{name=homes/*/configurationDocuments/*}:publish"
       body: "*"
     };
-    option (google.api.method_signature) = "name";
+    option (google.api.method_signature) = "name,expected,expected_workspace_sha256,exact_yaml_source";
     option (google.longrunning.operation_info) = {
       response_type: "PublishConfigurationDocumentResponse"
       metadata_type: "ConfigurationOperationMetadata"
@@ -78,7 +78,7 @@ service ConfigurationService {
       post: "/v2/{name=homes/*/configurationDocuments/*}:rollback"
       body: "*"
     };
-    option (google.api.method_signature) = "name";
+    option (google.api.method_signature) = "name,expected,expected_workspace_sha256,historical";
     option (google.longrunning.operation_info) = {
       response_type: "RollbackConfigurationDocumentResponse"
       metadata_type: "ConfigurationOperationMetadata"
@@ -91,7 +91,7 @@ service ConfigurationService {
       post: "/v2/{parent=homes/*}:watchConfiguration"
       body: "*"
     };
-    option (google.api.method_signature) = "parent";
+    option (google.api.method_signature) = "parent,resume_token";
   }
 }
 
@@ -226,7 +226,7 @@ message ListConfigurationDocumentsRequest {
 // Successful result of list configuration documents.
 message ListConfigurationDocumentsResponse {
   // Collection of documents for this message.
-  repeated ConfigurationDocument documents = 1;
+  repeated ConfigurationDocument configuration_documents = 1;
   // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
 }
@@ -235,9 +235,9 @@ message ListConfigurationDocumentsResponse {
 message ConfigurationRevision {
   option (google.api.resource) = {
     type: "homeward.damiengoehrig.ca/ConfigurationRevision"
-    pattern: "homes/{home}/configurationDocuments/{configuration_document}/revisions/{revision}"
-    singular: "revision"
-    plural: "revisions"
+    pattern: "homes/{home}/configurationDocuments/{configuration_document}/configurationRevisions/{configuration_revision}"
+    singular: "configurationRevision"
+    plural: "configurationRevisions"
   };
   // Immutable SQL source revision under its canonical document.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
@@ -248,7 +248,7 @@ message ConfigurationRevision {
   // The availability represented by VersionAvailability.
   VersionAvailability availability = 3;
   // Absent when the source row was purged. No invented timestamp/schema.
-  google.protobuf.Timestamp update_time = 4;
+  google.protobuf.Timestamp update_time = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Version of the selected source schema; distinct from SQL schema and active generation.
   string schema_version = 5;
 }
@@ -268,7 +268,7 @@ message ConfigurationGeneration {
   // The availability represented by GenerationAvailability.
   GenerationAvailability availability = 2;
   // Recorded time for created at. Absence means no timestamp was supplied or recorded.
-  google.protobuf.Timestamp create_time = 3;
+  google.protobuf.Timestamp create_time = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // Request for list configuration revisions.
@@ -287,7 +287,7 @@ message ListConfigurationRevisionsRequest {
 // Successful result of list configuration revisions.
 message ListConfigurationRevisionsResponse {
   // Collection of versions for this message.
-  repeated ConfigurationRevision versions = 1;
+  repeated ConfigurationRevision configuration_revisions = 1;
   // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
 }
@@ -308,7 +308,7 @@ message ListConfigurationGenerationsRequest {
 // Successful result of list configuration generations.
 message ListConfigurationGenerationsResponse {
   // Collection of generations for this message.
-  repeated ConfigurationGeneration generations = 1;
+  repeated ConfigurationGeneration configuration_generations = 1;
   // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
 }
@@ -350,7 +350,7 @@ message ListConfigurationSchemasRequest {
 // Successful result of list configuration schemas.
 message ListConfigurationSchemasResponse {
   // Collection of schemas for this message.
-  repeated ConfigurationSchema schemas = 1;
+  repeated ConfigurationSchema configuration_schemas = 1;
   // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
 }

@@ -55,9 +55,8 @@ service MediaService {
     option (google.api.method_signature) = "name";
   }
   // Reads one bounded PNG projection under the exact live session and target.
-  // (-- api-linter: core::0131::synonyms=disabled
-  //     aip.dev/not-precedent: This custom AIP136 method reads bounded source
-  //     bytes. It does not Get a persistent image resource or session metadata. --)
+  //     This custom AIP136 method reads bounded source
+  //     bytes. It does not Get a persistent image resource or session metadata.
   rpc ReadMediaSession(ReadMediaSessionRequest) returns (ReadMediaSessionResponse) {
     option (google.api.http) = {get: "/v2/{name=homes/*/mediaSessions/*}:read"};
     option (google.api.method_signature) = "name,target";
@@ -176,9 +175,8 @@ message GetMediaSourceRequest {
 }
 
 // Request for a server-assigned data-plane session.
-// (-- api-linter: core::0133::request-id-field=disabled
-//     aip.dev/not-precedent: AIP133 permits server-assigned data-plane IDs.
-//     IDs contain 256 random bits; no caller-chosen alias is accepted. --)
+//     AIP133 permits server-assigned data-plane IDs.
+//     IDs contain 256 random bits; no caller-chosen alias is accepted.
 message CreateMediaSessionRequest {
   // Canonical parent resource name.
   string parent = 1 [

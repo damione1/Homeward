@@ -592,16 +592,16 @@ mod tests {
     use super::*;
     use crate::dashboard::LayoutState;
     use crate::dashboard_layout::NativeLayout;
+    use crate::device_view::fixture as api_fixture;
     use crate::device_view::{
         DeviceIntent, DeviceStore, Power, Refusal,
         tests::{light, request, view},
     };
     use home_client_cache::CachePhase;
+    use home_client_model::api::Intent;
+    use home_wire_contract::home::api::v2 as wire;
     use std::sync::Arc;
-    fn fixture() -> (
-        crate::dashboard::ProjectionRequest,
-        home_wire_contract::home::state::v1::ViewEntity,
-    ) {
+    fn fixture() -> (api_fixture::Scenario, wire::EntityViewEntry) {
         let mut request = request();
         let entity = light(&request);
         let mut layout = request.dashboard.layout().unwrap().clone();
@@ -610,7 +610,9 @@ mod tests {
         for node in native.nodes.values_mut() {
             node.recipes = None;
             if node.entity.is_some() {
-                node.entity = Some(entity.entity_id.parse().unwrap());
+                node.entity = Some(EntityName::try_from(entity.entity.name.as_str()).unwrap());
+                node.capability =
+                    Some(CapabilityName::try_from(entity.capabilities[0].name.as_str()).unwrap());
             }
         }
         native
@@ -634,25 +636,13 @@ mod tests {
         request.dashboard = LayoutState::Ready(Arc::new(layout));
         (request, entity)
     }
-    fn thermostat_fixture() -> (
-        crate::dashboard::ProjectionRequest,
-        home_wire_contract::home::state::v1::ViewEntity,
-    ) {
+    fn thermostat_fixture() -> (api_fixture::Scenario, wire::EntityViewEntry) {
         use crate::dashboard_widgets::{Content, Field, FieldKey, Widget};
-        use home_wire_contract::home::state::v1 as state;
-        let mut entity = crate::device_view::tests::climate_entity(&request());
-        entity.state.as_option_mut().unwrap().quality = state::Quality {
-            availability: state::Availability::Available.into(),
-            freshness: state::Freshness::Fresh.into(),
-            provenance: state::Provenance::Observed.into(),
-            ..Default::default()
-        }
-        .into();
+        let entity = crate::device_view::tests::climate_entity(&request());
         let (mut request, _) = fixture();
         let mut layout = request.dashboard.layout().unwrap().clone();
         let native = layout.native.as_mut().unwrap();
-        native.version = 3;
-        let id: EntityId = entity.entity_id.parse().unwrap();
+        let id: EntityName = EntityName::try_from(entity.entity.name.as_str()).unwrap();
         let widget = native
             .nodes
             .get_mut(&NodeId::parse("tile").unwrap())
@@ -666,10 +656,14 @@ mod tests {
                 entity: id.clone(),
                 current: Field {
                     entity: id.clone(),
+                    capability: CapabilityName::try_from(entity.capabilities[0].name.as_str())
+                        .unwrap(),
                     key: FieldKey::CurrentTemperature,
                 },
                 target: Field {
                     entity: id,
+                    capability: CapabilityName::try_from(entity.capabilities[0].name.as_str())
+                        .unwrap(),
                     key: FieldKey::Setpoint,
                 },
             },
@@ -696,7 +690,6 @@ mod tests {
     }
     #[test]
     fn thermostat_step_submits_exactly_and_preserves_observations_and_form_drafts() {
-        use home_wire_contract::home::actions::v1 as actions;
         let (request, entity) = thermostat_fixture();
         let store = DeviceStore::default();
         let capture = view(&request, vec![entity]);
@@ -716,14 +709,13 @@ mod tests {
             .unwrap();
         let prepared = store.prepare(row.token, row.generation, 0, intent).unwrap();
         assert!((prepared.guard)());
-        assert_eq!(prepared.request.capability_schema_id, "core.climate.v1");
-        assert_eq!(prepared.request.endpoint, "lamp");
+        assert_eq!(prepared.request.target(), &prepared.target);
         assert_eq!(
             prepared.target.entity().as_str(),
-            capture.get(prepared.target.entity()).unwrap().entity_id
+            capture.get(&prepared.target.entity()).unwrap().entity.name
         );
         assert!(
-            matches!(prepared.request.arguments.arguments.as_ref(), Some(actions::action_args::Arguments::SetClimate(value)) if value.setpoint_celsius == Some(20.5))
+            matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command, Some(wire::execute_capability_request::Command::TemperatureControl(value)) if matches!(value.setpoint, Some(wire::set_temperature_control_command::Setpoint::SetpointCelsius(20.5))))
         );
         assert!(matches!(
             store.edit(row.token, row.generation, 0, 0, step()),
@@ -785,7 +777,6 @@ mod tests {
     }
     #[test]
     fn thermostat_step_requires_fresh_exact_generation_and_never_completes_from_readback() {
-        use home_wire_contract::home::state::v1 as state;
         let (request, mut entity) = thermostat_fixture();
         let store = DeviceStore::default();
         let projected = store.project(
@@ -834,12 +825,11 @@ mod tests {
             store.edit(row.token, row.generation, 0, 0, step()),
             Err(Refusal::Capacity)
         ));
-        let Some(state::observed_state::Value::Climate(value)) =
-            entity.state.as_option_mut().unwrap().value.as_mut()
-        else {
-            panic!()
-        };
-        value.setpoint = Some(state::climate_value::Setpoint::SetpointCelsius(20.5));
+        api_fixture::temperature_mut(&mut entity)
+            .observation
+            .get_or_insert_default()
+            .setpoint =
+            Some(wire::temperature_control_observation::Setpoint::SetpointCelsius(20.5));
         let reconciled = store.project(
             CachePhase::Live,
             Some(&view(&request, vec![entity.clone()])),
@@ -853,14 +843,12 @@ mod tests {
             store.0.lock().unwrap().drafts[&(super::super::CardGeneration(row.generation), 0)]
                 .dirty
         );
-        entity
-            .state
-            .as_option_mut()
-            .unwrap()
+        api_fixture::temperature_mut(&mut entity)
+            .observation
+            .get_or_insert_default()
             .quality
-            .as_option_mut()
-            .unwrap()
-            .freshness = state::Freshness::Stale.into();
+            .get_or_insert_default()
+            .freshness = wire::Freshness::Stale.into();
         store.project(
             CachePhase::Live,
             Some(&view(&request, vec![entity])),
@@ -874,7 +862,6 @@ mod tests {
     }
     #[test]
     fn thermostat_unresolved_target_survives_route_generation_retirement() {
-        use home_wire_contract::home::state::v1 as state;
         let (mut request, mut entity) = thermostat_fixture();
         let store = DeviceStore::default();
         let first = store.project(
@@ -927,12 +914,11 @@ mod tests {
         ));
         store.abandon_native_step(returned.token, returned.generation);
         assert_eq!(store.0.lock().unwrap().native_steps.pending.len(), 1);
-        let Some(state::observed_state::Value::Climate(value)) =
-            entity.state.as_option_mut().unwrap().value.as_mut()
-        else {
-            panic!()
-        };
-        value.setpoint = Some(state::climate_value::Setpoint::SetpointCelsius(20.5));
+        api_fixture::temperature_mut(&mut entity)
+            .observation
+            .get_or_insert_default()
+            .setpoint =
+            Some(wire::temperature_control_observation::Setpoint::SetpointCelsius(20.5));
         store.project(
             CachePhase::Live,
             Some(&view(&request, vec![entity])),
@@ -1006,7 +992,10 @@ mod tests {
                 )
                 .is_ok()
         );
-        entity.state.as_option_mut().unwrap().revision += 1;
+        api_fixture::light_mut(&mut entity)
+            .observation
+            .get_or_insert_default()
+            .observed_time = buffa_types::google::protobuf::Timestamp::from_unix_secs(11).into();
         store.project(
             CachePhase::Live,
             Some(&view(&request, vec![entity.clone()])),
@@ -1017,8 +1006,7 @@ mod tests {
             "an observation does not change the feature admission"
         );
         let mut layout = request.dashboard.layout().unwrap().clone();
-        layout.document_revision += 1;
-        layout.document_hash = [8; 32];
+        layout.etag = "changed-layout-definition".into();
         layout
             .native
             .as_mut()
@@ -1062,7 +1050,6 @@ mod tests {
     }
     #[test]
     fn a_capability_removed_during_a_gesture_inerts_only_its_incompatible_card() {
-        use home_wire_contract::home::registry::v1::capability_description::Constraints;
         let (request, mut entity) = fixture();
         let store = DeviceStore::default();
         let projection = store.project(
@@ -1079,10 +1066,7 @@ mod tests {
                 DeviceIntent::Brightness(50.),
             )
             .unwrap();
-        let Some(Constraints::Light(constraints)) = entity.capabilities[0].constraints.as_mut()
-        else {
-            panic!()
-        };
+        let constraints = api_fixture::light_mut(&mut entity);
         constraints.brightness_percent = Default::default();
         let changed = store.project(
             CachePhase::Live,
@@ -1118,8 +1102,8 @@ mod tests {
         );
     }
     #[test]
-    fn select_recipes_refuse_foreign_families_and_ambiguous_capabilities_never_choose_an_endpoint()
-    {
+    fn select_recipes_refuse_foreign_families_and_missing_exact_capabilities_never_choose_a_sibling()
+     {
         let (mut request, mut entity) = fixture();
         let mut layout = request.dashboard.layout().unwrap().clone();
         let tile = layout
@@ -1145,30 +1129,37 @@ mod tests {
                 .contains_key(&NodeId::parse("tile").unwrap())
         );
         let mut duplicate = entity.capabilities[0].clone();
-        duplicate.endpoint = "other-endpoint".into();
+        duplicate.name = format!("{}/capabilities/other", entity.entity.name);
         entity.capabilities.push(duplicate);
-        let projection = store.project(
+        let selected = store.project(
+            CachePhase::Live,
+            Some(&view(&request, vec![entity.clone()])),
+            &request,
+        );
+        assert!(
+            selected
+                .native_devices
+                .contains_key(&NodeId::parse("toggle-only").unwrap())
+        );
+        assert!(
+            !selected
+                .native_devices
+                .contains_key(&NodeId::parse("tile").unwrap())
+        );
+        entity.capabilities.remove(0);
+        let missing = store.project(
             CachePhase::Live,
             Some(&view(&request, vec![entity])),
             &request,
         );
-        assert!(projection.native_devices.is_empty());
+        assert!(missing.native_devices.is_empty());
         assert_eq!(
-            projection
+            missing
                 .native_nodes
                 .iter()
                 .filter(|node| node.device_card())
                 .count(),
             0
-        );
-        assert!(
-            projection
-                .native_nodes
-                .iter()
-                .find(|node| node.id.as_str() == "toggle-only")
-                .unwrap()
-                .diagnostic
-                .contains("Several capabilities")
         );
     }
 
@@ -1179,7 +1170,6 @@ mod tests {
             number::NumericInput,
             tests::climate_entity,
         };
-        use home_wire_contract::home::{registry::v1 as registry, state::v1 as state};
         let (request, _) = fixture();
         let mut node = request
             .dashboard
@@ -1227,9 +1217,13 @@ mod tests {
                 .is_ok()
         );
         let full = Control::Fan(
-            Fan::parse(&registry::FanConstraints {
-                set_on: true,
-                speed_options: vec!["Low".into(), "High".into()],
+            Fan::parse(&wire::FanControlCapability {
+                supports_power: true,
+                speed: wire::SelectorDefinition {
+                    options: vec!["Low".into(), "High".into()],
+                    ..Default::default()
+                }
+                .into(),
                 ..Default::default()
             })
             .unwrap(),
@@ -1238,7 +1232,7 @@ mod tests {
         let speed = restrict(&full, &node).unwrap();
         assert!(
             speed
-                .arguments(DeviceIntent::FanSpeed(state::FanSpeed::High), None)
+                .arguments(DeviceIntent::FanSpeed(wire::FanSpeed::High), None)
                 .is_ok()
         );
         assert!(
@@ -1250,7 +1244,7 @@ mod tests {
         let power = restrict(&full, &node).unwrap();
         assert!(
             power
-                .arguments(DeviceIntent::FanSpeed(state::FanSpeed::High), None)
+                .arguments(DeviceIntent::FanSpeed(wire::FanSpeed::High), None)
                 .is_err()
         );
         assert!(
@@ -1267,10 +1261,14 @@ mod tests {
     #[test]
     fn select_and_numeric_helper_cards_keep_their_typed_family_and_cas() {
         use crate::device_view::tests::helper_entity;
-        use home_wire_contract::home::{actions::v1::action_args::Arguments, helpers::v1 as h};
+        use home_wire_contract::home::api::v2 as h;
         for kind in [h::HelperKind::Select, h::HelperKind::Number] {
             let (mut request, _) = fixture();
-            let entity = helper_entity(&crate::device_view::tests::request(), kind);
+            let mut entity = helper_entity(&crate::device_view::tests::request(), kind);
+            entity.capabilities[0].name = light(&crate::device_view::tests::request()).capabilities
+                [0]
+            .name
+            .clone();
             let mut layout = request.dashboard.layout().unwrap().clone();
             let tile = layout
                 .native
@@ -1331,12 +1329,10 @@ mod tests {
             let prepared = store
                 .prepare(row.token, row.generation, 0, DeviceIntent::Helper(intent))
                 .unwrap();
-            let Some(Arguments::Helper(arguments)) =
-                &prepared.request.arguments.as_option().unwrap().arguments
-            else {
+            let Intent::Helper(arguments) = prepared.request.intent() else {
                 panic!()
             };
-            assert_eq!(arguments.expected_helper_revision, Some(7));
+            assert_eq!(arguments.revision(), 7);
         }
     }
 
@@ -1345,16 +1341,9 @@ mod tests {
         use crate::device_view::{GestureAccess, NativeIntent};
         use crate::{ProValueEvent, ProValueIntent};
         use home_client_model::dashboard::{CommandKind, Gesture, Intention, Interaction, Recipes};
-        use home_wire_contract::home::{
-            actions::v1::action_args::Arguments, registry::v1 as registry,
-        };
         let (mut request, mut entity) = fixture();
-        let Some(registry::capability_description::Constraints::Light(capability)) =
-            entity.capabilities[0].constraints.as_mut()
-        else {
-            panic!()
-        };
-        capability.color_temp_mireds = registry::NumberBounds {
+        let capability = api_fixture::light_mut(&mut entity);
+        capability.color_temperature_mireds = wire::NumberBounds {
             minimum: 153.,
             maximum: 500.,
             step: Some(1.),
@@ -1375,7 +1364,8 @@ mod tests {
                 Gesture::Tap,
                 Interaction {
                     intention: Intention::Command {
-                        entity: entity.entity_id.parse().unwrap(),
+                        capability: CapabilityName::try_from(entity.capabilities[0].name.as_str())
+                            .unwrap(),
                         kind: CommandKind::TurnOff,
                     },
                     confirmation: None,
@@ -1414,13 +1404,11 @@ mod tests {
             .unwrap()
             .unwrap();
         let command = store.prepare(row.token, row.generation, 0, intent).unwrap();
-        let Some(Arguments::SetLight(arguments)) =
-            &command.request.arguments.as_option().unwrap().arguments
-        else {
+        let Intent::Light(arguments) = command.request.intent() else {
             panic!()
         };
-        assert_eq!(arguments.color_temp_mireds, Some(250));
-        assert!(arguments.on.is_none() && arguments.brightness_percent.is_none());
+        assert_eq!(arguments.color().map(|value| value.mireds()), Some(250));
+        assert!(arguments.on().is_none() && arguments.brightness().is_none());
         let header = &projection.recipes[&NodeId::parse("tile").unwrap()];
         assert_eq!(header.access(Gesture::Tap), GestureAccess::Command);
         let command = store
@@ -1429,13 +1417,11 @@ mod tests {
         let NativeIntent::Command(command) = command.intent else {
             panic!()
         };
-        let Some(Arguments::SetLight(arguments)) =
-            &command.request.arguments.as_option().unwrap().arguments
-        else {
+        let Intent::Light(arguments) = command.request.intent() else {
             panic!()
         };
-        assert_eq!(arguments.on, Some(false));
-        assert!(arguments.color_temp_mireds.is_none());
+        assert_eq!(arguments.on(), Some(false));
+        assert!(arguments.color().is_none());
         assert!(store.0.lock().unwrap().actions.is_empty());
     }
 }

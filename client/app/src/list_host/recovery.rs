@@ -10,9 +10,6 @@ pub(super) enum Recovery {
 }
 
 pub(super) fn transport(failure: &Failure) -> Recovery {
-    if !matches!(failure.authorization_termination(), Ok(None)) {
-        return Recovery::Stop;
-    }
     let detail = match failure.api_failure() {
         Ok(Some(detail)) => detail,
         Ok(None) => {
@@ -28,7 +25,8 @@ pub(super) fn transport(failure: &Failure) -> Recovery {
         Code::ResyncRequired => Recovery::Reset,
         Code::ServiceUnavailable => Recovery::Offline,
         Code::ResourceNotFound => Recovery::Reset,
-        Code::AuthenticationRequired
+        Code::AuthorityUnavailable
+        | Code::AuthenticationRequired
         | Code::AccessDenied
         | Code::ValidationFailed
         | Code::ResourceAlreadyExists
@@ -95,13 +93,9 @@ mod tests {
             ),
         ));
         assert_eq!(transport(&unknown), Recovery::Stop);
-        let authority = Failure::from(ConnectError::unavailable("fixture").with_detail(
-            ErrorDetail {
-                type_url: "type.googleapis.com/home.auth.v1.AuthorizationTermination".into(),
-                value: Some("%%%".into()),
-                debug: None,
-            },
-        ));
+        let authority = Failure::from(
+            ConnectError::unavailable("fixture").with_detail(detail(Code::AuthorityUnavailable)),
+        );
         assert_eq!(transport(&authority), Recovery::Stop);
     }
     #[test]

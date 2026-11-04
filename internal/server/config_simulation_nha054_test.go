@@ -82,7 +82,7 @@ func TestNHA054ActualRunTLSDeterministicSimulationHasNoProductionMutation(t *tes
 	partial.Candidate = nha053WireCandidate(plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE, "scene.simulation", []byte("id: simulation\nname: Simulation\nentities:\n  light.fixture:\n    state: 'on'\n    brightness: 64\n    color_mode: brightness\n  switch.fixture:\n    state: 'on'\n"))
 	partial.Fixtures[0].RefuseIntent = true
 	result, err := client.SimulateConfigurationPlan(f.ctx, nha056SessionRequest(partial, f.token))
-	if err != nil || result.Msg.Report.Status != wire.ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_PARTIAL || len(result.Msg.Report.Intents) != 2 || result.Msg.Report.Intents[0].GetLight().GetBrightness_255() != 64 {
+	if err != nil || result.Msg.Report.Status != wire.ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_PARTIAL || len(result.Msg.Report.Intents) != 2 || result.Msg.Report.Intents[0].GetLight().GetBrightnessLevel() != 64 {
 		t.Fatal("actual scene partial result lost", err)
 	}
 	malicious := nha054WireRequest(f.home)

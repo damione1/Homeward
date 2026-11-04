@@ -167,7 +167,7 @@ func TestNHA050NativeHandlersReserveCapacityBeforeSQLAndReconcilePublicationFail
 	version := nha055PolicyVersion(t, noOp.Msg.Policy)
 	var hash [32]byte
 	copy(hash[:], version.SourceSha256)
-	expectedVersion, _ := authorization.NewVersion(version.Revision, hash)
+	expectedVersion, _ := authorization.NewVersion(nha204UnsignedNonnegative(t, version.Revision), hash)
 	expected, _ := authorization.ExpectVersion(expectedVersion)
 	if _, err := store.ReplaceAuthorizationPolicy(ctx, account, account, source, expected); err != nil {
 		t.Fatal(err)

@@ -160,7 +160,7 @@ func TestNHA056TLSHealthPublishesActualActiveGenerationAndDeniesBroadUser(t *tes
 	if err != nil || contracts.AdmitObservationResponse(response.Msg) != nil {
 		t.Fatal("real active-generation health unavailable", err)
 	}
-	if response.Msg.Server.Readiness != obsv2.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY || response.Msg.Server.Generation.GetPresent().GetValue() != revision {
+	if response.Msg.Server.Readiness != obsv2.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY || nha204UnsignedNonnegative(t, response.Msg.Server.Generation.GetPresent().GetValue()) != revision {
 		t.Fatal("Ready did not identify the real committed generation")
 	}
 	accounts := apiv2connect.NewAccountServiceClient(client, base)

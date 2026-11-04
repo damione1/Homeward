@@ -76,6 +76,9 @@ func (HistoryResolution) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{0}
 }
 
+// A next token may accompany zero points after a bounded candidate scan. That
+// page is progress, not a complete empty history; only end terminates the scan.
+//
 // Historical entity reads never disclose global Recorder positions, queue
 // sizes, policy-excluded counts or loss envelopes. The diagnostic service owns
 // those separately authorized facts.
@@ -2294,7 +2297,8 @@ type HistoryAggregate struct {
 	// Typed provenance, freshness and validity of the observation.
 	Quality *ObservationQuality `protobuf:"bytes,3,opt,name=quality,proto3" json:"quality,omitempty"`
 	// Duration in nanoseconds.
-	DurationNanos int64 `protobuf:"varint,4,opt,name=duration_nanos,json=durationNanos,proto3" json:"duration_nanos,omitempty"` // Inclusive range 0..3600000000000.
+	// Inclusive range 0..3600000000000 nanoseconds.
+	DurationNanos int64 `protobuf:"varint,4,opt,name=duration_nanos,json=durationNanos,proto3" json:"duration_nanos,omitempty"`
 	// The minimum represented by double.
 	Minimum *float64 `protobuf:"fixed64,5,opt,name=minimum,proto3,oneof" json:"minimum,omitempty"`
 	// The maximum represented by double.

@@ -46,7 +46,7 @@ service IntegrationService {
       post: "/v2/{parent=homes/*}/integrationInstances"
       body: "integration_instance"
     };
-    option (google.api.method_signature) = "parent,integration_instance";
+    option (google.api.method_signature) = "parent,integration_instance,integration_instance_id";
     option (google.longrunning.operation_info) = {
       response_type: "IntegrationInstance"
       metadata_type: "IntegrationOperationMetadata"
@@ -67,7 +67,7 @@ service IntegrationService {
   // Deletes the authorized integration instance.
   rpc DeleteIntegrationInstance(DeleteIntegrationInstanceRequest) returns (google.longrunning.Operation) {
     option (google.api.http) = {delete: "/v2/{name=homes/*/integrationInstances/*}"};
-    option (google.api.method_signature) = "name";
+    option (google.api.method_signature) = "name,etag";
     option (google.longrunning.operation_info) = {
       response_type: "google.protobuf.Empty"
       metadata_type: "IntegrationOperationMetadata"

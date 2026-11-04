@@ -139,10 +139,10 @@ func simulationIntent(value *wire.ConfigurationSimulationIntent) bool {
 		if light.BrightnessStepPercent != nil {
 			present++
 		}
-		if light.Brightness_255 != nil {
+		if light.BrightnessLevel != nil {
 			present++
 		}
-		return present <= 1 && (light.On != nil || present > 0 || light.ColorTempMireds != nil) && simulationFinite(light.BrightnessPercent, 0, 100) && simulationFinite(light.BrightnessStepPercent, -100, 100) && simulationFinite(light.TransitionSeconds, 0, 86400) && (light.Brightness_255 == nil || *light.Brightness_255 >= 0 && *light.Brightness_255 <= 255) && (light.ColorTempMireds == nil || *light.ColorTempMireds > 0 && *light.ColorTempMireds <= math.MaxUint32)
+		return present <= 1 && (light.On != nil || present > 0 || light.ColorTempMireds != nil) && simulationFinite(light.BrightnessPercent, 0, 100) && simulationFinite(light.BrightnessStepPercent, -100, 100) && simulationFinite(light.TransitionSeconds, 0, 86400) && (light.BrightnessLevel == nil || *light.BrightnessLevel >= 0 && *light.BrightnessLevel <= 255) && (light.ColorTempMireds == nil || *light.ColorTempMireds > 0 && *light.ColorTempMireds <= math.MaxUint32)
 	case *wire.ConfigurationSimulationIntent_Climate:
 		if item == nil || item.Climate == nil {
 			return false

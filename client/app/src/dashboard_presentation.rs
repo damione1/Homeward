@@ -499,7 +499,10 @@ mod tests {
             .remove(&NodeId::parse("tile").unwrap())
             .unwrap();
         let destination = Destination {
-            dashboard: home_client_model::dashboard::DashboardId::parse("configured").unwrap(),
+            dashboard: home_client_model::api::DashboardName::try_from(
+                "homes/synthetic/dashboards/configured",
+            )
+            .unwrap(),
             node: NodeId::parse("popup").unwrap(),
             presentation: Presentation::Popup,
         };
@@ -513,7 +516,6 @@ mod tests {
                 room: crate::dashboard::RoomId::parse("same-room").unwrap(),
                 temperature: None,
                 activity: Vec::new(),
-                active_states: Vec::new(),
             },
             action: Some(destination),
             action_label: String::new(),
@@ -537,7 +539,6 @@ mod tests {
         root.children = vec![section.id.clone(), mobile.id.clone()];
         let mut layout = crate::dashboard::fixture();
         layout.native = Some(crate::dashboard_layout::NativeLayout {
-            version: 3,
             views: vec![root.id.clone()],
             nodes: [
                 root.clone(),
@@ -593,7 +594,12 @@ mod tests {
                 .into_iter()
                 .cloned()
                 .collect(),
-            entities: vec!["synthetic-entity".parse().unwrap()],
+            entities: vec![
+                home_client_model::api::EntityName::try_from(
+                    crate::dashboard_layout::tests::ENTITY,
+                )
+                .unwrap(),
+            ],
             rows: vec![crate::device_view::presentation::CardRow {
                 value: "First observation".into(),
                 ..Default::default()

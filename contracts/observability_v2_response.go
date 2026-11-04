@@ -35,7 +35,7 @@ func AdmitObservationResponse(m proto.Message) error {
 		limit = 32 << 10
 	case *api.IntegrationHealth:
 		limit = 8 << 10
-		parent, ok := strings.CutSuffix(v.Name, "/health")
+		parent, ok := strings.CutSuffix(v.Name, "/integrationHealth")
 		if !ok {
 			return ErrInvalidObservabilityContract
 		}

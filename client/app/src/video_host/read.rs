@@ -33,9 +33,6 @@ impl ReadFailure {
     }
 }
 fn transport_failure(error: &Failure) -> ReadFailure {
-    if !matches!(error.authorization_termination(), Ok(None)) {
-        return ReadFailure::Revoked;
-    }
     match error.api_failure() {
         Err(_) => ReadFailure::Invalid,
         Ok(Some(error)) => {
@@ -56,7 +53,8 @@ fn transport_failure(error: &Failure) -> ReadFailure {
                 | R::RequestTooLarge
                 | R::StreamCapacity
                 | R::QueryBudgetExceeded => ReadFailure::Unavailable,
-                R::ValidationFailed
+                R::AuthorityUnavailable
+                | R::ValidationFailed
                 | R::ResourceAlreadyExists
                 | R::RequestIdReused
                 | R::EtagMismatch

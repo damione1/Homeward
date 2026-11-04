@@ -700,12 +700,16 @@ fn features(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use buffa::Message;
     use home_client_model::dashboard::{Gesture, Intention};
-    fn node(id: &str, kind: wire::LayoutKind, children: &[&str]) -> wire::LayoutNode {
-        wire::LayoutNode {
+    use wire::dashboard_layout_node::Content as C;
+    pub(crate) const ENTITY: &str = "homes/synthetic/entities/synthetic-entity";
+    pub(crate) const CAPABILITY: &str =
+        "homes/synthetic/entities/synthetic-entity/capabilities/power";
+    pub(crate) fn node(id: &str, content: C) -> wire::DashboardLayoutNode {
+        wire::DashboardLayoutNode {
             id: id.into(),
-            kind: kind.into(),
-            source: wire::LayoutSource {
+            source: wire::DashboardLayoutSource {
                 file: "synthetic.yaml".into(),
                 path: id.into(),
                 variant: "synthetic".into(),
@@ -713,99 +717,198 @@ pub(crate) mod tests {
                 ..Default::default()
             }
             .into(),
-            children: children.iter().map(|id| (*id).into()).collect(),
-            entity_id: if kind == wire::LayoutKind::Tile {
-                "synthetic-entity".into()
-            } else {
-                String::new()
-            },
+            content: Some(content),
             ..Default::default()
         }
     }
-    fn forest() -> wire::NativeLayout {
-        wire::NativeLayout {
-            version: 1,
+    pub(crate) fn children(ids: &[&str]) -> wire::DashboardChildren {
+        wire::DashboardChildren {
+            children: ids.iter().map(|id| (*id).into()).collect(),
+            ..Default::default()
+        }
+    }
+    pub(crate) fn tile(id: &str) -> wire::DashboardLayoutNode {
+        node(
+            id,
+            C::Tile(
+                wire::DashboardTileNode {
+                    capability: CAPABILITY.into(),
+                    presentation: wire::DashboardControlPresentation::Controls.into(),
+                    ..Default::default()
+                }
+                .into(),
+            ),
+        )
+    }
+    fn grid(id: &str, ids: &[&str]) -> wire::DashboardLayoutNode {
+        node(
+            id,
+            C::Grid(
+                wire::DashboardGridNode {
+                    children: children(ids).into(),
+                    ..Default::default()
+                }
+                .into(),
+            ),
+        )
+    }
+    fn recipe(id: &str, kind: wire::DashboardRecipeKind) -> wire::DashboardLayoutNode {
+        node(
+            id,
+            C::Recipe(
+                wire::DashboardRecipeNode {
+                    kind: kind.into(),
+                    presentation: wire::DashboardControlPresentation::Controls.into(),
+                    ..Default::default()
+                }
+                .into(),
+            ),
+        )
+    }
+    pub(crate) fn forest() -> wire::DashboardLayout {
+        wire::DashboardLayout {
             views: vec!["view".into()],
             nodes: vec![
-                node("view", wire::LayoutKind::View, &["section"]),
-                node("section", wire::LayoutKind::Section, &["grid"]),
-                node("grid", wire::LayoutKind::Grid, &["tile", "unknown"]),
-                node("tile", wire::LayoutKind::Tile, &[]),
-                node("unknown", wire::LayoutKind::Unsupported, &[]),
+                node(
+                    "view",
+                    C::View(
+                        wire::DashboardViewNode {
+                            children: children(&["section"]).into(),
+                            ..Default::default()
+                        }
+                        .into(),
+                    ),
+                ),
+                node(
+                    "section",
+                    C::Section(
+                        wire::DashboardSectionNode {
+                            children: children(&["grid"]).into(),
+                            ..Default::default()
+                        }
+                        .into(),
+                    ),
+                ),
+                grid("grid", &["tile", "unknown"]),
+                tile("tile"),
+                node(
+                    "unknown",
+                    C::Unsupported(
+                        wire::DashboardUnsupportedNode {
+                            diagnostic: "Unsupported source item".into(),
+                            ..Default::default()
+                        }
+                        .into(),
+                    ),
+                ),
             ],
             ..Default::default()
         }
     }
-    pub(crate) fn extended_forest() -> wire::NativeLayout {
-        let mut wire = forest();
-        wire.version = 2;
-        wire.nodes[2]
-            .children
+    fn grid_children(value: &mut wire::DashboardLayoutNode) -> &mut Vec<String> {
+        let Some(C::Grid(v)) = &mut value.content else {
+            panic!("grid")
+        };
+        &mut v.children.get_or_insert_default().children
+    }
+    fn recipe_mut(value: &mut wire::DashboardLayoutNode) -> &mut wire::DashboardRecipeNode {
+        let Some(C::Recipe(v)) = &mut value.content else {
+            panic!("recipe")
+        };
+        v
+    }
+    fn tile_mut(value: &mut wire::DashboardLayoutNode) -> &mut wire::DashboardTileNode {
+        let Some(C::Tile(v)) = &mut value.content else {
+            panic!("tile")
+        };
+        v
+    }
+    pub(crate) fn extended_forest() -> wire::DashboardLayout {
+        let mut value = forest();
+        grid_children(&mut value.nodes[2])
             .extend(["recipe", "popup", "chips", "vertical"].map(String::from));
-        let mut recipe = node("recipe", wire::LayoutKind::Recipe, &[]);
-        recipe.recipe_kind = wire::NativeRecipeKind::Template.into();
-        recipe.title = "Plain text\n<script>not executed</script>".into();
-        recipe.secondary = "Server-projected text".into();
-        recipe.recipes = wire::NativeRecipes {
-            version: 1,
-            interactions: vec![wire::NativeInteraction {
-                gesture: wire::NativeGesture::Tap.into(),
-                intention: Some(wire::native_interaction::Intention::MoreInfo(
-                    wire::NativeEntityTarget {
-                        entity_id: "synthetic-entity".into(),
+        let mut r = recipe("recipe", wire::DashboardRecipeKind::Template);
+        r.display_name = "Plain text\n<script>not executed</script>".into();
+        let source = r.source.clone();
+        let body = recipe_mut(&mut r);
+        body.secondary = "Server-projected text".into();
+        body.interactions = wire::DashboardInteractions {
+            interactions: vec![wire::DashboardInteraction {
+                gesture: wire::DashboardGesture::Tap.into(),
+                intention: Some(wire::dashboard_interaction::Intention::MoreInfo(
+                    wire::DashboardEntityTarget {
+                        entity: ENTITY.into(),
                         ..Default::default()
                     }
                     .into(),
                 )),
-                confirmation: wire::NativeConfirmation::default().into(),
-                source: recipe.source.clone(),
+                confirmation: wire::DashboardConfirmation::default().into(),
+                source,
                 ..Default::default()
             }],
             ..Default::default()
         }
         .into();
-        let mut popup = node("popup", wire::LayoutKind::Popup, &["popup-tile"]);
-        popup.recipe_kind = wire::NativeRecipeKind::BubblePopup.into();
-        let mut chips = node("chips", wire::LayoutKind::ChipGroup, &["chip"]);
-        chips.recipe_kind = wire::NativeRecipeKind::Chips.into();
-        let mut chip = node("chip", wire::LayoutKind::Recipe, &[]);
-        chip.recipe_kind = wire::NativeRecipeKind::TemplateChip.into();
-        wire.nodes.extend([
-            recipe,
-            popup,
-            chips,
-            chip,
-            node("popup-tile", wire::LayoutKind::Tile, &[]),
-            node("vertical", wire::LayoutKind::VerticalStack, &["text"]),
+        let mut text = recipe("text", wire::DashboardRecipeKind::Text);
+        text.display_name = "Bounded plain text".into();
+        value.nodes.extend([
+            r,
+            node(
+                "popup",
+                C::Popup(
+                    wire::DashboardPopupNode {
+                        children: children(&["popup-tile"]).into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
+            ),
+            node(
+                "chips",
+                C::ChipGroup(
+                    wire::DashboardChipGroupNode {
+                        children: children(&["chip"]).into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
+            ),
+            recipe("chip", wire::DashboardRecipeKind::TemplateChip),
+            tile("popup-tile"),
+            node(
+                "vertical",
+                C::VerticalStack(
+                    wire::DashboardStackNode {
+                        children: children(&["text"]).into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
+            ),
+            text,
         ]);
-        let mut text = node("text", wire::LayoutKind::Recipe, &[]);
-        text.recipe_kind = wire::NativeRecipeKind::Text.into();
-        text.title = "Bounded plain text".into();
-        wire.nodes.push(text);
-        wire
+        value
     }
     fn get<'a>(layout: &'a NativeLayout, id: &str) -> &'a Node {
         &layout.nodes[&identity(id).unwrap()]
     }
     fn assert_inert(node: &Node) {
         assert_eq!(node.kind, Kind::Unsupported);
-        assert!(node.entity.is_none() && node.recipes.is_none());
+        assert!(node.entity.is_none() && node.capability.is_none() && node.recipes.is_none());
         assert!(node.features.is_empty() && node.recipe_kind.is_none());
         assert!(!node.diagnostic.is_empty());
         assert_eq!(node.source.file, "synthetic.yaml");
     }
     #[test]
-    fn screen_bounds_are_presentation_data_and_invalid_or_legacy_bounds_are_inert() {
-        use buffa::Message;
-        let mut wire = forest();
-        wire.version = 3;
-        wire.nodes[3].screen_visibility = wire::NativeScreenVisibility {
+    fn screen_bounds_are_presentation_data_and_unknown_or_invalid_bounds_refuse_layout() {
+        let mut value = forest();
+        value.nodes[3].screen_visibility = wire::DashboardScreenVisibility {
             min_width: 768,
             max_width: 1199,
             ..Default::default()
         }
         .into();
-        let parsed = NativeLayout::try_from(&wire).unwrap();
+        let parsed = NativeLayout::try_from(&value).unwrap();
         let tile = get(&parsed, "tile");
         assert_eq!(
             (tile.viewport_min_width, tile.viewport_max_width),
@@ -814,37 +917,25 @@ pub(crate) mod tests {
         assert_eq!(tile.kind, Kind::Tile);
         assert!(tile.entity.is_some());
         for condition in [
-            wire::NativeScreenVisibility {
+            wire::DashboardScreenVisibility {
                 min_width: 1200,
                 max_width: 767,
                 ..Default::default()
             },
-            wire::NativeScreenVisibility {
+            wire::DashboardScreenVisibility {
                 min_width: 65536,
                 ..Default::default()
             },
-            wire::NativeScreenVisibility::decode_from_slice(&[24, 1]).unwrap(),
+            wire::DashboardScreenVisibility::decode_from_slice(&[24, 1]).unwrap(),
         ] {
-            wire.nodes[3].screen_visibility = condition.into();
-            let parsed = NativeLayout::try_from(&wire).unwrap();
-            let tile = get(&parsed, "tile");
-            assert_inert(tile);
-            assert_eq!((tile.viewport_min_width, tile.viewport_max_width), (0, 0));
+            value.nodes[3].screen_visibility = condition.into();
+            assert!(NativeLayout::try_from(&value).is_err());
         }
-        wire.version = 1;
-        wire.nodes[3].screen_visibility = wire::NativeScreenVisibility {
-            max_width: 767,
-            ..Default::default()
-        }
-        .into();
-        assert_inert(get(&NativeLayout::try_from(&wire).unwrap(), "tile"));
     }
-
     #[test]
     fn extended_forest_preserves_text_recipes_and_explicit_empty_confirmation() {
-        let wire = extended_forest();
-        let parsed = NativeLayout::try_from(&wire).unwrap();
-        assert_eq!(parsed.version, 2);
+        let value = extended_forest();
+        let parsed = NativeLayout::try_from(&value).unwrap();
         let node = get(&parsed, "recipe");
         assert_eq!(node.title, "Plain text\n<script>not executed</script>");
         assert_eq!(node.secondary, "Server-projected text");
@@ -865,9 +956,9 @@ pub(crate) mod tests {
                 .iter()
                 .any(|node| matches!(node.id.as_str(), "popup" | "popup-tile"))
         );
-        let popup = parsed.ordered_nodes(&identity("popup").unwrap());
         assert_eq!(
-            popup
+            parsed
+                .ordered_nodes(&identity("popup").unwrap())
                 .iter()
                 .map(|node| node.id.as_str())
                 .collect::<Vec<_>>(),
@@ -875,52 +966,55 @@ pub(crate) mod tests {
         );
     }
     #[test]
-    fn invalid_recipe_roles_missing_bindings_and_unknown_features_are_sourced_inert_nodes() {
+    fn unknown_recipes_features_and_interactions_never_admit_an_action() {
         let base = extended_forest();
-        let recipe_index = base
-            .nodes
-            .iter()
-            .position(|node| node.id == "recipe")
-            .unwrap();
-        let mut cases = vec![base; 9];
-        cases[0].nodes[recipe_index].recipe_kind = wire::NativeRecipeKind::BubblePopup.into();
-        cases[1].nodes[recipe_index].recipe_kind = wire::NativeRecipeKind::Select.into();
-        cases[2].nodes[recipe_index].recipe_kind = wire::NativeRecipeKind::Alarm.into();
-        cases[3].nodes[recipe_index].recipe_kind = wire::NativeRecipeKind::Entity.into();
-        cases[4].nodes[recipe_index].recipe_kind = EnumValue::Unknown(99);
-        cases[5].nodes[recipe_index].features = vec![wire::NativeFeatureKind::Toggle.into()];
-        cases[6].nodes[recipe_index].features = vec![EnumValue::Unknown(99)];
-        cases[7].nodes[recipe_index]
-            .recipes
-            .as_option_mut()
+        let index = base.nodes.iter().position(|n| n.id == "recipe").unwrap();
+        let mut cases = vec![base; 4];
+        recipe_mut(&mut cases[0].nodes[index]).kind = EnumValue::Unknown(99);
+        recipe_mut(&mut cases[1].nodes[index]).features = vec![EnumValue::Unknown(99)];
+        recipe_mut(&mut cases[2].nodes[index]).presentation = EnumValue::Unknown(99);
+        let interactions = &mut recipe_mut(&mut cases[3].nodes[index]).interactions;
+        let mut bytes = interactions.encode_to_vec();
+        bytes.extend_from_slice(&[0x98, 0x06, 0x01]);
+        *interactions = wire::DashboardInteractions::decode_from_slice(&bytes)
             .unwrap()
-            .version = 99;
-        cases[8].nodes[recipe_index].control_presentation = EnumValue::Unknown(99);
-        for wire in cases {
-            let parsed = NativeLayout::try_from(&wire).unwrap();
-            assert_inert(get(&parsed, "recipe"));
-            assert_eq!(get(&parsed, "tile").kind, Kind::Tile);
+            .into();
+        for value in cases {
+            assert!(NativeLayout::try_from(&value).is_err());
         }
+        // Missing binding never manufactures a target for display-only recipes.
+        let parsed = NativeLayout::try_from(&extended_forest()).unwrap();
+        assert!(
+            get(&parsed, "recipe").entity.is_none() && get(&parsed, "recipe").capability.is_none()
+        );
         for kind in [
-            wire::NativeRecipeKind::Select,
-            wire::NativeRecipeKind::Alarm,
-            wire::NativeRecipeKind::Entity,
+            wire::DashboardRecipeKind::Select,
+            wire::DashboardRecipeKind::Alarm,
+            wire::DashboardRecipeKind::Entity,
         ] {
-            let mut wire = extended_forest();
-            wire.nodes[recipe_index].recipe_kind = kind.into();
-            wire.nodes[recipe_index].entity_id = "synthetic-entity".into();
+            let mut value = extended_forest();
+            let r = recipe_mut(&mut value.nodes[index]);
+            r.kind = kind.into();
+            r.capability = CAPABILITY.into();
             assert_eq!(
-                get(&NativeLayout::try_from(&wire).unwrap(), "recipe").kind,
+                get(&NativeLayout::try_from(&value).unwrap(), "recipe").kind,
                 Kind::Recipe
             );
         }
     }
     #[test]
-    fn extended_parent_and_nested_unknowns_clear_all_descendant_intentions() {
-        use buffa::Message;
-        let mut wire = extended_forest();
-        wire.nodes[2].kind = EnumValue::Unknown(99);
-        let parsed = NativeLayout::try_from(&wire).unwrap();
+    fn unsupported_parent_clears_descendant_intentions_and_unknown_nested_fields_refuse_layout() {
+        let mut value = extended_forest();
+        let descendants = grid_children(&mut value.nodes[2]).clone();
+        value.nodes[2].content = Some(C::Unsupported(
+            wire::DashboardUnsupportedNode {
+                children: descendants,
+                diagnostic: "Unsupported source parent".into(),
+                ..Default::default()
+            }
+            .into(),
+        ));
+        let parsed = NativeLayout::try_from(&value).unwrap();
         for id in [
             "grid",
             "recipe",
@@ -934,160 +1028,118 @@ pub(crate) mod tests {
         ] {
             assert_inert(get(&parsed, id));
         }
-        let mut wire = extended_forest();
-        let recipe = wire
-            .nodes
-            .iter_mut()
-            .find(|node| node.id == "recipe")
-            .unwrap();
-        let mut bytes = recipe.source.as_option().unwrap().encode_to_vec();
+        let mut value = extended_forest();
+        let r = value.nodes.iter_mut().find(|n| n.id == "recipe").unwrap();
+        let mut bytes = r.source.encode_to_vec();
         bytes.extend_from_slice(&[0x98, 0x06, 0x07]);
-        recipe.source = wire::LayoutSource::decode_from_slice(&bytes)
+        r.source = wire::DashboardLayoutSource::decode_from_slice(&bytes)
             .unwrap()
             .into();
-        assert_inert(get(&NativeLayout::try_from(&wire).unwrap(), "recipe"));
+        assert!(NativeLayout::try_from(&value).is_err());
     }
     #[test]
-    fn features_require_a_tile_unique_known_values_and_a_bounded_list() {
-        let mut wire = extended_forest();
-        wire.nodes[3].features = vec![
-            wire::NativeFeatureKind::Toggle.into(),
-            wire::NativeFeatureKind::Brightness.into(),
+    fn features_are_unique_known_values_and_have_a_bounded_list() {
+        let mut value = extended_forest();
+        tile_mut(&mut value.nodes[3]).features = vec![
+            wire::DashboardFeatureKind::Toggle.into(),
+            wire::DashboardFeatureKind::Brightness.into(),
         ];
-        let parsed = NativeLayout::try_from(&wire).unwrap();
         assert_eq!(
-            get(&parsed, "tile").features,
+            get(&NativeLayout::try_from(&value).unwrap(), "tile").features,
             [FeatureKind::Toggle, FeatureKind::Brightness]
         );
-        wire.nodes[3]
+        tile_mut(&mut value.nodes[3])
             .features
-            .push(wire::NativeFeatureKind::Toggle.into());
-        assert_inert(get(&NativeLayout::try_from(&wire).unwrap(), "tile"));
-        wire.nodes[3].features = vec![wire::NativeFeatureKind::Toggle.into(); 17];
-        assert_eq!(NativeLayout::try_from(&wire), Err(LayoutFailure::Budget));
+            .push(wire::DashboardFeatureKind::Toggle.into());
+        assert_eq!(NativeLayout::try_from(&value), Err(LayoutFailure::Invalid));
+        tile_mut(&mut value.nodes[3]).features =
+            vec![wire::DashboardFeatureKind::Toggle.into(); 17];
+        assert_eq!(NativeLayout::try_from(&value), Err(LayoutFailure::Budget));
     }
     #[test]
-    fn entity_bindings_are_bounded_and_cannot_contain_control_characters() {
-        for invalid in ["entity\nwith-control".to_owned(), "e".repeat(4097)] {
-            let mut wire = extended_forest();
-            wire.nodes[3].entity_id = invalid.clone();
-            assert_eq!(NativeLayout::try_from(&wire), Err(LayoutFailure::Invalid));
-            let mut wire = extended_forest();
-            wire.nodes
-                .iter_mut()
-                .find(|node| node.id == "recipe")
-                .unwrap()
-                .entity_id = invalid;
-            assert_eq!(NativeLayout::try_from(&wire), Err(LayoutFailure::Invalid));
+    fn capability_bindings_are_bounded_strict_and_cannot_contain_control_characters() {
+        for invalid in [
+            "entity\nwith-control".to_owned(),
+            "e".repeat(4097),
+            ENTITY.into(),
+        ] {
+            let mut value = extended_forest();
+            tile_mut(&mut value.nodes[3]).capability = invalid.clone();
+            assert_eq!(NativeLayout::try_from(&value), Err(LayoutFailure::Invalid));
+            let mut value = extended_forest();
+            let r = value.nodes.iter_mut().find(|n| n.id == "recipe").unwrap();
+            recipe_mut(r).capability = invalid;
+            assert_eq!(NativeLayout::try_from(&value), Err(LayoutFailure::Invalid));
         }
     }
     #[test]
-    fn new_containers_cannot_smuggle_structural_nodes_into_cards_or_chips() {
-        let mut wire = extended_forest();
-        let chip = wire
-            .nodes
-            .iter_mut()
-            .find(|node| node.id == "chip")
-            .unwrap();
-        chip.kind = wire::LayoutKind::Tile.into();
-        chip.recipe_kind = wire::NativeRecipeKind::Unspecified.into();
-        chip.entity_id = "synthetic-entity".into();
-        assert_eq!(NativeLayout::try_from(&wire), Err(LayoutFailure::Invalid));
-        let mut wire = extended_forest();
-        let text = wire
-            .nodes
-            .iter_mut()
-            .find(|node| node.id == "text")
-            .unwrap();
-        text.kind = wire::LayoutKind::Section.into();
-        text.recipe_kind = wire::NativeRecipeKind::Unspecified.into();
-        assert_eq!(NativeLayout::try_from(&wire), Err(LayoutFailure::Invalid));
+    fn containers_cannot_smuggle_structural_nodes_into_cards_or_chips() {
+        let mut value = extended_forest();
+        let chip = value.nodes.iter_mut().find(|n| n.id == "chip").unwrap();
+        chip.content = tile("chip").content;
+        assert_eq!(NativeLayout::try_from(&value), Err(LayoutFailure::Invalid));
+        let mut value = extended_forest();
+        let text = value.nodes.iter_mut().find(|n| n.id == "text").unwrap();
+        text.content = Some(C::Section(Box::default()));
+        assert_eq!(NativeLayout::try_from(&value), Err(LayoutFailure::Invalid));
     }
     #[test]
     fn malformed_forests_never_turn_cycles_shared_or_orphaned_data_into_widgets() {
         let mut cases = vec![forest(); 5];
-        cases[0].nodes[2].children.push("view".into());
-        cases[1].nodes[1].children.push("tile".into());
-        cases[2]
-            .nodes
-            .push(node("orphan", wire::LayoutKind::Tile, &[]));
-        cases[3].nodes[2].children.push("missing".into());
+        grid_children(&mut cases[0].nodes[2]).push("view".into());
+        let Some(C::Section(section)) = &mut cases[1].nodes[1].content else {
+            panic!()
+        };
+        section
+            .children
+            .get_or_insert_default()
+            .children
+            .push("tile".into());
+        cases[2].nodes.push(tile("orphan"));
+        grid_children(&mut cases[3].nodes[2]).push("missing".into());
         cases[4].views.push("view".into());
-        for wire in cases {
-            assert_eq!(NativeLayout::try_from(&wire), Err(LayoutFailure::Invalid));
+        for value in cases {
+            assert_eq!(NativeLayout::try_from(&value), Err(LayoutFailure::Invalid));
         }
         assert!(NativeLayout::try_from(&forest()).is_ok());
     }
     #[test]
-    fn future_version_and_parent_variants_are_visible_sourced_and_inert() {
-        let mut wire = forest();
-        wire.nodes[2].kind = EnumValue::Unknown(99);
-        let parsed = NativeLayout::try_from(&wire).unwrap();
-        let tile = &parsed.nodes[&identity("tile").unwrap()];
-        assert_eq!(tile.kind, Kind::Unsupported);
-        assert!(tile.entity.is_none() && !tile.diagnostic.is_empty());
-        assert_eq!(tile.source.file, "synthetic.yaml");
-        wire = forest();
-        wire.version = 99;
-        let parsed = NativeLayout::try_from(&wire).unwrap();
-        assert!(
-            parsed
-                .nodes
-                .values()
-                .all(|node| node.kind == Kind::Unsupported
-                    && node.entity.is_none()
-                    && !node.diagnostic.is_empty())
+    fn unknown_content_never_falls_back_to_a_default_tile_action() {
+        let mut value = forest();
+        value.nodes[3].content = None;
+        assert_eq!(
+            NativeLayout::try_from(&value),
+            Err(LayoutFailure::Unsupported)
+        );
+        let mut value = forest();
+        let mut bytes = value.nodes[3].encode_to_vec();
+        bytes.extend_from_slice(&[0x98, 0x06, 0x07]);
+        value.nodes[3] = wire::DashboardLayoutNode::decode_from_slice(&bytes).unwrap();
+        assert_eq!(
+            NativeLayout::try_from(&value),
+            Err(LayoutFailure::Unsupported)
         );
     }
     #[test]
-    fn unnegotiated_recipes_cannot_be_ignored_in_favor_of_a_default_tile_action() {
-        let mut wire = forest();
-        wire.nodes[3].recipes = wire::NativeRecipes {
-            version: 1,
-            ..Default::default()
-        }
-        .into();
-        let parsed = NativeLayout::try_from(&wire).unwrap();
-        let node = &parsed.nodes[&identity("tile").unwrap()];
-        assert_eq!(node.kind, Kind::Unsupported);
-        assert!(node.entity.is_none() && !node.diagnostic.is_empty());
-    }
-    #[test]
     fn parser_accepts_the_full_importer_card_depth_and_rejects_more() {
-        let mut wire = wire::NativeLayout {
-            version: 1,
-            views: vec!["view".into()],
-            nodes: vec![
-                node("view", wire::LayoutKind::View, &["section"]),
-                node("section", wire::LayoutKind::Section, &["card0"]),
-            ],
-            ..Default::default()
+        let mut value = forest();
+        value.nodes.truncate(2);
+        let Some(C::Section(section)) = &mut value.nodes[1].content else {
+            panic!()
         };
+        section.children = children(&["card0"]).into();
         for level in 0..=16 {
             let id = format!("card{level}");
             let next = format!("card{}", level + 1);
-            let next_ref = next.as_str();
-            wire.nodes.push(node(
-                &id,
-                if level == 16 {
-                    wire::LayoutKind::Tile
-                } else {
-                    wire::LayoutKind::Grid
-                },
-                if level == 16 {
-                    &[]
-                } else {
-                    std::slice::from_ref(&next_ref)
-                },
-            ));
+            value.nodes.push(if level == 16 {
+                tile(&id)
+            } else {
+                grid(&id, &[&next])
+            });
         }
-        assert!(NativeLayout::try_from(&wire).is_ok());
-        let last = wire.nodes.last_mut().unwrap();
-        last.kind = wire::LayoutKind::Grid.into();
-        last.entity_id.clear();
-        last.children.push("overflow".into());
-        wire.nodes
-            .push(node("overflow", wire::LayoutKind::Tile, &[]));
-        assert_eq!(NativeLayout::try_from(&wire), Err(LayoutFailure::Budget));
+        assert!(NativeLayout::try_from(&value).is_ok());
+        *value.nodes.last_mut().unwrap() = grid("card16", &["overflow"]);
+        value.nodes.push(tile("overflow"));
+        assert_eq!(NativeLayout::try_from(&value), Err(LayoutFailure::Budget));
     }
 }

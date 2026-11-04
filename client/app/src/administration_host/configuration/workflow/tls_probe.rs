@@ -418,7 +418,7 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
         .await
         .unwrap();
     let index = history
-        .generations
+        .configuration_generations
         .iter()
         .position(|value| value.generation.revision == initial.active().revision())
         .unwrap();

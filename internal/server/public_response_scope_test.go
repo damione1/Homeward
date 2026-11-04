@@ -45,6 +45,9 @@ func TestNHA201PublicResponseNativeWithdrawalCancelsAndInterrupts(t *testing.T) 
 	}{
 		{"rights", authorization.ErrDenied, auth.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED},
 		{"authority", authorization.ErrUnavailable, auth.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE},
+		{"credential revoked", authorizationTerminationCause{reason: auth.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED}, auth.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED},
+		{"credential expired", authorizationTerminationCause{reason: auth.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED}, auth.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED},
+		{"native authority unavailable", authorizationTerminationCause{reason: auth.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE}, auth.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			interrupted := make(chan struct{})

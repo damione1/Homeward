@@ -125,7 +125,7 @@ func TestNHA055SQL26ActualRunTLSReadListSchemasPreserveSourceKinds(t *testing.T)
 		if err := contracts.AdmitConfigurationResponse(response.Msg); err != nil {
 			t.Fatal(err)
 		}
-		for _, document := range response.Msg.Documents {
+		for _, document := range response.Msg.ConfigurationDocuments {
 			if _, duplicate := listed[document.Id.Value]; duplicate {
 				t.Fatal("document repeated across pages")
 			}
@@ -156,7 +156,7 @@ func TestNHA055SQL26ActualRunTLSReadListSchemasPreserveSourceKinds(t *testing.T)
 		if err := contracts.AdmitConfigurationResponse(response.Msg); err != nil {
 			t.Fatal(err)
 		}
-		for _, schema := range response.Msg.Schemas {
+		for _, schema := range response.Msg.ConfigurationSchemas {
 			// Legacy declarative-1/2 legitimately have the same document kind.
 			if schema.Kind >= wire.DocumentKind_DOCUMENT_KIND_DASHBOARD_SOURCE {
 				if _, duplicate := schemas[schema.Kind]; duplicate {

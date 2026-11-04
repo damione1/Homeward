@@ -224,7 +224,7 @@ fn intent(value: &wire::ConfigurationSimulationIntent) -> bool {
         Some(wire::configuration_simulation_intent::Parameters::Light(value)) => {
             let brightness = usize::from(value.brightness_percent.is_some())
                 + usize::from(value.brightness_step_percent.is_some())
-                + usize::from(value.brightness_255.is_some());
+                + usize::from(value.brightness_level.is_some());
             value.__buffa_unknown_fields.is_empty()
                 && brightness <= 1
                 && (value.on.is_some() || brightness > 0 || value.color_temp_mireds.is_some())
@@ -232,7 +232,7 @@ fn intent(value: &wire::ConfigurationSimulationIntent) -> bool {
                 && finite(value.brightness_step_percent, -100., 100.)
                 && finite(value.transition_seconds, 0., 86400.)
                 && value
-                    .brightness_255
+                    .brightness_level
                     .is_none_or(|value| (0..=255).contains(&value))
                 && value
                     .color_temp_mireds

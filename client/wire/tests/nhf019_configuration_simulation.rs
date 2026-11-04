@@ -1,15 +1,16 @@
 use buffa_types::google::protobuf::Timestamp;
 use home_wire_contract::{
     configuration_simulation_contract::{admit_simulation_request, admit_simulation_response},
-    home::{configurationplan::v1 as plan, configurationsimulation::v1 as wire},
+    home::{api::v2 as plan, api::v2 as wire},
 };
-fn request() -> wire::SimulatePlanRequest {
-    wire::SimulatePlanRequest {
-        candidate: plan::Candidate {
-            family: plan::SourceFamily::Script.into(),
+fn request() -> wire::SimulateConfigurationPlanRequest {
+    wire::SimulateConfigurationPlanRequest {
+        name: "homes/test".into(),
+        candidate: plan::ConfigurationPlanCandidate {
+            family: plan::ConfigurationPlanSourceFamily::Script.into(),
             identity: "synthetic.script".into(),
             entry: "entry.yaml".into(),
-            files: vec![plan::SourceFile {
+            files: vec![plan::ConfigurationPlanSourceFile {
                 logical_path: "entry.yaml".into(),
                 exact_source: b"sequence: []\n".to_vec(),
                 ..Default::default()
@@ -20,7 +21,7 @@ fn request() -> wire::SimulatePlanRequest {
         fixtures: vec![wire::Fixture {
             alias: "synthetic.switch".into(),
             state: Some("off".into()),
-            supports: vec![wire::Support::SwitchTurnOn.into()],
+            supports: vec![wire::ConfigurationSimulationSupport::SwitchTurnOn.into()],
             ..Default::default()
         }],
         now: Timestamp {
@@ -33,11 +34,11 @@ fn request() -> wire::SimulatePlanRequest {
         ..Default::default()
     }
 }
-fn response() -> wire::SimulatePlanResponse {
-    wire::SimulatePlanResponse {
-        report: wire::Report {
+fn response() -> wire::SimulateConfigurationPlanResponse {
+    wire::SimulateConfigurationPlanResponse {
+        report: wire::ConfigurationSimulationReport {
             simulated: true,
-            status: wire::Status::Completed.into(),
+            status: wire::ConfigurationSimulationStatus::Completed.into(),
             limitations: vec!["Synthetic simulation only".into()],
             ..Default::default()
         }
@@ -49,7 +50,8 @@ fn response() -> wire::SimulatePlanResponse {
 fn only_logic_sources_and_known_declared_supports_are_admitted() {
     let mut value = request();
     assert!(admit_simulation_request(&value).is_ok());
-    value.candidate.as_option_mut().unwrap().family = plan::SourceFamily::Operational.into();
+    value.candidate.as_option_mut().unwrap().family =
+        plan::ConfigurationPlanSourceFamily::Operational.into();
     assert!(admit_simulation_request(&value).is_err());
     value = request();
     value.fixtures[0].supports.push(999.into());
@@ -57,24 +59,30 @@ fn only_logic_sources_and_known_declared_supports_are_admitted() {
     value = request();
     value.fixtures[0]
         .supports
-        .push(wire::Support::SwitchTurnOn.into());
+        .push(wire::ConfigurationSimulationSupport::SwitchTurnOn.into());
     assert!(admit_simulation_request(&value).is_err());
 }
 #[test]
 fn absent_state_does_not_fabricate_observed_attributes_and_fixtures_have_a_total_budget() {
     let mut value = request();
     value.fixtures[0].state = None;
-    value.fixtures[0].attributes.push(wire::Attribute {
-        name: "present".into(),
-        value: Some(wire::attribute::Value::Boolean(false)),
-        ..Default::default()
-    });
+    value.fixtures[0]
+        .attributes
+        .push(wire::ConfigurationSimulationAttribute {
+            name: "present".into(),
+            value: Some(wire::configuration_simulation_attribute::Value::Boolean(
+                false,
+            )),
+            ..Default::default()
+        });
     assert!(admit_simulation_request(&value).is_err());
     value = request();
     value.fixtures[0].attributes = (0..20)
-        .map(|index| wire::Attribute {
+        .map(|index| wire::ConfigurationSimulationAttribute {
             name: format!("attribute-{index}"),
-            value: Some(wire::attribute::Value::Text("x".repeat(4096))),
+            value: Some(wire::configuration_simulation_attribute::Value::Text(
+                "x".repeat(4096),
+            )),
             ..Default::default()
         })
         .collect();
@@ -90,18 +98,16 @@ fn a_simulation_cannot_claim_hardware_validation_or_hide_partial_failure() {
     value.report.as_option_mut().unwrap().hardware_validated = true;
     assert!(admit_simulation_response(&value).is_err());
     value = response();
-    value.report.as_option_mut().unwrap().status = wire::Status::Partial.into();
+    value.report.as_option_mut().unwrap().status =
+        wire::ConfigurationSimulationStatus::Partial.into();
     assert!(admit_simulation_response(&value).is_err());
-    value
-        .report
-        .as_option_mut()
-        .unwrap()
-        .diagnostics
-        .push(wire::Diagnostic {
-            code: wire::DiagnosticCode::MissingFixture.into(),
-            position: wire::Position::default().into(),
+    value.report.as_option_mut().unwrap().diagnostics.push(
+        wire::ConfigurationSimulationDiagnostic {
+            code: wire::ConfigurationSimulationDiagnosticCode::MissingFixture.into(),
+            position: wire::ConfigurationSimulationPosition::default().into(),
             ..Default::default()
-        });
+        },
+    );
     assert!(admit_simulation_response(&value).is_ok());
     value.report.as_option_mut().unwrap().diagnostics[0].code = 999.into();
     assert!(admit_simulation_response(&value).is_err());
@@ -109,9 +115,9 @@ fn a_simulation_cannot_claim_hardware_validation_or_hide_partial_failure() {
 #[test]
 fn recorded_intentions_need_known_parameters_finite_values_and_real_source_positions() {
     let mut value = response();
-    let intent = wire::Intent {
+    let intent = wire::ConfigurationSimulationIntent {
         alias: "synthetic.light".into(),
-        position: wire::Position {
+        position: wire::ConfigurationSimulationPosition {
             file: "entry.yaml".into(),
             path: "sequence.0".into(),
             line: 1,
@@ -125,18 +131,20 @@ fn recorded_intentions_need_known_parameters_finite_values_and_real_source_posit
             ..Default::default()
         }
         .into(),
-        parameters: Some(wire::intent::Parameters::Light(Box::new(
-            wire::LightIntent {
+        parameters: Some(wire::configuration_simulation_intent::Parameters::Light(
+            Box::new(wire::LightIntent {
                 brightness_percent: Some(50.),
                 ..Default::default()
-            },
-        ))),
+            }),
+        )),
         ..Default::default()
     };
     value.report.as_option_mut().unwrap().intents.push(intent);
     assert!(admit_simulation_response(&value).is_ok());
     let item = &mut value.report.as_option_mut().unwrap().intents[0];
-    let Some(wire::intent::Parameters::Light(light)) = &mut item.parameters else {
+    let Some(wire::configuration_simulation_intent::Parameters::Light(light)) =
+        &mut item.parameters
+    else {
         panic!("light")
     };
     light.brightness_percent = Some(f64::NAN);

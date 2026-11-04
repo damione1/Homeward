@@ -218,7 +218,11 @@ func (n *NativeSource) Read(ctx context.Context, lastLog uint64) (Sample, error)
 	if health.Msg.GetServer().GetReadiness() != api.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY {
 		return sample, &ReadError{Code: "server_unready"}
 	}
-	sample.ConfigRevision = health.Msg.GetServer().GetGeneration().GetPresent().GetValue()
+	revision := health.Msg.GetServer().GetGeneration().GetPresent().GetValue()
+	if revision <= 0 {
+		return sample, ErrSample
+	}
+	sample.ConfigRevision = uint64(revision)
 	sample.Epoch = hex.EncodeToString(health.Msg.GetProcessEpoch().GetValue())
 	if sample.Epoch == "" || sample.ConfigRevision == 0 {
 		return sample, ErrSample
@@ -238,14 +242,18 @@ func (n *NativeSource) Read(ctx context.Context, lastLog uint64) (Sample, error)
 	if metrics.Msg.Name != parent+"/metrics" || !bytes.Equal(metrics.Msg.GetProcessEpoch().GetValue(), health.Msg.GetProcessEpoch().GetValue()) {
 		return sample, ErrSample
 	}
-	integration, err := n.observation.GetIntegrationHealth(ctx, bearer(&api.GetIntegrationHealthRequest{Name: n.config.Instance + "/health"}, n.access))
+	integration, err := n.observation.GetIntegrationHealth(ctx, bearer(&api.GetIntegrationHealthRequest{Name: n.config.Instance + "/integrationHealth"}, n.access))
 	if err != nil {
 		return sample, n.reject(err)
 	}
-	if integration.Msg.Name != n.config.Instance+"/health" {
+	if integration.Msg.Name != n.config.Instance+"/integrationHealth" {
 		return sample, ErrSample
 	}
-	sample.PilotAttempts = integration.Msg.GetSupervision().GetSupervised().GetAttempts()
+	attempts := integration.Msg.GetSupervision().GetSupervised().GetAttempts()
+	if attempts < 0 {
+		return sample, ErrSample
+	}
+	sample.PilotAttempts = uint64(attempts)
 	sample.Integration, err = safeJSON(integration.Msg)
 	if err != nil {
 		return sample, err
@@ -265,7 +273,7 @@ func (n *NativeSource) Read(ctx context.Context, lastLog uint64) (Sample, error)
 	if err != nil {
 		return sample, n.reject(err)
 	}
-	if contracts.AdmitObservationResponse(closing.Msg) != nil || closing.Msg.GetServer().GetReadiness() != api.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY || !bytes.Equal(closing.Msg.GetProcessEpoch().GetValue(), health.Msg.GetProcessEpoch().GetValue()) || closing.Msg.GetServer().GetGeneration().GetPresent().GetValue() != sample.ConfigRevision {
+	if contracts.AdmitObservationResponse(closing.Msg) != nil || closing.Msg.GetServer().GetReadiness() != api.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY || !bytes.Equal(closing.Msg.GetProcessEpoch().GetValue(), health.Msg.GetProcessEpoch().GetValue()) || closing.Msg.GetServer().GetGeneration().GetPresent().GetValue() != revision {
 		return sample, ErrSample
 	}
 	if closing.Header().Get("Homeward-Observation-Profile") != sample.Binding.Profile || closing.Header().Get("Homeward-Executable-SHA256") != sample.Binding.Executable || closing.Header().Get("Homeward-Manifest-SHA256") != sample.Binding.Manifest || closing.Header().Get("Homeward-Source-SHA256") != sample.Binding.Source {
@@ -429,16 +437,24 @@ func (n *NativeSource) readLogs(ctx context.Context, last uint64, sample *Sample
 		if hex.EncodeToString(page.ProcessEpoch.GetValue()) != sample.Epoch {
 			return ErrSample
 		}
+		pageUpper, parseErr := apitypes.ParseDecimalUint64(page.UpperSequence)
+		if parseErr != nil {
+			return ErrSample
+		}
 		if pages == 0 {
-			upper = page.UpperSequence
-		} else if upper != page.UpperSequence {
+			upper = pageUpper.Value()
+		} else if upper != pageUpper.Value() {
 			return ErrSample
 		}
 		for _, row := range page.Rows {
-			if sample.LogFirst == 0 {
-				sample.LogFirst = row.Sequence
+			sequence, parseErr := apitypes.ParseDecimalUint64(row.Sequence)
+			if parseErr != nil {
+				return ErrSample
 			}
-			if row.Sequence > last {
+			if sample.LogFirst == 0 {
+				sample.LogFirst = sequence.Value()
+			}
+			if sequence.Value() > last {
 				raw, err := sanitizedRuntimeLog(row)
 				if err != nil {
 					return ErrSample
@@ -453,7 +469,7 @@ func (n *NativeSource) readLogs(ctx context.Context, last uint64, sample *Sample
 		token = next
 	}
 	sample.LogUpper = upper
-	if last > 0 && (upper < last || (sample.LogFirst > last+1)) {
+	if last > 0 && (upper < last || (sample.LogFirst > last && sample.LogFirst-last > 1)) {
 		sample.JournalGap = true
 	}
 	return nil
@@ -462,11 +478,18 @@ func (n *NativeSource) readLogs(ctx context.Context, last uint64, sample *Sample
 // Runtime authors may contain a real human account ID. Durable qualification
 // evidence needs only finite code/level/component/time and its epoch cursor.
 func sanitizedRuntimeLog(row *api.ObservationRuntimeLogRow) (json.RawMessage, error) {
+	if row == nil {
+		return nil, ErrSample
+	}
+	sequence, err := apitypes.ParseDecimalUint64(row.Sequence)
+	if err != nil {
+		return nil, ErrSample
+	}
 	return json.Marshal(struct {
 		Sequence   uint64 `json:"sequence"`
 		Code       string `json:"code"`
 		Level      string `json:"level"`
 		Component  string `json:"component"`
 		OccurredAt string `json:"occurred_at"`
-	}{row.Sequence, row.GetEvent().GetCode().String(), row.GetEvent().GetLevel().String(), row.GetEvent().GetComponent().String(), row.GetEvent().GetOccurredAt().AsTime().UTC().Format(time.RFC3339Nano)})
+	}{sequence.Value(), row.GetEvent().GetCode().String(), row.GetEvent().GetLevel().String(), row.GetEvent().GetComponent().String(), row.GetEvent().GetOccurredAt().AsTime().UTC().Format(time.RFC3339Nano)})
 }

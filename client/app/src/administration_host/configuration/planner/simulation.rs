@@ -394,7 +394,7 @@ fn parameters(value: Option<&wire::configuration_simulation_intent::Parameters>)
                 value.brightness_step_percent,
                 " %",
             );
-            parameter(&mut values, "Brightness", value.brightness_255, " / 255");
+            parameter(&mut values, "Brightness", value.brightness_level, " / 255");
             parameter(
                 &mut values,
                 "Color Temperature",

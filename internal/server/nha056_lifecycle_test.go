@@ -84,7 +84,7 @@ func TestNHA056ActualTLSClientReadsAdmittedFactsAndPersistedAudit(t *testing.T) 
 		t.Fatal("real TLS health not admitted", err)
 	}
 	admittedRevision := nha056AdmittedSQLRevision(t, runtime.store, 0)
-	if health.Msg.Liveness != obsv2.ObservationLiveness_OBSERVATION_LIVENESS_LIVE || health.Msg.Server.Generation.GetPresent().GetValue() != admittedRevision || health.Msg.Server.Readiness != obsv2.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY {
+	if health.Msg.Liveness != obsv2.ObservationLiveness_OBSERVATION_LIVENESS_LIVE || nha204UnsignedNonnegative(t, health.Msg.Server.Generation.GetPresent().GetValue()) != admittedRevision || health.Msg.Server.Readiness != obsv2.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY {
 		t.Fatal("health did not identify the actually admitted SQL generation and ready core")
 	}
 	if health.Msg.Durable.GetObservedAt() == nil || health.Msg.Durable.Availability != obsv2.ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_AVAILABLE {
@@ -225,7 +225,7 @@ func TestNHA056ActualTLSClientReadsAdmittedFactsAndPersistedAudit(t *testing.T) 
 		}
 	}
 	orphanEpoch := bytes.Repeat([]byte{0xa5}, 16)
-	coverage, err := reader.QueryRecorderCoverage(ctx, nha056SessionRequest(&obsv2.QueryRecorderCoverageRequest{Parent: home, From: &obsv2.AdmissionPosition{Epoch: orphanEpoch, Sequence: 0}, Through: &obsv2.QueryRecorderCoverageRequest_LatestInEpoch{LatestInEpoch: &obsv2.RecorderEpochIdentity{Value: orphanEpoch}}}, token))
+	coverage, err := reader.QueryRecorderCoverage(ctx, nha056SessionRequest(&obsv2.QueryRecorderCoverageRequest{Parent: home, From: &obsv2.AdmissionPosition{Epoch: orphanEpoch, Sequence: "0"}, Through: &obsv2.QueryRecorderCoverageRequest_LatestInEpoch{LatestInEpoch: &obsv2.RecorderEpochIdentity{Value: orphanEpoch}}}, token))
 	if connect.CodeOf(err) != connect.CodeNotFound || coverage != nil {
 		t.Fatal("absent retained Recorder epoch lost its explicit result", err)
 	}

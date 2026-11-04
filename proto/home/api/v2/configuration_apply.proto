@@ -26,9 +26,9 @@ service ConfigurationApplyService {
       post: "/v2/{name=homes/*/configurationPlans/*}:apply"
       body: "*"
     };
-    option (google.api.method_signature) = "name,candidate,expected,expected_workspace_sha256,sources";
+    option (google.api.method_signature) = "name,candidate,expected,expected_workspace_sha256,sources,etag";
     option (google.longrunning.operation_info) = {
-      response_type: "ConfigurationActivationResult"
+      response_type: "ApplyConfigurationPlanResponse"
       metadata_type: "ConfigurationOperationMetadata"
     };
   }
@@ -40,7 +40,7 @@ service ConfigurationApplyService {
     };
     option (google.api.method_signature) = "name,expected,expected_workspace_sha256,historical";
     option (google.longrunning.operation_info) = {
-      response_type: "ConfigurationActivationResult"
+      response_type: "RollbackConfigurationResponse"
       metadata_type: "ConfigurationOperationMetadata"
     };
   }
@@ -119,4 +119,16 @@ message RollbackConfigurationRequest {
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_info).format = UUID4
   ];
+}
+
+// Reports publication established by the native configuration owner after Apply.
+message ApplyConfigurationPlanResponse {
+  // Shared immutable publication evidence, without changing the native ledger.
+  ConfigurationActivationResult result = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Reports publication established by the native configuration owner after rollback.
+message RollbackConfigurationResponse {
+  // Shared immutable publication evidence; rollback does not restore an old ledger.
+  ConfigurationActivationResult result = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

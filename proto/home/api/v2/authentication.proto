@@ -31,7 +31,7 @@ service AccountService {
       post: "/v2/{parent=homes/*}/accounts"
       body: "account"
     };
-    option (google.api.method_signature) = "parent,account";
+    option (google.api.method_signature) = "parent,account,account_id";
   }
   // Gets the authorized account.
   rpc GetAccount(GetAccountRequest) returns (Account) {

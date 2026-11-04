@@ -48,9 +48,21 @@ pub(crate) fn literal(view: &CachedView, binding: &FieldBinding) -> Option<Liter
             _ => return None,
         },
         (FieldKey::Measurement | FieldKey::Value, T::NumericMeasurement(v)) => {
+            // Exact decimals remain independent of floating-point rounding, but
+            // a supplied non-finite double is invalid observation evidence.
+            if v.observation.value.is_some_and(|value| !value.is_finite()) {
+                return None;
+            }
             V::DecimalValue(v.observation.decimal_value.clone()?)
         }
-        (FieldKey::State, T::Power(v)) => V::PowerValue(v.observation.value?),
+        (FieldKey::State, T::Power(_)) => V::PowerValue(
+            if power(capability)? {
+                wire::PowerValue::On
+            } else {
+                wire::PowerValue::Off
+            }
+            .into(),
+        ),
         (FieldKey::State | FieldKey::Value, T::BinaryObservation(v)) => {
             V::BooleanValue(v.observation.value?)
         }
@@ -217,141 +229,205 @@ fn unavailable(node: &Node) -> Node {
 mod tests {
     use super::*;
     use crate::dashboard_layout::Kind;
+    use buffa::{EnumValue, Message};
     use home_client_model::dashboard::{Comparison, Predicate, Recipes};
-
-    fn entity(value: state::observed_state::Value) -> state::ViewEntity {
-        state::ViewEntity {
-            entity_id: "synthetic-observation".into(),
-            state: state::ObservedState {
-                entity: registry::EntityRef {
-                    reference: Some(registry::entity_ref::Reference::EntityId(
-                        "synthetic-observation".into(),
-                    )),
-                    ..Default::default()
-                }
-                .into(),
-                quality: state::Quality {
-                    availability: state::Availability::Available.into(),
-                    freshness: state::Freshness::Fresh.into(),
-                    provenance: state::Provenance::Observed.into(),
-                    ..Default::default()
-                }
-                .into(),
-                value: Some(value),
-                ..Default::default()
-            }
-            .into(),
+    use wire::capability::Trait as T;
+    const CAP: &str = "homes/synthetic/entities/synthetic-observation/capabilities/power";
+    fn quality() -> wire::ObservationQuality {
+        wire::ObservationQuality {
+            availability: wire::Availability::Available.into(),
+            freshness: wire::Freshness::Current.into(),
+            provenance: wire::Provenance::Observed.into(),
             ..Default::default()
         }
     }
-    #[test]
-    fn literals_preserve_observed_false_and_empty_text_without_localized_fallbacks() {
-        let false_value = entity(state::observed_state::Value::SwitchOn(false));
-        assert_eq!(literal(&false_value), Some("off"));
-        let empty = entity(state::observed_state::Value::Helper(
-            helpers::HelperValue {
-                value: Some(helpers::helper_value::Value::Text(String::new())),
+    fn cap(value: T) -> wire::Capability {
+        wire::Capability {
+            name: CAP.into(),
+            etag: "definition-etag".into(),
+            action_access: wire::ActionAccess::Denied.into(),
+            r#trait: Some(value),
+            ..Default::default()
+        }
+    }
+    fn power_cap(value: Option<wire::PowerValue>) -> wire::Capability {
+        cap(T::Power(
+            wire::PowerCapability {
+                observation: wire::PowerObservation {
+                    value: value.map(Into::into),
+                    quality: quality().into(),
+                    ..Default::default()
+                }
+                .into(),
                 ..Default::default()
             }
             .into(),
-        ));
-        assert_eq!(literal(&empty), Some(""));
-        let absent = entity(state::observed_state::Value::Light(
-            state::LightValue::default().into(),
-        ));
-        assert_eq!(literal(&absent), None);
-        let lossy = entity(state::observed_state::Value::Measurement(
-            state::Measurement {
-                value: 12.5,
-                unit: "unit".into(),
+        ))
+    }
+    fn binding(field: FieldKey) -> FieldBinding {
+        FieldBinding {
+            capability: CapabilityName::try_from(CAP).unwrap(),
+            field,
+        }
+    }
+    fn read(value: wire::Capability, field: FieldKey) -> Option<Literal> {
+        let entity = CapabilityName::try_from(value.name.as_str())
+            .unwrap()
+            .entity();
+        let view = crate::dashboard::capture_fixture(vec![wire::EntityViewEntry {
+            entity: wire::Entity {
+                name: entity.as_str().into(),
+                etag: "entity-etag".into(),
+                display_name: "Synthetic observation".into(),
+                ..Default::default()
+            }
+            .into(),
+            capabilities: vec![value],
+            ..Default::default()
+        }]);
+        literal(&view, &binding(field))
+    }
+    #[test]
+    fn literals_preserve_observed_false_and_empty_text_without_localized_fallbacks() {
+        assert_eq!(
+            read(power_cap(Some(wire::PowerValue::Off)), FieldKey::State),
+            Some(Literal::Power(home_client_model::api::Power::Off))
+        );
+        let mut empty = cap(T::Helper(
+            wire::HelperCapability {
+                observation: wire::HelperObservation {
+                    value: wire::HelperValue {
+                        value: Some(wire::helper_value::Value::Text(String::new())),
+                        ..Default::default()
+                    }
+                    .into(),
+                    quality: quality().into(),
+                    ..Default::default()
+                }
+                .into(),
                 ..Default::default()
             }
             .into(),
         ));
         assert_eq!(
-            literal(&lossy),
+            read(empty.clone(), FieldKey::State),
+            Some(Literal::Text(
+                home_client_model::dashboard::TextLiteral::try_from("").unwrap()
+            ))
+        );
+        // A restored durable helper is usable data, not a device readback.
+        let Some(T::Helper(helper)) = empty.r#trait.as_mut() else {
+            panic!()
+        };
+        helper
+            .observation
+            .get_or_insert_default()
+            .quality
+            .get_or_insert_default()
+            .provenance = wire::Provenance::Restored.into();
+        assert_eq!(
+            read(empty, FieldKey::State),
+            Some(Literal::Text(
+                home_client_model::dashboard::TextLiteral::try_from("").unwrap()
+            ))
+        );
+        assert_eq!(read(power_cap(None), FieldKey::State), None);
+        let lossy = cap(T::NumericMeasurement(
+            wire::NumericMeasurementCapability {
+                observation: wire::NumericObservation {
+                    value: Some(12.5),
+                    quality: quality().into(),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            }
+            .into(),
+        ));
+        assert_eq!(
+            read(lossy, FieldKey::Measurement),
             None,
-            "the rendered number is not the original state spelling"
+            "rendered float is not exact source decimal"
         );
     }
     #[test]
     fn stale_restored_foreign_and_future_observations_never_satisfy_a_predicate() {
-        use buffa::Message;
-        let base = entity(state::observed_state::Value::SwitchOn(true));
-        assert_eq!(literal(&base), Some("on"));
+        let base = power_cap(Some(wire::PowerValue::On));
+        assert!(read(base.clone(), FieldKey::State).is_some());
         let mut cases = vec![base; 7];
-        cases[0]
-            .state
-            .as_option_mut()
-            .unwrap()
-            .quality
-            .as_option_mut()
-            .unwrap()
-            .freshness = state::Freshness::Stale.into();
-        cases[1]
-            .state
-            .as_option_mut()
-            .unwrap()
-            .quality
-            .as_option_mut()
-            .unwrap()
-            .provenance = state::Provenance::Restored.into();
-        cases[2]
-            .state
-            .as_option_mut()
-            .unwrap()
-            .quality
-            .as_option_mut()
-            .unwrap()
-            .availability = state::Availability::Unavailable.into();
-        cases[3]
-            .state
-            .as_option_mut()
-            .unwrap()
-            .quality
-            .as_option_mut()
-            .unwrap()
-            .availability = EnumValue::Unknown(99);
-        cases[4]
-            .state
-            .as_option_mut()
-            .unwrap()
-            .entity
-            .as_option_mut()
-            .unwrap()
-            .reference = Some(registry::entity_ref::Reference::EntityId("foreign".into()));
-        cases[5].state.as_option_mut().unwrap().value = None;
-        let mut bytes = cases[6].state.as_option().unwrap().encode_to_vec();
-        bytes.extend_from_slice(&[0x98, 0x06, 0x07]);
-        cases[6].state = state::ObservedState::decode_from_slice(&bytes)
-            .unwrap()
-            .into();
-        for entity in cases {
-            assert_eq!(literal(&entity), None);
+        for (i, value) in cases.iter_mut().enumerate() {
+            let Some(T::Power(body)) = &mut value.r#trait else {
+                panic!()
+            };
+            let observation = body.observation.get_or_insert_default();
+            match i {
+                0 => {
+                    observation.quality.get_or_insert_default().freshness =
+                        wire::Freshness::Stale.into()
+                }
+                1 => {
+                    observation.quality.get_or_insert_default().provenance =
+                        wire::Provenance::Restored.into()
+                }
+                2 => {
+                    observation.quality.get_or_insert_default().availability =
+                        wire::Availability::Unavailable.into()
+                }
+                3 => {
+                    observation.quality.get_or_insert_default().availability =
+                        EnumValue::Unknown(99)
+                }
+                4 => value.name = "homes/synthetic/entities/foreign/capabilities/power".into(),
+                5 => observation.value = None,
+                _ => {
+                    let mut bytes = observation.encode_to_vec();
+                    bytes.extend_from_slice(&[0x98, 0x06, 0x07]);
+                    *observation = wire::PowerObservation::decode_from_slice(&bytes).unwrap();
+                }
+            }
+        }
+        for value in cases {
+            assert_eq!(read(value, FieldKey::State), None);
         }
     }
     #[test]
     fn measurement_literals_keep_exact_precision_and_refuse_non_finite_or_non_numeric_data() {
-        let measurement = |number, literal: &str| {
-            entity(state::observed_state::Value::Measurement(
-                state::Measurement {
-                    value: number,
-                    decimal_value: Some(literal.into()),
+        let measurement = |number, decimal: &str| {
+            cap(T::NumericMeasurement(
+                wire::NumericMeasurementCapability {
+                    observation: wire::NumericObservation {
+                        value: Some(number),
+                        decimal_value: Some(decimal.into()),
+                        quality: quality().into(),
+                        ..Default::default()
+                    }
+                    .into(),
                     ..Default::default()
                 }
                 .into(),
             ))
         };
-        assert_eq!(literal(&measurement(12.5, "12.5000")), Some("12.5000"));
-        assert_eq!(literal(&measurement(f64::NAN, "12.5000")), None);
-        assert_eq!(literal(&measurement(12.5, "NaN")), None);
-        assert_eq!(literal(&measurement(12.5, "not-a-number")), None);
+        assert_eq!(
+            read(measurement(12.5, "12.5000"), FieldKey::Measurement),
+            Some(Literal::Decimal(
+                home_client_model::dashboard::DecimalLiteral::try_from("12.5000").unwrap()
+            ))
+        );
+        assert_eq!(
+            read(measurement(f64::NAN, "12.5000"), FieldKey::Measurement),
+            None
+        );
+        assert_eq!(read(measurement(12.5, "NaN"), FieldKey::Measurement), None);
+        assert_eq!(
+            read(measurement(12.5, "not-a-number"), FieldKey::Measurement),
+            None
+        );
     }
     #[test]
     fn hidden_and_unavailable_ancestors_prune_commands_and_popup_entry() {
         let mut native =
             NativeLayout::try_from(&crate::dashboard_layout::tests::extended_forest()).unwrap();
-        let id: EntityId = "synthetic-observation".parse().unwrap();
+        let field = binding(FieldKey::State);
         native
             .nodes
             .get_mut(&NodeId::parse("grid").unwrap())
@@ -359,14 +435,17 @@ mod tests {
             .recipes = Some(Recipes {
             interactions: BTreeMap::new(),
             visibility: Some(Predicate::State {
-                entity: id.clone(),
-                expected: "off".into(),
+                field: field.clone(),
+                expected: Literal::Power(home_client_model::api::Power::Off),
                 comparison: Comparison::NotEqual,
             }),
         });
         let root = native.root(None).unwrap();
         let popup = NodeId::parse("popup").unwrap();
-        let visible = BTreeMap::from([(id.clone(), "on")]);
+        let visible = BTreeMap::from([(
+            field.clone(),
+            Literal::Power(home_client_model::api::Power::On),
+        )]);
         let shown = project_nodes(&native, root, &visible);
         assert!(
             shown
@@ -374,7 +453,7 @@ mod tests {
                 .any(|node| node.id.as_str() == "tile" && node.entity.is_some())
         );
         assert_eq!(project_nodes(&native, &popup, &visible).len(), 2);
-        let hidden = BTreeMap::from([(id, "off")]);
+        let hidden = BTreeMap::from([(field, Literal::Power(home_client_model::api::Power::Off))]);
         assert_eq!(project_nodes(&native, root, &hidden).len(), 2);
         assert!(project_nodes(&native, &popup, &hidden).is_empty());
         let unavailable = project_nodes(&native, root, &BTreeMap::new());

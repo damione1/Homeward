@@ -718,7 +718,7 @@ impl Workflow {
                 if let Some(draft) = &mut self.draft {
                     draft.next_history =
                         (!value.next_page_token.is_empty()).then_some(value.next_page_token);
-                    draft.histories = value.generations;
+                    draft.histories = value.configuration_generations;
                     if let Edit::Restore { historical, .. } = &mut draft.edit {
                         *historical = None;
                     }
@@ -1055,12 +1055,19 @@ fn field(field: Field, value: String, editable: bool) -> ProAdminField {
 }
 
 fn failure(value: &Failure) -> Error {
-    if !matches!(value.authorization_termination(), Ok(None))
-        || matches!(
-            value.kind(),
-            FailureKind::Rpc(RpcCode::Unauthenticated | RpcCode::PermissionDenied)
-        )
-    {
+    if match value.api_failure() {
+        Err(_) => true,
+        Ok(Some(detail)) => matches!(
+            detail.reason(),
+            home_wire_contract::home::api::v2::ApiErrorReason::AuthorityUnavailable
+                | home_wire_contract::home::api::v2::ApiErrorReason::AuthenticationRequired
+                | home_wire_contract::home::api::v2::ApiErrorReason::AccessDenied
+        ),
+        Ok(None) => false,
+    } || matches!(
+        value.kind(),
+        FailureKind::Rpc(RpcCode::Unauthenticated | RpcCode::PermissionDenied)
+    ) {
         return Error::Denied;
     }
     if let Ok(Some(error)) = value.api_failure() {
@@ -1071,7 +1078,9 @@ fn failure(value: &Failure) -> Error {
                 return Error::Rejected;
             }
             ApiErrorReason::ConfigRestartRequired => return Error::Restart,
-            ApiErrorReason::AuthenticationRequired | ApiErrorReason::AccessDenied => {
+            ApiErrorReason::AuthorityUnavailable
+            | ApiErrorReason::AuthenticationRequired
+            | ApiErrorReason::AccessDenied => {
                 return Error::Denied;
             }
             ApiErrorReason::Unspecified
@@ -1749,7 +1758,7 @@ pub(super) mod tests {
         workflow.open(ProAdminAction::Restore);
         let history = workflow.take_pending().unwrap();
         let generations = wire::ListConfigurationGenerationsResponse {
-            generations: vec![
+            configuration_generations: vec![
                 wire::ConfigurationGeneration {
                     name: "homes/test/configurationGenerations/g-4".into(),
                     generation: wire::ActiveGeneration {

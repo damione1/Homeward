@@ -114,7 +114,7 @@ pub fn admit_get_metrics(
     )
 }
 fn integration_health_name(value: &str) -> bool {
-    let Some(instance) = value.strip_suffix("/health") else {
+    let Some(instance) = value.strip_suffix("/integrationHealth") else {
         return false;
     };
     let Some((parent, id)) = instance.split_once("/integrationInstances/") else {
@@ -976,6 +976,7 @@ fn trace_page(value: &obs::QueryRunTraceResponse) -> bool {
                 )
             });
             let valid = observation_trace_row(row)
+                && row.run == value.run
                 && previous.is_none_or(|p| row.local_index > p)
                 && run.is_none_or(|r| r == row.run.as_str())
                 && (!exhausted

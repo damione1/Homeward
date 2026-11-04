@@ -24,7 +24,7 @@ service ConfigurationPlanService {
       post: "/v2/{parent=homes/*}/configurationPlans"
       body: "configuration_plan"
     };
-    option (google.api.method_signature) = "parent,configuration_plan";
+    option (google.api.method_signature) = "parent,configuration_plan,configuration_plan_id";
   }
   // Reads this caller credential's unexpired capture without recompilation.
   rpc GetConfigurationPlan(GetConfigurationPlanRequest) returns (ConfigurationPlan) {
@@ -43,7 +43,7 @@ service ConfigurationPlanService {
       post: "/v2/{name=homes/*/configurationPlans/*}:revalidate"
       body: "*"
     };
-    option (google.api.method_signature) = "name";
+    option (google.api.method_signature) = "name,candidate,etag";
   }
 }
 

@@ -203,7 +203,7 @@ func simulationIntent(value configsimulation.Intent) *wire.ConfigurationSimulati
 			on, brightness, ct := intent.Components()
 			light := &wire.LightIntent{On: &on, ColorTempMireds: simulationMireds(ct)}
 			if brightness != nil {
-				light.Brightness_255 = simulationPointer(int32(*brightness))
+				light.BrightnessLevel = simulationPointer(int32(*brightness))
 			}
 			out.Parameters = &wire.ConfigurationSimulationIntent_Light{Light: light}
 		case hascene.MemberSwitch:

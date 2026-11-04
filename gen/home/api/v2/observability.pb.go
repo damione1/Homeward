@@ -6999,10 +6999,10 @@ func (x *QueryRunTraceRequest) GetPageToken() string {
 // Successful result of query run trace.
 type QueryRunTraceResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Exact native run selected by the request, including its process controller.
-	Run string `protobuf:"bytes,5,opt,name=run,proto3" json:"run,omitempty"`
 	// Authorized rows selected for this bounded query.
 	Rows []*ObservationTraceRow `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
+	// Exact native run selected by the request, including its process controller.
+	Run string `protobuf:"bytes,5,opt,name=run,proto3" json:"run,omitempty"`
 	// Opaque continuation for the next page. Empty when no continuation is available.
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	// The cuts represented by ObservationTraceCutMetadata.
@@ -7043,18 +7043,18 @@ func (*QueryRunTraceResponse) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{60}
 }
 
-func (x *QueryRunTraceResponse) GetRun() string {
-	if x != nil {
-		return x.Run
-	}
-	return ""
-}
-
 func (x *QueryRunTraceResponse) GetRows() []*ObservationTraceRow {
 	if x != nil {
 		return x.Rows
 	}
 	return nil
+}
+
+func (x *QueryRunTraceResponse) GetRun() string {
+	if x != nil {
+		return x.Run
+	}
+	return ""
 }
 
 func (x *QueryRunTraceResponse) GetNextPageToken() string {
@@ -7520,12 +7520,12 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"\x12controller_evicted\x18\x03 \x01(\tR\x11controllerEvicted\x12!\n" +
 	"\fnode_evicted\x18\x04 \x01(\tR\vnodeEvicted\x12P\n" +
 	"\x16controller_captured_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x14controllerCapturedAt\x12D\n" +
-	"\x10node_captured_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x0enodeCapturedAt\"\xe6\x02\n" +
+	"\x10node_captured_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x0enodeCapturedAt\"\xf1\x02\n" +
 	"\x11IntegrationHealth\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12I\n" +
 	"\x06report\x18\x02 \x01(\v21.home.api.v2.ObservationIntegrationReportPresenceR\x06report\x12P\n" +
-	"\vsupervision\x18\x03 \x01(\v2..home.api.v2.ObservationIntegrationSupervisionR\vsupervision:\x99\x01\xeaA\x95\x01\n" +
-	"+homeward.damiengoehrig.ca/IntegrationHealth\x12?homes/{home}/integrationInstances/{integration_instance}/health*\x12integrationHealths2\x11integrationHealth\"Q\n" +
+	"\vsupervision\x18\x03 \x01(\v2..home.api.v2.ObservationIntegrationSupervisionR\vsupervision:\xa4\x01\xeaA\xa0\x01\n" +
+	"+homeward.damiengoehrig.ca/IntegrationHealth\x12Jhomes/{home}/integrationInstances/{integration_instance}/integrationHealth*\x12integrationHealths2\x11integrationHealth\"Q\n" +
 	"\x10GetHealthRequest\x12=\n" +
 	"\x04name\x18\x01 \x01(\tB)\xe2A\x01\x02\xfaA\"\n" +
 	" homeward.damiengoehrig.ca/HealthR\x04name\"S\n" +
@@ -7563,10 +7563,10 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"\tpage_size\x18\x02 \x01(\x05B\x04\xe2A\x01\x01R\bpageSize\x12#\n" +
 	"\n" +
 	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\xe7\x02\n" +
-	"\x15QueryRunTraceResponse\x12;\n" +
+	"\x15QueryRunTraceResponse\x124\n" +
+	"\x04rows\x18\x01 \x03(\v2 .home.api.v2.ObservationTraceRowR\x04rows\x12;\n" +
 	"\x03run\x18\x05 \x01(\tB)\xfaA&\n" +
-	"$homeward.damiengoehrig.ca/RuntimeRunR\x03run\x124\n" +
-	"\x04rows\x18\x01 \x03(\v2 .home.api.v2.ObservationTraceRowR\x04rows\x12&\n" +
+	"$homeward.damiengoehrig.ca/RuntimeRunR\x03run\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\x12<\n" +
 	"\x04cuts\x18\x03 \x01(\v2(.home.api.v2.ObservationTraceCutMetadataR\x04cuts\x12_\n" +
 	"\x11truncation_reason\x18\x04 \x01(\x0e2-.home.api.v2.ObservationTraceTruncationReasonH\x00R\x10truncationReason\x88\x01\x01B\x14\n" +
@@ -7832,12 +7832,12 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"1OBSERVATION_INTEGRATION_HEALTH_STATUS_UNSPECIFIED\x10\x00\x12/\n" +
 	"+OBSERVATION_INTEGRATION_HEALTH_STATUS_READY\x10\x01\x122\n" +
 	".OBSERVATION_INTEGRATION_HEALTH_STATUS_DEGRADED\x10\x02\x125\n" +
-	"1OBSERVATION_INTEGRATION_HEALTH_STATUS_UNAVAILABLE\x10\x032\xb6\b\n" +
+	"1OBSERVATION_INTEGRATION_HEALTH_STATUS_UNAVAILABLE\x10\x032\xc1\b\n" +
 	"\x14ObservabilityService\x12i\n" +
 	"\tGetHealth\x12\x1d.home.api.v2.GetHealthRequest\x1a\x13.home.api.v2.Health\"(\xdaA\x04name\x82\xd3\xe4\x93\x02\x1b\x12\x19/v2/{name=homes/*/health}\x12m\n" +
 	"\n" +
-	"GetMetrics\x12\x1e.home.api.v2.GetMetricsRequest\x1a\x14.home.api.v2.Metrics\")\xdaA\x04name\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v2/{name=homes/*/metrics}\x12\xa1\x01\n" +
-	"\x14GetIntegrationHealth\x12(.home.api.v2.GetIntegrationHealthRequest\x1a\x1e.home.api.v2.IntegrationHealth\"?\xdaA\x04name\x82\xd3\xe4\x93\x022\x120/v2/{name=homes/*/integrationInstances/*/health}\x12\x97\x01\n" +
+	"GetMetrics\x12\x1e.home.api.v2.GetMetricsRequest\x1a\x14.home.api.v2.Metrics\")\xdaA\x04name\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v2/{name=homes/*/metrics}\x12\xac\x01\n" +
+	"\x14GetIntegrationHealth\x12(.home.api.v2.GetIntegrationHealthRequest\x1a\x1e.home.api.v2.IntegrationHealth\"J\xdaA\x04name\x82\xd3\xe4\x93\x02=\x12;/v2/{name=homes/*/integrationInstances/*/integrationHealth}\x12\x97\x01\n" +
 	"\x10QueryRuntimeLogs\x12$.home.api.v2.QueryRuntimeLogsRequest\x1a%.home.api.v2.QueryRuntimeLogsResponse\"6\xdaA\x06parent\x82\xd3\xe4\x93\x02'\x12%/v2/{parent=homes/*}:queryRuntimeLogs\x12\x8a\x01\n" +
 	"\vQueryAudits\x12\x1f.home.api.v2.QueryAuditsRequest\x1a .home.api.v2.QueryAuditsResponse\"8\xdaA\rparent,source\x82\xd3\xe4\x93\x02\"\x12 /v2/{parent=homes/*}:queryAudits\x12\xa7\x01\n" +
 	"\rQueryRunTrace\x12!.home.api.v2.QueryRunTraceRequest\x1a\".home.api.v2.QueryRunTraceResponse\"O\xdaA\x06parent\x82\xd3\xe4\x93\x02@\x12>/v2/{parent=homes/*/runtimeControllers/*/runs/*}:queryRunTrace\x12\xb0\x01\n" +

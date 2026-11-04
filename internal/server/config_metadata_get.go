@@ -17,7 +17,7 @@ import (
 )
 
 func configurationRevisionWire(parent string, version storage.ConfigDocumentMetadata) *api.ConfigurationRevision {
-	entry := &api.ConfigurationRevision{Name: parent + "/revisions/r-" + strconv.FormatInt(version.Ref().Revision().Number(), 10), Id: &api.DocumentId{Value: version.Ref().Document().String()}, Version: configVersion(version), Availability: api.VersionAvailability_VERSION_AVAILABILITY_PURGED}
+	entry := &api.ConfigurationRevision{Name: parent + "/configurationRevisions/r-" + strconv.FormatInt(version.Ref().Revision().Number(), 10), Id: &api.DocumentId{Value: version.Ref().Document().String()}, Version: configVersion(version), Availability: api.VersionAvailability_VERSION_AVAILABILITY_PURGED}
 	if version.Retained() {
 		entry.Availability = api.VersionAvailability_VERSION_AVAILABILITY_RETAINED
 		updated, _ := version.UpdatedAt()

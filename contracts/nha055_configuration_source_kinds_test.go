@@ -70,8 +70,8 @@ func TestNHA055ConfigurationSourceKindsBinaryReadListSchemas(t *testing.T) {
 			if err := AdmitConfigurationResponse(nha055ConfigurationBinaryRoundTrip(t, read)); err != nil {
 				t.Fatal("retained source metadata rejected after binary transport", err)
 			}
-			list.Documents = append(list.Documents, document)
-			schemas.Schemas = append(schemas.Schemas, &wire.ConfigurationSchema{Name: "homes/synthetic/configurationSchemas/s-" + c.name, Kind: c.kind, SchemaVersion: c.schema, SyntaxProfile: c.profile})
+			list.ConfigurationDocuments = append(list.ConfigurationDocuments, document)
+			schemas.ConfigurationSchemas = append(schemas.ConfigurationSchemas, &wire.ConfigurationSchema{Name: "homes/synthetic/configurationSchemas/s-" + c.name, Kind: c.kind, SchemaVersion: c.schema, SyntaxProfile: c.profile})
 		})
 	}
 	for _, response := range []proto.Message{list, schemas} {
@@ -79,7 +79,7 @@ func TestNHA055ConfigurationSourceKindsBinaryReadListSchemas(t *testing.T) {
 			t.Fatal("five source kinds lost by list admission", err)
 		}
 	}
-	if len(list.Documents) != 5 || len(schemas.Schemas) != 5 {
+	if len(list.ConfigurationDocuments) != 5 || len(schemas.ConfigurationSchemas) != 5 {
 		t.Fatal("source metadata table lost an entry")
 	}
 }
@@ -107,7 +107,7 @@ func TestNHA055ConfigurationSourceKindsRemainClosedWithOptionalObservations(t *t
 				t.Run(mutation.name, func(t *testing.T) {
 					document := nha055ConfigurationSourceDocument(c)
 					mutation.change(document)
-					response := &wire.ListConfigurationDocumentsResponse{Documents: []*wire.ConfigurationDocument{document}, NextPageToken: ""}
+					response := &wire.ListConfigurationDocumentsResponse{ConfigurationDocuments: []*wire.ConfigurationDocument{document}, NextPageToken: ""}
 					if AdmitConfigurationResponse(nha055ConfigurationBinaryRoundTrip(t, response)) == nil {
 						t.Fatal("invalid source metadata admitted")
 					}
@@ -121,7 +121,7 @@ func TestNHA055ConfigurationSourceKindsRemainClosedWithOptionalObservations(t *t
 			} {
 				schema := &wire.ConfigurationSchema{Name: "homes/synthetic/configurationSchemas/s-" + c.name, Kind: c.kind, SchemaVersion: c.schema, SyntaxProfile: c.profile}
 				change(schema)
-				if AdmitConfigurationResponse(&wire.ListConfigurationSchemasResponse{Schemas: []*wire.ConfigurationSchema{schema}, NextPageToken: ""}) == nil {
+				if AdmitConfigurationResponse(&wire.ListConfigurationSchemasResponse{ConfigurationSchemas: []*wire.ConfigurationSchema{schema}, NextPageToken: ""}) == nil {
 					t.Fatal("invalid or operationally editable domain schema admitted")
 				}
 			}
@@ -132,7 +132,7 @@ func TestNHA055ConfigurationSourceKindsRemainClosedWithOptionalObservations(t *t
 				} else {
 					document.WorkspaceState = &wire.ConfigurationDocument_Workspace{Workspace: &wire.WorkspaceObservation{SourceSha256: bytes.Clone(document.Version.SourceSha256), UpdatedAt: document.UpdatedAt, Dirty: wire.DirtyState_DIRTY_STATE_CLEAN}}
 				}
-				if err := AdmitConfigurationResponse(nha055ConfigurationBinaryRoundTrip(t, &wire.ListConfigurationDocumentsResponse{Documents: []*wire.ConfigurationDocument{document}, NextPageToken: ""})); err != nil {
+				if err := AdmitConfigurationResponse(nha055ConfigurationBinaryRoundTrip(t, &wire.ListConfigurationDocumentsResponse{ConfigurationDocuments: []*wire.ConfigurationDocument{document}, NextPageToken: ""})); err != nil {
 					t.Fatal("valid optional source observation refused", err)
 				}
 			}

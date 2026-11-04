@@ -1,29 +1,27 @@
+use super::fixture::{Scenario, light_mut};
 use super::tests::{light, request, view};
 use super::*;
-use crate::dashboard::{LayoutState, ProjectionRequest};
+use crate::dashboard::LayoutState;
 use crate::dashboard_layout::{NativeLayout, NodeId};
+use home_client_model::api::{DashboardName, Intent};
 use home_client_model::dashboard::{CommandKind, Gesture, Intention, Interaction, Recipes, Source};
+use home_client_model::dashboard::{FieldBinding, FieldKey, Literal};
 
 fn fixture(
     intention: Intention,
     confirmation: Option<&str>,
-) -> (ProjectionRequest, state::ViewEntity, DeviceStore) {
+) -> (Scenario, wire::EntityViewEntry, DeviceStore) {
     let mut request = request();
     let mut entity = light(&request);
     set_power(&mut entity, false);
-    entity.state.as_option_mut().unwrap().quality = state::Quality {
-        availability: state::Availability::Available.into(),
-        freshness: state::Freshness::Fresh.into(),
-        provenance: state::Provenance::Observed.into(),
-        ..Default::default()
-    }
-    .into();
     let mut layout = request.dashboard.layout().unwrap().clone();
     let mut native =
         NativeLayout::try_from(&crate::dashboard_layout::tests::extended_forest()).unwrap();
     for node in native.nodes.values_mut() {
         if node.entity.is_some() {
-            node.entity = Some(entity.entity_id.parse().unwrap());
+            node.entity = Some(EntityName::try_from(entity.entity.name.as_str()).unwrap());
+            node.capability =
+                Some(CapabilityName::try_from(entity.capabilities[0].name.as_str()).unwrap());
         }
         node.recipes = None;
     }
@@ -53,21 +51,26 @@ fn fixture(
     request.dashboard = LayoutState::Ready(Arc::new(layout));
     (request, entity, DeviceStore::default())
 }
-fn entity_id() -> EntityId {
-    light(&request()).entity_id.parse().unwrap()
+fn entity_id() -> EntityName {
+    EntityName::try_from(light(&request()).entity.name.as_str()).unwrap()
 }
-fn set_power(entity: &mut state::ViewEntity, on: bool) {
-    let Some(state::observed_state::Value::Light(value)) =
-        &mut entity.state.as_option_mut().unwrap().value
-    else {
-        panic!()
-    };
-    value.on = Some(on);
+fn capability_name() -> CapabilityName {
+    CapabilityName::try_from(light(&request()).capabilities[0].name.as_str()).unwrap()
 }
+fn power_field() -> FieldBinding {
+    FieldBinding {
+        capability: capability_name(),
+        field: FieldKey::State,
+    }
+}
+fn set_power(entity: &mut wire::EntityViewEntry, on: bool) {
+    light_mut(entity).observation.get_or_insert_default().on = Some(on);
+}
+
 fn project(
     store: &DeviceStore,
-    request: &ProjectionRequest,
-    entity: &state::ViewEntity,
+    request: &Scenario,
+    entity: &wire::EntityViewEntry,
 ) -> DeviceProjection {
     store.project(
         CachePhase::Live,
@@ -88,27 +91,21 @@ fn physical_on(prepared: &NativePrepared) -> bool {
     let NativeIntent::Command(command) = &prepared.intent else {
         panic!()
     };
-    let Some(actions::action_args::Arguments::SetLight(value)) = command
-        .request
-        .arguments
-        .as_option()
-        .unwrap()
-        .arguments
-        .as_ref()
-    else {
+    let Intent::Light(value) = command.request.intent() else {
         panic!()
     };
-    value.on.unwrap()
+    value.on().unwrap()
 }
 
 fn publish_focus_view(
     window: &crate::HomewardWindow,
+    scenario: &Scenario,
     shared: &crate::dashboard::SharedRequest,
     store: &DeviceStore,
-    entity: &state::ViewEntity,
+    entity: &wire::EntityViewEntry,
 ) {
     let request = shared.lock().unwrap().clone();
-    let cache = view(&request, vec![entity.clone()]);
+    let cache = view(scenario, vec![entity.clone()]);
     let projection = crate::cache_view::project_devices(
         CachePhase::Live,
         Some(&cache),
@@ -159,8 +156,8 @@ fn native_back_resolves_the_source_node_after_a_visible_sibling_changes_its_ui_t
         .clone()
         .unwrap();
     sibling.visibility = Some(Predicate::State {
-        entity: entity_id(),
-        expected: "on".into(),
+        field: power_field(),
+        expected: Literal::Power(home_client_model::api::Power::On),
         comparison: Comparison::Equal,
     });
     native
@@ -169,7 +166,8 @@ fn native_back_resolves_the_source_node_after_a_visible_sibling_changes_its_ui_t
         .unwrap()
         .recipes = Some(sibling);
     request.dashboard = LayoutState::Ready(Arc::new(layout));
-    let shared = Arc::new(Mutex::new(request));
+    let scenario = request;
+    let shared = Arc::new(Mutex::new(scenario.request.clone()));
     let devices = store.clone();
     let navigation = crate::navigation::bind_devices(
         &window,
@@ -178,7 +176,7 @@ fn native_back_resolves_the_source_node_after_a_visible_sibling_changes_its_ui_t
         move || Some(devices.clone()),
     );
     set_power(&mut entity, true);
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     window.show().unwrap();
     settle_focus(&window);
     let first = store
@@ -198,7 +196,7 @@ fn native_back_resolves_the_source_node_after_a_visible_sibling_changes_its_ui_t
             Some(crate::dashboard_focus::Origin::prepared(&prepared)),
         )
         .unwrap();
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     set_power(&mut entity, false);
     window.invoke_go_back();
     settle_focus(&window);
@@ -206,7 +204,7 @@ fn native_back_resolves_the_source_node_after_a_visible_sibling_changes_its_ui_t
         !window.get_recipe_focus().present,
         "no source restoration before the matching cache publication"
     );
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     let revision = shared.lock().unwrap().revision;
     let restored = store
         .recipe_focus(
@@ -294,14 +292,15 @@ fn pending_native_focus_cannot_outlive_navigation_user_focus_clear_or_its_source
                 .as_mut()
                 .unwrap()
                 .visibility = Some(home_client_model::dashboard::Predicate::State {
-                entity: entity_id(),
-                expected: "on".into(),
+                field: power_field(),
+                expected: Literal::Power(home_client_model::api::Power::On),
                 comparison: home_client_model::dashboard::Comparison::Equal,
             });
             request.dashboard = LayoutState::Ready(Arc::new(layout));
             set_power(&mut entity, true);
         }
-        let shared = Arc::new(Mutex::new(request));
+        let scenario = request;
+        let shared = Arc::new(Mutex::new(scenario.request.clone()));
         let devices = store.clone();
         let navigation = crate::navigation::bind_devices(
             &window,
@@ -309,7 +308,7 @@ fn pending_native_focus_cannot_outlive_navigation_user_focus_clear_or_its_source
             || {},
             move || Some(devices.clone()),
         );
-        publish_focus_view(&window, &shared, &store, &entity);
+        publish_focus_view(&window, &scenario, &shared, &store, &entity);
         window.show().unwrap();
         settle_focus(&window);
         let row = store
@@ -328,7 +327,7 @@ fn pending_native_focus_cannot_outlive_navigation_user_focus_clear_or_its_source
                 Some(crate::dashboard_focus::Origin::prepared(&prepared)),
             )
             .unwrap();
-        publish_focus_view(&window, &shared, &store, &entity);
+        publish_focus_view(&window, &scenario, &shared, &store, &entity);
         window.invoke_go_back();
         let gestures = Rc::new(Cell::new(0));
         let observed = gestures.clone();
@@ -367,7 +366,7 @@ fn pending_native_focus_cannot_outlive_navigation_user_focus_clear_or_its_source
             | FocusInterruption::UserPointer
             | FocusInterruption::NewDefinition
             | FocusInterruption::HiddenOrigin => {
-                publish_focus_view(&window, &shared, &store, &entity)
+                publish_focus_view(&window, &scenario, &shared, &store, &entity)
             }
         }
         settle_focus(&window);
@@ -423,7 +422,8 @@ fn native_history_restores_scroll_and_keeps_the_source_header_visible() {
         native.nodes.insert(filler.id.clone(), filler);
     }
     request.dashboard = LayoutState::Ready(Arc::new(layout));
-    let shared = Arc::new(Mutex::new(request));
+    let scenario = request;
+    let shared = Arc::new(Mutex::new(scenario.request.clone()));
     let devices = store.clone();
     let navigation = crate::navigation::bind_devices(
         &window,
@@ -431,7 +431,7 @@ fn native_history_restores_scroll_and_keeps_the_source_header_visible() {
         || {},
         move || Some(devices.clone()),
     );
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     window.show().unwrap();
     settle_focus(&window);
     let row = store
@@ -457,11 +457,11 @@ fn native_history_restores_scroll_and_keeps_the_source_header_visible() {
             Some(crate::dashboard_focus::Origin::prepared(&prepared)),
         )
         .unwrap();
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     window.invoke_restore_board_scroll(0., 0., 0.);
     assert_eq!(window.get_home_scroll(), 0.);
     window.invoke_go_back();
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     settle_focus(&window);
     assert!(
         (window.get_home_scroll() - saved).abs() < 1.,
@@ -487,12 +487,13 @@ fn dismissing_a_confirmation_restores_its_exact_source_without_replaying_the_com
     crate::cache_view::bind(&window);
     let (request, entity, store) = fixture(
         Intention::Command {
-            entity: entity_id(),
+            capability: capability_name(),
             kind: CommandKind::TurnOn,
         },
         Some("Confirm synthetic action"),
     );
-    let shared = Arc::new(Mutex::new(request));
+    let scenario = request;
+    let shared = Arc::new(Mutex::new(scenario.request.clone()));
     let devices = store.clone();
     let navigation = crate::navigation::bind_devices(
         &window,
@@ -517,7 +518,7 @@ fn dismissing_a_confirmation_restores_its_exact_source_without_replaying_the_com
         move |_| count.set(count.get() + 1),
         move |prepared| navigation.restore_origin(prepared),
     );
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     window.show().unwrap();
     settle_focus(&window);
     let row = store
@@ -552,7 +553,7 @@ fn dismissing_a_confirmation_restores_its_exact_source_without_replaying_the_com
 
 #[test]
 fn popup_detail_back_and_close_restore_each_exact_native_opener() {
-    use home_client_model::dashboard::{DashboardId, Destination, Presentation};
+    use home_client_model::dashboard::{Destination, Presentation};
     use slint::{
         ComponentHandle,
         platform::{Key, WindowEvent},
@@ -560,7 +561,8 @@ fn popup_detail_back_and_close_restore_each_exact_native_opener() {
     use std::{cell::RefCell, rc::Rc};
     i_slint_backend_testing::init_no_event_loop();
     let destination = Destination {
-        dashboard: DashboardId::parse(request().dashboard.layout().unwrap().id.as_str()).unwrap(),
+        dashboard: DashboardName::try_from(request().dashboard.layout().unwrap().id.as_str())
+            .unwrap(),
         node: NodeId::parse("popup").unwrap(),
         presentation: Presentation::Popup,
     };
@@ -586,7 +588,8 @@ fn popup_detail_back_and_close_restore_each_exact_native_opener() {
     window.set_access_stage(crate::ProAccessStage::Connected);
     window.set_show_endpoint(false);
     crate::cache_view::bind(&window);
-    let shared = Arc::new(Mutex::new(request));
+    let scenario = request;
+    let shared = Arc::new(Mutex::new(scenario.request.clone()));
     let devices = store.clone();
     let navigation = crate::navigation::bind_devices(
         &window,
@@ -594,7 +597,7 @@ fn popup_detail_back_and_close_restore_each_exact_native_opener() {
         || {},
         move || Some(devices.clone()),
     );
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     let assert_home_selected = || {
         use slint::Model;
         let selected = window.get_navigation_state().selected;
@@ -620,7 +623,7 @@ fn popup_detail_back_and_close_restore_each_exact_native_opener() {
             Some(crate::dashboard_focus::Origin::prepared(&prepared)),
         )
         .unwrap();
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     settle_focus(&window);
     assert_home_selected();
     let revision = shared.lock().unwrap().revision;
@@ -636,9 +639,9 @@ fn popup_detail_back_and_close_restore_each_exact_native_opener() {
             Some(crate::dashboard_focus::Origin::prepared(&prepared)),
         )
         .unwrap();
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     window.invoke_go_back();
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     settle_focus(&window);
     assert_home_selected();
     let revision = shared.lock().unwrap().revision;
@@ -669,7 +672,7 @@ fn popup_detail_back_and_close_restore_each_exact_native_opener() {
         window.get_native_popup_generation(),
         crate::CloseReason::Escape,
     );
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     settle_focus(&window);
     assert_home_selected();
     let revision = shared.lock().unwrap().revision;
@@ -698,7 +701,7 @@ fn popup_detail_back_and_close_restore_each_exact_native_opener() {
 
 #[test]
 fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_commands() {
-    use home_client_model::dashboard::{DashboardId, Destination, Presentation};
+    use home_client_model::dashboard::{Destination, Presentation};
     use slint::{
         ComponentHandle,
         platform::{Key, WindowEvent},
@@ -720,7 +723,8 @@ fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_c
     window.set_access_stage(crate::ProAccessStage::Connected);
     window.set_show_endpoint(false);
     crate::cache_view::bind(&window);
-    let shared = Arc::new(Mutex::new(request));
+    let scenario = request;
+    let shared = Arc::new(Mutex::new(scenario.request.clone()));
     let devices = store.clone();
     let navigation = crate::navigation::bind_devices(
         &window,
@@ -728,13 +732,13 @@ fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_c
         || {},
         move || Some(devices.clone()),
     );
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     window.show().unwrap();
     settle_focus(&window);
     navigation
         .navigate(
             Destination {
-                dashboard: DashboardId::parse(layout.id.as_str()).unwrap(),
+                dashboard: DashboardName::try_from(layout.id.as_str()).unwrap(),
                 node: NodeId::parse("popup").unwrap(),
                 presentation: Presentation::Popup,
             },
@@ -742,7 +746,7 @@ fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_c
             None,
         )
         .unwrap();
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     settle_focus(&window);
     let recipes = Rc::new(Cell::new(0));
     let count = recipes.clone();
@@ -796,8 +800,8 @@ fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_c
     key(Key::Return);
     assert_eq!(details.get(), 2);
     assert!(!window.get_search_focused() && window.get_native_popup().open);
-    entity.action_access[0].access = state::ActionAccess::Denied.into();
-    publish_focus_view(&window, &shared, &store, &entity);
+    entity.capabilities[0].action_access = wire::ActionAccess::Denied.into();
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     window.invoke_take_body_focus(crate::BodyFocus::Popup);
     key(Key::Tab);
     key(Key::Return);
@@ -828,8 +832,8 @@ fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_c
 
 #[test]
 fn popup_native_tabs_keep_helper_editors_and_nested_selector_popups_inside_the_modal() {
-    use home_client_model::dashboard::{DashboardId, Destination, Presentation};
-    use home_wire_contract::home::helpers::v1::HelperKind;
+    use home_client_model::dashboard::{Destination, Presentation};
+    use home_wire_contract::home::api::v2::HelperKind;
     use slint::{
         ComponentHandle,
         platform::{Key, WindowEvent},
@@ -843,8 +847,7 @@ fn popup_native_tabs_keep_helper_editors_and_nested_selector_popups_inside_the_m
         crate::cache_view::bind(&window);
         let (mut request, original, store) = fixture(Intention::MoreInfo(entity_id()), None);
         let mut entity = super::tests::helper_entity(&super::tests::request(), kind);
-        entity.state.as_option_mut().unwrap().quality =
-            original.state.as_option().unwrap().quality.clone();
+        entity.capabilities[0].name = original.capabilities[0].name.clone();
         let mut layout = request.dashboard.layout().unwrap().clone();
         let native = layout.native.as_mut().unwrap();
         native
@@ -855,7 +858,8 @@ fn popup_native_tabs_keep_helper_editors_and_nested_selector_popups_inside_the_m
             .recipes
             .clone();
         request.dashboard = LayoutState::Ready(Arc::new(layout.clone()));
-        let shared = Arc::new(Mutex::new(request));
+        let scenario = request;
+        let shared = Arc::new(Mutex::new(scenario.request.clone()));
         let devices = store.clone();
         let navigation = crate::navigation::bind_devices(
             &window,
@@ -869,6 +873,7 @@ fn popup_native_tabs_keep_helper_editors_and_nested_selector_popups_inside_the_m
         let requests = shared.clone();
         let cached = entity.clone();
         let weak = window.as_weak();
+        let capture = scenario.clone();
         window.on_device_edit(move |token, generation, field, intent| {
             if matches!(
                 intent.event,
@@ -884,16 +889,16 @@ fn popup_native_tabs_keep_helper_editors_and_nested_selector_popups_inside_the_m
                 panic!("typing/tabbing must not prepare a command");
             }
             if let Some(window) = weak.upgrade() {
-                publish_focus_view(&window, &requests, &editing, &cached);
+                publish_focus_view(&window, &capture, &requests, &editing, &cached);
             }
         });
-        publish_focus_view(&window, &shared, &store, &entity);
+        publish_focus_view(&window, &scenario, &shared, &store, &entity);
         window.show().unwrap();
         settle_focus(&window);
         navigation
             .navigate(
                 Destination {
-                    dashboard: DashboardId::parse(layout.id.as_str()).unwrap(),
+                    dashboard: DashboardName::try_from(layout.id.as_str()).unwrap(),
                     node: NodeId::parse("popup").unwrap(),
                     presentation: Presentation::Popup,
                 },
@@ -901,7 +906,7 @@ fn popup_native_tabs_keep_helper_editors_and_nested_selector_popups_inside_the_m
                 None,
             )
             .unwrap();
-        publish_focus_view(&window, &shared, &store, &entity);
+        publish_focus_view(&window, &scenario, &shared, &store, &entity);
         settle_focus(&window);
         let revision = shared.lock().unwrap().revision;
         if kind == HelperKind::Select {
@@ -959,7 +964,7 @@ fn popup_native_tabs_keep_helper_editors_and_nested_selector_popups_inside_the_m
 
 #[test]
 fn native_page_without_a_room_path_uses_its_exact_source_identity() {
-    use home_client_model::dashboard::{DashboardId, Destination, Presentation};
+    use home_client_model::dashboard::{Destination, Presentation};
     use slint::ComponentHandle;
     i_slint_backend_testing::init_no_event_loop();
     let window = crate::create_window().unwrap();
@@ -976,10 +981,11 @@ fn native_page_without_a_room_path_uses_its_exact_source_identity() {
     native.views.push(page.id.clone());
     native.nodes.insert(page.id.clone(), page.clone());
     request.dashboard = LayoutState::Ready(Arc::new(layout.clone()));
-    let shared = Arc::new(Mutex::new(request));
+    let scenario = request;
+    let shared = Arc::new(Mutex::new(scenario.request.clone()));
     let navigation = crate::navigation::bind_devices(&window, shared.clone(), || {}, || None);
     let destination = Destination {
-        dashboard: DashboardId::parse(layout.id.as_str()).unwrap(),
+        dashboard: DashboardName::try_from(layout.id.as_str()).unwrap(),
         node: page.id.clone(),
         presentation: Presentation::Page,
     };
@@ -993,7 +999,11 @@ fn native_page_without_a_room_path_uses_its_exact_source_identity() {
         let request = shared.lock().unwrap();
         assert!(request.room.is_none());
         assert_eq!(request.native_root(&layout), Some(&page.id));
-        let projection = project(&store, &request, &entity);
+        let projection = store.project(
+            CachePhase::Live,
+            Some(&view(&scenario, vec![entity.clone()])),
+            &request,
+        );
         assert_eq!(projection.native_nodes.len(), 1);
         assert_eq!(projection.native_nodes[0].id, page.id);
     }
@@ -1025,7 +1035,7 @@ fn native_page_without_a_room_path_uses_its_exact_source_identity() {
 #[test]
 fn popup_detail_and_back_keep_separate_models_and_never_open_a_device_command() {
     use home_client_cache::{ProjectionMailbox, Viewport};
-    use home_client_model::dashboard::{DashboardId, Destination, Presentation};
+    use home_client_model::dashboard::{Destination, Presentation};
     use slint::{ComponentHandle, Model};
     i_slint_backend_testing::init_no_event_loop();
     let window = crate::create_window().unwrap();
@@ -1045,7 +1055,8 @@ fn popup_detail_and_back_keep_separate_models_and_never_open_a_device_command() 
         .title = "Configured popup".into();
     request.dashboard = LayoutState::Ready(Arc::new(layout.clone()));
     let cache = view(&request, vec![entity]);
-    let shared = Arc::new(Mutex::new(request));
+    let scenario = request;
+    let shared = Arc::new(Mutex::new(scenario.request.clone()));
     let navigation = crate::navigation::bind_devices(&window, shared.clone(), || {}, || None);
     let generation = ProjectionMailbox::<()>::new().generation();
     let publish = || {
@@ -1063,7 +1074,7 @@ fn popup_detail_and_back_keep_separate_models_and_never_open_a_device_command() 
     let home_count = home.row_count();
     assert!(home_count > 2 && window.get_popup_layout_nodes().row_count() == 0);
     let destination = Destination {
-        dashboard: DashboardId::parse(layout.id.as_str()).unwrap(),
+        dashboard: DashboardName::try_from(layout.id.as_str()).unwrap(),
         node: popup_id.clone(),
         presentation: Presentation::Popup,
     };
@@ -1126,7 +1137,7 @@ fn a_pointer_press_from_an_old_prompt_cannot_confirm_its_replacement() {
     window.set_view_loaded(true);
     let (request, mut entity, store) = fixture(
         Intention::Command {
-            entity: entity_id(),
+            capability: capability_name(),
             kind: CommandKind::TurnOn,
         },
         Some("Confirm"),
@@ -1163,10 +1174,10 @@ fn a_pointer_press_from_an_old_prompt_cannot_confirm_its_replacement() {
         button: PointerEventButton::Left,
     });
     let old = window.get_recipe_confirmation_id();
-    entity.action_access[0].access = state::ActionAccess::Denied.into();
+    entity.capabilities[0].action_access = wire::ActionAccess::Denied.into();
     project(&store, &request, &entity);
     window.invoke_recipe_context_changed();
-    entity.action_access[0].access = state::ActionAccess::Allowed.into();
+    entity.capabilities[0].action_access = wire::ActionAccess::Allowed.into();
     let next = project(&store, &request, &entity);
     window.invoke_recipe_gesture(
         recipe(&next).token,
@@ -1205,7 +1216,7 @@ fn a_pointer_press_from_an_old_prompt_cannot_confirm_its_replacement() {
 fn physical_toggle_is_resolved_once_and_ordinary_observations_preserve_the_binding() {
     let (request, mut entity, store) = fixture(
         Intention::Command {
-            entity: entity_id(),
+            capability: capability_name(),
             kind: CommandKind::Toggle,
         },
         Some(""),
@@ -1217,7 +1228,10 @@ fn physical_toggle_is_resolved_once_and_ordinary_observations_preserve_the_bindi
     assert!(physical_on(&captured));
     assert!(captured.description.starts_with("Turn On ·"));
     set_power(&mut entity, true);
-    entity.state.as_option_mut().unwrap().revision += 1;
+    light_mut(&mut entity)
+        .observation
+        .get_or_insert_default()
+        .observed_time = buffa_types::google::protobuf::Timestamp::from_unix_secs(11).into();
     let refreshed = project(&store, &request, &entity);
     assert_eq!(recipe(&before).generation, recipe(&refreshed).generation);
     assert!(captured.is_current());
@@ -1235,7 +1249,7 @@ fn physical_toggle_is_resolved_once_and_ordinary_observations_preserve_the_bindi
 fn a_command_target_without_a_visible_device_card_uses_the_same_central_admission() {
     let (mut request, entity, store) = fixture(
         Intention::Command {
-            entity: entity_id(),
+            capability: capability_name(),
             kind: CommandKind::TurnOff,
         },
         None,
@@ -1262,17 +1276,17 @@ fn a_command_target_without_a_visible_device_card_uses_the_same_central_admissio
 }
 
 #[test]
-fn permission_capability_and_ambiguous_endpoints_cannot_fall_back_to_the_first_target() {
+fn permission_and_exact_capability_cannot_fall_back_to_a_sibling_target() {
     let (request, mut entity, store) = fixture(
         Intention::Command {
-            entity: entity_id(),
+            capability: capability_name(),
             kind: CommandKind::TurnOn,
         },
         Some("Confirm"),
     );
     let before = project(&store, &request, &entity);
     let captured = prepare(&store, &before);
-    entity.action_access[0].access = state::ActionAccess::Denied.into();
+    entity.capabilities[0].action_access = wire::ActionAccess::Denied.into();
     let denied = project(&store, &request, &entity);
     assert_eq!(
         recipe(&denied).access(Gesture::Tap),
@@ -1288,27 +1302,38 @@ fn permission_capability_and_ambiguous_endpoints_cannot_fall_back_to_the_first_t
         ),
         Err(Refusal::ReadOnly)
     ));
-    entity.action_access[0].access = state::ActionAccess::Allowed.into();
-    let mut second = entity.capabilities[0].clone();
-    second.endpoint = "second-endpoint".into();
-    let mut permission = entity.action_access[0].clone();
-    permission.endpoint = second.endpoint.clone();
+    entity.capabilities[0].action_access = wire::ActionAccess::Allowed.into();
+    let original = entity.capabilities[0].clone();
+    let mut second = original.clone();
+    second.name = format!("{}/capabilities/second", entity.entity.name);
     entity.capabilities.push(second);
-    entity.action_access.push(permission);
-    let ambiguous = project(&store, &request, &entity);
-    assert!(recipe(&ambiguous).unavailable);
-    assert!(matches!(
-        store.prepare_recipe(
-            recipe(&ambiguous).token,
-            recipe(&ambiguous).generation,
-            0,
-            Gesture::Tap
-        ),
-        Err(Refusal::Unsupported)
-    ));
-    entity.capabilities.pop();
-    entity.action_access.pop();
-    entity.capabilities[0].major = 99;
+    let selected = project(&store, &request, &entity);
+    let NativeIntent::Command(command) = prepare(&store, &selected).intent else {
+        panic!()
+    };
+    assert_eq!(
+        command.request.target(),
+        &capability_name(),
+        "a sibling cannot replace the explicit capability"
+    );
+    entity.capabilities.remove(0);
+    let absent = project(&store, &request, &entity);
+    assert_eq!(
+        recipe(&absent).access(Gesture::Tap),
+        GestureAccess::Inactive
+    );
+    assert!(
+        store
+            .prepare_recipe(
+                recipe(&absent).token,
+                recipe(&absent).generation,
+                0,
+                Gesture::Tap
+            )
+            .is_err()
+    );
+    entity.capabilities = vec![original];
+    entity.capabilities[0].r#trait = None;
     let unknown = project(&store, &request, &entity);
     assert_eq!(
         recipe(&unknown).access(Gesture::Tap),
@@ -1353,18 +1378,16 @@ fn explicit_none_is_consumed_and_missing_state_cannot_create_a_physical_toggle()
         .get_mut(&Gesture::Tap)
         .unwrap()
         .intention = Intention::Command {
-        entity: entity_id(),
+        capability: capability_name(),
         kind: CommandKind::Toggle,
     };
     request.dashboard = LayoutState::Ready(Arc::new(layout));
-    entity
-        .state
-        .as_option_mut()
-        .unwrap()
+    light_mut(&mut entity)
+        .observation
+        .get_or_insert_default()
         .quality
-        .as_option_mut()
-        .unwrap()
-        .freshness = state::Freshness::Stale.into();
+        .get_or_insert_default()
+        .freshness = wire::Freshness::Stale.into();
     let stale = project(&store, &request, &entity);
     assert_eq!(recipe(&stale).access(Gesture::Tap), GestureAccess::Inactive);
 }
@@ -1401,7 +1424,7 @@ fn a_hidden_recipe_cannot_keep_authority_through_its_still_visible_command_targe
     use home_client_model::dashboard::{Comparison, Predicate};
     let (mut request, mut entity, store) = fixture(
         Intention::Command {
-            entity: entity_id(),
+            capability: capability_name(),
             kind: CommandKind::TurnOff,
         },
         Some("Confirm"),
@@ -1418,8 +1441,8 @@ fn a_hidden_recipe_cannot_keep_authority_through_its_still_visible_command_targe
         .as_mut()
         .unwrap()
         .visibility = Some(Predicate::State {
-        entity: entity_id(),
-        expected: "on".into(),
+        field: power_field(),
+        expected: Literal::Power(home_client_model::api::Power::On),
         comparison: Comparison::Equal,
     });
     request.dashboard = LayoutState::Ready(Arc::new(layout));
@@ -1448,63 +1471,66 @@ fn a_hidden_recipe_cannot_keep_authority_through_its_still_visible_command_targe
 
 #[test]
 fn a_helper_recipe_keeps_the_exact_sql_revision_and_cannot_reuse_it_after_an_update() {
-    use home_wire_contract::home::helpers::v1 as helpers;
     let (request, mut entity, store) = fixture(
         Intention::Command {
-            entity: entity_id(),
+            capability: capability_name(),
             kind: CommandKind::Toggle,
         },
         Some("Confirm"),
     );
-    entity.capabilities[0].schema_id = "core.helper.v1".into();
-    entity.capabilities[0].constraints =
-        Some(registry::capability_description::Constraints::Helper(
-            helpers::HelperConstraints {
-                kind: helpers::HelperKind::Boolean.into(),
-                operations: vec![helpers::HelperOperation::Toggle.into()],
+    entity.capabilities[0].r#trait = Some(wire::capability::Trait::Helper(Box::new(
+        wire::HelperCapability {
+            definition: wire::HelperDefinition {
+                kind: wire::HelperKind::Boolean.into(),
+                operations: vec![wire::HelperOperation::Toggle.into()],
                 ..Default::default()
             }
             .into(),
-        ));
-    entity.action_access[0].schema_id = "core.helper.v1".into();
-    entity.state.as_option_mut().unwrap().value = Some(state::observed_state::Value::Helper(
-        helpers::HelperValue {
-            helper_revision: 7,
-            value: Some(helpers::helper_value::Value::Boolean(false)),
+            observation: wire::HelperObservation {
+                value: wire::HelperValue {
+                    helper_revision: 7,
+                    value: Some(wire::helper_value::Value::BooleanValue(false)),
+                    ..Default::default()
+                }
+                .into(),
+                quality: super::fixture::quality().into(),
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
-        }
-        .into(),
-    ));
+        },
+    )));
     let initial = project(&store, &request, &entity);
     let captured = prepare(&store, &initial);
     let NativeIntent::Command(command) = &captured.intent else {
         panic!()
     };
-    let Some(actions::action_args::Arguments::Helper(action)) = command
-        .request
-        .arguments
-        .as_option()
-        .unwrap()
-        .arguments
-        .as_ref()
-    else {
+    let Intent::Helper(action) = command.request.intent() else {
         panic!()
     };
     assert_eq!(
-        action.operation.as_known(),
-        Some(helpers::HelperOperation::Toggle)
+        action.operation(),
+        home_client_model::api::HelperOperation::Toggle
     );
-    assert_eq!(action.expected_helper_revision, Some(7));
-    let Some(state::observed_state::Value::Helper(value)) =
-        entity.state.as_option_mut().unwrap().value.as_mut()
+    assert_eq!(action.revision(), 7);
+    let Some(wire::capability::Trait::Helper(helper)) = entity.capabilities[0].r#trait.as_mut()
     else {
         panic!()
     };
-    value.helper_revision = 8;
+    helper
+        .observation
+        .get_or_insert_default()
+        .value
+        .get_or_insert_default()
+        .helper_revision = 8;
     let changed = project(&store, &request, &entity);
     assert_ne!(recipe(&initial).generation, recipe(&changed).generation);
     assert!(!captured.is_current());
-    entity.state.as_option_mut().unwrap().value = None;
+    let Some(wire::capability::Trait::Helper(helper)) = entity.capabilities[0].r#trait.as_mut()
+    else {
+        panic!()
+    };
+    helper.observation.get_or_insert_default().value = Default::default();
     let absent = project(&store, &request, &entity);
     assert_eq!(
         recipe(&absent).access(Gesture::Tap),
@@ -1521,7 +1547,7 @@ fn native_confirmation_consumes_one_exact_intention_and_never_replays_an_old_id(
     window.set_view_loaded(true);
     let (request, mut entity, store) = fixture(
         Intention::Command {
-            entity: entity_id(),
+            capability: capability_name(),
             kind: CommandKind::Toggle,
         },
         Some(""),
@@ -1575,7 +1601,7 @@ fn permission_loss_or_private_clear_closes_a_native_confirmation_without_submiss
     window.set_view_loaded(true);
     let (request, mut entity, store) = fixture(
         Intention::Command {
-            entity: entity_id(),
+            capability: capability_name(),
             kind: CommandKind::TurnOn,
         },
         Some("Custom prompt"),
@@ -1597,13 +1623,13 @@ fn permission_loss_or_private_clear_closes_a_native_confirmation_without_submiss
     );
     assert_eq!(window.get_recipe_confirmation_message(), "Custom prompt");
     let old = window.get_recipe_confirmation_id();
-    entity.action_access[0].access = state::ActionAccess::Denied.into();
+    entity.capabilities[0].action_access = wire::ActionAccess::Denied.into();
     project(&store, &request, &entity);
     window.invoke_recipe_context_changed();
     assert!(!window.get_recipe_confirmation().open);
     window.invoke_recipe_confirm(old);
     assert_eq!(sent.get(), 0);
-    entity.action_access[0].access = state::ActionAccess::Allowed.into();
+    entity.capabilities[0].action_access = wire::ActionAccess::Allowed.into();
     let restored = project(&store, &request, &entity);
     window.invoke_recipe_gesture(
         recipe(&restored).token,
@@ -1619,16 +1645,19 @@ fn permission_loss_or_private_clear_closes_a_native_confirmation_without_submiss
 }
 
 fn cross_dashboard_fixture() -> (
-    ProjectionRequest,
-    state::ViewEntity,
+    Scenario,
+    wire::EntityViewEntry,
     DeviceStore,
     crate::dashboard_selection::Choices,
     Arc<crate::dashboard::Layout>,
 ) {
-    use home_client_model::dashboard::{DashboardId, Destination, Presentation};
+    use home_client_model::dashboard::{Destination, Presentation};
     let (mut request, entity, store) = fixture(
         Intention::Navigate(Destination {
-            dashboard: DashboardId::parse("synthetic-target-dashboard").unwrap(),
+            dashboard: DashboardName::try_from(
+                "homes/synthetic/dashboards/synthetic-target-dashboard",
+            )
+            .unwrap(),
             node: NodeId::parse("view").unwrap(),
             presentation: Presentation::Page,
         }),
@@ -1636,7 +1665,8 @@ fn cross_dashboard_fixture() -> (
     );
     let source = request.dashboard.shared_layout().unwrap();
     let mut target = source.as_ref().clone();
-    target.id = crate::dashboard::DashboardId::parse("synthetic-target-dashboard").unwrap();
+    target.id =
+        DashboardName::try_from("homes/synthetic/dashboards/synthetic-target-dashboard").unwrap();
     target.title = "Synthetic target dashboard".into();
     let native = target.native.as_mut().unwrap();
     native
@@ -1677,7 +1707,7 @@ fn cross_dashboard_fixture() -> (
 
 #[test]
 fn cross_dashboard_pages_and_popups_return_to_the_exact_source_binding_without_commands() {
-    use home_client_model::dashboard::{DashboardId, Destination, Presentation};
+    use home_client_model::dashboard::{Destination, Presentation};
     use slint::{
         ComponentHandle,
         platform::{Key, WindowEvent},
@@ -1691,7 +1721,8 @@ fn cross_dashboard_pages_and_popups_return_to_the_exact_source_binding_without_c
         crate::cache_view::bind(&window);
         let (request, entity, store, choices, target) = cross_dashboard_fixture();
         let source = request.dashboard.shared_layout().unwrap();
-        let shared = Arc::new(Mutex::new(request));
+        let scenario = request;
+        let shared = Arc::new(Mutex::new(scenario.request.clone()));
         let devices = store.clone();
         let navigation = crate::navigation::bind_devices(
             &window,
@@ -1700,7 +1731,7 @@ fn cross_dashboard_pages_and_popups_return_to_the_exact_source_binding_without_c
             move || Some(devices.clone()),
         );
         navigation.attach_catalogue(choices.clone());
-        publish_focus_view(&window, &shared, &store, &entity);
+        publish_focus_view(&window, &scenario, &shared, &store, &entity);
         window.show().unwrap();
         settle_focus(&window);
         let row = store
@@ -1712,7 +1743,7 @@ fn cross_dashboard_pages_and_popups_return_to_the_exact_source_binding_without_c
         navigation
             .navigate(
                 Destination {
-                    dashboard: DashboardId::parse(target.id.as_str()).unwrap(),
+                    dashboard: DashboardName::try_from(target.id.as_str()).unwrap(),
                     node: NodeId::parse(match presentation {
                         Presentation::Page => "view",
                         Presentation::Popup => "popup",
@@ -1736,7 +1767,7 @@ fn cross_dashboard_pages_and_popups_return_to_the_exact_source_binding_without_c
                 assert_eq!(window.get_page(), crate::ViewPage::Home);
             }
         }
-        publish_focus_view(&window, &shared, &store, &entity);
+        publish_focus_view(&window, &scenario, &shared, &store, &entity);
         assert!(
             !prepared.is_current(),
             "a source gesture cannot survive switching its dashboard"
@@ -1749,7 +1780,7 @@ fn cross_dashboard_pages_and_popups_return_to_the_exact_source_binding_without_c
         );
         assert_eq!(window.get_page(), crate::ViewPage::Home);
         assert!(!window.get_native_popup().open);
-        publish_focus_view(&window, &shared, &store, &entity);
+        publish_focus_view(&window, &scenario, &shared, &store, &entity);
         settle_focus(&window);
         let revision = shared.lock().unwrap().revision;
         let restored = store
@@ -1790,7 +1821,7 @@ enum CatalogueRefusal {
 }
 #[test]
 fn cross_dashboard_refusals_never_mutate_the_route_or_selection() {
-    use home_client_model::dashboard::{DashboardId, Destination, Presentation};
+    use home_client_model::dashboard::{Destination, Presentation};
     use slint::ComponentHandle;
     i_slint_backend_testing::init_no_event_loop();
     for case in [
@@ -1804,7 +1835,7 @@ fn cross_dashboard_refusals_never_mutate_the_route_or_selection() {
         let (mut request, entity, store, choices, target) = cross_dashboard_fixture();
         let source = request.dashboard.shared_layout().unwrap();
         let mut destination = Destination {
-            dashboard: DashboardId::parse(target.id.as_str()).unwrap(),
+            dashboard: DashboardName::try_from(target.id.as_str()).unwrap(),
             node: NodeId::parse("view").unwrap(),
             presentation: Presentation::Page,
         };
@@ -1836,10 +1867,11 @@ fn cross_dashboard_refusals_never_mutate_the_route_or_selection() {
                 ))
             }
         }
-        let shared = Arc::new(Mutex::new(request));
+        let scenario = request;
+        let shared = Arc::new(Mutex::new(scenario.request.clone()));
         let navigation = crate::navigation::bind_devices(&window, shared.clone(), || {}, || None);
         navigation.attach_catalogue(choices.clone());
-        publish_focus_view(&window, &shared, &store, &entity);
+        publish_focus_view(&window, &scenario, &shared, &store, &entity);
         let revision = shared.lock().unwrap().revision;
         assert!(
             navigation.navigate(destination, &source, None).is_err(),
@@ -1863,7 +1895,7 @@ fn cross_dashboard_refusals_never_mutate_the_route_or_selection() {
 
 #[test]
 fn a_new_catalogue_token_invalidates_prepared_gestures_and_cross_dashboard_history() {
-    use home_client_model::dashboard::{DashboardId, Destination, Presentation};
+    use home_client_model::dashboard::{Destination, Presentation};
     use slint::ComponentHandle;
     i_slint_backend_testing::init_no_event_loop();
     let window = crate::create_window().unwrap();
@@ -1872,7 +1904,8 @@ fn a_new_catalogue_token_invalidates_prepared_gestures_and_cross_dashboard_histo
     crate::cache_view::bind(&window);
     let (request, entity, store, choices, target) = cross_dashboard_fixture();
     let source = request.dashboard.shared_layout().unwrap();
-    let shared = Arc::new(Mutex::new(request));
+    let scenario = request;
+    let shared = Arc::new(Mutex::new(scenario.request.clone()));
     let devices = store.clone();
     let navigation = crate::navigation::bind_devices(
         &window,
@@ -1881,7 +1914,7 @@ fn a_new_catalogue_token_invalidates_prepared_gestures_and_cross_dashboard_histo
         move || Some(devices.clone()),
     );
     navigation.attach_catalogue(choices.clone());
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     let row = store
         .recipe_focus(&NodeId::parse("recipe").unwrap(), &source, 0)
         .unwrap();
@@ -1893,14 +1926,14 @@ fn a_new_catalogue_token_invalidates_prepared_gestures_and_cross_dashboard_histo
         "synthetic-cohort-a",
         vec![source.clone(), target.clone()],
     ));
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     assert!(prepared.is_current());
     // An identical document under a new opaque authority/replay cohort does not.
     shared.lock().unwrap().catalogue = Some(crate::dashboard_catalogue::Snapshot::fixture(
         "synthetic-cohort-b",
         vec![source.clone(), target.clone()],
     ));
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     assert!(!prepared.is_current());
     let mut catalogue = choices.snapshot().1;
     catalogue.snapshot = shared.lock().unwrap().catalogue.clone();
@@ -1908,7 +1941,7 @@ fn a_new_catalogue_token_invalidates_prepared_gestures_and_cross_dashboard_histo
     navigation
         .navigate(
             Destination {
-                dashboard: DashboardId::parse(target.id.as_str()).unwrap(),
+                dashboard: DashboardName::try_from(target.id.as_str()).unwrap(),
                 node: NodeId::parse("view").unwrap(),
                 presentation: Presentation::Page,
             },
@@ -1939,7 +1972,7 @@ fn a_new_catalogue_token_invalidates_prepared_gestures_and_cross_dashboard_histo
 
 #[test]
 fn cross_dashboard_back_restores_the_sources_search_context() {
-    use home_client_model::dashboard::{DashboardId, Destination, Presentation};
+    use home_client_model::dashboard::{Destination, Presentation};
     use slint::ComponentHandle;
     i_slint_backend_testing::init_no_event_loop();
     let window = crate::create_window().unwrap();
@@ -1948,17 +1981,18 @@ fn cross_dashboard_back_restores_the_sources_search_context() {
     crate::cache_view::bind(&window);
     let (request, entity, store, choices, target) = cross_dashboard_fixture();
     let source = request.dashboard.shared_layout().unwrap();
-    let shared = Arc::new(Mutex::new(request));
+    let scenario = request;
+    let shared = Arc::new(Mutex::new(scenario.request.clone()));
     let navigation = crate::navigation::bind_devices(&window, shared.clone(), || {}, || None);
     navigation.attach_catalogue(choices.clone());
-    publish_focus_view(&window, &shared, &store, &entity);
+    publish_focus_view(&window, &scenario, &shared, &store, &entity);
     window.set_search_query("source search".into());
     window.invoke_query_edited("source search".into());
     assert_eq!(window.get_page(), crate::ViewPage::Inventory);
     navigation
         .navigate(
             Destination {
-                dashboard: DashboardId::parse(target.id.as_str()).unwrap(),
+                dashboard: DashboardName::try_from(target.id.as_str()).unwrap(),
                 node: NodeId::parse("view").unwrap(),
                 presentation: Presentation::Page,
             },

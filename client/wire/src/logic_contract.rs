@@ -1,7 +1,7 @@
 //! Provisional synthetic logic representation, never execution or authority.
 use crate::home::{
-    api::v2 as config, api::v2 as plan, api::v2 as history, testing::logic::v1 as wire,
-    observability::v1 as obs,
+    api::v2 as config, api::v2 as plan, api::v2 as history, observability::v1 as obs,
+    testing::logic::v1 as wire,
 };
 use buffa::{EnumValue, Message};
 use buffa_types::google::protobuf::{Empty, Timestamp};

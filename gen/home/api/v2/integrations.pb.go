@@ -1810,18 +1810,18 @@ const file_home_api_v2_integrations_proto_rawDesc = "" +
 	"\x1dINTEGRATION_LIFECYCLE_RUNNING\x10\x02\x12\"\n" +
 	"\x1eINTEGRATION_LIFECYCLE_RETRYING\x10\x03\x12\"\n" +
 	"\x1eINTEGRATION_LIFECYCLE_DEGRADED\x10\x04\x12!\n" +
-	"\x1dINTEGRATION_LIFECYCLE_STOPPED\x10\x052\xb2\v\n" +
+	"\x1dINTEGRATION_LIFECYCLE_STOPPED\x10\x052\xcf\v\n" +
 	"\x12IntegrationService\x12\x90\x01\n" +
 	"\x12GetIntegrationType\x12&.home.api.v2.GetIntegrationTypeRequest\x1a\x1c.home.api.v2.IntegrationType\"4\xdaA\x04name\x82\xd3\xe4\x93\x02'\x12%/v2/{name=homes/*/integrationTypes/*}\x12\xa3\x01\n" +
 	"\x14ListIntegrationTypes\x12(.home.api.v2.ListIntegrationTypesRequest\x1a).home.api.v2.ListIntegrationTypesResponse\"6\xdaA\x06parent\x82\xd3\xe4\x93\x02'\x12%/v2/{parent=homes/*}/integrationTypes\x12\xa0\x01\n" +
 	"\x16GetIntegrationInstance\x12*.home.api.v2.GetIntegrationInstanceRequest\x1a .home.api.v2.IntegrationInstance\"8\xdaA\x04name\x82\xd3\xe4\x93\x02+\x12)/v2/{name=homes/*/integrationInstances/*}\x12\xb3\x01\n" +
-	"\x18ListIntegrationInstances\x12,.home.api.v2.ListIntegrationInstancesRequest\x1a-.home.api.v2.ListIntegrationInstancesResponse\":\xdaA\x06parent\x82\xd3\xe4\x93\x02+\x12)/v2/{parent=homes/*}/integrationInstances\x12\x87\x02\n" +
-	"\x19CreateIntegrationInstance\x12-.home.api.v2.CreateIntegrationInstanceRequest\x1a\x1d.google.longrunning.Operation\"\x9b\x01\xcaA3\n" +
-	"\x13IntegrationInstance\x12\x1cIntegrationOperationMetadata\xdaA\x1bparent,integration_instance\x82\xd3\xe4\x93\x02A:\x14integration_instance\")/v2/{parent=homes/*}/integrationInstances\x12\xa1\x02\n" +
+	"\x18ListIntegrationInstances\x12,.home.api.v2.ListIntegrationInstancesRequest\x1a-.home.api.v2.ListIntegrationInstancesResponse\":\xdaA\x06parent\x82\xd3\xe4\x93\x02+\x12)/v2/{parent=homes/*}/integrationInstances\x12\x9f\x02\n" +
+	"\x19CreateIntegrationInstance\x12-.home.api.v2.CreateIntegrationInstanceRequest\x1a\x1d.google.longrunning.Operation\"\xb3\x01\xcaA3\n" +
+	"\x13IntegrationInstance\x12\x1cIntegrationOperationMetadata\xdaA3parent,integration_instance,integration_instance_id\x82\xd3\xe4\x93\x02A:\x14integration_instance\")/v2/{parent=homes/*}/integrationInstances\x12\xa1\x02\n" +
 	"\x19UpdateIntegrationInstance\x12-.home.api.v2.UpdateIntegrationInstanceRequest\x1a\x1d.google.longrunning.Operation\"\xb5\x01\xcaA3\n" +
-	"\x13IntegrationInstance\x12\x1cIntegrationOperationMetadata\xdaA integration_instance,update_mask\x82\xd3\xe4\x93\x02V:\x14integration_instance2>/v2/{integration_instance.name=homes/*/integrationInstances/*}\x12\xdb\x01\n" +
-	"\x19DeleteIntegrationInstance\x12-.home.api.v2.DeleteIntegrationInstanceRequest\x1a\x1d.google.longrunning.Operation\"p\xcaA5\n" +
-	"\x15google.protobuf.Empty\x12\x1cIntegrationOperationMetadata\xdaA\x04name\x82\xd3\xe4\x93\x02+*)/v2/{name=homes/*/integrationInstances/*}BZ\n" +
+	"\x13IntegrationInstance\x12\x1cIntegrationOperationMetadata\xdaA integration_instance,update_mask\x82\xd3\xe4\x93\x02V:\x14integration_instance2>/v2/{integration_instance.name=homes/*/integrationInstances/*}\x12\xe0\x01\n" +
+	"\x19DeleteIntegrationInstance\x12-.home.api.v2.DeleteIntegrationInstanceRequest\x1a\x1d.google.longrunning.Operation\"u\xcaA5\n" +
+	"\x15google.protobuf.Empty\x12\x1cIntegrationOperationMetadata\xdaA\tname,etag\x82\xd3\xe4\x93\x02+*)/v2/{name=homes/*/integrationInstances/*}BZ\n" +
 	"\x0fcom.home.api.v2B\x11IntegrationsProtoP\x01Z2github.com/damione1/Homeward/gen/home/api/v2;apiv2b\x06proto3"
 
 var (

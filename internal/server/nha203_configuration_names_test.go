@@ -48,7 +48,7 @@ func nha203PublicDocumentName(t *testing.T, ctx context.Context, httpClient conn
 		if err != nil {
 			t.Fatal("public document discovery", err)
 		}
-		for _, document := range response.Msg.Documents {
+		for _, document := range response.Msg.ConfigurationDocuments {
 			if document.Id.Value == nativeKey {
 				return document.Name
 			}

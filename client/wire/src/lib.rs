@@ -41,16 +41,15 @@ pub mod calendars_contract;
 pub mod companion_contract;
 pub mod config_plans;
 pub mod configuration_apply_contract;
-pub mod configuration_operations_contract;
-pub mod integration_operations_contract;
 pub mod configuration_contract;
+pub mod configuration_operations_contract;
 pub mod configuration_simulation_contract;
 pub mod controls_contract;
 pub mod dashboard_contract;
 pub mod environment_contract;
 pub mod history_contract;
-pub mod recorder_evidence_contract;
 pub mod integration_admin_contract;
+pub mod integration_operations_contract;
 #[cfg(feature = "private-qualification")]
 pub mod logic_contract;
 #[cfg(feature = "private-qualification")]
@@ -58,6 +57,7 @@ pub mod notifications_contract;
 pub mod observability_contract;
 #[cfg(feature = "private-qualification")]
 pub mod qualification_identity;
+pub mod recorder_evidence_contract;
 pub mod solar_contract;
 pub mod tasks_contract;
 

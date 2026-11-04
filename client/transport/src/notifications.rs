@@ -1,8 +1,6 @@
 //! Provisional notification facade on the shared verified TLS connection.
 //! One attempt per explicit request; no acknowledgement retry or offline queue.
-use crate::{
-    AccessToken, Failure, services::home::testing::notifications::v1 as service,
-};
+use crate::{AccessToken, Failure, services::home::testing::notifications::v1 as service};
 use connectrpc::client::HttpClient;
 use home_wire_contract::home::testing::notifications::v1 as wire;
 use std::time::Duration;

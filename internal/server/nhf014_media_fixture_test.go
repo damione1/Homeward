@@ -40,6 +40,7 @@ import (
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/mediasessions"
 	"github.com/damione1/Homeward/internal/registry"
+	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/damione1/Homeward/scope"
@@ -376,7 +377,8 @@ func nhf014RunFixture(t *testing.T, smoke bool) {
 	instance, _ := domain.ParseIntegrationInstanceID("nhf014-synthetic-only")
 	var host *integrations.Manager
 	var sessions *sessionCoordinator
-	var core *coreRPCHandler
+	var epochs integrations.CommandEpochAuthority
+	var identity *registry.Repository
 	var fixtureStore *storage.Store
 	mock := &nhf014MediaMock{now: time.Now, artwork: make(map[domain.EntityID]*nha202MediaOwner)}
 	keys := make(map[string]integrations.SourceKey)
@@ -387,6 +389,7 @@ func nhf014RunFixture(t *testing.T, smoke bool) {
 		if err != nil {
 			return RuntimePlan{}, err
 		}
+		identity = identities
 		for _, player := range players {
 			key, err := integrations.NewSourceKey("synthetic-media-"+string(player.Kind), "media")
 			if err != nil {
@@ -436,7 +439,7 @@ func nhf014RunFixture(t *testing.T, smoke bool) {
 	go func() {
 		done <- runWithDependencies(runCtx, settings.startup, func(listenCtx context.Context, kind, _ string) (net.Listener, error) {
 			return (&net.ListenConfig{}).Listen(listenCtx, kind, "127.0.0.1:0")
-		}, func(address net.Addr) { ready <- address }, factory, runDependencies{observeLists: func(_ *listComposition, actual *sessionCoordinator) { sessions = actual }, observeCore: func(actual *coreRPCHandler, catalog *contracts.CapabilityCatalog) error {
+		}, func(address net.Addr) { ready <- address }, factory, runDependencies{observeLists: func(_ *listComposition, actual *sessionCoordinator) { sessions = actual }, mediaProjector: mock, observe: func(_ context.Context, sequence *sequencer.Sequencer) error { epochs = sequence; return nil }, configureCapabilityCatalog: func(catalog *contracts.CapabilityCatalog) error {
 			description, err := nhf014Description("Synthetic media")
 			if err != nil {
 				return err
@@ -444,8 +447,6 @@ func nhf014RunFixture(t *testing.T, smoke bool) {
 			if err = catalog.RegisterExtensionCodec(description, nhf014MediaCodec{}); err != nil {
 				return err
 			}
-			core = actual
-			core.media = mock
 			return nil
 		}})
 	}()
@@ -561,10 +562,10 @@ func nhf014RunFixture(t *testing.T, smoke bool) {
 	}
 	setPolicy()
 	reader := nha162RunLogin(t, ctx, authAPI, readerName, readerPassword)
-	if core == nil || sessions == nil {
-		t.Fatal("actual Core and sessions required")
+	if epochs == nil || identity == nil || sessions == nil {
+		t.Fatal("actual sequence, identity and sessions required")
 	}
-	epoch, err := core.epoch.CurrentAdmissionEpoch()
+	epoch, err := epochs.CurrentAdmissionEpoch()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -614,7 +615,7 @@ func nhf014RunFixture(t *testing.T, smoke bool) {
 		t.Fatal(err)
 	}
 	ids := make(map[string]string)
-	home, err := core.home.owner.HomeName(ctx)
+	home, err := identity.HomeName(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

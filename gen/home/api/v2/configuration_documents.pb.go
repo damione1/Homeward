@@ -1386,7 +1386,7 @@ func (x *ListConfigurationDocumentsRequest) GetPageToken() string {
 type ListConfigurationDocumentsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Collection of documents for this message.
-	Documents []*ConfigurationDocument `protobuf:"bytes,1,rep,name=documents,proto3" json:"documents,omitempty"`
+	ConfigurationDocuments []*ConfigurationDocument `protobuf:"bytes,1,rep,name=configuration_documents,json=configurationDocuments,proto3" json:"configuration_documents,omitempty"`
 	// Opaque continuation for the next page. Empty when no continuation is available.
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1423,9 +1423,9 @@ func (*ListConfigurationDocumentsResponse) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *ListConfigurationDocumentsResponse) GetDocuments() []*ConfigurationDocument {
+func (x *ListConfigurationDocumentsResponse) GetConfigurationDocuments() []*ConfigurationDocument {
 	if x != nil {
-		return x.Documents
+		return x.ConfigurationDocuments
 	}
 	return nil
 }
@@ -1669,7 +1669,7 @@ func (x *ListConfigurationRevisionsRequest) GetPageToken() string {
 type ListConfigurationRevisionsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Collection of versions for this message.
-	Versions []*ConfigurationRevision `protobuf:"bytes,1,rep,name=versions,proto3" json:"versions,omitempty"`
+	ConfigurationRevisions []*ConfigurationRevision `protobuf:"bytes,1,rep,name=configuration_revisions,json=configurationRevisions,proto3" json:"configuration_revisions,omitempty"`
 	// Opaque continuation for the next page. Empty when no continuation is available.
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1706,9 +1706,9 @@ func (*ListConfigurationRevisionsResponse) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *ListConfigurationRevisionsResponse) GetVersions() []*ConfigurationRevision {
+func (x *ListConfigurationRevisionsResponse) GetConfigurationRevisions() []*ConfigurationRevision {
 	if x != nil {
-		return x.Versions
+		return x.ConfigurationRevisions
 	}
 	return nil
 }
@@ -1788,7 +1788,7 @@ func (x *ListConfigurationGenerationsRequest) GetPageToken() string {
 type ListConfigurationGenerationsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Collection of generations for this message.
-	Generations []*ConfigurationGeneration `protobuf:"bytes,1,rep,name=generations,proto3" json:"generations,omitempty"`
+	ConfigurationGenerations []*ConfigurationGeneration `protobuf:"bytes,1,rep,name=configuration_generations,json=configurationGenerations,proto3" json:"configuration_generations,omitempty"`
 	// Opaque continuation for the next page. Empty when no continuation is available.
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1825,9 +1825,9 @@ func (*ListConfigurationGenerationsResponse) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *ListConfigurationGenerationsResponse) GetGenerations() []*ConfigurationGeneration {
+func (x *ListConfigurationGenerationsResponse) GetConfigurationGenerations() []*ConfigurationGeneration {
 	if x != nil {
-		return x.Generations
+		return x.ConfigurationGenerations
 	}
 	return nil
 }
@@ -1990,7 +1990,7 @@ func (x *ListConfigurationSchemasRequest) GetPageToken() string {
 type ListConfigurationSchemasResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Collection of schemas for this message.
-	Schemas []*ConfigurationSchema `protobuf:"bytes,1,rep,name=schemas,proto3" json:"schemas,omitempty"`
+	ConfigurationSchemas []*ConfigurationSchema `protobuf:"bytes,1,rep,name=configuration_schemas,json=configurationSchemas,proto3" json:"configuration_schemas,omitempty"`
 	// Opaque continuation for the next page. Empty when no continuation is available.
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2027,9 +2027,9 @@ func (*ListConfigurationSchemasResponse) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{19}
 }
 
-func (x *ListConfigurationSchemasResponse) GetSchemas() []*ConfigurationSchema {
+func (x *ListConfigurationSchemasResponse) GetConfigurationSchemas() []*ConfigurationSchema {
 	if x != nil {
-		return x.Schemas
+		return x.ConfigurationSchemas
 	}
 	return nil
 }
@@ -3045,26 +3045,26 @@ const file_home_api_v2_configuration_documents_proto_rawDesc = "" +
 	"\x06parent\x18\x01 \x01(\tB8\xe2A\x01\x02\xfaA1\x12/homeward.damiengoehrig.ca/ConfigurationDocumentR\x06parent\x12!\n" +
 	"\tpage_size\x18\x02 \x01(\x05B\x04\xe2A\x01\x01R\bpageSize\x12#\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\x8e\x01\n" +
-	"\"ListConfigurationDocumentsResponse\x12@\n" +
-	"\tdocuments\x18\x01 \x03(\v2\".home.api.v2.ConfigurationDocumentR\tdocuments\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xdc\x03\n" +
+	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\xa9\x01\n" +
+	"\"ListConfigurationDocumentsResponse\x12[\n" +
+	"\x17configuration_documents\x18\x01 \x03(\v2\".home.api.v2.ConfigurationDocumentR\x16configurationDocuments\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x97\x04\n" +
 	"\x15ConfigurationRevision\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12'\n" +
 	"\x02id\x18\x06 \x01(\v2\x17.home.api.v2.DocumentIdR\x02id\x126\n" +
 	"\aversion\x18\x02 \x01(\v2\x1c.home.api.v2.DocumentVersionR\aversion\x12D\n" +
-	"\favailability\x18\x03 \x01(\x0e2 .home.api.v2.VersionAvailabilityR\favailability\x12;\n" +
-	"\vupdate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"\favailability\x18\x03 \x01(\x0e2 .home.api.v2.VersionAvailabilityR\favailability\x12A\n" +
+	"\vupdate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
 	"updateTime\x12%\n" +
-	"\x0eschema_version\x18\x05 \x01(\tR\rschemaVersion:\x9d\x01\xeaA\x99\x01\n" +
-	"/homeward.damiengoehrig.ca/ConfigurationRevision\x12Qhomes/{home}/configurationDocuments/{configuration_document}/revisions/{revision}*\trevisions2\brevision\"\xa7\x03\n" +
+	"\x0eschema_version\x18\x05 \x01(\tR\rschemaVersion:\xd2\x01\xeaA\xce\x01\n" +
+	"/homeward.damiengoehrig.ca/ConfigurationRevision\x12lhomes/{home}/configurationDocuments/{configuration_document}/configurationRevisions/{configuration_revision}*\x16configurationRevisions2\x15configurationRevision\"\xad\x03\n" +
 	"\x17ConfigurationGeneration\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12=\n" +
 	"\n" +
 	"generation\x18\x04 \x01(\v2\x1d.home.api.v2.ActiveGenerationR\n" +
 	"generation\x12G\n" +
-	"\favailability\x18\x02 \x01(\x0e2#.home.api.v2.GenerationAvailabilityR\favailability\x12;\n" +
-	"\vcreate_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"\favailability\x18\x02 \x01(\x0e2#.home.api.v2.GenerationAvailabilityR\favailability\x12A\n" +
+	"\vcreate_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
 	"createTime:\xac\x01\xeaA\xa8\x01\n" +
 	"1homeward.damiengoehrig.ca/ConfigurationGeneration\x12@homes/{home}/configurationGenerations/{configuration_generation}*\x18configurationGenerations2\x17configurationGeneration\"\xbd\x01\n" +
 	"!ListConfigurationRevisionsRequest\x12P\n" +
@@ -3072,17 +3072,17 @@ const file_home_api_v2_configuration_documents_proto_rawDesc = "" +
 	"/homeward.damiengoehrig.ca/ConfigurationDocumentR\x06parent\x12!\n" +
 	"\tpage_size\x18\x02 \x01(\x05B\x04\xe2A\x01\x01R\bpageSize\x12#\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\x8c\x01\n" +
-	"\"ListConfigurationRevisionsResponse\x12>\n" +
-	"\bversions\x18\x01 \x03(\v2\".home.api.v2.ConfigurationRevisionR\bversions\x12&\n" +
+	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\xa9\x01\n" +
+	"\"ListConfigurationRevisionsResponse\x12[\n" +
+	"\x17configuration_revisions\x18\x01 \x03(\v2\".home.api.v2.ConfigurationRevisionR\x16configurationRevisions\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xc1\x01\n" +
 	"#ListConfigurationGenerationsRequest\x12R\n" +
 	"\x06parent\x18\x01 \x01(\tB:\xe2A\x01\x02\xfaA3\x121homeward.damiengoehrig.ca/ConfigurationGenerationR\x06parent\x12!\n" +
 	"\tpage_size\x18\x02 \x01(\x05B\x04\xe2A\x01\x01R\bpageSize\x12#\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\x96\x01\n" +
-	"$ListConfigurationGenerationsResponse\x12F\n" +
-	"\vgenerations\x18\x01 \x03(\v2$.home.api.v2.ConfigurationGenerationR\vgenerations\x12&\n" +
+	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\xb1\x01\n" +
+	"$ListConfigurationGenerationsResponse\x12a\n" +
+	"\x19configuration_generations\x18\x01 \x03(\v2$.home.api.v2.ConfigurationGenerationR\x18configurationGenerations\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x8d\x03\n" +
 	"\x13ConfigurationSchema\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12-\n" +
@@ -3095,9 +3095,9 @@ const file_home_api_v2_configuration_documents_proto_rawDesc = "" +
 	"\x06parent\x18\x01 \x01(\tB6\xe2A\x01\x02\xfaA/\x12-homeward.damiengoehrig.ca/ConfigurationSchemaR\x06parent\x12!\n" +
 	"\tpage_size\x18\x02 \x01(\x05B\x04\xe2A\x01\x01R\bpageSize\x12#\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\x86\x01\n" +
-	" ListConfigurationSchemasResponse\x12:\n" +
-	"\aschemas\x18\x01 \x03(\v2 .home.api.v2.ConfigurationSchemaR\aschemas\x12&\n" +
+	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\xa1\x01\n" +
+	" ListConfigurationSchemasResponse\x12U\n" +
+	"\x15configuration_schemas\x18\x01 \x03(\v2 .home.api.v2.ConfigurationSchemaR\x14configurationSchemas\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xd4\x02\n" +
 	"#PublishConfigurationDocumentRequest\x12L\n" +
 	"\x04name\x18\x01 \x01(\tB8\xe2A\x01\x02\xfaA1\n" +
@@ -3241,21 +3241,21 @@ const file_home_api_v2_configuration_documents_proto_rawDesc = "" +
 	"'CONFIGURATION_OPERATION_PHASE_COMMITTED\x10\x01\x12+\n" +
 	"'CONFIGURATION_OPERATION_PHASE_PUBLISHED\x10\x02\x12*\n" +
 	"&CONFIGURATION_OPERATION_PHASE_ACCEPTED\x10\x03\x12(\n" +
-	"$CONFIGURATION_OPERATION_PHASE_FAILED\x10\x042\xa1\x11\n" +
-	"\x14ConfigurationService\x12\xb4\x01\n" +
-	"\x18GetConfigurationRevision\x12,.home.api.v2.GetConfigurationRevisionRequest\x1a\".home.api.v2.ConfigurationRevision\"F\xdaA\x04name\x82\xd3\xe4\x93\x029\x127/v2/{name=homes/*/configurationDocuments/*/revisions/*}\x12\xb0\x01\n" +
+	"$CONFIGURATION_OPERATION_PHASE_FAILED\x10\x042\xab\x12\n" +
+	"\x14ConfigurationService\x12\xc1\x01\n" +
+	"\x18GetConfigurationRevision\x12,.home.api.v2.GetConfigurationRevisionRequest\x1a\".home.api.v2.ConfigurationRevision\"S\xdaA\x04name\x82\xd3\xe4\x93\x02F\x12D/v2/{name=homes/*/configurationDocuments/*/configurationRevisions/*}\x12\xb0\x01\n" +
 	"\x1aGetConfigurationGeneration\x12..home.api.v2.GetConfigurationGenerationRequest\x1a$.home.api.v2.ConfigurationGeneration\"<\xdaA\x04name\x82\xd3\xe4\x93\x02/\x12-/v2/{name=homes/*/configurationGenerations/*}\x12\xa0\x01\n" +
 	"\x16GetConfigurationSchema\x12*.home.api.v2.GetConfigurationSchemaRequest\x1a .home.api.v2.ConfigurationSchema\"8\xdaA\x04name\x82\xd3\xe4\x93\x02+\x12)/v2/{name=homes/*/configurationSchemas/*}\x12\xa8\x01\n" +
 	"\x18GetConfigurationDocument\x12,.home.api.v2.GetConfigurationDocumentRequest\x1a\".home.api.v2.ConfigurationDocument\":\xdaA\x04name\x82\xd3\xe4\x93\x02-\x12+/v2/{name=homes/*/configurationDocuments/*}\x12\xbb\x01\n" +
-	"\x1aListConfigurationDocuments\x12..home.api.v2.ListConfigurationDocumentsRequest\x1a/.home.api.v2.ListConfigurationDocumentsResponse\"<\xdaA\x06parent\x82\xd3\xe4\x93\x02-\x12+/v2/{parent=homes/*}/configurationDocuments\x12\xc7\x01\n" +
-	"\x1aListConfigurationRevisions\x12..home.api.v2.ListConfigurationRevisionsRequest\x1a/.home.api.v2.ListConfigurationRevisionsResponse\"H\xdaA\x06parent\x82\xd3\xe4\x93\x029\x127/v2/{parent=homes/*/configurationDocuments/*}/revisions\x12\xc3\x01\n" +
+	"\x1aListConfigurationDocuments\x12..home.api.v2.ListConfigurationDocumentsRequest\x1a/.home.api.v2.ListConfigurationDocumentsResponse\"<\xdaA\x06parent\x82\xd3\xe4\x93\x02-\x12+/v2/{parent=homes/*}/configurationDocuments\x12\xd4\x01\n" +
+	"\x1aListConfigurationRevisions\x12..home.api.v2.ListConfigurationRevisionsRequest\x1a/.home.api.v2.ListConfigurationRevisionsResponse\"U\xdaA\x06parent\x82\xd3\xe4\x93\x02F\x12D/v2/{parent=homes/*/configurationDocuments/*}/configurationRevisions\x12\xc3\x01\n" +
 	"\x1cListConfigurationGenerations\x120.home.api.v2.ListConfigurationGenerationsRequest\x1a1.home.api.v2.ListConfigurationGenerationsResponse\">\xdaA\x06parent\x82\xd3\xe4\x93\x02/\x12-/v2/{parent=homes/*}/configurationGenerations\x12\xb3\x01\n" +
-	"\x18ListConfigurationSchemas\x12,.home.api.v2.ListConfigurationSchemasRequest\x1a-.home.api.v2.ListConfigurationSchemasResponse\":\xdaA\x06parent\x82\xd3\xe4\x93\x02+\x12)/v2/{parent=homes/*}/configurationSchemas\x12\x80\x02\n" +
-	"\x1cPublishConfigurationDocument\x120.home.api.v2.PublishConfigurationDocumentRequest\x1a\x1d.google.longrunning.Operation\"\x8e\x01\xcaAF\n" +
-	"$PublishConfigurationDocumentResponse\x12\x1eConfigurationOperationMetadata\xdaA\x04name\x82\xd3\xe4\x93\x028:\x01*\"3/v2/{name=homes/*/configurationDocuments/*}:publish\x12\x84\x02\n" +
-	"\x1dRollbackConfigurationDocument\x121.home.api.v2.RollbackConfigurationDocumentRequest\x1a\x1d.google.longrunning.Operation\"\x90\x01\xcaAG\n" +
-	"%RollbackConfigurationDocumentResponse\x12\x1eConfigurationOperationMetadata\xdaA\x04name\x82\xd3\xe4\x93\x029:\x01*\"4/v2/{name=homes/*/configurationDocuments/*}:rollback\x12\xa4\x01\n" +
-	"\x12WatchConfiguration\x12&.home.api.v2.WatchConfigurationRequest\x1a'.home.api.v2.WatchConfigurationResponse\";\xdaA\x06parent\x82\xd3\xe4\x93\x02,:\x01*\"'/v2/{parent=homes/*}:watchConfiguration0\x01\x1a\x1c\xcaA\x19homeward.damiengoehrig.caBd\n" +
+	"\x18ListConfigurationSchemas\x12,.home.api.v2.ListConfigurationSchemasRequest\x1a-.home.api.v2.ListConfigurationSchemasResponse\":\xdaA\x06parent\x82\xd3\xe4\x93\x02+\x12)/v2/{parent=homes/*}/configurationSchemas\x12\xb5\x02\n" +
+	"\x1cPublishConfigurationDocument\x120.home.api.v2.PublishConfigurationDocumentRequest\x1a\x1d.google.longrunning.Operation\"\xc3\x01\xcaAF\n" +
+	"$PublishConfigurationDocumentResponse\x12\x1eConfigurationOperationMetadata\xdaA9name,expected,expected_workspace_sha256,exact_yaml_source\x82\xd3\xe4\x93\x028:\x01*\"3/v2/{name=homes/*/configurationDocuments/*}:publish\x12\xb2\x02\n" +
+	"\x1dRollbackConfigurationDocument\x121.home.api.v2.RollbackConfigurationDocumentRequest\x1a\x1d.google.longrunning.Operation\"\xbe\x01\xcaAG\n" +
+	"%RollbackConfigurationDocumentResponse\x12\x1eConfigurationOperationMetadata\xdaA2name,expected,expected_workspace_sha256,historical\x82\xd3\xe4\x93\x029:\x01*\"4/v2/{name=homes/*/configurationDocuments/*}:rollback\x12\xb1\x01\n" +
+	"\x12WatchConfiguration\x12&.home.api.v2.WatchConfigurationRequest\x1a'.home.api.v2.WatchConfigurationResponse\"H\xdaA\x13parent,resume_token\x82\xd3\xe4\x93\x02,:\x01*\"'/v2/{parent=homes/*}:watchConfiguration0\x01\x1a\x1c\xcaA\x19homeward.damiengoehrig.caBd\n" +
 	"\x0fcom.home.api.v2B\x1bConfigurationDocumentsProtoP\x01Z2github.com/damione1/Homeward/gen/home/api/v2;apiv2b\x06proto3"
 
 var (
@@ -3339,7 +3339,7 @@ var file_home_api_v2_configuration_documents_proto_depIdxs = []int32{
 	3,  // 14: home.api.v2.ActivationResult.outcome:type_name -> home.api.v2.ActivationOutcome
 	4,  // 15: home.api.v2.ActivationResult.transaction:type_name -> home.api.v2.TransactionOutcome
 	5,  // 16: home.api.v2.ActivationResult.diagnostics:type_name -> home.api.v2.ConfigurationDiagnosticCode
-	16, // 17: home.api.v2.ListConfigurationDocumentsResponse.documents:type_name -> home.api.v2.ConfigurationDocument
+	16, // 17: home.api.v2.ListConfigurationDocumentsResponse.configuration_documents:type_name -> home.api.v2.ConfigurationDocument
 	10, // 18: home.api.v2.ConfigurationRevision.id:type_name -> home.api.v2.DocumentId
 	11, // 19: home.api.v2.ConfigurationRevision.version:type_name -> home.api.v2.DocumentVersion
 	6,  // 20: home.api.v2.ConfigurationRevision.availability:type_name -> home.api.v2.VersionAvailability
@@ -3347,10 +3347,10 @@ var file_home_api_v2_configuration_documents_proto_depIdxs = []int32{
 	12, // 22: home.api.v2.ConfigurationGeneration.generation:type_name -> home.api.v2.ActiveGeneration
 	7,  // 23: home.api.v2.ConfigurationGeneration.availability:type_name -> home.api.v2.GenerationAvailability
 	45, // 24: home.api.v2.ConfigurationGeneration.create_time:type_name -> google.protobuf.Timestamp
-	21, // 25: home.api.v2.ListConfigurationRevisionsResponse.versions:type_name -> home.api.v2.ConfigurationRevision
-	22, // 26: home.api.v2.ListConfigurationGenerationsResponse.generations:type_name -> home.api.v2.ConfigurationGeneration
+	21, // 25: home.api.v2.ListConfigurationRevisionsResponse.configuration_revisions:type_name -> home.api.v2.ConfigurationRevision
+	22, // 26: home.api.v2.ListConfigurationGenerationsResponse.configuration_generations:type_name -> home.api.v2.ConfigurationGeneration
 	0,  // 27: home.api.v2.ConfigurationSchema.kind:type_name -> home.api.v2.DocumentKind
-	27, // 28: home.api.v2.ListConfigurationSchemasResponse.schemas:type_name -> home.api.v2.ConfigurationSchema
+	27, // 28: home.api.v2.ListConfigurationSchemasResponse.configuration_schemas:type_name -> home.api.v2.ConfigurationSchema
 	11, // 29: home.api.v2.PublishConfigurationDocumentRequest.expected:type_name -> home.api.v2.DocumentVersion
 	11, // 30: home.api.v2.RollbackConfigurationDocumentRequest.expected:type_name -> home.api.v2.DocumentVersion
 	12, // 31: home.api.v2.RollbackConfigurationDocumentRequest.historical:type_name -> home.api.v2.ActiveGeneration

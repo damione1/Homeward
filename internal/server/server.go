@@ -261,6 +261,11 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	if err != nil {
 		return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
 	}
+	if dependencies.configureCapabilityCatalog != nil {
+		if err := dependencies.configureCapabilityCatalog(catalog); err != nil {
+			return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+		}
+	}
 	plan := RuntimePlan{Identity: unconfiguredIdentity{}}
 	var hiloRun *hiloComposition
 	if startup.MQTTReadOnlyObservation() {
@@ -806,7 +811,10 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	if activation != nil {
 		core, coreErr := prepareCoreRPC(ctx, sessions, sequence, plan.Identity, activation, commands, plan.DisplayProfiles)
 		if coreErr == nil {
-			core.media, coreErr = newNativeMediaProjector(plan.sonosRuntime, plan.androidTVRuntime, activation, sessions.authority, sequence)
+			core.media = dependencies.mediaProjector
+			if core.media == nil {
+				core.media, coreErr = newNativeMediaProjector(plan.sonosRuntime, plan.androidTVRuntime, activation, sessions.authority, sequence)
+			}
 		}
 		if coreErr == nil && core.home != nil {
 			coreErr = registerHomeResourceRoutes(plan.Public, core.home)
