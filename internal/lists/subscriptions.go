@@ -307,3 +307,12 @@ func validContext(ctx context.Context) bool {
 		return true
 	}
 }
+
+// Context exposes only lifetime cancellation so the transport can interrupt a
+// blocked HTTP/2 send when the retained subscription permission is revoked.
+func (s *Subscription) Context() context.Context {
+	if s == nil || s.permit == nil {
+		return nil
+	}
+	return s.permit.Context()
+}

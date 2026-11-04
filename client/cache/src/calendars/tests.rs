@@ -4,8 +4,10 @@ use super::*;
 fn page_freshness_and_expiry_cannot_be_upgraded_by_fresh_calendar_metadata() {
     let mut capture = CalendarCapture::new(&calendar(), &query()).unwrap();
     let mut stale = page("stale", "");
-    stale.quality = wire::Quality::Stale.into();
-    stale.fresh_until = Some("2026-01-01T00:00:00Z".into());
+    stale.freshness = wire::CalendarFreshness::Stale.into();
+    stale.fresh_until_time = admit::parse_timestamp("2026-01-01T00:00:00Z", true)
+        .unwrap()
+        .into();
     capture.push(&stale).unwrap();
     let snapshot = capture.finish(&calendar()).unwrap();
     assert_eq!(snapshot.freshness(), CalendarFreshness::Stale);
@@ -15,7 +17,7 @@ fn page_freshness_and_expiry_cannot_be_upgraded_by_fresh_calendar_metadata() {
     );
     let mut capture = CalendarCapture::new(&calendar(), &query()).unwrap();
     let mut unavailable = page("unavailable", "");
-    unavailable.quality = wire::Quality::Unavailable.into();
+    unavailable.freshness = wire::CalendarFreshness::Unavailable.into();
     capture.push(&unavailable).unwrap();
     assert_eq!(
         capture.finish(&calendar()).unwrap().freshness(),
@@ -27,50 +29,48 @@ fn page_freshness_and_expiry_cannot_be_upgraded_by_fresh_calendar_metadata() {
 fn pages_cannot_mix_synthetic_and_observed_provenance_under_one_range() {
     let mut capture = CalendarCapture::new(&calendar(), &query()).unwrap();
     let mut synthetic = page("synthetic", "");
-    synthetic.provenance = wire::DataProvenance::Synthetic.into();
+    synthetic.provenance = wire::CalendarProvenance::Synthetic.into();
     assert!(capture.push(&synthetic).is_err());
     assert!(capture.finish(&calendar()).is_err());
 }
-fn id() -> wire::CalendarId {
-    wire::CalendarId {
-        entity_id: "synthetic-only".into(),
-        ..Default::default()
-    }
+const CALENDAR: &str = "homes/synthetic/calendars/id-63616c";
+fn event_name(uid: &str) -> String {
+    format!(
+        "{CALENDAR}/events/id-{}",
+        uid.bytes()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    )
 }
-fn revision(number: u64) -> wire::Revision {
-    wire::Revision {
-        resource: wire::EventKey {
-            calendar: id().into(),
-            ..Default::default()
-        }
-        .into(),
-        presence: wire::Presence::Present.into(),
-        number,
-        ..Default::default()
-    }
+fn civil_date(value: &str) -> home_wire_contract::google::r#type::Date {
+    admit::date_wire(value.parse().unwrap())
 }
 fn calendar() -> wire::Calendar {
     wire::Calendar {
-        id: id().into(),
-        revision: revision(7).into(),
-        name: Some("Synthetic capture".into()),
-        origin: wire::Origin::Local.into(),
-        quality: wire::Quality::Fresh.into(),
-        mutation_access: wire::MutationAccess::Allowed.into(),
+        name: CALENDAR.into(),
+        display_name: "Synthetic capture".into(),
+        source_entity: "homes/synthetic/entities/source".into(),
+        etag: "W/\"calendar-7\"".into(),
+        origin: wire::CalendarOrigin::Local.into(),
+        freshness: wire::CalendarFreshness::Fresh.into(),
+        provenance: wire::CalendarProvenance::Observed.into(),
+        mutation_access: wire::CalendarMutationAccess::Allowed.into(),
         ..Default::default()
     }
 }
 fn query() -> wire::QueryOccurrencesRequest {
     wire::QueryOccurrencesRequest {
-        id: id().into(),
-        page_size: 1000,
-        window: wire::Window {
-            zone: "UTC".into(),
-            bounds: Some(wire::window::Bounds::Dates(Box::new(wire::DateSpan {
-                start: "2026-11-01".into(),
-                end_exclusive: "2026-11-08".into(),
-                ..Default::default()
-            }))),
+        parent: format!("{CALENDAR}/events/-"),
+        page_size: 256,
+        window: wire::CalendarWindow {
+            time_zone: "UTC".into(),
+            bounds: Some(wire::calendar_window::Bounds::Dates(Box::new(
+                wire::CalendarDateSpan {
+                    start_date: civil_date("2026-11-01").into(),
+                    end_date: civil_date("2026-11-08").into(),
+                    ..Default::default()
+                },
+            ))),
             ..Default::default()
         }
         .into(),
@@ -79,27 +79,31 @@ fn query() -> wire::QueryOccurrencesRequest {
 }
 fn page(uid: &str, next: &str) -> wire::QueryOccurrencesResponse {
     wire::QueryOccurrencesResponse {
-        revision: revision(7).into(),
-        quality: wire::Quality::Fresh.into(),
+        calendar_etag: calendar().etag,
+        freshness: wire::CalendarFreshness::Fresh.into(),
+        provenance: wire::CalendarProvenance::Observed.into(),
         next_page_token: next.into(),
         occurrences: vec![wire::Occurrence {
-            key: wire::EventKey {
-                calendar: id().into(),
-                uid: uid.into(),
+            calendar_event: event_name(uid),
+            recurrence_point: wire::CalendarRecurrencePoint {
+                value: Some(wire::calendar_recurrence_point::Value::Date(Box::new(
+                    civil_date("2026-11-01"),
+                ))),
                 ..Default::default()
             }
             .into(),
-            recurrence_id: "2026-11-01".into(),
-            span: wire::Span {
-                value: Some(wire::span::Value::Dates(Box::new(wire::DateSpan {
-                    start: "2026-11-01".into(),
-                    end_exclusive: "2026-11-02".into(),
-                    ..Default::default()
-                }))),
+            span: wire::CalendarSpan {
+                value: Some(wire::calendar_span::Value::Dates(Box::new(
+                    wire::CalendarDateSpan {
+                        start_date: civil_date("2026-11-01").into(),
+                        end_date: civil_date("2026-11-02").into(),
+                        ..Default::default()
+                    },
+                ))),
                 ..Default::default()
             }
             .into(),
-            zone: "UTC".into(),
+            time_zone: "UTC".into(),
             ..Default::default()
         }],
         ..Default::default()
@@ -121,10 +125,10 @@ fn a_range_is_published_only_after_complete_pages_and_matching_final_metadata() 
     let mut capture = CalendarCapture::new(&calendar(), &query()).unwrap();
     capture.push(&page("a", "")).unwrap();
     let mut changed = calendar();
-    changed.revision = revision(8).into();
+    changed.etag = "W/\"calendar-8\"".into();
     assert!(matches!(
         capture.finish(&changed),
-        Err(admit::AdmissionError::StaleRevision)
+        Err(admit::AdmissionError::StaleVersion)
     ));
 }
 #[test]
@@ -143,31 +147,18 @@ fn overlapping_pages_repeated_tokens_and_revision_changes_poison_the_capture() {
     assert!(capture.finish(&calendar()).is_err());
     let mut capture = CalendarCapture::new(&calendar(), &query()).unwrap();
     let mut stale = page("a", "");
-    stale.revision = revision(8).into();
+    stale.calendar_etag = "W/\"calendar-8\"".into();
     assert!(matches!(
         capture.push(&stale),
-        Err(admit::AdmissionError::StaleRevision)
+        Err(admit::AdmissionError::StaleVersion)
     ));
     assert!(capture.finish(&calendar()).is_err());
 }
 #[test]
-fn an_absent_calendar_stays_explicit_without_querying_or_inventing_events() {
-    let mut absent = calendar();
-    absent.name = None;
-    absent.revision = wire::Revision {
-        presence: wire::Presence::Absent.into(),
-        number: 0,
-        ..revision(0)
-    }
-    .into();
-    let capture = CalendarCapture::new(&absent, &query()).unwrap();
-    assert!(capture.request().is_none());
-    let snapshot = capture.finish(&absent).unwrap();
-    assert!(snapshot.occurrences().is_empty());
-    assert_eq!(
-        snapshot.calendar().revision.presence,
-        wire::Presence::Absent
-    );
+fn missing_resource_metadata_cannot_be_fabricated_as_a_calendar_snapshot() {
+    let mut missing = calendar();
+    missing.etag.clear();
+    assert!(CalendarCapture::new(&missing, &query()).is_err());
 }
 #[test]
 fn a_nonprogressing_server_is_bounded_even_when_its_cursor_keeps_changing() {

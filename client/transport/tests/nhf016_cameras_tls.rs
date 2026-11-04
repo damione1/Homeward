@@ -1,9 +1,12 @@
 //! Actual Rust/Go TLS on the explicit synthetic fixture, not native rendering.
-use home_client_model::cameras::{CameraId, EventKey, ImageKey};
-use home_client_transport::{AccessToken, CameraTransport, Connection, FailureKind};
+use home_client_model::{
+    api_content::MediaSourceName,
+    cameras::{EventKey, ImageKey},
+};
+use home_client_transport::{AccessToken, Connection, Failure, FailureKind, MediaTransport};
 use home_wire_contract::{
-    cameras_contract as admit,
-    home::{auth::v1 as auth, cameras::v1 as wire},
+    camera_content as admit, content_contract,
+    home::{api::v2 as wire, api::v2 as auth},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -55,12 +58,17 @@ struct Instruction {
     #[serde(skip_serializing_if = "Option::is_none")]
     entity_id: Option<String>,
 }
-async fn control(root: &Path, sequence: &mut u64, action: Control, entity: Option<&CameraId>) {
+async fn control(
+    root: &Path,
+    sequence: &mut u64,
+    action: Control,
+    entity: Option<&MediaSourceName>,
+) {
     *sequence += 1;
     let value = Instruction {
         sequence: *sequence,
         action,
-        entity_id: entity.map(|id| id.entity().as_str().into()),
+        entity_id: entity.map(|id| id.as_str().into()),
     };
     let temp = root.join("control.writing");
     std::fs::write(&temp, serde_json::to_vec(&value).unwrap()).unwrap();
@@ -78,48 +86,65 @@ async fn control(root: &Path, sequence: &mut u64, action: Control, entity: Optio
     .await
     .expect("camera control ack");
 }
+fn request_id() -> String {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    format!(
+        "12345678-1234-4000-8000-{:012x}",
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    )
+}
 async fn open(
-    api: &CameraTransport,
-    id: &CameraId,
+    api: &MediaTransport,
+    id: &MediaSourceName,
     token: &AccessToken,
     cancel: &CancellationToken,
 ) -> admit::Lease {
     let response = api
-        .open_session(
-            wire::OpenSessionRequest {
-                entity_id: id.entity().as_str().into(),
-                ..Default::default()
-            },
+        .create_media_session(
+            content_contract::create_session_request(
+                id,
+                home_client_model::api_content::ContentKind::Camera,
+                None,
+                request_id().as_str().try_into().unwrap(),
+            )
+            .unwrap(),
             token,
             Duration::from_secs(5),
             cancel,
         )
         .await
         .unwrap();
-    let admit::Outcome::Value(lease) =
-        admit::lease(&response, id, SystemTime::now(), Instant::now()).unwrap()
-    else {
-        panic!("synthetic camera unavailable")
-    };
-    lease
+    admit::lease(
+        &response,
+        id,
+        home_client_model::api_content::ContentKind::Camera,
+        SystemTime::now(),
+        Instant::now(),
+    )
+    .unwrap()
 }
 async fn read(
-    api: &CameraTransport,
+    api: &MediaTransport,
     lease: &admit::Lease,
     token: &AccessToken,
     cancel: &CancellationToken,
-) -> admit::Outcome<admit::Image> {
-    let key = ImageKey::Snapshot(lease.reference().camera().clone());
+) -> Result<admit::Image, Failure> {
+    let key = ImageKey::Snapshot(lease.source().clone());
     let response = api
-        .read_image(
+        .read_media_session(
             admit::image_request(lease, &key).unwrap(),
             token,
             Duration::from_secs(5),
             cancel,
         )
-        .await
-        .unwrap();
-    admit::image(&response, lease, &key, SystemTime::now(), Instant::now()).unwrap()
+        .await?;
+    Ok(admit::image(&response, lease, &key, SystemTime::now(), Instant::now()).unwrap())
+}
+fn assert_reason<T>(result: Result<T, Failure>, expected: wire::ApiErrorReason) {
+    let Err(error) = result else {
+        panic!("expected canonical refusal")
+    };
+    assert_eq!(error.api_failure().unwrap().unwrap().reason(), expected);
 }
 async fn stats(root: &Path, sequence: &mut u64) -> serde_json::Value {
     control(root, sequence, Control::Snapshot, None).await;
@@ -172,41 +197,12 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
         panic!("native login")
     };
     let token = AccessToken::parse(&tokens.access_token).unwrap();
-    let api = connection.cameras();
-    let response = api
-        .list_cameras(
-            wire::ListCamerasRequest::default(),
-            &token,
-            timeout,
-            &cancel,
-        )
-        .await
-        .unwrap();
-    let cameras = admit::catalog(&response).unwrap();
-    assert_eq!(cameras.len(), 2);
-    assert_eq!(cameras[0].title, cameras[1].title);
-    assert_ne!(cameras[0].id, cameras[1].id);
-    let first = open(&api, &cameras[0].id, &token, &cancel).await;
-    let second = open(&api, &cameras[1].id, &token, &cancel).await;
-    let admit::Outcome::Value(left) = read(&api, &first, &token, &cancel).await else {
-        panic!("first image")
-    };
-    let admit::Outcome::Value(right) = read(&api, &second, &token, &cancel).await else {
-        panic!("second image")
-    };
-    assert_ne!(left.png, right.png);
-    assert_ne!(left.key, right.key);
-    let mut wrong = first.wire_reference();
-    wrong.entity_id = cameras[1].id.entity().as_str().into();
-    let response = api
-        .read_image(
-            wire::ReadImageRequest {
-                key: wire::ImageKey {
-                    session: wrong.into(),
-                    target: Some(wire::image_key::Target::Snapshot(Box::default())),
-                    ..Default::default()
-                }
-                .into(),
+    let api = connection.media();
+    let homes = connection
+        .home()
+        .list_homes(
+            wire::ListHomesRequest {
+                page_size: 2,
                 ..Default::default()
             },
             &token,
@@ -215,10 +211,39 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
         )
         .await
         .unwrap();
-    assert!(matches!(
-        response.result,
-        Some(wire::read_image_response::Result::WrongCamera(_))
-    ));
+    assert_eq!(homes.homes.len(), 1);
+    assert!(homes.next_page_token.is_empty());
+    let home = home_client_model::api::HomeName::try_from(homes.homes[0].name.as_str()).unwrap();
+    let list_request = wire::ListMediaSourcesRequest {
+        parent: home.as_str().into(),
+        ..Default::default()
+    };
+    let response = api
+        .list_media_sources(list_request.clone(), &token, timeout, &cancel)
+        .await
+        .unwrap();
+    let cameras = admit::catalog(&response, &home).unwrap();
+    assert_eq!(cameras.len(), 2);
+    assert_eq!(cameras[0].title, cameras[1].title);
+    assert_ne!(cameras[0].id, cameras[1].id);
+    let first = open(&api, &cameras[0].id, &token, &cancel).await;
+    let second = open(&api, &cameras[1].id, &token, &cancel).await;
+    let left = read(&api, &first, &token, &cancel).await.unwrap();
+    let right = read(&api, &second, &token, &cancel).await.unwrap();
+    assert_ne!(left.png, right.png);
+    assert_ne!(left.key, right.key);
+    // The public request cannot forge a source on a session. Swapping replies
+    // between sessions is rejected at the admission boundary as well.
+    let raw = api
+        .read_media_session(
+            admit::image_request(&first, &left.key).unwrap(),
+            &token,
+            timeout,
+            &cancel,
+        )
+        .await
+        .unwrap();
+    assert!(admit::image(&raw, &second, &right.key, SystemTime::now(), Instant::now()).is_err());
     let another = connection
         .auth()
         .start_login(
@@ -238,19 +263,19 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
         panic!("second native login")
     };
     let other_token = AccessToken::parse(&tokens.access_token).unwrap();
-    assert!(matches!(
+    assert_reason(
         read(&api, &first, &other_token, &cancel).await,
-        admit::Outcome::Refused(admit::ReadIssue::Revoked)
-    ));
-    let mut cursor = Vec::new();
+        wire::ApiErrorReason::AccessDenied,
+    );
+    let mut cursor = String::new();
     let mut ids = std::collections::BTreeSet::new();
     loop {
         let response = api
-            .list_events(
-                wire::ListEventsRequest {
-                    session: first.wire_reference().into(),
+            .query_media_session_events(
+                wire::QueryMediaSessionEventsRequest {
+                    name: first.name().as_str().into(),
                     page_size: 1,
-                    cursor,
+                    page_token: cursor,
                     ..Default::default()
                 },
                 &token,
@@ -259,41 +284,29 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
             )
             .await
             .unwrap();
-        let admit::Outcome::Value(page) =
-            admit::events(&response, &first, SystemTime::now(), Instant::now()).unwrap()
-        else {
-            panic!("event page")
-        };
+        let page = admit::events(&response, &first, SystemTime::now(), Instant::now()).unwrap();
         for event in page.events {
             assert_eq!(event.source, cameras[0].source);
             let key = ImageKey::EventThumbnail(event.key.clone());
-            let response = api
-                .read_image(
-                    admit::image_request(&first, &key).unwrap(),
-                    &token,
-                    timeout,
-                    &cancel,
-                )
-                .await
-                .unwrap();
-            let outcome =
-                admit::image(&response, &first, &key, SystemTime::now(), Instant::now()).unwrap();
             if event.has_image {
-                let admit::Outcome::Value(image) = outcome else {
-                    panic!("event thumbnail absent")
-                };
+                let raw = api
+                    .read_media_session(
+                        admit::image_request(&first, &key).unwrap(),
+                        &token,
+                        timeout,
+                        &cancel,
+                    )
+                    .await
+                    .unwrap();
+                let image =
+                    admit::image(&raw, &first, &key, SystemTime::now(), Instant::now()).unwrap();
                 assert_eq!(image.key, key);
                 assert_eq!(image.png, left.png);
-            } else {
-                assert!(matches!(
-                    outcome,
-                    admit::Outcome::Refused(admit::ReadIssue::Missing)
-                ));
             }
             assert!(ids.insert(event.key));
         }
         match page.next {
-            Some(next) => cursor = next.bytes().to_vec(),
+            Some(next) => cursor = next.as_str().to_owned(),
             None => {
                 assert_eq!(ids.len(), page.total);
                 break;
@@ -303,7 +316,7 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
     let shared_event = ids.first().unwrap().event().clone();
     let key = ImageKey::EventThumbnail(EventKey::new(cameras[1].id.clone(), shared_event));
     let response = api
-        .read_image(
+        .read_media_session(
             admit::image_request(&second, &key).unwrap(),
             &token,
             timeout,
@@ -311,19 +324,16 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
         )
         .await
         .unwrap();
-    let admit::Outcome::Value(thumbnail) =
-        admit::image(&response, &second, &key, SystemTime::now(), Instant::now()).unwrap()
-    else {
-        panic!("second camera thumbnail")
-    };
+    let thumbnail =
+        admit::image(&response, &second, &key, SystemTime::now(), Instant::now()).unwrap();
     assert_eq!(thumbnail.png, right.png);
     assert_ne!(thumbnail.png, left.png);
     let mut sequence = 0;
     let watch_cancel = cancel.child_token();
     let mut watch = api
-        .watch_session(
-            wire::WatchSessionRequest {
-                session: first.wire_reference().into(),
+        .watch_media_session(
+            wire::WatchMediaSessionRequest {
+                name: first.name().as_str().into(),
                 ..Default::default()
             },
             &token,
@@ -333,9 +343,10 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
         .await
         .unwrap();
     let ready = watch.next().await.unwrap().unwrap();
+    let initial_etag = first.events_etag().unwrap().clone();
     assert_eq!(
-        admit::watch(&ready, &first, 0, 0),
-        Ok(admit::WatchFrame::Ready(first.revision()))
+        admit::watch(&ready, &first, 0, None),
+        Ok(admit::WatchFrame::Ready(initial_etag.clone()))
     );
     control(
         &root,
@@ -345,10 +356,12 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
     )
     .await;
     let changed = watch.next().await.unwrap().unwrap();
-    assert_eq!(
-        admit::watch(&changed, &first, 1, first.revision()),
-        Ok(admit::WatchFrame::Changed(first.revision() + 1))
-    );
+    let admit::WatchFrame::Changed(changed_etag) =
+        admit::watch(&changed, &first, 1, Some(&initial_etag)).unwrap()
+    else {
+        panic!("changed frame")
+    };
+    assert_ne!(changed_etag, initial_etag);
     control(
         &root,
         &mut sequence,
@@ -356,10 +369,10 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
         Some(&cameras[0].id),
     )
     .await;
-    assert!(matches!(
+    assert_reason(
         read(&api, &first, &token, &cancel).await,
-        admit::Outcome::Refused(admit::ReadIssue::Missing)
-    ));
+        wire::ApiErrorReason::ResourceNotFound,
+    );
     control(
         &root,
         &mut sequence,
@@ -374,9 +387,9 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
     let pending_reference = first.clone();
     let pending_local = pending_cancel.clone();
     let pending = tokio::spawn(async move {
-        let key = ImageKey::Snapshot(pending_reference.reference().camera().clone());
+        let key = ImageKey::Snapshot(pending_reference.source().clone());
         pending_api
-            .read_image(
+            .read_media_session(
                 admit::image_request(&pending_reference, &key).unwrap(),
                 &pending_token,
                 Duration::from_secs(10),
@@ -410,27 +423,20 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
     .await
     .unwrap();
     control(&root, &mut sequence, Control::ResumeImages, None).await;
-    assert!(matches!(
-        read(&api, &first, &token, &cancel).await,
-        admit::Outcome::Value(_)
-    ));
+    assert!(read(&api, &first, &token, &cancel).await.is_ok());
     control(&root, &mut sequence, Control::ExpireLeases, None).await;
-    let expired = watch.next().await.unwrap().unwrap();
-    assert_eq!(
-        admit::watch(&expired, &first, 2, first.revision() + 1),
-        Ok(admit::WatchFrame::Expired)
-    );
-    assert!(matches!(
+    assert!(watch.next().await.is_err());
+    assert_reason(
         read(&api, &first, &token, &cancel).await,
-        admit::Outcome::Refused(admit::ReadIssue::Expired)
-    ));
+        wire::ApiErrorReason::ResourceNotFound,
+    );
     drop(watch);
     let fresh = open(&api, &cameras[0].id, &token, &cancel).await;
     let revoked_watch_cancel = cancel.child_token();
     let mut revoked_watch = api
-        .watch_session(
-            wire::WatchSessionRequest {
-                session: fresh.wire_reference().into(),
+        .watch_media_session(
+            wire::WatchMediaSessionRequest {
+                name: fresh.name().as_str().into(),
                 ..Default::default()
             },
             &token,
@@ -445,30 +451,20 @@ async fn actual_camera_tls_private_sessions_images_events_and_cancellation() {
     drop(revoked_watch);
     control(&root, &mut sequence, Control::AllowRead, None).await;
     let fresh = open(&api, &cameras[0].id, &token, &cancel).await;
-    assert!(matches!(
-        read(&api, &fresh, &token, &cancel).await,
-        admit::Outcome::Value(_)
-    ));
+    assert!(read(&api, &fresh, &token, &cancel).await.is_ok());
     control(&root, &mut sequence, Control::Outage, None).await;
     assert!(
-        api.list_cameras(
-            wire::ListCamerasRequest::default(),
-            &token,
-            timeout,
-            &cancel
-        )
-        .await
-        .is_err()
+        api.list_media_sources(list_request, &token, timeout, &cancel)
+            .await
+            .is_err()
     );
     control(&root, &mut sequence, Control::RestoreNetwork, None).await;
     let fresh = open(&api, &cameras[1].id, &token, &cancel).await;
-    assert!(matches!(
-        read(&api, &fresh, &token, &cancel).await,
-        admit::Outcome::Value(_)
-    ));
-    api.close_session(
-        wire::CloseSessionRequest {
-            session: fresh.wire_reference().into(),
+    assert!(read(&api, &fresh, &token, &cancel).await.is_ok());
+    api.delete_media_session(
+        wire::DeleteMediaSessionRequest {
+            name: fresh.name().as_str().into(),
+            request_id: request_id(),
             ..Default::default()
         },
         &token,

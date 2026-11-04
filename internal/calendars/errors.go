@@ -44,6 +44,7 @@ const (
 	InvalidDuration
 	DurationLimit
 	InvalidStatus
+	ChildrenPresent
 )
 
 // RuleIssue makes rejection precise without rendering untrusted rule text.
@@ -120,6 +121,8 @@ func (e *Error) Error() string {
 		return "calendars: resource is absent"
 	case Deleted:
 		return "calendars: resource is deleted"
+	case ChildrenPresent:
+		return "calendars: persistent child events require explicit force"
 	case Conflict:
 		return "calendars: revision conflict"
 	case Incompatible:

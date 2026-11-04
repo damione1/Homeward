@@ -66,15 +66,17 @@ type sessionGuard struct {
 }
 
 type sessionLease struct {
-	mcpKey       contracts.McpKeyID
-	mcpPrincipal authorization.Principal
-	mcpBinding   [32]byte
-	owner        storage.SessionOwner
-	gate         *sessionAccountGate
-	coordinator  *sessionCoordinator
-	cancel       context.CancelFunc
-	cancelCause  context.CancelCauseFunc
-	once         sync.Once
+	nativePrincipal authorization.Principal
+	deadline        time.Time // immutable credential expiry, populated by authentication before publication
+	mcpKey          contracts.McpKeyID
+	mcpPrincipal    authorization.Principal
+	mcpBinding      [32]byte
+	owner           storage.SessionOwner
+	gate            *sessionAccountGate
+	coordinator     *sessionCoordinator
+	cancel          context.CancelFunc
+	cancelCause     context.CancelCauseFunc
+	once            sync.Once
 }
 
 type sessionLeaseContextKey struct{}

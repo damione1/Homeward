@@ -1,13 +1,14 @@
 //! Single-attempt CalendarService calls on the shared verified TLS connection.
 //! The host owns revisions, admission, drafts and explicit conflict resolution.
-use crate::{AccessToken, Failure, StateTransport, services::home::calendars::v1 as service};
+use crate::{AccessToken, Failure, services::home::api::v2 as service};
 use connectrpc::client::{ClientTransport, HttpClient, ServerStream};
-use home_wire_contract::home::calendars::v1 as wire;
+use home_wire_contract::home::api::v2 as wire;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 pub struct CalendarTransport {
+    pub(crate) homes: crate::HomeTransport,
     pub(crate) client: service::CalendarServiceClient<HttpClient>,
 }
 
@@ -19,8 +20,8 @@ macro_rules! unary {
             token: &AccessToken,
             timeout: Duration,
             cancel: &CancellationToken,
-        ) -> Result<wire::$response, Failure> {
-            let options = StateTransport::options(token, timeout)?;
+        ) -> Result<responses::$response, Failure> {
+            let options = token.options(timeout)?;
             tokio::select! { biased;
                 () = cancel.cancelled() => Err(Failure::cancelled()),
                 response = self.client.$method(request, options) => {
@@ -30,7 +31,20 @@ macro_rules! unary {
         }
     };
 }
+mod responses {
+    pub use buffa_types::google::protobuf::Empty;
+    pub use home_wire_contract::home::api::v2::*;
+}
 impl CalendarTransport {
+    pub fn home(&self) -> &crate::HomeTransport {
+        &self.homes
+    }
+    unary!(
+        query_calendar_sources,
+        query_calendar_sources_with_options,
+        QueryCalendarSourcesRequest,
+        QueryCalendarSourcesResponse
+    );
     unary!(
         list_calendars,
         list_calendars_with_options,
@@ -41,25 +55,55 @@ impl CalendarTransport {
         get_calendar,
         get_calendar_with_options,
         GetCalendarRequest,
-        GetCalendarResponse
+        Calendar
     );
     unary!(
-        mutate_calendar,
-        mutate_calendar_with_options,
-        MutateCalendarRequest,
-        MutateCalendarResponse
+        create_calendar,
+        create_calendar_with_options,
+        CreateCalendarRequest,
+        Calendar
     );
     unary!(
-        get_event,
-        get_event_with_options,
-        GetEventRequest,
-        GetEventResponse
+        update_calendar,
+        update_calendar_with_options,
+        UpdateCalendarRequest,
+        Calendar
     );
     unary!(
-        mutate_event,
-        mutate_event_with_options,
-        MutateEventRequest,
-        MutateEventResponse
+        delete_calendar,
+        delete_calendar_with_options,
+        DeleteCalendarRequest,
+        Empty
+    );
+    unary!(
+        list_calendar_events,
+        list_calendar_events_with_options,
+        ListCalendarEventsRequest,
+        ListCalendarEventsResponse
+    );
+    unary!(
+        get_calendar_event,
+        get_calendar_event_with_options,
+        GetCalendarEventRequest,
+        CalendarEvent
+    );
+    unary!(
+        create_calendar_event,
+        create_calendar_event_with_options,
+        CreateCalendarEventRequest,
+        CalendarEvent
+    );
+    unary!(
+        update_calendar_event,
+        update_calendar_event_with_options,
+        UpdateCalendarEventRequest,
+        CalendarEvent
+    );
+    unary!(
+        delete_calendar_event,
+        delete_calendar_event_with_options,
+        DeleteCalendarEventRequest,
+        Empty
     );
     unary!(
         query_occurrences,
@@ -68,12 +112,11 @@ impl CalendarTransport {
         QueryOccurrencesResponse
     );
     unary!(
-        resolve_local_time,
-        resolve_local_time_with_options,
-        ResolveLocalTimeRequest,
-        ResolveLocalTimeResponse
+        resolve_calendar_time,
+        resolve_calendar_time_with_options,
+        ResolveCalendarTimeRequest,
+        ResolveCalendarTimeResponse
     );
-
     /// Ready establishes the subscription; the host then reloads the page
     /// while keeping this stream alive. The protocol has no replay cursor.
     pub async fn watch_calendar(
@@ -83,7 +126,7 @@ impl CalendarTransport {
         timeout: Duration,
         cancel: &CancellationToken,
     ) -> Result<CalendarWatch, Failure> {
-        let options = StateTransport::options(token, timeout)?;
+        let options = token.options(timeout)?;
         tokio::select! { biased;
             () = cancel.cancelled() => Err(Failure::cancelled()),
             response = self.client.watch_calendar_with_options(request, options) => {

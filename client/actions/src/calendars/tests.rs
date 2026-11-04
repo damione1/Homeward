@@ -1,69 +1,46 @@
 use super::*;
-use buffa::MessageName;
+use buffa::{Enumeration, MessageName};
 use connectrpc::{ConnectError, ErrorDetail};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use tokio::sync::Notify;
-fn revision(entity: &str, number: u64) -> wire::Revision {
-    wire::Revision {
-        resource: wire::EventKey {
-            calendar: wire::CalendarId {
-                entity_id: entity.into(),
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        }
-        .into(),
-        presence: wire::Presence::Present.into(),
-        number,
+const NAME: &str = "homes/synthetic/calendars/id-63616c";
+fn calendar() -> wire::Calendar {
+    wire::Calendar {
+        name: NAME.into(),
+        display_name: "Synthetic".into(),
+        source_entity: "homes/synthetic/entities/source".into(),
+        etag: "W/\"opaque-current\"".into(),
+        origin: wire::CalendarOrigin::Local.into(),
+        freshness: wire::CalendarFreshness::Fresh.into(),
+        provenance: wire::CalendarProvenance::Synthetic.into(),
+        mutation_access: wire::CalendarMutationAccess::Allowed.into(),
         ..Default::default()
     }
 }
 fn prepared() -> PreparedCalendarMutation {
-    let id = wire::CalendarId {
-        entity_id: "synthetic-only".into(),
-        ..Default::default()
-    };
-    let calendar = wire::Calendar {
-        id: id.clone().into(),
-        origin: wire::Origin::Local.into(),
-        name: Some("Synthetic".into()),
-        revision: revision("synthetic-only", 3).into(),
-        quality: wire::Quality::Fresh.into(),
-        mutation_access: wire::MutationAccess::Allowed.into(),
-        ..Default::default()
-    };
-    let current = admit::admit_calendar(&calendar, &admit::calendar_id(&id).unwrap()).unwrap();
-    PreparedCalendarMutation::calendar(
-        &current,
-        wire::MutateCalendarRequest {
-            id: id.into(),
-            mutation: wire::Mutation::Update.into(),
-            expected_revision: calendar.revision,
-            name: "Updated".into(),
-            ..Default::default()
-        },
-    )
-    .unwrap()
+    let value = calendar();
+    let name = CalendarName::try_from(NAME).unwrap();
+    let current = admit::admit_calendar(&value, &name).unwrap();
+    PreparedCalendarMutation::rename(&current, "Updated".into()).unwrap()
 }
 #[derive(Clone, Copy)]
-enum Reply {
+enum FakeReply {
     Committed,
     Unknown,
     Stall,
     ForeignReceipt,
 }
 struct Fake {
-    reply: Reply,
+    reply: FakeReply,
     calls: AtomicUsize,
     started: Notify,
     invalidate: Option<Arc<AtomicBool>>,
 }
 impl Fake {
-    fn new(reply: Reply) -> Self {
+    fn new(reply: FakeReply) -> Self {
         Self {
             reply,
             calls: AtomicUsize::new(0),
@@ -72,47 +49,60 @@ impl Fake {
         }
     }
 }
-fn failure(status: RpcCode, code: EnumValue<wire::ErrorCode>) -> Failure {
-    let detail = wire::CalendarError {
-        code,
-        ..Default::default()
-    };
-    Failure::from(
-        ConnectError::new(status, "synthetic private content").with_detail(
-            ErrorDetail::from_message(wire::CalendarError::FULL_NAME, &detail),
+fn failure(status: RpcCode, reason: wire::ApiErrorReason) -> Failure {
+    use home_wire_contract::{api_errors::DOMAIN, google::rpc::ErrorInfo};
+    let mut error = ConnectError::new(status, "synthetic private content").with_detail(
+        ErrorDetail::from_message(
+            ErrorInfo::FULL_NAME,
+            &ErrorInfo {
+                domain: DOMAIN.into(),
+                reason: reason
+                    .proto_name()
+                    .trim_start_matches("API_ERROR_REASON_")
+                    .into(),
+                ..Default::default()
+            },
         ),
-    )
+    );
+    if reason == wire::ApiErrorReason::CommitOutcomeUnknown {
+        error = error.with_detail(ErrorDetail::from_message(
+            wire::ExecutionUncertainty::FULL_NAME,
+            &wire::ExecutionUncertainty {
+                phase: wire::UncertaintyPhase::Commit.into(),
+                disposition: wire::ReconciliationDisposition::ReconcileOnly.into(),
+                ..Default::default()
+            },
+        ));
+    }
+    Failure::from(error)
 }
 impl SubmitApi for Fake {
-    async fn submit(&self, _request: &Request) -> Result<wire::MutationReceipt, SubmitFailure> {
+    async fn submit(&self, _request: &Request) -> Result<super::Reply, SubmitFailure> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         self.started.notify_one();
         if let Some(guard) = &self.invalidate {
             guard.store(false, Ordering::SeqCst)
         }
         match self.reply {
-            Reply::Stall => std::future::pending().await,
-            Reply::Unknown => Err(SubmitFailure::Transport(failure(
+            FakeReply::Stall => std::future::pending().await,
+            FakeReply::Unknown => Err(SubmitFailure::Transport(failure(
                 RpcCode::Aborted,
-                wire::ErrorCode::CommitUnknown.into(),
+                wire::ApiErrorReason::CommitOutcomeUnknown,
             ))),
-            Reply::Committed | Reply::ForeignReceipt => {
-                let entity = match self.reply {
-                    Reply::ForeignReceipt => "foreign",
-                    Reply::Committed | Reply::Unknown | Reply::Stall => "synthetic-only",
-                };
-                Ok(wire::MutationReceipt {
-                    revision: revision(entity, 4).into(),
-                    calendar_revision: revision(entity, 4).into(),
-                    ..Default::default()
-                })
+            FakeReply::Committed | FakeReply::ForeignReceipt => {
+                let mut value = calendar();
+                value.etag = "W/\"opaque-new\"".into();
+                if matches!(self.reply, FakeReply::ForeignReceipt) {
+                    value.name = "homes/synthetic/calendars/id-666f726569676e".into();
+                }
+                Ok(super::Reply::Calendar(value))
             }
         }
     }
 }
 #[tokio::test]
 async fn cancellation_or_changed_admission_before_polling_never_dispatches() {
-    let api = Fake::new(Reply::Committed);
+    let api = Fake::new(FakeReply::Committed);
     let cancel = CancellationToken::new();
     let access = CancellationToken::new();
     let result = execute(&api, prepared(), &cancel, &access, || false, || true).await;
@@ -131,7 +121,7 @@ async fn cancellation_or_changed_admission_before_polling_never_dispatches() {
 }
 #[tokio::test]
 async fn an_uncertain_dispatched_write_is_consumed_once_and_never_replayed() {
-    let api = Fake::new(Reply::Unknown);
+    let api = Fake::new(FakeReply::Unknown);
     let cancel = CancellationToken::new();
     let access = CancellationToken::new();
     let result = execute(&api, prepared(), &cancel, &access, || true, || true).await;
@@ -141,7 +131,7 @@ async fn an_uncertain_dispatched_write_is_consumed_once_and_never_replayed() {
     ));
     tokio::task::yield_now().await;
     assert_eq!(api.calls.load(Ordering::SeqCst), 1);
-    let api = Fake::new(Reply::Stall);
+    let api = Fake::new(FakeReply::Stall);
     let canceler = async {
         api.started.notified().await;
         cancel.cancel()
@@ -160,7 +150,7 @@ async fn an_uncertain_dispatched_write_is_consumed_once_and_never_replayed() {
 async fn a_receipt_from_another_resource_or_superseded_context_cannot_commit_the_draft() {
     let cancel = CancellationToken::new();
     let access = CancellationToken::new();
-    let api = Fake::new(Reply::ForeignReceipt);
+    let api = Fake::new(FakeReply::ForeignReceipt);
     let result = execute(&api, prepared(), &cancel, &access, || true, || true).await;
     assert!(matches!(
         result.outcome,
@@ -168,7 +158,7 @@ async fn a_receipt_from_another_resource_or_superseded_context_cannot_commit_the
     ));
     assert_eq!(api.calls.load(Ordering::SeqCst), 1);
     let guard = Arc::new(AtomicBool::new(true));
-    let mut api = Fake::new(Reply::Committed);
+    let mut api = Fake::new(FakeReply::Committed);
     api.invalidate = Some(guard.clone());
     let result = execute(
         &api,
@@ -184,40 +174,49 @@ async fn a_receipt_from_another_resource_or_superseded_context_cannot_commit_the
         CalendarWriteOutcome::CommitUnknown(UnknownReason::Superseded)
     ));
     assert_eq!(api.calls.load(Ordering::SeqCst), 1);
-    let api = Fake::new(Reply::Committed);
+    let api = Fake::new(FakeReply::Committed);
     let result = execute(&api, prepared(), &cancel, &access, || true, || true).await;
     assert!(matches!(result.outcome, CalendarWriteOutcome::Committed(_)));
 }
 #[test]
-fn typed_conflict_and_uncertainty_require_the_corresponding_rpc_status() {
+fn canonical_conflict_requires_matching_status_and_unknown_details_fail_closed() {
     assert!(matches!(
-        classify(&failure(RpcCode::Aborted, wire::ErrorCode::Conflict.into())),
+        classify(&failure(
+            RpcCode::Aborted,
+            wire::ApiErrorReason::EtagMismatch
+        )),
         CalendarWriteOutcome::Conflict
     ));
     assert!(matches!(
         classify(&failure(
-            RpcCode::Aborted,
-            wire::ErrorCode::CommittedResponseWithheld.into()
+            RpcCode::PermissionDenied,
+            wire::ApiErrorReason::EtagMismatch
         )),
-        CalendarWriteOutcome::CommittedResponseWithheld
+        CalendarWriteOutcome::CommitUnknown(UnknownReason::Protocol)
     ));
     assert!(matches!(
         classify(&failure(
             RpcCode::PermissionDenied,
-            wire::ErrorCode::Conflict.into()
+            wire::ApiErrorReason::AccessDenied
         )),
-        CalendarWriteOutcome::CommitUnknown(UnknownReason::Protocol)
+        CalendarWriteOutcome::AuthorityTerminated
     ));
-    assert!(matches!(
-        classify(&failure(RpcCode::Aborted, EnumValue::Unknown(999))),
-        CalendarWriteOutcome::CommitUnknown(UnknownReason::Protocol)
-    ));
+}
+#[test]
+fn delete_never_enables_cascade_implicitly() {
+    let name = CalendarName::try_from(NAME).unwrap();
+    let value = admit::admit_calendar(&calendar(), &name).unwrap();
+    let prepared = PreparedCalendarMutation::delete(&value, false).unwrap();
+    match prepared.request {
+        Request::Delete(request, _) => assert!(!request.force),
+        _ => panic!("wrong prepared mutation"),
+    }
 }
 
 #[tokio::test]
 async fn watch_invalidating_new_dispatches_does_not_discard_an_owned_commit_receipt() {
     let dispatch = Arc::new(AtomicBool::new(true));
-    let mut api = Fake::new(Reply::Committed);
+    let mut api = Fake::new(FakeReply::Committed);
     api.invalidate = Some(dispatch.clone());
     let result = execute(
         &api,

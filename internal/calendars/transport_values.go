@@ -1,7 +1,8 @@
 package calendars
 
 import (
-	"crypto/hmac"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -33,32 +34,56 @@ func NewCursorCodec() (*CursorCodec, error) {
 	}
 	return c, nil
 }
+func (c *CursorCodec) aead() (cipher.AEAD, error) {
+	if c == nil || c.key == ([32]byte{}) {
+		return nil, failure(InvalidInput)
+	}
+	block, err := aes.NewCipher(c.key[:])
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(block)
+}
+func calendarCursorAAD(binding [32]byte) []byte {
+	return append([]byte("homeward-calendar-cursor/2"), binding[:]...)
+}
+
+// Seal encrypts and authenticates a bounded current cursor. There is no reader
+// for the former signed/plain payload format and no token compatibility path.
 func (c *CursorCodec) Seal(payload []byte, binding [32]byte) (string, error) {
-	if c == nil || c.key == ([32]byte{}) || binding == ([32]byte{}) || len(payload) > 4096 {
+	if binding == ([32]byte{}) || len(payload) > 4096 {
 		return "", failure(InvalidInput)
 	}
-	mac := hmac.New(sha256.New, c.key[:])
-	mac.Write(binding[:])
-	mac.Write(payload)
-	raw := append(append([]byte(nil), payload...), mac.Sum(nil)...)
+	aead, err := c.aead()
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+	raw := append([]byte{2}, nonce...)
+	raw = aead.Seal(raw, nonce, payload, calendarCursorAAD(binding))
 	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 func (c *CursorCodec) Open(token string, binding [32]byte) ([]byte, error) {
-	if c == nil || c.key == ([32]byte{}) || len(token) > 5600 || binding == ([32]byte{}) {
+	if token == "" || len(token) > 5600 || binding == ([32]byte{}) {
+		return nil, failure(StaleCursor)
+	}
+	aead, err := c.aead()
+	if err != nil {
 		return nil, failure(StaleCursor)
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil || len(raw) < 32 || len(raw) > 4128 {
+	if err != nil || len(raw) < 1+aead.NonceSize()+aead.Overhead() || raw[0] != 2 || base64.RawURLEncoding.EncodeToString(raw) != token {
 		return nil, failure(StaleCursor)
 	}
-	body, signature := raw[:len(raw)-32], raw[len(raw)-32:]
-	mac := hmac.New(sha256.New, c.key[:])
-	mac.Write(binding[:])
-	mac.Write(body)
-	if !hmac.Equal(signature, mac.Sum(nil)) {
+	nonce := raw[1 : 1+aead.NonceSize()]
+	payload, err := aead.Open(nil, nonce, raw[1+aead.NonceSize():], calendarCursorAAD(binding))
+	if err != nil || len(payload) > 4096 {
 		return nil, failure(StaleCursor)
 	}
-	return body, nil
+	return payload, nil
 }
 
 type cursorImage struct {

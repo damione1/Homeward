@@ -6,6 +6,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/damione1/Homeward/internal/apimutations"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/registry"
@@ -35,34 +36,11 @@ func NewRepository(store *storage.Store, manifest registry.Manifest) (*Repositor
 // into Authority while holding these share locks; account writers may hold the
 // memory barrier while waiting for the same SQL rows.
 func fence(ctx context.Context, tx pgx.Tx, e authorization.RightsEvidence) error {
-	account, err := e.Account()
-	if err != nil {
-		return failure(Denied)
-	}
-	id, err := account.Value()
-	if err != nil {
-		return failure(Denied)
-	}
-	var role, status int16
-	var revocation int64
-	err = tx.QueryRow(ctx, `SELECT role,status,revocation_revision FROM public.auth_accounts WHERE id=$1 FOR SHARE`, id).Scan(&role, &status, &revocation)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return failure(Denied)
-	}
-	if err != nil {
+	if err := authorization.FenceSQL(ctx, tx, e); err != nil {
+		if errors.Is(err, authorization.ErrDenied) {
+			return failure(Denied)
+		}
 		return err
-	}
-	var rights int64
-	var semantic []byte
-	err = tx.QueryRow(ctx, `SELECT rights_revision,semantic_sha256 FROM public.authorization_policy_active WHERE account_id=$1 FOR SHARE`, id).Scan(&rights, &semantic)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return failure(Denied)
-	}
-	if err != nil {
-		return err
-	}
-	if !e.MatchesSQL(role, status, revocation, rights, semantic) {
-		return failure(Denied)
 	}
 	return nil
 }
@@ -89,6 +67,9 @@ func (r *Repository) transaction(ctx context.Context, e authorization.RightsEvid
 		return failure(CommitUnknown)
 	}
 	if err != nil {
+		if apimutations.IsResultError(err) {
+			return err
+		}
 		var own *Error
 		if errors.As(err, &own) {
 			return own
@@ -233,31 +214,15 @@ func readItem(ctx context.Context, tx pgx.Tx, list domain.ListID, uid ItemUID, w
 	return ItemSnapshot{list: list, uid: uid, origin: origin, payload: payload, position: position, revision: rev, updated: updated}, nil
 }
 
-func expectList(id domain.ListID, expected ListRevision, current ListSnapshot) error {
-	gotID, number, err := expected.Values()
-	if err != nil || gotID != id {
+func expectList(ctx context.Context, tx pgx.Tx, id domain.ListID, expected ListPrecondition, current ListSnapshot) error {
+	if expected == nil {
 		return failure(Invalid)
 	}
-	_, actual, _ := current.revision.Values()
-	if number != actual {
-		return failure(Conflict)
-	}
-	if number == math.MaxInt64 {
-		return failure(Capacity)
-	}
-	return nil
+	return expected.checkList(ctx, tx, id, current)
 }
-func expectItem(list domain.ListID, uid ItemUID, expected ItemRevision, current ItemSnapshot) error {
-	gotList, gotUID, number, err := expected.Values()
-	if err != nil || gotList != list || gotUID != uid {
+func expectItem(list domain.ListID, uid ItemUID, expected ItemPrecondition, current ItemSnapshot) error {
+	if expected == nil {
 		return failure(Invalid)
 	}
-	_, _, actual, _ := current.revision.Values()
-	if number != actual {
-		return failure(Conflict)
-	}
-	if number == math.MaxInt64 {
-		return failure(Capacity)
-	}
-	return nil
+	return expected.checkItem(list, uid, current)
 }

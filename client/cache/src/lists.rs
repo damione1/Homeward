@@ -1,9 +1,13 @@
-//! ListService read fences. Watch is subscribed before pages are read; a
+//! TaskService read fences. Watch is subscribed before pages are read; a
 //! change invalidates the whole provisional capture, never patches a page.
 //! No cursor decoding, replay cursor, credentials or mutation retry lives here.
 use buffa::Message;
-use home_client_model::lists::{ItemUid, ListId};
-use home_wire_contract::{home::lists::v1 as wire, lists_contract};
+use home_client_model::{
+    api::HomeName,
+    api_tasks::{TaskListResource, TaskResource},
+    lists::ListId,
+};
+use home_wire_contract::{home::api::v2 as wire, tasks_contract};
 use std::{collections::BTreeSet, sync::Arc};
 
 mod reader;
@@ -51,6 +55,7 @@ enum WatchPhase {
 /// including when the stream sequence and invalidation counter start over.
 pub struct ListReadWatch {
     scope: Scope,
+    home: HomeName,
     identity: Arc<()>,
     phase: WatchPhase,
     sequence: u64,
@@ -58,9 +63,10 @@ pub struct ListReadWatch {
 }
 
 impl ListReadWatch {
-    pub fn new(scope: Scope) -> Self {
+    pub fn new(scope: Scope, home: HomeName) -> Self {
         Self {
             scope,
+            home,
             identity: Arc::new(()),
             phase: WatchPhase::AwaitingReady,
             sequence: 0,
@@ -68,7 +74,10 @@ impl ListReadWatch {
         }
     }
 
-    pub fn apply(&mut self, frame: wire::WatchListsResponse) -> Result<WatchEffect, ReadFailure> {
+    pub fn apply(
+        &mut self,
+        frame: wire::WatchTaskListsResponse,
+    ) -> Result<WatchEffect, ReadFailure> {
         let result = self.apply_checked(frame);
         if result.is_err() {
             self.phase = WatchPhase::Closed;
@@ -78,37 +87,37 @@ impl ListReadWatch {
 
     fn apply_checked(
         &mut self,
-        frame: wire::WatchListsResponse,
+        frame: wire::WatchTaskListsResponse,
     ) -> Result<WatchEffect, ReadFailure> {
-        use wire::watch_lists_response::Frame;
+        use tasks_contract::TaskWatchFrame as Frame;
         if self.phase == WatchPhase::Closed {
             return Err(ReadFailure::Abandoned);
         }
-        lists_contract::admit_watch_response(&frame).map_err(|_| ReadFailure::InvalidResponse)?;
-        if self.sequence.checked_add(1) != Some(frame.stream_sequence) {
+        let (sequence, frame) =
+            tasks_contract::parse_task_watch(&frame).map_err(|_| ReadFailure::InvalidResponse)?;
+        if self.sequence.checked_add(1) != Some(sequence) {
             return Err(ReadFailure::OutOfOrder);
         }
-        self.sequence = frame.stream_sequence;
-        match frame.frame {
-            Some(Frame::Ready(_)) => {
+        self.sequence = sequence;
+        match frame {
+            Frame::Ready => {
                 if self.phase != WatchPhase::AwaitingReady {
                     return Err(ReadFailure::OutOfOrder);
                 }
                 self.phase = WatchPhase::Reading;
                 Ok(WatchEffect::Reload)
             }
-            Some(Frame::Changed(change)) => {
+            Frame::Changed { list, .. } => {
                 if self.phase != WatchPhase::Reading {
                     return Err(ReadFailure::OutOfOrder);
                 }
-                let id = change
-                    .list_id
-                    .as_option()
-                    .ok_or(ReadFailure::InvalidResponse)?;
-                match &self.scope {
-                    Scope::Catalog => {}
-                    Scope::Items(expected) if expected.as_str() == id.value => {}
-                    Scope::Items(_) => return Err(ReadFailure::WrongScope),
+                if list.home() != &self.home {
+                    return Err(ReadFailure::WrongScope);
+                }
+                if let Scope::Items(expected) = &self.scope
+                    && list.native_id() != expected
+                {
+                    return Err(ReadFailure::WrongScope);
                 }
                 self.invalidation = self
                     .invalidation
@@ -116,11 +125,10 @@ impl ListReadWatch {
                     .ok_or(ReadFailure::Abandoned)?;
                 Ok(WatchEffect::Reload)
             }
-            Some(Frame::ResyncRequired(_)) => {
+            Frame::Resync => {
                 self.phase = WatchPhase::Closed;
                 Ok(WatchEffect::Resubscribe)
             }
-            None => Err(ReadFailure::InvalidResponse),
         }
     }
 
@@ -130,6 +138,7 @@ impl ListReadWatch {
         }
         Ok(ListCapture {
             scope: self.scope.clone(),
+            home: self.home.clone(),
             identity: self.identity.clone(),
             invalidation: self.invalidation,
             rows: match &self.scope {
@@ -144,6 +153,7 @@ impl ListReadWatch {
             next_token: String::new(),
             bytes: 0,
             pages: 0,
+            total: None,
             failed: false,
         })
     }
@@ -167,23 +177,24 @@ impl ListReadWatch {
         if capture.pages == 0 || !capture.next_token.is_empty() {
             return Err(ReadFailure::Incomplete);
         }
+        capture.total()?;
         Ok(capture.rows)
     }
 }
 
-/// An immutable complete capture once published. The separate Count RPC is
-/// deliberately not synthesized from these loaded rows.
+/// An immutable complete capture with exact server total_size retained separately.
 #[derive(Clone)]
 pub enum CapturedRows {
-    Catalog(Vec<Arc<wire::ListSnapshot>>),
+    Catalog(Vec<Arc<TaskListResource>>),
     Items {
         list: ListId,
-        rows: Vec<Arc<wire::ItemSnapshot>>,
+        rows: Vec<Arc<TaskResource>>,
     },
 }
 
 pub struct ListCapture {
     scope: Scope,
+    home: HomeName,
     identity: Arc<()>,
     invalidation: u64,
     rows: CapturedRows,
@@ -192,6 +203,7 @@ pub struct ListCapture {
     next_token: String,
     bytes: usize,
     pages: usize,
+    total: Option<usize>,
     failed: bool,
 }
 
@@ -200,31 +212,31 @@ impl ListCapture {
         &self.next_token
     }
 
-    pub fn push_lists(&mut self, page: wire::ListListsResponse) -> Result<(), ReadFailure> {
+    pub fn push_lists(&mut self, page: wire::ListTaskListsResponse) -> Result<(), ReadFailure> {
         let result = self.push_lists_checked(page);
         self.poison_on_failure(result)
     }
 
-    fn push_lists_checked(&mut self, page: wire::ListListsResponse) -> Result<(), ReadFailure> {
+    fn push_lists_checked(&mut self, page: wire::ListTaskListsResponse) -> Result<(), ReadFailure> {
         if self.scope != Scope::Catalog {
             return Err(ReadFailure::WrongScope);
         }
         if !page.__buffa_unknown_fields.is_empty() {
             return Err(ReadFailure::InvalidResponse);
         }
+        self.admit_total(page.total_size)?;
         self.admit_page(
-            page.lists.len(),
+            page.task_lists.len(),
             page.encoded_len() as usize,
             &page.next_page_token,
         )?;
-        for row in page.lists {
-            lists_contract::admit_list_snapshot(&row).map_err(|_| ReadFailure::InvalidResponse)?;
-            let id = &row
-                .id
-                .as_option()
-                .ok_or(ReadFailure::InvalidResponse)?
-                .value;
-            self.admit_identity(id.clone())?;
+        for row in page.task_lists {
+            let row =
+                tasks_contract::parse_task_list(&row).map_err(|_| ReadFailure::InvalidResponse)?;
+            if row.name().home() != &self.home {
+                return Err(ReadFailure::WrongScope);
+            }
+            self.admit_identity(row.name().as_str().to_owned())?;
             match &mut self.rows {
                 CapturedRows::Catalog(rows) => rows.push(Arc::new(row)),
                 CapturedRows::Items { .. } => return Err(ReadFailure::WrongScope),
@@ -233,12 +245,12 @@ impl ListCapture {
         Ok(())
     }
 
-    pub fn push_items(&mut self, page: wire::ListItemsResponse) -> Result<(), ReadFailure> {
+    pub fn push_items(&mut self, page: wire::ListTasksResponse) -> Result<(), ReadFailure> {
         let result = self.push_items_checked(page);
         self.poison_on_failure(result)
     }
 
-    fn push_items_checked(&mut self, page: wire::ListItemsResponse) -> Result<(), ReadFailure> {
+    fn push_items_checked(&mut self, page: wire::ListTasksResponse) -> Result<(), ReadFailure> {
         let expected = match &self.scope {
             Scope::Items(id) => id.clone(),
             Scope::Catalog => return Err(ReadFailure::WrongScope),
@@ -246,34 +258,24 @@ impl ListCapture {
         if !page.__buffa_unknown_fields.is_empty() {
             return Err(ReadFailure::InvalidResponse);
         }
+        self.admit_total(page.total_size)?;
         self.admit_page(
-            page.items.len(),
+            page.tasks.len(),
             page.encoded_len() as usize,
             &page.next_page_token,
         )?;
-        for row in page.items {
-            lists_contract::admit_item_snapshot(&row).map_err(|_| ReadFailure::InvalidResponse)?;
-            if row
-                .list_id
-                .as_option()
-                .ok_or(ReadFailure::InvalidResponse)?
-                .value
-                != expected.as_str()
-            {
+        for row in page.tasks {
+            let row = tasks_contract::parse_task(&row).map_err(|_| ReadFailure::InvalidResponse)?;
+            if row.name().parent().home() != &self.home || row.key().list() != &expected {
                 return Err(ReadFailure::WrongScope);
             }
-            let uid = &row
-                .uid
-                .as_option()
-                .ok_or(ReadFailure::InvalidResponse)?
-                .value;
-            // Admission already checks this; keep identity parsing at the boundary.
-            uid.parse::<ItemUid>()
-                .map_err(|_| ReadFailure::InvalidResponse)?;
-            self.admit_identity(uid.clone())?;
+            self.admit_identity(row.name().as_str().to_owned())?;
             match &mut self.rows {
                 CapturedRows::Items { rows, .. } => {
-                    if rows.last().is_some_and(|last| last.position > row.position) {
+                    if rows
+                        .last()
+                        .is_some_and(|last| last.position() > row.position())
+                    {
                         return Err(ReadFailure::OutOfOrder);
                     }
                     rows.push(Arc::new(row));
@@ -284,6 +286,24 @@ impl ListCapture {
         Ok(())
     }
 
+    fn admit_total(&mut self, total: i32) -> Result<(), ReadFailure> {
+        let total = usize::try_from(total).map_err(|_| ReadFailure::InvalidResponse)?;
+        if total > MAX_ROWS {
+            return Err(ReadFailure::BudgetExceeded);
+        }
+        if self.total.is_some_and(|prior| prior != total) {
+            return Err(ReadFailure::ChangedDuringRead);
+        }
+        self.total = Some(total);
+        Ok(())
+    }
+    pub fn total(&self) -> Result<u64, ReadFailure> {
+        let total = self.total.ok_or(ReadFailure::Incomplete)?;
+        if self.next_token.is_empty() && self.ids.len() != total {
+            return Err(ReadFailure::Incomplete);
+        }
+        Ok(total as u64)
+    }
     fn admit_identity(&mut self, id: String) -> Result<(), ReadFailure> {
         if self.ids.len() >= MAX_ROWS {
             return Err(ReadFailure::BudgetExceeded);
@@ -295,16 +315,21 @@ impl ListCapture {
     }
 
     fn admit_page(&mut self, count: usize, bytes: usize, token: &str) -> Result<(), ReadFailure> {
+        // Charge generated bytes, typed names/keys and capture identity/token indexes.
+        let bytes = bytes
+            .saturating_mul(8)
+            .saturating_add(count.saturating_mul(512));
         if self.failed || (self.pages > 0 && self.next_token.is_empty()) {
             return Err(ReadFailure::Abandoned);
         }
         if count > PAGE_SIZE
+            || self.pages >= MAX_ROWS
             || token.len() > MAX_TOKEN_BYTES
             || self.bytes.saturating_add(bytes) > MAX_BYTES
         {
             return Err(ReadFailure::BudgetExceeded);
         }
-        if !token.is_empty() && (count == 0 || !self.tokens.insert(token.to_owned())) {
+        if !token.is_empty() && (!self.tokens.insert(token.to_owned())) {
             return Err(ReadFailure::InvalidResponse);
         }
         self.bytes += bytes;

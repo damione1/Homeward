@@ -1,10 +1,16 @@
-//! Consuming, single-attempt ListService writes. A draft or conflict never
-//! becomes an offline queue; only an admitted matching receipt means committed.
+//! Consuming single-attempt TaskService writes. Drafts never become an offline queue.
 use crate::AdmissionCheck;
-use home_client_model::lists::{ItemKey, ItemRevision, ListId, ListRevision};
+use home_client_model::{
+    api::HomeName,
+    api_tasks::{
+        TaskContent, TaskListName, TaskListResource, TaskListRevision, TaskName, TaskResource,
+        TaskRevision, TaskText,
+    },
+    lists::ItemKey,
+};
 use home_client_session::{AccessLease, SessionCoordinator, SessionFailure};
-use home_client_transport::{Failure, FailureKind, ListTransport, RpcCode};
-use home_wire_contract::{home::lists::v1 as wire, lists_contract};
+use home_client_transport::{Failure, FailureKind, RpcCode, TaskTransport};
+use home_wire_contract::{home::api::v2 as wire, tasks_contract};
 use std::{future::Future, time::Duration};
 use tokio_util::sync::CancellationToken;
 
@@ -15,15 +21,14 @@ pub enum PrepareFailure {
     MismatchedIdentity,
     InvalidDestination,
 }
-
 #[derive(Clone)]
 pub struct ItemTarget {
-    list: ListRevision,
-    item: ItemRevision,
+    list: TaskListRevision,
+    item: TaskRevision,
 }
 impl ItemTarget {
-    pub fn new(list: ListRevision, item: ItemRevision) -> Result<Self, PrepareFailure> {
-        if list.list() != item.item().list() {
+    pub fn new(list: TaskListRevision, item: TaskRevision) -> Result<Self, PrepareFailure> {
+        if item.name().parent() != list.name() {
             return Err(PrepareFailure::MismatchedIdentity);
         }
         Ok(Self { list, item })
@@ -31,36 +36,38 @@ impl ItemTarget {
     pub fn key(&self) -> &ItemKey {
         self.item.item()
     }
-    pub fn list_revision(&self) -> &ListRevision {
+    pub fn list_revision(&self) -> &TaskListRevision {
         &self.list
     }
-    pub fn item_revision(&self) -> &ItemRevision {
+    pub fn item_revision(&self) -> &TaskRevision {
         &self.item
     }
 }
-
 pub enum MoveDestination {
     AtStart,
     After(ItemKey),
 }
 pub enum ListWriteIntent {
     Create {
+        home: HomeName,
         name: String,
     },
     Rename {
-        revision: ListRevision,
+        revision: TaskListRevision,
         name: String,
     },
+    /// Cascade is an explicit caller decision. The current UI always uses false.
     DeleteList {
-        revision: ListRevision,
+        revision: TaskListRevision,
+        force: bool,
     },
     Add {
-        revision: ListRevision,
-        payload: wire::ItemPayload,
+        revision: TaskListRevision,
+        payload: TaskContent,
     },
     Edit {
         target: ItemTarget,
-        payload: wire::ItemPayload,
+        payload: TaskContent,
     },
     DeleteItem {
         target: ItemTarget,
@@ -74,31 +81,29 @@ pub enum ListWriteIntent {
         destination: MoveDestination,
     },
 }
-
 enum Request {
-    Create(wire::CreateListRequest),
-    Rename(wire::RenameListRequest),
-    DeleteList(wire::DeleteListRequest),
-    Add(wire::AddItemRequest),
-    Edit(wire::EditItemRequest),
-    DeleteItem(wire::DeleteItemRequest),
-    Complete(wire::SetCompletedRequest),
-    Move(wire::MoveItemRequest),
+    Create(wire::CreateTaskListRequest),
+    Rename(wire::UpdateTaskListRequest),
+    DeleteList(wire::DeleteTaskListRequest),
+    Add(wire::AppendTaskRequest),
+    Edit(wire::UpdateTaskRequest),
+    DeleteItem(wire::DeleteTaskRequest),
+    Complete(wire::UpdateTaskRequest),
+    Move(wire::MoveTaskRequest),
 }
 enum Expected {
-    CreatedList,
-    List(ListRevision),
-    AddedItem(ListRevision),
-    Item(ItemTarget),
+    CreatedList(HomeName),
+    List(TaskListName),
+    AddedItem(TaskListName),
+    Item(TaskName),
+    DeletedList(TaskListName),
+    DeletedItem(TaskName),
 }
-
-/// Not Clone: submitting consumes this opportunity, including on cancellation
-/// or an uncertain result. An explicit new user action needs new admission.
+/// Not Clone: submission consumes this single opportunity, even on uncertainty.
 pub struct PreparedListMutation {
     request: Request,
     expected: Expected,
 }
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NotSentReason {
     Cancelled,
@@ -118,138 +123,123 @@ pub enum Rejection {
     Invalid,
     NotFound,
     Capacity,
+    HasChildren,
 }
-
 pub enum ListWriteOutcome {
     NotSent(NotSentReason),
-    Committed(ConfirmedMutation),
+    Committed(Box<ConfirmedMutation>),
     Conflict,
     CommitUnknown(WriteIssue),
     Rejected(Rejection),
     AuthorityTerminated,
 }
-pub struct ConfirmedMutation {
-    receipt: Box<wire::MutationReceipt>,
+/// Direct admitted TaskService result, with deletion identity retained from the consumed request.
+pub enum ConfirmedMutation {
+    List(TaskListResource),
+    Task(TaskResource),
+    DeletedList(TaskListName),
+    DeletedTask(TaskName),
 }
-impl ConfirmedMutation {
-    pub fn receipt(&self) -> &wire::MutationReceipt {
-        &self.receipt
-    }
-}
-
-fn id(value: &ListId) -> wire::ListId {
-    wire::ListId {
-        value: value.as_str().into(),
+fn mask(paths: &[&str]) -> buffa_types::google::protobuf::FieldMask {
+    buffa_types::google::protobuf::FieldMask {
+        paths: paths.iter().map(|path| (*path).to_owned()).collect(),
         ..Default::default()
     }
 }
-fn list_revision(value: &ListRevision) -> wire::ListRevision {
-    wire::ListRevision {
-        list_id: id(value.list()).into(),
-        number: value.number().get(),
-        ..Default::default()
-    }
-}
-fn item_revision(value: &ItemRevision) -> wire::ItemRevision {
-    wire::ItemRevision {
-        list_id: id(value.item().list()).into(),
-        item_uid: wire::ItemUid {
-            value: value.item().uid().as_str().into(),
-            ..Default::default()
-        }
-        .into(),
-        number: value.number().get(),
-        ..Default::default()
-    }
-}
-fn uid(target: &ItemTarget) -> wire::ItemUid {
-    wire::ItemUid {
-        value: target.key().uid().as_str().into(),
-        ..Default::default()
-    }
-}
-
 impl PreparedListMutation {
     pub fn new(intent: ListWriteIntent) -> Result<Self, PrepareFailure> {
         let (request, expected) = match intent {
-            ListWriteIntent::Create { name } => {
-                lists_contract::admit_list_name(&name).map_err(|_| PrepareFailure::InvalidName)?;
+            ListWriteIntent::Create { home, name } => {
+                TaskText::try_from(name.as_str()).map_err(|_| PrepareFailure::InvalidName)?;
                 (
-                    Request::Create(wire::CreateListRequest {
-                        name,
+                    Request::Create(wire::CreateTaskListRequest {
+                        parent: home.as_str().to_owned(),
+                        task_list: wire::TaskList {
+                            display_name: name,
+                            ..Default::default()
+                        }
+                        .into(),
                         ..Default::default()
                     }),
-                    Expected::CreatedList,
+                    Expected::CreatedList(home),
                 )
             }
             ListWriteIntent::Rename { revision, name } => {
-                lists_contract::admit_list_name(&name).map_err(|_| PrepareFailure::InvalidName)?;
+                TaskText::try_from(name.as_str()).map_err(|_| PrepareFailure::InvalidName)?;
                 (
-                    Request::Rename(wire::RenameListRequest {
-                        list_id: id(revision.list()).into(),
-                        expected_revision: list_revision(&revision).into(),
-                        name,
+                    Request::Rename(wire::UpdateTaskListRequest {
+                        task_list: wire::TaskList {
+                            name: revision.name().as_str().to_owned(),
+                            etag: revision.etag().as_str().to_owned(),
+                            display_name: name,
+                            ..Default::default()
+                        }
+                        .into(),
+                        update_mask: mask(&["display_name"]).into(),
                         ..Default::default()
                     }),
-                    Expected::List(revision),
+                    Expected::List(revision.name().clone()),
                 )
             }
-            ListWriteIntent::DeleteList { revision } => (
-                Request::DeleteList(wire::DeleteListRequest {
-                    list_id: id(revision.list()).into(),
-                    expected_revision: list_revision(&revision).into(),
+            ListWriteIntent::DeleteList { revision, force } => (
+                Request::DeleteList(wire::DeleteTaskListRequest {
+                    name: revision.name().as_str().to_owned(),
+                    etag: revision.etag().as_str().to_owned(),
+                    force,
                     ..Default::default()
                 }),
-                Expected::List(revision),
+                Expected::DeletedList(revision.name().clone()),
             ),
-            ListWriteIntent::Add { revision, payload } => {
-                lists_contract::admit_item_payload(&payload)
-                    .map_err(|_| PrepareFailure::InvalidPayload)?;
-                (
-                    Request::Add(wire::AddItemRequest {
-                        list_id: id(revision.list()).into(),
-                        expected_list_revision: list_revision(&revision).into(),
-                        item: payload.into(),
-                        ..Default::default()
-                    }),
-                    Expected::AddedItem(revision),
-                )
-            }
+            ListWriteIntent::Add { revision, payload } => (
+                Request::Add(wire::AppendTaskRequest {
+                    name: revision.name().as_str().to_owned(),
+                    etag: revision.etag().as_str().to_owned(),
+                    task: tasks_contract::encode_append_content(&payload).into(),
+                    ..Default::default()
+                }),
+                Expected::AddedItem(revision.name().clone()),
+            ),
             ListWriteIntent::Edit { target, payload } => {
-                lists_contract::admit_item_payload(&payload)
-                    .map_err(|_| PrepareFailure::InvalidPayload)?;
+                let mut task = tasks_contract::encode_task_content(&payload);
+                task.name = target.item.name().as_str().to_owned();
+                task.etag = target.item.etag().as_str().to_owned();
                 (
-                    Request::Edit(wire::EditItemRequest {
-                        list_id: id(target.key().list()).into(),
-                        item_uid: uid(&target).into(),
-                        expected_list_revision: list_revision(&target.list).into(),
-                        expected_item_revision: item_revision(&target.item).into(),
-                        item: payload.into(),
+                    Request::Edit(wire::UpdateTaskRequest {
+                        task: task.into(),
+                        update_mask: mask(&[
+                            "summary",
+                            "completed",
+                            "description",
+                            "due_date",
+                            "due_instant",
+                        ])
+                        .into(),
                         ..Default::default()
                     }),
-                    Expected::Item(target),
+                    Expected::Item(target.item.name().clone()),
                 )
             }
-            ListWriteIntent::DeleteItem { target } => (
-                Request::DeleteItem(wire::DeleteItemRequest {
-                    list_id: id(target.key().list()).into(),
-                    item_uid: uid(&target).into(),
-                    expected_list_revision: list_revision(&target.list).into(),
-                    expected_item_revision: item_revision(&target.item).into(),
-                    ..Default::default()
-                }),
-                Expected::Item(target),
-            ),
             ListWriteIntent::Complete { target, completed } => (
-                Request::Complete(wire::SetCompletedRequest {
-                    list_id: id(target.key().list()).into(),
-                    item_uid: uid(&target).into(),
-                    expected_list_revision: list_revision(&target.list).into(),
-                    expected_item_revision: item_revision(&target.item).into(),
-                    completed: Some(completed),
+                Request::Complete(wire::UpdateTaskRequest {
+                    task: wire::Task {
+                        name: target.item.name().as_str().to_owned(),
+                        etag: target.item.etag().as_str().to_owned(),
+                        completed,
+                        ..Default::default()
+                    }
+                    .into(),
+                    update_mask: mask(&["completed"]).into(),
                     ..Default::default()
                 }),
-                Expected::Item(target),
+                Expected::Item(target.item.name().clone()),
+            ),
+            ListWriteIntent::DeleteItem { target } => (
+                Request::DeleteItem(wire::DeleteTaskRequest {
+                    name: target.item.name().as_str().to_owned(),
+                    etag: target.item.etag().as_str().to_owned(),
+                    ..Default::default()
+                }),
+                Expected::DeletedItem(target.item.name().clone()),
             ),
             ListWriteIntent::Move {
                 target,
@@ -257,42 +247,37 @@ impl PreparedListMutation {
             } => {
                 let destination = match destination {
                     MoveDestination::AtStart => {
-                        wire::move_item_request::Destination::AtStart(Default::default())
+                        wire::move_task_request::Destination::First(Default::default())
                     }
-                    MoveDestination::After(after) => {
-                        if after.list() != target.key().list() || &after == target.key() {
+                    MoveDestination::After(key) => {
+                        if key.list() != target.key().list() || &key == target.key() {
                             return Err(PrepareFailure::InvalidDestination);
                         }
-                        wire::move_item_request::Destination::AfterUid(
-                            wire::ItemUid {
-                                value: after.uid().as_str().into(),
-                                ..Default::default()
-                            }
-                            .into(),
+                        wire::move_task_request::Destination::Predecessor(
+                            TaskName::new(target.item.name().parent().clone(), key.uid().clone())
+                                .as_str()
+                                .to_owned(),
                         )
                     }
                 };
                 (
-                    Request::Move(wire::MoveItemRequest {
-                        list_id: id(target.key().list()).into(),
-                        item_uid: uid(&target).into(),
-                        expected_list_revision: list_revision(&target.list).into(),
-                        expected_item_revision: item_revision(&target.item).into(),
+                    Request::Move(wire::MoveTaskRequest {
+                        name: target.item.name().as_str().to_owned(),
+                        etag: target.item.etag().as_str().to_owned(),
                         destination: Some(destination),
                         ..Default::default()
                     }),
-                    Expected::Item(target),
+                    Expected::Item(target.item.name().clone()),
                 )
             }
         };
         Ok(Self { request, expected })
     }
-
     /// The session coordinator is the only credential owner. Admission is
     /// checked again after waiting for access and after the single RPC result.
     pub async fn submit(
         self,
-        transport: &ListTransport,
+        transport: &TaskTransport,
         session: &SessionCoordinator,
         cancel: &CancellationToken,
         admission: AdmissionCheck,
@@ -325,26 +310,28 @@ impl PreparedListMutation {
     }
 }
 
+enum Reply {
+    List(wire::TaskList),
+    Task(wire::Task),
+    Deleted,
+}
 enum SubmitFailure {
     Transport(Failure),
     Protocol,
 }
 trait SubmitApi: Sync {
-    fn submit(
-        &self,
-        request: Request,
-    ) -> impl Future<Output = Result<wire::MutationReceipt, SubmitFailure>> + Send;
+    fn submit(&self, request: Request)
+    -> impl Future<Output = Result<Reply, SubmitFailure>> + Send;
 }
 struct NativeApi<'a> {
-    transport: &'a ListTransport,
+    transport: &'a TaskTransport,
     lease: &'a AccessLease,
 }
 impl SubmitApi for NativeApi<'_> {
-    async fn submit(&self, request: Request) -> Result<wire::MutationReceipt, SubmitFailure> {
+    async fn submit(&self, request: Request) -> Result<Reply, SubmitFailure> {
         macro_rules! call {
-            ($method:ident, $request:expr) => {{
-                let response = self
-                    .transport
+            ($method:ident,$request:expr) => {
+                self.transport
                     .$method(
                         $request,
                         self.lease.token(),
@@ -352,30 +339,47 @@ impl SubmitApi for NativeApi<'_> {
                         &self.lease.cancellation,
                     )
                     .await
-                    .map_err(SubmitFailure::Transport)?;
+                    .map_err(SubmitFailure::Transport)?
+            };
+        }
+        let reply = match request {
+            Request::Create(request) => Reply::List(call!(create_task_list, request)),
+            Request::Rename(request) => Reply::List(call!(update_task_list, request)),
+            Request::Edit(request) | Request::Complete(request) => {
+                Reply::Task(call!(update_task, request))
+            }
+            Request::Move(request) => Reply::Task(call!(move_task, request)),
+            Request::Add(request) => {
+                let response = call!(append_task, request);
                 if !response.__buffa_unknown_fields.is_empty() {
                     return Err(SubmitFailure::Protocol);
                 }
-                response
-                    .receipt
-                    .as_option()
-                    .cloned()
-                    .ok_or(SubmitFailure::Protocol)
-            }};
-        }
-        match request {
-            Request::Create(request) => call!(create_list, request),
-            Request::Rename(request) => call!(rename_list, request),
-            Request::DeleteList(request) => call!(delete_list, request),
-            Request::Add(request) => call!(add_item, request),
-            Request::Edit(request) => call!(edit_item, request),
-            Request::DeleteItem(request) => call!(delete_item, request),
-            Request::Complete(request) => call!(set_completed, request),
-            Request::Move(request) => call!(move_item, request),
-        }
+                Reply::Task(
+                    response
+                        .task
+                        .as_option()
+                        .cloned()
+                        .ok_or(SubmitFailure::Protocol)?,
+                )
+            }
+            Request::DeleteList(request) => {
+                let response = call!(delete_task_list, request);
+                if !response.__buffa_unknown_fields.is_empty() {
+                    return Err(SubmitFailure::Protocol);
+                }
+                Reply::Deleted
+            }
+            Request::DeleteItem(request) => {
+                let response = call!(delete_task, request);
+                if !response.__buffa_unknown_fields.is_empty() {
+                    return Err(SubmitFailure::Protocol);
+                }
+                Reply::Deleted
+            }
+        };
+        Ok(reply)
     }
 }
-
 struct Submission {
     outcome: ListWriteOutcome,
     failure: Option<Failure>,
@@ -409,7 +413,7 @@ async fn execute(
         }
         match response {
             Ok(receipt) => match confirm(prepared.expected, receipt) {
-                Some(confirmed) => ListWriteOutcome::Committed(confirmed),
+                Some(confirmed) => ListWriteOutcome::Committed(Box::new(confirmed)),
                 None => ListWriteOutcome::CommitUnknown(WriteIssue::InvalidReceipt),
             },
             Err(SubmitFailure::Protocol) => {
@@ -429,34 +433,33 @@ async fn execute(
     }
 }
 
-fn confirm(expected: Expected, receipt: wire::MutationReceipt) -> Option<ConfirmedMutation> {
-    lists_contract::admit_receipt(&receipt).ok()?;
-    let list = receipt.list_id.as_option()?;
-    let list_number = receipt.list_revision.as_option()?.number;
-    let list_matches = |expected: &ListRevision| {
-        expected.list().as_str() == list.value && list_number > expected.number().get()
-    };
-    let valid = match expected {
-        Expected::CreatedList => !receipt.item_uid.is_set(),
-        Expected::List(revision) => list_matches(&revision) && !receipt.item_uid.is_set(),
-        Expected::AddedItem(revision) => list_matches(&revision) && receipt.item_uid.is_set(),
-        Expected::Item(target) => {
-            list_matches(&target.list)
-                && receipt
-                    .item_uid
-                    .as_option()
-                    .is_some_and(|uid| uid.value == target.key().uid().as_str())
-                && receipt
-                    .item_revision
-                    .as_option()
-                    .is_some_and(|revision| revision.number > target.item.number().get())
+fn confirm(expected: Expected, reply: Reply) -> Option<ConfirmedMutation> {
+    match (expected, reply) {
+        (Expected::CreatedList(home), Reply::List(value)) => {
+            let value = tasks_contract::parse_task_list(&value).ok()?;
+            (value.name().home() == &home).then_some(ConfirmedMutation::List(value))
         }
-    };
-    valid.then_some(ConfirmedMutation {
-        receipt: Box::new(receipt),
-    })
+        (Expected::List(name), Reply::List(value)) => {
+            let value = tasks_contract::parse_task_list(&value).ok()?;
+            (value.name() == &name).then_some(ConfirmedMutation::List(value))
+        }
+        (Expected::AddedItem(parent), Reply::Task(value)) => {
+            let value = tasks_contract::parse_task(&value).ok()?;
+            (value.name().parent() == &parent).then_some(ConfirmedMutation::Task(value))
+        }
+        (Expected::Item(name), Reply::Task(value)) => {
+            let value = tasks_contract::parse_task(&value).ok()?;
+            (value.name() == &name).then_some(ConfirmedMutation::Task(value))
+        }
+        (Expected::DeletedList(name), Reply::Deleted) => Some(ConfirmedMutation::DeletedList(name)),
+        (Expected::DeletedItem(name), Reply::Deleted) => Some(ConfirmedMutation::DeletedTask(name)),
+        (Expected::CreatedList(_) | Expected::List(_), Reply::Task(_) | Reply::Deleted)
+        | (Expected::AddedItem(_) | Expected::Item(_), Reply::List(_) | Reply::Deleted)
+        | (Expected::DeletedList(_) | Expected::DeletedItem(_), Reply::List(_) | Reply::Task(_)) => {
+            None
+        }
+    }
 }
-
 fn classify(failure: &Failure) -> ListWriteOutcome {
     if failure.kind() == FailureKind::Rpc(RpcCode::Unauthenticated)
         || !matches!(failure.authorization_termination(), Ok(None))
@@ -486,12 +489,14 @@ fn classify(failure: &Failure) -> ListWriteOutcome {
         | R::StoredDataIntegrity => {
             ListWriteOutcome::CommitUnknown(WriteIssue::Transport(failure.kind()))
         }
+        R::StatePreconditionFailed => ListWriteOutcome::Rejected(Rejection::HasChildren),
         R::ResourceAlreadyExists
         | R::RequestIdReused
         | R::ConfigChanged
         | R::TopologyChanged
         | R::CapabilityUnavailable
         | R::SourceReadOnly
+        | R::ConfigRestartRequired
         | R::ResyncRequired
         | R::StreamCapacity
         | R::MethodNotSupported

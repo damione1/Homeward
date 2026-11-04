@@ -24,8 +24,9 @@ const (
 // CursorCodec seals pagination state; it never grants access. Each page call
 // still obtains a fresh Permit and checks the current authorized SQL view.
 type CursorCodec struct {
-	key   [sha256.Size]byte
-	valid bool
+	key    [sha256.Size]byte
+	valid  bool
+	caller [sha256.Size]byte
 }
 
 const redactedCursorCodec = "lists: cursor codec"
@@ -73,7 +74,7 @@ func (c *CursorCodec) seal(payload []byte) (string, error) {
 		return "", failure(Unavailable)
 	}
 	sealed := append(append([]byte(nil), header...), nonce[:]...)
-	sealed = aead.Seal(sealed, nonce[:], payload, cursorAAD(header))
+	sealed = aead.Seal(sealed, nonce[:], payload, c.associatedData(header))
 	if base64.RawURLEncoding.EncodedLen(len(sealed)) > MaxCursorTokenBytes {
 		return "", failure(Invalid)
 	}
@@ -95,7 +96,7 @@ func (c *CursorCodec) open(token string, kind byte) ([]byte, error) {
 	}
 	header := sealed[:2]
 	nonce := sealed[2 : 2+aead.NonceSize()]
-	payload, err := aead.Open(nil, nonce, sealed[2+aead.NonceSize():], cursorAAD(header))
+	payload, err := aead.Open(nil, nonce, sealed[2+aead.NonceSize():], c.associatedData(header))
 	if err != nil || len(payload) < 2 || payload[0] != cursorWireVersion || payload[1] != kind {
 		return nil, failure(StaleCursor)
 	}
@@ -239,4 +240,23 @@ func (c *CursorCodec) DecodeItem(token string) (ItemCursor, error) {
 		return ItemCursor{}, failure(StaleCursor)
 	}
 	return ItemCursor{valid: true, list: list, revision: int64(revision), lastPosition: int64(position), last: last}, nil
+}
+
+// BindCaller creates an immutable codec view. The same process key seals native
+// cursor state with credential/rights binding as associated data. A token from
+// another caller, rights revision or an unbound internal codec cannot open.
+func (c *CursorCodec) BindCaller(binding [sha256.Size]byte) (*CursorCodec, error) {
+	if c == nil || !c.valid || binding == ([sha256.Size]byte{}) {
+		return nil, failure(Invalid)
+	}
+	bound := *c
+	bound.caller = binding
+	return &bound, nil
+}
+func (c *CursorCodec) associatedData(header []byte) []byte {
+	aad := cursorAAD(header)
+	if c.caller != ([sha256.Size]byte{}) {
+		aad = append(aad, c.caller[:]...)
+	}
+	return aad
 }

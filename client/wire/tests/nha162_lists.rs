@@ -1,63 +1,95 @@
-use buffa::{EnumValue, Message};
-use home_wire_contract::{home::lists::v1 as lists, lists_contract};
-
-#[test]
-fn nha162_false_presence_and_civil_date_survive_wire() {
-    let mut payload = lists::ItemPayload {
-        summary: "Synthetic item".into(),
-        completed: Some(false),
-        ..Default::default()
-    };
-    let encoded = payload.encode_to_vec();
-    let decoded = lists::ItemPayload::decode_from_slice(&encoded).unwrap();
-    assert_eq!(decoded.completed, Some(false));
-    assert!(lists_contract::admit_item_payload(&decoded).is_ok());
-
-    payload.completed = None;
-    assert!(lists_contract::admit_item_payload(&payload).is_err());
-    payload.completed = Some(false);
-    payload.due = Some(lists::item_payload::Due::DueDate("2026-02-29".into()));
-    assert!(lists_contract::admit_item_payload(&payload).is_err());
-    payload.due = Some(lists::item_payload::Due::DueDate("2028-02-29".into()));
-    assert!(lists_contract::admit_item_payload(&payload).is_ok());
+//! TaskService v2 resources preserve exact identities and independent editable values.
+use buffa::Message;
+use home_client_model::{
+    api::HomeName,
+    api_tasks::*,
+    local_time::{DisplayTimeZone, UtcInstant},
+};
+use home_wire_contract::{home::api::v2 as wire, tasks_contract::*};
+fn name() -> TaskName {
+    TaskName::new(
+        TaskListName::new(
+            HomeName::try_from("homes/synthetic").unwrap(),
+            " list / été ".parse().unwrap(),
+        ),
+        "same UID".parse().unwrap(),
+    )
 }
-
+fn task() -> wire::Task {
+    wire::Task {
+        name: name().as_str().to_owned(),
+        etag: "\"opaque-parent-and-child\"".to_owned(),
+        summary: "Synthetic".to_owned(),
+        description: Some(String::new()),
+        ..Default::default()
+    }
+}
 #[test]
-fn nha162_list_revision_origin_and_unknown_values_are_closed() {
-    let mut snapshot = lists::ListSnapshot {
-        origin: lists::ListOrigin::LocalTodo.into(),
-        legacy_alias: Some("todo.brico".into()),
-        name: "Synthetic tasks".into(),
+fn canonical_names_opaque_etags_zero_false_and_optional_empty_survive_wire_roundtrip() {
+    let original = task();
+    let decoded = wire::Task::decode_from_slice(&original.encode_to_vec()).unwrap();
+    let admitted = parse_task(&decoded).unwrap();
+    assert_eq!(admitted.name(), &name());
+    assert_eq!(admitted.key().list().as_str(), " list / été ");
+    assert!(!admitted.content().completed());
+    assert_eq!(admitted.position(), 0);
+    assert_eq!(admitted.content().description().unwrap().as_str(), "");
+    assert!(admitted.completion_time().is_none());
+    assert_eq!(encode_task(&admitted), original);
+    for etag in [
+        "",
+        "unquoted",
+        "W/\"weak\"",
+        "\"embedded\"quote\"",
+        "\"line\nfeed\"",
+    ] {
+        let mut value = task();
+        value.etag = etag.to_owned();
+        assert!(parse_task(&value).is_err());
+    }
+}
+#[test]
+fn civil_dates_and_explicit_iana_instants_keep_distinct_content_without_child_identity_on_append() {
+    let zone: DisplayTimeZone = "America/Toronto".parse().unwrap();
+    for due in [
+        TaskDue::None,
+        TaskDue::Date("2026-11-03".parse().unwrap()),
+        TaskDue::Instant(TaskDueInstant::new(UtcInstant::new(0, 0).unwrap(), zone).unwrap()),
+    ] {
+        let content = TaskContent::new(TaskText::try_from("Synthetic").unwrap(), false, None, due);
+        let encoded = encode_task_content(&content);
+        assert_eq!(parse_task_content(&encoded).unwrap(), content);
+        let append = encode_append_content(&content);
+        assert_eq!(append.summary, "Synthetic");
+        assert!(!append.completed);
+        assert!(append.description.is_none());
+    }
+}
+#[test]
+fn unsupported_origin_and_inconsistent_completion_never_admit_resources() {
+    let mut value = task();
+    value.completion_time = buffa_types::google::protobuf::Timestamp {
+        seconds: 1,
+        ..Default::default()
+    }
+    .into();
+    assert!(parse_task(&value).is_err());
+    value.completed = true;
+    assert!(parse_task(&value).is_ok());
+    let mut list = wire::TaskList {
+        name: name().parent().as_str().to_owned(),
+        etag: "\"opaque\"".to_owned(),
+        display_name: "List".to_owned(),
+        update_time: buffa_types::google::protobuf::Timestamp {
+            seconds: 1,
+            ..Default::default()
+        }
+        .into(),
         ..Default::default()
     };
-    snapshot.id.get_or_insert_default().value = "list-synthetic".into();
-    snapshot.revision.get_or_insert_default().number = 1;
-    snapshot
-        .revision
-        .get_or_insert_default()
-        .list_id
-        .get_or_insert_default()
-        .value = "list-synthetic".into();
-    snapshot.updated_at.get_or_insert_default().seconds = 1;
-    assert!(lists_contract::admit_list_snapshot(&snapshot).is_ok());
-
-    snapshot
-        .revision
-        .get_or_insert_default()
-        .list_id
-        .get_or_insert_default()
-        .value = "list-other".into();
-    assert!(lists_contract::admit_list_snapshot(&snapshot).is_err());
-    snapshot
-        .revision
-        .get_or_insert_default()
-        .list_id
-        .get_or_insert_default()
-        .value = "list-synthetic".into();
-    snapshot.origin = lists::ListOrigin::Native.into();
-    assert!(lists_contract::admit_list_snapshot(&snapshot).is_err());
-    snapshot.legacy_alias = None;
-    assert!(lists_contract::admit_list_snapshot(&snapshot).is_ok());
-    snapshot.origin = EnumValue::Unknown(99);
-    assert!(lists_contract::admit_list_snapshot(&snapshot).is_err());
+    assert!(parse_task_list(&list).is_err());
+    list.origin = wire::TaskListOrigin::Native.into();
+    assert!(parse_task_list(&list).is_ok());
+    list.origin = buffa::EnumValue::Unknown(999);
+    assert!(parse_task_list(&list).is_err());
 }

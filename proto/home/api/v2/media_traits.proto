@@ -1,0 +1,212 @@
+syntax = "proto3";
+package home.api.v2;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "home/api/v2/traits.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "MediaTraitsProto";
+option java_package = "com.home.api.v2";
+
+// Canonical intrinsic volume basis points,0..10000 with a positive integer step.
+message MediaVolumeBounds {
+  // Inclusive lower bound; zero is a legitimate bound.
+  int32 minimum = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Inclusive upper bound, greater than or equal to minimum.
+  int32 maximum = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Strictly positive increment relative to minimum.
+  int32 step = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Nonnegative integral-millisecond bounds with positive step, capped by duration.
+message MediaPositionBounds {
+  // Inclusive lower bound; zero is a legitimate bound.
+  google.protobuf.Duration minimum = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Inclusive upper bound, greater than or equal to minimum.
+  google.protobuf.Duration maximum = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Strictly positive increment relative to minimum.
+  google.protobuf.Duration step = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Open source/group catalogue identity; labels never become command IDs.
+message MediaOption {
+  // Opaque catalogue identifier,1..256 UTF-8 bytes without control characters.
+  string id = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Display label; never used as an identity or command value.
+  string display_name = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// A member reference proves topology only, never a permission on that member.
+message MediaMember {
+  // Canonical entity resource name; resolving it grants no authority.
+  string entity = 1 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"
+  ];
+  // Display label; never used as an identity or command value.
+  string display_name = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Exact server-owned route precondition. Changing any field invalidates unsent
+// intentions. Never select another coordinator or retry after a stale route.
+message MediaRoute {
+  // Canonical entity resource name; resolving it grants no authority.
+  string entity = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"
+  ];
+  // Exact admitted capability endpoint,1..256 UTF-8 bytes without controls.
+  string endpoint = 2 [(google.api.field_behavior) = REQUIRED];
+  // Canonical coordinator entity in the same home, never client-selected.
+  string coordinator = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"
+  ];
+  // Positive current topology revision; a mismatch rejects the intention.
+  int64 topology_revision = 4 [(google.api.field_behavior) = REQUIRED];
+  // Exact32-character nonzero hexadecimal native admission epoch.
+  string admission_epoch = 5 [(google.api.field_behavior) = REQUIRED];
+  // Positive current configuration revision, checked again before dispatch.
+  int64 config_revision = 6 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Bounded advertised capabilities; at most five transport operations and sixteen
+// sources/groups each. Instance bounds supplement intrinsic admission.
+message MediaPlaybackDefinition {
+  // Supported transport operations, at most five unique nonzero values.
+  repeated MediaOperation operations = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Canonical volume basis points,0..10000, with explicit zero presence.
+  MediaVolumeBounds volume_basis_points = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Nonnegative integral-millisecond position, at most seven days.
+  MediaPositionBounds position = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Currently available source choices, at most sixteen unique IDs.
+  repeated MediaOption sources = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Currently available group choices, at most sixteen unique IDs.
+  repeated MediaOption groups = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// A short-lived credential/entity-bound opaque artwork reference, never a URL,
+// bearer credential, durable token or filesystem path. Acquire a MediaSession
+// to read its bytes; the reference alone grants no content access.
+message MediaArtworkReference {
+  // Opaque credential/entity-bound reference,1..512 bytes; never a credential.
+  bytes reference = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Absolute reference expiry; never extends an associated media session.
+  google.protobuf.Timestamp expire_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Exact configured artwork source. Absence means content is unavailable;
+  // clients must not infer it from an entity, label or playback endpoint.
+  string media_source = 3 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSource"
+  ];
+}
+
+// Qualified transport observation; missing values remain unknown, including an
+// independent power value that never implies transport/playback state.
+message MediaPlaybackObservation {
+  // Exact observed route; it is a precondition rather than permission.
+  MediaRoute route = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Qualified playback state; UNSPECIFIED remains unknown, never STOPPED.
+  MediaPlaybackState playback = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Current content title; absence remains distinct from an empty title.
+  optional string title = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Current artist; absence remains distinct from an empty label.
+  optional string artist = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Current collection or album label, if supplied by the source.
+  optional string collection = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Canonical volume basis points,0..10000, with explicit zero presence.
+  optional int32 volume_basis_points = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Nonnegative integral-millisecond position, at most seven days.
+  google.protobuf.Duration position = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Nonnegative integral-millisecond content duration, at most seven days.
+  google.protobuf.Duration duration = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Opaque source choice, revalidated against the current source catalogue.
+  optional string source_id = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Opaque group choice, revalidated atomically against current topology.
+  optional string group_id = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Current group members, at most sixteen unique entity references.
+  repeated MediaMember members = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Short-lived protected artwork reference, if one is available.
+  MediaArtworkReference artwork = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent availability, freshness and provenance of this observation.
+  ObservationQuality quality = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time the source observation was obtained, not RPC response time.
+  google.protobuf.Timestamp observed_time = 14 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independent power observation; absent is unknown and false means OFF.
+  optional bool powered_on = 15 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// One generic entity capability for Sonos/TV/other native media providers.
+message MediaPlaybackCapability {
+  // Current bounded source-advertised transport and quantity capabilities.
+  MediaPlaybackDefinition definition = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Last qualified observation; absence never fabricates media state.
+  MediaPlaybackObservation observation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Current caller admission; only explicit ALLOWED permits preparing an intent.
+  ActionAccess action_access = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Synthetic qualification is distinct from observed installation data.
+  MediaDataProvenance data_provenance = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Exactly one bounded explicit intention plus the exact observed route.
+// ExecuteCapability owns admission, durable reservation and single dispatch.
+message MediaCommand {
+  // Exact observed route; it is a precondition rather than permission.
+  MediaRoute route = 1 [(google.api.field_behavior) = REQUIRED];
+  oneof command {
+    // Explicit supported transport intention; zero and unknown values are invalid.
+    MediaOperation operation = 2;
+    // Canonical volume basis points,0..10000, with explicit zero presence.
+    int32 volume_basis_points = 3;
+    // Nonnegative integral-millisecond position, at most seven days.
+    google.protobuf.Duration position = 4;
+    // Opaque source choice, revalidated against the current source catalogue.
+    string source_id = 5;
+    // Opaque group choice, revalidated atomically against current topology.
+    string group_id = 6;
+  }
+}
+
+// Generic transport playback, independent of hardware/provider or power state.
+enum MediaPlaybackState {
+  // No qualified playback state is known; never infer STOPPED.
+  MEDIA_PLAYBACK_STATE_UNSPECIFIED = 0;
+  // The transport is stopped.
+  MEDIA_PLAYBACK_STATE_STOPPED = 1;
+  // The transport is paused.
+  MEDIA_PLAYBACK_STATE_PAUSED = 2;
+  // The transport is playing.
+  MEDIA_PLAYBACK_STATE_PLAYING = 3;
+  // The transport is buffering.
+  MEDIA_PLAYBACK_STATE_BUFFERING = 4;
+}
+
+// The closed transport intentions supported by the current public contract.
+enum MediaOperation {
+  // No transport intention; invalid for command admission.
+  MEDIA_OPERATION_UNSPECIFIED = 0;
+  // Start or resume playback.
+  MEDIA_OPERATION_PLAY = 1;
+  // Pause playback.
+  MEDIA_OPERATION_PAUSE = 2;
+  // Stop playback.
+  MEDIA_OPERATION_STOP = 3;
+  // Select the previous track.
+  MEDIA_OPERATION_PREVIOUS = 4;
+  // Select the next track.
+  MEDIA_OPERATION_NEXT = 5;
+}
+
+// Installation observations and isolated synthetic qualification stay explicit.
+enum MediaDataProvenance {
+  // No established data provenance; never claim an observed device.
+  MEDIA_DATA_PROVENANCE_UNSPECIFIED = 0;
+  // Data supplied by the configured native installation owner.
+  MEDIA_DATA_PROVENANCE_OBSERVED = 1;
+  // Data supplied by an explicitly isolated synthetic qualification owner.
+  MEDIA_DATA_PROVENANCE_SYNTHETIC = 2;
+}

@@ -1,66 +1,112 @@
-use home_client_model::cameras::{
-    CameraId, EventId, EventKey, IdentityError, ImageKey, InvalidSessionReference, MAX_ID_BYTES,
-    SESSION_REFERENCE_BYTES, SessionReference,
+use home_client_model::{
+    api_content::{ContentKind, EventsEtag, MediaSession, MediaSessionName, MediaSourceName},
+    cameras::{EventId, EventKey, IdentityError, ImageKey, MAX_ID_BYTES},
+    local_time::UtcInstant,
 };
-
+fn source(hex: char) -> MediaSourceName {
+    MediaSourceName::try_from(
+        format!(
+            "homes/synthetic/mediaSources/source-{}",
+            hex.to_string().repeat(48)
+        )
+        .as_str(),
+    )
+    .unwrap()
+}
 #[test]
-fn camera_ids_remain_exact_without_alias_normalization() {
-    let first: CameraId = "driveway".parse().unwrap();
-    let second: CameraId = "_driveway".parse().unwrap();
+fn camera_source_identity_is_canonical_and_never_an_alias_or_native_entity_id() {
+    let first = source('a');
+    let second = source('b');
     assert_ne!(first, second);
-    for value in ["driveway", "_driveway", "Source:É/Camera 1", " camera "] {
-        let id: CameraId = value.parse().unwrap();
-        assert_eq!(id.entity().as_str(), value);
+    assert_eq!(MediaSourceName::try_from(first.as_str()).unwrap(), first);
+    for raw in [
+        "driveway",
+        "_driveway",
+        "Source:É/Camera 1",
+        " camera ",
+        "homes/synthetic/mediaSources/source-ABC",
+    ] {
+        assert!(MediaSourceName::try_from(raw).is_err());
     }
 }
-
 #[test]
-fn boundary_ids_are_bounded_in_bytes_without_trimming_user_data() {
-    for value in ["", "camera\n", "camera\0", "camera\u{7f}"] {
-        assert!(value.parse::<CameraId>().is_err());
-        assert!(value.parse::<EventId>().is_err());
+fn event_ids_remain_exact_utf8_data_with_byte_and_control_bounds() {
+    for raw in ["event-42", " événement / 1 ", "同じ項目"] {
+        assert_eq!(raw.parse::<EventId>().unwrap().as_str(), raw);
     }
-    assert!("x".repeat(MAX_ID_BYTES).parse::<CameraId>().is_ok());
+    for raw in ["", "event\n", "event\0", "event\u{7f}"] {
+        assert!(raw.parse::<EventId>().is_err());
+    }
+    assert!("x".repeat(MAX_ID_BYTES).parse::<EventId>().is_ok());
     assert_eq!(
-        "x".repeat(MAX_ID_BYTES + 1).parse::<EventId>(),
+        "é".repeat(MAX_ID_BYTES / 2 + 1).parse::<EventId>(),
         Err(IdentityError::TooLong)
     );
-    assert_eq!(
-        "é".repeat(MAX_ID_BYTES / 2 + 1).parse::<CameraId>(),
-        Err(IdentityError::TooLong)
+}
+#[test]
+fn reused_event_id_cannot_move_a_target_to_another_configured_slot() {
+    let first = source('a');
+    let second = source('b');
+    let event: EventId = "same-event".parse().unwrap();
+    let one = EventKey::new(first.clone(), event.clone());
+    let two = EventKey::new(second.clone(), event);
+    assert_ne!(one, two);
+    assert_eq!(ImageKey::EventThumbnail(one).source(), &first);
+    assert_eq!(ImageKey::Snapshot(second.clone()).source(), &second);
+}
+#[test]
+fn session_names_and_kind_specific_metadata_do_not_grant_or_extend_a_lease() {
+    let raw = format!("homes/synthetic/mediaSessions/s-{}", "a".repeat(52));
+    let name = MediaSessionName::try_from(raw.as_str()).unwrap();
+    assert!(format!("{name:?}").contains("[REDACTED]"));
+    let alternate = format!("homes/synthetic/mediaSessions/s-{}b", "a".repeat(51));
+    assert!(MediaSessionName::try_from(alternate.as_str()).is_err());
+    assert!(MediaSessionName::try_from(raw.to_uppercase().as_str()).is_err());
+    let created = UtcInstant::new(1, 0).unwrap();
+    let expires = UtcInstant::new(61, 0).unwrap();
+    let etag = EventsEtag::try_from("\"opaque\"").unwrap();
+    assert!(
+        MediaSession::new(
+            name.clone(),
+            source('a'),
+            ContentKind::Camera,
+            created,
+            expires,
+            Some(etag.clone())
+        )
+        .is_ok()
     );
-}
-
-#[test]
-fn reused_event_id_cannot_move_a_thumbnail_to_another_camera() {
-    let first: CameraId = "driveway".parse().unwrap();
-    let second: CameraId = "_driveway".parse().unwrap();
-    let event: EventId = "provider-event-42".parse().unwrap();
-    let first_key = EventKey::new(first.clone(), event.clone());
-    let second_key = EventKey::new(second.clone(), event);
-    assert_ne!(first_key, second_key);
-    assert_eq!(first_key.event().as_str(), "provider-event-42");
-    let session = SessionReference::new(first.clone(), &[42; SESSION_REFERENCE_BYTES]).unwrap();
-    assert!(session.owns(&ImageKey::Snapshot(first)));
-    assert!(session.owns(&ImageKey::EventThumbnail(first_key)));
-    assert!(!session.owns(&ImageKey::Snapshot(second)));
-    assert!(!session.owns(&ImageKey::EventThumbnail(second_key)));
-}
-
-#[test]
-fn opaque_reference_has_exact_length_and_redacted_diagnostics() {
-    let id: CameraId = "driveway".parse().unwrap();
-    for size in [0, SESSION_REFERENCE_BYTES - 1, SESSION_REFERENCE_BYTES + 1] {
-        assert_eq!(
-            SessionReference::new(id.clone(), &vec![42; size]),
-            Err(InvalidSessionReference)
-        );
-    }
-    let reference = [42; SESSION_REFERENCE_BYTES];
-    let session = SessionReference::new(id.clone(), &reference).unwrap();
-    assert_eq!(session.camera(), &id);
-    assert_eq!(session.bytes(), &reference);
-    let diagnostic = format!("{session:?}");
-    assert!(diagnostic.contains("[REDACTED]"));
-    assert!(!diagnostic.contains("42"));
+    assert!(
+        MediaSession::new(
+            name.clone(),
+            source('a'),
+            ContentKind::Artwork,
+            created,
+            expires,
+            Some(etag)
+        )
+        .is_err()
+    );
+    assert!(
+        MediaSession::new(
+            name.clone(),
+            source('a'),
+            ContentKind::Camera,
+            created,
+            expires,
+            None
+        )
+        .is_err()
+    );
+    assert!(
+        MediaSession::new(
+            name,
+            source('a'),
+            ContentKind::Artwork,
+            created,
+            UtcInstant::new(62, 0).unwrap(),
+            None
+        )
+        .is_err()
+    );
 }

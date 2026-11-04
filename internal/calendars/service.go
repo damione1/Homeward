@@ -124,7 +124,7 @@ func (s *Service) GetEvent(ctx context.Context, key EventKey) (EventSnapshot, er
 func (s *Service) Query(ctx context.Context, id CalendarID, w Window, limit int, cursor Cursor) (Page, error) {
 	return serviceCall(s, ctx, false, func(ctx context.Context) (Page, error) { return s.repo.Query(ctx, id, w, limit, cursor) })
 }
-func (s *Service) calendarChange(ctx context.Context, id CalendarID, expected Revision, name string, mutation calendarMutation, kind ChangeKind) (CalendarSnapshot, error) {
+func (s *Service) calendarChange(ctx context.Context, id CalendarID, expected Precondition, name string, mutation calendarMutation, kind ChangeKind) (CalendarSnapshot, error) {
 	return serviceCall(s, ctx, true, func(ctx context.Context) (CalendarSnapshot, error) {
 		snapshot, err := s.repo.mutateCalendar(ctx, id, expected, name, mutation)
 		if err == nil {
@@ -133,31 +133,31 @@ func (s *Service) calendarChange(ctx context.Context, id CalendarID, expected Re
 		return snapshot, err
 	})
 }
-func (s *Service) CreateCalendar(ctx context.Context, id CalendarID, expected Revision, name string) (CalendarSnapshot, error) {
+func (s *Service) CreateCalendar(ctx context.Context, id CalendarID, expected Precondition, name string) (CalendarSnapshot, error) {
 	return s.calendarChange(ctx, id, expected, name, calendarCreate, CalendarCreated)
 }
-func (s *Service) UpdateCalendar(ctx context.Context, id CalendarID, expected Revision, name string) (CalendarSnapshot, error) {
+func (s *Service) UpdateCalendar(ctx context.Context, id CalendarID, expected Precondition, name string) (CalendarSnapshot, error) {
 	return s.calendarChange(ctx, id, expected, name, calendarUpdate, CalendarUpdated)
 }
-func (s *Service) DeleteCalendar(ctx context.Context, id CalendarID, expected Revision) (CalendarSnapshot, error) {
+func (s *Service) DeleteCalendar(ctx context.Context, id CalendarID, expected Precondition) (CalendarSnapshot, error) {
 	return s.calendarChange(ctx, id, expected, "", calendarDelete, CalendarDeleted)
 }
-func (s *Service) eventChange(ctx context.Context, key EventKey, expected Revision, event Event, mutation eventMutation, kind ChangeKind) (EventSnapshot, error) {
+func (s *Service) eventChange(ctx context.Context, key EventKey, expected Precondition, event Event, mutation eventMutation, kind ChangeKind) (EventSnapshot, error) {
 	return serviceCall(s, ctx, true, func(ctx context.Context) (EventSnapshot, error) {
-		snapshot, err := s.repo.mutateEvent(ctx, key, expected, event, mutation)
+		snapshot, err := s.repo.mutateEvent(ctx, key, expected, event, mutation, nil)
 		if err == nil {
 			s.publish(Change{kind: kind, calendar: key.calendar, event: key, revision: snapshot.calendarRevision})
 		}
 		return snapshot, err
 	})
 }
-func (s *Service) CreateEvent(ctx context.Context, key EventKey, expected Revision, event Event) (EventSnapshot, error) {
+func (s *Service) CreateEvent(ctx context.Context, key EventKey, expected Precondition, event Event) (EventSnapshot, error) {
 	return s.eventChange(ctx, key, expected, event, eventCreate, EventCreated)
 }
-func (s *Service) UpdateEvent(ctx context.Context, key EventKey, expected Revision, event Event) (EventSnapshot, error) {
+func (s *Service) UpdateEvent(ctx context.Context, key EventKey, expected Precondition, event Event) (EventSnapshot, error) {
 	return s.eventChange(ctx, key, expected, event, eventUpdate, EventUpdated)
 }
-func (s *Service) DeleteEvent(ctx context.Context, key EventKey, expected Revision) (EventSnapshot, error) {
+func (s *Service) DeleteEvent(ctx context.Context, key EventKey, expected Precondition) (EventSnapshot, error) {
 	return s.eventChange(ctx, key, expected, Event{}, eventDelete, EventDeleted)
 }
 
@@ -251,4 +251,34 @@ func (sub *Subscription) Next(ctx context.Context) (Change, error) {
 
 func (s *Service) ListEvents(ctx context.Context, id CalendarID) ([]EventSnapshot, error) {
 	return serviceCall(s, ctx, false, func(ctx context.Context) ([]EventSnapshot, error) { return s.repo.ListEvents(ctx, id) })
+}
+
+// PatchEvent merges selected fields and compares the series etag under the same
+// account/policy fence and calendar/event locks as a complete event update.
+func (s *Service) PatchEvent(ctx context.Context, key EventKey, expected Precondition, patch EventPatch) (EventSnapshot, error) {
+	return serviceCall(s, ctx, true, func(ctx context.Context) (EventSnapshot, error) {
+		result, err := s.repo.mutateEvent(ctx, key, expected, Event{}, eventPatch, &patch)
+		if err == nil && patch.fields != 0 {
+			s.publish(Change{kind: EventUpdated, calendar: key.calendar, event: key, revision: result.calendarRevision})
+		}
+		return result, err
+	})
+}
+
+// CheckCalendarUpdate implements a CAS-checked empty PATCH without advancing
+// revisions or publishing an invalidation.
+func (s *Service) CheckCalendarUpdate(ctx context.Context, id CalendarID, expected Precondition) (CalendarSnapshot, error) {
+	return serviceCall(s, ctx, false, func(ctx context.Context) (CalendarSnapshot, error) {
+		return s.repo.mutateCalendar(ctx, id, expected, "", calendarCheck)
+	})
+}
+
+// DeleteCalendarResource keeps the default refusal and explicit cascade inside
+// the same owner transaction as the current etag check and invalidation.
+func (s *Service) DeleteCalendarResource(ctx context.Context, id CalendarID, expected Precondition, force bool) (CalendarSnapshot, error) {
+	mutation := calendarDeleteIfEmpty
+	if force {
+		mutation = calendarDelete
+	}
+	return s.calendarChange(ctx, id, expected, "", mutation, CalendarDeleted)
 }

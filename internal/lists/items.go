@@ -42,7 +42,7 @@ func nextListRevision(ctx context.Context, tx pgx.Tx, id domain.ListID) error {
 	_, err := tx.Exec(ctx, `UPDATE public.homeward_lists SET revision=revision+1,updated_at=now() WHERE list_id=$1 AND lifecycle=1`, text)
 	return err
 }
-func (s *Service) mutateItem(ctx context.Context, id domain.ListID, expected ListRevision,
+func (s *Service) mutateItem(ctx context.Context, id domain.ListID, expected ListPrecondition,
 	fn func(context.Context, pgx.Tx, ListSnapshot) (ItemUID, int64, error)) (MutationReceipt, error) {
 	object, err := listObject(id)
 	if err != nil {
@@ -57,7 +57,7 @@ func (s *Service) mutateItem(ctx context.Context, id domain.ListID, expected Lis
 			if err != nil {
 				return MutationReceipt{}, err
 			}
-			if err := expectList(id, expected, current); err != nil {
+			if err := expectList(ctx, tx, id, expected, current); err != nil {
 				return MutationReceipt{}, err
 			}
 			uid, itemNumber, err := fn(ctx, tx, current)
@@ -71,11 +71,20 @@ func (s *Service) mutateItem(ctx context.Context, id domain.ListID, expected Lis
 				return MutationReceipt{}, err
 			}
 			_, number, _ := current.revision.Values()
-			return itemReceipt(id, uid, number+1, itemNumber), nil
+			receipt := itemReceipt(id, uid, number+1, itemNumber)
+			resource, err := readItem(ctx, tx, id, uid, false)
+			if err != nil && !IsCode(err, NotFound) {
+				return MutationReceipt{}, err
+			}
+			if err == nil {
+				resource.listRevision = receipt.listRevision
+				receipt.itemSnapshot = &resource
+			}
+			return receipt, nil
 		}, func(r MutationReceipt) { afterListCommit(s, r) }, func(r MutationReceipt) { s.resyncList(r.list) })
 }
 
-func (s *Service) AddItem(ctx context.Context, id domain.ListID, expected ListRevision, payload ItemPayload) (MutationReceipt, error) {
+func (s *Service) AddItem(ctx context.Context, id domain.ListID, expected ListPrecondition, payload ItemPayload) (MutationReceipt, error) {
 	return s.mutateItem(ctx, id, expected, func(ctx context.Context, tx pgx.Tx, list ListSnapshot) (ItemUID, int64, error) {
 		if !payload.validFor(list.origin) {
 			return ItemUID{}, 0, failure(Invalid)
@@ -223,10 +232,13 @@ func (s *Service) GetItem(ctx context.Context, id domain.ListID, uid ItemUID) (I
 	}
 	return execute(s, ctx, authv1.ScopeOperation_SCOPE_OPERATION_READ, object, false,
 		func(ctx context.Context, tx pgx.Tx, _ authorization.RightsEvidence, _ authorization.ListSelection) (ItemSnapshot, error) {
-			if _, err := readList(ctx, tx, id, false); err != nil {
+			parent, err := readList(ctx, tx, id, false)
+			if err != nil {
 				return ItemSnapshot{}, err
 			}
-			return readItem(ctx, tx, id, uid, false)
+			item, err := readItem(ctx, tx, id, uid, false)
+			item.listRevision = parent.revision
+			return item, err
 		}, nil)
 }
 func (s *Service) ListItems(ctx context.Context, id domain.ListID, cursor ItemCursor, limit int) (ItemPage, error) {
@@ -283,6 +295,11 @@ func (s *Service) ListItems(ctx context.Context, id domain.ListID, cursor ItemCu
 				return ItemPage{}, err
 			}
 			page := ItemPage{entries: make([]ItemSnapshot, 0, min(len(keys), limit))}
+			var total int64
+			if err := tx.QueryRow(ctx, `SELECT count(*) FROM public.homeward_list_items WHERE list_id=$1 AND lifecycle=1`, text).Scan(&total); err != nil || total < 0 {
+				return ItemPage{}, failure(Unavailable)
+			}
+			page.total = uint64(total)
 			for i, key := range keys {
 				if i >= limit {
 					break
@@ -291,6 +308,7 @@ func (s *Service) ListItems(ctx context.Context, id domain.ListID, cursor ItemCu
 				if readErr != nil {
 					return ItemPage{}, readErr
 				}
+				item.listRevision = list.revision
 				page.entries = append(page.entries, item)
 			}
 			if len(keys) > limit {
@@ -319,17 +337,26 @@ func (s *Service) CountItems(ctx context.Context, id domain.ListID) (uint64, err
 		}, nil)
 }
 
-func (s *Service) EditItem(ctx context.Context, id domain.ListID, uid ItemUID, expectedList ListRevision, expectedItem ItemRevision, payload ItemPayload) (MutationReceipt, error) {
+func (s *Service) EditItem(ctx context.Context, id domain.ListID, uid ItemUID, expectedList ListPrecondition, expectedItem ItemPrecondition, payload ItemPayload) (MutationReceipt, error) {
+	return s.editItem(ctx, id, uid, expectedList, expectedItem, func(ItemSnapshot) (ItemPayload, error) { return payload, nil })
+}
+
+func (s *Service) editItem(ctx context.Context, id domain.ListID, uid ItemUID, expectedList ListPrecondition, expectedItem ItemPrecondition, transform func(ItemSnapshot) (ItemPayload, error)) (MutationReceipt, error) {
 	return s.mutateItem(ctx, id, expectedList, func(ctx context.Context, tx pgx.Tx, list ListSnapshot) (ItemUID, int64, error) {
-		if !payload.validFor(list.origin) {
-			return ItemUID{}, 0, failure(Invalid)
-		}
 		item, err := readItem(ctx, tx, id, uid, true)
 		if err != nil {
 			return ItemUID{}, 0, err
 		}
+		item.listRevision = list.revision
 		if err := expectItem(id, uid, expectedItem, item); err != nil {
 			return ItemUID{}, 0, err
+		}
+		payload, err := transform(item)
+		if err != nil {
+			return ItemUID{}, 0, err
+		}
+		if !payload.validFor(list.origin) {
+			return ItemUID{}, 0, failure(Invalid)
 		}
 		listText, _ := id.Value()
 		uidText, _ := uid.Value()
@@ -345,12 +372,13 @@ func (s *Service) EditItem(ctx context.Context, id domain.ListID, uid ItemUID, e
 		return uid, number + 1, nil
 	})
 }
-func (s *Service) DeleteItem(ctx context.Context, id domain.ListID, uid ItemUID, expectedList ListRevision, expectedItem ItemRevision) (MutationReceipt, error) {
-	return s.mutateItem(ctx, id, expectedList, func(ctx context.Context, tx pgx.Tx, _ ListSnapshot) (ItemUID, int64, error) {
+func (s *Service) DeleteItem(ctx context.Context, id domain.ListID, uid ItemUID, expectedList ListPrecondition, expectedItem ItemPrecondition) (MutationReceipt, error) {
+	return s.mutateItem(ctx, id, expectedList, func(ctx context.Context, tx pgx.Tx, list ListSnapshot) (ItemUID, int64, error) {
 		item, err := readItem(ctx, tx, id, uid, true)
 		if err != nil {
 			return ItemUID{}, 0, err
 		}
+		item.listRevision = list.revision
 		if err := expectItem(id, uid, expectedItem, item); err != nil {
 			return ItemUID{}, 0, err
 		}
@@ -364,12 +392,13 @@ func (s *Service) DeleteItem(ctx context.Context, id domain.ListID, uid ItemUID,
 		return uid, number + 1, nil
 	})
 }
-func (s *Service) SetCompleted(ctx context.Context, id domain.ListID, uid ItemUID, expectedList ListRevision, expectedItem ItemRevision, completed bool) (MutationReceipt, error) {
+func (s *Service) SetCompleted(ctx context.Context, id domain.ListID, uid ItemUID, expectedList ListPrecondition, expectedItem ItemPrecondition, completed bool) (MutationReceipt, error) {
 	return s.mutateItem(ctx, id, expectedList, func(ctx context.Context, tx pgx.Tx, list ListSnapshot) (ItemUID, int64, error) {
 		item, err := readItem(ctx, tx, id, uid, true)
 		if err != nil {
 			return ItemUID{}, 0, err
 		}
+		item.listRevision = list.revision
 		if err := expectItem(id, uid, expectedItem, item); err != nil {
 			return ItemUID{}, 0, err
 		}
@@ -394,17 +423,18 @@ func (s *Service) SetCompleted(ctx context.Context, id domain.ListID, uid ItemUI
 
 // MoveItem computes a dense new order in PostgreSQL. It does not fetch an
 // unbounded list into Go. Every changed position advances that item's revision.
-func (s *Service) MoveItem(ctx context.Context, id domain.ListID, uid ItemUID, after *ItemUID, expectedList ListRevision, expectedItem ItemRevision) (MutationReceipt, error) {
+func (s *Service) MoveItem(ctx context.Context, id domain.ListID, uid ItemUID, after *ItemUID, expectedList ListPrecondition, expectedItem ItemPrecondition) (MutationReceipt, error) {
 	if after != nil {
 		if _, err := after.Value(); err != nil || *after == uid {
 			return MutationReceipt{}, failure(Invalid)
 		}
 	}
-	return s.mutateItem(ctx, id, expectedList, func(ctx context.Context, tx pgx.Tx, _ ListSnapshot) (ItemUID, int64, error) {
+	return s.mutateItem(ctx, id, expectedList, func(ctx context.Context, tx pgx.Tx, list ListSnapshot) (ItemUID, int64, error) {
 		item, err := readItem(ctx, tx, id, uid, true)
 		if err != nil {
 			return ItemUID{}, 0, err
 		}
+		item.listRevision = list.revision
 		if err := expectItem(id, uid, expectedItem, item); err != nil {
 			return ItemUID{}, 0, err
 		}

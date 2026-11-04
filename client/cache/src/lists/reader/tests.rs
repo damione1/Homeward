@@ -1,4 +1,5 @@
 use super::*;
+use crate::lists::tests::{changed, home, list, name, ready};
 use std::{
     collections::VecDeque,
     sync::{
@@ -7,101 +8,65 @@ use std::{
     },
 };
 use tokio::sync::{Notify, mpsc};
-use wire::watch_lists_response::Frame;
-
-struct Frames(mpsc::UnboundedReceiver<wire::WatchListsResponse>);
+struct Frames(mpsc::UnboundedReceiver<wire::WatchTaskListsResponse>);
 #[async_trait]
 impl Stream for Frames {
-    async fn next(&mut self) -> Result<Option<wire::WatchListsResponse>, Failure> {
+    async fn next(&mut self) -> Result<Option<wire::WatchTaskListsResponse>, Failure> {
         Ok(self.0.recv().await)
     }
 }
-
 struct Api {
-    pages: Mutex<VecDeque<wire::ListListsResponse>>,
+    pages: Mutex<VecDeque<wire::ListTaskListsResponse>>,
     tokens: Mutex<Vec<String>>,
-    counts: AtomicUsize,
-    changes: mpsc::UnboundedSender<wire::WatchListsResponse>,
-    changed_on_page: Option<usize>,
+    changes: mpsc::UnboundedSender<wire::WatchTaskListsResponse>,
+    change_on: Option<usize>,
 }
-
 #[async_trait]
 impl ReadApi for Api {
-    async fn metadata(&self, _: &Scope) -> Result<Option<wire::ListSnapshot>, ListReadExit> {
+    async fn metadata(
+        &self,
+        _: &Scope,
+    ) -> Result<Option<home_client_model::api_tasks::TaskListResource>, ListReadExit> {
         Ok(None)
-    }
-    async fn count(&self, _: &Scope) -> Result<u64, ListReadExit> {
-        self.counts.fetch_add(1, Ordering::SeqCst);
-        Ok(93) // Deliberately separate from the loaded row count.
     }
     async fn page(&self, _: &Scope, token: String) -> Result<Page, ListReadExit> {
         let mut tokens = self.tokens.lock().unwrap();
         tokens.push(token);
-        if self.changed_on_page == Some(tokens.len()) {
-            let mut change = wire::ListChanged::default();
-            change.list_id.get_or_insert_default().value = "old".into();
-            change.revision.get_or_insert_default().list_id = change.list_id.clone();
-            change.revision.get_or_insert_default().number = 2;
-            self.changes
-                .send(wire::WatchListsResponse {
-                    stream_sequence: 2,
-                    frame: Some(Frame::Changed(change.into())),
-                    ..Default::default()
-                })
-                .unwrap();
+        if self.change_on == Some(tokens.len()) {
+            self.changes.send(changed(2, "old")).unwrap();
         }
         Ok(Page::Catalog(
             self.pages
                 .lock()
                 .unwrap()
                 .pop_front()
-                .expect("expected page RPC"),
+                .expect("bounded expected RPC"),
         ))
     }
 }
-
-fn ready() -> wire::WatchListsResponse {
-    wire::WatchListsResponse {
-        stream_sequence: 1,
-        frame: Some(Frame::Ready(Default::default())),
+fn page(id: &str, token: &str, total: i32) -> wire::ListTaskListsResponse {
+    wire::ListTaskListsResponse {
+        task_lists: vec![list(id)],
+        next_page_token: token.to_owned(),
+        total_size: total,
         ..Default::default()
     }
 }
-
-fn page(name: &str, token: &str) -> wire::ListListsResponse {
-    let mut row = wire::ListSnapshot {
-        name: name.into(),
-        origin: wire::ListOrigin::Native.into(),
-        ..Default::default()
-    };
-    row.id.get_or_insert_default().value = name.into();
-    row.revision.get_or_insert_default().list_id = row.id.clone();
-    row.revision.get_or_insert_default().number = 1;
-    row.updated_at.get_or_insert_default().seconds = 1;
-    wire::ListListsResponse {
-        lists: vec![row],
-        next_page_token: token.into(),
-        ..Default::default()
-    }
-}
-
 #[tokio::test]
-async fn last_page_race_discards_the_old_prefix_and_rereads_count_without_a_new_stream() {
+async fn queued_last_page_invalidation_discards_all_old_rows_and_reloads_without_new_stream() {
     let (sender, receiver) = mpsc::unbounded_channel();
     sender.send(ready()).unwrap();
     let api = Api {
         pages: Mutex::new(VecDeque::from([
-            page("old", "next"),
-            page("stale", ""),
-            page("fresh", ""),
+            page("old", "next", 2),
+            page("stale", "", 2),
+            page("fresh", "", 1),
         ])),
         tokens: Mutex::new(Vec::new()),
-        counts: AtomicUsize::new(0),
         changes: sender,
-        changed_on_page: Some(2),
+        change_on: Some(2),
     };
     let cancel = CancellationToken::new();
-    let access = CancellationToken::new();
     let mut publications = Vec::new();
     let mut invalidations = 0;
     let exit = tokio::time::timeout(
@@ -110,19 +75,20 @@ async fn last_page_race_discards_the_old_prefix_and_rereads_count_without_a_new_
             &api,
             &mut Frames(receiver),
             Scope::Catalog,
+            home(),
             &cancel,
-            &access,
+            &CancellationToken::new(),
             |event| match event {
                 ListReadEvent::Invalidated => invalidations += 1,
                 ListReadEvent::Published(snapshot) => {
-                    assert_eq!(snapshot.count, 93);
-                    assert!(snapshot.fetched_at <= SystemTime::now());
+                    assert_eq!(snapshot.count, 1);
+                    assert_eq!(snapshot.home, home());
                     let CapturedRows::Catalog(rows) = &snapshot.rows else {
                         panic!("catalog")
                     };
                     publications.push(
                         rows.iter()
-                            .map(|row| row.id.value.clone())
+                            .map(|row| row.native_id().as_str().to_owned())
                             .collect::<Vec<_>>(),
                     );
                     cancel.cancel();
@@ -131,54 +97,48 @@ async fn last_page_race_discards_the_old_prefix_and_rereads_count_without_a_new_
         ),
     )
     .await
-    .expect("driver must terminate on cancellation");
+    .unwrap();
     assert!(matches!(exit, ListReadExit::Cancelled));
     assert_eq!(publications, [vec!["fresh"]]);
     assert_eq!(invalidations, 1);
-    assert_eq!(api.counts.load(Ordering::SeqCst), 2);
     assert_eq!(*api.tokens.lock().unwrap(), ["", "next", ""]);
 }
-
 #[tokio::test]
-async fn no_count_or_page_rpc_runs_before_ready_or_after_initial_cancellation() {
+async fn malformed_ready_or_initial_cancellation_never_starts_reads() {
     for cancelled in [false, true] {
         let (sender, receiver) = mpsc::unbounded_channel();
-        // Malformed first frame must terminate before any read RPC.
-        sender.send(wire::WatchListsResponse::default()).unwrap();
+        sender
+            .send(wire::WatchTaskListsResponse::default())
+            .unwrap();
         let api = Api {
             pages: Mutex::new(VecDeque::new()),
             tokens: Mutex::new(Vec::new()),
-            counts: AtomicUsize::new(0),
             changes: sender,
-            changed_on_page: None,
+            change_on: None,
         };
         let cancel = CancellationToken::new();
         if cancelled {
-            cancel.cancel();
+            cancel.cancel()
         }
         let exit = drive(
             &api,
             &mut Frames(receiver),
             Scope::Catalog,
+            home(),
             &cancel,
             &CancellationToken::new(),
-            |_| panic!("no publication"),
+            |_| panic!("no publish"),
         )
         .await;
-        if cancelled {
-            assert!(matches!(exit, ListReadExit::Cancelled));
+        assert!(if cancelled {
+            matches!(exit, ListReadExit::Cancelled)
         } else {
-            assert!(matches!(
-                exit,
-                ListReadExit::Contract(ReadFailure::InvalidResponse)
-            ));
-        }
-        assert_eq!(api.counts.load(Ordering::SeqCst), 0);
+            matches!(exit, ListReadExit::Contract(ReadFailure::InvalidResponse))
+        });
         assert!(api.tokens.lock().unwrap().is_empty());
     }
 }
-
-struct BlockedApi {
+struct Blocked {
     started: Notify,
     dropped: AtomicUsize,
 }
@@ -189,151 +149,120 @@ impl Drop for DropRead<'_> {
     }
 }
 #[async_trait]
-impl ReadApi for BlockedApi {
-    async fn metadata(&self, _: &Scope) -> Result<Option<wire::ListSnapshot>, ListReadExit> {
-        panic!("blocked Count precedes metadata")
-    }
-    async fn count(&self, _: &Scope) -> Result<u64, ListReadExit> {
+impl ReadApi for Blocked {
+    async fn metadata(
+        &self,
+        _: &Scope,
+    ) -> Result<Option<home_client_model::api_tasks::TaskListResource>, ListReadExit> {
         let _drop = DropRead(&self.dropped);
         self.started.notify_one();
         std::future::pending().await
     }
     async fn page(&self, _: &Scope, _: String) -> Result<Page, ListReadExit> {
-        panic!("blocked Count must be cancelled before any page RPC");
+        panic!("metadata blocked")
     }
 }
-
 #[tokio::test]
-async fn authority_resync_and_access_cancellation_drop_a_blocked_read_without_publication() {
-    enum Stop {
-        Resync,
-        Access,
-    }
-    for stop in [Stop::Resync, Stop::Access] {
+async fn resync_cancellation_and_eof_drop_blocked_capture_without_publication() {
+    for mode in 0..3 {
         let (sender, receiver) = mpsc::unbounded_channel();
         sender.send(ready()).unwrap();
-        let api = BlockedApi {
+        let api = Blocked {
             started: Notify::new(),
             dropped: AtomicUsize::new(0),
         };
-        let access = CancellationToken::new();
         let cancel = CancellationToken::new();
+        let access = CancellationToken::new();
+        let mut stream = Frames(receiver);
+        let driving = drive(
+            &api,
+            &mut stream,
+            Scope::Catalog,
+            home(),
+            &cancel,
+            &access,
+            |_| panic!("no publication"),
+        );
         let stopping = async {
             api.started.notified().await;
-            match stop {
-                Stop::Resync => sender
-                    .send(wire::WatchListsResponse {
-                        stream_sequence: 2,
-                        frame: Some(Frame::ResyncRequired(Default::default())),
-                        ..Default::default()
-                    })
-                    .unwrap(),
-                Stop::Access => access.cancel(),
+            match mode {
+                0 => {
+                    sender
+                        .send(wire::WatchTaskListsResponse {
+                            sequence: 2,
+                            frame: Some(wire::watch_task_lists_response::Frame::ResyncRequired(
+                                Default::default(),
+                            )),
+                            ..Default::default()
+                        })
+                        .unwrap();
+                }
+                1 => access.cancel(),
+                2 => drop(sender),
+                _ => unreachable!(),
             }
         };
-        let mut stream = Frames(receiver);
-        let driving = drive(&api, &mut stream, Scope::Catalog, &cancel, &access, |_| {
-            panic!("no publication")
-        });
         let (exit, ()) = tokio::time::timeout(Duration::from_secs(2), async {
             tokio::join!(driving, stopping)
         })
         .await
         .unwrap();
-        match stop {
-            Stop::Resync => assert!(matches!(exit, ListReadExit::Resync)),
-            Stop::Access => assert!(matches!(exit, ListReadExit::Cancelled)),
-        }
+        assert!(match mode {
+            0 => matches!(exit, ListReadExit::Resync),
+            1 => matches!(exit, ListReadExit::Cancelled),
+            2 => matches!(exit, ListReadExit::Ended),
+            _ => false,
+        });
         assert_eq!(api.dropped.load(Ordering::SeqCst), 1);
     }
 }
-
 #[tokio::test]
-async fn item_capture_carries_its_list_revision_and_refuses_missing_foreign_or_invalid_metadata() {
-    struct MetadataApi {
-        list: Option<wire::ListSnapshot>,
-        pages: AtomicUsize,
-    }
+async fn captured_list_metadata_must_match_selected_resource_and_remain_with_items() {
+    struct Metadata(Option<home_client_model::api_tasks::TaskListResource>);
     #[async_trait]
-    impl ReadApi for MetadataApi {
-        async fn count(&self, _: &Scope) -> Result<u64, ListReadExit> {
-            Ok(93)
-        }
-        async fn metadata(&self, _: &Scope) -> Result<Option<wire::ListSnapshot>, ListReadExit> {
-            Ok(self.list.clone())
+    impl ReadApi for Metadata {
+        async fn metadata(
+            &self,
+            _: &Scope,
+        ) -> Result<Option<home_client_model::api_tasks::TaskListResource>, ListReadExit> {
+            Ok(self.0.clone())
         }
         async fn page(&self, _: &Scope, _: String) -> Result<Page, ListReadExit> {
-            self.pages.fetch_add(1, Ordering::SeqCst);
-            Ok(Page::Items(wire::ListItemsResponse::default()))
+            Ok(Page::Items(wire::ListTasksResponse::default()))
         }
     }
-    enum Metadata {
-        Missing,
-        Foreign,
-        InvalidRevision,
-        Valid,
-    }
-    for scenario in [
-        Metadata::Missing,
-        Metadata::Foreign,
-        Metadata::InvalidRevision,
-        Metadata::Valid,
-    ] {
-        let list = match scenario {
-            Metadata::Missing => None,
-            Metadata::Foreign => Some(page("other", "").lists.remove(0)),
-            Metadata::InvalidRevision | Metadata::Valid => {
-                let mut row = page("a", "").lists.remove(0);
-                row.revision.get_or_insert_default().number = match scenario {
-                    Metadata::InvalidRevision => 0,
-                    Metadata::Valid => 12,
-                    Metadata::Missing | Metadata::Foreign => unreachable!(),
-                };
-                Some(row)
-            }
-        };
-        let api = MetadataApi {
-            list,
-            pages: AtomicUsize::new(0),
-        };
+    for id in [None, Some("other"), Some("a")] {
+        let api = Metadata(
+            id.map(|id| home_wire_contract::tasks_contract::parse_task_list(&list(id)).unwrap()),
+        );
         let (sender, receiver) = mpsc::unbounded_channel();
         sender.send(ready()).unwrap();
-        let mut stream = Frames(receiver);
         let cancel = CancellationToken::new();
-        let access = CancellationToken::new();
-        let mut published = 0;
-        let exit = drive(&api, &mut stream, Scope::Items("a".parse().unwrap()), &cancel, &access, |event| {
-            let ListReadEvent::Published(snapshot) = event else { panic!("no changed frame") };
-            let ListReadMetadata::List(list) = &snapshot.metadata else { panic!("item capture needs list metadata") };
-            assert_eq!(list.id.value, "a");
-            assert_eq!(list.revision.number, 12);
-            assert_eq!(snapshot.count, 93);
-            assert!(matches!(&snapshot.rows, CapturedRows::Items { list, rows } if list.as_str() == "a" && rows.is_empty()));
-            published += 1;
-            cancel.cancel();
-        }).await;
-        match scenario {
-            Metadata::Valid => {
-                assert!(matches!(exit, ListReadExit::Cancelled));
-                assert_eq!(published, 1);
-                assert_eq!(api.pages.load(Ordering::SeqCst), 1);
-            }
-            Metadata::Foreign => {
-                assert!(matches!(
-                    exit,
-                    ListReadExit::Contract(ReadFailure::WrongScope)
-                ));
-                assert_eq!(published, 0);
-                assert_eq!(api.pages.load(Ordering::SeqCst), 0);
-            }
-            Metadata::Missing | Metadata::InvalidRevision => {
-                assert!(matches!(
-                    exit,
-                    ListReadExit::Contract(ReadFailure::InvalidResponse)
-                ));
-                assert_eq!(published, 0);
-                assert_eq!(api.pages.load(Ordering::SeqCst), 0);
-            }
-        }
+        let exit = drive(
+            &api,
+            &mut Frames(receiver),
+            Scope::Items("a".parse().unwrap()),
+            home(),
+            &cancel,
+            &CancellationToken::new(),
+            |event| {
+                let ListReadEvent::Published(snapshot) = event else {
+                    panic!("no change")
+                };
+                let ListReadMetadata::List(resource) = &snapshot.metadata else {
+                    panic!("metadata")
+                };
+                assert_eq!(resource.name(), &name("a"));
+                assert_eq!(resource.revision().etag().as_str(), "\"opaque-list\"");
+                assert_eq!(snapshot.count, 0);
+                cancel.cancel();
+            },
+        )
+        .await;
+        assert!(match id {
+            None => matches!(exit, ListReadExit::Contract(ReadFailure::InvalidResponse)),
+            Some("a") => matches!(exit, ListReadExit::Cancelled),
+            Some(_) => matches!(exit, ListReadExit::Contract(ReadFailure::WrongScope)),
+        });
     }
 }

@@ -1,0 +1,420 @@
+syntax = "proto3";
+package home.api.v2;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "home/api/v2/media_traits.proto";
+import "home/api/v2/traits.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "MediaProto";
+option java_package = "com.home.api.v2";
+
+// Authorized content sources and caller-bound MediaSession resources. Pixels,
+// event collections and native streams remain projections owned by the source.
+service MediaService {
+  option (google.api.default_host) = "homeward.damiengoehrig.ca";
+  // Lists only currently readable configured content slots in canonical name order.
+  rpc ListMediaSources(ListMediaSourcesRequest) returns (ListMediaSourcesResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}/mediaSources"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Reads one exact configured source without acquiring a lease or opening I/O.
+  rpc GetMediaSource(GetMediaSourceRequest) returns (MediaSource) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/mediaSources/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Creates a caller/credential/source/kind-bound lease for at most 60 seconds.
+  rpc CreateMediaSession(CreateMediaSessionRequest) returns (MediaSession) {
+    option (google.api.http) = {
+      post: "/v2/{parent=homes/*}/mediaSessions"
+      body: "media_session"
+    };
+    option (google.api.method_signature) = "parent,media_session";
+  }
+  // Reads current session metadata without extending original expiry.
+  rpc GetMediaSession(GetMediaSessionRequest) returns (MediaSession) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/mediaSessions/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Lists only this credential's live sessions under current exact source rights.
+  rpc ListMediaSessions(ListMediaSessionsRequest) returns (ListMediaSessionsResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}/mediaSessions"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Retires the lease and cancels/joins native reads; never renews another lease.
+  rpc DeleteMediaSession(DeleteMediaSessionRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/v2/{name=homes/*/mediaSessions/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Reads one bounded PNG projection under the exact live session and target.
+  // (-- api-linter: core::0131::synonyms=disabled
+  //     aip.dev/not-precedent: This custom AIP136 method reads bounded source
+  //     bytes. It does not Get a persistent image resource or session metadata. --)
+  rpc ReadMediaSession(ReadMediaSessionRequest) returns (ReadMediaSessionResponse) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/mediaSessions/*}:read"};
+    option (google.api.method_signature) = "name,target";
+  }
+  // Queries a bounded current event projection. Tokens bind the same collection
+  // image, session, caller and authority; no event has an independent lifecycle.
+  rpc QueryMediaSessionEvents(QueryMediaSessionEventsRequest) returns (QueryMediaSessionEventsResponse) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/mediaSessions/*}:queryEvents"};
+    option (google.api.method_signature) = "name";
+  }
+  // Ready then event invalidations; cancellation/revocation interrupt a blocked
+  // HTTP/2 write. EOF/error/gaps retire the client's protected projection.
+  rpc WatchMediaSession(WatchMediaSessionRequest) returns (stream WatchMediaSessionResponse) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*/mediaSessions/*}:watch"
+      body: "*"
+    };
+    option (google.api.method_signature) = "name";
+  }
+  // Header then bounded AVCC samples. One native video per account, no audio,
+  // transcoding, downloads, automatic renewal or hidden retry.
+  rpc StreamMediaSession(StreamMediaSessionRequest) returns (stream StreamMediaSessionResponse) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/mediaSessions/*}:stream"};
+    option (google.api.method_signature) = "name";
+  }
+}
+
+// One exact configured content slot; labels never identify or merge sources.
+message MediaSource {
+  option (google.api.resource) = {
+    type: "homeward.damiengoehrig.ca/MediaSource"
+    pattern: "homes/{home}/mediaSources/{media_source}"
+    singular: "mediaSource"
+    plural: "mediaSources"
+  };
+  // Canonical resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // Caller-visible source or event label.
+  string display_name = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Canonical entity owning this content source.
+  string source_entity = 3 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"
+  ];
+  // Currently readable content kinds; unknown kinds are not actionable.
+  repeated MediaContentKind content_kinds = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Current observation quality, independent of data provenance.
+  ObservationQuality quality = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Distinguishes real installation data from isolated synthetic fixtures.
+  MediaDataProvenance data_provenance = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// A resource name locates a lease; it never grants content access.
+message MediaSession {
+  option (google.api.resource) = {
+    type: "homeward.damiengoehrig.ca/MediaSession"
+    pattern: "homes/{home}/mediaSessions/{media_session}"
+    singular: "mediaSession"
+    plural: "mediaSessions"
+  };
+  // Canonical resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // Exact content source admitted for the lifetime of this session.
+  string media_source = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSource"
+  ];
+  // One admitted content kind; it cannot change after creation.
+  MediaContentKind content_kind = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+  // Original session creation time.
+  google.protobuf.Timestamp create_time = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Original absolute expiry; reads never extend it.
+  google.protobuf.Timestamp expire_time = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Opaque version of the captured source event collection.
+  string events_etag = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Opaque artwork source reference, required only for ARTWORK; never returned.
+  bytes artwork_reference = 7 [
+    (google.api.field_behavior) = INPUT_ONLY,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = OPTIONAL
+  ];
+}
+
+// Request for authorized configured source slots.
+message ListMediaSourcesRequest {
+  // Canonical parent resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/MediaSource"
+  ];
+  // Maximum results; defaults to 100 and is clamped to 256. Negative values are invalid.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation token bound to the same caller and captured collection.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// A bounded source metadata page.
+message ListMediaSourcesResponse {
+  // Authorized sources in canonical resource-name order.
+  repeated MediaSource media_sources = 1;
+  // Continuation token; empty when the captured collection is exhausted.
+  string next_page_token = 2;
+}
+
+// Request for one exact configured source.
+message GetMediaSourceRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSource"
+  ];
+}
+
+// Request for a server-assigned data-plane session.
+// (-- api-linter: core::0133::request-id-field=disabled
+//     aip.dev/not-precedent: AIP133 permits server-assigned data-plane IDs.
+//     IDs contain 256 random bits; no caller-chosen alias is accepted. --)
+message CreateMediaSessionRequest {
+  // Canonical parent resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/MediaSession"
+  ];
+  // Session to create; its name and output-only fields are ignored.
+  MediaSession media_session = 2 [(google.api.field_behavior) = REQUIRED];
+  // Optional UUID4 for exact-result deduplication for 24 hours. Different intent reuse fails.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request for current session metadata.
+message GetMediaSessionRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSession"
+  ];
+}
+
+// Request for this credential’s live sessions.
+message ListMediaSessionsRequest {
+  // Canonical parent resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/MediaSession"
+  ];
+  // Maximum results; defaults to 100 and is clamped to 256. Negative values are invalid.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation token bound to the same caller and captured collection.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// This credential’s authorized session metadata page.
+message ListMediaSessionsResponse {
+  // This credential’s active sessions in canonical resource-name order.
+  repeated MediaSession media_sessions = 1;
+  // Continuation token; empty when the captured collection is exhausted.
+  string next_page_token = 2;
+}
+
+// Retire one caller-owned session and its transient native work.
+message DeleteMediaSessionRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSession"
+  ];
+  // Optional UUID4 for exact-result deduplication for 24 hours. Different intent reuse fails.
+  string request_id = 2 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Exact target within a source-backed session; no global image resource exists.
+message MediaImageTarget {
+  // Exactly one native target must be selected.
+  oneof value {
+    // Current snapshot or artwork image, according to the session's content kind.
+    google.protobuf.Empty snapshot = 1;
+    // Original source event ID, at most 256 UTF-8 bytes without controls.
+    string event_id = 2;
+  }
+}
+
+// Session-scoped bounded PNG projection, never cached on disk.
+message MediaImage {
+  // Exact admitted session to which these bytes belong.
+  string media_session = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSession"];
+  // Exact source target; no labels or aliases may select another target.
+  MediaImageTarget target = 2;
+  // Source capture time; never inferred from the session creation time.
+  google.protobuf.Timestamp capture_time = 3;
+  // Original lease expiry; this read never extends it.
+  google.protobuf.Timestamp expire_time = 4;
+  // PNG only: artwork <=128KiB/512x512; camera <=512KiB/1024x1024.
+  // Dimensions/allocation are admitted before decoding off the UI thread.
+  bytes png = 5;
+}
+
+// A bounded readonly projection of one native source event.
+message MediaEvent {
+  // Original native event ID, scoped by the response's exact MediaSession.
+  string event_id = 1;
+  // Caller-visible event title.
+  string display_name = 2;
+  // Bounded human-readable source category, never a provider URL or credential.
+  string source = 3;
+  // Original source capture time.
+  google.protobuf.Timestamp capture_time = 4;
+  // Whether this event advertises an image target under the same session.
+  bool has_image = 5;
+}
+
+// Request for one bounded source image projection.
+message ReadMediaSessionRequest {
+  // Exact session resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSession"
+  ];
+  // Exact snapshot/artwork or source event target.
+  MediaImageTarget target = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// One bounded native image projection; rejection uses canonical RPC errors.
+message ReadMediaSessionResponse {
+  // Bytes and original source/session metadata for the requested target.
+  MediaImage image = 1;
+}
+
+// Request for a bounded current native event collection projection.
+message QueryMediaSessionEventsRequest {
+  // Exact session resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSession"
+  ];
+  // Maximum events; zero selects 100, negative is invalid, maximum 256.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque token bound to the same caller, session and native event image.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// A page of native source event projections, with at most 64KiB projected data.
+message QueryMediaSessionEventsResponse {
+  // Source events in canonical opaque-ID order.
+  repeated MediaEvent media_events = 1;
+  // Exact session owning all event IDs in this response.
+  string media_session = 2 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSession"];
+  // Opaque version of the captured native event collection.
+  string events_etag = 3;
+  // Exact number of events in the captured authorized collection.
+  int32 total_size = 4;
+  // Continuation token; empty when the captured collection is exhausted.
+  string next_page_token = 5;
+}
+
+// Request for current session lifetime and event invalidations.
+message WatchMediaSessionRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSession"
+  ];
+}
+
+// Invalidates the protected native event collection projection.
+message MediaEventsChanged {
+  // Opaque version of the captured source event collection.
+  string events_etag = 1;
+}
+
+// One contiguous ready or invalidation frame.
+message WatchMediaSessionResponse {
+  // Positive stream sequence; starts at one and increases without gaps.
+  int64 sequence = 1;
+  // Exactly one current stream frame.
+  oneof frame {
+    // Original admitted session; always the first stream frame.
+    MediaSession ready = 2;
+    // Event-collection invalidation; callers discard their protected event cache.
+    MediaEventsChanged changed = 3;
+  }
+}
+
+// Actual bounded native H.264 baseline decoder configuration.
+message MediaVideoHeader {
+  // Exact session to which this content belongs.
+  MediaSession media_session = 1;
+  // Actual native video codec; unknown codecs cannot be decoded.
+  MediaVideoCodec codec = 2;
+  // Raw SPS/PPS NALs, each <=1024bytes. AVCC uses four-byte NAL lengths.
+  bytes sps = 3;
+  // Raw picture parameter set NAL, at most 1024 bytes.
+  bytes pps = 4;
+  // Positive native width, at most 1920 pixels; must match the actual output.
+  int32 width = 5;
+  // Positive native height, at most 1080 pixels.
+  int32 height = 6;
+  // Positive native frame rate, at most 30 frames per second.
+  int32 frames_per_second = 7;
+}
+
+// One bounded AVCC access unit with an original monotonic offset.
+message MediaVideoSample {
+  // Exact session to which this content belongs.
+  string media_session = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSession"];
+  // Strictly increasing nonnegative offset, microsecond precision.
+  google.protobuf.Duration presentation_duration = 2;
+  // One AVCC access unit <=512KiB/64NALs, first VCL a keyframe. No in-band
+  // parameter/dimension changes; those require an explicitly new stream.
+  bytes avcc = 3;
+}
+
+// Request for one native video under the exact active session.
+message StreamMediaSessionRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/MediaSession"
+  ];
+}
+
+// One contiguous native header or sample frame.
+message StreamMediaSessionResponse {
+  // Positive stream sequence; starts at one and increases without gaps.
+  int64 sequence = 1;
+  // Exactly one current stream frame.
+  oneof frame {
+    // Actual native decoder configuration; always the first stream frame.
+    MediaVideoHeader header = 2;
+    // One bounded sample belonging to this stream’s exact session.
+    MediaVideoSample sample = 3;
+  }
+}
+
+// Configured content kinds, independent of hardware or provider.
+enum MediaContentKind {
+  // No actionable content kind.
+  MEDIA_CONTENT_KIND_UNSPECIFIED = 0;
+  // Artwork supplied by a media source.
+  MEDIA_CONTENT_KIND_ARTWORK = 1;
+  // Camera snapshots, events or native video.
+  MEDIA_CONTENT_KIND_CAMERA = 2;
+}
+
+// Actual native video codecs supported by this bounded projection.
+enum MediaVideoCodec {
+  // No decodable codec.
+  MEDIA_VIDEO_CODEC_UNSPECIFIED = 0;
+  // H.264 baseline carried as AVCC access units.
+  MEDIA_VIDEO_CODEC_H264_BASELINE = 1;
+}

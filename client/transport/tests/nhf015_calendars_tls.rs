@@ -2,7 +2,7 @@
 use home_client_transport::{AccessToken, Connection};
 use home_wire_contract::{
     calendars_contract as admit,
-    home::{auth::v1 as auth, calendars::v1 as wire},
+    home::{api::v2 as wire, api::v2 as auth},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -80,11 +80,8 @@ async fn control(root: &Path, sequence: &mut u64, action: Control) {
     .await
     .expect("calendar fixture control timed out");
 }
-fn id(entity_id: &str) -> wire::CalendarId {
-    wire::CalendarId {
-        entity_id: entity_id.into(),
-        ..Default::default()
-    }
+fn request_id(n: u32) -> String {
+    format!("12345678-1234-4000-8000-{n:012x}")
 }
 #[tokio::test]
 async fn actual_calendar_tls_mutations_fold_resync_and_uncertainty() {
@@ -124,31 +121,71 @@ async fn actual_calendar_tls_mutations_fold_resync_and_uncertainty() {
     };
     let token = AccessToken::parse(&tokens.access_token).unwrap();
     let api = connection.calendars();
-    let catalog = api
-        .list_calendars(
-            wire::ListCalendarsRequest::default(),
+    let homes = connection
+        .home()
+        .list_homes(
+            wire::ListHomesRequest {
+                page_size: 2,
+                ..Default::default()
+            },
             &token,
             timeout,
             &cancel,
         )
         .await
         .unwrap();
-    let catalog = admit::admit_catalog(&catalog).unwrap();
-    assert_eq!(catalog.wire().calendars.len(), 3);
-    let local = id(&fixture.entities.local);
-    let local_id = admit::calendar_id(&local).unwrap();
-    let current = catalog
-        .wire()
-        .calendars
-        .iter()
-        .find(|calendar| calendar.id.entity_id == local.entity_id)
+    assert_eq!(homes.homes.len(), 1);
+    assert!(homes.next_page_token.is_empty());
+    let home = home_client_model::api::HomeName::try_from(homes.homes[0].name.as_str()).unwrap();
+    let catalog = api
+        .query_calendar_sources(
+            wire::QueryCalendarSourcesRequest {
+                parent: home.as_str().into(),
+                ..Default::default()
+            },
+            &token,
+            timeout,
+            &cancel,
+        )
+        .await
         .unwrap();
-    let current = admit::admit_calendar(current, &local_id).unwrap();
-    assert!(admit::calendar_editable(&current));
+    admit::admit_sources(&catalog, &home).unwrap();
+    assert_eq!(catalog.calendar_sources.len(), 3);
+    let source = |native: &str| {
+        catalog
+            .calendar_sources
+            .iter()
+            .find(|source| {
+                home_client_model::api_calendars::CalendarName::try_from(source.calendar.as_str())
+                    .is_ok_and(|name| name.native_id().entity().as_str() == native)
+            })
+            .unwrap()
+            .calendar
+            .clone()
+    };
+    let local = home_client_model::api_calendars::CalendarName::try_from(
+        source(&fixture.entities.local).as_str(),
+    )
+    .unwrap();
+    let current = api
+        .get_calendar(
+            wire::GetCalendarRequest {
+                name: local.as_str().into(),
+                ..Default::default()
+            },
+            &token,
+            timeout,
+            &cancel,
+        )
+        .await
+        .unwrap();
+    assert!(admit::calendar_editable(
+        &admit::admit_calendar(&current, &local).unwrap()
+    ));
     let mut watch = api
         .watch_calendar(
             wire::WatchCalendarRequest {
-                id: local.clone().into(),
+                name: local.as_str().into(),
                 ..Default::default()
             },
             &token,
@@ -157,85 +194,53 @@ async fn actual_calendar_tls_mutations_fold_resync_and_uncertainty() {
         )
         .await
         .unwrap();
-    let frame = watch.next().await.unwrap().unwrap();
-    admit::admit_watch(&frame, &local_id, 0).unwrap();
-    assert!(matches!(
-        frame.frame,
-        Some(wire::watch_calendar_response::Frame::Ready(_))
-    ));
-    let frame = watch.next().await.unwrap().unwrap();
-    admit::admit_watch(&frame, &local_id, 1).unwrap();
-    assert!(matches!(
-        frame.frame,
-        Some(wire::watch_calendar_response::Frame::ResyncRequired(_))
-    ));
-    let resolution_request = wire::ResolveLocalTimeRequest {
-        id: local.clone().into(),
-        local: "2026-11-01T01:30:00".into(),
-        zone: "America/Toronto".into(),
+    let ready = watch.next().await.unwrap().unwrap();
+    assert_eq!(
+        admit::admit_watch(&ready).unwrap(),
+        (1, admit::WatchFrame::Ready)
+    );
+    let resolution_request = wire::ResolveCalendarTimeRequest {
+        name: local.as_str().into(),
+        local: admit::parse_civil("2026-11-01T01:30:00").unwrap().into(),
+        time_zone: "America/Toronto".into(),
         ..Default::default()
     };
     let resolution = api
-        .resolve_local_time(resolution_request.clone(), &token, timeout, &cancel)
+        .resolve_calendar_time(resolution_request.clone(), &token, timeout, &cancel)
         .await
         .unwrap();
-    let resolution = admit::admit_resolution(&resolution, &resolution_request).unwrap();
+    admit::admit_resolution(&resolution, &resolution_request).unwrap();
     assert_eq!(
-        resolution.wire().resolution,
-        wire::LocalTimeResolution::Ambiguous
+        resolution.resolution,
+        wire::CalendarTimeResolution::Ambiguous
     );
-    let second = resolution.wire().candidates[1].instant.clone();
-    let key = wire::EventKey {
-        calendar: local.clone().into(),
-        uid: "rust-transport-explicit-fold".into(),
-        ..Default::default()
-    };
-    let absent = wire::Revision {
-        resource: key.clone().into(),
-        presence: wire::Presence::Absent.into(),
-        ..Default::default()
-    };
-    let event = wire::Event {
+    let second = resolution.candidates[1].selected_time.clone();
+    let event = wire::CalendarEvent {
         summary: "Synthetic explicit fold".into(),
-        span: wire::Span {
-            value: Some(wire::span::Value::Times(Box::new(wire::TimeSpan {
-                anchor_local: resolution_request.local.clone(),
-                zone: resolution_request.zone.clone(),
-                start_instant: second.clone(),
-                end_instant: "2026-11-01T07:30:00Z".into(),
-                ..Default::default()
-            }))),
+        span: wire::CalendarSpan {
+            value: Some(wire::calendar_span::Value::Times(Box::new(
+                wire::CalendarTimeSpan {
+                    start_local: resolution_request.local.clone(),
+                    end_local: admit::parse_civil("2026-11-01T02:30:00").unwrap().into(),
+                    time_zone: resolution_request.time_zone.clone(),
+                    start_time: second.clone(),
+                    end_time: admit::parse_timestamp("2026-11-01T07:30:00Z", true)
+                        .unwrap()
+                        .into(),
+                    ..Default::default()
+                },
+            ))),
             ..Default::default()
         }
         .into(),
         ..Default::default()
     };
-    let request = wire::MutateEventRequest {
-        key: key.clone().into(),
-        mutation: wire::Mutation::Create.into(),
-        expected_revision: absent.clone().into(),
-        value: event.clone().into(),
-        ..Default::default()
-    };
-    let domain_key = admit::event_key(&key).unwrap();
-    let previous = admit::event_revision(&absent, &domain_key).unwrap();
-    let admitted = admit::admit_event_mutation(&request, &current, &previous).unwrap();
-    let receipt = api
-        .mutate_event(request.clone(), &token, timeout, &cancel)
-        .await
-        .unwrap();
-    let previous_calendar = admit::calendar_revision(&current.wire().revision, &local_id).unwrap();
-    admit::admit_event_receipt(&receipt.receipt, &admitted, &previous_calendar).unwrap();
-    let frame = watch.next().await.unwrap().unwrap();
-    admit::admit_watch(&frame, &local_id, 2).unwrap();
-    assert!(matches!(
-        frame.frame,
-        Some(wire::watch_calendar_response::Frame::Changed(_))
-    ));
-    let read = api
-        .get_event(
-            wire::GetEventRequest {
-                key: key.clone().into(),
+    let created = api
+        .create_calendar_event(
+            wire::CreateCalendarEventRequest {
+                parent: local.as_str().into(),
+                calendar_event: event.clone().into(),
+                request_id: request_id(1),
                 ..Default::default()
             },
             &token,
@@ -244,95 +249,162 @@ async fn actual_calendar_tls_mutations_fold_resync_and_uncertainty() {
         )
         .await
         .unwrap();
-    let read = admit::admit_event(&read.event, &domain_key).unwrap();
-    let Some(wire::span::Value::Times(span)) = &read.wire().value.span.value else {
+    let key = home_client_model::api_calendars::CalendarEventName::try_from(created.name.as_str())
+        .unwrap();
+    admit::admit_event(&created, &key).unwrap();
+    let changed = watch.next().await.unwrap().unwrap();
+    assert!(matches!(
+        admit::admit_watch(&changed).unwrap(),
+        (2, admit::WatchFrame::Changed(_))
+    ));
+    let read = api
+        .get_calendar_event(
+            wire::GetCalendarEventRequest {
+                name: key.as_str().into(),
+                ..Default::default()
+            },
+            &token,
+            timeout,
+            &cancel,
+        )
+        .await
+        .unwrap();
+    let Some(wire::calendar_span::Value::Times(span)) = &read.span.value else {
         panic!("timed span changed kind")
     };
-    assert_eq!(span.start_instant, second);
-    assert_eq!(span.end_local, "2026-11-01T02:30:00");
-    let stale = api
-        .mutate_event(request.clone(), &token, timeout, &cancel)
-        .await
-        .err()
-        .unwrap();
+    assert_eq!(span.start_time, second);
     assert_eq!(
-        stale.calendar_error().unwrap().unwrap().code,
-        wire::ErrorCode::Conflict
+        admit::civil_text(&span.end_local).unwrap(),
+        "2026-11-01T02:30:00"
     );
-    for foreign in [&fixture.entities.remote, &fixture.entities.calculated] {
-        let mut denied = request.clone();
-        denied.key.as_option_mut().unwrap().calendar = id(foreign).into();
-        denied.expected_revision.as_option_mut().unwrap().resource = denied.key.clone();
-        let error = api
-            .mutate_event(denied, &token, timeout, &cancel)
+    let mask = || buffa_types::google::protobuf::FieldMask {
+        paths: vec!["summary".into()],
+        ..Default::default()
+    };
+    let mut stale = read.clone();
+    stale.etag = "W/\"different-opaque-token\"".into();
+    let failure = api
+        .update_calendar_event(
+            wire::UpdateCalendarEventRequest {
+                calendar_event: stale.into(),
+                update_mask: mask().into(),
+                request_id: request_id(2),
+                ..Default::default()
+            },
+            &token,
+            timeout,
+            &cancel,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(
+        failure.api_failure().unwrap().unwrap().reason(),
+        wire::ApiErrorReason::EtagMismatch
+    );
+    for (index, foreign) in [&fixture.entities.remote, &fixture.entities.calculated]
+        .iter()
+        .enumerate()
+    {
+        let failure = api
+            .create_calendar_event(
+                wire::CreateCalendarEventRequest {
+                    parent: source(foreign),
+                    calendar_event: event.clone().into(),
+                    request_id: request_id(3 + index as u32),
+                    ..Default::default()
+                },
+                &token,
+                timeout,
+                &cancel,
+            )
             .await
-            .err()
-            .unwrap();
+            .unwrap_err();
         assert_eq!(
-            error.calendar_error().unwrap().unwrap().code,
-            wire::ErrorCode::ReadOnly
+            failure.api_failure().unwrap().unwrap().reason(),
+            wire::ApiErrorReason::SourceReadOnly
         );
     }
     let mut query = wire::QueryOccurrencesRequest {
-        id: local.clone().into(),
+        parent: format!("{}/events/-", local.as_str()),
         page_size: 1,
-        window: wire::Window {
-            zone: "America/Toronto".into(),
-            bounds: Some(wire::window::Bounds::Dates(Box::new(wire::DateSpan {
-                start: "2026-11-01".into(),
-                end_exclusive: "2026-11-08".into(),
-                ..Default::default()
-            }))),
+        window: wire::CalendarWindow {
+            time_zone: "America/Toronto".into(),
+            bounds: Some(wire::calendar_window::Bounds::Dates(Box::new(
+                wire::CalendarDateSpan {
+                    start_date: admit::date_wire("2026-11-01".parse().unwrap()).into(),
+                    end_date: admit::date_wire("2026-11-08".parse().unwrap()).into(),
+                    ..Default::default()
+                },
+            ))),
             ..Default::default()
         }
         .into(),
         ..Default::default()
     };
-    let admitted_query = admit::admit_query(&query).unwrap();
+    let calendar = api
+        .get_calendar(
+            wire::GetCalendarRequest {
+                name: local.as_str().into(),
+                ..Default::default()
+            },
+            &token,
+            timeout,
+            &cancel,
+        )
+        .await
+        .unwrap();
+    let version = admit::calendar_version(&calendar).unwrap();
     let page = api
         .query_occurrences(query.clone(), &token, timeout, &cancel)
         .await
         .unwrap();
-    admit::admit_page(&page, &admitted_query, None).unwrap();
+    admit::admit_page(&page, &admit::admit_query(&query).unwrap(), &version).unwrap();
     assert_eq!(page.occurrences.len(), 1);
     assert!(!page.next_page_token.is_empty());
     query.page_token = page.next_page_token.clone();
-    let revision = admit::calendar_revision(&page.revision, &local_id).unwrap();
     let next = api
         .query_occurrences(query.clone(), &token, timeout, &cancel)
         .await
         .unwrap();
-    admit::admit_page(&next, &admit::admit_query(&query).unwrap(), Some(&revision)).unwrap();
+    admit::admit_page(&next, &admit::admit_query(&query).unwrap(), &version).unwrap();
     assert_ne!(
         (
-            &next.occurrences[0].key.uid,
-            &next.occurrences[0].recurrence_id
+            &next.occurrences[0].calendar_event,
+            admit::point_key(&next.occurrences[0].recurrence_point).unwrap()
         ),
         (
-            &page.occurrences[0].key.uid,
-            &page.occurrences[0].recurrence_id
+            &page.occurrences[0].calendar_event,
+            admit::point_key(&page.occurrences[0].recurrence_point).unwrap()
         )
     );
     let mut sequence = 0;
     control(&root, &mut sequence, Control::LoseNextReply).await;
-    let mut update = request;
-    update.mutation = wire::Mutation::Update.into();
-    update.expected_revision = receipt.receipt.revision.clone();
-    let error = api
-        .mutate_event(update, &token, timeout, &cancel)
+    let mut updated = read.clone();
+    updated.summary = "Commit without reply".into();
+    let failure = api
+        .update_calendar_event(
+            wire::UpdateCalendarEventRequest {
+                calendar_event: updated.into(),
+                update_mask: mask().into(),
+                request_id: request_id(5),
+                ..Default::default()
+            },
+            &token,
+            timeout,
+            &cancel,
+        )
         .await
-        .err()
-        .unwrap();
+        .unwrap_err();
     assert_eq!(
-        error.calendar_error().unwrap().unwrap().code,
-        wire::ErrorCode::CommitUnknown
+        failure.api_failure().unwrap().unwrap().reason(),
+        wire::ApiErrorReason::CommitOutcomeUnknown
     );
-    let frame = watch.next().await.unwrap().unwrap();
-    admit::admit_watch(&frame, &local_id, 3).unwrap();
-    let read = api
-        .get_event(
-            wire::GetEventRequest {
-                key: key.clone().into(),
+    let changed = watch.next().await.unwrap().unwrap();
+    assert_eq!(admit::admit_watch(&changed).unwrap().0, 3);
+    let committed = api
+        .get_calendar_event(
+            wire::GetCalendarEventRequest {
+                name: key.as_str().into(),
                 ..Default::default()
             },
             &token,
@@ -341,22 +413,22 @@ async fn actual_calendar_tls_mutations_fold_resync_and_uncertainty() {
         )
         .await
         .unwrap();
-    admit::admit_event(&read.event, &domain_key).unwrap();
-    assert_eq!(read.event.revision.number, 2);
-    let stale_cursor = api
+    admit::admit_event(&committed, &key).unwrap();
+    assert_ne!(committed.etag, read.etag);
+    assert_eq!(committed.summary, "Commit without reply");
+    let failure = api
         .query_occurrences(query, &token, timeout, &cancel)
         .await
-        .err()
-        .unwrap();
+        .unwrap_err();
     assert_eq!(
-        stale_cursor.calendar_error().unwrap().unwrap().code,
-        wire::ErrorCode::StaleCursor
+        failure.api_failure().unwrap().unwrap().reason(),
+        wire::ApiErrorReason::ResyncRequired
     );
     control(&root, &mut sequence, Control::RevokeWrite).await;
     let calendar = api
         .get_calendar(
             wire::GetCalendarRequest {
-                id: local.clone().into(),
+                name: local.as_str().into(),
                 ..Default::default()
             },
             &token,
@@ -366,23 +438,22 @@ async fn actual_calendar_tls_mutations_fold_resync_and_uncertainty() {
         .await
         .unwrap();
     assert!(!admit::calendar_editable(
-        &admit::admit_calendar(&calendar.calendar, &local_id).unwrap()
+        &admit::admit_calendar(&calendar, &local).unwrap()
     ));
-    let delete = wire::MutateEventRequest {
-        key: key.clone().into(),
-        mutation: wire::Mutation::Delete.into(),
-        expected_revision: read.event.revision.clone(),
+    let delete = wire::DeleteCalendarEventRequest {
+        name: key.as_str().into(),
+        etag: committed.etag.clone(),
+        request_id: request_id(6),
         ..Default::default()
     };
-    let error = api
-        .mutate_event(delete.clone(), &token, timeout, &cancel)
+    let failure = api
+        .delete_calendar_event(delete.clone(), &token, timeout, &cancel)
         .await
-        .err()
-        .unwrap();
-    assert!(matches!(
-        error.kind(),
-        home_client_transport::FailureKind::Rpc(home_client_transport::RpcCode::PermissionDenied)
-    ));
+        .unwrap_err();
+    assert_eq!(
+        failure.api_failure().unwrap().unwrap().reason(),
+        wire::ApiErrorReason::AccessDenied
+    );
     control(&root, &mut sequence, Control::AllowWrite).await;
     control(&root, &mut sequence, Control::RevokeRead).await;
     assert!(watch.next().await.is_err());
@@ -391,7 +462,7 @@ async fn actual_calendar_tls_mutations_fold_resync_and_uncertainty() {
     let mut fresh = api
         .watch_calendar(
             wire::WatchCalendarRequest {
-                id: local.clone().into(),
+                name: local.as_str().into(),
                 ..Default::default()
             },
             &token,
@@ -400,17 +471,15 @@ async fn actual_calendar_tls_mutations_fold_resync_and_uncertainty() {
         )
         .await
         .unwrap();
-    let first = fresh.next().await.unwrap().unwrap();
-    assert_eq!(first.stream_sequence, 1);
-    assert!(matches!(
-        first.frame,
-        Some(wire::watch_calendar_response::Frame::Ready(_))
-    ));
+    assert_eq!(
+        admit::admit_watch(&fresh.next().await.unwrap().unwrap()).unwrap(),
+        (1, admit::WatchFrame::Ready)
+    );
     drop(fresh);
     let reread = api
-        .get_event(
-            wire::GetEventRequest {
-                key: key.clone().into(),
+        .get_calendar_event(
+            wire::GetCalendarEventRequest {
+                name: key.as_str().into(),
                 ..Default::default()
             },
             &token,
@@ -419,25 +488,38 @@ async fn actual_calendar_tls_mutations_fold_resync_and_uncertainty() {
         )
         .await
         .unwrap();
-    assert_eq!(reread.event.revision.number, 2);
-    let gap_request = wire::ResolveLocalTimeRequest {
-        local: "2026-03-08T02:30:00".into(),
+    assert_eq!(reread.etag, committed.etag);
+    let gap_request = wire::ResolveCalendarTimeRequest {
+        local: admit::parse_civil("2026-03-08T02:30:00").unwrap().into(),
         ..resolution_request
     };
     let gap = api
-        .resolve_local_time(gap_request.clone(), &token, timeout, &cancel)
+        .resolve_calendar_time(gap_request.clone(), &token, timeout, &cancel)
         .await
         .unwrap();
     admit::admit_resolution(&gap, &gap_request).unwrap();
-    assert_eq!(gap.resolution, wire::LocalTimeResolution::Nonexistent);
+    assert_eq!(gap.resolution, wire::CalendarTimeResolution::Nonexistent);
     assert!(gap.candidates.is_empty());
-    let deleted = api
-        .mutate_event(delete, &token, timeout, &cancel)
+    api.delete_calendar_event(delete, &token, timeout, &cancel)
         .await
         .unwrap();
-    assert_eq!(deleted.receipt.revision.presence, wire::Presence::Removed);
-    assert_eq!(deleted.receipt.revision.number, 3);
+    let missing = api
+        .get_calendar_event(
+            wire::GetCalendarEventRequest {
+                name: key.as_str().into(),
+                ..Default::default()
+            },
+            &token,
+            timeout,
+            &cancel,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(
+        missing.api_failure().unwrap().unwrap().reason(),
+        wire::ApiErrorReason::ResourceNotFound
+    );
     println!(
-        "NHF015_CALENDAR_TLS_PASS verified_tls13_native_session_calendar_rpc_crud_fold_gap_pagination_cas_readonly_watch_revocation_commit_unknown_no_replay"
+        "NHF015_CALENDAR_TLS_PASS v2_crud_fold_gap_pages_cas_readonly_revocation_commit_unknown_no_replay"
     );
 }

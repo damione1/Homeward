@@ -1,167 +1,137 @@
 use buffa::EnumValue;
-use buffa_types::google::protobuf::Timestamp;
-use home_wire_contract::{
-    home::{media::v1 as wire, state::v1 as state},
-    media_contract as admit,
-};
+use home_wire_contract::{api_playback_contract::playback, home::api::v2 as wire};
 
-fn snapshot() -> wire::Snapshot {
-    wire::Snapshot {
-        route: wire::Route {
-            entity_id: "opaque-reader".into(),
-            endpoint: "playback".into(),
-            coordinator_entity_id: "opaque-coordinator-a".into(),
-            topology_revision: 1,
-            admission_epoch: "1234567890abcdef1234567890abcdef".into(),
-            config_revision: 7,
-            ..Default::default()
-        }
-        .into(),
-        capabilities: wire::Capabilities {
-            operations: vec![wire::Operation::Play.into(), wire::Operation::Pause.into()],
-            volume_basis_points: wire::QuantityBounds {
-                minimum: 0,
-                maximum: 10_000,
-                step: 100,
+fn capability() -> wire::Capability {
+    wire::Capability {
+        name: "homes/test/entities/player/capabilities/playback".into(),
+        etag: "W/\"definition-one\"".into(),
+        action_access: wire::ActionAccess::Allowed.into(),
+        r#trait: Some(wire::capability::Trait::MediaPlayback(
+            wire::MediaPlaybackCapability {
+                definition: wire::MediaPlaybackDefinition {
+                    operations: vec![wire::MediaOperation::Play.into()],
+                    volume_basis_points: wire::MediaVolumeBounds {
+                        minimum: 0,
+                        maximum: 10000,
+                        step: 100,
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                }
+                .into(),
+                observation: wire::MediaPlaybackObservation {
+                    route: wire::MediaRoute {
+                        entity: "homes/test/entities/player".into(),
+                        endpoint: "playback".into(),
+                        coordinator: "homes/test/entities/coordinator".into(),
+                        topology_revision: 1,
+                        admission_epoch: "1234567890abcdef1234567890abcdef".into(),
+                        config_revision: 7,
+                        ..Default::default()
+                    }
+                    .into(),
+                    volume_basis_points: Some(0),
+                    powered_on: Some(false),
+                    quality: wire::ObservationQuality {
+                        availability: wire::Availability::Available.into(),
+                        freshness: wire::Freshness::Current.into(),
+                        provenance: wire::Provenance::Observed.into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                }
+                .into(),
+                action_access: wire::ActionAccess::Allowed.into(),
+                data_provenance: wire::MediaDataProvenance::Synthetic.into(),
                 ..Default::default()
             }
             .into(),
-            position_millis: wire::QuantityBounds {
-                minimum: 0,
-                maximum: 120_000,
-                step: 1000,
-                ..Default::default()
-            }
-            .into(),
-            sources: vec![wire::Option {
-                id: "opaque-source".into(),
-                label: "Injected source".into(),
-                ..Default::default()
-            }],
-            ..Default::default()
-        }
-        .into(),
-        action_access: state::ActionAccess::Allowed.into(),
-        playback: wire::PlaybackState::Paused.into(),
-        volume_basis_points: Some(0),
-        position_millis: Some(0),
-        duration_millis: Some(120_000),
-        quality: state::Quality {
-            availability: state::Availability::Available.into(),
-            freshness: state::Freshness::Fresh.into(),
-            provenance: state::Provenance::Estimated.into(),
-            ..Default::default()
-        }
-        .into(),
-        received_at: Timestamp {
-            seconds: 1_790_000_000,
-            ..Default::default()
-        }
-        .into(),
-        descriptor_sha256: vec![42; 32],
-        provenance: "Synthetic mock".into(),
+        )),
         ..Default::default()
     }
 }
-fn action(s: &wire::Snapshot, command: wire::media_action::Command) -> wire::MediaAction {
-    wire::MediaAction {
-        route: s.route.clone(),
-        command: Some(command),
-        ..Default::default()
-    }
+fn media(value: &mut wire::Capability) -> &mut wire::MediaPlaybackCapability {
+    let Some(wire::capability::Trait::MediaPlayback(media)) = &mut value.r#trait else {
+        panic!("fixture trait")
+    };
+    media
 }
-
 #[test]
-fn zero_is_present_and_canonical_steps_are_enforced_without_float_rounding() {
-    use wire::media_action::Command as C;
-    let s = snapshot();
-    assert!(admit::snapshot(&s, "opaque-reader"));
-    assert!(admit::action(&action(&s, C::VolumeBasisPoints(0)), &s));
-    assert!(admit::action(&action(&s, C::PositionMillis(0)), &s));
-    assert!(!admit::action(&action(&s, C::VolumeBasisPoints(1)), &s));
-    assert!(!admit::action(&action(&s, C::PositionMillis(120_001)), &s));
-    assert!(!admit::action(
-        &action(&s, C::SourceId("Injected source".into())),
-        &s
-    ));
-    assert!(admit::action(
-        &action(&s, C::SourceId("opaque-source".into())),
-        &s
-    ));
-}
-
-#[test]
-fn coordinator_change_never_retargets_a_prepared_intention() {
-    let mut s = snapshot();
-    let prepared = action(
-        &s,
-        wire::media_action::Command::Operation(wire::Operation::Play.into()),
+fn zero_false_and_unknown_playback_remain_independent() {
+    let value = playback(&capability()).unwrap().unwrap();
+    let reading = value.observation().unwrap();
+    assert_eq!(reading.volume().unwrap().value(), 0);
+    assert_eq!(reading.powered_on(), Some(false));
+    assert_eq!(
+        reading.playback(),
+        home_client_model::api_playback::PlaybackState::Unknown
     );
-    s.route.as_option_mut().unwrap().coordinator_entity_id = "opaque-coordinator-b".into();
-    s.route.as_option_mut().unwrap().topology_revision += 1;
-    assert!(!admit::action(&prepared, &s));
-    assert_ne!(prepared.route.as_option(), s.route.as_option());
+    assert!(value.can_prepare());
+    let bounds = value.definition().unwrap().volume().unwrap().quantity();
+    assert!(bounds.admits(0));
+    assert!(!bounds.admits(1));
 }
-
 #[test]
-fn reading_or_an_old_capability_is_never_write_permission() {
-    let mut s = snapshot();
-    let prepared = action(
-        &s,
-        wire::media_action::Command::Operation(wire::Operation::Play.into()),
-    );
-    s.action_access = state::ActionAccess::Denied.into();
-    assert!(admit::snapshot(&s, "opaque-reader"));
-    assert!(!admit::action(&prepared, &s));
-    s.action_access = state::ActionAccess::Allowed.into();
-    s.capabilities.as_option_mut().unwrap().operations.clear();
-    assert!(!admit::action(&prepared, &s));
+fn both_grants_and_actual_definition_are_required_to_prepare() {
+    let mut raw = capability();
+    raw.action_access = wire::ActionAccess::Denied.into();
+    assert!(!playback(&raw).unwrap().unwrap().can_prepare());
+    raw.action_access = wire::ActionAccess::Allowed.into();
+    media(&mut raw).action_access = wire::ActionAccess::Denied.into();
+    assert!(!playback(&raw).unwrap().unwrap().can_prepare());
+    media(&mut raw).action_access = wire::ActionAccess::Allowed.into();
+    media(&mut raw).definition = Default::default();
+    let parsed = playback(&raw).unwrap().unwrap();
+    assert!(parsed.definition().is_none());
+    assert!(!parsed.can_prepare());
 }
-
 #[test]
-fn foreign_entities_duplicate_options_unknown_variants_and_oversized_metadata_fail_closed() {
-    let mut s = snapshot();
-    assert!(!admit::snapshot(&s, "foreign-reader"));
-    s.capabilities
+fn foreign_route_future_enum_and_duplicate_support_fail_closed() {
+    let mut raw = capability();
+    media(&mut raw)
+        .observation
+        .as_option_mut()
+        .unwrap()
+        .route
+        .as_option_mut()
+        .unwrap()
+        .entity = "homes/test/entities/foreign".into();
+    assert!(playback(&raw).is_err());
+    let mut raw = capability();
+    media(&mut raw)
+        .observation
+        .as_option_mut()
+        .unwrap()
+        .playback = EnumValue::Unknown(999);
+    assert!(playback(&raw).is_err());
+    let mut raw = capability();
+    media(&mut raw)
+        .definition
         .as_option_mut()
         .unwrap()
         .operations
-        .push(EnumValue::Unknown(999));
-    assert!(!admit::snapshot(&s, "opaque-reader"));
-    s = snapshot();
-    let duplicate = s.capabilities.as_option().unwrap().sources[0].clone();
-    s.capabilities
+        .push(wire::MediaOperation::Play.into());
+    assert!(playback(&raw).is_err());
+    let mut raw = capability();
+    media(&mut raw).data_provenance = EnumValue::Unknown(999);
+    assert!(playback(&raw).is_err());
+}
+#[test]
+fn stale_or_absent_observation_never_authorizes_commands() {
+    let mut raw = capability();
+    media(&mut raw)
+        .observation
         .as_option_mut()
         .unwrap()
-        .sources
-        .push(duplicate);
-    assert!(!admit::snapshot(&s, "opaque-reader"));
-    s = snapshot();
-    s.title = Some("x".repeat(1025));
-    assert!(!admit::snapshot(&s, "opaque-reader"));
-    s = snapshot();
-    s.quality.as_option_mut().unwrap().availability = EnumValue::Unknown(999);
-    assert!(!admit::snapshot(&s, "opaque-reader"));
-}
-
-#[test]
-fn artwork_is_an_opaque_bounded_reference_with_an_explicit_expiry() {
-    let mut s = snapshot();
-    let mut reference = wire::ArtworkReference {
-        reference: vec![17; 32],
-        expires_at: Timestamp {
-            seconds: 1_790_000_030,
-            ..Default::default()
-        }
-        .into(),
-        ..Default::default()
-    };
-    s.artwork = reference.clone().into();
-    assert!(admit::snapshot(&s, "opaque-reader"));
-    reference.reference.resize(513, 17);
-    s.artwork = reference.clone().into();
-    assert!(!admit::snapshot(&s, "opaque-reader"));
-    reference.reference.clear();
-    s.artwork = reference.into();
-    assert!(!admit::snapshot(&s, "opaque-reader"));
+        .quality
+        .as_option_mut()
+        .unwrap()
+        .freshness = wire::Freshness::Stale.into();
+    assert!(!playback(&raw).unwrap().unwrap().can_prepare());
+    media(&mut raw).observation = Default::default();
+    let parsed = playback(&raw).unwrap().unwrap();
+    assert!(parsed.observation().is_none());
+    assert!(!parsed.can_prepare());
 }

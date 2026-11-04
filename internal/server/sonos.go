@@ -3,14 +3,12 @@ package server
 import (
 	"context"
 	"errors"
-	"net/http"
+	"fmt"
 	"time"
 
-	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	media "github.com/damione1/Homeward/gen/home/media/v1"
-	"github.com/damione1/Homeward/gen/home/media/v1/mediav1connect"
 	state "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/internal/androidtv"
 	"github.com/damione1/Homeward/internal/authorization"
@@ -80,54 +78,27 @@ type nativeMediaHandler struct {
 	epoch     integrations.CommandEpochAuthority
 }
 
-func mediaReadError(code connect.Code) error {
-	return connect.NewError(code, errors.New("media observation unavailable"))
-}
+// Absence is distinguished from malformed owner state/configuration failure.
+// It still wraps the native unavailable classification used by private helpers.
+var errNativeMediaNotObserved = fmt.Errorf("native media observation absent: %w", sonos.ErrUnavailable)
 
-func (h *nativeMediaHandler) ReadSnapshot(ctx context.Context, request *connect.Request[media.ReadSnapshotRequest]) (*connect.Response[media.ReadSnapshotResponse], error) {
-	if request == nil || request.Msg == nil || len(request.Msg.ProtoReflect().GetUnknown()) != 0 {
-		return nil, mediaReadError(connect.CodeInvalidArgument)
+// newNativeMediaProjector creates the single shared read projection owner. The
+// runtimes retain cached observations/codec proofs and perform all provider I/O.
+func newNativeMediaProjector(runtime *sonos.Runtime, tv *androidtv.Runtime, owner *configactivation.Owner, authority *authorization.Authority, epoch integrations.CommandEpochAuthority) (*nativeMediaHandler, error) {
+	if runtime == nil && tv == nil {
+		return nil, nil
 	}
-	entity, e := domain.ParseEntityID(request.Msg.EntityId)
-	if e != nil {
-		return nil, mediaReadError(connect.CodeInvalidArgument)
+	if owner == nil || authority == nil || epoch == nil {
+		return nil, sonos.ErrSettings
 	}
-	principal, e := authorization.PrincipalFromContext(ctx)
-	if e != nil || !principal.Native() {
-		return nil, mediaReadError(connect.CodePermissionDenied)
+	handler := &nativeMediaHandler{owner: owner, authority: authority, epoch: epoch}
+	if runtime != nil {
+		handler.sources = append(handler.sources, nativeMediaSource{schema: sonos.Schema, endpoint: sonos.Endpoint, snapshot: runtime.Snapshot, commands: true})
 	}
-	actor, e := principal.Actor()
-	actual, present := ActorFromContext(ctx)
-	if e != nil || !present || actor != actual {
-		return nil, mediaReadError(connect.CodePermissionDenied)
+	if tv != nil {
+		handler.sources = append(handler.sources, nativeMediaSource{schema: androidtv.Schema, endpoint: androidtv.Endpoint, snapshot: tv.Snapshot})
 	}
-	stamp, e := h.owner.CurrentConfig(ctx)
-	if e != nil {
-		return nil, mediaReadError(connect.CodeUnavailable)
-	}
-	revision, _, e := stamp.Components()
-	if e != nil {
-		return nil, mediaReadError(connect.CodeUnavailable)
-	}
-	var snapshot *media.Snapshot
-	e = h.authority.WithCurrent(ctx, principal, func(current authorization.Current) error {
-		var err error
-		snapshot, err = projectNativeMediaCurrent(current, entity, h.sources, revision, h.epoch)
-		return err
-	})
-	if e != nil {
-		if errors.Is(e, authorization.ErrDenied) {
-			return nil, mediaReadError(connect.CodePermissionDenied)
-		}
-		return nil, mediaReadError(connect.CodeUnavailable)
-	}
-	// Recheck configuration after the in-memory authorization fence. No network
-	// work is performed inside that fence or on the public request path.
-	current, e := h.owner.CurrentConfig(ctx)
-	if e != nil || current != stamp {
-		return nil, mediaReadError(connect.CodeUnavailable)
-	}
-	return connect.NewResponse(&media.ReadSnapshotResponse{Result: &media.ReadSnapshotResponse_Snapshot{Snapshot: snapshot}}), nil
+	return handler, nil
 }
 
 func projectNativeMediaCurrent(current authorization.Current, entity domain.EntityID, sources []nativeMediaSource, revision uint64, epochAuthority integrations.CommandEpochAuthority) (*media.Snapshot, error) {
@@ -250,7 +221,7 @@ func projectNativeMediaActions(entity domain.EntityID, sources []nativeMediaSour
 		return nil, authorization.ErrDenied
 	}
 	if snapshot == nil {
-		return nil, sonos.ErrUnavailable
+		return nil, errNativeMediaNotObserved
 	}
 	return snapshot, nil
 }
@@ -279,44 +250,4 @@ func nativeMediaCommandsFresh(snapshot *media.Snapshot) bool {
 	}
 	age := time.Since(snapshot.ReceivedAt.AsTime())
 	return age >= 0 && age <= 45*time.Second
-}
-
-func (h *nativeMediaHandler) ReadArtwork(context.Context, *connect.Request[media.ReadArtworkRequest]) (*connect.Response[media.ReadArtworkResponse], error) {
-	return nil, mediaReadError(connect.CodeUnimplemented)
-}
-
-func registerNativeMediaRoutes(plan *PublicPlan, runtime *sonos.Runtime, tv *androidtv.Runtime, owner *configactivation.Owner, authority *authorization.Authority, epoch integrations.CommandEpochAuthority) error {
-	if runtime == nil && tv == nil {
-		return nil
-	}
-	if plan == nil || owner == nil || authority == nil || epoch == nil {
-		return sonos.ErrSettings
-	}
-	handler := &nativeMediaHandler{owner: owner, authority: authority, epoch: epoch}
-	if runtime != nil {
-		handler.sources = append(handler.sources, nativeMediaSource{schema: sonos.Schema, endpoint: sonos.Endpoint, snapshot: runtime.Snapshot, commands: true})
-	}
-	if tv != nil {
-		handler.sources = append(handler.sources, nativeMediaSource{schema: androidtv.Schema, endpoint: androidtv.Endpoint, snapshot: tv.Snapshot})
-	}
-	paths := []string{mediav1connect.MediaServiceReadSnapshotProcedure, mediav1connect.MediaServiceReadArtworkProcedure}
-	procedures := make([]ConnectProcedure, 0, len(paths))
-	for _, path := range paths {
-		procedures = append(procedures, ConnectProcedure{Path: path, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired})
-	}
-	if e := plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {
-		return mediav1connect.NewMediaServiceHandler(handler, append(options, connect.WithReadMaxBytes(8192))...)
-	}, procedures...); e != nil {
-		return e
-	}
-	permission, e := authorization.NewPermission(auth.ScopeFamily_SCOPE_FAMILY_MEDIA, auth.ScopeOperation_SCOPE_OPERATION_READ)
-	if e != nil {
-		return e
-	}
-	for _, path := range paths {
-		if e := plan.BindPermission(RouteKindConnect, RouteMethodPost, path, permission); e != nil {
-			return e
-		}
-	}
-	return nil
 }

@@ -35,3 +35,12 @@ func (z Zone) LocalDateContext(ctx context.Context, instant time.Time) (CivilDat
 	}
 	return local.date, nil
 }
+
+// ResolvedPoint exposes scalar admitted copies for an imported recurrence
+// identity with an explicit instant. Civil points deliberately return false.
+func (p Point) ResolvedPoint() (LocalDateTime, Instant, bool) {
+	if !p.Valid() || p.kind != Timed || p.origin != originResolved {
+		return LocalDateTime{}, Instant{}, false
+	}
+	return p.local, p.resolved, true
+}

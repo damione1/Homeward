@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/damione1/Homeward/internal/apimutations"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/storage"
@@ -80,6 +81,9 @@ func (r *Repository) transaction(ctx context.Context, fn func(context.Context, p
 		return failure(CommitUnknown)
 	}
 	if err != nil {
+		if apimutations.IsResultError(err) {
+			return err
+		}
 		if networkDenied(err) {
 			return err
 		}
@@ -293,84 +297,122 @@ const (
 	calendarCreate calendarMutation = iota + 1
 	calendarUpdate
 	calendarDelete
+	calendarCheck
+	calendarDeleteIfEmpty
 )
 
-func (r *Repository) mutateCalendar(ctx context.Context, id CalendarID, expected Revision, name string, kind calendarMutation) (CalendarSnapshot, error) {
+func (r *Repository) mutateCalendar(ctx context.Context, id CalendarID, expected Precondition, name string, kind calendarMutation) (CalendarSnapshot, error) {
 	if err := writable(id); err != nil {
 		return CalendarSnapshot{}, err
 	}
-	if kind != calendarCreate && kind != calendarUpdate && kind != calendarDelete {
+	if kind != calendarCreate && kind != calendarUpdate && kind != calendarDelete && kind != calendarDeleteIfEmpty && kind != calendarCheck {
 		return CalendarSnapshot{}, failure(InvalidInput)
 	}
-	if !expected.validFor(id, EventUID{}) || kind != calendarDelete && !textValid(name, 512, true) {
+	if expected == nil || !expected.validFor(id, EventUID{}) || kind != calendarDelete && kind != calendarDeleteIfEmpty && kind != calendarCheck && !textValid(name, 512, true) {
 		return CalendarSnapshot{}, failure(InvalidInput)
 	}
 	name = strings.Clone(name)
 	var result CalendarSnapshot
 	err := r.transaction(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		if _, err := r.identity(ctx, tx, id.entity, &id, true); err != nil {
-			return err
+
+		operation := func() error {
+			if _, err := r.identity(ctx, tx, id.entity, &id, true); err != nil {
+				return err
+			}
+			// Acquire the exclusive identity lock first, including absent-row inserts.
+			entity, _ := id.entity.Value()
+			current, err := readCalendar(ctx, tx, id, true)
+			if err != nil {
+				return err
+			}
+			if current.revision.presence == Removed {
+				return failure(Deleted)
+			}
+			if !expected.matches(current.revision) {
+				return failure(Conflict)
+			}
+			if kind == calendarCreate && current.revision.presence != Absent {
+				return failure(Conflict)
+			}
+			if kind != calendarCreate && current.revision.presence != Present {
+				return failure(NotFound)
+			}
+			if kind == calendarCheck {
+				result = current
+				return nil
+			}
+			if kind == calendarDelete || kind == calendarDeleteIfEmpty {
+				var children, exhausted bool
+				if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.calendar_events WHERE calendar_id=$1 AND lifecycle=1),EXISTS(SELECT 1 FROM public.calendar_events WHERE calendar_id=$1 AND lifecycle=1 AND revision=$2)`, entity, int64(math.MaxInt64)).Scan(&children, &exhausted); err != nil {
+					return err
+				}
+				if children && kind == calendarDeleteIfEmpty {
+					return failure(ChildrenPresent)
+				}
+				if exhausted {
+					return failure(RevisionExhausted)
+				}
+				if children {
+					if _, err := tx.Exec(ctx, `DELETE FROM public.calendar_dates WHERE calendar_id=$1`, entity); err != nil {
+						return err
+					}
+					if _, err := tx.Exec(ctx, `DELETE FROM public.calendar_exceptions WHERE calendar_id=$1`, entity); err != nil {
+						return err
+					}
+					if _, err := tx.Exec(ctx, `UPDATE public.calendar_events SET lifecycle=2,revision=revision+1,updated_at=clock_timestamp(),summary=NULL,description=NULL,location=NULL,temporal_kind=NULL,start_date=NULL,end_date=NULL,anchor_local=NULL,start_at=NULL,end_at=NULL,timezone=NULL,timezone_data=NULL,recurrence_profile=NULL,recurrence_rule=NULL WHERE calendar_id=$1 AND lifecycle=1`, entity); err != nil {
+						return err
+					}
+				}
+			}
+			number, err := nextRevision(current.revision.number)
+			if err != nil {
+				return err
+			}
+			life := int16(1)
+			presence := Present
+			if kind == calendarDelete || kind == calendarDeleteIfEmpty {
+				life = 2
+				presence = Removed
+				name = current.name
+			}
+			var updated pgtype.Timestamptz
+			if kind == calendarCreate {
+				err = tx.QueryRow(ctx, `INSERT INTO public.local_calendars(entity_id,origin,name,lifecycle,revision,updated_at) VALUES($1,1,$2,1,$3,clock_timestamp()) RETURNING updated_at`, entity, name, number).Scan(&updated)
+			} else {
+				err = tx.QueryRow(ctx, `UPDATE public.local_calendars SET name=$2,lifecycle=$3,revision=$4,updated_at=clock_timestamp() WHERE entity_id=$1 AND revision=$5 RETURNING updated_at`, entity, name, life, number, current.revision.number).Scan(&updated)
+			}
+			if errors.Is(err, pgx.ErrNoRows) {
+				return failure(Conflict)
+			}
+			if err != nil {
+				return err
+			}
+			stamp, err := validUpdated(updated)
+			if err != nil {
+				return err
+			}
+			result = CalendarSnapshot{id: id, name: name, revision: Revision{calendar: id, presence: presence, number: number}, updatedAt: stamp}
+			return nil
 		}
-		// Acquire the exclusive identity lock first, including absent-row inserts.
-		entity, _ := id.entity.Value()
-		current, err := readCalendar(ctx, tx, id, true)
-		if err != nil {
-			return err
-		}
-		if current.revision.presence == Removed {
-			return failure(Deleted)
-		}
-		if current.revision != expected {
-			return failure(Conflict)
-		}
-		if kind == calendarCreate && current.revision.presence != Absent {
-			return failure(Conflict)
-		}
-		if kind != calendarCreate && current.revision.presence != Present {
-			return failure(NotFound)
-		}
-		number, err := nextRevision(current.revision.number)
-		if err != nil {
-			return err
-		}
-		life := int16(1)
-		presence := Present
-		if kind == calendarDelete {
-			life = 2
-			presence = Removed
-			name = current.name
-		}
-		var updated pgtype.Timestamptz
-		if kind == calendarCreate {
-			err = tx.QueryRow(ctx, `INSERT INTO public.local_calendars(entity_id,origin,name,lifecycle,revision,updated_at) VALUES($1,1,$2,1,$3,clock_timestamp()) RETURNING updated_at`, entity, name, number).Scan(&updated)
-		} else {
-			err = tx.QueryRow(ctx, `UPDATE public.local_calendars SET name=$2,lifecycle=$3,revision=$4,updated_at=clock_timestamp() WHERE entity_id=$1 AND revision=$5 RETURNING updated_at`, entity, name, life, number, current.revision.number).Scan(&updated)
-		}
-		if errors.Is(err, pgx.ErrNoRows) {
-			return failure(Conflict)
-		}
-		if err != nil {
-			return err
-		}
-		stamp, err := validUpdated(updated)
-		if err != nil {
-			return err
-		}
-		result = CalendarSnapshot{id: id, name: name, revision: Revision{calendar: id, presence: presence, number: number}, updatedAt: stamp}
-		return nil
+		value, operationErr := apimutations.Execute(ctx, tx, func() (CalendarSnapshot, error) {
+			err := operation()
+			return result, err
+		})
+		result = value
+		return operationErr
 	})
 	if err != nil {
 		return CalendarSnapshot{}, err
 	}
 	return result, nil
 }
-func (r *Repository) CreateCalendar(ctx context.Context, id CalendarID, expected Revision, name string) (CalendarSnapshot, error) {
+func (r *Repository) CreateCalendar(ctx context.Context, id CalendarID, expected Precondition, name string) (CalendarSnapshot, error) {
 	return r.mutateCalendar(ctx, id, expected, name, calendarCreate)
 }
-func (r *Repository) UpdateCalendar(ctx context.Context, id CalendarID, expected Revision, name string) (CalendarSnapshot, error) {
+func (r *Repository) UpdateCalendar(ctx context.Context, id CalendarID, expected Precondition, name string) (CalendarSnapshot, error) {
 	return r.mutateCalendar(ctx, id, expected, name, calendarUpdate)
 }
-func (r *Repository) DeleteCalendar(ctx context.Context, id CalendarID, expected Revision) (CalendarSnapshot, error) {
+func (r *Repository) DeleteCalendar(ctx context.Context, id CalendarID, expected Precondition) (CalendarSnapshot, error) {
 	return r.mutateCalendar(ctx, id, expected, "", calendarDelete)
 }
 

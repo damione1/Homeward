@@ -121,6 +121,8 @@ func (a *sessionAuth) authenticateAccessHeaders(ctx context.Context, header http
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
 	leaseCtx, lease := guard.register(ctx, owner)
+	lease.deadline = deadline
+	lease.nativePrincipal = principal
 	leaseCtx, err = authorization.WithPrincipal(leaseCtx, principal)
 	if err != nil {
 		lease.release()
@@ -185,6 +187,9 @@ func (a *sessionAuth) Authorize(ctx context.Context, actor domain.ActorID, route
 	}
 	current, err := a.coordinator.authority.Current(principal)
 	if err != nil {
+		return err
+	}
+	if handled, err := authorizeOperationRoute(current, route); handled {
 		return err
 	}
 	permission, self, known := nativeRoutePermission(route)

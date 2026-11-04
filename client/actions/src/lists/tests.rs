@@ -10,36 +10,55 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-fn revision(list: &str) -> ListRevision {
-    ListRevision::new(list.parse().unwrap(), 11).unwrap()
+fn home() -> HomeName {
+    HomeName::try_from("homes/synthetic").unwrap()
+}
+fn revision(list: &str) -> TaskListRevision {
+    TaskListRevision::new(
+        TaskListName::new(home(), list.parse().unwrap()),
+        home_client_model::api_tasks::TaskEtag::try_from("\"opaque-list\"").unwrap(),
+    )
 }
 fn target(list: &str, uid: &str) -> ItemTarget {
     ItemTarget::new(
         revision(list),
-        ItemRevision::new(ItemKey::new(list.parse().unwrap(), uid.parse().unwrap()), 7).unwrap(),
+        TaskRevision::new(
+            TaskName::new(revision(list).name().clone(), uid.parse().unwrap()),
+            home_client_model::api_tasks::TaskEtag::try_from("\"opaque-child-and-parent\"")
+                .unwrap(),
+        ),
     )
     .unwrap()
 }
-fn payload() -> wire::ItemPayload {
-    wire::ItemPayload {
-        summary: "Synthetic task".into(),
-        completed: Some(false),
-        description: Some(String::new()),
-        ..Default::default()
-    }
+fn payload() -> TaskContent {
+    TaskContent::new(
+        TaskText::try_from("Synthetic task").unwrap(),
+        false,
+        Some(home_client_model::api_tasks::TaskDescription::try_from("").unwrap()),
+        home_client_model::api_tasks::TaskDue::None,
+    )
 }
-fn receipt(list: &str, uid: Option<&str>) -> wire::MutationReceipt {
-    let mut receipt = wire::MutationReceipt::default();
-    receipt.list_id.get_or_insert_default().value = list.into();
-    receipt.list_revision.get_or_insert_default().list_id = receipt.list_id.clone();
-    receipt.list_revision.get_or_insert_default().number = 12;
-    if let Some(uid) = uid {
-        receipt.item_uid.get_or_insert_default().value = uid.into();
-        receipt.item_revision.get_or_insert_default().list_id = receipt.list_id.clone();
-        receipt.item_revision.get_or_insert_default().item_uid = receipt.item_uid.clone();
-        receipt.item_revision.get_or_insert_default().number = 8;
+fn receipt(list: &str, uid: Option<&str>) -> Reply {
+    match uid {
+        Some(uid) => Reply::Task(wire::Task {
+            name: target(list, uid).item.name().as_str().to_owned(),
+            etag: "\"another-opaque-etag\"".to_owned(),
+            summary: "Synthetic task".to_owned(),
+            ..Default::default()
+        }),
+        None => Reply::List(wire::TaskList {
+            name: revision(list).name().as_str().to_owned(),
+            etag: "\"another-opaque-etag\"".to_owned(),
+            display_name: "Synthetic list".to_owned(),
+            origin: wire::TaskListOrigin::Native.into(),
+            update_time: buffa_types::google::protobuf::Timestamp {
+                seconds: 1,
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        }),
     }
-    receipt
 }
 fn complete() -> PreparedListMutation {
     PreparedListMutation::new(ListWriteIntent::Complete {
@@ -48,62 +67,77 @@ fn complete() -> PreparedListMutation {
     })
     .unwrap()
 }
-
 #[test]
-fn preparation_preserves_false_optional_empty_values_and_identity_bound_revisions() {
-    let PreparedListMutation {
-        request: Request::Complete(request),
-        ..
-    } = complete()
-    else {
-        panic!("completion")
+fn explicit_masks_preserve_false_and_empty_and_append_cannot_carry_resource_fields() {
+    let Request::Complete(request) = complete().request else {
+        panic!("complete")
     };
-    assert_eq!(request.completed, Some(false));
-    assert_eq!(request.list_id.value, "a");
-    assert_eq!(request.item_uid.value, "same");
-    assert_eq!(request.expected_list_revision.number, 11);
-    assert_eq!(request.expected_item_revision.number, 7);
-    assert_eq!(request.expected_item_revision.item_uid.value, "same");
-    let PreparedListMutation {
-        request: Request::Edit(request),
-        ..
-    } = PreparedListMutation::new(ListWriteIntent::Edit {
-        target: target(" opaque / 项目 ", " UID "),
+    assert!(!request.task.completed);
+    assert_eq!(request.update_mask.paths, ["completed"]);
+    assert_eq!(request.task.etag, "\"opaque-child-and-parent\"");
+    let prepared = PreparedListMutation::new(ListWriteIntent::Add {
+        revision: revision("a"),
         payload: payload(),
     })
-    .unwrap()
-    else {
+    .unwrap();
+    let Request::Add(request) = prepared.request else {
+        panic!("append")
+    };
+    assert_eq!(request.name, revision("a").name().as_str());
+    assert_eq!(request.etag, "\"opaque-list\"");
+    assert!(!request.task.completed);
+    assert_eq!(request.task.description, Some(String::new()));
+    let prepared = PreparedListMutation::new(ListWriteIntent::Edit {
+        target: target("a", "same"),
+        payload: payload(),
+    })
+    .unwrap();
+    let Request::Edit(request) = prepared.request else {
         panic!("edit")
     };
-    assert_eq!(request.list_id.value, " opaque / 项目 ");
-    assert_eq!(request.item_uid.value, " UID ");
-    assert_eq!(request.item.completed, Some(false));
-    assert_eq!(request.item.description, Some(String::new()));
+    assert_eq!(
+        request.update_mask.paths,
+        [
+            "summary",
+            "completed",
+            "description",
+            "due_date",
+            "due_instant"
+        ]
+    );
+    assert!(request.task.due.is_none());
 }
-
 #[test]
-fn mismatched_item_revisions_and_move_destinations_never_become_requests() {
-    assert!(matches!(
-        ItemTarget::new(revision("a"), target("b", "same").item),
-        Err(PrepareFailure::MismatchedIdentity)
-    ));
-    for destination in [
-        ItemKey::new("b".parse().unwrap(), "same".parse().unwrap()),
+fn cascade_requires_an_explicit_decision_and_foreign_targets_are_rejected() {
+    for force in [false, true] {
+        let prepared = PreparedListMutation::new(ListWriteIntent::DeleteList {
+            revision: revision("a"),
+            force,
+        })
+        .unwrap();
+        let Request::DeleteList(request) = prepared.request else {
+            panic!("delete")
+        };
+        assert_eq!(request.force, force);
+    }
+    assert!(ItemTarget::new(revision("a"), target("b", "same").item).is_err());
+    for after in [
+        target("b", "other").key().clone(),
         target("a", "same").key().clone(),
     ] {
-        assert!(matches!(
+        assert!(
             PreparedListMutation::new(ListWriteIntent::Move {
                 target: target("a", "same"),
-                destination: MoveDestination::After(destination)
-            }),
-            Err(PrepareFailure::InvalidDestination)
-        ));
+                destination: MoveDestination::After(after)
+            })
+            .is_err()
+        );
     }
     let prepared = PreparedListMutation::new(ListWriteIntent::Move {
         target: target("a", "same"),
         destination: MoveDestination::After(ItemKey::new(
             "a".parse().unwrap(),
-            "after".parse::<ItemUid>().unwrap(),
+            "other".parse::<ItemUid>().unwrap(),
         )),
     })
     .unwrap();
@@ -111,88 +145,48 @@ fn mismatched_item_revisions_and_move_destinations_never_become_requests() {
         panic!("move")
     };
     assert!(
-        matches!(request.destination, Some(wire::move_item_request::Destination::AfterUid(uid)) if uid.value == "after")
+        matches!(request.destination,Some(wire::move_task_request::Destination::Predecessor(name)) if name==target("a","other").item.name().as_str())
     );
-    let prepared = PreparedListMutation::new(ListWriteIntent::Move {
-        target: target("a", "same"),
-        destination: MoveDestination::AtStart,
-    })
-    .unwrap();
-    let Request::Move(request) = prepared.request else {
-        panic!("move")
-    };
-    assert!(matches!(
-        request.destination,
-        Some(wire::move_item_request::Destination::AtStart(_))
-    ));
 }
-
 #[test]
-fn invalid_drafts_are_refused_before_creating_a_submission_opportunity() {
-    for name in [String::new(), "bad\nname".into(), "é".repeat(257)] {
-        assert!(matches!(
-            PreparedListMutation::new(ListWriteIntent::Create { name }),
-            Err(PrepareFailure::InvalidName)
-        ));
-    }
-    assert!(
-        PreparedListMutation::new(ListWriteIntent::Create {
-            name: "é".repeat(256)
-        })
-        .is_ok()
-    );
-    let mut absent = payload();
-    absent.completed = None;
-    assert!(matches!(
-        PreparedListMutation::new(ListWriteIntent::Add {
-            revision: revision("a"),
-            payload: absent
-        }),
-        Err(PrepareFailure::InvalidPayload)
-    ));
-}
-
-#[test]
-fn receipts_must_match_the_exact_target_and_advance_both_revisions() {
+fn responses_bind_exact_canonical_identity_without_ordering_opaque_etags() {
     assert!(
         confirm(
-            Expected::Item(target("a", "same")),
+            Expected::Item(target("a", "same").item.name().clone()),
             receipt("a", Some("same"))
+        )
+        .is_some()
+    );
+    for (list, uid) in [("b", Some("same")), ("a", Some("other")), ("a", None)] {
+        assert!(
+            confirm(
+                Expected::Item(target("a", "same").item.name().clone()),
+                receipt(list, uid)
+            )
+            .is_none()
+        );
+    }
+    assert!(
+        confirm(
+            Expected::DeletedItem(target("a", "same").item.name().clone()),
+            Reply::Deleted
         )
         .is_some()
     );
     assert!(
         confirm(
-            Expected::Item(target("a", "same")),
-            receipt("b", Some("same"))
+            Expected::Item(target("a", "same").item.name().clone()),
+            Reply::Deleted
         )
         .is_none()
     );
-    assert!(
-        confirm(
-            Expected::Item(target("a", "same")),
-            receipt("a", Some("other"))
-        )
-        .is_none()
-    );
-    assert!(confirm(Expected::Item(target("a", "same")), receipt("a", None)).is_none());
-    let mut stale_list = receipt("a", Some("same"));
-    stale_list.list_revision.get_or_insert_default().number = 11;
-    assert!(confirm(Expected::Item(target("a", "same")), stale_list).is_none());
-    let mut stale_item = receipt("a", Some("same"));
-    stale_item.item_revision.get_or_insert_default().number = 7;
-    assert!(confirm(Expected::Item(target("a", "same")), stale_item).is_none());
-    assert!(confirm(Expected::List(revision("a")), receipt("a", Some("same"))).is_none());
-    assert!(confirm(Expected::AddedItem(revision("a")), receipt("a", None)).is_none());
-    assert!(confirm(Expected::CreatedList, receipt("new", Some("same"))).is_none());
 }
-
 struct Api {
     calls: AtomicUsize,
-    response: Mutex<Option<Result<wire::MutationReceipt, SubmitFailure>>>,
+    response: Mutex<Option<Result<Reply, SubmitFailure>>>,
 }
 impl Api {
-    fn new(response: Result<wire::MutationReceipt, SubmitFailure>) -> Self {
+    fn new(response: Result<Reply, SubmitFailure>) -> Self {
         Self {
             calls: AtomicUsize::new(0),
             response: Mutex::new(Some(response)),
@@ -200,7 +194,7 @@ impl Api {
     }
 }
 impl SubmitApi for Api {
-    async fn submit(&self, _: Request) -> Result<wire::MutationReceipt, SubmitFailure> {
+    async fn submit(&self, _: Request) -> Result<Reply, SubmitFailure> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         self.response
             .lock()
@@ -451,7 +445,7 @@ async fn cancelling_a_dispatched_write_drops_the_wait_and_never_retries() {
         }
     }
     impl SubmitApi for Blocked {
-        async fn submit(&self, _: Request) -> Result<wire::MutationReceipt, SubmitFailure> {
+        async fn submit(&self, _: Request) -> Result<Reply, SubmitFailure> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             let _drop = DropWait(&self.dropped);
             self.started.notify_one();

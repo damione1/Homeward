@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/damione1/Homeward/internal/apimutations"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -69,25 +70,28 @@ const (
 	eventCreate eventMutation = iota + 1
 	eventUpdate
 	eventDelete
+	eventPatch
 )
 
-func (r *Repository) mutateEvent(ctx context.Context, key EventKey, expected Revision, event Event, kind eventMutation) (EventSnapshot, error) {
+func (r *Repository) mutateEvent(ctx context.Context, key EventKey, expected Precondition, event Event, kind eventMutation, patch *EventPatch) (EventSnapshot, error) {
 	if !key.Valid() {
 		return EventSnapshot{}, failure(InvalidInput)
 	}
 	if err := writable(key.calendar); err != nil {
 		return EventSnapshot{}, err
 	}
-	if kind != eventCreate && kind != eventUpdate && kind != eventDelete || !expected.validFor(key.calendar, key.uid) || kind != eventDelete && !event.Valid() {
+	if kind != eventCreate && kind != eventUpdate && kind != eventDelete && kind != eventPatch || expected == nil || !expected.validFor(key.calendar, key.uid) || kind != eventDelete && kind != eventPatch && !event.Valid() || kind == eventPatch && (patch == nil || !patch.valid) {
 		return EventSnapshot{}, failure(InvalidInput)
 	}
-	if kind != eventDelete && event.contentKind != contentLocal {
+	if kind != eventDelete && kind != eventPatch && event.contentKind != contentLocal {
 		return EventSnapshot{}, failure(Incompatible)
 	}
 	// This reservation includes the admitted input, returned copy and SQL codecs.
 	charge := eventBaseCharge
-	if kind != eventDelete {
+	if kind != eventDelete && kind != eventPatch {
 		charge = event.ramCharge()
+	} else if kind == eventPatch {
+		charge = eventPatchCharge
 	}
 	lease, err := images.reserve(charge)
 	if err != nil {
@@ -96,93 +100,133 @@ func (r *Repository) mutateEvent(ctx context.Context, key EventKey, expected Rev
 	defer lease.release()
 	var result EventSnapshot
 	err = r.transaction(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		if _, err := r.identity(ctx, tx, key.calendar.entity, &key.calendar, true); err != nil {
-			return err
-		}
-		calendar, err := readCalendar(ctx, tx, key.calendar, true)
-		if err != nil {
-			return err
-		}
-		if err := activeCalendar(calendar); err != nil {
-			return err
-		}
-		current, err := readEventHead(ctx, tx, key, calendar.revision, true)
-		if err != nil {
-			return err
-		}
-		if current.revision.presence == Removed {
-			return failure(Deleted)
-		}
-		if current.revision != expected {
-			return failure(Conflict)
-		}
-		if kind == eventCreate && current.revision.presence != Absent {
-			return failure(Conflict)
-		}
-		if kind != eventCreate && current.revision.presence != Present {
-			return failure(NotFound)
-		}
-		number, err := nextRevision(current.revision.number)
-		if err != nil {
-			return err
-		}
-		entity, _ := key.calendar.entity.Value()
-		var updated pgtype.Timestamptz
-		if kind != eventCreate {
-			if _, err := tx.Exec(ctx, `DELETE FROM public.calendar_dates WHERE calendar_id=$1 AND uid=$2`, entity, key.uid.value); err != nil {
+
+		operation := func() error {
+			if _, err := r.identity(ctx, tx, key.calendar.entity, &key.calendar, true); err != nil {
 				return err
 			}
-			if _, err := tx.Exec(ctx, `DELETE FROM public.calendar_exceptions WHERE calendar_id=$1 AND uid=$2`, entity, key.uid.value); err != nil {
+			calendar, err := readCalendar(ctx, tx, key.calendar, true)
+			if err != nil {
 				return err
 			}
-		}
-		if kind == eventDelete {
-			err = tx.QueryRow(ctx, `UPDATE public.calendar_events SET lifecycle=2,revision=$3,updated_at=clock_timestamp(),summary=NULL,description=NULL,location=NULL,temporal_kind=NULL,start_date=NULL,end_date=NULL,anchor_local=NULL,start_at=NULL,end_at=NULL,timezone=NULL,timezone_data=NULL,recurrence_profile=NULL,recurrence_rule=NULL WHERE calendar_id=$1 AND uid=$2 AND revision=$4 RETURNING updated_at`, entity, key.uid.value, number, current.revision.number).Scan(&updated)
-		} else {
-			profile, rule := storedRule(event.rule)
-			args := []any{entity, key.uid.value, number, event.summary, event.description, event.location}
-			args = append(args, encodeSpan(event.span).arguments()...)
-			args = append(args, profile, rule)
-			query := `INSERT INTO public.calendar_events(calendar_id,uid,lifecycle,revision,updated_at,summary,description,location,temporal_kind,start_date,end_date,anchor_local,start_at,end_at,timezone,timezone_data,recurrence_profile,recurrence_rule) VALUES($1,$2,1,$3,clock_timestamp(),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING updated_at`
-			if kind == eventUpdate {
-				query = `UPDATE public.calendar_events SET revision=$3,updated_at=clock_timestamp(),summary=$4,description=$5,location=$6,temporal_kind=$7,start_date=$8,end_date=$9,anchor_local=$10,start_at=$11,end_at=$12,timezone=$13,timezone_data=$14,recurrence_profile=$15,recurrence_rule=$16 WHERE calendar_id=$1 AND uid=$2 AND lifecycle=1 AND revision=$17 RETURNING updated_at`
-				args = append(args, current.revision.number)
-			}
-			err = tx.QueryRow(ctx, query, args...).Scan(&updated)
-		}
-		if errors.Is(err, pgx.ErrNoRows) {
-			return failure(Conflict)
-		}
-		if err != nil {
-			return err
-		}
-		if kind != eventDelete {
-			if err := writeChildren(ctx, tx, key, event); err != nil {
+			if err := activeCalendar(calendar); err != nil {
 				return err
 			}
-		}
-		// Capacity is an invariant of committed images, including child fanout.
-		if kind != eventDelete {
-			if _, err := imageCharge(ctx, tx, key.calendar); err != nil {
+			current, err := readEventHead(ctx, tx, key, calendar.revision, true)
+			if err != nil {
 				return err
 			}
+			if current.revision.presence == Removed {
+				return failure(Deleted)
+			}
+			if !expected.matches(current.revision) {
+				return failure(Conflict)
+			}
+			if kind == eventCreate && current.revision.presence != Absent {
+				return failure(Conflict)
+			}
+			if kind != eventCreate && current.revision.presence != Present {
+				return failure(NotFound)
+			}
+			if kind == eventPatch {
+				imageSize, err := imageCharge(ctx, tx, key.calendar)
+				if err != nil {
+					return err
+				}
+				if err := lease.grow(imageSize); err != nil {
+					return err
+				}
+				definitions, err := readImage(ctx, tx, calendar)
+				if err != nil {
+					return err
+				}
+				found := false
+				for _, definition := range definitions {
+					if definition.key == key {
+						found = true
+						if patch.fields == 0 {
+							result = definition
+							return nil
+						}
+						event, err = patch.apply(ctx, definition.definition)
+						if err != nil {
+							return err
+						}
+						break
+					}
+				}
+				if !found {
+					return failure(Corrupt)
+				}
+			}
+			number, err := nextRevision(current.revision.number)
+			if err != nil {
+				return err
+			}
+			entity, _ := key.calendar.entity.Value()
+			var updated pgtype.Timestamptz
+			if kind != eventCreate {
+				if _, err := tx.Exec(ctx, `DELETE FROM public.calendar_dates WHERE calendar_id=$1 AND uid=$2`, entity, key.uid.value); err != nil {
+					return err
+				}
+				if _, err := tx.Exec(ctx, `DELETE FROM public.calendar_exceptions WHERE calendar_id=$1 AND uid=$2`, entity, key.uid.value); err != nil {
+					return err
+				}
+			}
+			if kind == eventDelete {
+				err = tx.QueryRow(ctx, `UPDATE public.calendar_events SET lifecycle=2,revision=$3,updated_at=clock_timestamp(),summary=NULL,description=NULL,location=NULL,temporal_kind=NULL,start_date=NULL,end_date=NULL,anchor_local=NULL,start_at=NULL,end_at=NULL,timezone=NULL,timezone_data=NULL,recurrence_profile=NULL,recurrence_rule=NULL WHERE calendar_id=$1 AND uid=$2 AND revision=$4 RETURNING updated_at`, entity, key.uid.value, number, current.revision.number).Scan(&updated)
+			} else {
+				profile, rule := storedRule(event.rule)
+				args := []any{entity, key.uid.value, number, event.summary, event.description, event.location}
+				args = append(args, encodeSpan(event.span).arguments()...)
+				args = append(args, profile, rule)
+				query := `INSERT INTO public.calendar_events(calendar_id,uid,lifecycle,revision,updated_at,summary,description,location,temporal_kind,start_date,end_date,anchor_local,start_at,end_at,timezone,timezone_data,recurrence_profile,recurrence_rule) VALUES($1,$2,1,$3,clock_timestamp(),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING updated_at`
+				if kind == eventUpdate || kind == eventPatch {
+					query = `UPDATE public.calendar_events SET revision=$3,updated_at=clock_timestamp(),summary=$4,description=$5,location=$6,temporal_kind=$7,start_date=$8,end_date=$9,anchor_local=$10,start_at=$11,end_at=$12,timezone=$13,timezone_data=$14,recurrence_profile=$15,recurrence_rule=$16 WHERE calendar_id=$1 AND uid=$2 AND lifecycle=1 AND revision=$17 RETURNING updated_at`
+					args = append(args, current.revision.number)
+				}
+				err = tx.QueryRow(ctx, query, args...).Scan(&updated)
+			}
+			if errors.Is(err, pgx.ErrNoRows) {
+				return failure(Conflict)
+			}
+			if err != nil {
+				return err
+			}
+			if kind != eventDelete {
+				if err := writeChildren(ctx, tx, key, event); err != nil {
+					return err
+				}
+			}
+			// Capacity is an invariant of committed images, including child fanout.
+			if kind != eventDelete {
+				if _, err := imageCharge(ctx, tx, key.calendar); err != nil {
+					return err
+				}
+			}
+			calendar, err = bumpCalendar(ctx, tx, calendar)
+			if err != nil {
+				return err
+			}
+			stamp, err := validUpdated(updated)
+			if err != nil {
+				return err
+			}
+			presence := Present
+			definition := cloneEvent(event)
+			if kind == eventDelete {
+				presence = Removed
+				definition = Event{}
+			}
+			result = EventSnapshot{key: key, definition: definition, revision: Revision{calendar: key.calendar, uid: key.uid, presence: presence, number: number}, calendarRevision: calendar.revision, updatedAt: stamp}
+			return nil
 		}
-		calendar, err = bumpCalendar(ctx, tx, calendar)
-		if err != nil {
-			return err
-		}
-		stamp, err := validUpdated(updated)
-		if err != nil {
-			return err
-		}
-		presence := Present
-		definition := cloneEvent(event)
-		if kind == eventDelete {
-			presence = Removed
-			definition = Event{}
-		}
-		result = EventSnapshot{key: key, definition: definition, revision: Revision{calendar: key.calendar, uid: key.uid, presence: presence, number: number}, calendarRevision: calendar.revision, updatedAt: stamp}
-		return nil
+		value, operationErr := apimutations.Execute(ctx, tx, func() (EventSnapshot, error) {
+			err := operation()
+			return result, err
+		})
+		result = value
+		return operationErr
 	})
 	if err != nil {
 		return EventSnapshot{}, err
@@ -217,12 +261,12 @@ func writeChildren(ctx context.Context, tx pgx.Tx, key EventKey, event Event) er
 	}
 	return nil
 }
-func (r *Repository) CreateEvent(ctx context.Context, key EventKey, expected Revision, event Event) (EventSnapshot, error) {
-	return r.mutateEvent(ctx, key, expected, event, eventCreate)
+func (r *Repository) CreateEvent(ctx context.Context, key EventKey, expected Precondition, event Event) (EventSnapshot, error) {
+	return r.mutateEvent(ctx, key, expected, event, eventCreate, nil)
 }
-func (r *Repository) UpdateEvent(ctx context.Context, key EventKey, expected Revision, event Event) (EventSnapshot, error) {
-	return r.mutateEvent(ctx, key, expected, event, eventUpdate)
+func (r *Repository) UpdateEvent(ctx context.Context, key EventKey, expected Precondition, event Event) (EventSnapshot, error) {
+	return r.mutateEvent(ctx, key, expected, event, eventUpdate, nil)
 }
-func (r *Repository) DeleteEvent(ctx context.Context, key EventKey, expected Revision) (EventSnapshot, error) {
-	return r.mutateEvent(ctx, key, expected, Event{}, eventDelete)
+func (r *Repository) DeleteEvent(ctx context.Context, key EventKey, expected Precondition) (EventSnapshot, error) {
+	return r.mutateEvent(ctx, key, expected, Event{}, eventDelete, nil)
 }

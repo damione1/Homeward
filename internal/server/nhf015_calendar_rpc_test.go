@@ -1,9 +1,15 @@
 package server
 
 import (
+	"connectrpc.com/connect"
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	datepb "google.golang.org/genproto/googleapis/type/date"
+	timepb "google.golang.org/genproto/googleapis/type/timeofday"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -11,9 +17,10 @@ import (
 	"testing"
 	"time"
 
-	"connectrpc.com/connect"
-	cv "github.com/damione1/Homeward/gen/home/calendars/v1"
-	"github.com/damione1/Homeward/gen/home/calendars/v1/calendarsv1connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	"github.com/damione1/Homeward/internal/apitypes"
+	"github.com/damione1/Homeward/internal/calendarnames"
 	"github.com/damione1/Homeward/internal/calendars"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
@@ -21,7 +28,6 @@ import (
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/workday"
 	"github.com/damione1/Homeward/scope"
-	"google.golang.org/protobuf/proto"
 )
 
 const nhf015AllCalendars = `  - scope: {family: calendars, operation: read}
@@ -33,8 +39,8 @@ const nhf015AllCalendars = `  - scope: {family: calendars, operation: read}
 type nhf015CalendarRig struct {
 	*nha162RPCRig
 	handler        *nhf015CalendarHandler
-	api            calendarsv1connect.CalendarServiceClient
-	ids            map[calendars.Origin]*cv.CalendarId
+	api            apiv2connect.CalendarServiceClient
+	ids            map[calendars.Origin]domain.EntityID
 	calendarServer *httptest.Server
 }
 
@@ -105,8 +111,12 @@ func nhf015NewCalendarRig(t *testing.T, lifetime time.Duration) *nhf015CalendarR
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := &nhf015CalendarHandler{service: service, authority: base.coordinator.authority, cursors: cursors}
-	ids := make(map[calendars.Origin]*cv.CalendarId)
+	resource, err := newCalendarResourceHandler(service, base.coordinator.authority, cursors, identities, nil, api.CalendarProvenance_CALENDAR_PROVENANCE_SYNTHETIC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := &nhf015CalendarHandler{calendarResourceHandler: resource}
+	ids := make(map[calendars.Origin]domain.EntityID)
 	instance, _ := domain.ParseIntegrationInstanceID("nhf015-synthetic-only")
 	aliases := nhf015CalendarAliases(t)
 	for _, origin := range []calendars.Origin{calendars.Local, calendars.RemoteICS, calendars.Calculated} {
@@ -126,8 +136,7 @@ func nhf015NewCalendarRig(t *testing.T, lifetime time.Duration) *nhf015CalendarR
 		if bound.Origin() != origin {
 			t.Fatal("fixture origin differs from registry")
 		}
-		text, _ := configured.Entity.Value()
-		ids[origin] = &cv.CalendarId{EntityId: text}
+		ids[origin] = configured.Entity
 		handler.entities = append(handler.entities, configured.Entity)
 		if origin == calendars.Calculated {
 			settings, err := workday.ParseSettings(workday.Input{Timezone: "America/Toronto"})
@@ -142,6 +151,9 @@ func nhf015NewCalendarRig(t *testing.T, lifetime time.Duration) *nhf015CalendarR
 	}
 	plan, err := NewPublicPlan(nil, nil, accountTransportAudit{store: base.store})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err = registerHomeDiscoveryRoutes(plan, identities, base.coordinator.authority); err != nil {
 		t.Fatal(err)
 	}
 	if err = nhf015RegisterCalendarRoutes(plan, handler); err != nil {
@@ -169,152 +181,200 @@ func nhf015NewCalendarRig(t *testing.T, lifetime time.Duration) *nhf015CalendarR
 	t.Cleanup(func() { service.Close(); server.CloseClientConnections(); server.Close() })
 	client := server.Client()
 	client.Timeout = 30 * time.Second
-	return &nhf015CalendarRig{base, handler, calendarsv1connect.NewCalendarServiceClient(client, server.URL), ids, server}
+	return &nhf015CalendarRig{base, handler, apiv2connect.NewCalendarServiceClient(client, server.URL), ids, server}
 }
-func (r *nhf015CalendarRig) create(t *testing.T) *cv.CalendarId {
+
+func (r *nhf015CalendarRig) home(t *testing.T) apitypes.HomeName {
 	t.Helper()
-	id := r.ids[calendars.Local]
-	current, err := r.api.GetCalendar(r.ctx, nha162Bearer(&cv.GetCalendarRequest{Id: id}, r.adminToken))
+	home, err := r.lists.registry.HomeName(r.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = r.api.MutateCalendar(r.ctx, nha162Bearer(&cv.MutateCalendarRequest{Id: id, Mutation: cv.Mutation_MUTATION_CREATE, ExpectedRevision: current.Msg.Calendar.Revision, Name: "Synthetic appointments"}, r.adminToken))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
+	return home
 }
-func (r *nhf015CalendarRig) add(t *testing.T, id *cv.CalendarId, uid string, event *cv.Event) *cv.MutationReceipt {
+func (r *nhf015CalendarRig) name(t *testing.T, entity domain.EntityID) calendarnames.CalendarName {
 	t.Helper()
-	key := &cv.EventKey{Calendar: id, Uid: uid}
-	response, err := r.api.MutateEvent(r.ctx, nha162Bearer(&cv.MutateEventRequest{Key: key, Mutation: cv.Mutation_MUTATION_CREATE, ExpectedRevision: &cv.Revision{Resource: key, Presence: cv.Presence_PRESENCE_ABSENT}, Value: event}, r.adminToken))
+	name, err := calendarnames.Calendar(r.home(t), entity)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return response.Msg.Receipt
+	return name
 }
-func nhf015DayEvent() *cv.Event {
-	return &cv.Event{Summary: "Civil appointment", Span: &cv.Span{Value: &cv.Span_Dates{Dates: &cv.DateSpan{Start: "2026-11-01", EndExclusive: "2026-11-02"}}}}
+func (r *nhf015CalendarRig) create(t *testing.T) domain.EntityID {
+	t.Helper()
+	entity := r.ids[calendars.Local]
+	source, err := apitypes.EntityNameForIdentity(r.home(t), entity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.api.CreateCalendar(r.ctx, nha162Bearer(&api.CreateCalendarRequest{Parent: r.home(t).String(), Calendar: &api.Calendar{SourceEntity: source.String(), DisplayName: "Synthetic appointments"}}, r.adminToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return entity
 }
-func nhf015Week(id *cv.CalendarId) *cv.QueryOccurrencesRequest {
-	return &cv.QueryOccurrencesRequest{Id: id, PageSize: 1, Window: &cv.Window{Zone: "America/Toronto", Bounds: &cv.Window_Dates{Dates: &cv.DateSpan{Start: "2026-11-01", EndExclusive: "2026-11-08"}}}}
+
+// Seeds are explicit trusted fixture writes, never public client-assigned UIDs.
+func (r *nhf015CalendarRig) add(t *testing.T, entity domain.EntityID, uidText string, raw *api.CalendarEvent) *api.CalendarEvent {
+	t.Helper()
+	id, err := r.handler.service.Bind(r.ctx, entity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uid, err := calendars.ParseUID(uidText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := calendars.EventIdentity(id, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := calendars.ExpectedRevision(id, uid, calendars.Absent, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event, err := calendarEvent(r.ctx, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.handler.mutationRequests.Add(1)
+	snapshot, err := r.handler.service.CreateEvent(r.ctx, key, expected, event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := r.handler.wireEvent(r.ctx, r.home(t), snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+func nhf015DayEvent() *api.CalendarEvent {
+	return &api.CalendarEvent{Summary: "Civil appointment", Span: &api.CalendarSpan{Value: &api.CalendarSpan_Dates{Dates: &api.CalendarDateSpan{StartDate: &datepb.Date{Year: 2026, Month: 11, Day: 1}, EndDate: &datepb.Date{Year: 2026, Month: 11, Day: 2}}}}}
+}
+func nhf015Week(name calendarnames.CalendarName) *api.QueryOccurrencesRequest {
+	return &api.QueryOccurrencesRequest{Parent: name.String() + "/events/-", PageSize: 1, Window: &api.CalendarWindow{TimeZone: "America/Toronto", Bounds: &api.CalendarWindow_Dates{Dates: &api.CalendarDateSpan{StartDate: &datepb.Date{Year: 2026, Month: 11, Day: 1}, EndDate: &datepb.Date{Year: 2026, Month: 11, Day: 8}}}}}
 }
 func TestNHF015CalendarTLSCRUDCASAndSourceImmutability(t *testing.T) {
 	r := nhf015NewCalendarRig(t, 120*time.Second)
-	id := r.create(t)
-	catalog, err := r.api.ListCalendars(r.ctx, nha162Bearer(&cv.ListCalendarsRequest{}, r.adminToken))
-	if err != nil || len(catalog.Msg.Calendars) != 3 {
-		t.Fatalf("catalogue: %v", err)
+	entity := r.create(t)
+	sources, err := r.api.QueryCalendarSources(r.ctx, nha162Bearer(&api.QueryCalendarSourcesRequest{Parent: r.home(t).String()}, r.adminToken))
+	if err != nil || len(sources.Msg.CalendarSources) != 3 {
+		t.Fatal("sources", err)
 	}
-	for _, calendar := range catalog.Msg.Calendars {
-		if calendar.Provenance != cv.DataProvenance_DATA_PROVENANCE_SYNTHETIC {
-			t.Fatal("mock provenance missing")
+	for _, source := range sources.Msg.CalendarSources {
+		if source.Provenance != api.CalendarProvenance_CALENDAR_PROVENANCE_SYNTHETIC {
+			t.Fatal("source provenance")
 		}
-		if calendar.Origin != cv.Origin_ORIGIN_LOCAL && calendar.MutationAccess != cv.MutationAccess_MUTATION_ACCESS_DENIED {
-			t.Fatal("read-only origin granted edits")
+		if source.Origin != api.CalendarOrigin_CALENDAR_ORIGIN_LOCAL && source.MutationAccess != api.CalendarMutationAccess_CALENDAR_MUTATION_ACCESS_DENIED {
+			t.Fatal("readonly grant")
 		}
 	}
-	_, err = r.api.ListCalendars(r.ctx, connect.NewRequest(&cv.ListCalendarsRequest{}))
+	_, err = r.api.ListCalendars(r.ctx, connect.NewRequest(&api.ListCalendarsRequest{Parent: r.home(t).String()}))
 	nha162Code(t, err, connect.CodeUnauthenticated)
-	original := r.add(t, id, "stable-uid", nhf015DayEvent())
-	request := &cv.MutateEventRequest{Key: original.Revision.Resource, Mutation: cv.Mutation_MUTATION_UPDATE, ExpectedRevision: original.Revision, Value: nhf015DayEvent()}
-	request.Value.Summary = "Updated"
-	updated, err := r.api.MutateEvent(r.ctx, nha162Bearer(request, r.adminToken))
+	original := r.add(t, entity, "stable-uid", nhf015DayEvent())
+	value := proto.CloneOf(original)
+	value.Summary = "Updated"
+	request := &api.UpdateCalendarEventRequest{CalendarEvent: value, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"summary"}}}
+	updated, err := r.api.UpdateCalendarEvent(r.ctx, nha162Bearer(request, r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = r.api.MutateEvent(r.ctx, nha162Bearer(request, r.adminToken))
+	_, err = r.api.UpdateCalendarEvent(r.ctx, nha162Bearer(request, r.adminToken))
 	nha162Code(t, err, connect.CodeAborted)
-	stored, err := r.api.GetEvent(r.ctx, nha162Bearer(&cv.GetEventRequest{Key: original.Revision.Resource}, r.adminToken))
-	if err != nil || stored.Msg.Event.Value.Summary != "Updated" {
-		t.Fatalf("durable read: %v", err)
+	stored, err := r.api.GetCalendarEvent(r.ctx, nha162Bearer(&api.GetCalendarEventRequest{Name: original.Name}, r.adminToken))
+	if err != nil || stored.Msg.Summary != "Updated" {
+		t.Fatal("durable read", err)
 	}
 	for _, origin := range []calendars.Origin{calendars.RemoteICS, calendars.Calculated} {
-		other := r.ids[origin]
-		_, err = r.api.MutateCalendar(r.ctx, nha162Bearer(&cv.MutateCalendarRequest{Id: other, Mutation: cv.Mutation_MUTATION_CREATE, ExpectedRevision: &cv.Revision{Resource: &cv.EventKey{Calendar: other}, Presence: cv.Presence_PRESENCE_ABSENT}, Name: "forbidden"}, r.adminToken))
+		name := r.name(t, r.ids[origin])
+		source, err := apitypes.EntityNameForIdentity(r.home(t), r.ids[origin])
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = r.api.CreateCalendar(r.ctx, nha162Bearer(&api.CreateCalendarRequest{Parent: r.home(t).String(), Calendar: &api.Calendar{SourceEntity: source.String(), DisplayName: "forbidden"}}, r.adminToken))
 		nha162Code(t, err, connect.CodeFailedPrecondition)
-		copy := proto.Clone(request).(*cv.MutateEventRequest)
-		copy.Key.Calendar = other
-		_, err = r.api.MutateEvent(r.ctx, nha162Bearer(copy, r.adminToken))
+		_, err = r.api.CreateCalendarEvent(r.ctx, nha162Bearer(&api.CreateCalendarEventRequest{Parent: name.String(), CalendarEvent: nhf015DayEvent()}, r.adminToken))
 		nha162Code(t, err, connect.CodeFailedPrecondition)
 	}
-	_, err = r.api.MutateEvent(r.ctx, nha162Bearer(&cv.MutateEventRequest{Key: original.Revision.Resource, Mutation: cv.Mutation_MUTATION_DELETE, ExpectedRevision: original.Revision}, r.adminToken))
+	_, err = r.api.DeleteCalendarEvent(r.ctx, nha162Bearer(&api.DeleteCalendarEventRequest{Name: original.Name, Etag: original.Etag}, r.adminToken))
 	nha162Code(t, err, connect.CodeAborted)
-	deleted, err := r.api.MutateEvent(r.ctx, nha162Bearer(&cv.MutateEventRequest{Key: original.Revision.Resource, Mutation: cv.Mutation_MUTATION_DELETE, ExpectedRevision: updated.Msg.Receipt.Revision}, r.adminToken))
-	if err != nil || deleted.Msg.Receipt.Revision.Presence != cv.Presence_PRESENCE_REMOVED {
-		t.Fatalf("delete: %v", err)
+	_, err = r.api.DeleteCalendarEvent(r.ctx, nha162Bearer(&api.DeleteCalendarEventRequest{Name: original.Name, Etag: updated.Msg.Etag}, r.adminToken))
+	if err != nil {
+		t.Fatal(err)
 	}
+	_, err = r.api.GetCalendarEvent(r.ctx, nha162Bearer(&api.GetCalendarEventRequest{Name: original.Name}, r.adminToken))
+	nha162Code(t, err, connect.CodeNotFound)
 }
 func TestNHF015CalendarTLSExplicitFoldMixedPagesAndNoReplay(t *testing.T) {
 	r := nhf015NewCalendarRig(t, 120*time.Second)
-	id := r.create(t)
-	resolution, err := r.api.ResolveLocalTime(r.ctx, nha162Bearer(&cv.ResolveLocalTimeRequest{Id: id, Local: "2026-11-01T01:30:00", Zone: "America/Toronto"}, r.adminToken))
-	if err != nil || resolution.Msg.Resolution != cv.LocalTimeResolution_LOCAL_TIME_RESOLUTION_AMBIGUOUS || len(resolution.Msg.Candidates) != 2 {
-		t.Fatalf("fold resolution: %v", err)
+	entity := r.create(t)
+	name := r.name(t, entity)
+	request := &api.ResolveCalendarTimeRequest{Name: name.String(), Local: &api.CalendarCivilTime{Date: &datepb.Date{Year: 2026, Month: 11, Day: 1}, Time: &timepb.TimeOfDay{Hours: 1, Minutes: 30}}, TimeZone: "America/Toronto"}
+	resolution, err := r.api.ResolveCalendarTime(r.ctx, nha162Bearer(request, r.adminToken))
+	if err != nil || resolution.Msg.Resolution != api.CalendarTimeResolution_CALENDAR_TIME_RESOLUTION_AMBIGUOUS || len(resolution.Msg.Candidates) != 2 {
+		t.Fatal("fold", err)
 	}
-	second := resolution.Msg.Candidates[1].Instant
-	timed := &cv.Event{Summary: "Explicit second fold", Span: &cv.Span{Value: &cv.Span_Times{Times: &cv.TimeSpan{AnchorLocal: "2026-11-01T01:30:00", StartInstant: second, EndInstant: "2026-11-01T07:30:00Z", Zone: "America/Toronto"}}}}
-	receipt := r.add(t, id, "fold-uid", timed)
-	snapshot, err := r.api.GetEvent(r.ctx, nha162Bearer(&cv.GetEventRequest{Key: receipt.Revision.Resource}, r.adminToken))
-	if err != nil || snapshot.Msg.Event.Value.Span.GetTimes().StartInstant != second {
-		t.Fatalf("selected instant changed: %v", err)
+	second := resolution.Msg.Candidates[1].SelectedTime
+	end := time.Date(2026, 11, 1, 7, 30, 0, 0, time.UTC)
+	timed := &api.CalendarEvent{Summary: "Explicit second fold", Span: &api.CalendarSpan{Value: &api.CalendarSpan_Times{Times: &api.CalendarTimeSpan{StartLocal: request.Local, EndLocal: &api.CalendarCivilTime{Date: &datepb.Date{Year: 2026, Month: 11, Day: 1}, Time: &timepb.TimeOfDay{Hours: 2, Minutes: 30}}, StartTime: second, EndTime: timestamppb.New(end), TimeZone: request.TimeZone}}}}
+	original := r.add(t, entity, "fold-uid", timed)
+	stored, err := r.api.GetCalendarEvent(r.ctx, nha162Bearer(&api.GetCalendarEventRequest{Name: original.Name}, r.adminToken))
+	if err != nil || !proto.Equal(stored.Msg.Span.GetTimes().StartTime, second) {
+		t.Fatal("fold selected instant", err)
 	}
-	r.add(t, id, "day-uid", nhf015DayEvent())
-	query := nhf015Week(id)
+	r.add(t, entity, "day-uid", nhf015DayEvent())
+	query := nhf015Week(name)
 	first, err := r.api.QueryOccurrences(r.ctx, nha162Bearer(query, r.adminToken))
 	if err != nil || len(first.Msg.Occurrences) != 1 || first.Msg.NextPageToken == "" {
-		t.Fatalf("bounded page: %v", err)
+		t.Fatal("first", err)
 	}
 	query.PageToken = first.Msg.NextPageToken
 	next, err := r.api.QueryOccurrences(r.ctx, nha162Bearer(query, r.adminToken))
-	if err != nil || len(next.Msg.Occurrences) != 1 {
-		t.Fatalf("next page: %v", err)
+	if err != nil || len(next.Msg.Occurrences) != 1 || next.Msg.Occurrences[0].CalendarEvent == first.Msg.Occurrences[0].CalendarEvent {
+		t.Fatal("mixed page", err)
 	}
-	if first.Msg.Occurrences[0].Key.Uid == next.Msg.Occurrences[0].Key.Uid {
-		t.Fatal("mixed page duplicated occurrence")
-	}
-	altered := proto.Clone(query).(*cv.QueryOccurrencesRequest)
-	altered.Window.Zone = "UTC"
+	altered := proto.CloneOf(query)
+	altered.Window.TimeZone = "UTC"
 	_, err = r.api.QueryOccurrences(r.ctx, nha162Bearer(altered, r.adminToken))
 	nha162Code(t, err, connect.CodeFailedPrecondition)
+	value := proto.CloneOf(original)
+	value.Summary = "Committed without reply"
 	r.handler.dropNextReply.Store(true)
-	_, err = r.api.MutateEvent(r.ctx, nha162Bearer(&cv.MutateEventRequest{Key: receipt.Revision.Resource, Mutation: cv.Mutation_MUTATION_UPDATE, ExpectedRevision: receipt.Revision, Value: timed}, r.adminToken))
-	nha162Code(t, err, connect.CodeAborted)
-	reread, err := r.api.GetEvent(r.ctx, nha162Bearer(&cv.GetEventRequest{Key: receipt.Revision.Resource}, r.adminToken))
-	if err != nil || reread.Msg.Event.Revision.Number != receipt.Revision.Number+1 {
-		t.Fatalf("lost response did not commit once: %v", err)
+	_, err = r.api.UpdateCalendarEvent(r.ctx, nha162Bearer(&api.UpdateCalendarEventRequest{CalendarEvent: value, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"summary"}}}, r.adminToken))
+	nha162Code(t, err, connect.CodeUnknown)
+	reread, err := r.api.GetCalendarEvent(r.ctx, nha162Bearer(&api.GetCalendarEventRequest{Name: original.Name}, r.adminToken))
+	if err != nil || reread.Msg.Etag == original.Etag || reread.Msg.Summary != value.Summary {
+		t.Fatal("single commit after lost reply", err)
 	}
 	_, err = r.api.QueryOccurrences(r.ctx, nha162Bearer(query, r.adminToken))
 	nha162Code(t, err, connect.CodeFailedPrecondition)
-	gap, err := r.api.ResolveLocalTime(r.ctx, nha162Bearer(&cv.ResolveLocalTimeRequest{Id: id, Local: "2026-03-08T02:30:00", Zone: "America/Toronto"}, r.adminToken))
-	if err != nil || gap.Msg.Resolution != cv.LocalTimeResolution_LOCAL_TIME_RESOLUTION_NONEXISTENT || len(gap.Msg.Candidates) != 0 {
-		t.Fatalf("gap normalized: %v", err)
+	request.Local = &api.CalendarCivilTime{Date: &datepb.Date{Year: 2026, Month: 3, Day: 8}, Time: &timepb.TimeOfDay{Hours: 2, Minutes: 30}}
+	gap, err := r.api.ResolveCalendarTime(r.ctx, nha162Bearer(request, r.adminToken))
+	if err != nil || gap.Msg.Resolution != api.CalendarTimeResolution_CALENDAR_TIME_RESOLUTION_NONEXISTENT || len(gap.Msg.Candidates) != 0 {
+		t.Fatal("gap", err)
 	}
 }
-func TestNHF015CalendarWatchResyncAndRevocation(t *testing.T) {
+func TestNHF015CalendarWatchReadyAndRevocation(t *testing.T) {
 	r := nhf015NewCalendarRig(t, 120*time.Second)
-	id := r.create(t)
+	entity := r.create(t)
 	ctx, cancel := context.WithTimeout(r.ctx, 5*time.Second)
 	defer cancel()
-	stream, err := r.api.WatchCalendar(ctx, nha162Bearer(&cv.WatchCalendarRequest{Id: id}, r.adminToken))
+	stream, err := r.api.WatchCalendar(ctx, nha162Bearer(&api.WatchCalendarRequest{Name: r.name(t, entity).String()}, r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stream.Close()
-	if !stream.Receive() || stream.Msg().GetReady() == nil || stream.Msg().StreamSequence != 1 {
-		t.Fatalf("first ready: %v", stream.Err())
+	if !stream.Receive() || stream.Msg().GetReady() == nil || stream.Msg().Sequence != 1 {
+		t.Fatal("ready", stream.Err())
 	}
-	if !stream.Receive() || stream.Msg().GetResyncRequired() == nil || stream.Msg().StreamSequence != 2 {
-		t.Fatalf("initial resync: %v", stream.Err())
-	}
-	r.add(t, id, "watch-event", nhf015DayEvent())
-	if !stream.Receive() || stream.Msg().GetChanged() == nil || stream.Msg().StreamSequence != 3 {
-		t.Fatalf("change: %v", stream.Err())
+	r.add(t, entity, "watch-event", nhf015DayEvent())
+	if !stream.Receive() || stream.Msg().GetChanged() == nil || stream.Msg().Sequence != 2 {
+		t.Fatal("change", stream.Err())
 	}
 	nha162SetPolicy(t, r.nha162RPCRig, r.admin, "  []\n")
 	if stream.Receive() || stream.Err() == nil {
 		t.Fatal("revoked watch remained live")
 	}
-	_, err = r.api.GetCalendar(r.ctx, nha162Bearer(&cv.GetCalendarRequest{Id: id}, r.adminToken))
+	_, err = r.api.GetCalendar(ctx, nha162Bearer(&api.GetCalendarRequest{Name: r.name(t, entity).String()}, r.adminToken))
 	nha162Code(t, err, connect.CodePermissionDenied)
 }

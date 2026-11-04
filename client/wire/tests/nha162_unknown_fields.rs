@@ -1,64 +1,68 @@
 use buffa::Message;
-use buffa_types::google::protobuf::Timestamp;
-use home_wire_contract::{home::lists::v1 as lists, lists_contract};
-
-fn valid_instant() -> lists::DueInstant {
-    let mut instant = lists::DueInstant {
-        zone: "UTC".into(),
+use home_wire_contract::{home::api::v2 as wire, tasks_contract::*};
+fn future<T: Message>(value: &T) -> Vec<u8> {
+    let mut bytes = value.encode_to_vec();
+    bytes.extend_from_slice(&[0xfa, 0x7f, 0x00]);
+    bytes
+}
+fn task() -> wire::Task {
+    wire::Task {
+        summary: "Synthetic".to_owned(),
+        ..Default::default()
+    }
+}
+#[test]
+fn unknown_fields_in_content_dates_instants_and_timestamps_invalidate_protected_projection() {
+    assert!(parse_task_content(&task()).is_ok());
+    let value = wire::Task::decode_from_slice(&future(&task())).unwrap();
+    assert!(parse_task_content(&value).is_err());
+    let date = home_wire_contract::google::r#type::Date {
+        year: 2026,
+        month: 11,
+        day: 3,
         ..Default::default()
     };
-    instant.at.get_or_insert_default().seconds = 1;
-    instant
-}
-
-fn payload(due: Option<lists::item_payload::Due>) -> lists::ItemPayload {
-    lists::ItemPayload {
-        summary: "Synthetic future-field item".into(),
-        completed: Some(false),
-        due,
+    let date = home_wire_contract::google::r#type::Date::decode_from_slice(&future(&date)).unwrap();
+    let mut value = task();
+    value.due = Some(wire::task::Due::DueDate(Box::new(date)));
+    assert!(parse_task_content(&value).is_err());
+    let timestamp = buffa_types::google::protobuf::Timestamp::default();
+    let unknown =
+        buffa_types::google::protobuf::Timestamp::decode_from_slice(&future(&timestamp)).unwrap();
+    let instant = wire::TaskDueInstant {
+        due_time: unknown.into(),
+        time_zone: "Etc/UTC".to_owned(),
         ..Default::default()
-    }
+    };
+    value.due = Some(wire::task::Due::DueInstant(Box::new(instant)));
+    assert!(parse_task_content(&value).is_err());
+    let instant = wire::TaskDueInstant {
+        due_time: timestamp.into(),
+        time_zone: "Etc/UTC".to_owned(),
+        ..Default::default()
+    };
+    let unknown = wire::TaskDueInstant::decode_from_slice(&future(&instant)).unwrap();
+    value.due = Some(wire::task::Due::DueInstant(Box::new(unknown)));
+    assert!(parse_task_content(&value).is_err());
 }
-
 #[test]
-fn nha162_future_due_decodes_but_is_not_an_admitted_absent_or_known_due() {
-    use lists::item_payload::Due;
-    for due in [
-        None,
-        Some(Due::DueDate("2028-02-29".into())),
-        Some(Due::from(valid_instant())),
-    ] {
-        let original = payload(due);
-        assert!(lists_contract::admit_item_payload(&original).is_ok());
-        let mut bytes = original.encode_to_vec();
-        // ItemPayload field 7 is a decodable future length-delimited variant.
-        bytes.extend_from_slice(&[0x3a, 0x01, b'x']);
-        let decoded = lists::ItemPayload::decode_from_slice(&bytes).unwrap();
-        assert!(!decoded.__buffa_unknown_fields.is_empty());
-        assert!(lists_contract::admit_item_payload(&decoded).is_err());
+fn watch_unknown_fields_nonpositive_sequence_and_unrecognized_frame_are_not_actionable() {
+    let value = wire::WatchTaskListsResponse {
+        sequence: 1,
+        frame: Some(wire::watch_task_lists_response::Frame::Ready(
+            Default::default(),
+        )),
+        ..Default::default()
+    };
+    assert!(parse_task_watch(&value).is_ok());
+    let unknown = wire::WatchTaskListsResponse::decode_from_slice(&future(&value)).unwrap();
+    assert!(parse_task_watch(&unknown).is_err());
+    for sequence in [-1, 0] {
+        let mut value = value.clone();
+        value.sequence = sequence;
+        assert!(parse_task_watch(&value).is_err());
     }
-}
-
-#[test]
-fn nha162_nested_due_and_completion_unknowns_decode_but_fail_admission() {
-    use lists::item_payload::Due;
-    let mut bytes = valid_instant().encode_to_vec();
-    bytes.extend_from_slice(&[0x1a, 0x01, b'x']);
-    let decoded = lists::DueInstant::decode_from_slice(&bytes).unwrap();
-    assert!(!decoded.__buffa_unknown_fields.is_empty());
-    assert!(lists_contract::admit_item_payload(&payload(Some(Due::from(decoded)))).is_err());
-
-    let original = valid_instant();
-    let mut bytes = original.at.as_option().unwrap().encode_to_vec();
-    bytes.extend_from_slice(&[0x18, 0x01]);
-    let timestamp = Timestamp::decode_from_slice(&bytes).unwrap();
-    assert!(!timestamp.__buffa_unknown_fields.is_empty());
-    let mut instant = valid_instant();
-    *instant.at.get_or_insert_default() = timestamp.clone();
-    assert!(lists_contract::admit_item_payload(&payload(Some(Due::from(instant)))).is_err());
-
-    let mut completed = payload(None);
-    completed.completed = Some(true);
-    *completed.completed_at.get_or_insert_default() = timestamp;
-    assert!(lists_contract::admit_item_payload(&completed).is_err());
+    let mut missing = value;
+    missing.frame = None;
+    assert!(parse_task_watch(&missing).is_err());
 }

@@ -1,295 +1,263 @@
 use super::*;
-use wire::watch_lists_response::Frame;
-
-fn ready(watch: &mut ListReadWatch) {
-    assert_eq!(
-        watch.apply(wire::WatchListsResponse {
-            stream_sequence: 1,
-            frame: Some(Frame::Ready(wire::WatchReady::default().into())),
-            ..Default::default()
-        }),
-        Ok(WatchEffect::Reload)
-    );
+use home_client_model::api_tasks::{TaskListName, TaskName};
+use wire::watch_task_lists_response::Frame;
+pub(super) fn home() -> HomeName {
+    HomeName::try_from("homes/synthetic").unwrap()
 }
-
-fn changed(sequence: u64, list: &str) -> wire::WatchListsResponse {
-    let mut change = wire::ListChanged::default();
-    change.list_id.get_or_insert_default().value = list.into();
-    change.revision.get_or_insert_default().list_id = change.list_id.clone();
-    change.revision.get_or_insert_default().number = 2;
-    wire::WatchListsResponse {
-        stream_sequence: sequence,
-        frame: Some(Frame::Changed(change.into())),
+pub(super) fn name(id: &str) -> TaskListName {
+    TaskListName::new(home(), id.parse().unwrap())
+}
+pub(super) fn list(id: &str) -> wire::TaskList {
+    wire::TaskList {
+        name: name(id).as_str().to_owned(),
+        display_name: format!("List {id}"),
+        etag: "\"opaque-list\"".to_owned(),
+        origin: wire::TaskListOrigin::Native.into(),
+        update_time: buffa_types::google::protobuf::Timestamp {
+            seconds: 1,
+            ..Default::default()
+        }
+        .into(),
         ..Default::default()
     }
 }
-
-fn item(list: &str, uid: &str, position: i64) -> wire::ItemSnapshot {
-    let mut row = wire::ItemSnapshot {
+pub(super) fn item(list: &str, uid: &str, position: i64) -> wire::Task {
+    wire::Task {
+        name: TaskName::new(name(list), uid.parse().unwrap())
+            .as_str()
+            .to_owned(),
+        summary: format!("Task {uid}"),
+        etag: "\"opaque-task\"".to_owned(),
         position,
         ..Default::default()
-    };
-    row.list_id.get_or_insert_default().value = list.into();
-    row.uid.get_or_insert_default().value = uid.into();
-    row.revision.get_or_insert_default().list_id = row.list_id.clone();
-    row.revision.get_or_insert_default().item_uid = row.uid.clone();
-    row.revision.get_or_insert_default().number = 1;
-    row.value.get_or_insert_default().summary = format!("Task {uid}");
-    row.value.get_or_insert_default().completed = Some(false);
-    row
+    }
 }
-
-fn list(id: &str) -> wire::ListSnapshot {
-    let mut row = wire::ListSnapshot {
-        name: format!("List {id}"),
-        origin: wire::ListOrigin::Native.into(),
+pub(super) fn ready() -> wire::WatchTaskListsResponse {
+    wire::WatchTaskListsResponse {
+        sequence: 1,
+        frame: Some(Frame::Ready(Default::default())),
         ..Default::default()
-    };
-    row.id.get_or_insert_default().value = id.into();
-    row.revision.get_or_insert_default().list_id = row.id.clone();
-    row.revision.get_or_insert_default().number = 1;
-    row.updated_at.get_or_insert_default().seconds = 1;
-    row
+    }
 }
-
+pub(super) fn changed(sequence: i64, list: &str) -> wire::WatchTaskListsResponse {
+    wire::WatchTaskListsResponse {
+        sequence,
+        frame: Some(Frame::Changed(Box::new(wire::TaskListChanged {
+            task_list: name(list).as_str().to_owned(),
+            etag: "\"next\"".to_owned(),
+            ..Default::default()
+        }))),
+        ..Default::default()
+    }
+}
+fn watch(scope: Scope) -> ListReadWatch {
+    let mut watch = ListReadWatch::new(scope, home());
+    assert_eq!(watch.apply(ready()), Ok(WatchEffect::Reload));
+    watch
+}
 #[test]
-fn watch_must_be_ready_and_a_change_during_pagination_discards_every_page() {
-    let mut watch = ListReadWatch::new(Scope::Items("a".parse().unwrap()));
-    assert!(matches!(watch.begin_capture(), Err(ReadFailure::Abandoned)));
-    ready(&mut watch);
-    let mut capture = watch.begin_capture().unwrap();
+fn invalidation_and_stream_identity_discard_provisional_pages() {
+    let mut old = watch(Scope::Catalog);
+    let mut capture = old.begin_capture().unwrap();
     capture
-        .push_items(wire::ListItemsResponse {
-            items: vec![item("a", "first", 0)],
-            next_page_token: "opaque-not-decoded".into(),
+        .push_lists(wire::ListTaskListsResponse {
+            task_lists: vec![list("a")],
+            next_page_token: "next".to_owned(),
+            total_size: 2,
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(capture.next_token(), "opaque-not-decoded");
-    assert_eq!(watch.apply(changed(2, "a")), Ok(WatchEffect::Reload));
+    old.apply(changed(2, "a")).unwrap();
     capture
-        .push_items(wire::ListItemsResponse {
-            items: vec![item("a", "last", 1)],
+        .push_lists(wire::ListTaskListsResponse {
+            task_lists: vec![list("b")],
+            total_size: 2,
             ..Default::default()
         })
         .unwrap();
     assert!(matches!(
-        watch.finish(capture),
+        old.finish(capture),
         Err(ReadFailure::ChangedDuringRead)
     ));
-    let mut replacement = watch.begin_capture().unwrap();
-    replacement
-        .push_items(wire::ListItemsResponse::default())
-        .unwrap();
-    assert!(
-        matches!(watch.finish(replacement), Ok(CapturedRows::Items { rows, .. }) if rows.is_empty())
-    );
-}
-
-#[test]
-fn stream_identity_prevents_a_late_reply_from_the_previous_connection() {
-    let mut old = ListReadWatch::new(Scope::Catalog);
-    ready(&mut old);
     let mut capture = old.begin_capture().unwrap();
     capture
-        .push_lists(wire::ListListsResponse {
-            lists: vec![list("a")],
-            ..Default::default()
-        })
+        .push_lists(wire::ListTaskListsResponse::default())
         .unwrap();
+    let replacement = watch(Scope::Catalog);
+    assert!(matches!(
+        replacement.finish(capture),
+        Err(ReadFailure::Abandoned)
+    ));
     old.close();
-    let mut new = ListReadWatch::new(Scope::Catalog);
-    ready(&mut new);
-    assert!(matches!(new.finish(capture), Err(ReadFailure::Abandoned)));
-    assert!(matches!(old.begin_capture(), Err(ReadFailure::Abandoned)));
+    assert!(old.begin_capture().is_err());
 }
-
 #[test]
-fn gaps_duplicate_ready_wrong_scope_and_resync_are_terminal() {
-    let mut gap = ListReadWatch::new(Scope::Catalog);
-    ready(&mut gap);
+fn gaps_wrong_scope_duplicate_ready_and_resync_close_the_fence() {
+    let mut gap = watch(Scope::Catalog);
     assert_eq!(gap.apply(changed(3, "a")), Err(ReadFailure::OutOfOrder));
     assert_eq!(gap.apply(changed(2, "a")), Err(ReadFailure::Abandoned));
-    let mut duplicate = ListReadWatch::new(Scope::Catalog);
-    ready(&mut duplicate);
-    assert_eq!(
-        duplicate.apply(wire::WatchListsResponse {
-            stream_sequence: 2,
-            frame: Some(Frame::Ready(wire::WatchReady::default().into())),
-            ..Default::default()
-        }),
-        Err(ReadFailure::OutOfOrder)
-    );
-    let mut scoped = ListReadWatch::new(Scope::Items("a".parse().unwrap()));
-    ready(&mut scoped);
+    let mut duplicate = watch(Scope::Catalog);
+    let mut ready = ready();
+    ready.sequence = 2;
+    assert_eq!(duplicate.apply(ready), Err(ReadFailure::OutOfOrder));
+    let mut scoped = watch(Scope::Items("a".parse().unwrap()));
     assert_eq!(scoped.apply(changed(2, "b")), Err(ReadFailure::WrongScope));
-    let mut resync = ListReadWatch::new(Scope::Catalog);
-    ready(&mut resync);
+    let mut resync = watch(Scope::Catalog);
     let capture = resync.begin_capture().unwrap();
     assert_eq!(
-        resync.apply(wire::WatchListsResponse {
-            stream_sequence: 2,
-            frame: Some(Frame::ResyncRequired(
-                wire::ListResyncRequired::default().into()
-            )),
+        resync.apply(wire::WatchTaskListsResponse {
+            sequence: 2,
+            frame: Some(Frame::ResyncRequired(Default::default())),
             ..Default::default()
         }),
         Ok(WatchEffect::Resubscribe)
     );
-    assert!(matches!(
-        resync.finish(capture),
-        Err(ReadFailure::Abandoned)
-    ));
+    assert!(resync.finish(capture).is_err());
 }
-
 #[test]
-fn malformed_pages_poison_the_capture_instead_of_publishing_a_prefix() {
-    let mut watch = ListReadWatch::new(Scope::Catalog);
-    ready(&mut watch);
-    let mut capture = watch.begin_capture().unwrap();
-    capture
-        .push_lists(wire::ListListsResponse {
-            lists: vec![list("a")],
-            next_page_token: "next".into(),
-            ..Default::default()
-        })
-        .unwrap();
-    assert_eq!(
-        capture.push_lists(wire::ListListsResponse {
-            lists: vec![list("a")],
-            ..Default::default()
-        }),
-        Err(ReadFailure::Duplicate)
-    );
-    assert!(matches!(watch.finish(capture), Err(ReadFailure::Abandoned)));
-
-    let mut capture = watch.begin_capture().unwrap();
-    capture
-        .push_lists(wire::ListListsResponse {
-            lists: vec![list("a")],
-            next_page_token: "loop".into(),
-            ..Default::default()
-        })
-        .unwrap();
-    assert_eq!(
-        capture.push_lists(wire::ListListsResponse {
-            lists: vec![list("b")],
-            next_page_token: "loop".into(),
-            ..Default::default()
-        }),
-        Err(ReadFailure::InvalidResponse)
-    );
-    assert!(matches!(watch.finish(capture), Err(ReadFailure::Abandoned)));
-}
-
-#[test]
-fn foreign_items_missing_false_and_reversed_positions_are_rejected() {
-    let mut watch = ListReadWatch::new(Scope::Items("a".parse().unwrap()));
-    ready(&mut watch);
+fn foreign_home_foreign_list_unknown_content_and_reversed_positions_never_publish() {
+    let watch = watch(Scope::Items("a".parse().unwrap()));
+    let mut foreign_home = item("a", "uid", 0);
+    foreign_home.name = foreign_home.name.replace("homes/synthetic", "homes/other");
+    for row in [item("b", "uid", 0), foreign_home] {
+        let mut capture = watch.begin_capture().unwrap();
+        assert_eq!(
+            capture.push_items(wire::ListTasksResponse {
+                tasks: vec![row],
+                total_size: 1,
+                ..Default::default()
+            }),
+            Err(ReadFailure::WrongScope)
+        );
+        assert!(watch.finish(capture).is_err());
+    }
+    let mut invalid = item("a", "uid", 0);
+    invalid.etag.clear();
     let mut capture = watch.begin_capture().unwrap();
     assert_eq!(
-        capture.push_items(wire::ListItemsResponse {
-            items: vec![item("b", "same-uid", 0)],
-            ..Default::default()
-        }),
-        Err(ReadFailure::WrongScope)
-    );
-    let mut absent = item("a", "absent", 0);
-    absent.value.get_or_insert_default().completed = None;
-    let mut capture = watch.begin_capture().unwrap();
-    assert_eq!(
-        capture.push_items(wire::ListItemsResponse {
-            items: vec![absent],
+        capture.push_items(wire::ListTasksResponse {
+            tasks: vec![invalid],
+            total_size: 1,
             ..Default::default()
         }),
         Err(ReadFailure::InvalidResponse)
     );
     let mut capture = watch.begin_capture().unwrap();
     assert_eq!(
-        capture.push_items(wire::ListItemsResponse {
-            items: vec![item("a", "first", 10), item("a", "second", 9)],
+        capture.push_items(wire::ListTasksResponse {
+            tasks: vec![item("a", "one", 1), item("a", "two", 0)],
+            total_size: 2,
             ..Default::default()
         }),
         Err(ReadFailure::OutOfOrder)
     );
 }
-
 #[test]
-fn ten_thousand_items_are_captured_in_pages_preserving_exact_identity_and_false() {
-    let mut watch = ListReadWatch::new(Scope::Items(" opaque / 项目 ".parse().unwrap()));
-    ready(&mut watch);
+fn duplicates_token_loops_and_budget_failures_poison_the_entire_capture() {
+    let watch = watch(Scope::Catalog);
+    for duplicate in [true, false] {
+        let mut capture = watch.begin_capture().unwrap();
+        capture
+            .push_lists(wire::ListTaskListsResponse {
+                task_lists: vec![list("a")],
+                next_page_token: "same".to_owned(),
+                total_size: 2,
+                ..Default::default()
+            })
+            .unwrap();
+        let result = capture.push_lists(wire::ListTaskListsResponse {
+            task_lists: vec![list(if duplicate { "a" } else { "b" })],
+            next_page_token: if duplicate {
+                String::new()
+            } else {
+                "same".to_owned()
+            },
+            total_size: 2,
+            ..Default::default()
+        });
+        assert_eq!(
+            result,
+            Err(if duplicate {
+                ReadFailure::Duplicate
+            } else {
+                ReadFailure::InvalidResponse
+            })
+        );
+        assert!(watch.finish(capture).is_err());
+    }
+    let mut capture = watch.begin_capture().unwrap();
+    assert_eq!(
+        capture.push_lists(wire::ListTaskListsResponse {
+            total_size: i32::MAX,
+            ..Default::default()
+        }),
+        Err(ReadFailure::BudgetExceeded)
+    );
+    let mut capture = watch.begin_capture().unwrap();
+    assert_eq!(
+        capture.push_lists(wire::ListTaskListsResponse {
+            task_lists: (0..257).map(|i| list(&i.to_string())).collect(),
+            total_size: 257,
+            ..Default::default()
+        }),
+        Err(ReadFailure::BudgetExceeded)
+    );
+}
+#[test]
+fn empty_aip_pages_continue_and_server_totals_must_remain_exact() {
+    let watch = watch(Scope::Catalog);
+    let mut capture = watch.begin_capture().unwrap();
+    capture
+        .push_lists(wire::ListTaskListsResponse {
+            next_page_token: "opaque".to_owned(),
+            total_size: 1,
+            ..Default::default()
+        })
+        .unwrap();
+    capture
+        .push_lists(wire::ListTaskListsResponse {
+            task_lists: vec![list("a")],
+            total_size: 1,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(capture.total(), Ok(1));
+    assert!(watch.finish(capture).is_ok());
+    let mut capture = watch.begin_capture().unwrap();
+    capture
+        .push_lists(wire::ListTaskListsResponse {
+            total_size: 1,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(capture.total(), Err(ReadFailure::Incomplete));
+}
+#[test]
+fn ten_thousand_tasks_keep_exact_imported_keys_false_and_position_zero() {
+    let watch = watch(Scope::Items(" opaque / 项目 ".parse().unwrap()));
     let mut capture = watch.begin_capture().unwrap();
     for start in (0..10_000).step_by(PAGE_SIZE) {
         let end = (start + PAGE_SIZE).min(10_000);
         capture
-            .push_items(wire::ListItemsResponse {
-                items: (start..end)
-                    .map(|index| item(" opaque / 项目 ", &format!("item-{index}"), index as i64))
+            .push_items(wire::ListTasksResponse {
+                tasks: (start..end)
+                    .map(|i| item(" opaque / 项目 ", &format!("task-{i}"), i as i64))
                     .collect(),
                 next_page_token: if end == 10_000 {
                     String::new()
                 } else {
                     format!("opaque-{end}")
                 },
+                total_size: 10_000,
                 ..Default::default()
             })
             .unwrap();
     }
-    let CapturedRows::Items { list, rows } = watch.finish(capture).unwrap() else {
-        panic!("items scope")
+    assert_eq!(capture.total(), Ok(10_000));
+    let CapturedRows::Items { rows, .. } = watch.finish(capture).unwrap() else {
+        panic!("items")
     };
-    assert_eq!(list.as_str(), " opaque / 项目 ");
-    assert_eq!(rows.len(), 10_000);
-    assert_eq!(rows[9_999].uid.value, "item-9999");
-    assert_eq!(rows[0].value.completed, Some(false));
-}
-
-#[test]
-fn partial_oversize_empty_continuation_and_extra_pages_cannot_publish() {
-    let mut watch = ListReadWatch::new(Scope::Catalog);
-    ready(&mut watch);
-    assert!(matches!(
-        watch.finish(watch.begin_capture().unwrap()),
-        Err(ReadFailure::Incomplete)
-    ));
-    let mut partial = watch.begin_capture().unwrap();
-    partial
-        .push_lists(wire::ListListsResponse {
-            lists: vec![list("a")],
-            next_page_token: "next".into(),
-            ..Default::default()
-        })
-        .unwrap();
-    assert!(matches!(
-        watch.finish(partial),
-        Err(ReadFailure::Incomplete)
-    ));
-    let mut oversized = watch.begin_capture().unwrap();
-    assert_eq!(
-        oversized.push_lists(wire::ListListsResponse {
-            lists: (0..257).map(|i| list(&i.to_string())).collect(),
-            ..Default::default()
-        }),
-        Err(ReadFailure::BudgetExceeded)
-    );
-    let mut empty = watch.begin_capture().unwrap();
-    assert_eq!(
-        empty.push_lists(wire::ListListsResponse {
-            next_page_token: "next".into(),
-            ..Default::default()
-        }),
-        Err(ReadFailure::InvalidResponse)
-    );
-    let mut complete = watch.begin_capture().unwrap();
-    complete
-        .push_lists(wire::ListListsResponse::default())
-        .unwrap();
-    assert_eq!(
-        complete.push_lists(wire::ListListsResponse::default()),
-        Err(ReadFailure::Abandoned)
-    );
-    assert!(matches!(
-        watch.finish(complete),
-        Err(ReadFailure::Abandoned)
-    ));
+    assert_eq!(rows[9999].key().uid().as_str(), "task-9999");
+    assert!(!rows[0].content().completed());
+    assert_eq!(rows[0].position(), 0);
 }

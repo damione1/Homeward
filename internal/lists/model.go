@@ -35,6 +35,7 @@ const (
 	CommittedResponseWithheld
 	Closed
 	ResyncRequired
+	ChildrenPresent
 )
 
 type Error struct{ code Code }
@@ -332,6 +333,8 @@ type MutationReceipt struct {
 	listRevision ListRevision
 	itemRevision ItemRevision
 	outcome      ReceiptOutcome
+	listSnapshot *ListSnapshot
+	itemSnapshot *ItemSnapshot
 }
 
 func (r MutationReceipt) ListID() domain.ListID { return r.list }
@@ -348,6 +351,21 @@ func (r MutationReceipt) ItemRevision() (ItemRevision, bool) {
 	return r.itemRevision, err == nil
 }
 func (r MutationReceipt) Outcome() ReceiptOutcome { return r.outcome }
+
+// Resource snapshots are captured under the same SQL transaction as the
+// mutation, and released only after the known-commit authorization fence.
+func (r MutationReceipt) ListSnapshot() (ListSnapshot, bool) {
+	if r.listSnapshot == nil {
+		return ListSnapshot{}, false
+	}
+	return *r.listSnapshot, true
+}
+func (r MutationReceipt) ItemSnapshot() (ItemSnapshot, bool) {
+	if r.itemSnapshot == nil {
+		return ItemSnapshot{}, false
+	}
+	return *r.itemSnapshot, true
+}
 
 type ListSnapshot struct {
 	id       domain.ListID
@@ -369,19 +387,21 @@ func (s ListSnapshot) Revision() ListRevision { return s.revision }
 func (s ListSnapshot) UpdatedAt() time.Time   { return s.updated }
 
 type ItemSnapshot struct {
-	list     domain.ListID
-	uid      ItemUID
-	origin   Origin
-	payload  ItemPayload
-	position int64
-	revision ItemRevision
-	updated  time.Time
+	listRevision ListRevision
+	list         domain.ListID
+	uid          ItemUID
+	origin       Origin
+	payload      ItemPayload
+	position     int64
+	revision     ItemRevision
+	updated      time.Time
 }
 
-func (s ItemSnapshot) UID() ItemUID          { return s.uid }
-func (s ItemSnapshot) ListID() domain.ListID { return s.list }
-func (s ItemSnapshot) Summary() string       { return s.payload.summary }
-func (s ItemSnapshot) Completed() bool       { return s.payload.completed }
+func (s ItemSnapshot) ListRevision() ListRevision { return s.listRevision }
+func (s ItemSnapshot) UID() ItemUID               { return s.uid }
+func (s ItemSnapshot) ListID() domain.ListID      { return s.list }
+func (s ItemSnapshot) Summary() string            { return s.payload.summary }
+func (s ItemSnapshot) Completed() bool            { return s.payload.completed }
 func (s ItemSnapshot) Description() (string, bool) {
 	if s.payload.description == nil {
 		return "", false
@@ -424,6 +444,7 @@ type ItemCursor struct {
 	last         ItemUID
 }
 type ListPage struct {
+	total   uint64
 	entries []ListSnapshot
 	next    ListCursor
 }
@@ -432,6 +453,7 @@ func (p ListPage) Entries() []ListSnapshot  { return append([]ListSnapshot(nil),
 func (p ListPage) Next() (ListCursor, bool) { return p.next, p.next.valid }
 
 type ItemPage struct {
+	total   uint64
 	entries []ItemSnapshot
 	next    ItemCursor
 }
@@ -499,3 +521,6 @@ func itemSourceHash(alias domain.HAAlias, p LegacyItemPayload) ([sha256.Size]byt
 	}
 	return sha256.Sum256(data), nil
 }
+
+func (p ListPage) TotalSize() uint64 { return p.total }
+func (p ItemPage) TotalSize() uint64 { return p.total }

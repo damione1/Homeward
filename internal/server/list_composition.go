@@ -17,14 +17,15 @@ import (
 var ErrListImportBinding = errors.New("server: legacy list binding conflicts with registry")
 
 type listComposition struct {
-	store    *storage.Store
-	manifest registry.Manifest
-	registry *registry.Repository
-	service  *lists.Service
-	handler  *listHandler
-	once     sync.Once
-	done     chan struct{}
-	closeErr error
+	store     *storage.Store
+	manifest  registry.Manifest
+	registry  *registry.Repository
+	service   *lists.Service
+	tasks     *taskHandler
+	resources *businessResourceRuntime
+	once      sync.Once
+	done      chan struct{}
+	closeErr  error
 }
 
 // Run must pass its one Store and the same session Authority used by native
@@ -55,29 +56,32 @@ func newListCompositionWithManifest(store *storage.Store, authority *authorizati
 		_ = service.Close()
 		return nil, err
 	}
-	handler, err := newListHandler(service, cursors)
-	if err != nil {
-		_ = service.Close()
-		return nil, err
-	}
 	registryRepo, err := registry.NewRepository(store, manifest)
 	if err != nil {
 		_ = service.Close()
 		return nil, err
 	}
-	return &listComposition{store: store, manifest: manifest, registry: registryRepo, service: service, handler: handler, done: make(chan struct{})}, nil
+	tasks, err := newTaskHandler(service, cursors, registryRepo)
+	if err != nil {
+		_ = service.Close()
+		return nil, err
+	}
+	return &listComposition{store: store, manifest: manifest, registry: registryRepo, service: service, tasks: tasks, done: make(chan struct{})}, nil
 }
 func (c *listComposition) Register(plan *PublicPlan) error {
-	if c == nil || c.handler == nil {
+	if c == nil || c.tasks == nil {
 		return ErrInvalidPublicPlan
 	}
-	return registerListRoutes(plan, c.handler)
+	return registerTaskRoutes(plan, c.tasks)
 }
 func (c *listComposition) Close() error {
 	if c == nil {
 		return ErrInvalidPublicPlan
 	}
 	c.once.Do(func() {
+		if c.resources != nil {
+			c.resources.Close()
+		}
 		c.closeErr = c.service.Close()
 		close(c.done)
 	})

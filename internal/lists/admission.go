@@ -89,3 +89,22 @@ func (s *Service) AdmitObject(ctx context.Context, id domain.ListID, op authv1.S
 func (s *Service) AdmitCollection(ctx context.Context, op authv1.ScopeOperation) (*Admission, error) {
 	return s.admit(ctx, op, collection())
 }
+
+// CursorBinding binds network continuations to the current native credential
+// and committed rights. Call before entering a SQL transaction; this method
+// never runs under account/policy or owner SQL locks.
+func (s *Service) CursorBinding(ctx context.Context) ([32]byte, error) {
+	if s == nil || s.authority == nil {
+		return [32]byte{}, failure(Denied)
+	}
+	principal, err := authorization.PrincipalFromContext(ctx)
+	if err != nil {
+		return [32]byte{}, failure(Denied)
+	}
+	current, err := s.authority.Current(principal)
+	if err != nil {
+		return [32]byte{}, failure(Denied)
+	}
+	_, binding, err := current.Binding()
+	return binding, err
+}

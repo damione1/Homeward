@@ -1,0 +1,691 @@
+syntax = "proto3";
+package home.api.v2;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "google/type/timeofday.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "CalendarsProto";
+option java_package = "com.home.api.v2";
+
+// Calendar resources retain civil dates, explicit zones and selected DST folds.
+// Remote and calculated sources are read-only. No method refreshes a provider.
+service CalendarService {
+  option (google.api.default_host) = "homeward.damiengoehrig.ca";
+  // Discovers authorized configured sources, including an unmaterialized local
+  // source that can be initialized by CreateCalendar. Labels never select it.
+  rpc QueryCalendarSources(QueryCalendarSourcesRequest) returns (QueryCalendarSourcesResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}/calendarSources:query"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Lists authorized calendars, ordered by canonical name.
+  rpc ListCalendars(ListCalendarsRequest) returns (ListCalendarsResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}/calendars"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Reads one existing calendar;
+  // an absent local calendar is NOT_FOUND.
+  rpc GetCalendar(GetCalendarRequest) returns (Calendar) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/calendars/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Creates a local calendar for an admitted configured source entity.
+  rpc CreateCalendar(CreateCalendarRequest) returns (Calendar) {
+    option (google.api.http) = {
+      post: "/v2/{parent=homes/*}/calendars"
+      body: "calendar"
+    };
+    option (google.api.method_signature) = "parent,calendar";
+  }
+  // Updates local metadata with a mandatory resource-bound etag.
+  rpc UpdateCalendar(UpdateCalendarRequest) returns (Calendar) {
+    option (google.api.http) = {
+      patch: "/v2/{calendar.name=homes/*/calendars/*}"
+      body: "calendar"
+    };
+    option (google.api.method_signature) = "calendar,update_mask";
+  }
+  // Deletes a local calendar. A tombstoned identity is never resurrected.
+  rpc DeleteCalendar(DeleteCalendarRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/v2/{name=homes/*/calendars/*}"};
+    option (google.api.method_signature) = "name,etag";
+  }
+  // Lists event definitions from a single bounded committed image.
+  rpc ListCalendarEvents(ListCalendarEventsRequest) returns (ListCalendarEventsResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*/calendars/*}/events"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Reads a series definition, including its declared exceptions.
+  rpc GetCalendarEvent(GetCalendarEventRequest) returns (CalendarEvent) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/calendars/*/events/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Creates a local series, with a fresh server-assigned identity.
+  rpc CreateCalendarEvent(CreateCalendarEventRequest) returns (CalendarEvent) {
+    option (google.api.http) = {
+      post: "/v2/{parent=homes/*/calendars/*}/events"
+      body: "calendar_event"
+    };
+    option (google.api.method_signature) = "parent,calendar_event";
+  }
+  // Updates only selected fields;
+  // no client-side wall-time resolution occurs.
+  rpc UpdateCalendarEvent(UpdateCalendarEventRequest) returns (CalendarEvent) {
+    option (google.api.http) = {
+      patch: "/v2/{calendar_event.name=homes/*/calendars/*/events/*}"
+      body: "calendar_event"
+    };
+    option (google.api.method_signature) = "calendar_event,update_mask";
+  }
+  // Deletes a local series with etag comparison, preserving tombstones.
+  rpc DeleteCalendarEvent(DeleteCalendarEventRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/v2/{name=homes/*/calendars/*/events/*}"};
+    option (google.api.method_signature) = "name,etag";
+  }
+  // Lists computed occurrences in a bounded period, never materializing an
+  // unbounded recurrence. Parent events/- selects every series in one calendar.
+  rpc QueryOccurrences(QueryOccurrencesRequest) returns (QueryOccurrencesResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*/calendars/*/events/*}/occurrences:query"};
+    option (google.api.method_signature) = "parent,window";
+  }
+  // Resolves a civil wall time without mutation or choosing an ambiguous fold.
+  rpc ResolveCalendarTime(ResolveCalendarTimeRequest) returns (ResolveCalendarTimeResponse) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/calendars/*}:resolveTime"};
+    option (google.api.method_signature) = "name,local,time_zone";
+  }
+  // Bounded invalidations;
+  // every reconnect requires a new capture.
+  rpc WatchCalendar(WatchCalendarRequest) returns (stream WatchCalendarResponse) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*/calendars/*}:watch"
+      body: "*"
+    };
+    option (google.api.method_signature) = "name";
+  }
+}
+
+// A source-bound calendar. Names and etags grant no authority.
+message Calendar {
+  option (google.api.resource) = {
+    type: "homeward.damiengoehrig.ca/Calendar"
+    pattern: "homes/{home}/calendars/{calendar}"
+    singular: "calendar"
+    plural: "calendars"
+  };
+  // Canonical resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // Editable display label; labels never identify resources.
+  string display_name = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Configured source identity;
+  // changing it would change this calendar's identity.
+  // Immutable canonical entity owning this calendar source.
+  string source_entity = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"
+  ];
+  // Source origin; unknown origins are not actionable.
+  CalendarOrigin origin = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Current source freshness, independent of authorization and provenance.
+  CalendarFreshness freshness = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time until which the source observation is considered fresh.
+  google.protobuf.Timestamp fresh_until_time = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Explicit distinction between observed installation data and synthetic qualification data.
+  CalendarProvenance provenance = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Current object authorization for mutation, independent of source mutability.
+  CalendarMutationAccess mutation_access = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time at which the owning source last changed this resource.
+  google.protobuf.Timestamp update_time = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Opaque weak etag bound to this content revision; quality and effective
+  // permissions may change independently. Preserve the exact W/quoted token.
+  string etag = 10;
+}
+
+// A civil date/time without an inferred offset. Nanoseconds must be zero under
+// the calendar domain's explicit second-precision recurrence profile.
+message CalendarCivilTime {
+  // Complete civil date, without an inferred zone or instant.
+  google.type.Date date = 1 [(google.api.field_behavior) = REQUIRED];
+  // Explicit timestamp or civil clock components, according to the containing type.
+  google.type.TimeOfDay time = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Civil end is exclusive. Midnight is never synthesized in an implicit zone.
+message CalendarDateSpan {
+  // Inclusive civil start date.
+  google.type.Date start_date = 1 [(google.api.field_behavior) = REQUIRED];
+  // Exclusive civil end date.
+  google.type.Date end_date = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Selected instants preserve the user's explicit DST fold choice. The server
+// validates that both civil representations correspond exactly to this zone.
+message CalendarTimeSpan {
+  // Original inclusive civil start with its explicitly selected instant.
+  CalendarCivilTime start_local = 1 [(google.api.field_behavior) = REQUIRED];
+  // Original exclusive civil end with its explicitly selected instant.
+  CalendarCivilTime end_local = 2 [(google.api.field_behavior) = REQUIRED];
+  // Inclusive start instant.
+  google.protobuf.Timestamp start_time = 3 [(google.api.field_behavior) = REQUIRED];
+  // Exclusive end instant.
+  google.protobuf.Timestamp end_time = 4 [(google.api.field_behavior) = REQUIRED];
+  // Explicit IANA time zone; never inferred from the server or device.
+  string time_zone = 5 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Exactly one temporal kind is required;
+// no civil/instant coercion is allowed.
+// Calendar span.
+message CalendarSpan {
+  // Exactly one admitted value.
+  oneof value {
+    // A civil date span; never coerced to instants.
+    CalendarDateSpan dates = 1;
+    // An explicitly zoned instant span.
+    CalendarTimeSpan times = 2;
+  }
+}
+
+// The original recurrence identity is civil, even when its exception moves.
+message CalendarRecurrencePoint {
+  // Exactly one admitted value.
+  oneof value {
+    // Complete civil date, without an inferred zone or instant.
+    google.type.Date date = 1;
+    // Original civil wall-clock identity, preserved across a DST fold.
+    CalendarCivilTime local = 2;
+    // Imported explicit instant retains its original wall identity and fold.
+    CalendarResolvedRecurrencePoint resolved = 3;
+  }
+}
+
+// Calendar resolved recurrence point.
+message CalendarResolvedRecurrencePoint {
+  // Original civil wall-clock identity, preserved across a DST fold.
+  CalendarCivilTime local = 1 [(google.api.field_behavior) = REQUIRED];
+  // Explicit timestamp or civil clock components, according to the containing type.
+  google.protobuf.Timestamp selected_time = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// An exception cancels or replaces one original recurrence identity.
+message CalendarException {
+  // Original recurrence identity to cancel or replace.
+  CalendarRecurrencePoint original = 1 [(google.api.field_behavior) = REQUIRED];
+  // Exactly one admitted change.
+  oneof change {
+    // Cancel the original recurrence without moving its identity.
+    google.protobuf.Empty cancel = 2;
+    // Replacement span preserving the original recurrence identity.
+    CalendarSpan replacement = 3;
+  }
+  // Imported override title; local writes do not admit content overrides.
+  optional string replacement_summary = 4;
+  // Imported override description; local writes do not admit content overrides.
+  optional string replacement_description = 5;
+  // Imported override location; local writes do not admit content overrides.
+  optional string replacement_location = 6;
+}
+
+// An editable local series or a read-only remote definition. RFC5545 rules,
+// additions, exclusions and exceptions retain the existing admitted profile.
+message CalendarEvent {
+  option (google.api.resource) = {
+    type: "homeward.damiengoehrig.ca/CalendarEvent"
+    pattern: "homes/{home}/calendars/{calendar}/events/{event}"
+    singular: "calendarEvent"
+    plural: "calendarEvents"
+  };
+  // Canonical resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // Bounded human-readable title.
+  string summary = 2 [(google.api.field_behavior) = REQUIRED];
+  // Bounded plain-text description; empty clears the selected field.
+  string description = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Bounded plain-text location; empty clears the selected field.
+  string location = 4 [(google.api.field_behavior) = OPTIONAL];
+  // Atomic temporal span with one explicit civil or instant kind.
+  CalendarSpan span = 5 [(google.api.field_behavior) = REQUIRED];
+  // Optional admitted RFC5545 rule; selecting an absent rule clears recurrence.
+  optional string recurrence_rule = 6 [(google.api.field_behavior) = OPTIONAL];
+  // Additional original recurrence identities within the admitted profile.
+  repeated CalendarRecurrencePoint additions = 7 [(google.api.field_behavior) = OPTIONAL];
+  // Original recurrence identities excluded from this series.
+  repeated CalendarRecurrencePoint exclusions = 8 [(google.api.field_behavior) = OPTIONAL];
+  // Bounded cancellations or replacements keyed by original recurrence identity.
+  repeated CalendarException exceptions = 9 [(google.api.field_behavior) = OPTIONAL];
+  // Time at which the owning source last changed this resource.
+  google.protobuf.Timestamp update_time = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Opaque weak etag bound to this content revision; quality and effective
+  // permissions may change independently. Preserve the exact W/quoted token.
+  string etag = 11;
+  // Opaque version of the owning calendar captured with this event.
+  string calendar_etag = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// A computed projection;
+// identity refers to the original series point.
+// Occurrence.
+message Occurrence {
+  // Owning event; recurrence_point preserves this projection’s original identity.
+  string calendar_event = 1 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/CalendarEvent"
+  ];
+  // Original series recurrence identity, including imported explicit fold choice.
+  CalendarRecurrencePoint recurrence_point = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Atomic temporal span with one explicit civil or instant kind.
+  CalendarSpan span = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Explicit IANA time zone; never inferred from the server or device.
+  string time_zone = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Bounded human-readable title.
+  string summary = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Bounded plain-text description; empty clears the selected field.
+  string description = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Bounded plain-text location; empty clears the selected field.
+  string location = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Bounded query period, end-exclusive and at most 366 days. The zone is always
+// explicit, including all-day projection and a calculated calendar.
+message CalendarWindow {
+  // Explicit IANA time zone; never inferred from the server or device.
+  string time_zone = 1 [(google.api.field_behavior) = REQUIRED];
+  // Exactly one admitted bounds.
+  oneof bounds {
+    // A civil date span; never coerced to instants.
+    CalendarDateSpan dates = 2;
+    // An explicitly zoned instant span.
+    CalendarInstantRange times = 3;
+  }
+}
+
+// Calendar instant range.
+message CalendarInstantRange {
+  // Inclusive start instant.
+  google.protobuf.Timestamp start_time = 1 [(google.api.field_behavior) = REQUIRED];
+  // Exclusive end instant.
+  google.protobuf.Timestamp end_time = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Readonly metadata for one configured source; it has no separate resource
+// lifecycle. A Calendar resource exists only when materialized is true.
+message CalendarSource {
+  // Exact Calendar location associated with the configured native source.
+  string calendar = 1 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Calendar"
+  ];
+  // Canonical source entity used by CreateCalendar; never reconstructed from labels.
+  string source_entity = 2 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"
+  ];
+  // Native source ownership, independent of a caller's administrative role.
+  CalendarOrigin origin = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Effective current write access; remote/calculated sources remain denied.
+  CalendarMutationAccess mutation_access = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Whether the Calendar resource currently exists; false is an explicit state.
+  bool materialized = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Source data provenance, independent of observation quality.
+  CalendarProvenance provenance = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Known native calendar label; empty when no materialized label is known.
+  // A display label never identifies a source or authorizes a mutation.
+  string display_name = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Query authorized source metadata within the current home.
+message QueryCalendarSourcesRequest {
+  // Canonical home owning the configured calendar sources.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"
+  ];
+  // Maximum sources; zero selects 100, negative is invalid, maximum 256.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation bound to the same caller and source metadata capture.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Bounded source metadata ordered by exact Calendar location.
+message QueryCalendarSourcesResponse {
+  // Authorized configured source projections, including absent local sources.
+  repeated CalendarSource calendar_sources = 1;
+  // Continuation token; empty when the current source collection is exhausted.
+  string next_page_token = 2;
+}
+
+// List calendars request.
+message ListCalendarsRequest {
+  // Canonical parent resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Calendar"
+  ];
+  // Maximum results; zero selects 100, negative is invalid, and values above 256 clamp to 256.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation bound to the same caller and captured collection.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// List calendars response.
+message ListCalendarsResponse {
+  // Authorized calendars in canonical resource-name order.
+  repeated Calendar calendars = 1;
+  // Continuation token; empty when the captured collection is exhausted.
+  string next_page_token = 2;
+}
+
+// Get calendar request.
+message GetCalendarRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Calendar"
+  ];
+}
+
+// Create calendar request.
+// (-- api-linter: core::0133::request-id-field=disabled
+//     aip.dev/not-precedent: AIP133 permits server-assigned data-plane IDs.
+//     Calendar identity is its admitted configured source; no client ID can select another source. --)
+message CreateCalendarRequest {
+  // Canonical parent resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Calendar"
+  ];
+  // Calendar resource carrying its current etag for an update.
+  Calendar calendar = 2 [(google.api.field_behavior) = REQUIRED];
+  // Optional UUID4 for exact original-result deduplication for 24 hours; different intention reuse fails.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Update calendar request.
+message UpdateCalendarRequest {
+  // Calendar resource carrying its current etag for an update.
+  Calendar calendar = 1 [(google.api.field_behavior) = REQUIRED];
+  // Editable fields to merge; absent selects populated fields, empty is a checked no-op, and sole * replaces editable fields.
+  google.protobuf.FieldMask update_mask = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Optional UUID4 for exact original-result deduplication for 24 hours; different intention reuse fails.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Delete calendar request.
+message DeleteCalendarRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Calendar"
+  ];
+  // Opaque weak etag bound to this content revision; quality and effective
+  // permissions may change independently. Preserve the exact W/quoted token.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+  // Optional UUID4 for exact original-result deduplication for 24 hours; different intention reuse fails.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+  // Explicitly delete persisted child events atomically; false refuses children.
+  bool force = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// List calendar events request.
+message ListCalendarEventsRequest {
+  // Canonical parent resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/CalendarEvent"
+  ];
+  // Maximum results; zero selects 100, negative is invalid, and values above 256 clamp to 256.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation bound to the same caller and captured collection.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// List calendar events response.
+message ListCalendarEventsResponse {
+  // Definitions from the same captured calendar revision.
+  repeated CalendarEvent calendar_events = 1;
+  // Continuation token; empty when the captured collection is exhausted.
+  string next_page_token = 2;
+}
+
+// Get calendar event request.
+message GetCalendarEventRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/CalendarEvent"
+  ];
+}
+
+// Create calendar event request.
+// (-- api-linter: core::0133::request-id-field=disabled
+//     aip.dev/not-precedent: AIP133 permits server-assigned data-plane IDs.
+//     Data-plane event UIDs are generated by the owner and preserve imported source identities. --)
+message CreateCalendarEventRequest {
+  // Canonical parent resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/CalendarEvent"
+  ];
+  // Event resource carrying its current etag for an update.
+  CalendarEvent calendar_event = 2 [(google.api.field_behavior) = REQUIRED];
+  // Optional UUID4 for exact original-result deduplication for 24 hours; different intention reuse fails.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Update calendar event request.
+message UpdateCalendarEventRequest {
+  // Event resource carrying its current etag for an update.
+  CalendarEvent calendar_event = 1 [(google.api.field_behavior) = REQUIRED];
+  // Editable fields to merge; absent selects populated fields, empty is a checked no-op, and sole * replaces editable fields.
+  google.protobuf.FieldMask update_mask = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Optional UUID4 for exact original-result deduplication for 24 hours; different intention reuse fails.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Delete calendar event request.
+message DeleteCalendarEventRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/CalendarEvent"
+  ];
+  // Opaque weak etag bound to this content revision; quality and effective
+  // permissions may change independently. Preserve the exact W/quoted token.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+  // Optional UUID4 for exact original-result deduplication for 24 hours; different intention reuse fails.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// List occurrences request.
+message QueryOccurrencesRequest {
+  // Canonical parent resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/CalendarEvent"
+  ];
+  // Maximum results; zero selects 100, negative is invalid, and values above 256 clamp to 256.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation bound to the same caller and captured collection.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Explicit bounded, end-exclusive query period.
+  CalendarWindow window = 4 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Calendar series exceptions.
+message CalendarSeriesExceptions {
+  // Event resource carrying its current etag for an update.
+  string calendar_event = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/CalendarEvent"];
+  // Bounded cancellations or replacements keyed by original recurrence identity.
+  repeated CalendarException exceptions = 2;
+  // Original recurrence identities excluded from this series.
+  repeated CalendarRecurrencePoint exclusions = 3;
+}
+
+// List occurrences response.
+message QueryOccurrencesResponse {
+  // Computed occurrences from the same calendar revision and query window.
+  repeated Occurrence occurrences = 1;
+  // Continuation token; empty when the captured collection is exhausted.
+  string next_page_token = 2;
+  // Opaque version of the owning calendar captured with this event.
+  string calendar_etag = 3;
+  // Current source freshness, independent of authorization and provenance.
+  CalendarFreshness freshness = 4;
+  // Definitions required to interpret the projected occurrence identities.
+  repeated CalendarSeriesExceptions series_exceptions = 5;
+  // Time until which the source observation is considered fresh.
+  google.protobuf.Timestamp fresh_until_time = 6;
+  // Explicit distinction between observed installation data and synthetic qualification data.
+  CalendarProvenance provenance = 7;
+}
+
+// Calendar time candidate.
+message CalendarTimeCandidate {
+  // Explicit timestamp or civil clock components, according to the containing type.
+  google.protobuf.Timestamp selected_time = 1;
+  // UTC offset in integral seconds for this exact candidate.
+  int32 utc_offset = 2;
+}
+
+// Resolve calendar time request.
+message ResolveCalendarTimeRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Calendar"
+  ];
+  // Original civil wall-clock identity, preserved across a DST fold.
+  CalendarCivilTime local = 2 [(google.api.field_behavior) = REQUIRED];
+  // Explicit IANA time zone; never inferred from the server or device.
+  string time_zone = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Resolve calendar time response.
+message ResolveCalendarTimeResponse {
+  // Original civil wall-clock identity, preserved across a DST fold.
+  CalendarCivilTime local = 1;
+  // Explicit IANA time zone; never inferred from the server or device.
+  string time_zone = 2;
+  // Explicit gap, ordinary time, or fold classification.
+  CalendarTimeResolution resolution = 3;
+  // Zero candidates for a gap, one ordinarily, or two ordered candidates for a fold.
+  repeated CalendarTimeCandidate candidates = 4;
+}
+
+// Watch calendar request.
+message WatchCalendarRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Calendar"
+  ];
+}
+
+// Calendar changed.
+message CalendarChanged {
+  // Opaque weak etag bound to this content revision; quality and effective
+  // permissions may change independently. Preserve the exact W/quoted token.
+  string etag = 1;
+}
+
+// Watch calendar response.
+message WatchCalendarResponse {
+  // Positive stream sequence starting at one and increasing without gaps.
+  int64 sequence = 1;
+  // Exactly one admitted frame.
+  oneof frame {
+    // Initial admitted subscription acknowledgement.
+    google.protobuf.Empty ready = 2;
+    // Resource invalidation requiring an authorized reload.
+    CalendarChanged changed = 3;
+    // The bounded subscriber lost continuity; discard protected state and resynchronize.
+    google.protobuf.Empty resync_required = 4;
+  }
+}
+
+// The source owns mutability, independently of a human caller's role.
+enum CalendarOrigin {
+  // No actionable value.
+  CALENDAR_ORIGIN_UNSPECIFIED = 0;
+  // Local.
+  CALENDAR_ORIGIN_LOCAL = 1;
+  // Remote ics.
+  CALENDAR_ORIGIN_REMOTE_ICS = 2;
+  // Calculated.
+  CALENDAR_ORIGIN_CALCULATED = 3;
+}
+
+// Freshness is independent of source provenance and mutation authorization.
+enum CalendarFreshness {
+  // No actionable value.
+  CALENDAR_FRESHNESS_UNSPECIFIED = 0;
+  // Fresh.
+  CALENDAR_FRESHNESS_FRESH = 1;
+  // Stale.
+  CALENDAR_FRESHNESS_STALE = 2;
+  // Unavailable.
+  CALENDAR_FRESHNESS_UNAVAILABLE = 3;
+}
+
+// Synthetic data remains explicit, including qualification-only transports.
+enum CalendarProvenance {
+  // No actionable value.
+  CALENDAR_PROVENANCE_UNSPECIFIED = 0;
+  // Observed.
+  CALENDAR_PROVENANCE_OBSERVED = 1;
+  // Synthetic.
+  CALENDAR_PROVENANCE_SYNTHETIC = 2;
+}
+
+// Native object admission is independent of source mutability.
+enum CalendarMutationAccess {
+  // No actionable value.
+  CALENDAR_MUTATION_ACCESS_UNSPECIFIED = 0;
+  // Denied.
+  CALENDAR_MUTATION_ACCESS_DENIED = 1;
+  // Allowed.
+  CALENDAR_MUTATION_ACCESS_ALLOWED = 2;
+}
+
+// UNIQUE has one candidate, AMBIGUOUS two ordered candidates, other results none.
+enum CalendarTimeResolution {
+  // No actionable value.
+  CALENDAR_TIME_RESOLUTION_UNSPECIFIED = 0;
+  // Unique.
+  CALENDAR_TIME_RESOLUTION_UNIQUE = 1;
+  // Ambiguous.
+  CALENDAR_TIME_RESOLUTION_AMBIGUOUS = 2;
+  // Nonexistent.
+  CALENDAR_TIME_RESOLUTION_NONEXISTENT = 3;
+  // Invalid zone.
+  CALENDAR_TIME_RESOLUTION_INVALID_ZONE = 4;
+}

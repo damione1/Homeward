@@ -23,11 +23,8 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Provisional native media facade. NHF014 exercises this contract on an opt-in
-// isolated Go mock. It does not declare a production Sonos/TV service delivered.
-// Reads and artwork use the same verified session transport as other services.
-// Commands cross ActionService and its shared single-attempt action controller;
-// MediaAction is the versioned extension payload, never a vendor command blob.
+// Private native integration vocabulary retained by source caches and admitted
+// extension command drivers. Public media resources and commands use home.api.v2.
 type PlaybackState int32
 
 const (
@@ -716,274 +713,6 @@ func (x *Snapshot) GetPoweredOn() bool {
 	return false
 }
 
-type ReadSnapshotRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	EntityId      string                 `protobuf:"bytes,1,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ReadSnapshotRequest) Reset() {
-	*x = ReadSnapshotRequest{}
-	mi := &file_home_media_v1_media_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ReadSnapshotRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ReadSnapshotRequest) ProtoMessage() {}
-
-func (x *ReadSnapshotRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_media_v1_media_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReadSnapshotRequest.ProtoReflect.Descriptor instead.
-func (*ReadSnapshotRequest) Descriptor() ([]byte, []int) {
-	return file_home_media_v1_media_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *ReadSnapshotRequest) GetEntityId() string {
-	if x != nil {
-		return x.EntityId
-	}
-	return ""
-}
-
-type Unsupported struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Unsupported) Reset() {
-	*x = Unsupported{}
-	mi := &file_home_media_v1_media_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Unsupported) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Unsupported) ProtoMessage() {}
-
-func (x *Unsupported) ProtoReflect() protoreflect.Message {
-	mi := &file_home_media_v1_media_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Unsupported.ProtoReflect.Descriptor instead.
-func (*Unsupported) Descriptor() ([]byte, []int) {
-	return file_home_media_v1_media_proto_rawDescGZIP(), []int{8}
-}
-
-type ReadSnapshotResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Types that are valid to be assigned to Result:
-	//
-	//	*ReadSnapshotResponse_Snapshot
-	//	*ReadSnapshotResponse_Unsupported
-	Result        isReadSnapshotResponse_Result `protobuf_oneof:"result"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ReadSnapshotResponse) Reset() {
-	*x = ReadSnapshotResponse{}
-	mi := &file_home_media_v1_media_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ReadSnapshotResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ReadSnapshotResponse) ProtoMessage() {}
-
-func (x *ReadSnapshotResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_media_v1_media_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReadSnapshotResponse.ProtoReflect.Descriptor instead.
-func (*ReadSnapshotResponse) Descriptor() ([]byte, []int) {
-	return file_home_media_v1_media_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *ReadSnapshotResponse) GetResult() isReadSnapshotResponse_Result {
-	if x != nil {
-		return x.Result
-	}
-	return nil
-}
-
-func (x *ReadSnapshotResponse) GetSnapshot() *Snapshot {
-	if x != nil {
-		if x, ok := x.Result.(*ReadSnapshotResponse_Snapshot); ok {
-			return x.Snapshot
-		}
-	}
-	return nil
-}
-
-func (x *ReadSnapshotResponse) GetUnsupported() *Unsupported {
-	if x != nil {
-		if x, ok := x.Result.(*ReadSnapshotResponse_Unsupported); ok {
-			return x.Unsupported
-		}
-	}
-	return nil
-}
-
-type isReadSnapshotResponse_Result interface {
-	isReadSnapshotResponse_Result()
-}
-
-type ReadSnapshotResponse_Snapshot struct {
-	Snapshot *Snapshot `protobuf:"bytes,1,opt,name=snapshot,proto3,oneof"`
-}
-
-type ReadSnapshotResponse_Unsupported struct {
-	Unsupported *Unsupported `protobuf:"bytes,2,opt,name=unsupported,proto3,oneof"`
-}
-
-func (*ReadSnapshotResponse_Snapshot) isReadSnapshotResponse_Result() {}
-
-func (*ReadSnapshotResponse_Unsupported) isReadSnapshotResponse_Result() {}
-
-type ReadArtworkRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	EntityId      string                 `protobuf:"bytes,1,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
-	Reference     []byte                 `protobuf:"bytes,2,opt,name=reference,proto3" json:"reference,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ReadArtworkRequest) Reset() {
-	*x = ReadArtworkRequest{}
-	mi := &file_home_media_v1_media_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ReadArtworkRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ReadArtworkRequest) ProtoMessage() {}
-
-func (x *ReadArtworkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_home_media_v1_media_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReadArtworkRequest.ProtoReflect.Descriptor instead.
-func (*ReadArtworkRequest) Descriptor() ([]byte, []int) {
-	return file_home_media_v1_media_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *ReadArtworkRequest) GetEntityId() string {
-	if x != nil {
-		return x.EntityId
-	}
-	return ""
-}
-
-func (x *ReadArtworkRequest) GetReference() []byte {
-	if x != nil {
-		return x.Reference
-	}
-	return nil
-}
-
-type ReadArtworkResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// PNG only, at most128KiB and512x512pixels. Decode and validate off the UI
-	// thread. Authorization and reference expiry are checked again per read.
-	Png           []byte                 `protobuf:"bytes,1,opt,name=png,proto3" json:"png,omitempty"`
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ReadArtworkResponse) Reset() {
-	*x = ReadArtworkResponse{}
-	mi := &file_home_media_v1_media_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ReadArtworkResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ReadArtworkResponse) ProtoMessage() {}
-
-func (x *ReadArtworkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_home_media_v1_media_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReadArtworkResponse.ProtoReflect.Descriptor instead.
-func (*ReadArtworkResponse) Descriptor() ([]byte, []int) {
-	return file_home_media_v1_media_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *ReadArtworkResponse) GetPng() []byte {
-	if x != nil {
-		return x.Png
-	}
-	return nil
-}
-
-func (x *ReadArtworkResponse) GetExpiresAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.ExpiresAt
-	}
-	return nil
-}
-
 type MediaAction struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Route *Route                 `protobuf:"bytes,1,opt,name=route,proto3" json:"route,omitempty"`
@@ -1001,7 +730,7 @@ type MediaAction struct {
 
 func (x *MediaAction) Reset() {
 	*x = MediaAction{}
-	mi := &file_home_media_v1_media_proto_msgTypes[12]
+	mi := &file_home_media_v1_media_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1013,7 +742,7 @@ func (x *MediaAction) String() string {
 func (*MediaAction) ProtoMessage() {}
 
 func (x *MediaAction) ProtoReflect() protoreflect.Message {
-	mi := &file_home_media_v1_media_proto_msgTypes[12]
+	mi := &file_home_media_v1_media_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1026,7 +755,7 @@ func (x *MediaAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MediaAction.ProtoReflect.Descriptor instead.
 func (*MediaAction) Descriptor() ([]byte, []int) {
-	return file_home_media_v1_media_proto_rawDescGZIP(), []int{12}
+	return file_home_media_v1_media_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *MediaAction) GetRoute() *Route {
@@ -1192,21 +921,7 @@ const file_home_media_v1_media_proto_rawDesc = "" +
 	"\n" +
 	"_source_idB\v\n" +
 	"\t_group_idB\r\n" +
-	"\v_powered_on\"2\n" +
-	"\x13ReadSnapshotRequest\x12\x1b\n" +
-	"\tentity_id\x18\x01 \x01(\tR\bentityId\"\r\n" +
-	"\vUnsupported\"\x97\x01\n" +
-	"\x14ReadSnapshotResponse\x125\n" +
-	"\bsnapshot\x18\x01 \x01(\v2\x17.home.media.v1.SnapshotH\x00R\bsnapshot\x12>\n" +
-	"\vunsupported\x18\x02 \x01(\v2\x1a.home.media.v1.UnsupportedH\x00R\vunsupportedB\b\n" +
-	"\x06result\"O\n" +
-	"\x12ReadArtworkRequest\x12\x1b\n" +
-	"\tentity_id\x18\x01 \x01(\tR\bentityId\x12\x1c\n" +
-	"\treference\x18\x02 \x01(\fR\treference\"b\n" +
-	"\x13ReadArtworkResponse\x12\x10\n" +
-	"\x03png\x18\x01 \x01(\fR\x03png\x129\n" +
-	"\n" +
-	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\x97\x02\n" +
+	"\v_powered_on\"\x97\x02\n" +
 	"\vMediaAction\x12*\n" +
 	"\x05route\x18\x01 \x01(\v2\x14.home.media.v1.RouteR\x05route\x128\n" +
 	"\toperation\x18\x02 \x01(\x0e2\x18.home.media.v1.OperationH\x00R\toperation\x120\n" +
@@ -1227,10 +942,7 @@ const file_home_media_v1_media_proto_rawDesc = "" +
 	"\x0fOPERATION_PAUSE\x10\x02\x12\x12\n" +
 	"\x0eOPERATION_STOP\x10\x03\x12\x16\n" +
 	"\x12OPERATION_PREVIOUS\x10\x04\x12\x12\n" +
-	"\x0eOPERATION_NEXT\x10\x052\xbd\x01\n" +
-	"\fMediaService\x12W\n" +
-	"\fReadSnapshot\x12\".home.media.v1.ReadSnapshotRequest\x1a#.home.media.v1.ReadSnapshotResponse\x12T\n" +
-	"\vReadArtwork\x12!.home.media.v1.ReadArtworkRequest\x1a\".home.media.v1.ReadArtworkResponseB8Z6github.com/damione1/Homeward/gen/home/media/v1;mediav1b\x06proto3"
+	"\x0eOPERATION_NEXT\x10\x05B8Z6github.com/damione1/Homeward/gen/home/media/v1;mediav1b\x06proto3"
 
 var (
 	file_home_media_v1_media_proto_rawDescOnce sync.Once
@@ -1245,7 +957,7 @@ func file_home_media_v1_media_proto_rawDescGZIP() []byte {
 }
 
 var file_home_media_v1_media_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_home_media_v1_media_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_home_media_v1_media_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_home_media_v1_media_proto_goTypes = []any{
 	(PlaybackState)(0),            // 0: home.media.v1.PlaybackState
 	(Operation)(0),                // 1: home.media.v1.Operation
@@ -1256,15 +968,10 @@ var file_home_media_v1_media_proto_goTypes = []any{
 	(*Capabilities)(nil),          // 6: home.media.v1.Capabilities
 	(*ArtworkReference)(nil),      // 7: home.media.v1.ArtworkReference
 	(*Snapshot)(nil),              // 8: home.media.v1.Snapshot
-	(*ReadSnapshotRequest)(nil),   // 9: home.media.v1.ReadSnapshotRequest
-	(*Unsupported)(nil),           // 10: home.media.v1.Unsupported
-	(*ReadSnapshotResponse)(nil),  // 11: home.media.v1.ReadSnapshotResponse
-	(*ReadArtworkRequest)(nil),    // 12: home.media.v1.ReadArtworkRequest
-	(*ReadArtworkResponse)(nil),   // 13: home.media.v1.ReadArtworkResponse
-	(*MediaAction)(nil),           // 14: home.media.v1.MediaAction
-	(*timestamppb.Timestamp)(nil), // 15: google.protobuf.Timestamp
-	(v1.ActionAccess)(0),          // 16: home.state.v1.ActionAccess
-	(*v1.Quality)(nil),            // 17: home.state.v1.Quality
+	(*MediaAction)(nil),           // 9: home.media.v1.MediaAction
+	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(v1.ActionAccess)(0),          // 11: home.state.v1.ActionAccess
+	(*v1.Quality)(nil),            // 12: home.state.v1.Quality
 }
 var file_home_media_v1_media_proto_depIdxs = []int32{
 	1,  // 0: home.media.v1.Capabilities.operations:type_name -> home.media.v1.Operation
@@ -1272,29 +979,22 @@ var file_home_media_v1_media_proto_depIdxs = []int32{
 	2,  // 2: home.media.v1.Capabilities.position_millis:type_name -> home.media.v1.QuantityBounds
 	3,  // 3: home.media.v1.Capabilities.sources:type_name -> home.media.v1.Option
 	3,  // 4: home.media.v1.Capabilities.groups:type_name -> home.media.v1.Option
-	15, // 5: home.media.v1.ArtworkReference.expires_at:type_name -> google.protobuf.Timestamp
+	10, // 5: home.media.v1.ArtworkReference.expires_at:type_name -> google.protobuf.Timestamp
 	5,  // 6: home.media.v1.Snapshot.route:type_name -> home.media.v1.Route
 	6,  // 7: home.media.v1.Snapshot.capabilities:type_name -> home.media.v1.Capabilities
-	16, // 8: home.media.v1.Snapshot.action_access:type_name -> home.state.v1.ActionAccess
+	11, // 8: home.media.v1.Snapshot.action_access:type_name -> home.state.v1.ActionAccess
 	0,  // 9: home.media.v1.Snapshot.playback:type_name -> home.media.v1.PlaybackState
 	4,  // 10: home.media.v1.Snapshot.members:type_name -> home.media.v1.Member
 	7,  // 11: home.media.v1.Snapshot.artwork:type_name -> home.media.v1.ArtworkReference
-	17, // 12: home.media.v1.Snapshot.quality:type_name -> home.state.v1.Quality
-	15, // 13: home.media.v1.Snapshot.received_at:type_name -> google.protobuf.Timestamp
-	8,  // 14: home.media.v1.ReadSnapshotResponse.snapshot:type_name -> home.media.v1.Snapshot
-	10, // 15: home.media.v1.ReadSnapshotResponse.unsupported:type_name -> home.media.v1.Unsupported
-	15, // 16: home.media.v1.ReadArtworkResponse.expires_at:type_name -> google.protobuf.Timestamp
-	5,  // 17: home.media.v1.MediaAction.route:type_name -> home.media.v1.Route
-	1,  // 18: home.media.v1.MediaAction.operation:type_name -> home.media.v1.Operation
-	9,  // 19: home.media.v1.MediaService.ReadSnapshot:input_type -> home.media.v1.ReadSnapshotRequest
-	12, // 20: home.media.v1.MediaService.ReadArtwork:input_type -> home.media.v1.ReadArtworkRequest
-	11, // 21: home.media.v1.MediaService.ReadSnapshot:output_type -> home.media.v1.ReadSnapshotResponse
-	13, // 22: home.media.v1.MediaService.ReadArtwork:output_type -> home.media.v1.ReadArtworkResponse
-	21, // [21:23] is the sub-list for method output_type
-	19, // [19:21] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	12, // 12: home.media.v1.Snapshot.quality:type_name -> home.state.v1.Quality
+	10, // 13: home.media.v1.Snapshot.received_at:type_name -> google.protobuf.Timestamp
+	5,  // 14: home.media.v1.MediaAction.route:type_name -> home.media.v1.Route
+	1,  // 15: home.media.v1.MediaAction.operation:type_name -> home.media.v1.Operation
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_home_media_v1_media_proto_init() }
@@ -1303,11 +1003,7 @@ func file_home_media_v1_media_proto_init() {
 		return
 	}
 	file_home_media_v1_media_proto_msgTypes[6].OneofWrappers = []any{}
-	file_home_media_v1_media_proto_msgTypes[9].OneofWrappers = []any{
-		(*ReadSnapshotResponse_Snapshot)(nil),
-		(*ReadSnapshotResponse_Unsupported)(nil),
-	}
-	file_home_media_v1_media_proto_msgTypes[12].OneofWrappers = []any{
+	file_home_media_v1_media_proto_msgTypes[7].OneofWrappers = []any{
 		(*MediaAction_Operation)(nil),
 		(*MediaAction_VolumeBasisPoints)(nil),
 		(*MediaAction_PositionMillis)(nil),
@@ -1320,9 +1016,9 @@ func file_home_media_v1_media_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_media_v1_media_proto_rawDesc), len(file_home_media_v1_media_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   13,
+			NumMessages:   8,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   0,
 		},
 		GoTypes:           file_home_media_v1_media_proto_goTypes,
 		DependencyIndexes: file_home_media_v1_media_proto_depIdxs,

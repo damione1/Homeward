@@ -1,8 +1,8 @@
 //! A bounded, revision-fenced calendar range. A page is never published alone.
 mod reader;
 use buffa::Message;
-use home_client_model::calendars::{CalendarId, CalendarRevision, EventKey, RevisionState};
-use home_wire_contract::{calendars_contract as admit, home::calendars::v1 as wire};
+use home_client_model::api_calendars::{CalendarEventName, CalendarName, CalendarVersion};
+use home_wire_contract::{calendars_contract as admit, home::api::v2 as wire};
 pub use reader::{CalendarReadEvent, CalendarReadExit, read_calendar_once};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -18,13 +18,15 @@ pub enum CalendarFreshness {
     Unavailable,
 }
 impl CalendarFreshness {
-    fn admitted(value: buffa::EnumValue<wire::Quality>) -> Result<Self, admit::AdmissionError> {
+    fn admitted(
+        value: buffa::EnumValue<wire::CalendarFreshness>,
+    ) -> Result<Self, admit::AdmissionError> {
         use buffa::EnumValue;
         match value {
-            EnumValue::Known(wire::Quality::Fresh) => Ok(Self::Fresh),
-            EnumValue::Known(wire::Quality::Stale) => Ok(Self::Stale),
-            EnumValue::Known(wire::Quality::Unavailable) => Ok(Self::Unavailable),
-            EnumValue::Known(wire::Quality::Unspecified) | EnumValue::Unknown(_) => {
+            EnumValue::Known(wire::CalendarFreshness::Fresh) => Ok(Self::Fresh),
+            EnumValue::Known(wire::CalendarFreshness::Stale) => Ok(Self::Stale),
+            EnumValue::Known(wire::CalendarFreshness::Unavailable) => Ok(Self::Unavailable),
+            EnumValue::Known(wire::CalendarFreshness::Unspecified) | EnumValue::Unknown(_) => {
                 Err(admit::AdmissionError::Invalid)
             }
         }
@@ -48,7 +50,7 @@ pub struct CalendarReadSnapshot {
     calendar: wire::Calendar,
     query: wire::QueryOccurrencesRequest,
     occurrences: Vec<wire::Occurrence>,
-    exceptions: Vec<wire::SeriesExceptions>,
+    exceptions: Vec<wire::CalendarSeriesExceptions>,
     fetched_at: SystemTime,
     freshness: CalendarFreshness,
     fresh_until: BTreeSet<String>,
@@ -63,7 +65,7 @@ impl CalendarReadSnapshot {
     pub fn occurrences(&self) -> &[wire::Occurrence] {
         &self.occurrences
     }
-    pub fn exceptions(&self) -> &[wire::SeriesExceptions] {
+    pub fn exceptions(&self) -> &[wire::CalendarSeriesExceptions] {
         &self.exceptions
     }
     pub fn fetched_at(&self) -> SystemTime {
@@ -79,11 +81,11 @@ impl CalendarReadSnapshot {
 pub struct CalendarCapture {
     calendar: admit::Admitted<wire::Calendar>,
     query: admit::Admitted<wire::QueryOccurrencesRequest>,
-    id: CalendarId,
-    revision: CalendarRevision,
+    id: CalendarName,
+    revision: CalendarVersion,
     occurrences: Vec<wire::Occurrence>,
-    identities: BTreeSet<(EventKey, String)>,
-    exceptions: BTreeMap<EventKey, wire::SeriesExceptions>,
+    identities: BTreeSet<(CalendarEventName, String)>,
+    exceptions: BTreeMap<CalendarEventName, wire::CalendarSeriesExceptions>,
     tokens: BTreeSet<String>,
     complete: bool,
     poisoned: bool,
@@ -97,19 +99,25 @@ impl CalendarCapture {
         calendar: &wire::Calendar,
         query: &wire::QueryOccurrencesRequest,
     ) -> Result<Self, admit::AdmissionError> {
-        let id = admit::calendar_id(&query.id).ok_or(admit::AdmissionError::Invalid)?;
+        let (id, _) = admit::query_parent(&query.parent)?;
         let calendar = admit::admit_calendar(calendar, &id)?;
-        let revision = admit::calendar_revision(&calendar.wire().revision, &id)
-            .ok_or(admit::AdmissionError::Invalid)?;
+        let revision = admit::calendar_version(calendar.wire())?;
         if !query.page_token.is_empty() {
             return Err(admit::AdmissionError::Sequence);
         }
         Ok(Self {
-            freshness: CalendarFreshness::admitted(calendar.wire().quality)?,
-            fresh_until: calendar.wire().fresh_until.iter().cloned().collect(),
+            freshness: CalendarFreshness::admitted(calendar.wire().freshness)?,
+            fresh_until: calendar
+                .wire()
+                .fresh_until_time
+                .as_option()
+                .map(admit::timestamp_text)
+                .transpose()?
+                .into_iter()
+                .collect(),
             poisoned: false,
             pages: 0,
-            complete: !matches!(revision.state(), RevisionState::Present(_)),
+            complete: false,
             calendar,
             query: admit::admit_query(query)?,
             id,
@@ -135,14 +143,19 @@ impl CalendarCapture {
         if self.pages >= 64 {
             return Err(admit::AdmissionError::Capacity);
         }
-        admit::admit_page(page, &self.query, Some(&self.revision))?;
+        admit::admit_page(page, &self.query, &self.revision)?;
         if page.provenance != self.calendar.wire().provenance {
             return Err(admit::AdmissionError::Invalid);
         }
         self.freshness = self
             .freshness
-            .combine(CalendarFreshness::admitted(page.quality)?);
-        self.fresh_until.extend(page.fresh_until.iter().cloned());
+            .combine(CalendarFreshness::admitted(page.freshness)?);
+        self.fresh_until.extend(
+            page.fresh_until_time
+                .as_option()
+                .map(admit::timestamp_text)
+                .transpose()?,
+        );
         let size = page.encoded_len() as usize;
         if self.bytes.saturating_add(size) > MAX_BYTES
             || self
@@ -154,16 +167,21 @@ impl CalendarCapture {
             return Err(admit::AdmissionError::Capacity);
         }
         for row in &page.occurrences {
-            let key = admit::event_key(&row.key).ok_or(admit::AdmissionError::Invalid)?;
-            if !self.identities.insert((key, row.recurrence_id.clone())) {
+            let key = CalendarEventName::try_from(row.calendar_event.as_str())
+                .map_err(|_| admit::AdmissionError::Invalid)?;
+            if !self
+                .identities
+                .insert((key, admit::point_key(&row.recurrence_point)?))
+            {
                 return Err(admit::AdmissionError::Invalid);
             }
         }
         for group in &page.series_exceptions {
-            let key = admit::event_key(&group.key).ok_or(admit::AdmissionError::Invalid)?;
+            let key = CalendarEventName::try_from(group.calendar_event.as_str())
+                .map_err(|_| admit::AdmissionError::Invalid)?;
             if let Some(old) = self.exceptions.get(&key) {
                 if old != group {
-                    return Err(admit::AdmissionError::StaleRevision);
+                    return Err(admit::AdmissionError::StaleVersion);
                 }
             } else {
                 self.exceptions.insert(key, group.clone());
@@ -193,15 +211,21 @@ impl CalendarCapture {
         if !self.complete || self.poisoned {
             return Err(admit::AdmissionError::Sequence);
         }
-        if admit::calendar_revision(&current.revision, &self.id).as_ref() != Some(&self.revision)
+        if admit::calendar_version(current)? != self.revision
             || current.origin != self.calendar.wire().origin
             || current.provenance != self.calendar.wire().provenance
         {
-            return Err(admit::AdmissionError::StaleRevision);
+            return Err(admit::AdmissionError::StaleVersion);
         }
         let mut query = self.query.wire().clone();
         query.page_token.clear();
-        self.fresh_until.extend(current.fresh_until.iter().cloned());
+        self.fresh_until.extend(
+            current
+                .fresh_until_time
+                .as_option()
+                .map(admit::timestamp_text)
+                .transpose()?,
+        );
         Ok(CalendarReadSnapshot {
             calendar: current.clone(),
             query,
@@ -210,7 +234,7 @@ impl CalendarCapture {
             fetched_at: SystemTime::now(),
             freshness: self
                 .freshness
-                .combine(CalendarFreshness::admitted(current.quality)?),
+                .combine(CalendarFreshness::admitted(current.freshness)?),
             fresh_until: self.fresh_until,
         })
     }

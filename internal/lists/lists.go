@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"math"
 
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/authorization"
@@ -58,7 +59,13 @@ func (s *Service) CreateList(ctx context.Context, payload ListPayload) (Mutation
 			if err := bumpCatalog(ctx, tx); err != nil {
 				return MutationReceipt{}, err
 			}
-			return listReceipt(id, 1), nil
+			receipt := listReceipt(id, 1)
+			snapshot, err := readList(ctx, tx, id, false)
+			if err != nil {
+				return MutationReceipt{}, err
+			}
+			receipt.listSnapshot = &snapshot
+			return receipt, nil
 		}, func(r MutationReceipt) { afterListCommit(s, r) }, func(r MutationReceipt) { s.resyncList(r.list) })
 }
 
@@ -288,6 +295,25 @@ func (s *Service) ListLists(ctx context.Context, cursor ListCursor, limit int) (
 				return ListPage{}, err
 			}
 			page := ListPage{entries: make([]ListSnapshot, 0, min(len(ids), limit))}
+			var total int64
+			if selection.All() {
+				err = tx.QueryRow(ctx, `SELECT count(*) FROM public.homeward_lists WHERE lifecycle=1`).Scan(&total)
+			} else {
+				allowed, selectionErr := selection.IDs()
+				if selectionErr != nil {
+					return ListPage{}, failure(Denied)
+				}
+				texts := make([]string, 0, len(allowed))
+				for _, id := range allowed {
+					text, _ := id.Value()
+					texts = append(texts, text)
+				}
+				err = tx.QueryRow(ctx, `SELECT count(*) FROM public.homeward_lists WHERE lifecycle=1 AND list_id=ANY($1::text[])`, texts).Scan(&total)
+			}
+			if err != nil || total < 0 {
+				return ListPage{}, failure(Unavailable)
+			}
+			page.total = uint64(total)
 			for index, id := range ids {
 				if index >= limit {
 					break
@@ -337,7 +363,7 @@ func (s *Service) CountLists(ctx context.Context) (uint64, error) {
 		}, nil)
 }
 
-func (s *Service) RenameList(ctx context.Context, id domain.ListID, expected ListRevision, name string) (MutationReceipt, error) {
+func (s *Service) RenameList(ctx context.Context, id domain.ListID, expected ListPrecondition, name string) (MutationReceipt, error) {
 	if !validText(name, MaxNameBytes, true) {
 		return MutationReceipt{}, failure(Invalid)
 	}
@@ -354,7 +380,7 @@ func (s *Service) RenameList(ctx context.Context, id domain.ListID, expected Lis
 			if err != nil {
 				return MutationReceipt{}, err
 			}
-			if err := expectList(id, expected, current); err != nil {
+			if err := expectList(ctx, tx, id, expected, current); err != nil {
 				return MutationReceipt{}, err
 			}
 			text, _ := id.Value()
@@ -366,10 +392,25 @@ func (s *Service) RenameList(ctx context.Context, id domain.ListID, expected Lis
 			if err := bumpCatalog(ctx, tx); err != nil {
 				return MutationReceipt{}, err
 			}
-			return listReceipt(id, number+1), nil
+			receipt := listReceipt(id, number+1)
+			snapshot, err := readList(ctx, tx, id, false)
+			if err != nil {
+				return MutationReceipt{}, err
+			}
+			receipt.listSnapshot = &snapshot
+			return receipt, nil
 		}, func(r MutationReceipt) { afterListCommit(s, r) }, func(r MutationReceipt) { s.resyncList(r.list) })
 }
-func (s *Service) DeleteList(ctx context.Context, id domain.ListID, expected ListRevision) (MutationReceipt, error) {
+func (s *Service) DeleteList(ctx context.Context, id domain.ListID, expected ListPrecondition) (MutationReceipt, error) {
+	return s.deleteList(ctx, id, expected, true)
+}
+
+// DeleteListResource admits the explicit public cascading-delete intention.
+// The child test and tombstones share the collection's existing SQL lock.
+func (s *Service) DeleteListResource(ctx context.Context, id domain.ListID, expected ListPrecondition, force bool) (MutationReceipt, error) {
+	return s.deleteList(ctx, id, expected, force)
+}
+func (s *Service) deleteList(ctx context.Context, id domain.ListID, expected ListPrecondition, force bool) (MutationReceipt, error) {
 	object, err := listObject(id)
 	if err != nil {
 		return MutationReceipt{}, failure(Invalid)
@@ -383,11 +424,27 @@ func (s *Service) DeleteList(ctx context.Context, id domain.ListID, expected Lis
 			if err != nil {
 				return MutationReceipt{}, err
 			}
-			if err := expectList(id, expected, current); err != nil {
+			if err := expectList(ctx, tx, id, expected, current); err != nil {
 				return MutationReceipt{}, err
 			}
 			text, _ := id.Value()
 			_, number, _ := current.revision.Values()
+
+			var children, exhausted bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.homeward_list_items WHERE list_id=$1 AND lifecycle=1),EXISTS(SELECT 1 FROM public.homeward_list_items WHERE list_id=$1 AND lifecycle=1 AND revision=$2)`, text, int64(math.MaxInt64)).Scan(&children, &exhausted); err != nil {
+				return MutationReceipt{}, err
+			}
+			if children && !force {
+				return MutationReceipt{}, failure(ChildrenPresent)
+			}
+			if number == math.MaxInt64 || exhausted {
+				return MutationReceipt{}, failure(Capacity)
+			}
+			if children {
+				if _, err := tx.Exec(ctx, `UPDATE public.homeward_list_items SET lifecycle=2,revision=revision+1,updated_at=now() WHERE list_id=$1 AND lifecycle=1`, text); err != nil {
+					return MutationReceipt{}, err
+				}
+			}
 			_, err = tx.Exec(ctx, `UPDATE public.homeward_lists SET lifecycle=2,revision=revision+1,updated_at=now() WHERE list_id=$1`, text)
 			if err != nil {
 				return MutationReceipt{}, err

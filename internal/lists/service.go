@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
+	"github.com/damione1/Homeward/internal/apimutations"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/jackc/pgx/v5"
@@ -114,7 +115,7 @@ func executeWithUnknown[T any](s *Service, ctx context.Context, op authv1.ScopeO
 	var value T
 	err = s.repo.transaction(permit.Context(), evidence, func(txCtx context.Context, tx pgx.Tx) error {
 		var operationErr error
-		value, operationErr = fn(txCtx, tx, evidence, selection)
+		value, operationErr = apimutations.Execute(txCtx, tx, func() (T, error) { return fn(txCtx, tx, evidence, selection) })
 		return operationErr
 	})
 	if err != nil {

@@ -88,6 +88,7 @@ func (a *sessionAuth) authenticateMCP(ctx context.Context, request *http.Request
 		return domain.ActorID{}, nil, nil, errSessionUnauthenticated
 	}
 	leaseCtx, lease := guard.register(ctx, storage.SessionOwner{Account: owner.Account})
+	lease.deadline = record.ExpiresAt
 	lease.mcpKey = owner.Key
 	lease.mcpPrincipal = principal
 	lease.mcpBinding = binding
@@ -161,6 +162,9 @@ func (a *sessionAuth) authorizeMCP(ctx context.Context, actor domain.ActorID, ro
 			return authorization.ErrDenied
 		}
 		return nil
+	}
+	if handled, err := authorizeOperationRoute(current, route); handled {
+		return err
 	}
 	permission, _, known := nativeRoutePermission(route)
 	if !known {

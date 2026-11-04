@@ -15,7 +15,6 @@ import (
 
 	"connectrpc.com/connect"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
-	"github.com/damione1/Homeward/gen/home/actions/v1/actionsv1connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	media "github.com/damione1/Homeward/gen/home/media/v1"
 	"github.com/damione1/Homeward/gen/home/media/v1/mediav1connect"
@@ -451,18 +450,6 @@ func (m *nhf014MediaMock) register(plan *PublicPlan) error {
 		}{
 			{mediav1connect.MediaServiceReadSnapshotProcedure, auth.ScopeFamily_SCOPE_FAMILY_MEDIA, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
 			{mediav1connect.MediaServiceReadArtworkProcedure, auth.ScopeFamily_SCOPE_FAMILY_MEDIA, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
-		}},
-		{func(options ...connect.HandlerOption) (string, http.Handler) {
-			return actionsv1connect.NewActionServiceHandler(m, append(options, connect.WithReadMaxBytes(8192))...)
-		}, []struct {
-			path      string
-			family    auth.ScopeFamily
-			operation auth.ScopeOperation
-			flow      RouteFlow
-		}{
-			{actionsv1connect.ActionServiceSubmitActionProcedure, auth.ScopeFamily_SCOPE_FAMILY_ACTIONS, auth.ScopeOperation_SCOPE_OPERATION_WRITE, RouteFlowUnary},
-			{actionsv1connect.ActionServiceGetActionProcedure, auth.ScopeFamily_SCOPE_FAMILY_ACTIONS, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
-			{actionsv1connect.ActionServiceWatchActionProcedure, auth.ScopeFamily_SCOPE_FAMILY_ACTIONS, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowServerStream},
 		}},
 	} {
 		procedures := make([]ConnectProcedure, 0, len(registration.paths))

@@ -30,19 +30,20 @@ import (
 	imported "github.com/damione1/Homeward/compat/ha/dashboard"
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
-	"github.com/damione1/Homeward/gen/home/actions/v1/actionsv1connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	media "github.com/damione1/Homeward/gen/home/media/v1"
 	"github.com/damione1/Homeward/gen/home/media/v1/mediav1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
 	state "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/registry"
+	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/damione1/Homeward/scope"
@@ -320,7 +321,6 @@ func nhf014StartMock(t *testing.T, m *nhf014MediaMock, sessions *sessionCoordina
 	proxy.Transport = client.Transport
 	mux := http.NewServeMux()
 	mux.Handle("/"+mediav1connect.MediaServiceName+"/", protected)
-	mux.Handle("/"+actionsv1connect.ActionServiceName+"/", protected)
 	mux.Handle("/", proxy)
 	server := httptest.NewUnstartedServer(mux)
 	pair, err := tls.LoadX509KeyPair(filepath.Join(data, nha181CertificateName), filepath.Join(data, nha181PrivateKeyName))
@@ -367,6 +367,8 @@ func TestNHF014MediaServer(t *testing.T) {
 	var host *integrations.Manager
 	var store *storage.Store
 	var sessions *sessionCoordinator
+	var sequence *sequencer.Sequencer
+	var activationOwner *configactivation.Owner
 	keys := make(map[string]integrations.SourceKey)
 	factory := RuntimeFactory(func(factoryCtx context.Context, actual *storage.Store) (RuntimePlan, error) {
 		identities, err := registry.NewRepository(actual, manifest)
@@ -392,12 +394,14 @@ func TestNHF014MediaServer(t *testing.T) {
 		}
 		return RuntimePlan{Identity: identities, Public: public, ConfigureAuthorization: func(_ context.Context, c AuthorizationComposition) error {
 			dashboard.authority = c.ViewAuthorizer().(*policyViewAuthorizer).authority
+			sequence = c.ViewAuthorizer().(*policyViewAuthorizer).source
 			return nil
 		}, ConfigureActivation: func(_ context.Context, owner *configactivation.Owner) error {
 			if owner == nil {
 				return errors.New("actual activation owner required")
 			}
 			dashboard.activation = owner
+			activationOwner = owner
 			return nil
 		}, Configure: func(_ context.Context, manager *integrations.Manager, actual *storage.Store) error {
 			host, store = manager, actual
@@ -532,11 +536,29 @@ func TestNHF014MediaServer(t *testing.T) {
 	}
 	setPolicy()
 	reader := nha162RunLogin(t, ctx, authAPI, readerName, readerPassword)
-	view, err := statev1connect.NewStateServiceClient(client, base).OpenView(ctx, nha162Bearer(&state.OpenViewRequest{Filter: &state.ViewFilter{}, PageSize: 16}, reader.AccessToken))
+	homes, err := apiv2connect.NewHomeServiceClient(client, base).ListHomes(ctx, nha162Bearer(&api.ListHomesRequest{PageSize: 10}, reader.AccessToken))
+	if err != nil || len(homes.Msg.GetHomes()) != 1 {
+		t.Fatal(err)
+	}
+	viewAPI := apiv2connect.NewEntityViewServiceClient(client, base)
+	createdView, err := viewAPI.CreateEntityView(ctx, nha162Bearer(&api.CreateEntityViewRequest{Parent: homes.Msg.GetHomes()[0].GetName(), EntityView: &api.EntityView{}}, reader.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	mock, err = nhf014NewMock(players, resolved, view.Msg.Cursor)
+	_, _ = viewAPI.DeleteEntityView(ctx, nha162Bearer(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, reader.AccessToken))
+	epoch, err := sequence.CurrentAdmissionEpoch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stamp, err := activationOwner.CurrentConfig(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configRevision, _, err := stamp.Components()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock, err = nhf014NewMock(players, resolved, &state.ViewCursor{Epoch: epoch, ConfigRevision: configRevision})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -571,7 +593,7 @@ func TestNHF014MediaServer(t *testing.T) {
 	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "origin": origin, "ca_pem": string(certificate), "entities": ids, "reader": map[string]string{"login_name": readerName, "password": readerPassword}, "production_media": false})
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
-	var sequence uint64
+	var controlSequence uint64
 	for {
 		select {
 		case err := <-done:
@@ -589,7 +611,7 @@ func TestNHF014MediaServer(t *testing.T) {
 			if _, err = os.Stat(filepath.Join(out, "stop")); err == nil {
 				return
 			}
-			control, err := nhf014ReadControl(out, sequence)
+			control, err := nhf014ReadControl(out, controlSequence)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -691,8 +713,8 @@ func TestNHF014MediaServer(t *testing.T) {
 				}
 				mock.mu.Unlock()
 			}
-			sequence = control.Sequence
-			nhf003WritePrivate(t, out, fmt.Sprintf("ack-%02d.json", sequence), control)
+			controlSequence = control.Sequence
+			nhf003WritePrivate(t, out, fmt.Sprintf("ack-%02d.json", controlSequence), control)
 		}
 	}
 }
