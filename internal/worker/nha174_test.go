@@ -219,7 +219,7 @@ func TestNHA174ExactProfilesKeepHistoricalDigestsAndRejectCrossedVersions(t *tes
 }
 
 func TestNHA174UnchangedProfile11WorkerStillRunsOverUnixTransport(t *testing.T) {
-	rig := startWorkerRigWithCapture(t, "new_hold", true)
+	rig := startWorkerRigWithCapture(t, "hold", true)
 	waitMarker(t, rig.marker, "second_stream_rejected", 5*time.Second)
 	rig.pilot.mu.Lock()
 	minor := rig.pilot.hostMinor

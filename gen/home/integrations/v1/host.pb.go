@@ -147,7 +147,7 @@ const (
 	CommandResultKind_COMMAND_RESULT_KIND_UNSPECIFIED CommandResultKind = 0
 	CommandResultKind_COMMAND_RESULT_KIND_ACCEPTED    CommandResultKind = 1
 	CommandResultKind_COMMAND_RESULT_KIND_FAILED      CommandResultKind = 2
-	// Host 1.1 only: the bridge acknowledged the command, before any observed state.
+	// The bridge acknowledged the command, before any observed state.
 	CommandResultKind_COMMAND_RESULT_KIND_ACKNOWLEDGED CommandResultKind = 3
 )
 

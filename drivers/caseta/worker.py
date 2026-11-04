@@ -1,4 +1,4 @@
-"""Supervised, device-free-by-default Caséta LEAP Host 1.1 worker."""
+"""Supervised, device-free-by-default Caséta LEAP current Host worker."""
 
 import argparse
 import asyncio
@@ -25,18 +25,7 @@ from drivers.caseta.config import FunctionKind, load_settings
 from home.integrations.v1 import host_pb2, host_pb2_grpc
 from home.registry.v1 import registry_pb2
 from home.state.v1 import state_pb2
-from testworker.schema_digest import SCHEMA_DIGEST_HEX, SCHEMA_DIGEST_V13_HEX
-
-
-class HostProfile(enum.IntEnum):
-    V11 = 1
-    V13 = 3
-
-
-PROFILE_DIGEST = {
-    HostProfile.V11: SCHEMA_DIGEST_HEX,
-    HostProfile.V13: SCHEMA_DIGEST_V13_HEX,
-}
+from testworker.schema_digest import SCHEMA_DIGEST_HEX, HOST_MAJOR, HOST_MINOR
 
 
 class FanSpeed(str, enum.Enum):
@@ -137,18 +126,15 @@ def timestamp():
     return value
 
 
-def description(function, profile=HostProfile.V11):
-    if type(profile) is not HostProfile:
-        raise ValueError("invalid Host profile")
+def description(function):
     base = dict(schema_id=SCHEMAS[function.kind], major=1,
                 endpoint=ENDPOINTS[function.kind], display_name=function.alias)
     if function.kind is FunctionKind.LIGHT:
         light = registry_pb2.LightConstraints(
             set_on=True,
             brightness_percent=registry_pb2.NumberBounds(minimum=0, maximum=100))
-        if profile is HostProfile.V13:
-            light.transition_seconds.CopyFrom(
-                registry_pb2.NumberBounds(minimum=0, maximum=6553, step=1))
+        light.transition_seconds.CopyFrom(
+            registry_pb2.NumberBounds(minimum=0, maximum=6553, step=1))
         return registry_pb2.CapabilityDescription(**base,
             light=light)
     if function.kind is FunctionKind.FAN:
@@ -160,10 +146,7 @@ def description(function, profile=HostProfile.V11):
 
 
 class Host:
-    def __init__(self, channel, token, profile=HostProfile.V11):
-        if type(profile) is not HostProfile:
-            raise ValueError("invalid Host profile")
-        self.profile = profile
+    def __init__(self, channel, token):
         self.stub = host_pb2_grpc.HostServiceStub(channel)
         self.metadata = (("authorization", "Bearer " + token),)
         self.handles = {}
@@ -177,15 +160,15 @@ class Host:
         capabilities = [host_pb2.CAPABILITY_DISCOVER, host_pb2.CAPABILITY_PUBLISH,
                         host_pb2.CAPABILITY_EMIT, host_pb2.CAPABILITY_HEALTH,
                         host_pb2.CAPABILITY_COMMAND, host_pb2.CAPABILITY_SECRET_READ]
-        digest = bytes.fromhex(PROFILE_DIGEST[self.profile])
+        digest = bytes.fromhex(SCHEMA_DIGEST_HEX)
         response = await self.call("Handshake", host_pb2.HandshakeRequest(
-            host_major=1, host_minor=int(self.profile), driver_major=1,
-            driver_minor=int(self.profile),
+            host_major=HOST_MAJOR, host_minor=HOST_MINOR, driver_major=HOST_MAJOR,
+            driver_minor=HOST_MINOR,
             schema_sha256=digest,
             max_frame_bytes=65536, capabilities=capabilities))
         if (response.host_major, response.host_minor,
             response.driver_major, response.driver_minor) != \
-                (1, int(self.profile), 1, int(self.profile)) or \
+                (HOST_MAJOR, HOST_MINOR, HOST_MAJOR, HOST_MINOR) or \
                 response.schema_sha256 != digest or \
                 set(response.capabilities) != set(capabilities) or \
                 not 1024 <= response.max_frame_bytes <= 65536:
@@ -195,7 +178,7 @@ class Host:
         candidates = [host_pb2.Candidate(
             source=host_pb2.SourceKey(device=f.source_device,
                                       entity=f.source_entity),
-            descriptions=[description(f, self.profile)]) for f in functions]
+            descriptions=[description(f)]) for f in functions]
         response = await self.call("Discover",
                                    host_pb2.DiscoverRequest(candidates=candidates))
         if len(response.bindings) != len(functions) or any(
@@ -282,9 +265,7 @@ async def read_value(bridge, function):
     return LightLevel(float(level)) if function.kind is FunctionKind.LIGHT else SwitchState(level > 0)
 
 
-def requested_effect(frame, function, profile=HostProfile.V11):
-    if type(profile) is not HostProfile:
-        raise UnsupportedCommand("invalid Host profile")
+def requested_effect(frame, function):
     request = frame.request
     if request.capability_schema_id != SCHEMAS[function.kind] or \
             request.endpoint != ENDPOINTS[function.kind]:
@@ -295,8 +276,6 @@ def requested_effect(frame, function, profile=HostProfile.V11):
             raise UnsupportedCommand("unsupported dimmer command")
         arg = request.arguments.set_light
         fading = arg.HasField("transition_seconds")
-        if fading and profile is not HostProfile.V13:
-            raise UnsupportedCommand("Host profile does not admit fades")
         if fading and arg.HasField("on") and not arg.on and arg.HasField("brightness_percent"):
             raise UnsupportedCommand("off fade cannot carry brightness")
         if arg.HasField("brightness_percent"):
@@ -371,7 +350,7 @@ async def commands(host, bridge_box, settings, ready):
         if bridge is None:
             raise BridgeFault("LEAP session is not ready")
         try:
-            effect = requested_effect(frame, function, host.profile)
+            effect = requested_effect(frame, function)
         except UnsupportedCommand:
             await host.call("CompleteCommand", host_pb2.CompleteCommandRequest(
                 command_id=frame.request.command_id,
@@ -401,7 +380,7 @@ async def _write_secret(path, contents):
         raise
 
 
-async def run(settings, profile=HostProfile.V11):
+async def run(settings):
     socket = os.environ["HOMEWARD_HOST_SOCKET"]
     fd = int(os.environ["HOMEWARD_HOST_TOKEN_FD"])
     try:
@@ -421,7 +400,7 @@ async def run(settings, profile=HostProfile.V11):
     bridge_box = {}
     tasks = []
     ready = asyncio.Event()
-    host = Host(channel, token, profile)
+    host = Host(channel, token)
     try:
         await asyncio.wait_for(channel.channel_ready(), 5)
         await host.handshake()
@@ -525,12 +504,10 @@ async def run(settings, profile=HostProfile.V11):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, type=Path)
-    parser.add_argument("--host-profile", choices=("1.1", "1.3"), default="1.1")
     args = parser.parse_args()
     logging.disable(logging.CRITICAL)
     try:
-        profile = HostProfile.V13 if args.host_profile == "1.3" else HostProfile.V11
-        asyncio.run(run(load_settings(args.config), profile))
+        asyncio.run(run(load_settings(args.config)))
     except asyncio.CancelledError:
         return 0
     except (Exception, KeyboardInterrupt) as error:

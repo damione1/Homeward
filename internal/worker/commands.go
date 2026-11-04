@@ -65,23 +65,9 @@ func (p *pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 	defer timer.Stop()
 	item := &delivery{result: make(chan error, 1), command: command, ctx: ctx, expires: expires}
 	p.mu.Lock()
-	if p.hostMinor >= 1 && !p.ready {
+	if !p.ready {
 		p.mu.Unlock()
 		return ErrUnavailable
-	}
-	if climate := request.GetArguments().GetSetClimate(); climate != nil && (climate.HeatThresholdCelsius != nil || climate.CoolThresholdCelsius != nil || climate.FanTarget != nil) {
-		p.mu.Unlock()
-		return ErrUnavailable
-	}
-	if p.hostMinor == 0 && request.CapabilitySchemaId == contracts.FanSchema {
-		p.mu.Unlock()
-		return ErrUnavailable
-	}
-	if p.hostMinor < 3 {
-		if light := request.GetArguments().GetSetLight(); light != nil && light.TransitionSeconds != nil {
-			p.mu.Unlock()
-			return ErrUnavailable
-		}
 	}
 	handle := p.entityHandles[entityText]
 	if len(handle) != 32 {
@@ -275,14 +261,6 @@ func (p *pilot) CompleteCommand(_ context.Context, r *connect.Request[wire.Compl
 	}
 	p.mu.Lock()
 	item, exists := p.pending[r.Msg.CommandId]
-	if exists && p.hostMinor == 0 && item.frame.Request.CapabilitySchemaId == contracts.FanSchema {
-		p.mu.Unlock()
-		return nil, rpcInvalid()
-	}
-	if acknowledged && p.hostMinor < 1 {
-		p.mu.Unlock()
-		return nil, rpcInvalid()
-	}
 	if !exists || !item.delivered || !p.active || !p.deliveryEligible(item) {
 		p.mu.Unlock()
 		return nil, rpcUnavailable()

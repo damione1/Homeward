@@ -204,14 +204,14 @@ func startWorkerRigWithGate(t *testing.T, mode string, capture bool, commandGate
 		waitMarker(t, marker, fmt.Sprintf("initial:%d", count), 6*time.Second)
 	}
 	switch mode {
-	case "normal", "new", "new_hold", "crash", "fail", "hold", "many_hold", "stubborn", "orphan_child",
+	case "normal", "crash", "fail", "hold", "many_hold", "stubborn", "orphan_child",
 		"small_frame", "large_frame", "secret":
 		// The shared client waits for this first RPC's admission headers, then
 		// independently requires ALREADY_EXISTS from the second-stream probe.
 		// A failure marker preserves its phase/status before this bounded wait.
 		waitMarker(t, marker, "second_stream_rejected", 5*time.Second, onWaiting)
 	case "incompatible", "incompatible_host_major", "incompatible_host_minor", "incompatible_driver_major",
-		"incompatible_digest", "incompatible_version_pair", "incompatible_new_digest",
+		"incompatible_digest", "incompatible_version_pair",
 		"silent", "no_command":
 		// These workers intentionally never open a command stream.
 	default:

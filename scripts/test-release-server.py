@@ -230,18 +230,22 @@ class TestNHA119(unittest.TestCase):
         self.json(self.root, "runner.json", {"all_jobs_passed": True, "cohort_audit_passed": True,
                  "jobs": {"test": {"argv": ["make", "check"], "payload_exit_code": 0, "payload_terminal": True, "status": "passed", "cohort_errors": [],
                                    "source_manifest": {"sha256": release.sha256(self.root / "sources.json")}}}})
-        self.file(self.root, "check.log", "negative compatibility probe rejected unreserved deletion of CommandRequest.target #4\n")
+        self.json(self.root, "negative-runner.json", {"all_jobs_passed": True, "cohort_audit_passed": True,
+                 "jobs": {"negative": {"argv": ["python3", "scripts/test-api-migration.py"], "payload_exit_code": 0,
+                     "payload_terminal": True, "status": "passed", "cohort_errors": [],
+                     "source_manifest": {"sha256": release.sha256(self.root / "sources.json")}}}})
+        self.file(self.root, "check.log", "current-contract negative admission checks completed\n")
         self.json(self.root, "profile.json", {"status": "SOFTWARE_PROFILE_PASSED_COVERAGE_AND_FULL_GATE_REQUIRED", "profile": {"name": "acceptance"}})
         def artifact(name, role):
             return {"path": name, "role": role, "sha256": release.sha256(self.root / name)}
         common = {"source_files_sha256": {"go.mod": "source-hash"}, "command": ["synthetic-fixture"], "exit_code": 0, "outcome": "PASS"}
         self.evidence = {"schema_version": 1, "candidate_commit": self.candidate["commit"], "checks": {}}
-        for name in ("make-check", "protobuf-breaking-negative", "nha165-software"):
+        for name in ("make-check", "current-contract-negative", "nha165-software"):
             record = copy.deepcopy(common)
             record["artifacts"] = [artifact("sources.json", "source-manifest")]
             self.evidence["checks"][name] = record
         self.evidence["checks"]["make-check"]["artifacts"] += [artifact("runner.json", "runner-result"), artifact("check.log", "transcript")]
-        self.evidence["checks"]["protobuf-breaking-negative"]["artifacts"].append(artifact("check.log", "transcript"))
+        self.evidence["checks"]["current-contract-negative"]["artifacts"] += [artifact("negative-runner.json", "runner-result"), artifact("check.log", "transcript")]
         self.evidence["checks"]["nha165-software"]["artifacts"].append(artifact("profile.json", "profile-report"))
 
     def test_evidence_links_actual_sources_and_result(self):

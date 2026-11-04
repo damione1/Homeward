@@ -109,7 +109,7 @@ enum CommandResultKind {
   COMMAND_RESULT_KIND_UNSPECIFIED = 0;
   COMMAND_RESULT_KIND_ACCEPTED = 1;
   COMMAND_RESULT_KIND_FAILED = 2;
-  // Host 1.1 only: the bridge acknowledged the command, before any observed state.
+  // The bridge acknowledged the command, before any observed state.
   COMMAND_RESULT_KIND_ACKNOWLEDGED = 3;
 }
 message CompleteCommandRequest {

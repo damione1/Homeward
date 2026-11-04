@@ -55,22 +55,13 @@ func (p *pilot) Handshake(_ context.Context, r *connect.Request[wire.HandshakeRe
 	if proto.Size(msg)+5 > maxFrame {
 		return nil, connect.NewError(connect.CodeResourceExhausted, ErrCapacity)
 	}
-	const hostMajor uint32 = 1
-	const driverMajor uint32 = 1
-	var expected string
-	switch {
-	case msg.HostMajor == hostMajor && msg.HostMinor == 0 && msg.DriverMajor == driverMajor && msg.DriverMinor == 0:
-		expected = schemaDigestV10Hex
-	case msg.HostMajor == hostMajor && msg.HostMinor == 1 && msg.DriverMajor == driverMajor && msg.DriverMinor == 1:
-		expected = schemaDigestV11Hex
-	case msg.HostMajor == hostMajor && msg.HostMinor == 2 && msg.DriverMajor == driverMajor && msg.DriverMinor == 2:
-		expected = schemaDigestV12Hex
-	case msg.HostMajor == hostMajor && msg.HostMinor == 3 && msg.DriverMajor == driverMajor && msg.DriverMinor == 3:
-		expected = schemaDigestV13Hex
-	default:
+	if msg.HostMajor != hostProtocolMajor || msg.HostMinor != hostProtocolMinor || msg.DriverMajor != hostProtocolMajor || msg.DriverMinor != hostProtocolMinor {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, ErrInvalidConfig)
 	}
-	digest, _ := hex.DecodeString(expected)
+	digest, err := hex.DecodeString(schemaDigestHex)
+	if err != nil || len(digest) != 32 {
+		return nil, rpcUnavailable()
+	}
 	if len(msg.SchemaSha256) != len(digest) || subtle.ConstantTimeCompare(msg.SchemaSha256, digest) != 1 {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, ErrInvalidConfig)
 	}
@@ -106,16 +97,8 @@ func (p *pilot) Handshake(_ context.Context, r *connect.Request[wire.HandshakeRe
 	if len(granted) == 0 {
 		return nil, rpcInvalid()
 	}
-	for _, binding := range p.config.bindings {
-		if binding.lightProfile == configuredLightProfileCasetaHA100V1 && msg.HostMinor != 3 {
-			return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAProfileUnavailable)
-		}
-		if binding.fanProfile == configuredFanProfileCasetaHA4V1 && msg.HostMinor != 1 && msg.HostMinor != 3 {
-			return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAFanProfileUnavailable)
-		}
-	}
-	response := &wire.HandshakeResponse{HostMajor: hostMajor, HostMinor: msg.HostMinor,
-		DriverMajor: driverMajor, DriverMinor: msg.DriverMinor, SchemaSha256: digest, MaxFrameBytes: limit,
+	response := &wire.HandshakeResponse{HostMajor: hostProtocolMajor, HostMinor: hostProtocolMinor,
+		DriverMajor: hostProtocolMajor, DriverMinor: hostProtocolMinor, SchemaSha256: digest, MaxFrameBytes: limit,
 		Capabilities: granted, HeartbeatSeconds: uint32(heartbeatInterval / time.Second),
 		LeaseSeconds: uint32(leaseTimeout / time.Second)}
 	if proto.Size(response)+5 > int(limit) {
@@ -125,7 +108,7 @@ func (p *pilot) Handshake(_ context.Context, r *connect.Request[wire.HandshakeRe
 	for _, capability := range granted {
 		p.capabilities[capability] = true
 	}
-	p.frameLimit, p.lastHeartbeat, p.handshaken, p.hostMinor = limit, time.Now(), true, msg.HostMinor
+	p.frameLimit, p.lastHeartbeat, p.handshaken = limit, time.Now(), true
 	close(p.handshakeDone)
 	return connect.NewResponse(response), nil
 }
@@ -153,17 +136,9 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 		if input == nil || input.Source == nil {
 			return nil, rpcInvalid()
 		}
-		// Host 1.0–1.3 never admitted the native helper capability. The
-		// current protobuf can decode it transitively, but that does not
-		// enlarge any historical worker profile.
+		// These native-only families have no observation/command codec in Host.
+		// Their presence in transitive protobuf dependencies grants no support.
 		for _, description := range input.Descriptions {
-			// NHA-136 is a built-in profile. Decoding its additive fields cannot
-			// enlarge immutable external Host/driver 1.0–1.3 contracts.
-			if description != nil {
-				if climate := description.GetClimate(); climate != nil && (climate.SetpointRangeCelsius != nil || len(climate.FanTargetOptions) != 0 || climate.ObservedHumidityPercent != nil || len(climate.ObservedFanTargetOptions) != 0) {
-					return nil, rpcInvalid()
-				}
-			}
 			if contracts.NativeSolarDescription(description) || contracts.NativeControlDescription(description) || contracts.NativeEnvironmentDescription(description) {
 				return nil, rpcInvalid()
 			}
@@ -185,48 +160,17 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 			}
 			switch {
 			case configured.lightProfile == configuredLightProfileCasetaHA100V1:
-				if p.hostMinor != 3 {
-					return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAProfileUnavailable)
-				}
 				candidate, err = candidate.WithCasetaHA100V1(configured.alias)
 				if err != nil {
 					return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAProfileUnavailable)
 				}
 			case configured.fanProfile == configuredFanProfileCasetaHA4V1:
-				if p.hostMinor != 1 && p.hostMinor != 3 {
-					return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAFanProfileUnavailable)
-				}
 				candidate, err = candidate.WithCasetaHAFan4V1(configured.alias)
 				if err != nil {
 					return nil, connect.NewError(connect.CodeFailedPrecondition, ErrCasetaHAFanProfileUnavailable)
 				}
 			}
 			break
-		}
-		if p.hostMinor == 0 {
-			for _, description := range input.Descriptions {
-				if description != nil && description.SchemaId == contracts.FanSchema {
-					return nil, rpcInvalid()
-				}
-			}
-		}
-		if p.hostMinor < 2 {
-			for _, description := range input.Descriptions {
-				if description != nil {
-					if climate := description.GetClimate(); climate != nil && (climate.ObservedTemperatureCelsius != nil || climate.ObservedSetpointCelsius != nil || climate.ObservedSetpointRangeCelsius != nil || len(climate.ObservedModeOptions) != 0 || climate.ObservesFanActivity) {
-						return nil, rpcInvalid()
-					}
-				}
-			}
-		}
-		if p.hostMinor < 3 {
-			for _, description := range input.Descriptions {
-				if description != nil {
-					if light := description.GetLight(); light != nil && light.TransitionSeconds != nil {
-						return nil, rpcInvalid()
-					}
-				}
-			}
 		}
 		candidates = append(candidates, candidate)
 		keys = append(keys, key)
@@ -389,19 +333,6 @@ func (p *pilot) Publish(ctx context.Context, r *connect.Request[wire.PublishRequ
 	if input == nil || input.Quality == nil {
 		return nil, rpcInvalid()
 	}
-	if climate := input.GetClimate(); climate != nil && (climate.HumidityPercent != nil || climate.FanTarget != nil) {
-		return nil, rpcInvalid()
-	}
-	if p.hostMinor == 0 {
-		if _, fan := input.Value.(*wire.Observation_Fan); fan {
-			return nil, rpcInvalid()
-		}
-	}
-	if p.hostMinor < 2 {
-		if _, climate := input.Value.(*wire.Observation_Climate); climate {
-			return nil, rpcInvalid()
-		}
-	}
 	binding, entity, err := p.binding(input.BindingHandle)
 	if err != nil {
 		return nil, err
@@ -507,7 +438,7 @@ func (p *pilot) ReportHealth(ctx context.Context, r *connect.Request[wire.Report
 	if err != nil {
 		return nil, rpcInvalid()
 	}
-	if p.hostMinor >= 1 && status != integrations.HealthReady {
+	if status != integrations.HealthReady {
 		p.mu.Lock()
 		p.ready = false
 		p.mu.Unlock()
@@ -527,7 +458,7 @@ func (p *pilot) ReportHealth(ctx context.Context, r *connect.Request[wire.Report
 	if err := p.host.ReportHealth(callCtx, report); err != nil {
 		return nil, rpcHost(err)
 	}
-	if p.hostMinor >= 1 && status == integrations.HealthReady {
+	if status == integrations.HealthReady {
 		p.mu.Lock()
 		p.ready = p.active
 		p.mu.Unlock()

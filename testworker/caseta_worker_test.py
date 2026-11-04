@@ -21,7 +21,7 @@ from cryptography.x509.oid import NameOID
 
 from drivers.caseta.bridge import BridgeFault, StrictSmartbridge, open_pinned_tls
 from drivers.caseta.config import Settings, _manifest_aliases, load_settings
-from drivers.caseta.worker import (FanSpeed, FanState, FadingLightLevel, HostProfile,
+from drivers.caseta.worker import (FanSpeed, FanState, FadingLightLevel,
                                    LightLevel, SwitchState, UnsupportedCommand, apply,
                                    description, read_value, requested_effect,
                                    validate_inventory)
@@ -180,10 +180,9 @@ class CasetaTLS(unittest.IsolatedAsyncioTestCase):
         finally:
             await bridge.close_joined()
 
-    async def test_nha178_opt_in_exact_fade_and_legacy_wire(self):
+    async def test_nha178_exact_current_fade(self):
         light = next(f for f in self.settings.functions if f.kind == "light")
-        self.assertFalse(description(light).light.HasField("transition_seconds"))
-        self.assertEqual(description(light, HostProfile.V13).light.transition_seconds.step, 1)
+        self.assertEqual(description(light).light.transition_seconds.step, 1)
 
         def frame(**fields):
             request = actions_pb2.CommandRequest(
@@ -194,19 +193,17 @@ class CasetaTLS(unittest.IsolatedAsyncioTestCase):
 
         old = requested_effect(frame(brightness_percent=42), light)
         self.assertEqual(old, LightLevel(42))
-        with self.assertRaises(UnsupportedCommand):
-            requested_effect(frame(brightness_percent=42, transition_seconds=2), light)
         fade = requested_effect(frame(brightness_percent=42, transition_seconds=2),
-                                light, HostProfile.V13)
+                                light)
         self.assertEqual(fade, FadingLightLevel(LightLevel(42), 2))
         zero = requested_effect(frame(on=True, transition_seconds=0),
-                                light, HostProfile.V13)
+                                light)
         one = requested_effect(frame(on=True, transition_seconds=1),
-                               light, HostProfile.V13)
+                               light)
         self.assertEqual(zero, FadingLightLevel(LightLevel(100), 0))
         self.assertEqual(one, FadingLightLevel(LightLevel(100), 1))
         off = requested_effect(frame(on=False, transition_seconds=10),
-                               light, HostProfile.V13)
+                               light)
         self.assertEqual(off, FadingLightLevel(LightLevel(0), 10))
         for invalid in (dict(on=True, transition_seconds=.5),
                         dict(on=True, transition_seconds=float("nan")),
@@ -215,7 +212,7 @@ class CasetaTLS(unittest.IsolatedAsyncioTestCase):
                         dict(on=False, brightness_percent=0, transition_seconds=1),
                         dict(on=True, color_temp_mireds=300, transition_seconds=1)):
             with self.subTest(invalid=invalid), self.assertRaises(UnsupportedCommand):
-                requested_effect(frame(**invalid), light, HostProfile.V13)
+                requested_effect(frame(**invalid), light)
 
         bridge = await self.connect()
         try:

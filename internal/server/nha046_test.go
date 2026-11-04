@@ -84,7 +84,7 @@ func TestNHA046ConfiguredRunPlanJoinsFanOptInToWorkerAndHost(t *testing.T) {
 	const instanceText = "nha046-caseta-run"
 	var yaml strings.Builder
 	fmt.Fprintf(&yaml, "listen: '127.0.0.1:0'\ndata_dir: %q\npostgres:\n  host: '127.0.0.1'\n  port: %d\n  database: postgres\n  user: homeward_test\n  password_env: HOMEWARD_TEST_PASSWORD\n  sslmode: disable\nexternal_workers:\n  - instance: %q\n    executable: %q\n    args: [%q, %q, %q, %q, %q]\n    secret_names: [fake-ca, fake-cert, fake-key]\n    bindings:\n",
-		dataDir, cluster.Port, instanceText, python, filepath.Join(root, "drivers/caseta/worker.py"), "--config", bridge.Settings, "--host-profile", "1.3")
+		dataDir, cluster.Port, instanceText, python, filepath.Join(root, "drivers/caseta/worker.py"), "--config", bridge.Settings)
 	for _, alias := range aliases {
 		f := mapping.Functions[alias]
 		if alias == aliasText {

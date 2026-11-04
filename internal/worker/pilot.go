@@ -68,7 +68,6 @@ type pilot struct {
 	ctx                  context.Context
 	active               bool
 	handshaken           bool
-	hostMinor            uint32
 	ready                bool
 	token                string
 	capabilities         map[wire.Capability]bool

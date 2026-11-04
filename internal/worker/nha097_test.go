@@ -2,11 +2,6 @@ package worker
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -39,45 +34,6 @@ func TestNHA097AllHistoricalWorkersRejectHelperDescriptionsBeforeHost(t *testing
 		if counted.discoverCalls.Load() != 0 || len(p.bindings) != 0 {
 			t.Fatalf("Host 1.%d helper reached Host", minor)
 		}
-	}
-}
-
-func TestNHA097Host13DigestRemainsHistorical(t *testing.T) {
-	const expected = "14291d23f9102ecb910bea14dc4cb38d5ba8137cec073bb5402e3ffbe2306bf3"
-	fixture, err := os.ReadFile(filepath.Join("..", "..", "testworker", "fixtures", "host-v1.3.pb"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	legacy := sha256.Sum256(fixture)
-	if schemaDigestV13Hex != expected || hex.EncodeToString(legacy[:]) != expected {
-		t.Fatal("Host 1.3 digest drifted from the delivered profile")
-	}
-	descriptor := filepath.Join(t.TempDir(), "current-host.pb")
-	command := exec.Command("buf", "build", "--path", "proto/home/integrations/v1/host.proto", "--exclude-source-info", "-o", descriptor)
-	command.Dir = filepath.Join("..", "..")
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("current descriptor build: %v: %s", err, output)
-	}
-	current, err := os.ReadFile(descriptor)
-	if err != nil {
-		t.Fatal(err)
-	}
-	currentDigest := sha256.Sum256(current)
-	if currentDigest == legacy {
-		t.Fatal("test did not exercise a transitively extended Host descriptor")
-	}
-	for _, digest := range [][]byte{currentDigest[:], make([]byte, 32)} {
-		p := newPilot(Config{})
-		p.active, p.token = true, "synthetic-nha174-token"
-		request := nha174Request(&wire.HandshakeRequest{HostMajor: 1, HostMinor: 3, DriverMajor: 1, DriverMinor: 3,
-			SchemaSha256: digest, MaxFrameBytes: 65536, Capabilities: []wire.Capability{wire.Capability_CAPABILITY_DISCOVER}})
-		if response, err := p.Handshake(context.Background(), request); response != nil || connect.CodeOf(err) != connect.CodeFailedPrecondition || p.handshaken {
-			t.Fatalf("nonhistorical digest admitted: %v", err)
-		}
-	}
-	p, _, _ := nha174Profile(t, 3)
-	if !p.handshaken {
-		t.Fatal("historical 1.3 profile no longer handshakes")
 	}
 }
 

@@ -190,7 +190,7 @@ func TestNHA077LegacyCommandDriverRejectsRealAdmittedFan(t *testing.T) {
 }
 
 func TestNHA077AcknowledgementRejectsExpiredAndOldSession(t *testing.T) {
-	rig := startWorkerRigWithCapture(t, "new_hold", true)
+	rig := startWorkerRigWithCapture(t, "hold", true)
 	waitMarker(t, rig.marker, "second_stream_rejected", 5*time.Second)
 	actor, err := domain.ParseActorID("trusted-actor")
 	if err != nil {

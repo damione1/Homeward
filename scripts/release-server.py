@@ -185,7 +185,7 @@ def verify_evidence(evidence, source, root):
     if evidence.get("schema_version") != 1 or evidence.get("candidate_commit") != source["commit"]:
         raise ValueError("evidence does not identify the exact candidate commit")
     checks = evidence.get("checks", {})
-    required = {"make-check", "protobuf-breaking-negative", "nha165-software"}
+    required = {"make-check", "current-contract-negative", "nha165-software"}
     if set(checks) != required:
         raise ValueError("required evidence checks are missing or unknown")
     verified_roles = {}
@@ -238,9 +238,17 @@ def verify_evidence(evidence, source, root):
                       and j.get("source_manifest", {}).get("sha256") == sha256(roles["source-manifest"])]
             if not result.get("all_jobs_passed") or not result.get("cohort_audit_passed") or not passed:
                 raise ValueError("raw make check runner result is not a completed audited PASS on this source manifest")
-        if name == "protobuf-breaking-negative":
-            if "transcript" not in roles or "negative compatibility probe rejected unreserved deletion of CommandRequest.target #4" not in roles["transcript"].read_text():
-                raise ValueError("actual existing Buf breaking-negative rejection is absent")
+        if name == "current-contract-negative":
+            if "runner-result" not in roles or "transcript" not in roles:
+                raise ValueError("current-contract negative runner result/transcript missing")
+            result = json.loads(roles["runner-result"].read_text())
+            passed = [job for job in result.get("jobs", {}).values()
+                      if job.get("argv") == ["python3", "scripts/test-api-migration.py"]
+                      and job.get("payload_exit_code") == 0 and job.get("payload_terminal") is True
+                      and job.get("status") == "passed" and not job.get("cohort_errors")
+                      and job.get("source_manifest", {}).get("sha256") == sha256(roles["source-manifest"])]
+            if not result.get("all_jobs_passed") or not result.get("cohort_audit_passed") or not passed:
+                raise ValueError("current-contract negative checks lack a completed audited PASS")
         if name == "nha165-software" and check.get("outcome") == "ACCEPTED_EXPLICIT_USER_DURATION_EXCEPTION":
             waiver = check.get("duration_exception", {})
             if (check.get("raw_status") != "FAILED" or check.get("exit_code") == 0
@@ -275,9 +283,8 @@ def verify_evidence(evidence, source, root):
                 raise ValueError("actual165 acceptance profile report is not PASS")
         elif check.get("exit_code") != 0 or check.get("outcome") != "PASS":
             raise ValueError("required local check is not PASS: " + name)
-    for role in ("source-manifest", "transcript"):
-        if sha256(verified_roles["make-check"][role]) != sha256(verified_roles["protobuf-breaking-negative"][role]):
-            raise ValueError("Buf negative evidence is not from the same make check execution/source")
+    if sha256(verified_roles["make-check"]["source-manifest"]) != sha256(verified_roles["current-contract-negative"]["source-manifest"]):
+        raise ValueError("current-contract negative evidence uses a different source manifest")
     return checks
 
 

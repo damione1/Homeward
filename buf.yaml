@@ -5,10 +5,9 @@ deps:
   - buf.build/googleapis/googleapis
 lint:
   use: [STANDARD]
-  # AIP-131/134 return the resource itself from Get/Update, unlike Buf's
-  # generic per-RPC response convention. Keep v1 rules and scope exceptions.
+  # AIP-131/133/134 return resources, AIP-135 uses Empty, and AIP-151 uses
+  # google.longrunning.Operation. Only these two generic response conventions
+  # are excepted in the corresponding resource service files.
   ignore_only:
-    RPC_REQUEST_RESPONSE_UNIQUE: [proto/home/api/v2/home.proto]
-    RPC_RESPONSE_STANDARD_NAME: [proto/home/api/v2/home.proto]
-breaking:
-  use: [FILE]
+    RPC_REQUEST_RESPONSE_UNIQUE: [proto/home/api/v2/authentication.proto, proto/home/api/v2/calendars.proto, proto/home/api/v2/capability_service.proto, proto/home/api/v2/configuration_apply.proto, proto/home/api/v2/configuration_documents.proto, proto/home/api/v2/configuration_plans.proto, proto/home/api/v2/devices.proto, proto/home/api/v2/entity_views.proto, proto/home/api/v2/home.proto, proto/home/api/v2/integrations.proto, proto/home/api/v2/media.proto, proto/home/api/v2/tasks.proto]
+    RPC_RESPONSE_STANDARD_NAME: [proto/home/api/v2/authentication.proto, proto/home/api/v2/calendars.proto, proto/home/api/v2/capability_service.proto, proto/home/api/v2/configuration_apply.proto, proto/home/api/v2/configuration_documents.proto, proto/home/api/v2/configuration_plans.proto, proto/home/api/v2/dashboards.proto, proto/home/api/v2/devices.proto, proto/home/api/v2/entity_views.proto, proto/home/api/v2/home.proto, proto/home/api/v2/integrations.proto, proto/home/api/v2/media.proto, proto/home/api/v2/observability.proto, proto/home/api/v2/tasks.proto]
