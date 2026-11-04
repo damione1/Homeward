@@ -14,6 +14,12 @@ Development documentation is maintained in the project's Obsidian vault.
 
 [GNU General Public License v3.0](LICENSE). Third-party dependencies retain their respective licenses.
 
+## Contribute
+
+Homeward is still young and changing quickly. The priority is to reach a stable foundation as soon as possible, so we aren't accepting external contributions or pull requests for now. Coordinating and reviewing them at this stage would slow that work.
+
+Thank you for wanting to contribute. [Issues](https://github.com/damione1/Homeward/issues) and [discussions](https://github.com/damione1/Homeward/discussions) are welcome for bug reports, questions and feedback. We'll reopen contributions once homeward reaches the level of stability we're aiming for.
+
 ## Native development evaluation
 
 The frontend consumes Slint Kit 0.5.1 and a local Slint Kit Pro checkout. Configure
