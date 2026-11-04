@@ -79,10 +79,10 @@ func TestNHA203AccountVersionCASNoOpAndNamesStayNative(t *testing.T) {
 	if _, err := s.UpdateAccountWithOutcome(ctx, admin.ID, admin.ID, AccountChanges{Expected: &version}); !errors.Is(err, ErrAccountVersionConflict) {
 		t.Fatal("stale no-op bypassed CAS", err)
 	}
-	if err := s.DeleteAccountIfCurrent(ctx, admin.ID, admin.ID, version); !errors.Is(err, ErrAccountVersionConflict) {
+	if err := s.DeleteAccountIfCurrent(ctx, admin.ID, admin.ID, version, false); !errors.Is(err, ErrAccountVersionConflict) {
 		t.Fatal("stale delete bypassed CAS", err)
 	}
-	if err := s.DeleteAccountIfCurrent(ctx, admin.ID, admin.ID, currentVersion); !errors.Is(err, ErrLastActiveAdmin) {
+	if err := s.DeleteAccountIfCurrent(ctx, admin.ID, admin.ID, currentVersion, false); !errors.Is(err, ErrLastActiveAdmin) {
 		t.Fatal("CAS bypassed last-admin invariant", err)
 	}
 	after, err := s.LookupAPIResourceIdentity(ctx, APIAccounts, id)

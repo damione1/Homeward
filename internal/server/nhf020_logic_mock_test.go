@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,15 +25,14 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	cfg "github.com/damione1/Homeward/gen/home/configuration/v1"
-	"github.com/damione1/Homeward/gen/home/configuration/v1/configurationv1connect"
-	plan "github.com/damione1/Homeward/gen/home/configurationplan/v1"
-	history "github.com/damione1/Homeward/gen/home/history/v1"
-	logic "github.com/damione1/Homeward/gen/home/logic/v1"
-	"github.com/damione1/Homeward/gen/home/logic/v1/logicv1connect"
+	cfg "github.com/damione1/Homeward/gen/home/api/v2"
+	history "github.com/damione1/Homeward/gen/home/api/v2"
+	plan "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
+	logic "github.com/damione1/Homeward/gen/home/testing/logic/v1"
+	"github.com/damione1/Homeward/gen/home/testing/logic/v1/logicv1connect"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -71,8 +71,9 @@ type nhf020Counts struct {
 type nhf020Logic struct {
 	logicv1connect.UnimplementedLogicServiceHandler
 	mu            sync.Mutex
+	documentName  string
 	documents     configurationv1connect.ConfigurationServiceClient
-	accounts      authv1connect.AccountServiceClient
+	accounts      apiv2connect.AccountServiceClient
 	context       *logic.Context
 	definitions   []*logic.Definition
 	runs          []*logic.Run
@@ -115,16 +116,20 @@ func nhf020Complete() *logic.Continuation {
 func nhf020Clone[T proto.Message](value T) T { return proto.Clone(value).(T) }
 
 func (h *nhf020Logic) authorize(ctx context.Context, header http.Header) error {
-	admin := connect.NewRequest(&auth.ListAccountsRequest{})
+	name, err := apitypes.ParseConfigurationDocumentName(h.documentName)
+	if err != nil {
+		return err
+	}
+	admin := connect.NewRequest(&cfg.ListAccountsRequest{Parent: name.Home().String()})
 	admin.Header().Set("Authorization", header.Get("Authorization"))
 	if _, err := h.accounts.ListAccounts(ctx, admin); err != nil {
 		return err
 	}
-	request := connect.NewRequest(&cfg.ReadDocumentRequest{Id: &cfg.DocumentId{Value: "operational.main"}})
+	request := connect.NewRequest(&cfg.GetConfigurationDocumentRequest{Name: h.documentName})
 	request.Header().Set("Authorization", header.Get("Authorization"))
 	// Fresh real authorization, with no synthetic privilege header or keeper
 	// credential forwarded on behalf of the requesting client.
-	response, err := h.documents.ReadDocument(ctx, request)
+	response, err := h.documents.GetConfigurationDocument(ctx, request)
 	if err != nil {
 		return err
 	}
@@ -150,9 +155,9 @@ func (h *nhf020Logic) reset(generation *cfg.ActiveGeneration) {
 		Reason: logic.RunReason_RUN_REASON_EXPLICIT_REQUEST, CreatedAt: timestamppb.Now(),
 		StartRequestId: "synthetic-history-request", Simulated: true})
 }
-func nhf020NewLogic(t *testing.T, out string, documents configurationv1connect.ConfigurationServiceClient, accounts authv1connect.AccountServiceClient) *nhf020Logic {
-	h := &nhf020Logic{t: t, out: out, documents: documents, accounts: accounts}
-	families := []plan.SourceFamily{plan.SourceFamily_SOURCE_FAMILY_AUTOMATION, plan.SourceFamily_SOURCE_FAMILY_SCRIPT, plan.SourceFamily_SOURCE_FAMILY_SCENE}
+func nhf020NewLogic(t *testing.T, out string, documents configurationv1connect.ConfigurationServiceClient, accounts apiv2connect.AccountServiceClient, documentName string) *nhf020Logic {
+	h := &nhf020Logic{t: t, out: out, documents: documents, accounts: accounts, documentName: documentName}
+	families := []plan.ConfigurationPlanSourceFamily{plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION, plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT, plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE}
 	modes := []logic.RunMode{logic.RunMode_RUN_MODE_SINGLE, logic.RunMode_RUN_MODE_RESTART, logic.RunMode_RUN_MODE_QUEUED, logic.RunMode_RUN_MODE_PARALLEL}
 	for index := 0; index < 17; index++ {
 		id := fmt.Sprintf("synthetic-definition-%02d", index+1)
@@ -468,7 +473,7 @@ func nhf020Rows(run *logic.Run) []*logic.TraceRow {
 			row.Event = &logic.TraceRow_Gap{Gap: &logic.Gap{Reason: logic.GapReason_GAP_REASON_EVICTED, KnownMissingCount: 7}}
 			ordinal += 6
 		case index == 30:
-			row.Event = &logic.TraceRow_Command{Command: &logic.Command{CommandId: "synthetic-dispatched-command", Outcome: history.CommandOutcome_COMMAND_OUTCOME_DISPATCHED}}
+			row.Event = &logic.TraceRow_Command{Command: &logic.Command{CommandId: "synthetic-dispatched-command", Outcome: history.HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_DISPATCHED}}
 		case index == 45:
 			row.Event = &logic.TraceRow_Gap{Gap: &logic.Gap{Reason: logic.GapReason_GAP_REASON_REDACTED, CountUnknown: true}}
 			ordinal += 9

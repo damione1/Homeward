@@ -6,7 +6,9 @@ fn native_filter_callbacks_cancel_old_period_and_navigation_removes_private_cont
     let window = crate::create_window().unwrap();
     let owner = History::bind(&window);
     owner.0.state.lock().unwrap().active = true;
-    owner.choose(Some("synthetic-history".parse().unwrap()));
+    owner.choose(Some(
+        EntityName::try_from("homes/test/entities/synthetic-history").unwrap(),
+    ));
     window.invoke_history_apply(
         "2026-10-26T00:00:00Z".into(),
         "2026-10-27T00:00:00Z".into(),
@@ -51,7 +53,9 @@ fn native_filter_callbacks_cancel_old_period_and_navigation_removes_private_cont
 fn invalid_or_too_large_window_is_an_explicit_local_reduction_without_an_rpc() {
     let owner = History::detached();
     owner.0.state.lock().unwrap().active = true;
-    owner.choose(Some("synthetic-history".parse().unwrap()));
+    owner.choose(Some(
+        EntityName::try_from("homes/test/entities/synthetic-history").unwrap(),
+    ));
     for (start, end, statistic) in [
         (
             "2026-10-26T00:00:00Z",
@@ -84,7 +88,9 @@ fn invalid_or_too_large_window_is_an_explicit_local_reduction_without_an_rpc() {
 fn suspension_and_generation_exhaustion_withdraw_every_held_intention() {
     let owner = History::detached();
     owner.0.state.lock().unwrap().active = true;
-    owner.choose(Some("synthetic-history".parse().unwrap()));
+    owner.choose(Some(
+        EntityName::try_from("homes/test/entities/synthetic-history").unwrap(),
+    ));
     owner.apply(
         "2026-10-26T00:00:00Z",
         "2026-10-27T00:00:00Z",
@@ -96,7 +102,9 @@ fn suspension_and_generation_exhaustion_withdraw_every_held_intention() {
     assert!(!owner.0.state.lock().unwrap().admits(generation));
     assert!(owner.0.state.lock().unwrap().entity.is_none());
     owner.0.state.lock().unwrap().generation = i32::MAX;
-    owner.choose(Some("other-synthetic".parse().unwrap()));
+    owner.choose(Some(
+        EntityName::try_from("homes/test/entities/other-synthetic").unwrap(),
+    ));
     owner.apply(
         "2026-10-26T00:00:00Z",
         "2026-10-27T00:00:00Z",

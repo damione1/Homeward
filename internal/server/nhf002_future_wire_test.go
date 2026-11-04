@@ -16,7 +16,7 @@ import (
 	"connectrpc.com/connect"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
+	"github.com/damione1/Homeward/internal/apierrors"
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
@@ -92,13 +92,7 @@ func (f *nhf002FutureWire) QueryEntityView(ctx context.Context, request *connect
 func (f *nhf002FutureWire) WatchEntityView(_ context.Context, request *connect.Request[api.WatchEntityViewRequest], stream *connect.ServerStream[api.WatchEntityViewResponse]) error {
 	if request.Msg.GetResumeToken() == "authority-unavailable" {
 		f.authorityCalls.Add(1)
-		detail, err := connect.NewErrorDetail(&authv1.AuthorizationTermination{Reason: authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE})
-		if err != nil {
-			return err
-		}
-		failure := connect.NewError(connect.CodeUnavailable, errors.New("synthetic authority unavailable"))
-		failure.AddDetail(detail)
-		return failure
+		return apierrors.New(api.ApiErrorReason_API_ERROR_REASON_AUTHORITY_UNAVAILABLE).Connect()
 	}
 	if err := stream.Send(&api.WatchEntityViewResponse{ResumeToken: "1", Change: &api.WatchEntityViewResponse_Upsert{Upsert: f.entries[0]}}); err != nil {
 		return err

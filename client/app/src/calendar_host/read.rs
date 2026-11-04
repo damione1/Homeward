@@ -8,9 +8,6 @@ use tokio::task::JoinSet;
 const TIMEOUT: Duration = Duration::from_secs(10);
 
 fn failure_status(error: &Failure) -> Status {
-    if !matches!(error.authorization_termination(), Ok(None)) {
-        return Status::Denied;
-    }
     match error.api_failure() {
         Err(_) => Status::Invalid,
         Ok(Some(error)) => {
@@ -31,7 +28,8 @@ fn failure_status(error: &Failure) -> Status {
                 | R::RequestTooLarge
                 | R::StreamCapacity
                 | R::QueryBudgetExceeded => Status::Offline,
-                R::ValidationFailed
+                R::AuthorityUnavailable
+                | R::ValidationFailed
                 | R::ResourceAlreadyExists
                 | R::RequestIdReused
                 | R::EtagMismatch

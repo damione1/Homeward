@@ -269,7 +269,10 @@ fn widget_target() -> crate::dashboard_widget_host::AgendaTarget {
     crate::dashboard_widget_host::AgendaTarget {
         token: 17,
         generation: 19,
-        calendar: CalendarId::new("exact-calendar-second".parse().unwrap()),
+        calendar: home_client_model::api_calendars::CalendarName::try_from(
+            "homes/synthetic/calendars/id-65786163742d63616c656e6461722d7365636f6e64",
+        )
+        .unwrap(),
         zone: "America/Toronto".parse().unwrap(),
         window_seconds: 7200,
         limit: 3,
@@ -311,7 +314,7 @@ fn widget_calendar_never_selects_first_catalogue_or_substitutes_missing_source()
     let owner = Calendars::for_widget(None, target.clone());
     {
         let state = owner.0.state.lock().unwrap();
-        assert_eq!(state.selected.as_ref(), Some(&target.calendar));
+        assert_eq!(state.selected.as_ref(), Some(target.calendar.native_id()));
         assert!(state.catalog.is_empty());
         assert!(state.catalog_needed);
         assert!(state.query().is_none());
@@ -325,7 +328,7 @@ fn widget_calendar_never_selects_first_catalogue_or_substitutes_missing_source()
         assert!(state.snapshot.is_none());
         assert!(!state.ready);
         owner.pin_widget(&mut state);
-        assert_eq!(state.selected.as_ref(), Some(&target.calendar));
+        assert_eq!(state.selected.as_ref(), Some(target.calendar.native_id()));
         assert!(state.catalog_needed);
         assert!(state.snapshot.is_none());
     }

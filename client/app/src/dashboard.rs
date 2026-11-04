@@ -298,65 +298,67 @@ pub(crate) type SharedRequest = Arc<Mutex<ProjectionRequest>>;
 
 #[cfg(test)]
 pub(crate) fn fixture_wire() -> wire::Dashboard {
+    use crate::dashboard_layout::tests::{children, node};
+    use wire::dashboard_layout_node::Content as C;
     let data: serde_json::Value =
         serde_json::from_str(include_str!("../tests/fixtures/overview.json")).unwrap();
-    let rooms = data["rooms"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|room| wire::OverviewRoom {
-            id: room["id"].as_str().unwrap().into(),
-            title: room["title"].as_str().unwrap().into(),
-            entity_ids: room["entity_ids"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|id| id.as_str().unwrap().into())
-                .collect(),
-            ..Default::default()
-        })
-        .collect();
-    let observations = data["observations"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|item| wire::OverviewObservation {
-            id: item["id"].as_str().unwrap().into(),
-            title: item["title"].as_str().unwrap().into(),
-            entity_id: item["entity_id"].as_str().unwrap().into(),
-            icon: wire::NativeIcon::Information.into(),
-            ..Default::default()
-        })
-        .collect();
+    let mut layout = wire::DashboardLayout::default();
+    for room in data["rooms"].as_array().unwrap() {
+        let id = room["id"].as_str().unwrap();
+        let section = format!("{id}-section");
+        let mut root = node(
+            id,
+            C::View(
+                wire::DashboardViewNode {
+                    route: id.into(),
+                    children: children(&[&section]).into(),
+                    ..Default::default()
+                }
+                .into(),
+            ),
+        );
+        root.display_name = room["title"].as_str().unwrap().into();
+        let mut cards = Vec::new();
+        for (index, entity) in room["entity_ids"].as_array().unwrap().iter().enumerate() {
+            let tile_id = format!("{id}-tile-{index}");
+            cards.push(tile_id.clone());
+            layout.nodes.push(node(
+                &tile_id,
+                C::Tile(
+                    wire::DashboardTileNode {
+                        capability: format!(
+                            "homes/synthetic/entities/{}/capabilities/power",
+                            entity.as_str().unwrap()
+                        ),
+                        presentation: wire::DashboardControlPresentation::Controls.into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
+            ));
+        }
+        layout.views.push(id.into());
+        layout.nodes.push(root);
+        layout.nodes.push(node(
+            &section,
+            C::Section(
+                wire::DashboardSectionNode {
+                    children: wire::DashboardChildren {
+                        children: cards,
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                }
+                .into(),
+            ),
+        ));
+    }
     wire::Dashboard {
-        metadata: wire::Metadata {
-            id: wire::DashboardId {
-                value: "synthetic-dashboard".into(),
-                ..Default::default()
-            }
-            .into(),
-            profile: "homeward-dashboard-1".into(),
-            version: home_wire_contract::home::configuration::v1::DocumentVersion {
-                revision: 1,
-                source_sha256: vec![4; 32],
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        }
-        .into(),
-        native_overview: wire::NativeOverview {
-            version: 1,
-            config_revision: 1,
-            authorization_revision: 1,
-            config_sha256: vec![1; 32],
-            title: data["title"].as_str().unwrap().into(),
-            rooms,
-            observations,
-            mode: wire::ServingMode::Synthetic.into(),
-            ..Default::default()
-        }
-        .into(),
+        name: "homes/synthetic/dashboards/synthetic-dashboard".into(),
+        etag: "opaque-dashboard-revision".into(),
+        display_name: data["title"].as_str().unwrap().into(),
+        layout: layout.into(),
         ..Default::default()
     }
 }
@@ -366,84 +368,187 @@ pub(crate) fn fixture() -> Layout {
 }
 
 #[cfg(test)]
+pub(crate) fn capture_fixture(
+    entries: Vec<wire::EntityViewEntry>,
+) -> home_client_cache::CachedView {
+    use buffa_types::google::protobuf::Timestamp;
+    use home_client_cache::{Filter, SnapshotCapture};
+    let now = Timestamp::from_unix_secs(chrono::Utc::now().timestamp());
+    let expires = Timestamp::from_unix_secs(now.seconds + 60);
+    let mut capture = SnapshotCapture::begin(
+        home_client_model::api::HomeName::try_from("homes/synthetic").unwrap(),
+        Filter::all(),
+        256,
+        wire::EntityView {
+            name: "homes/synthetic/entityViews/capture-fixture".into(),
+            create_time: now.clone().into(),
+            expire_time: expires.into(),
+            ..Default::default()
+        },
+        &now,
+    )
+    .unwrap();
+    capture
+        .push(
+            wire::QueryEntityViewResponse {
+                entries,
+                resume_token: "opaque-fixture-checkpoint".into(),
+                ..Default::default()
+            },
+            &now,
+        )
+        .unwrap();
+    capture.finish(&now).unwrap()
+}
+#[cfg(test)]
+pub(crate) fn query_fixture(
+    document: wire::Dashboard,
+    view: &home_client_cache::CachedView,
+) -> wire::QueryDashboardResponse {
+    wire::QueryDashboardResponse {
+        dashboard: document.into(),
+        entity_view: view.name().as_str().into(),
+        resume_token: view.checkpoint().into(),
+        binding: "opaque-fixture-binding".into(),
+        expire_time: view.expires().clone().into(),
+        ..Default::default()
+    }
+}
+#[cfg(test)]
+pub(crate) fn joined_fixture(view: &home_client_cache::CachedView) -> Layout {
+    let response = query_fixture(fixture_wire(), view);
+    Layout::join(
+        &response,
+        &DashboardName::try_from(response.dashboard.name.as_str()).unwrap(),
+        view,
+    )
+    .unwrap()
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    use buffa::Message;
+    use wire::dashboard_layout_node::Content as C;
     #[test]
-    fn an_extended_layout_cannot_be_activated_under_basic_metadata() {
+    fn a_dashboard_requires_its_current_typed_layout() {
         let mut doc = fixture_wire();
-        doc.native_layout = crate::dashboard_layout::tests::extended_forest().into();
-        assert_eq!(Layout::try_from(&doc), Err(LayoutFailure::Unsupported));
-        doc.metadata.as_option_mut().unwrap().profile = Profile::Recipes.name().into();
+        doc.layout = crate::dashboard_layout::tests::extended_forest().into();
         assert!(Layout::try_from(&doc).unwrap().native.is_some());
-        doc.native_layout = Default::default();
-        assert_eq!(
-            Layout::try_from(&doc),
-            Err(LayoutFailure::Unsupported),
-            "recipes require their tree"
-        );
+        doc.layout = Default::default();
+        assert_eq!(Layout::try_from(&doc), Err(LayoutFailure::Invalid));
     }
     #[test]
-    fn unsupported_profile_keeps_a_bounded_sourced_diagnostic_and_no_layout() {
-        let mut document = fixture_wire();
-        document.metadata.as_option_mut().unwrap().profile = "homeward-dashboard-99".into();
-        document.definition = wire::Definition {
-            entry: "external.yaml".into(),
-            ..Default::default()
-        }
-        .into();
+    fn unsupported_fields_produce_no_layout_or_untrusted_diagnostic_contents() {
+        let mut bytes = fixture_wire().encode_to_vec();
+        bytes.extend_from_slice(&[0x98, 0x06, 0x01]);
+        let document = wire::Dashboard::decode_from_slice(&bytes).unwrap();
         assert_eq!(Layout::try_from(&document), Err(LayoutFailure::Unsupported));
         let unsupported = LayoutState::unsupported(&document);
-        assert!(
-            unsupported.message().contains("homeward-dashboard-99")
-                && unsupported.message().contains("external.yaml")
-        );
         assert!(unsupported.layout().is_none());
+        assert!(!unsupported.message().is_empty());
     }
     #[test]
     fn room_binding_order_is_received_data_and_membership_is_only_a_derived_index() {
         let mut doc = fixture_wire();
-        doc.native_overview.as_option_mut().unwrap().rooms[0].entity_ids =
-            vec!["ordered-entity-z".into(), "ordered-entity-a".into()];
+        let tree = doc.layout.get_or_insert_default();
+        let first = tree
+            .nodes
+            .iter()
+            .position(|node| node.id == "annex-tile-0")
+            .unwrap();
+        let Some(C::Tile(tile)) = &mut tree.nodes[first].content else {
+            panic!()
+        };
+        tile.capability = "homes/synthetic/entities/ordered-entity-z/capabilities/power".into();
+        let mut second = tree.nodes[first].clone();
+        second.id = "annex-tile-second".into();
+        let Some(C::Tile(tile)) = &mut second.content else {
+            panic!()
+        };
+        tile.capability = "homes/synthetic/entities/ordered-entity-a/capabilities/power".into();
+        tree.nodes.push(second);
+        let Some(C::Section(section)) = &mut tree
+            .nodes
+            .iter_mut()
+            .find(|n| n.id == "annex-section")
+            .unwrap()
+            .content
+        else {
+            panic!()
+        };
+        section
+            .children
+            .get_or_insert_default()
+            .children
+            .push("annex-tile-second".into());
         let layout = Layout::try_from(&doc).unwrap();
         let bindings = &layout.rooms[0].entities;
         assert_eq!(
-            bindings.iter().map(EntityId::as_str).collect::<Vec<_>>(),
-            ["ordered-entity-z", "ordered-entity-a"]
+            bindings.iter().map(EntityName::as_str).collect::<Vec<_>>(),
+            [
+                "homes/synthetic/entities/ordered-entity-z",
+                "homes/synthetic/entities/ordered-entity-a"
+            ]
         );
-        assert!(bindings.contains(&"ordered-entity-a".parse().unwrap()));
-        assert!(bindings.contains(&"ordered-entity-z".parse().unwrap()));
-        doc.native_overview.as_option_mut().unwrap().rooms[0]
-            .entity_ids
-            .reverse();
-        let reordered = Layout::try_from(&doc).unwrap();
+        for name in [
+            "homes/synthetic/entities/ordered-entity-a",
+            "homes/synthetic/entities/ordered-entity-z",
+        ] {
+            assert!(bindings.contains(&EntityName::try_from(name).unwrap()));
+        }
+        let Some(C::Section(section)) = &mut doc
+            .layout
+            .get_or_insert_default()
+            .nodes
+            .iter_mut()
+            .find(|n| n.id == "annex-section")
+            .unwrap()
+            .content
+        else {
+            panic!()
+        };
+        section.children.get_or_insert_default().children.reverse();
         assert_ne!(
-            layout, reordered,
-            "a server reorder is a new layout even with identical membership"
+            layout,
+            Layout::try_from(&doc).unwrap(),
+            "source order must remain visible"
         );
     }
     #[test]
-    fn rejects_future_profiles_duplicate_bindings_and_unbounded_data() {
+    fn duplicate_routes_foreign_bindings_missing_cas_and_unbounded_data_are_rejected() {
         let mut doc = fixture_wire();
-        doc.native_overview.as_option_mut().unwrap().version = 2;
-        assert_eq!(Layout::try_from(&doc), Err(LayoutFailure::Unsupported));
-        let mut doc = fixture_wire();
-        doc.native_overview.as_option_mut().unwrap().mode = EnumValue::Unknown(99);
-        assert_eq!(Layout::try_from(&doc), Err(LayoutFailure::Unsupported));
-        let mut doc = fixture_wire();
-        let overview = doc.native_overview.as_option_mut().unwrap();
-        overview.rooms.push(overview.rooms[0].clone());
+        let tree = doc.layout.get_or_insert_default();
+        let Some(C::View(view)) = &mut tree
+            .nodes
+            .iter_mut()
+            .find(|n| n.id == "workshop")
+            .unwrap()
+            .content
+        else {
+            panic!()
+        };
+        view.route = "annex".into();
         assert_eq!(Layout::try_from(&doc), Err(LayoutFailure::Invalid));
         let mut doc = fixture_wire();
-        let overview = doc.native_overview.as_option_mut().unwrap();
-        let id = overview.rooms[0].entity_ids[0].clone();
-        overview.rooms[0].entity_ids.push(id);
+        doc.etag.clear();
         assert_eq!(Layout::try_from(&doc), Err(LayoutFailure::Invalid));
         let mut doc = fixture_wire();
-        let overview = doc.native_overview.as_option_mut().unwrap();
-        overview.rooms = vec![overview.rooms[0].clone(); MAX_ROOMS + 1];
+        let Some(C::Tile(tile)) = &mut doc
+            .layout
+            .get_or_insert_default()
+            .nodes
+            .iter_mut()
+            .find(|n| n.id == "annex-tile-0")
+            .unwrap()
+            .content
+        else {
+            panic!()
+        };
+        tile.capability = "homes/foreign/entities/foreign-entity/capabilities/power".into();
+        assert_eq!(Layout::try_from(&doc), Err(LayoutFailure::Invalid));
+        let mut doc = fixture_wire();
+        doc.layout.get_or_insert_default().views = vec!["annex".into(); 129];
         assert_eq!(Layout::try_from(&doc), Err(LayoutFailure::Budget));
-        let mut doc = fixture_wire();
-        doc.native_overview.as_option_mut().unwrap().config_sha256 = vec![0; 32];
-        assert_eq!(Layout::try_from(&doc), Err(LayoutFailure::Invalid));
     }
 }

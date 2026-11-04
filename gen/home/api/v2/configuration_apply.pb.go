@@ -24,10 +24,13 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Represents source precondition.
 type SourcePrecondition struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	Id          *DocumentId            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	LogicalPath string                 `protobuf:"bytes,2,opt,name=logical_path,json=logicalPath,proto3" json:"logical_path,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The id represented by DocumentId.
+	Id *DocumentId `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Logical path within the candidate source bundle, never an arbitrary host filesystem path.
+	LogicalPath string `protobuf:"bytes,2,opt,name=logical_path,json=logicalPath,proto3" json:"logical_path,omitempty"`
 	// Types that are valid to be assigned to SqlState:
 	//
 	//	*SourcePrecondition_Existing
@@ -141,10 +144,12 @@ type isSourcePrecondition_SqlState interface {
 }
 
 type SourcePrecondition_Existing struct {
+	// The existing represented by DocumentVersion.
 	Existing *DocumentVersion `protobuf:"bytes,3,opt,name=existing,proto3,oneof"`
 }
 
 type SourcePrecondition_SqlAbsent struct {
+	// Selects the explicit sql absent alternative without an additional payload.
 	SqlAbsent *emptypb.Empty `protobuf:"bytes,4,opt,name=sql_absent,json=sqlAbsent,proto3,oneof"`
 }
 
@@ -157,10 +162,12 @@ type isSourcePrecondition_WorkspaceState interface {
 }
 
 type SourcePrecondition_WorkspaceSha256 struct {
+	// Digest of the workspace source, independent of the SQL revision.
 	WorkspaceSha256 []byte `protobuf:"bytes,5,opt,name=workspace_sha256,json=workspaceSha256,proto3,oneof"`
 }
 
 type SourcePrecondition_WorkspaceAbsent struct {
+	// Selects the explicit workspace absent alternative without an additional payload.
 	WorkspaceAbsent *emptypb.Empty `protobuf:"bytes,6,opt,name=workspace_absent,json=workspaceAbsent,proto3,oneof"`
 }
 
@@ -168,14 +175,18 @@ func (*SourcePrecondition_WorkspaceSha256) isSourcePrecondition_WorkspaceState()
 
 func (*SourcePrecondition_WorkspaceAbsent) isSourcePrecondition_WorkspaceState() {}
 
+// Request for apply configuration plan.
 type ApplyConfigurationPlanRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Exact source bytes remain explicit input and are checked against the
 	// named plan's native receipt. The catalogue does not retain source bytes.
-	Candidate               *ConfigurationPlanCandidate `protobuf:"bytes,2,opt,name=candidate,proto3" json:"candidate,omitempty"`
-	Expected                *DocumentVersion            `protobuf:"bytes,3,opt,name=expected,proto3" json:"expected,omitempty"`
-	ExpectedWorkspaceSha256 []byte                      `protobuf:"bytes,4,opt,name=expected_workspace_sha256,json=expectedWorkspaceSha256,proto3" json:"expected_workspace_sha256,omitempty"`
+	Candidate *ConfigurationPlanCandidate `protobuf:"bytes,2,opt,name=candidate,proto3" json:"candidate,omitempty"`
+	// Typed precondition checked against the native owner before mutation.
+	Expected *DocumentVersion `protobuf:"bytes,3,opt,name=expected,proto3" json:"expected,omitempty"`
+	// Expected digest of the workspace source; distinct from the SQL revision.
+	ExpectedWorkspaceSha256 []byte `protobuf:"bytes,4,opt,name=expected_workspace_sha256,json=expectedWorkspaceSha256,proto3" json:"expected_workspace_sha256,omitempty"`
 	// Every entry/include has an independent SQL and editable-file CAS.
 	Sources []*SourcePrecondition `protobuf:"bytes,5,rep,name=sources,proto3" json:"sources,omitempty"`
 	// The exact plan capture being applied; native source/workspace CAS remains
@@ -266,15 +277,23 @@ func (x *ApplyConfigurationPlanRequest) GetRequestId() string {
 	return ""
 }
 
+// Request for rollback configuration.
 type RollbackConfigurationRequest struct {
-	state                   protoimpl.MessageState        `protogen:"open.v1"`
-	Name                    string                        `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Expected                *DocumentVersion              `protobuf:"bytes,2,opt,name=expected,proto3" json:"expected,omitempty"`
-	ExpectedWorkspaceSha256 []byte                        `protobuf:"bytes,3,opt,name=expected_workspace_sha256,json=expectedWorkspaceSha256,proto3" json:"expected_workspace_sha256,omitempty"`
-	Historical              *ActiveGeneration             `protobuf:"bytes,4,opt,name=historical,proto3" json:"historical,omitempty"`
-	Sources                 []*SourcePrecondition         `protobuf:"bytes,5,rep,name=sources,proto3" json:"sources,omitempty"`
-	Family                  ConfigurationPlanSourceFamily `protobuf:"varint,6,opt,name=family,proto3,enum=home.api.v2.ConfigurationPlanSourceFamily" json:"family,omitempty"`
-	Identity                string                        `protobuf:"bytes,7,opt,name=identity,proto3" json:"identity,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Typed precondition checked against the native owner before mutation.
+	Expected *DocumentVersion `protobuf:"bytes,2,opt,name=expected,proto3" json:"expected,omitempty"`
+	// Expected digest of the workspace source; distinct from the SQL revision.
+	ExpectedWorkspaceSha256 []byte `protobuf:"bytes,3,opt,name=expected_workspace_sha256,json=expectedWorkspaceSha256,proto3" json:"expected_workspace_sha256,omitempty"`
+	// The historical represented by ActiveGeneration.
+	Historical *ActiveGeneration `protobuf:"bytes,4,opt,name=historical,proto3" json:"historical,omitempty"`
+	// Collection of sources for this message.
+	Sources []*SourcePrecondition `protobuf:"bytes,5,rep,name=sources,proto3" json:"sources,omitempty"`
+	// The family represented by ConfigurationPlanSourceFamily.
+	Family ConfigurationPlanSourceFamily `protobuf:"varint,6,opt,name=family,proto3,enum=home.api.v2.ConfigurationPlanSourceFamily" json:"family,omitempty"`
+	// The identity associated with this message.
+	Identity string `protobuf:"bytes,7,opt,name=identity,proto3" json:"identity,omitempty"`
 	// Authorization may select an exact retained policy version without a
 	// historical configuration generation. Exactly one selector is required.
 	HistoricalPolicyVersion *DocumentVersion `protobuf:"bytes,8,opt,name=historical_policy_version,json=historicalPolicyVersion,proto3" json:"historical_policy_version,omitempty"`
@@ -377,50 +396,146 @@ func (x *RollbackConfigurationRequest) GetRequestId() string {
 	return ""
 }
 
+// Reports publication established by the native configuration owner after Apply.
+type ApplyConfigurationPlanResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Shared immutable publication evidence, without changing the native ledger.
+	Result        *ConfigurationActivationResult `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApplyConfigurationPlanResponse) Reset() {
+	*x = ApplyConfigurationPlanResponse{}
+	mi := &file_home_api_v2_configuration_apply_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApplyConfigurationPlanResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApplyConfigurationPlanResponse) ProtoMessage() {}
+
+func (x *ApplyConfigurationPlanResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_configuration_apply_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApplyConfigurationPlanResponse.ProtoReflect.Descriptor instead.
+func (*ApplyConfigurationPlanResponse) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_configuration_apply_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ApplyConfigurationPlanResponse) GetResult() *ConfigurationActivationResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+// Reports publication established by the native configuration owner after rollback.
+type RollbackConfigurationResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Shared immutable publication evidence; rollback does not restore an old ledger.
+	Result        *ConfigurationActivationResult `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RollbackConfigurationResponse) Reset() {
+	*x = RollbackConfigurationResponse{}
+	mi := &file_home_api_v2_configuration_apply_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollbackConfigurationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollbackConfigurationResponse) ProtoMessage() {}
+
+func (x *RollbackConfigurationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_configuration_apply_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollbackConfigurationResponse.ProtoReflect.Descriptor instead.
+func (*RollbackConfigurationResponse) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_configuration_apply_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RollbackConfigurationResponse) GetResult() *ConfigurationActivationResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
 var File_home_api_v2_configuration_apply_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_configuration_apply_proto_rawDesc = "" +
 	"\n" +
-	"%home/api/v2/configuration_apply.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a#google/longrunning/operations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a)home/api/v2/configuration_documents.proto\x1a%home/api/v2/configuration_plans.proto\"\xe7\x02\n" +
-	"\x12SourcePrecondition\x12'\n" +
-	"\x02id\x18\x01 \x01(\v2\x17.home.api.v2.DocumentIdR\x02id\x12!\n" +
-	"\flogical_path\x18\x02 \x01(\tR\vlogicalPath\x12:\n" +
+	"%home/api/v2/configuration_apply.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a#google/longrunning/operations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a)home/api/v2/configuration_documents.proto\x1a%home/api/v2/configuration_plans.proto\"\xf3\x02\n" +
+	"\x12SourcePrecondition\x12-\n" +
+	"\x02id\x18\x01 \x01(\v2\x17.home.api.v2.DocumentIdB\x04\xe2A\x01\x02R\x02id\x12'\n" +
+	"\flogical_path\x18\x02 \x01(\tB\x04\xe2A\x01\x02R\vlogicalPath\x12:\n" +
 	"\bexisting\x18\x03 \x01(\v2\x1c.home.api.v2.DocumentVersionH\x00R\bexisting\x127\n" +
 	"\n" +
 	"sql_absent\x18\x04 \x01(\v2\x16.google.protobuf.EmptyH\x00R\tsqlAbsent\x12+\n" +
 	"\x10workspace_sha256\x18\x05 \x01(\fH\x01R\x0fworkspaceSha256\x12C\n" +
 	"\x10workspace_absent\x18\x06 \x01(\v2\x16.google.protobuf.EmptyH\x01R\x0fworkspaceAbsentB\v\n" +
 	"\tsql_stateB\x11\n" +
-	"\x0fworkspace_state\"\xae\x03\n" +
+	"\x0fworkspace_state\"\xc0\x03\n" +
 	"\x1dApplyConfigurationPlanRequest\x12H\n" +
 	"\x04name\x18\x01 \x01(\tB4\xe2A\x01\x02\xfaA-\n" +
 	"+homeward.damiengoehrig.ca/ConfigurationPlanR\x04name\x12K\n" +
-	"\tcandidate\x18\x02 \x01(\v2'.home.api.v2.ConfigurationPlanCandidateB\x04\xe2A\x01\x02R\tcandidate\x128\n" +
-	"\bexpected\x18\x03 \x01(\v2\x1c.home.api.v2.DocumentVersionR\bexpected\x12:\n" +
-	"\x19expected_workspace_sha256\x18\x04 \x01(\fR\x17expectedWorkspaceSha256\x129\n" +
-	"\asources\x18\x05 \x03(\v2\x1f.home.api.v2.SourcePreconditionR\asources\x12\x18\n" +
+	"\tcandidate\x18\x02 \x01(\v2'.home.api.v2.ConfigurationPlanCandidateB\x04\xe2A\x01\x02R\tcandidate\x12>\n" +
+	"\bexpected\x18\x03 \x01(\v2\x1c.home.api.v2.DocumentVersionB\x04\xe2A\x01\x02R\bexpected\x12@\n" +
+	"\x19expected_workspace_sha256\x18\x04 \x01(\fB\x04\xe2A\x01\x02R\x17expectedWorkspaceSha256\x12?\n" +
+	"\asources\x18\x05 \x03(\v2\x1f.home.api.v2.SourcePreconditionB\x04\xe2A\x01\x01R\asources\x12\x18\n" +
 	"\x04etag\x18\x06 \x01(\tB\x04\xe2A\x01\x02R\x04etag\x12+\n" +
 	"\n" +
-	"request_id\x18\a \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId\"\xc3\x04\n" +
+	"request_id\x18\a \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId\"\xed\x04\n" +
 	"\x1cRollbackConfigurationRequest\x12L\n" +
 	"\x04name\x18\x01 \x01(\tB8\xe2A\x01\x02\xfaA1\n" +
-	"/homeward.damiengoehrig.ca/ConfigurationDocumentR\x04name\x128\n" +
-	"\bexpected\x18\x02 \x01(\v2\x1c.home.api.v2.DocumentVersionR\bexpected\x12:\n" +
-	"\x19expected_workspace_sha256\x18\x03 \x01(\fR\x17expectedWorkspaceSha256\x12=\n" +
+	"/homeward.damiengoehrig.ca/ConfigurationDocumentR\x04name\x12>\n" +
+	"\bexpected\x18\x02 \x01(\v2\x1c.home.api.v2.DocumentVersionB\x04\xe2A\x01\x02R\bexpected\x12@\n" +
+	"\x19expected_workspace_sha256\x18\x03 \x01(\fB\x04\xe2A\x01\x02R\x17expectedWorkspaceSha256\x12C\n" +
 	"\n" +
-	"historical\x18\x04 \x01(\v2\x1d.home.api.v2.ActiveGenerationR\n" +
-	"historical\x129\n" +
-	"\asources\x18\x05 \x03(\v2\x1f.home.api.v2.SourcePreconditionR\asources\x12B\n" +
-	"\x06family\x18\x06 \x01(\x0e2*.home.api.v2.ConfigurationPlanSourceFamilyR\x06family\x12\x1a\n" +
-	"\bidentity\x18\a \x01(\tR\bidentity\x12X\n" +
-	"\x19historical_policy_version\x18\b \x01(\v2\x1c.home.api.v2.DocumentVersionR\x17historicalPolicyVersion\x12+\n" +
+	"historical\x18\x04 \x01(\v2\x1d.home.api.v2.ActiveGenerationB\x04\xe2A\x01\x01R\n" +
+	"historical\x12?\n" +
+	"\asources\x18\x05 \x03(\v2\x1f.home.api.v2.SourcePreconditionB\x04\xe2A\x01\x01R\asources\x12H\n" +
+	"\x06family\x18\x06 \x01(\x0e2*.home.api.v2.ConfigurationPlanSourceFamilyB\x04\xe2A\x01\x01R\x06family\x12 \n" +
+	"\bidentity\x18\a \x01(\tB\x04\xe2A\x01\x01R\bidentity\x12^\n" +
+	"\x19historical_policy_version\x18\b \x01(\v2\x1c.home.api.v2.DocumentVersionB\x04\xe2A\x01\x01R\x17historicalPolicyVersion\x12+\n" +
 	"\n" +
-	"request_id\x18\t \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId2\xe4\x04\n" +
-	"\x19ConfigurationApplyService\x12\x9c\x02\n" +
-	"\x16ApplyConfigurationPlan\x12*.home.api.v2.ApplyConfigurationPlanRequest\x1a\x1d.google.longrunning.Operation\"\xb6\x01\xcaA?\n" +
-	"\x1dConfigurationActivationResult\x12\x1eConfigurationOperationMetadata\xdaA9name,candidate,expected,expected_workspace_sha256,sources\x82\xd3\xe4\x93\x022:\x01*\"-/v2/{name=homes/*/configurationPlans/*}:apply\x12\xa7\x02\n" +
+	"request_id\x18\t \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId\"j\n" +
+	"\x1eApplyConfigurationPlanResponse\x12H\n" +
+	"\x06result\x18\x01 \x01(\v2*.home.api.v2.ConfigurationActivationResultB\x04\xe2A\x01\x03R\x06result\"i\n" +
+	"\x1dRollbackConfigurationResponse\x12H\n" +
+	"\x06result\x18\x01 \x01(\v2*.home.api.v2.ConfigurationActivationResultB\x04\xe2A\x01\x03R\x06result2\xea\x04\n" +
+	"\x19ConfigurationApplyService\x12\xa2\x02\n" +
+	"\x16ApplyConfigurationPlan\x12*.home.api.v2.ApplyConfigurationPlanRequest\x1a\x1d.google.longrunning.Operation\"\xbc\x01\xcaA@\n" +
+	"\x1eApplyConfigurationPlanResponse\x12\x1eConfigurationOperationMetadata\xdaA>name,candidate,expected,expected_workspace_sha256,sources,etag\x82\xd3\xe4\x93\x022:\x01*\"-/v2/{name=homes/*/configurationPlans/*}:apply\x12\xa7\x02\n" +
 	"\x15RollbackConfiguration\x12).home.api.v2.RollbackConfigurationRequest\x1a\x1d.google.longrunning.Operation\"\xc3\x01\xcaA?\n" +
-	"\x1dConfigurationActivationResult\x12\x1eConfigurationOperationMetadata\xdaA2name,expected,expected_workspace_sha256,historical\x82\xd3\xe4\x93\x02F:\x01*\"A/v2/{name=homes/*/configurationDocuments/*}:rollbackConfigurationB`\n" +
+	"\x1dRollbackConfigurationResponse\x12\x1eConfigurationOperationMetadata\xdaA2name,expected,expected_workspace_sha256,historical\x82\xd3\xe4\x93\x02F:\x01*\"A/v2/{name=homes/*/configurationDocuments/*}:rollbackConfigurationB`\n" +
 	"\x0fcom.home.api.v2B\x17ConfigurationApplyProtoP\x01Z2github.com/damione1/Homeward/gen/home/api/v2;apiv2b\x06proto3"
 
 var (
@@ -435,41 +550,46 @@ func file_home_api_v2_configuration_apply_proto_rawDescGZIP() []byte {
 	return file_home_api_v2_configuration_apply_proto_rawDescData
 }
 
-var file_home_api_v2_configuration_apply_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_home_api_v2_configuration_apply_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_home_api_v2_configuration_apply_proto_goTypes = []any{
-	(*SourcePrecondition)(nil),            // 0: home.api.v2.SourcePrecondition
-	(*ApplyConfigurationPlanRequest)(nil), // 1: home.api.v2.ApplyConfigurationPlanRequest
-	(*RollbackConfigurationRequest)(nil),  // 2: home.api.v2.RollbackConfigurationRequest
-	(*DocumentId)(nil),                    // 3: home.api.v2.DocumentId
-	(*DocumentVersion)(nil),               // 4: home.api.v2.DocumentVersion
-	(*emptypb.Empty)(nil),                 // 5: google.protobuf.Empty
-	(*ConfigurationPlanCandidate)(nil),    // 6: home.api.v2.ConfigurationPlanCandidate
-	(*ActiveGeneration)(nil),              // 7: home.api.v2.ActiveGeneration
-	(ConfigurationPlanSourceFamily)(0),    // 8: home.api.v2.ConfigurationPlanSourceFamily
-	(*longrunningpb.Operation)(nil),       // 9: google.longrunning.Operation
+	(*SourcePrecondition)(nil),             // 0: home.api.v2.SourcePrecondition
+	(*ApplyConfigurationPlanRequest)(nil),  // 1: home.api.v2.ApplyConfigurationPlanRequest
+	(*RollbackConfigurationRequest)(nil),   // 2: home.api.v2.RollbackConfigurationRequest
+	(*ApplyConfigurationPlanResponse)(nil), // 3: home.api.v2.ApplyConfigurationPlanResponse
+	(*RollbackConfigurationResponse)(nil),  // 4: home.api.v2.RollbackConfigurationResponse
+	(*DocumentId)(nil),                     // 5: home.api.v2.DocumentId
+	(*DocumentVersion)(nil),                // 6: home.api.v2.DocumentVersion
+	(*emptypb.Empty)(nil),                  // 7: google.protobuf.Empty
+	(*ConfigurationPlanCandidate)(nil),     // 8: home.api.v2.ConfigurationPlanCandidate
+	(*ActiveGeneration)(nil),               // 9: home.api.v2.ActiveGeneration
+	(ConfigurationPlanSourceFamily)(0),     // 10: home.api.v2.ConfigurationPlanSourceFamily
+	(*ConfigurationActivationResult)(nil),  // 11: home.api.v2.ConfigurationActivationResult
+	(*longrunningpb.Operation)(nil),        // 12: google.longrunning.Operation
 }
 var file_home_api_v2_configuration_apply_proto_depIdxs = []int32{
-	3,  // 0: home.api.v2.SourcePrecondition.id:type_name -> home.api.v2.DocumentId
-	4,  // 1: home.api.v2.SourcePrecondition.existing:type_name -> home.api.v2.DocumentVersion
-	5,  // 2: home.api.v2.SourcePrecondition.sql_absent:type_name -> google.protobuf.Empty
-	5,  // 3: home.api.v2.SourcePrecondition.workspace_absent:type_name -> google.protobuf.Empty
-	6,  // 4: home.api.v2.ApplyConfigurationPlanRequest.candidate:type_name -> home.api.v2.ConfigurationPlanCandidate
-	4,  // 5: home.api.v2.ApplyConfigurationPlanRequest.expected:type_name -> home.api.v2.DocumentVersion
+	5,  // 0: home.api.v2.SourcePrecondition.id:type_name -> home.api.v2.DocumentId
+	6,  // 1: home.api.v2.SourcePrecondition.existing:type_name -> home.api.v2.DocumentVersion
+	7,  // 2: home.api.v2.SourcePrecondition.sql_absent:type_name -> google.protobuf.Empty
+	7,  // 3: home.api.v2.SourcePrecondition.workspace_absent:type_name -> google.protobuf.Empty
+	8,  // 4: home.api.v2.ApplyConfigurationPlanRequest.candidate:type_name -> home.api.v2.ConfigurationPlanCandidate
+	6,  // 5: home.api.v2.ApplyConfigurationPlanRequest.expected:type_name -> home.api.v2.DocumentVersion
 	0,  // 6: home.api.v2.ApplyConfigurationPlanRequest.sources:type_name -> home.api.v2.SourcePrecondition
-	4,  // 7: home.api.v2.RollbackConfigurationRequest.expected:type_name -> home.api.v2.DocumentVersion
-	7,  // 8: home.api.v2.RollbackConfigurationRequest.historical:type_name -> home.api.v2.ActiveGeneration
+	6,  // 7: home.api.v2.RollbackConfigurationRequest.expected:type_name -> home.api.v2.DocumentVersion
+	9,  // 8: home.api.v2.RollbackConfigurationRequest.historical:type_name -> home.api.v2.ActiveGeneration
 	0,  // 9: home.api.v2.RollbackConfigurationRequest.sources:type_name -> home.api.v2.SourcePrecondition
-	8,  // 10: home.api.v2.RollbackConfigurationRequest.family:type_name -> home.api.v2.ConfigurationPlanSourceFamily
-	4,  // 11: home.api.v2.RollbackConfigurationRequest.historical_policy_version:type_name -> home.api.v2.DocumentVersion
-	1,  // 12: home.api.v2.ConfigurationApplyService.ApplyConfigurationPlan:input_type -> home.api.v2.ApplyConfigurationPlanRequest
-	2,  // 13: home.api.v2.ConfigurationApplyService.RollbackConfiguration:input_type -> home.api.v2.RollbackConfigurationRequest
-	9,  // 14: home.api.v2.ConfigurationApplyService.ApplyConfigurationPlan:output_type -> google.longrunning.Operation
-	9,  // 15: home.api.v2.ConfigurationApplyService.RollbackConfiguration:output_type -> google.longrunning.Operation
-	14, // [14:16] is the sub-list for method output_type
-	12, // [12:14] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	10, // 10: home.api.v2.RollbackConfigurationRequest.family:type_name -> home.api.v2.ConfigurationPlanSourceFamily
+	6,  // 11: home.api.v2.RollbackConfigurationRequest.historical_policy_version:type_name -> home.api.v2.DocumentVersion
+	11, // 12: home.api.v2.ApplyConfigurationPlanResponse.result:type_name -> home.api.v2.ConfigurationActivationResult
+	11, // 13: home.api.v2.RollbackConfigurationResponse.result:type_name -> home.api.v2.ConfigurationActivationResult
+	1,  // 14: home.api.v2.ConfigurationApplyService.ApplyConfigurationPlan:input_type -> home.api.v2.ApplyConfigurationPlanRequest
+	2,  // 15: home.api.v2.ConfigurationApplyService.RollbackConfiguration:input_type -> home.api.v2.RollbackConfigurationRequest
+	12, // 16: home.api.v2.ConfigurationApplyService.ApplyConfigurationPlan:output_type -> google.longrunning.Operation
+	12, // 17: home.api.v2.ConfigurationApplyService.RollbackConfiguration:output_type -> google.longrunning.Operation
+	16, // [16:18] is the sub-list for method output_type
+	14, // [14:16] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_home_api_v2_configuration_apply_proto_init() }
@@ -491,7 +611,7 @@ func file_home_api_v2_configuration_apply_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_api_v2_configuration_apply_proto_rawDesc), len(file_home_api_v2_configuration_apply_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

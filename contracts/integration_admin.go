@@ -70,7 +70,7 @@ func AdmitIntegrationAdminRequest(message proto.Message) error {
 		valid = m != nil && err == nil
 	case *api.CreateIntegrationInstanceRequest:
 		home, err := apitypes.ParseHomeName(m.GetParent())
-		valid = m != nil && err == nil && integrationAdminRequestID(m.RequestId) && m.IntegrationInstance != nil && integrationAdminState(m.IntegrationInstance.DesiredState) && integrationAdminEditable(m.IntegrationInstance, home)
+		valid = m != nil && err == nil && requestedPublicResourceID(m.IntegrationInstanceId) && integrationAdminRequestID(m.RequestId) && m.IntegrationInstance != nil && integrationAdminState(m.IntegrationInstance.DesiredState) && integrationAdminEditable(m.IntegrationInstance, home)
 	case *api.UpdateIntegrationInstanceRequest:
 		if m != nil && m.IntegrationInstance != nil && m.UpdateMask != nil && len(m.UpdateMask.Paths) > 0 && len(m.UpdateMask.Paths) <= 8 && integrationAdminRequestID(m.RequestId) && integrationAdminEtag(m.IntegrationInstance.Etag) {
 			if name, err := apitypes.ParseIntegrationInstanceName(m.IntegrationInstance.Name); err == nil {

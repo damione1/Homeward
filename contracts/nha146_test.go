@@ -9,7 +9,7 @@ import (
 	auth "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	native "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -158,7 +158,7 @@ func TestNHA146EnumCatalogueAndConnect(t *testing.T) {
 			t.Fatalf("%s enum changed; review admission/conversion", name)
 		}
 	}
-	if authv1connect.OperatorAccountServiceName != "home.auth.v1.OperatorAccountService" ||
+	if operatorv1connect.OperatorAccountServiceName != "home.operator.v1.OperatorAccountService" ||
 		apiv2connect.AuthServiceName != "home.api.v2.AuthService" ||
 		apiv2connect.McpKeyServiceName != "home.api.v2.McpKeyService" {
 		t.Fatal("Connect service generated from unexpected proto")

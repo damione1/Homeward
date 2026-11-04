@@ -1,39 +1,7 @@
 use buffa::Message;
-use home_wire_contract::{
-    authorization_contract as policy,
-    home::{api::v2 as auth, auth::v1 as native},
-};
-use std::path::Path;
-
-fn decode<M: Message + Default>(name: &str) -> M {
-    let bytes = std::fs::read(
-        Path::new("../../contracts/authorization_golden").join(format!("{name}.bin")),
-    )
-    .unwrap();
-    let value = M::decode_from_slice(&bytes).unwrap();
-    assert_eq!(value.encode_to_vec(), bytes, "fixture wire drift: {name}");
-    value
-}
-#[test]
-fn nha050_native_termination_cross_language_fixtures() {
-    // Termination is a current native owner detail, independent of retired
-    // public policy RPCs. The historical corpus remains byte-for-byte intact.
-    let index = std::fs::read_to_string("../../contracts/authorization_golden/index.tsv").unwrap();
-    let mut count = 0;
-    for line in index.lines() {
-        let fields: Vec<_> = line.split('\t').collect();
-        assert_eq!(fields.len(), 3);
-        if fields[1] != "AuthorizationTermination" {
-            continue;
-        }
-        let accepted =
-            policy::admit_termination(&decode::<native::AuthorizationTermination>(fields[0]))
-                .is_ok();
-        assert_eq!(accepted, fields[2] == "true", "{}", fields[0]);
-        count += 1;
-    }
-    assert!(count > 0);
-}
+use home_wire_contract::{authorization_contract as policy, home::api::v2 as auth};
+// Historical authorization fixtures are preserved by the corpus integrity
+// manifest. Retired native transport DTOs have no current decoder here.
 fn request() -> auth::ReplaceAuthorizationPolicyRequest {
     auth::ReplaceAuthorizationPolicyRequest {
         name: "homes/h/accounts/a/authorizationPolicy".into(),
@@ -65,9 +33,10 @@ fn nha203_policy_boundaries_unknown_and_snapshot() {
         .is_err()
     );
     value = request();
-    let admitted = policy::admit_replace_request(&value).unwrap();
+    policy::admit_replace_request(&value).unwrap();
+    assert_eq!(value.yaml_source, request().yaml_source);
     value.yaml_source.clear();
-    assert_eq!(admitted.wire().yaml_source, request().yaml_source);
+    assert!(policy::admit_replace_request(&value).is_err());
     for precondition in [
         None,
         Some(auth::replace_authorization_policy_request::Precondition::ExpectedEtag(String::new())),

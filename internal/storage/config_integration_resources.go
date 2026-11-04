@@ -23,7 +23,11 @@ func (c *ConfigTx) EnsureIntegrationResourceIdentities(ids []domain.IntegrationI
 			return &Error{kind: ConfigInvalid}
 		}
 		seen[key] = true
-		if _, err := EnsureAPIResourceIdentityTx(c.ctx, c.tx, APIIntegrationInstances, key); err != nil {
+		if choice, present := c.ctx.Value(requestedIntegrationResourceIDKey{}).(requestedIntegrationResourceID); present && choice.target.instance == id {
+			if _, err := InsertAPIResourceIdentityTx(c.ctx, c.tx, APIIntegrationInstances, key, choice.id); err != nil {
+				return err
+			}
+		} else if _, err := EnsureAPIResourceIdentityTx(c.ctx, c.tx, APIIntegrationInstances, key); err != nil {
 			return err
 		}
 	}

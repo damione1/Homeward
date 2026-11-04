@@ -1,6 +1,6 @@
 //! Structural admission of native-owned public policy resources; never evaluates rights.
 use crate::auth_contract::AdmissionError;
-use crate::home::{api::v2 as auth, auth::v1 as native};
+use crate::home::api::v2 as auth;
 use buffa::EnumValue;
 use home_client_model::auth::AuthorizationPolicyName;
 
@@ -100,27 +100,6 @@ pub fn admit_replace_response(
             snapshot(policy) && policy.origin == auth::AuthorizationPolicyOrigin::Stored
         })
     {
-        Ok(Admitted {
-            wire: value.clone(),
-        })
-    } else {
-        Err(AdmissionError::Invalid)
-    }
-}
-/// Every admitted termination requires discarding the complete cached view.
-pub fn admit_termination(
-    value: &native::AuthorizationTermination,
-) -> Result<Admitted<native::AuthorizationTermination>, AdmissionError> {
-    let valid = match value.reason {
-        EnumValue::Known(native::AuthorizationTerminationReason::CredentialRevoked)
-        | EnumValue::Known(native::AuthorizationTerminationReason::CredentialExpired)
-        | EnumValue::Known(native::AuthorizationTerminationReason::AccountDisabled)
-        | EnumValue::Known(native::AuthorizationTerminationReason::RightsChanged)
-        | EnumValue::Known(native::AuthorizationTerminationReason::AuthorityUnavailable) => true,
-        EnumValue::Known(native::AuthorizationTerminationReason::Unspecified)
-        | EnumValue::Unknown(_) => false,
-    };
-    if valid && value.__buffa_unknown_fields.is_empty() {
         Ok(Admitted {
             wire: value.clone(),
         })

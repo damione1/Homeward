@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use buffa::Message;
 use connectrpc::ErrorCode;
 use home_client_transport::{Connection, FailureKind};
 use home_wire_contract::home::api::v2::StartLoginRequest;
@@ -57,11 +58,47 @@ fn server(address: &str) -> (String, std::thread::JoinHandle<()>) {
             .unwrap();
         let connection = rustls::ServerConnection::new(Arc::new(config)).unwrap();
         let mut stream = rustls::StreamOwned::new(connection, socket);
-        let mut request = [0; 4096];
-        // Certificate rejection is an expected terminal handshake outcome.
-        if stream.read(&mut request).is_err() {
-            return;
+        let mut request = Vec::new();
+        let header_end = loop {
+            let mut chunk = [0; 1024];
+            // Certificate rejection is an expected terminal handshake outcome.
+            let count = match stream.read(&mut chunk) {
+                Ok(0) | Err(_) if request.is_empty() => return,
+                Ok(0) => panic!("truncated synthetic request"),
+                Ok(count) => count,
+                Err(error) => panic!("synthetic request read: {error}"),
+            };
+            request.extend_from_slice(&chunk[..count]);
+            assert!(request.len() <= 4096, "synthetic request budget");
+            if let Some(end) = request.windows(4).position(|v| v == b"\r\n\r\n") {
+                break end + 4;
+            }
+        };
+        let headers = std::str::from_utf8(&request[..header_end]).unwrap();
+        assert_eq!(
+            headers.lines().next(),
+            Some("POST /home.api.v2.AuthService/StartLogin HTTP/1.1")
+        );
+        let length: usize = headers
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse().unwrap())
+            })
+            .expect("bounded unary request length");
+        assert!(header_end + length <= 4096);
+        while request.len() < header_end + length {
+            let mut chunk = [0; 1024];
+            let count = stream.read(&mut chunk).unwrap();
+            assert!(count > 0, "truncated synthetic request body");
+            request.extend_from_slice(&chunk[..count]);
+            assert!(request.len() <= 4096);
         }
+        let login = StartLoginRequest::decode_from_slice(&request[header_end..header_end + length])
+            .unwrap();
+        assert_eq!(login.login_name, "synthetic");
+        assert_eq!(login.password, "synthetic");
         let body = r#"{"code":"unauthenticated","message":"synthetic fixture"}"#;
         let response = format!(
             "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",

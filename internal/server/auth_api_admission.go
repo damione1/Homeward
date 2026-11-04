@@ -95,11 +95,11 @@ func publicAccountRole(value native.AccountRole) (api.AccountRole, error) {
 		return 0, storage.ErrAPIResourceIntegrity
 	}
 }
-func nativeAccountState(value api.AccountState) (native.AccountStatus, error) {
+func nativeAccountAccess(value api.AccountAccess) (native.AccountStatus, error) {
 	switch value {
-	case api.AccountState_ACCOUNT_STATE_ACTIVE:
+	case api.AccountAccess_ACCOUNT_ACCESS_ENABLED:
 		return native.AccountStatus_ACCOUNT_STATUS_ACTIVE, nil
-	case api.AccountState_ACCOUNT_STATE_DISABLED:
+	case api.AccountAccess_ACCOUNT_ACCESS_DISABLED:
 		return native.AccountStatus_ACCOUNT_STATUS_DISABLED, nil
 	default:
 		return 0, storage.ErrAccountInvalid
@@ -157,8 +157,8 @@ func accountAPIChanges(request *api.UpdateAccountRequest, current storage.Accoun
 		if value.Role != api.AccountRole_ACCOUNT_ROLE_UNSPECIFIED {
 			paths = append(paths, "role")
 		}
-		if value.State != api.AccountState_ACCOUNT_STATE_UNSPECIFIED {
-			paths = append(paths, "state")
+		if value.Access != api.AccountAccess_ACCOUNT_ACCESS_UNSPECIFIED {
+			paths = append(paths, "access")
 		}
 		if value.LoginName != "" {
 			paths = append(paths, "login_name")
@@ -170,7 +170,7 @@ func accountAPIChanges(request *api.UpdateAccountRequest, current storage.Accoun
 		paths = request.UpdateMask.Paths
 	}
 	if len(paths) == 1 && paths[0] == "*" {
-		paths = []string{"display_name", "role", "state"}
+		paths = []string{"display_name", "role", "access"}
 		if value.LoginName != "" {
 			paths = append(paths, "login_name")
 		}
@@ -192,10 +192,10 @@ func accountAPIChanges(request *api.UpdateAccountRequest, current storage.Accoun
 				return storage.AccountChanges{}, authInvalid(request, "account.role", api.ValidationReason_VALIDATION_REASON_UNKNOWN_VALUE)
 			}
 			changes.Role = &role
-		case "state":
-			state, err := nativeAccountState(value.State)
+		case "access":
+			state, err := nativeAccountAccess(value.Access)
 			if err != nil {
-				return storage.AccountChanges{}, authInvalid(request, "account.state", api.ValidationReason_VALIDATION_REASON_UNKNOWN_VALUE)
+				return storage.AccountChanges{}, authInvalid(request, "account.access", api.ValidationReason_VALIDATION_REASON_UNKNOWN_VALUE)
 			}
 			changes.Status = &state
 		case "login_name":

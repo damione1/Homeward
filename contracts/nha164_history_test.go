@@ -3,9 +3,9 @@ package contracts
 import (
 	"bytes"
 	"encoding/hex"
-	history "github.com/damione1/Homeward/gen/home/history/v1"
+	history "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"os"
 	"strings"
@@ -15,12 +15,14 @@ import (
 
 func nha164HistoryRequest() *history.QueryObservationsRequest {
 	start := time.Date(2026, 10, 21, 0, 0, 0, 0, time.UTC)
-	return &history.QueryObservationsRequest{EntityId: "nha164-entity", Period: &history.Period{Start: timestamppb.New(start), End: timestamppb.New(start.Add(time.Hour))}, Resolution: history.Resolution_RESOLUTION_RAW}
+	return &history.QueryObservationsRequest{Parent: "homes/synthetic/entities/nha164-entity", Period: &history.HistoryPeriod{Start: timestamppb.New(start), End: timestamppb.New(start.Add(time.Hour))}}
 }
 
 func TestNHA164HistoryGoResponseBytesAndEmptyProgress(t *testing.T) {
-	scope := &history.ReadScope{Requested: &history.Period{Start: &timestamppb.Timestamp{Seconds: 1}, End: &timestamppb.Timestamp{Seconds: 2}}, RetentionCutoff: &timestamppb.Timestamp{Seconds: 2}, AsOf: &timestamppb.Timestamp{Seconds: 3}, Resolution: history.Resolution_RESOLUTION_RAW, Limits: &history.Limits{MaxPoints: 100, MaxResponseBytes: 256 << 10, MaxTokenBytes: 512, QueryTimeoutMillis: 2000, MaxReaders: 2, MaxPeriodHours: 168}}
-	text, err := os.ReadFile("../client/wire/tests/fixtures/nha164_not_retained.hex")
+	home, _ := apitypes.ParseHomeName("homes/synthetic")
+	period := &history.HistoryPeriod{Start: &timestamppb.Timestamp{Seconds: 1}, End: &timestamppb.Timestamp{Seconds: 2}}
+	scope := &history.HistoryReadScope{Requested: period, NotRetainedPrefix: proto.CloneOf(period), RetentionCutoff: &timestamppb.Timestamp{Seconds: 2}, AsOf: &timestamppb.Timestamp{Seconds: 3}, Resolution: history.HistoryResolution_HISTORY_RESOLUTION_RAW, Limits: &history.HistoryLimits{MaxPoints: 100, MaxResponseBytes: 256 << 10, MaxTokenBytes: 512, QueryTimeoutMillis: 2000, MaxReaders: 2, MaxPeriodHours: 168}}
+	text, err := os.ReadFile("../client/wire/tests/fixtures/nha164_v2_not_retained.hex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,54 +30,55 @@ func TestNHA164HistoryGoResponseBytesAndEmptyProgress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	traceScope := proto.Clone(scope).(*history.ReadScope)
+	traceScope := proto.CloneOf(scope)
 	traceScope.Limits.MaxPoints = 31
-	responses := []proto.Message{&history.QueryObservationsResponse{Result: &history.QueryObservationsResponse_NotRetained{NotRetained: scope}}, &history.QueryAggregatesResponse{Result: &history.QueryAggregatesResponse_Budget{Budget: &history.BudgetExceeded{Reason: history.BudgetReason_BUDGET_REASON_POINT_TOO_LARGE}}}, &history.QueryExecutionTracesResponse{Result: &history.QueryExecutionTracesResponse_NotRetained{NotRetained: traceScope}}}
-	expected := [][]byte{golden, {0x22, 0x02, 0x08, 0x01}, bytes.Replace(golden, []byte{0x08, 0x64}, []byte{0x08, 0x1f}, 1)}
+	responses := []proto.Message{&history.QueryObservationsResponse{Scope: scope}, &history.QueryExecutionTracesResponse{Scope: traceScope}}
+	expected := [][]byte{golden, bytes.Replace(golden, []byte{0x08, 0x64}, []byte{0x08, 0x1f}, 1)}
 	for index, response := range responses {
-		if err = AdmitHistoryResponse(response); err != nil {
+		if err = AdmitHistoryV2Response(response, home); err != nil {
 			t.Fatal(err)
 		}
-		raw, err := proto.MarshalOptions{Deterministic: true}.Marshal(response)
-		if err != nil || !bytes.Equal(raw, expected[index]) {
-			t.Fatalf("Go response no longer matches shared Rust wire oracle: %x %v", raw, err)
+		raw, encodeErr := (proto.MarshalOptions{Deterministic: true}).Marshal(response)
+		if encodeErr != nil || !bytes.Equal(raw, expected[index]) {
+			t.Fatalf("shared wire oracle: %x %v", raw, encodeErr)
 		}
 		decoded := response.ProtoReflect().Type().New().Interface()
-		if err = proto.Unmarshal(expected[index], decoded); err != nil || AdmitHistoryResponse(decoded) != nil {
-			t.Fatalf("response roundtrip: %v", err)
+		if err = proto.Unmarshal(expected[index], decoded); err != nil || AdmitHistoryV2Response(decoded, home) != nil {
+			t.Fatal("response roundtrip", err)
 		}
 		decoded.ProtoReflect().SetUnknown([]byte{0xf8, 0x07, 0x01})
-		if AdmitHistoryResponse(decoded) == nil {
+		if AdmitHistoryV2Response(decoded, home) == nil {
 			t.Fatal("unknown response field admitted")
 		}
 	}
-	scope = proto.Clone(scope).(*history.ReadScope)
-	scope.Limits.MaxPoints = 31
-	page := &history.ExecutionTracePage{Scope: scope, Epoch: "00000000000000000000000000000164", Continuation: &history.Continuation{Result: &history.Continuation_NextPageToken{NextPageToken: "bounded-physical-progress"}}}
-	progress := &history.QueryExecutionTracesResponse{Result: &history.QueryExecutionTracesResponse_Page{Page: page}}
-	if AdmitHistoryResponse(progress) != nil {
-		t.Fatal("empty progression was confused with complete absence")
+	retained := proto.CloneOf(traceScope)
+	retained.Retained = proto.CloneOf(period)
+	retained.NotRetainedPrefix = nil
+	progress := &history.QueryExecutionTracesResponse{Scope: retained, ExecutionEpoch: "opaque-test-selector", NextPageToken: "bounded-physical-progress"}
+	if AdmitHistoryV2Response(progress, home) != nil {
+		t.Fatal("empty bounded scan rejected")
 	}
-	page.Continuation = &history.Continuation{Result: &history.Continuation_End{End: &emptypb.Empty{}}}
-	if AdmitHistoryResponse(progress) != nil {
-		t.Fatal("complete empty trace page refused")
+	progress.NextPageToken = ""
+	if AdmitHistoryV2Response(progress, home) != nil {
+		t.Fatal("complete empty page rejected")
 	}
-	page.Continuation = nil
-	if AdmitHistoryResponse(progress) == nil {
-		t.Fatal("missing completion/progression admitted")
+	progress.NextPageToken = strings.Repeat("x", 513)
+	if AdmitHistoryV2Response(progress, home) == nil {
+		t.Fatal("oversized continuation admitted")
 	}
-	scope.Resolution = history.Resolution(999)
-	if AdmitHistoryResponse(responses[0]) != nil {
-		t.Fatal("source response unexpectedly mutated")
+	progress.NextPageToken = ""
+	retained.Resolution = history.HistoryResolution(999)
+	if AdmitHistoryV2Response(progress, home) == nil {
+		t.Fatal("unknown resolution admitted")
 	}
-	page.Continuation = &history.Continuation{Result: &history.Continuation_End{End: &emptypb.Empty{}}}
-	if AdmitHistoryResponse(progress) == nil {
-		t.Fatal("unknown response resolution admitted")
+	if AdmitHistoryV2Response(responses[0], home) != nil {
+		t.Fatal("independent capture mutated")
 	}
 }
+
 func TestNHA164HistoryWireRequestPresenceAndRoundTrip(t *testing.T) {
 	request := nha164HistoryRequest()
-	if _, _, err := AdmitHistoryRequest(request); err != nil {
+	if _, err := AdmitHistoryV2Selection(request); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := proto.Marshal(request)
@@ -86,44 +89,44 @@ func TestNHA164HistoryWireRequestPresenceAndRoundTrip(t *testing.T) {
 	if err = proto.Unmarshal(raw, decoded); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = AdmitHistoryRequest(decoded); err != nil || decoded.PageSize != nil {
-		t.Fatalf("absence lost: %v", err)
+	if _, err = AdmitHistoryV2Selection(decoded); err != nil || decoded.PageSize != 0 {
+		t.Fatal("default presence lost", err)
 	}
-	for _, size := range []uint32{0, 101} {
-		changed := proto.Clone(request).(*history.QueryObservationsRequest)
-		changed.PageSize = proto.Uint32(size)
-		if _, _, err := AdmitHistoryRequest(changed); err == nil {
-			t.Fatalf("invalid page %d admitted", size)
+	for _, size := range []int32{0, 1, 101} {
+		changed := proto.CloneOf(request)
+		changed.PageSize = size
+		if _, err := AdmitHistoryV2Selection(changed); err != nil {
+			t.Fatalf("default/capped page %d refused", size)
 		}
 	}
-	for _, resolution := range []history.Resolution{history.Resolution_RESOLUTION_UNSPECIFIED, history.Resolution_RESOLUTION_HOUR, history.Resolution(999)} {
-		changed := proto.Clone(request).(*history.QueryObservationsRequest)
-		changed.Resolution = resolution
-		if _, _, err := AdmitHistoryRequest(changed); err == nil {
-			t.Fatalf("resolution %v admitted", resolution)
-		}
+	request.PageSize = -1
+	if _, err := AdmitHistoryV2Selection(request); err == nil {
+		t.Fatal("negative page admitted")
 	}
+	request.PageSize = 0
 	request.ProtoReflect().SetUnknown([]byte{0xf8, 0x07, 0x01})
-	if _, _, err := AdmitHistoryRequest(request); err == nil {
-		t.Fatal("future field admitted operationally")
+	if _, err := AdmitHistoryV2Selection(request); err == nil {
+		t.Fatal("future field admitted")
 	}
 	var zero *history.QueryObservationsRequest
-	if _, _, err := AdmitHistoryRequest(zero); err == nil {
-		t.Fatal("typed nil request admitted")
+	if _, err := AdmitHistoryV2Selection(zero); err == nil {
+		t.Fatal("typed nil admitted")
 	}
 }
+
 func TestNHA164HistoryResponseRequiresScopeAndPresence(t *testing.T) {
-	for _, response := range []proto.Message{&history.QueryObservationsResponse{}, &history.QueryAggregatesResponse{}, &history.QueryExecutionTracesResponse{}, &history.QueryObservationsResponse{Result: &history.QueryObservationsResponse_Page{Page: &history.ObservationPage{}}}} {
-		if err := AdmitHistoryResponse(response); err == nil {
-			t.Fatalf("zero or incomplete response admitted: %T", response)
+	home, _ := apitypes.ParseHomeName("homes/synthetic")
+	for _, response := range []proto.Message{&history.QueryObservationsResponse{}, &history.QueryAggregatesResponse{}, &history.QueryExecutionTracesResponse{}} {
+		if AdmitHistoryV2Response(response, home) == nil {
+			t.Fatalf("missing scope admitted: %T", response)
 		}
 	}
-	descriptor := &history.NumericDescriptor{Unit: "historical-W", CanonicalUnit: "W", Scale: 1, Dimension: history.Dimension_DIMENSION_POWER, Precision: -2, Semantic: 1, Aggregation: 1}
-	if !historyDescriptorValid(descriptor) {
+	descriptor := &history.HistoryNumericDescriptor{Unit: "historical-W", CanonicalUnit: "W", Scale: 1, Dimension: history.HistoryDimension_HISTORY_DIMENSION_POWER, Precision: -2, Semantic: history.MeasurementSemantic_MEASUREMENT_SEMANTIC_MEASUREMENT, Aggregation: history.MeasurementAggregation_MEASUREMENT_AGGREGATION_CURRENT}
+	if !historyV2Descriptor(descriptor) {
 		t.Fatal("negative historical precision rejected")
 	}
-	descriptor.Dimension = history.Dimension(999)
-	if historyDescriptorValid(descriptor) {
-		t.Fatal("unknown historical dimension admitted")
+	descriptor.Dimension = history.HistoryDimension(999)
+	if historyV2Descriptor(descriptor) {
+		t.Fatal("unknown dimension admitted")
 	}
 }

@@ -9,7 +9,6 @@ mod native;
 mod number;
 pub(crate) mod observation;
 mod panel;
-pub(crate) use panel::mode_label;
 pub(crate) mod presentation;
 pub(crate) mod progress;
 mod recipes;
@@ -989,3 +988,6 @@ mod secure_tests;
 
 #[cfg(test)]
 mod tls_probe;
+
+#[cfg(test)]
+pub(crate) mod fixture;

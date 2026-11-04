@@ -34,6 +34,15 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// ConfigurationServiceGetConfigurationRevisionProcedure is the fully-qualified name of the
+	// ConfigurationService's GetConfigurationRevision RPC.
+	ConfigurationServiceGetConfigurationRevisionProcedure = "/home.api.v2.ConfigurationService/GetConfigurationRevision"
+	// ConfigurationServiceGetConfigurationGenerationProcedure is the fully-qualified name of the
+	// ConfigurationService's GetConfigurationGeneration RPC.
+	ConfigurationServiceGetConfigurationGenerationProcedure = "/home.api.v2.ConfigurationService/GetConfigurationGeneration"
+	// ConfigurationServiceGetConfigurationSchemaProcedure is the fully-qualified name of the
+	// ConfigurationService's GetConfigurationSchema RPC.
+	ConfigurationServiceGetConfigurationSchemaProcedure = "/home.api.v2.ConfigurationService/GetConfigurationSchema"
 	// ConfigurationServiceGetConfigurationDocumentProcedure is the fully-qualified name of the
 	// ConfigurationService's GetConfigurationDocument RPC.
 	ConfigurationServiceGetConfigurationDocumentProcedure = "/home.api.v2.ConfigurationService/GetConfigurationDocument"
@@ -62,12 +71,25 @@ const (
 
 // ConfigurationServiceClient is a client for the home.api.v2.ConfigurationService service.
 type ConfigurationServiceClient interface {
+	// Reads one authorized ConfigurationRevision, including its retained or purged state.
+	GetConfigurationRevision(context.Context, *connect.Request[v2.GetConfigurationRevisionRequest]) (*connect.Response[v2.ConfigurationRevision], error)
+	// Reads one authorized ConfigurationGeneration, including its retained or purged state.
+	GetConfigurationGeneration(context.Context, *connect.Request[v2.GetConfigurationGenerationRequest]) (*connect.Response[v2.ConfigurationGeneration], error)
+	// Reads one authorized immutable configuration schema.
+	GetConfigurationSchema(context.Context, *connect.Request[v2.GetConfigurationSchemaRequest]) (*connect.Response[v2.ConfigurationSchema], error)
+	// Gets the authorized configuration document.
 	GetConfigurationDocument(context.Context, *connect.Request[v2.GetConfigurationDocumentRequest]) (*connect.Response[v2.ConfigurationDocument], error)
+	// Lists the authorized configuration documents using bounded opaque pagination.
 	ListConfigurationDocuments(context.Context, *connect.Request[v2.ListConfigurationDocumentsRequest]) (*connect.Response[v2.ListConfigurationDocumentsResponse], error)
+	// Lists the authorized configuration revisions using bounded opaque pagination.
 	ListConfigurationRevisions(context.Context, *connect.Request[v2.ListConfigurationRevisionsRequest]) (*connect.Response[v2.ListConfigurationRevisionsResponse], error)
+	// Lists the authorized configuration generations using bounded opaque pagination.
 	ListConfigurationGenerations(context.Context, *connect.Request[v2.ListConfigurationGenerationsRequest]) (*connect.Response[v2.ListConfigurationGenerationsResponse], error)
+	// Lists the authorized configuration schemas using bounded opaque pagination.
 	ListConfigurationSchemas(context.Context, *connect.Request[v2.ListConfigurationSchemasRequest]) (*connect.Response[v2.ListConfigurationSchemasResponse], error)
+	// Publishes exact document source under the expected native preconditions.
 	PublishConfigurationDocument(context.Context, *connect.Request[v2.PublishConfigurationDocumentRequest]) (*connect.Response[longrunningpb.Operation], error)
+	// Publishes a retained document version as a new revision under current preconditions.
 	RollbackConfigurationDocument(context.Context, *connect.Request[v2.RollbackConfigurationDocumentRequest]) (*connect.Response[longrunningpb.Operation], error)
 	// Streams metadata invalidations after a coherent cut. It never emits source
 	// bytes; every frame rechecks the current credential and authority binding.
@@ -85,6 +107,24 @@ func NewConfigurationServiceClient(httpClient connect.HTTPClient, baseURL string
 	baseURL = strings.TrimRight(baseURL, "/")
 	configurationServiceMethods := v2.File_home_api_v2_configuration_documents_proto.Services().ByName("ConfigurationService").Methods()
 	return &configurationServiceClient{
+		getConfigurationRevision: connect.NewClient[v2.GetConfigurationRevisionRequest, v2.ConfigurationRevision](
+			httpClient,
+			baseURL+ConfigurationServiceGetConfigurationRevisionProcedure,
+			connect.WithSchema(configurationServiceMethods.ByName("GetConfigurationRevision")),
+			connect.WithClientOptions(opts...),
+		),
+		getConfigurationGeneration: connect.NewClient[v2.GetConfigurationGenerationRequest, v2.ConfigurationGeneration](
+			httpClient,
+			baseURL+ConfigurationServiceGetConfigurationGenerationProcedure,
+			connect.WithSchema(configurationServiceMethods.ByName("GetConfigurationGeneration")),
+			connect.WithClientOptions(opts...),
+		),
+		getConfigurationSchema: connect.NewClient[v2.GetConfigurationSchemaRequest, v2.ConfigurationSchema](
+			httpClient,
+			baseURL+ConfigurationServiceGetConfigurationSchemaProcedure,
+			connect.WithSchema(configurationServiceMethods.ByName("GetConfigurationSchema")),
+			connect.WithClientOptions(opts...),
+		),
 		getConfigurationDocument: connect.NewClient[v2.GetConfigurationDocumentRequest, v2.ConfigurationDocument](
 			httpClient,
 			baseURL+ConfigurationServiceGetConfigurationDocumentProcedure,
@@ -138,6 +178,9 @@ func NewConfigurationServiceClient(httpClient connect.HTTPClient, baseURL string
 
 // configurationServiceClient implements ConfigurationServiceClient.
 type configurationServiceClient struct {
+	getConfigurationRevision      *connect.Client[v2.GetConfigurationRevisionRequest, v2.ConfigurationRevision]
+	getConfigurationGeneration    *connect.Client[v2.GetConfigurationGenerationRequest, v2.ConfigurationGeneration]
+	getConfigurationSchema        *connect.Client[v2.GetConfigurationSchemaRequest, v2.ConfigurationSchema]
 	getConfigurationDocument      *connect.Client[v2.GetConfigurationDocumentRequest, v2.ConfigurationDocument]
 	listConfigurationDocuments    *connect.Client[v2.ListConfigurationDocumentsRequest, v2.ListConfigurationDocumentsResponse]
 	listConfigurationRevisions    *connect.Client[v2.ListConfigurationRevisionsRequest, v2.ListConfigurationRevisionsResponse]
@@ -146,6 +189,21 @@ type configurationServiceClient struct {
 	publishConfigurationDocument  *connect.Client[v2.PublishConfigurationDocumentRequest, longrunningpb.Operation]
 	rollbackConfigurationDocument *connect.Client[v2.RollbackConfigurationDocumentRequest, longrunningpb.Operation]
 	watchConfiguration            *connect.Client[v2.WatchConfigurationRequest, v2.WatchConfigurationResponse]
+}
+
+// GetConfigurationRevision calls home.api.v2.ConfigurationService.GetConfigurationRevision.
+func (c *configurationServiceClient) GetConfigurationRevision(ctx context.Context, req *connect.Request[v2.GetConfigurationRevisionRequest]) (*connect.Response[v2.ConfigurationRevision], error) {
+	return c.getConfigurationRevision.CallUnary(ctx, req)
+}
+
+// GetConfigurationGeneration calls home.api.v2.ConfigurationService.GetConfigurationGeneration.
+func (c *configurationServiceClient) GetConfigurationGeneration(ctx context.Context, req *connect.Request[v2.GetConfigurationGenerationRequest]) (*connect.Response[v2.ConfigurationGeneration], error) {
+	return c.getConfigurationGeneration.CallUnary(ctx, req)
+}
+
+// GetConfigurationSchema calls home.api.v2.ConfigurationService.GetConfigurationSchema.
+func (c *configurationServiceClient) GetConfigurationSchema(ctx context.Context, req *connect.Request[v2.GetConfigurationSchemaRequest]) (*connect.Response[v2.ConfigurationSchema], error) {
+	return c.getConfigurationSchema.CallUnary(ctx, req)
 }
 
 // GetConfigurationDocument calls home.api.v2.ConfigurationService.GetConfigurationDocument.
@@ -191,12 +249,25 @@ func (c *configurationServiceClient) WatchConfiguration(ctx context.Context, req
 
 // ConfigurationServiceHandler is an implementation of the home.api.v2.ConfigurationService service.
 type ConfigurationServiceHandler interface {
+	// Reads one authorized ConfigurationRevision, including its retained or purged state.
+	GetConfigurationRevision(context.Context, *connect.Request[v2.GetConfigurationRevisionRequest]) (*connect.Response[v2.ConfigurationRevision], error)
+	// Reads one authorized ConfigurationGeneration, including its retained or purged state.
+	GetConfigurationGeneration(context.Context, *connect.Request[v2.GetConfigurationGenerationRequest]) (*connect.Response[v2.ConfigurationGeneration], error)
+	// Reads one authorized immutable configuration schema.
+	GetConfigurationSchema(context.Context, *connect.Request[v2.GetConfigurationSchemaRequest]) (*connect.Response[v2.ConfigurationSchema], error)
+	// Gets the authorized configuration document.
 	GetConfigurationDocument(context.Context, *connect.Request[v2.GetConfigurationDocumentRequest]) (*connect.Response[v2.ConfigurationDocument], error)
+	// Lists the authorized configuration documents using bounded opaque pagination.
 	ListConfigurationDocuments(context.Context, *connect.Request[v2.ListConfigurationDocumentsRequest]) (*connect.Response[v2.ListConfigurationDocumentsResponse], error)
+	// Lists the authorized configuration revisions using bounded opaque pagination.
 	ListConfigurationRevisions(context.Context, *connect.Request[v2.ListConfigurationRevisionsRequest]) (*connect.Response[v2.ListConfigurationRevisionsResponse], error)
+	// Lists the authorized configuration generations using bounded opaque pagination.
 	ListConfigurationGenerations(context.Context, *connect.Request[v2.ListConfigurationGenerationsRequest]) (*connect.Response[v2.ListConfigurationGenerationsResponse], error)
+	// Lists the authorized configuration schemas using bounded opaque pagination.
 	ListConfigurationSchemas(context.Context, *connect.Request[v2.ListConfigurationSchemasRequest]) (*connect.Response[v2.ListConfigurationSchemasResponse], error)
+	// Publishes exact document source under the expected native preconditions.
 	PublishConfigurationDocument(context.Context, *connect.Request[v2.PublishConfigurationDocumentRequest]) (*connect.Response[longrunningpb.Operation], error)
+	// Publishes a retained document version as a new revision under current preconditions.
 	RollbackConfigurationDocument(context.Context, *connect.Request[v2.RollbackConfigurationDocumentRequest]) (*connect.Response[longrunningpb.Operation], error)
 	// Streams metadata invalidations after a coherent cut. It never emits source
 	// bytes; every frame rechecks the current credential and authority binding.
@@ -210,6 +281,24 @@ type ConfigurationServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewConfigurationServiceHandler(svc ConfigurationServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	configurationServiceMethods := v2.File_home_api_v2_configuration_documents_proto.Services().ByName("ConfigurationService").Methods()
+	configurationServiceGetConfigurationRevisionHandler := connect.NewUnaryHandler(
+		ConfigurationServiceGetConfigurationRevisionProcedure,
+		svc.GetConfigurationRevision,
+		connect.WithSchema(configurationServiceMethods.ByName("GetConfigurationRevision")),
+		connect.WithHandlerOptions(opts...),
+	)
+	configurationServiceGetConfigurationGenerationHandler := connect.NewUnaryHandler(
+		ConfigurationServiceGetConfigurationGenerationProcedure,
+		svc.GetConfigurationGeneration,
+		connect.WithSchema(configurationServiceMethods.ByName("GetConfigurationGeneration")),
+		connect.WithHandlerOptions(opts...),
+	)
+	configurationServiceGetConfigurationSchemaHandler := connect.NewUnaryHandler(
+		ConfigurationServiceGetConfigurationSchemaProcedure,
+		svc.GetConfigurationSchema,
+		connect.WithSchema(configurationServiceMethods.ByName("GetConfigurationSchema")),
+		connect.WithHandlerOptions(opts...),
+	)
 	configurationServiceGetConfigurationDocumentHandler := connect.NewUnaryHandler(
 		ConfigurationServiceGetConfigurationDocumentProcedure,
 		svc.GetConfigurationDocument,
@@ -260,6 +349,12 @@ func NewConfigurationServiceHandler(svc ConfigurationServiceHandler, opts ...con
 	)
 	return "/home.api.v2.ConfigurationService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case ConfigurationServiceGetConfigurationRevisionProcedure:
+			configurationServiceGetConfigurationRevisionHandler.ServeHTTP(w, r)
+		case ConfigurationServiceGetConfigurationGenerationProcedure:
+			configurationServiceGetConfigurationGenerationHandler.ServeHTTP(w, r)
+		case ConfigurationServiceGetConfigurationSchemaProcedure:
+			configurationServiceGetConfigurationSchemaHandler.ServeHTTP(w, r)
 		case ConfigurationServiceGetConfigurationDocumentProcedure:
 			configurationServiceGetConfigurationDocumentHandler.ServeHTTP(w, r)
 		case ConfigurationServiceListConfigurationDocumentsProcedure:
@@ -284,6 +379,18 @@ func NewConfigurationServiceHandler(svc ConfigurationServiceHandler, opts ...con
 
 // UnimplementedConfigurationServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedConfigurationServiceHandler struct{}
+
+func (UnimplementedConfigurationServiceHandler) GetConfigurationRevision(context.Context, *connect.Request[v2.GetConfigurationRevisionRequest]) (*connect.Response[v2.ConfigurationRevision], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.ConfigurationService.GetConfigurationRevision is not implemented"))
+}
+
+func (UnimplementedConfigurationServiceHandler) GetConfigurationGeneration(context.Context, *connect.Request[v2.GetConfigurationGenerationRequest]) (*connect.Response[v2.ConfigurationGeneration], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.ConfigurationService.GetConfigurationGeneration is not implemented"))
+}
+
+func (UnimplementedConfigurationServiceHandler) GetConfigurationSchema(context.Context, *connect.Request[v2.GetConfigurationSchemaRequest]) (*connect.Response[v2.ConfigurationSchema], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.ConfigurationService.GetConfigurationSchema is not implemented"))
+}
 
 func (UnimplementedConfigurationServiceHandler) GetConfigurationDocument(context.Context, *connect.Request[v2.GetConfigurationDocumentRequest]) (*connect.Response[v2.ConfigurationDocument], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.ConfigurationService.GetConfigurationDocument is not implemented"))

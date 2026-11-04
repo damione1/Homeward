@@ -155,6 +155,8 @@ def wait_file(path, child):
 
 @contextlib.contextmanager
 def fixture(directory, server, kind):
+    if kind is Fixture.NUMBER:
+        raise RuntimeError("Number is an API-only v2 harness; it does not provide Dashboard or UI qualification")
     control = directory / 'fixture'
     variable, test, dashboard, entity_count = kind.parameters()
     env = dict(os.environ,

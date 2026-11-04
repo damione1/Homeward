@@ -15,7 +15,7 @@ pub use reader::read_history;
 pub const MAX_POINTS: usize = 32_768;
 pub const MAX_PAGES: usize = 1024;
 pub const MAX_ENCODED_BYTES: usize = 32 << 20;
-const PAGE_SIZE: u32 = 100;
+const PAGE_SIZE: i32 = 100;
 const READ_TIMEOUT: Duration = Duration::from_secs(45);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -77,7 +77,7 @@ impl Query {
         wire::QueryObservationsRequest {
             parent: self.entity.as_str().into(),
             period: self.period.clone().into(),
-            page_size: PAGE_SIZE as i32,
+            page_size: PAGE_SIZE,
             page_token: token,
             ..Default::default()
         }
@@ -86,7 +86,7 @@ impl Query {
         wire::QueryAggregatesRequest {
             parent: self.entity.as_str().into(),
             period: self.period.clone().into(),
-            page_size: PAGE_SIZE as i32,
+            page_size: PAGE_SIZE,
             page_token: token,
             ..Default::default()
         }

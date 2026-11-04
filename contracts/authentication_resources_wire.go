@@ -19,7 +19,7 @@ func validAPIAccountName(value string) bool {
 func AdmitAPIAccount(value *api.Account) (AdmittedAuthWire[*api.Account], error) {
 	if value == nil || !knownFieldsOnly(value.ProtoReflect()) || !validAPIAccountName(value.Name) ||
 		!validText(value.LoginName) || len(value.LoginName) > 256 || value.Role != api.AccountRole_ACCOUNT_ROLE_ADMIN && value.Role != api.AccountRole_ACCOUNT_ROLE_USER ||
-		value.State != api.AccountState_ACCOUNT_STATE_ACTIVE && value.State != api.AccountState_ACCOUNT_STATE_DISABLED ||
+		value.Access != api.AccountAccess_ACCOUNT_ACCESS_ENABLED && value.Access != api.AccountAccess_ACCOUNT_ACCESS_DISABLED ||
 		!validTimestamp(value.CreateTime) || !validTimestamp(value.UpdateTime) || value.UpdateTime.AsTime().Before(value.CreateTime.AsTime()) ||
 		value.Etag == "" || len(value.Etag) > 128 || value.InitialPassword != "" {
 		return AdmittedAuthWire[*api.Account]{}, ErrInvalidAuthenticationResource

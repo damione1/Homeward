@@ -27,16 +27,26 @@ const (
 type ConfigurationPlanSourceFamily int32
 
 const (
-	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_UNSPECIFIED    ConfigurationPlanSourceFamily = 0
-	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL    ConfigurationPlanSourceFamily = 1
+	// No explicit configuration plan source family. Does not select an action.
+	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_UNSPECIFIED ConfigurationPlanSourceFamily = 0
+	// Selects operational for configuration plan source family.
+	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL ConfigurationPlanSourceFamily = 1
+	// Selects declarative v1 for configuration plan source family.
 	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V1 ConfigurationPlanSourceFamily = 2
+	// Selects declarative v2 for configuration plan source family.
 	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V2 ConfigurationPlanSourceFamily = 3
-	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTHORIZATION  ConfigurationPlanSourceFamily = 4
-	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OWNERSHIP      ConfigurationPlanSourceFamily = 5
-	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD      ConfigurationPlanSourceFamily = 6
-	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION     ConfigurationPlanSourceFamily = 7
-	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT         ConfigurationPlanSourceFamily = 8
-	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE          ConfigurationPlanSourceFamily = 9
+	// Selects authorization for configuration plan source family.
+	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTHORIZATION ConfigurationPlanSourceFamily = 4
+	// Selects ownership for configuration plan source family.
+	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OWNERSHIP ConfigurationPlanSourceFamily = 5
+	// Selects dashboard for configuration plan source family.
+	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD ConfigurationPlanSourceFamily = 6
+	// Selects automation for configuration plan source family.
+	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION ConfigurationPlanSourceFamily = 7
+	// Selects script for configuration plan source family.
+	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT ConfigurationPlanSourceFamily = 8
+	// Selects scene for configuration plan source family.
+	ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE ConfigurationPlanSourceFamily = 9
 )
 
 // Enum value maps for ConfigurationPlanSourceFamily.
@@ -94,13 +104,18 @@ func (ConfigurationPlanSourceFamily) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_plans_proto_rawDescGZIP(), []int{0}
 }
 
+// Defines the closed vocabulary for configuration plan state.
 type ConfigurationPlanState int32
 
 const (
+	// No explicit configuration plan state. Does not select an action.
 	ConfigurationPlanState_CONFIGURATION_PLAN_STATE_UNSPECIFIED ConfigurationPlanState = 0
-	ConfigurationPlanState_CONFIGURATION_PLAN_STATE_ADMITTED    ConfigurationPlanState = 1
-	ConfigurationPlanState_CONFIGURATION_PLAN_STATE_REJECTED    ConfigurationPlanState = 2
-	ConfigurationPlanState_CONFIGURATION_PLAN_STATE_STALE       ConfigurationPlanState = 3
+	// Selects admitted for configuration plan state.
+	ConfigurationPlanState_CONFIGURATION_PLAN_STATE_ADMITTED ConfigurationPlanState = 1
+	// Selects rejected for configuration plan state.
+	ConfigurationPlanState_CONFIGURATION_PLAN_STATE_REJECTED ConfigurationPlanState = 2
+	// Selects stale for configuration plan state.
+	ConfigurationPlanState_CONFIGURATION_PLAN_STATE_STALE ConfigurationPlanState = 3
 )
 
 // Enum value maps for ConfigurationPlanState.
@@ -146,13 +161,18 @@ func (ConfigurationPlanState) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_plans_proto_rawDescGZIP(), []int{1}
 }
 
+// Defines the closed vocabulary for configuration plan base kind.
 type ConfigurationPlanBaseKind int32
 
 const (
-	ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_UNSPECIFIED         ConfigurationPlanBaseKind = 0
-	ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_ACTIVE_SQL          ConfigurationPlanBaseKind = 1
+	// No explicit configuration plan base kind. Does not select an action.
+	ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_UNSPECIFIED ConfigurationPlanBaseKind = 0
+	// Selects active sql for configuration plan base kind.
+	ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_ACTIVE_SQL ConfigurationPlanBaseKind = 1
+	// Selects immutable reference for configuration plan base kind.
 	ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_IMMUTABLE_REFERENCE ConfigurationPlanBaseKind = 2
-	ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_NO_ACTIVE_DOCUMENT  ConfigurationPlanBaseKind = 3
+	// Selects no active document for configuration plan base kind.
+	ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_NO_ACTIVE_DOCUMENT ConfigurationPlanBaseKind = 3
 )
 
 // Enum value maps for ConfigurationPlanBaseKind.
@@ -198,16 +218,24 @@ func (ConfigurationPlanBaseKind) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_plans_proto_rawDescGZIP(), []int{2}
 }
 
+// Defines the closed vocabulary for configuration plan effect.
 type ConfigurationPlanEffect int32
 
 const (
-	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_UNSPECIFIED         ConfigurationPlanEffect = 0
-	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE                ConfigurationPlanEffect = 1
-	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_DASHBOARD           ConfigurationPlanEffect = 2
-	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_CONFIGURATION       ConfigurationPlanEffect = 3
-	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_HUMAN_RIGHTS        ConfigurationPlanEffect = 4
+	// No explicit configuration plan effect. Does not select an action.
+	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_UNSPECIFIED ConfigurationPlanEffect = 0
+	// Selects none for configuration plan effect.
+	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE ConfigurationPlanEffect = 1
+	// Selects dashboard for configuration plan effect.
+	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_DASHBOARD ConfigurationPlanEffect = 2
+	// Selects configuration for configuration plan effect.
+	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_CONFIGURATION ConfigurationPlanEffect = 3
+	// Selects human rights for configuration plan effect.
+	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_HUMAN_RIGHTS ConfigurationPlanEffect = 4
+	// Selects technical ownership for configuration plan effect.
 	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_TECHNICAL_OWNERSHIP ConfigurationPlanEffect = 5
-	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_RUN_TARGETS         ConfigurationPlanEffect = 6
+	// Selects run targets for configuration plan effect.
+	ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_RUN_TARGETS ConfigurationPlanEffect = 6
 )
 
 // Enum value maps for ConfigurationPlanEffect.
@@ -259,13 +287,18 @@ func (ConfigurationPlanEffect) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_plans_proto_rawDescGZIP(), []int{3}
 }
 
+// Defines the closed vocabulary for configuration plan change operation.
 type ConfigurationPlanChangeOperation int32
 
 const (
+	// No explicit configuration plan change operation. Does not select an action.
 	ConfigurationPlanChangeOperation_CONFIGURATION_PLAN_CHANGE_OPERATION_UNSPECIFIED ConfigurationPlanChangeOperation = 0
-	ConfigurationPlanChangeOperation_CONFIGURATION_PLAN_CHANGE_OPERATION_ADDED       ConfigurationPlanChangeOperation = 1
-	ConfigurationPlanChangeOperation_CONFIGURATION_PLAN_CHANGE_OPERATION_REMOVED     ConfigurationPlanChangeOperation = 2
-	ConfigurationPlanChangeOperation_CONFIGURATION_PLAN_CHANGE_OPERATION_REPLACED    ConfigurationPlanChangeOperation = 3
+	// Selects added for configuration plan change operation.
+	ConfigurationPlanChangeOperation_CONFIGURATION_PLAN_CHANGE_OPERATION_ADDED ConfigurationPlanChangeOperation = 1
+	// Selects removed for configuration plan change operation.
+	ConfigurationPlanChangeOperation_CONFIGURATION_PLAN_CHANGE_OPERATION_REMOVED ConfigurationPlanChangeOperation = 2
+	// Selects replaced for configuration plan change operation.
+	ConfigurationPlanChangeOperation_CONFIGURATION_PLAN_CHANGE_OPERATION_REPLACED ConfigurationPlanChangeOperation = 3
 )
 
 // Enum value maps for ConfigurationPlanChangeOperation.
@@ -311,15 +344,22 @@ func (ConfigurationPlanChangeOperation) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_plans_proto_rawDescGZIP(), []int{4}
 }
 
+// Defines the closed vocabulary for configuration plan diagnostic code.
 type ConfigurationPlanDiagnosticCode int32
 
 const (
-	ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_UNSPECIFIED        ConfigurationPlanDiagnosticCode = 0
-	ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_INVALID_SCHEMA     ConfigurationPlanDiagnosticCode = 1
+	// No explicit configuration plan diagnostic code. Does not select an action.
+	ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_UNSPECIFIED ConfigurationPlanDiagnosticCode = 0
+	// Selects invalid schema for configuration plan diagnostic code.
+	ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_INVALID_SCHEMA ConfigurationPlanDiagnosticCode = 1
+	// Selects excluded reference for configuration plan diagnostic code.
 	ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_EXCLUDED_REFERENCE ConfigurationPlanDiagnosticCode = 2
+	// Selects unsupported source for configuration plan diagnostic code.
 	ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_UNSUPPORTED_SOURCE ConfigurationPlanDiagnosticCode = 3
-	ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_CAPACITY           ConfigurationPlanDiagnosticCode = 4
-	ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_BASE_UNAVAILABLE   ConfigurationPlanDiagnosticCode = 5
+	// Selects capacity for configuration plan diagnostic code.
+	ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_CAPACITY ConfigurationPlanDiagnosticCode = 4
+	// Selects base unavailable for configuration plan diagnostic code.
+	ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_BASE_UNAVAILABLE ConfigurationPlanDiagnosticCode = 5
 )
 
 // Enum value maps for ConfigurationPlanDiagnosticCode.
@@ -369,10 +409,13 @@ func (ConfigurationPlanDiagnosticCode) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_plans_proto_rawDescGZIP(), []int{5}
 }
 
+// Represents configuration plan source file.
 type ConfigurationPlanSourceFile struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	LogicalPath   string                 `protobuf:"bytes,1,opt,name=logical_path,json=logicalPath,proto3" json:"logical_path,omitempty"`
-	ExactSource   []byte                 `protobuf:"bytes,2,opt,name=exact_source,json=exactSource,proto3" json:"exact_source,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Logical path within the candidate source bundle, never an arbitrary host filesystem path.
+	LogicalPath string `protobuf:"bytes,1,opt,name=logical_path,json=logicalPath,proto3" json:"logical_path,omitempty"`
+	// Exact source-file bytes; comments and formatting are preserved.
+	ExactSource   []byte `protobuf:"bytes,2,opt,name=exact_source,json=exactSource,proto3" json:"exact_source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -421,12 +464,16 @@ func (x *ConfigurationPlanSourceFile) GetExactSource() []byte {
 	return nil
 }
 
+// Carries exact source files for validation without activating configuration.
 type ConfigurationPlanCandidate struct {
-	state  protoimpl.MessageState        `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The family represented by ConfigurationPlanSourceFamily.
 	Family ConfigurationPlanSourceFamily `protobuf:"varint,1,opt,name=family,proto3,enum=home.api.v2.ConfigurationPlanSourceFamily" json:"family,omitempty"`
 	// Logical document/account/dashboard/selected-logic identity, never a path.
-	Identity      string                         `protobuf:"bytes,2,opt,name=identity,proto3" json:"identity,omitempty"`
-	Entry         string                         `protobuf:"bytes,3,opt,name=entry,proto3" json:"entry,omitempty"`
+	Identity string `protobuf:"bytes,2,opt,name=identity,proto3" json:"identity,omitempty"`
+	// Logical entry file within the supplied candidate bundle.
+	Entry string `protobuf:"bytes,3,opt,name=entry,proto3" json:"entry,omitempty"`
+	// Collection of files for this message.
 	Files         []*ConfigurationPlanSourceFile `protobuf:"bytes,4,rep,name=files,proto3" json:"files,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -490,11 +537,14 @@ func (x *ConfigurationPlanCandidate) GetFiles() []*ConfigurationPlanSourceFile {
 	return nil
 }
 
+// Represents configuration plan base.
 type ConfigurationPlanBase struct {
-	state protoimpl.MessageState    `protogen:"open.v1"`
-	Kind  ConfigurationPlanBaseKind `protobuf:"varint,1,opt,name=kind,proto3,enum=home.api.v2.ConfigurationPlanBaseKind" json:"kind,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The kind represented by ConfigurationPlanBaseKind.
+	Kind ConfigurationPlanBaseKind `protobuf:"varint,1,opt,name=kind,proto3,enum=home.api.v2.ConfigurationPlanBaseKind" json:"kind,omitempty"`
 	// Present only for SQL; absence is never revision zero claimed as active.
-	Revision      *int64 `protobuf:"varint,2,opt,name=revision,proto3,oneof" json:"revision,omitempty"`
+	Revision *int64 `protobuf:"varint,2,opt,name=revision,proto3,oneof" json:"revision,omitempty"`
+	// SHA-256 digest of the exact source bytes, without reserialization.
 	SourceSha256  []byte `protobuf:"bytes,3,opt,name=source_sha256,json=sourceSha256,proto3,oneof" json:"source_sha256,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -551,14 +601,19 @@ func (x *ConfigurationPlanBase) GetSourceSha256() []byte {
 	return nil
 }
 
+// Represents configuration plan change.
 type ConfigurationPlanChange struct {
-	state     protoimpl.MessageState           `protogen:"open.v1"`
-	Effect    ConfigurationPlanEffect          `protobuf:"varint,1,opt,name=effect,proto3,enum=home.api.v2.ConfigurationPlanEffect" json:"effect,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The effect represented by ConfigurationPlanEffect.
+	Effect ConfigurationPlanEffect `protobuf:"varint,1,opt,name=effect,proto3,enum=home.api.v2.ConfigurationPlanEffect" json:"effect,omitempty"`
+	// The operation represented by ConfigurationPlanChangeOperation.
 	Operation ConfigurationPlanChangeOperation `protobuf:"varint,2,opt,name=operation,proto3,enum=home.api.v2.ConfigurationPlanChangeOperation" json:"operation,omitempty"`
 	// Closed compiler-owned field name; no source values, comments or parser text.
-	Field             string `protobuf:"bytes,3,opt,name=field,proto3" json:"field,omitempty"`
-	ReferencesAdded   uint32 `protobuf:"varint,4,opt,name=references_added,json=referencesAdded,proto3" json:"references_added,omitempty"`
-	ReferencesRemoved uint32 `protobuf:"varint,5,opt,name=references_removed,json=referencesRemoved,proto3" json:"references_removed,omitempty"`
+	Field string `protobuf:"bytes,3,opt,name=field,proto3" json:"field,omitempty"`
+	// The references added represented by uint32.
+	ReferencesAdded int32 `protobuf:"varint,4,opt,name=references_added,json=referencesAdded,proto3" json:"references_added,omitempty"`
+	// The references removed represented by uint32.
+	ReferencesRemoved int32 `protobuf:"varint,5,opt,name=references_removed,json=referencesRemoved,proto3" json:"references_removed,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -614,46 +669,60 @@ func (x *ConfigurationPlanChange) GetField() string {
 	return ""
 }
 
-func (x *ConfigurationPlanChange) GetReferencesAdded() uint32 {
+func (x *ConfigurationPlanChange) GetReferencesAdded() int32 {
 	if x != nil {
 		return x.ReferencesAdded
 	}
 	return 0
 }
 
-func (x *ConfigurationPlanChange) GetReferencesRemoved() uint32 {
+func (x *ConfigurationPlanChange) GetReferencesRemoved() int32 {
 	if x != nil {
 		return x.ReferencesRemoved
 	}
 	return 0
 }
 
+// Represents configuration plan.
 type ConfigurationPlan struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Immutable process-epoch capture identity; never permission to activate.
-	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The state represented by ConfigurationPlanState.
 	State ConfigurationPlanState `protobuf:"varint,22,opt,name=state,proto3,enum=home.api.v2.ConfigurationPlanState" json:"state,omitempty"`
 	// Account resource of the native author captured when this plan was built.
-	Author        string                        `protobuf:"bytes,2,opt,name=author,proto3" json:"author,omitempty"`
-	Family        ConfigurationPlanSourceFamily `protobuf:"varint,3,opt,name=family,proto3,enum=home.api.v2.ConfigurationPlanSourceFamily" json:"family,omitempty"`
-	Identity      string                        `protobuf:"bytes,4,opt,name=identity,proto3" json:"identity,omitempty"`
-	SchemaVersion string                        `protobuf:"bytes,5,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
-	SourceSha256  []byte                        `protobuf:"bytes,6,opt,name=source_sha256,json=sourceSha256,proto3" json:"source_sha256,omitempty"`
+	Author string `protobuf:"bytes,2,opt,name=author,proto3" json:"author,omitempty"`
+	// The family represented by ConfigurationPlanSourceFamily.
+	Family ConfigurationPlanSourceFamily `protobuf:"varint,3,opt,name=family,proto3,enum=home.api.v2.ConfigurationPlanSourceFamily" json:"family,omitempty"`
+	// The identity associated with this message.
+	Identity string `protobuf:"bytes,4,opt,name=identity,proto3" json:"identity,omitempty"`
+	// Version of the selected source schema; distinct from SQL schema and active generation.
+	SchemaVersion string `protobuf:"bytes,5,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	// SHA-256 digest of the exact source bytes, without reserialization.
+	SourceSha256 []byte `protobuf:"bytes,6,opt,name=source_sha256,json=sourceSha256,proto3" json:"source_sha256,omitempty"`
 	// Absent for a rejected candidate; exact-source and manifest hashes differ.
-	SemanticSha256          []byte                            `protobuf:"bytes,7,opt,name=semantic_sha256,json=semanticSha256,proto3,oneof" json:"semantic_sha256,omitempty"`
-	Base                    *ConfigurationPlanBase            `protobuf:"bytes,8,opt,name=base,proto3" json:"base,omitempty"`
-	GenerationRevision      int64                             `protobuf:"varint,9,opt,name=generation_revision,json=generationRevision,proto3" json:"generation_revision,omitempty"`
-	ManifestSha256          []byte                            `protobuf:"bytes,10,opt,name=manifest_sha256,json=manifestSha256,proto3" json:"manifest_sha256,omitempty"`
-	ObservedWorkspaceSha256 []byte                            `protobuf:"bytes,11,opt,name=observed_workspace_sha256,json=observedWorkspaceSha256,proto3" json:"observed_workspace_sha256,omitempty"`
-	Effect                  ConfigurationPlanEffect           `protobuf:"varint,12,opt,name=effect,proto3,enum=home.api.v2.ConfigurationPlanEffect" json:"effect,omitempty"`
-	Changes                 []*ConfigurationPlanChange        `protobuf:"bytes,13,rep,name=changes,proto3" json:"changes,omitempty"`
-	Diagnostics             []ConfigurationPlanDiagnosticCode `protobuf:"varint,14,rep,packed,name=diagnostics,proto3,enum=home.api.v2.ConfigurationPlanDiagnosticCode" json:"diagnostics,omitempty"`
+	SemanticSha256 []byte `protobuf:"bytes,7,opt,name=semantic_sha256,json=semanticSha256,proto3,oneof" json:"semantic_sha256,omitempty"`
+	// Native configuration base against which the candidate is interpreted.
+	Base *ConfigurationPlanBase `protobuf:"bytes,8,opt,name=base,proto3" json:"base,omitempty"`
+	// Native configuration generation revision, independent of document version.
+	GenerationRevision int64 `protobuf:"varint,9,opt,name=generation_revision,json=generationRevision,proto3" json:"generation_revision,omitempty"`
+	// SHA-256 digest identifying the complete configuration manifest.
+	ManifestSha256 []byte `protobuf:"bytes,10,opt,name=manifest_sha256,json=manifestSha256,proto3" json:"manifest_sha256,omitempty"`
+	// Exact bytes representing observed workspace sha256. Not interpreted as a display string.
+	ObservedWorkspaceSha256 []byte `protobuf:"bytes,11,opt,name=observed_workspace_sha256,json=observedWorkspaceSha256,proto3" json:"observed_workspace_sha256,omitempty"`
+	// The effect represented by ConfigurationPlanEffect.
+	Effect ConfigurationPlanEffect `protobuf:"varint,12,opt,name=effect,proto3,enum=home.api.v2.ConfigurationPlanEffect" json:"effect,omitempty"`
+	// Collection of changes for this message.
+	Changes []*ConfigurationPlanChange `protobuf:"bytes,13,rep,name=changes,proto3" json:"changes,omitempty"`
+	// Collection of diagnostics for this message.
+	Diagnostics []ConfigurationPlanDiagnosticCode `protobuf:"varint,14,rep,packed,name=diagnostics,proto3,enum=home.api.v2.ConfigurationPlanDiagnosticCode" json:"diagnostics,omitempty"`
 	// Process-epoch authenticated metadata only. Not authorization or approval.
 	Receipt string `protobuf:"bytes,15,opt,name=receipt,proto3" json:"receipt,omitempty"`
 	// Always false in this diagnostic service. Apply remains a separate owner.
 	ApplicationAvailable bool `protobuf:"varint,16,opt,name=application_available,json=applicationAvailable,proto3" json:"application_available,omitempty"`
 	// Capture lifetime is bounded by native receipt validity and ten minutes.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,17,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// Time when this resource or credential expires.
 	ExpireTime *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
 	// Opaque diagnostic metadata revision; no publication authority.
 	Etag string `protobuf:"bytes,19,opt,name=etag,proto3" json:"etag,omitempty"`
@@ -849,10 +918,17 @@ func (x *ConfigurationPlan) GetCandidate() *ConfigurationPlanCandidate {
 	return nil
 }
 
+// Request for create configuration plan.
 type CreateConfigurationPlanRequest struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Parent            string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	ConfigurationPlan *ConfigurationPlan     `protobuf:"bytes,2,opt,name=configuration_plan,json=configurationPlan,proto3" json:"configuration_plan,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Optional public identifier: 1..63 lowercase letters, digits or hyphens,
+	// beginning with a letter and ending with a letter or digit. When absent the
+	// server allocates an identifier. A requested collision is ALREADY_EXISTS.
+	ConfigurationPlanId string `protobuf:"bytes,4,opt,name=configuration_plan_id,json=configurationPlanId,proto3" json:"configuration_plan_id,omitempty"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Admitted configuration plan. Creating or reading it does not activate configuration.
+	ConfigurationPlan *ConfigurationPlan `protobuf:"bytes,2,opt,name=configuration_plan,json=configurationPlan,proto3" json:"configuration_plan,omitempty"`
 	// UUID identifying this intent for 24-hour replay of its original capture.
 	RequestId     string `protobuf:"bytes,3,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -889,6 +965,13 @@ func (*CreateConfigurationPlanRequest) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_plans_proto_rawDescGZIP(), []int{5}
 }
 
+func (x *CreateConfigurationPlanRequest) GetConfigurationPlanId() string {
+	if x != nil {
+		return x.ConfigurationPlanId
+	}
+	return ""
+}
+
 func (x *CreateConfigurationPlanRequest) GetParent() string {
 	if x != nil {
 		return x.Parent
@@ -910,9 +993,12 @@ func (x *CreateConfigurationPlanRequest) GetRequestId() string {
 	return ""
 }
 
+// Request for revalidate configuration plan.
 type RevalidateConfigurationPlanRequest struct {
-	state     protoimpl.MessageState      `protogen:"open.v1"`
-	Name      string                      `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Source candidate to validate or simulate; validation does not activate it.
 	Candidate *ConfigurationPlanCandidate `protobuf:"bytes,2,opt,name=candidate,proto3" json:"candidate,omitempty"`
 	// Opaque token from the exact plan capture; compared without normalization.
 	Etag string `protobuf:"bytes,3,opt,name=etag,proto3" json:"etag,omitempty"`
@@ -980,9 +1066,11 @@ func (x *RevalidateConfigurationPlanRequest) GetRequestId() string {
 	return ""
 }
 
+// Request for get configuration plan.
 type GetConfigurationPlanRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1024,11 +1112,14 @@ func (x *GetConfigurationPlanRequest) GetName() string {
 	return ""
 }
 
+// Request for list configuration plans.
 type ListConfigurationPlansRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Parent string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
 	// Zero selects 100; negative fails; larger values are clamped to 100.
-	PageSize      int32  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
 	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1085,12 +1176,15 @@ func (x *ListConfigurationPlansRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list configuration plans.
 type ListConfigurationPlansResponse struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	ConfigurationPlans []*ConfigurationPlan   `protobuf:"bytes,1,rep,name=configuration_plans,json=configurationPlans,proto3" json:"configuration_plans,omitempty"`
-	NextPageToken      string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of configuration plans for this message.
+	ConfigurationPlans []*ConfigurationPlan `protobuf:"bytes,1,rep,name=configuration_plans,json=configurationPlans,proto3" json:"configuration_plans,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListConfigurationPlansResponse) Reset() {
@@ -1141,27 +1235,27 @@ var File_home_api_v2_configuration_plans_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_configuration_plans_proto_rawDesc = "" +
 	"\n" +
-	"%home/api/v2/configuration_plans.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"c\n" +
-	"\x1bConfigurationPlanSourceFile\x12!\n" +
-	"\flogical_path\x18\x01 \x01(\tR\vlogicalPath\x12!\n" +
-	"\fexact_source\x18\x02 \x01(\fR\vexactSource\"\xd2\x01\n" +
-	"\x1aConfigurationPlanCandidate\x12B\n" +
-	"\x06family\x18\x01 \x01(\x0e2*.home.api.v2.ConfigurationPlanSourceFamilyR\x06family\x12\x1a\n" +
-	"\bidentity\x18\x02 \x01(\tR\bidentity\x12\x14\n" +
-	"\x05entry\x18\x03 \x01(\tR\x05entry\x12>\n" +
-	"\x05files\x18\x04 \x03(\v2(.home.api.v2.ConfigurationPlanSourceFileR\x05files\"\xbd\x01\n" +
-	"\x15ConfigurationPlanBase\x12:\n" +
-	"\x04kind\x18\x01 \x01(\x0e2&.home.api.v2.ConfigurationPlanBaseKindR\x04kind\x12\x1f\n" +
+	"%home/api/v2/configuration_plans.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"o\n" +
+	"\x1bConfigurationPlanSourceFile\x12'\n" +
+	"\flogical_path\x18\x01 \x01(\tB\x04\xe2A\x01\x02R\vlogicalPath\x12'\n" +
+	"\fexact_source\x18\x02 \x01(\fB\x04\xe2A\x01\x02R\vexactSource\"\xea\x01\n" +
+	"\x1aConfigurationPlanCandidate\x12H\n" +
+	"\x06family\x18\x01 \x01(\x0e2*.home.api.v2.ConfigurationPlanSourceFamilyB\x04\xe2A\x01\x02R\x06family\x12 \n" +
+	"\bidentity\x18\x02 \x01(\tB\x04\xe2A\x01\x02R\bidentity\x12\x1a\n" +
+	"\x05entry\x18\x03 \x01(\tB\x04\xe2A\x01\x02R\x05entry\x12D\n" +
+	"\x05files\x18\x04 \x03(\v2(.home.api.v2.ConfigurationPlanSourceFileB\x04\xe2A\x01\x02R\x05files\"\xc3\x01\n" +
+	"\x15ConfigurationPlanBase\x12@\n" +
+	"\x04kind\x18\x01 \x01(\x0e2&.home.api.v2.ConfigurationPlanBaseKindB\x04\xe2A\x01\x03R\x04kind\x12\x1f\n" +
 	"\brevision\x18\x02 \x01(\x03H\x00R\brevision\x88\x01\x01\x12(\n" +
 	"\rsource_sha256\x18\x03 \x01(\fH\x01R\fsourceSha256\x88\x01\x01B\v\n" +
 	"\t_revisionB\x10\n" +
-	"\x0e_source_sha256\"\x94\x02\n" +
-	"\x17ConfigurationPlanChange\x12<\n" +
-	"\x06effect\x18\x01 \x01(\x0e2$.home.api.v2.ConfigurationPlanEffectR\x06effect\x12K\n" +
-	"\toperation\x18\x02 \x01(\x0e2-.home.api.v2.ConfigurationPlanChangeOperationR\toperation\x12\x14\n" +
-	"\x05field\x18\x03 \x01(\tR\x05field\x12)\n" +
-	"\x10references_added\x18\x04 \x01(\rR\x0freferencesAdded\x12-\n" +
-	"\x12references_removed\x18\x05 \x01(\rR\x11referencesRemoved\"\x9a\v\n" +
+	"\x0e_source_sha256\"\xb2\x02\n" +
+	"\x17ConfigurationPlanChange\x12B\n" +
+	"\x06effect\x18\x01 \x01(\x0e2$.home.api.v2.ConfigurationPlanEffectB\x04\xe2A\x01\x03R\x06effect\x12Q\n" +
+	"\toperation\x18\x02 \x01(\x0e2-.home.api.v2.ConfigurationPlanChangeOperationB\x04\xe2A\x01\x03R\toperation\x12\x1a\n" +
+	"\x05field\x18\x03 \x01(\tB\x04\xe2A\x01\x03R\x05field\x12/\n" +
+	"\x10references_added\x18\x04 \x01(\x05B\x04\xe2A\x01\x03R\x0freferencesAdded\x123\n" +
+	"\x12references_removed\x18\x05 \x01(\x05B\x04\xe2A\x01\x03R\x11referencesRemoved\"\x9b\v\n" +
 	"\x11ConfigurationPlan\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12?\n" +
 	"\x05state\x18\x16 \x01(\x0e2#.home.api.v2.ConfigurationPlanStateB\x04\xe2A\x01\x03R\x05state\x12B\n" +
@@ -1188,11 +1282,12 @@ const file_home_api_v2_configuration_plans_proto_rawDesc = "" +
 	"expireTime\x12\x12\n" +
 	"\x04etag\x18\x13 \x01(\tR\x04etag\x12A\n" +
 	"\vupdate_time\x18\x15 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
-	"updateTime\x12K\n" +
-	"\tcandidate\x18\x14 \x01(\v2'.home.api.v2.ConfigurationPlanCandidateB\x04\xe2A\x01\x04R\tcandidate:\x8e\x01\xeaA\x8a\x01\n" +
+	"updateTime\x12L\n" +
+	"\tcandidate\x18\x14 \x01(\v2'.home.api.v2.ConfigurationPlanCandidateB\x05\xe2A\x02\x02\x04R\tcandidate:\x8e\x01\xeaA\x8a\x01\n" +
 	"+homeward.damiengoehrig.ca/ConfigurationPlan\x124homes/{home}/configurationPlans/{configuration_plan}*\x12configurationPlans2\x11configurationPlanB\x12\n" +
-	"\x10_semantic_sha256\"\xf0\x01\n" +
-	"\x1eCreateConfigurationPlanRequest\x12L\n" +
+	"\x10_semantic_sha256\"\xaa\x02\n" +
+	"\x1eCreateConfigurationPlanRequest\x128\n" +
+	"\x15configuration_plan_id\x18\x04 \x01(\tB\x04\xe2A\x01\x01R\x13configurationPlanId\x12L\n" +
 	"\x06parent\x18\x01 \x01(\tB4\xe2A\x01\x02\xfaA-\x12+homeward.damiengoehrig.ca/ConfigurationPlanR\x06parent\x12S\n" +
 	"\x12configuration_plan\x18\x02 \x01(\v2\x1e.home.api.v2.ConfigurationPlanB\x04\xe2A\x01\x02R\x11configurationPlan\x12+\n" +
 	"\n" +
@@ -1255,12 +1350,12 @@ const file_home_api_v2_configuration_plans_proto_rawDesc = "" +
 	"5CONFIGURATION_PLAN_DIAGNOSTIC_CODE_EXCLUDED_REFERENCE\x10\x02\x129\n" +
 	"5CONFIGURATION_PLAN_DIAGNOSTIC_CODE_UNSUPPORTED_SOURCE\x10\x03\x12/\n" +
 	"+CONFIGURATION_PLAN_DIAGNOSTIC_CODE_CAPACITY\x10\x04\x127\n" +
-	"3CONFIGURATION_PLAN_DIAGNOSTIC_CODE_BASE_UNAVAILABLE\x10\x052\x82\x06\n" +
-	"\x18ConfigurationPlanService\x12\xc7\x01\n" +
-	"\x17CreateConfigurationPlan\x12+.home.api.v2.CreateConfigurationPlanRequest\x1a\x1e.home.api.v2.ConfigurationPlan\"_\xdaA\x19parent,configuration_plan\x82\xd3\xe4\x93\x02=:\x12configuration_plan\"'/v2/{parent=homes/*}/configurationPlans\x12\x98\x01\n" +
+	"3CONFIGURATION_PLAN_DIAGNOSTIC_CODE_BASE_UNAVAILABLE\x10\x052\xa7\x06\n" +
+	"\x18ConfigurationPlanService\x12\xdd\x01\n" +
+	"\x17CreateConfigurationPlan\x12+.home.api.v2.CreateConfigurationPlanRequest\x1a\x1e.home.api.v2.ConfigurationPlan\"u\xdaA/parent,configuration_plan,configuration_plan_id\x82\xd3\xe4\x93\x02=:\x12configuration_plan\"'/v2/{parent=homes/*}/configurationPlans\x12\x98\x01\n" +
 	"\x14GetConfigurationPlan\x12(.home.api.v2.GetConfigurationPlanRequest\x1a\x1e.home.api.v2.ConfigurationPlan\"6\xdaA\x04name\x82\xd3\xe4\x93\x02)\x12'/v2/{name=homes/*/configurationPlans/*}\x12\xab\x01\n" +
-	"\x16ListConfigurationPlans\x12*.home.api.v2.ListConfigurationPlansRequest\x1a+.home.api.v2.ListConfigurationPlansResponse\"8\xdaA\x06parent\x82\xd3\xe4\x93\x02)\x12'/v2/{parent=homes/*}/configurationPlans\x12\xb4\x01\n" +
-	"\x1bRevalidateConfigurationPlan\x12/.home.api.v2.RevalidateConfigurationPlanRequest\x1a\x1e.home.api.v2.ConfigurationPlan\"D\xdaA\x04name\x82\xd3\xe4\x93\x027:\x01*\"2/v2/{name=homes/*/configurationPlans/*}:revalidate\x1a\x1c\xcaA\x19homeward.damiengoehrig.caB`\n" +
+	"\x16ListConfigurationPlans\x12*.home.api.v2.ListConfigurationPlansRequest\x1a+.home.api.v2.ListConfigurationPlansResponse\"8\xdaA\x06parent\x82\xd3\xe4\x93\x02)\x12'/v2/{parent=homes/*}/configurationPlans\x12\xc3\x01\n" +
+	"\x1bRevalidateConfigurationPlan\x12/.home.api.v2.RevalidateConfigurationPlanRequest\x1a\x1e.home.api.v2.ConfigurationPlan\"S\xdaA\x13name,candidate,etag\x82\xd3\xe4\x93\x027:\x01*\"2/v2/{name=homes/*/configurationPlans/*}:revalidate\x1a\x1c\xcaA\x19homeward.damiengoehrig.caB`\n" +
 	"\x0fcom.home.api.v2B\x17ConfigurationPlansProtoP\x01Z2github.com/damione1/Homeward/gen/home/api/v2;apiv2b\x06proto3"
 
 var (

@@ -1,7 +1,6 @@
 package contracts
 
 import (
-	"bytes"
 	"github.com/damione1/Homeward/internal/apitypes"
 	"strconv"
 	"strings"
@@ -40,59 +39,12 @@ func historyV2Position(p *api.AdmissionPosition) bool { return p != nil && obser
 // AdmitRecorderEvidence validates the same finite native proof in both History
 // and Observability. Sequence widths never stand in for unknown lost counts.
 func AdmitRecorderEvidence(v *api.RecorderCoverageSnapshot) error {
-	invalid := ErrInvalidHistoryContract
-	if v == nil || !historyTree(v.ProtoReflect(), 0) || !historyV2Position(v.From) || !historyV2Position(v.Through) || len(v.Epochs) == 0 || len(v.Epochs) > 64 || len(v.Gaps) > 512 {
-		return invalid
-	}
-	for i, epoch := range v.Epochs {
-		if epoch == nil || epoch.Epoch == nil || !observationID(epoch.Epoch.Value, 16) || epoch.StartedAt == nil || epoch.Reconciliation == 0 || epoch.CloseTime == nil || epoch.Predecessor == nil || epoch.CleanClose && epoch.GetClosedAt() == nil {
-			return invalid
-		}
-		if prev := epoch.GetPrevious(); prev != nil && (prev.Epoch == nil || !observationID(prev.Epoch.Value, 16)) {
-			return invalid
-		}
-		for j := 0; j < i; j++ {
-			if bytes.Equal(epoch.Epoch.Value, v.Epochs[j].Epoch.Value) {
-				return invalid
-			}
-		}
-	}
-	if !bytes.Equal(v.From.Epoch, v.Epochs[0].Epoch.Value) || !bytes.Equal(v.Through.Epoch, v.Epochs[len(v.Epochs)-1].Epoch.Value) || v.From.Sequence > v.Epochs[0].Checkpoint || v.Through.Sequence > v.Epochs[len(v.Epochs)-1].Checkpoint || bytes.Equal(v.From.Epoch, v.Through.Epoch) && v.From.Sequence > v.Through.Sequence {
-		return invalid
-	}
-	for _, gap := range v.Gaps {
-		if gap == nil || gap.Epoch == nil || !observationID(gap.Epoch.Value, 16) || gap.FromSequence == 0 || gap.ThroughSequence < gap.FromSequence || gap.Reason == 0 || gap.KnownLost == nil || gap.KnownLost.Result == nil || gap.Envelope == 0 || gap.UtcBounds == nil || gap.GetUnknownUtc() == nil {
-			return invalid
-		}
-		width := gap.ThroughSequence - gap.FromSequence + 1
-		switch lost := gap.KnownLost.Result.(type) {
-		case *api.KnownLost_LowerBound:
-			if lost.LowerBound == 0 || lost.LowerBound > width {
-				return invalid
-			}
-		case *api.KnownLost_NotKnown:
-			if lost.NotKnown == nil {
-				return invalid
-			}
-		default:
-			return invalid
-		}
-		if gap.Envelope == api.GapEnvelope_GAP_ENVELOPE_EXACT_POSITIONS && gap.KnownLost.GetLowerBound() != width {
-			return invalid
-		}
-		found := false
-		for _, epoch := range v.Epochs {
-			if bytes.Equal(gap.Epoch.Value, epoch.Epoch.Value) && gap.ThroughSequence <= epoch.Checkpoint {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return invalid
-		}
+	if v == nil || !observationV2Tree(v.ProtoReflect(), 0) {
+		return ErrInvalidHistoryContract
 	}
 	return nil
 }
+
 func historyV2Coverage(v *api.HistoryCoverage) bool {
 	return v != nil && historyTree(v.ProtoReflect(), 0) && v.Verdict == api.HistoryCoverageVerdict_HISTORY_COVERAGE_VERDICT_NOT_PROVEN && (v.ProvenanceStartedAt == nil || v.ProvenanceStartedAt.CheckValid() == nil)
 }
@@ -115,7 +67,7 @@ func historicalPublicState(v *api.HistoricalState) bool {
 	if m := v.GetMeasurement(); m != nil && m.Unit == "" {
 		return false
 	}
-	if light := v.GetLight(); light != nil && (light.On == nil || light.BrightnessPercent != nil && (*light.BrightnessPercent < 0 || *light.BrightnessPercent > 100)) {
+	if light := v.GetLight(); light != nil && (light.On == nil || light.ColorTempMireds != nil && (*light.ColorTempMireds <= 0 || *light.ColorTempMireds > 4294967295) || light.BrightnessPercent != nil && (*light.BrightnessPercent < 0 || *light.BrightnessPercent > 100)) {
 		return false
 	}
 	return true
@@ -130,7 +82,7 @@ func AdmitHistoryV2Response(message proto.Message, home apitypes.HomeName) error
 	var token string
 	var count int
 	resolution := api.HistoryResolution_HISTORY_RESOLUTION_RAW
-	maxPoints, maxHours := uint32(historyquery.MaxPoints), uint32(168)
+	maxPoints, maxHours := int32(historyquery.MaxPoints), int32(168)
 	traces := false
 	switch response := message.(type) {
 	case *api.QueryObservationsResponse:
@@ -144,23 +96,29 @@ func AdmitHistoryV2Response(message proto.Message, home apitypes.HomeName) error
 		scope, coverage, token, count = response.Scope, response.Coverage, response.NextPageToken, len(response.Aggregates)
 		resolution, maxHours = api.HistoryResolution_HISTORY_RESOLUTION_HOUR, 500
 		for _, point := range response.Aggregates {
-			if point == nil || !historyObservationID(point.AggregateId) || !historyV2Period(point.Bucket) || !point.Bucket.Start.AsTime().Equal(point.Bucket.Start.AsTime().Truncate(time.Hour)) || point.Bucket.End.AsTime().Sub(point.Bucket.Start.AsTime()) != time.Hour || !historyV2Descriptor(point.Descriptor_) || !historyV2Quality(point.Quality) || point.Reset_ == 0 || point.DurationNanos > uint64(time.Hour) || (point.Minimum == nil) != (point.Maximum == nil) || (point.Mean == nil) != (point.DurationNanos == 0) {
+			if point == nil || !historyObservationID(point.AggregateId) || !historyV2Period(point.Bucket) || !point.Bucket.Start.AsTime().Equal(point.Bucket.Start.AsTime().Truncate(time.Hour)) || point.Bucket.End.AsTime().Sub(point.Bucket.Start.AsTime()) != time.Hour || !historyV2Descriptor(point.Descriptor_) || !historyV2Quality(point.Quality) || point.Reset_ == 0 || point.DurationNanos < 0 || point.DurationNanos > int64(time.Hour) || (point.Minimum == nil) != (point.Maximum == nil) || (point.Mean == nil) != (point.DurationNanos == 0) {
 				return invalid
 			}
 		}
 	case *api.QueryExecutionTracesResponse:
+		if _, err := apitypes.ParseDecimalUint64(response.Checkpoint); err != nil {
+			return invalid
+		}
+		if _, err := apitypes.ParseDecimalUint64(response.CommitHigh); err != nil {
+			return invalid
+		}
 		scope, token, count = response.Scope, response.NextPageToken, len(response.ExecutionTraces)
 		traces, maxPoints = true, historyquery.MaxTracePoints
 		if len(response.ExecutionEpoch) > 512 || len(response.PreviousExecutionEpoch) > 512 || (response.Scope != nil && response.Scope.Retained != nil && response.ExecutionEpoch == "") || len(response.Losses) > 4 {
 			return invalid
 		}
 		for _, loss := range response.Losses {
-			if loss == nil || loss.Reason == api.HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_UNSPECIFIED || loss.KnownCount == 0 || loss.From == nil || loss.Through == nil || loss.From.CheckValid() != nil || loss.Through.CheckValid() != nil || loss.From.AsTime().After(loss.Through.AsTime()) {
+			if loss == nil || loss.Reason == api.HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_UNSPECIFIED || !historyPositiveDecimal(loss.KnownCount) || loss.From == nil || loss.Through == nil || loss.From.CheckValid() != nil || loss.Through.CheckValid() != nil || loss.From.AsTime().After(loss.Through.AsTime()) {
 				return invalid
 			}
 		}
 		for _, point := range response.ExecutionTraces {
-			if point == nil || point.Ordinal == 0 || point.Ordinal > 1<<63-1 || point.EmissionTime == nil || point.Outcome == nil {
+			if point == nil || !historyPositiveDecimal(point.Ordinal) || point.EmissionTime == nil || point.Outcome == nil {
 				return invalid
 			}
 			for _, reference := range []*string{point.Run, point.ParentRun} {
@@ -207,4 +165,9 @@ func AdmitHistoryV2Response(message proto.Message, home apitypes.HomeName) error
 		return invalid
 	}
 	return nil
+}
+
+func historyPositiveDecimal(text string) bool {
+	n, err := apitypes.ParseDecimalUint64(text)
+	return err == nil && n.Value() > 0
 }

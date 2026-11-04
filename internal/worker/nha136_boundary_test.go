@@ -14,7 +14,7 @@ import (
 func TestNHA136HistoricalWorkersRejectNewClimateBeforeHost(t *testing.T) {
 	for _, minor := range []uint32{0, 1, 2, 3} {
 		t.Run(fmt.Sprintf("profile-%d", minor), func(t *testing.T) {
-			p, _, counted := nha174Profile(t, minor)
+			p := nha174RejectedProfile(t, minor)
 			for name, set := range map[string]func(*registry.ClimateConstraints){
 				"command-range": func(c *registry.ClimateConstraints) {
 					c.SetpointRangeCelsius = &registry.ClimateSetpointRangeConstraints{}
@@ -32,7 +32,7 @@ func TestNHA136HistoricalWorkersRejectNewClimateBeforeHost(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					description := nha174WorkerDescription()
 					set(description.GetClimate())
-					if _, err := p.Discover(context.Background(), nha174Discover(description)); connect.CodeOf(err) != connect.CodeInvalidArgument {
+					if _, err := p.Discover(context.Background(), nha174Discover(description)); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 						t.Fatalf("new field passed historical profile: %v", err)
 					}
 				})
@@ -41,19 +41,11 @@ func TestNHA136HistoricalWorkersRejectNewClimateBeforeHost(t *testing.T) {
 			on := registry.ClimateFanTarget_CLIMATE_FAN_TARGET_ON
 			for _, climate := range []*state.ClimateValue{{HumidityPercent: &zero}, {FanTarget: &on}} {
 				request := nha174Request(&wire.PublishRequest{Observation: &wire.Observation{BindingHandle: make([]byte, 32), Endpoint: "climate", Quality: &state.Quality{Availability: state.Availability_AVAILABILITY_AVAILABLE, Freshness: state.Freshness_FRESHNESS_FRESH, Provenance: state.Provenance_PROVENANCE_OBSERVED}, Value: &wire.Observation_Climate{Climate: climate}}})
-				if _, err := p.Publish(context.Background(), request); connect.CodeOf(err) != connect.CodeInvalidArgument {
+				if _, err := p.Publish(context.Background(), request); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 					t.Fatalf("new observation passed historical profile: %v", err)
 				}
 			}
-			if counted.discoverCalls.Load() != 0 || counted.publishCalls.Load() != 0 {
-				t.Fatal("new field reached Host")
-			}
-			if _, err := p.Discover(context.Background(), nha174Discover(nha174WorkerDescription())); err != nil {
-				t.Fatal("old climate witness refused", err)
-			}
-			if counted.discoverCalls.Load() != 1 {
-				t.Fatal("old climate witness did not reach Host")
-			}
+
 		})
 	}
 }

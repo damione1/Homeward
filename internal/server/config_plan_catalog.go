@@ -18,6 +18,7 @@ import (
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/apierrors"
 	"github.com/damione1/Homeward/internal/apitypes"
+	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -96,13 +97,13 @@ func (c *configurationPlanCatalog) add(home apitypes.HomeName, binding configDoc
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	record, err := c.prepareAddLocked(home, binding, metadata, nativeExpiry)
+	record, err := c.prepareAddLocked(home, binding, metadata, nativeExpiry, nil)
 	if err != nil {
 		return configurationPlanRecord{}, err
 	}
 	return c.publishLocked(record), nil
 }
-func (c *configurationPlanCatalog) prepareAddLocked(home apitypes.HomeName, binding configDocumentsBinding, metadata *api.ConfigurationPlan, nativeExpiry time.Time) (configurationPlanRecord, error) {
+func (c *configurationPlanCatalog) prepareAddLocked(home apitypes.HomeName, binding configDocumentsBinding, metadata *api.ConfigurationPlan, nativeExpiry time.Time, requested *storage.APIRequestedResourceID) (configurationPlanRecord, error) {
 	if c == nil || !c.valid || !binding.valid() || !home.Valid() || metadata == nil || proto.Size(metadata) > configurationPlanMetadataBytes || contracts.AdmitConfigurationPlanMetadata(metadata) != nil {
 		return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_SERVICE_UNAVAILABLE)
 	}
@@ -124,17 +125,30 @@ func (c *configurationPlanCatalog) prepareAddLocked(home apitypes.HomeName, bind
 	if len(c.records)+len(c.pending) >= configurationPlanCapacity {
 		return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_QUERY_BUDGET_EXCEEDED)
 	}
-	var random [16]byte
-	if _, err := rand.Read(random[:]); err != nil {
-		return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_SERVICE_UNAVAILABLE)
+	id := ""
+	if requested != nil {
+		id = requested.String()
+		if _, err := storage.ParseAPIRequestedResourceID(id); err != nil {
+			return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_VALIDATION_FAILED)
+		}
+	} else {
+		var random [16]byte
+		if _, err := rand.Read(random[:]); err != nil {
+			return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_SERVICE_UNAVAILABLE)
+		}
+		id = "p-" + hex.EncodeToString(random[:])
 	}
-	name, err := apitypes.ParseConfigurationPlanName(home.String() + "/configurationPlans/p-" + hex.EncodeToString(random[:]))
+	name, err := apitypes.ParseConfigurationPlanName(home.String() + "/configurationPlans/" + id)
 	if err != nil {
-		return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_INTERNAL_FAILURE)
+		return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_VALIDATION_FAILED)
 	}
-	_, pending := c.pending[name.String()]
-	if _, exists := c.records[name.String()]; exists || pending {
-		return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_SERVICE_UNAVAILABLE)
+	for _, entries := range []map[string]configurationPlanRecord{c.records, c.pending} {
+		if existing, exists := entries[name.String()]; exists {
+			if existing.binding != binding {
+				return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_ACCESS_DENIED)
+			}
+			return configurationPlanRecord{}, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_RESOURCE_ALREADY_EXISTS)
+		}
 	}
 	now := c.now()
 	if !nativeExpiry.After(now) {

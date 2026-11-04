@@ -194,7 +194,7 @@ func TestNHA203AuthH2RevocationDoesNotStallIndependentReader(t *testing.T) {
 		if err != nil || !current.Msg.SecondFactorEnabled {
 			t.Fatal("enrollment did not commit before blocked response", err)
 		}
-		_, err = accounts.UpdateAccount(rig.ctx, nha141BearerRequest(&api.UpdateAccountRequest{Account: &api.Account{Name: rig.accountName.String(), Etag: current.Msg.Etag, State: api.AccountState_ACCOUNT_STATE_DISABLED}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"state"}}}, independent.AccessToken))
+		_, err = accounts.UpdateAccount(rig.ctx, nha141BearerRequest(&api.UpdateAccountRequest{Account: &api.Account{Name: rig.accountName.String(), Etag: current.Msg.Etag, Access: api.AccountAccess_ACCOUNT_ACCESS_DISABLED}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"access"}}}, independent.AccessToken))
 		if err != nil {
 			t.Fatal(err)
 		}

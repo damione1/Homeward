@@ -1,0 +1,2556 @@
+{
+  "version": 1,
+  "linter_version": "2.4.1",
+  "profile": "Approved AIP MUST requirements enforced; individually reviewed advisory deviations and heuristic false positives; draft AIP-162 not adopted. No legacy compatibility exemptions.",
+  "reviewed_date": "2026-11-04",
+  "exceptions": [
+    {
+      "file": "home/api/v2/authentication.proto",
+      "rule": "core::0122::name-suffix",
+      "symbol": "home.api.v2.Account.login_name",
+      "declaration_sha256": "118e6d85683c1144143d2e03eab960ca6770102c329a72cf0af3dffbf5040809",
+      "classification": "advisory",
+      "reason": "login_name is the authentication login credential name, distinct from canonical account identity and display_name.",
+      "reference": "https://google.aip.dev/122"
+    },
+    {
+      "file": "home/api/v2/authentication.proto",
+      "rule": "core::0122::name-suffix",
+      "symbol": "home.api.v2.Fido2EnrollmentChallenge.user_name",
+      "declaration_sha256": "5ad346aa1d09d6eae58d9b91e6b4933cc3fb1b398c5e39c41a5e4f41bde91240",
+      "classification": "advisory",
+      "reason": "user_name is the WebAuthn relying-party user label, not a resource reference.",
+      "reference": "https://google.aip.dev/122"
+    },
+    {
+      "file": "home/api/v2/authentication.proto",
+      "rule": "core::0122::name-suffix",
+      "symbol": "home.api.v2.Invitation.login_name",
+      "declaration_sha256": "ecbbbafd5b43c853874181102574274d6577b0cb75b139f5f80d918693f7a598",
+      "classification": "advisory",
+      "reason": "login_name is the authentication login credential name, distinct from canonical account identity and display_name.",
+      "reference": "https://google.aip.dev/122"
+    },
+    {
+      "file": "home/api/v2/authentication.proto",
+      "rule": "core::0122::name-suffix",
+      "symbol": "home.api.v2.IssueInvitationRequest.login_name",
+      "declaration_sha256": "51e4eda67fe77240a14dd96e25212ecb6d22d73bb913305c2a10ecc4070144d4",
+      "classification": "advisory",
+      "reason": "login_name is the authentication login credential name, distinct from canonical account identity and display_name.",
+      "reference": "https://google.aip.dev/122"
+    },
+    {
+      "file": "home/api/v2/authentication.proto",
+      "rule": "core::0122::name-suffix",
+      "symbol": "home.api.v2.IssueMcpKeyRequest.client_name",
+      "declaration_sha256": "ecd0006264f7df6517800b8dd6b3d77237e853453963f9aacb62e719cff8edc1",
+      "classification": "advisory",
+      "reason": "client_name is the human-readable MCP client label, not a resource reference.",
+      "reference": "https://google.aip.dev/122"
+    },
+    {
+      "file": "home/api/v2/authentication.proto",
+      "rule": "core::0122::name-suffix",
+      "symbol": "home.api.v2.McpKey.client_name",
+      "declaration_sha256": "a3e87b2a53ffa03f81a549a9ef9bcdb2aa0edc2c068c9440e93398d658e37295",
+      "classification": "advisory",
+      "reason": "client_name is the human-readable MCP client label, not a resource reference.",
+      "reference": "https://google.aip.dev/122"
+    },
+    {
+      "file": "home/api/v2/authentication.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ScopeFamily.SCOPE_FAMILY_GLOBAL_CONFIGURATION",
+      "declaration_sha256": "e673ba5b00c3b598ca9a10345b34aee48973acb0ecab2a6172a68979fea038fc",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/authentication.proto",
+      "rule": "core::0122::name-suffix",
+      "symbol": "home.api.v2.StartLoginRequest.login_name",
+      "declaration_sha256": "95efd92c75f87bfb423ab4fe2cda0c9934466b699e3afb2f89b42717bdbfd86a",
+      "classification": "advisory",
+      "reason": "login_name is the authentication login credential name, distinct from canonical account identity and display_name.",
+      "reference": "https://google.aip.dev/122"
+    },
+    {
+      "file": "home/api/v2/calendars.proto",
+      "rule": "core::0133::request-id-field",
+      "symbol": "home.api.v2.CreateCalendarEventRequest",
+      "declaration_sha256": "910340b0b2598275e02d9a9850bf7c96d34a3a784e7ea4483d1fbb51ddf7d29d",
+      "classification": "advisory",
+      "reason": "This data-plane event receives its native owner UID; imported event identities remain distinct. AIP-133 recommends, but does not require, data-plane caller IDs.",
+      "reference": "https://google.aip.dev/133"
+    },
+    {
+      "file": "home/api/v2/calendars.proto",
+      "rule": "core::0133::request-id-field",
+      "symbol": "home.api.v2.CreateCalendarRequest",
+      "declaration_sha256": "64e8a11c6bff3523651d50bed0c0fa778881aadbcc538613ced7f705948d990d",
+      "classification": "advisory",
+      "reason": "This data-plane calendar is bound to an admitted configured source; an arbitrary caller ID cannot select another source. AIP-133 recommends, but does not require, data-plane caller IDs.",
+      "reference": "https://google.aip.dev/133"
+    },
+    {
+      "file": "home/api/v2/configuration_apply.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ApplyConfigurationPlanRequest",
+      "declaration_sha256": "8e5d2242bae8d4d79c7a626c906fb1263f8482f16aba87f5006f8e52a3dda30e",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_apply.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ApplyConfigurationPlanResponse",
+      "declaration_sha256": "63588c55a97ce84889fb51911541a299c7b7ef1d22d5bc8dc1d4fbc7bc5962c7",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_apply.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationApplyService",
+      "declaration_sha256": "cc8066cea14ff7133ad759673a40e9bedb92a51106eecd584e340cc673c1232f",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_apply.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationApplyService.ApplyConfigurationPlan",
+      "declaration_sha256": "061f659b69e986becbe026d686c857be7d895e0cfc4781a061d5de2e86db90cb",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_apply.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationApplyService.RollbackConfiguration",
+      "declaration_sha256": "1dfc82a9cd147351da5f6978ab6104c3182d83a08be32a58ebaf42c48b13072d",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_apply.proto",
+      "rule": "core::0162::rollback-http-uri-suffix",
+      "symbol": "home.api.v2.ConfigurationApplyService.RollbackConfiguration",
+      "declaration_sha256": "1dfc82a9cd147351da5f6978ab6104c3182d83a08be32a58ebaf42c48b13072d",
+      "classification": "draft-not-adopted",
+      "reason": "AIP-162 is Draft and is not adopted by this profile. This rollback operates on typed native source/generation evidence and returns an activation result; it does not claim the draft resource-snapshot rollback contract.",
+      "reference": "https://google.aip.dev/162"
+    },
+    {
+      "file": "home/api/v2/configuration_apply.proto",
+      "rule": "core::0162::rollback-response-message-name",
+      "symbol": "home.api.v2.ConfigurationApplyService.RollbackConfiguration",
+      "declaration_sha256": "1dfc82a9cd147351da5f6978ab6104c3182d83a08be32a58ebaf42c48b13072d",
+      "classification": "draft-not-adopted",
+      "reason": "AIP-162 is Draft and is not adopted by this profile. This rollback operates on typed native source/generation evidence and returns an activation result; it does not claim the draft resource-snapshot rollback contract.",
+      "reference": "https://google.aip.dev/162"
+    },
+    {
+      "file": "home/api/v2/configuration_apply.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.RollbackConfigurationRequest",
+      "declaration_sha256": "fa94c51252a96d4eedb09aa2f693696d0b8d3c6b00d3aa6b0db6eb9e8fdcfe3d",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_apply.proto",
+      "rule": "core::0162::rollback-request-revision-id-field",
+      "symbol": "home.api.v2.RollbackConfigurationRequest",
+      "declaration_sha256": "fa94c51252a96d4eedb09aa2f693696d0b8d3c6b00d3aa6b0db6eb9e8fdcfe3d",
+      "classification": "draft-not-adopted",
+      "reason": "AIP-162 is Draft and is not adopted by this profile. This rollback operates on typed native source/generation evidence and returns an activation result; it does not claim the draft resource-snapshot rollback contract.",
+      "reference": "https://google.aip.dev/162"
+    },
+    {
+      "file": "home/api/v2/configuration_apply.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.RollbackConfigurationResponse",
+      "declaration_sha256": "cccc7ac91bcb2e65ea52510cbfef9f79c1e57dbf4d2419ac8828b55117c77fb8",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationActivationResult",
+      "declaration_sha256": "b592430912b7654039b525e7a44c00d8f65621057b81e7b94f614e23473acb41",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationDiagnosticCode",
+      "declaration_sha256": "316973ef631f29e1020ec0429c1a5737eded29bd3fac1b85eb0bb6754c0dc1fb",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationDiagnosticCode.CONFIGURATION_DIAGNOSTIC_CODE_ACTIVATION_UNAVAILABLE",
+      "declaration_sha256": "46b283a00f8b13306a75cd84fc1c0872463b8b16da75d18008e2e258397828f2",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationDiagnosticCode.CONFIGURATION_DIAGNOSTIC_CODE_CANDIDATE_REJECTED",
+      "declaration_sha256": "70afbc79c4b29dbdac6b2ad708060894aa4a3f331346eb490ac83d5243cdc2b6",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationDiagnosticCode.CONFIGURATION_DIAGNOSTIC_CODE_RECONCILIATION_REQUIRED",
+      "declaration_sha256": "63c9d9850143dfc1f55fd6f64cce669c33fdbc9adea9063bb6e77cf66ba1e471",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationDiagnosticCode.CONFIGURATION_DIAGNOSTIC_CODE_UNSPECIFIED",
+      "declaration_sha256": "80c25fadef003adf0958230467edca00932b2e4f804be94357903606342ba628",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationDiagnosticCode.CONFIGURATION_DIAGNOSTIC_CODE_WORKSPACE_CHANGED",
+      "declaration_sha256": "5737967c857982d8ee016bfb27b66d4378ad27b5609c53546392531d93deb4ef",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationDocument",
+      "declaration_sha256": "9926e5075a101aab31b494b07bff214da7807199d70dd20a99ff228cd1ffb93b",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0148::use-uid",
+      "symbol": "home.api.v2.ConfigurationDocument.id",
+      "declaration_sha256": "0523192847f8105263cc6e0c14d382cbdac99ba4039175db87bde7ca98e5dbb4",
+      "classification": "not-applicable",
+      "reason": "DocumentId contains the typed native source identifier, distinct from the canonical resource name; it is not a server-generated UUID uid.",
+      "reference": "https://google.aip.dev/148"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ConfigurationDocument.updated_at",
+      "declaration_sha256": "ac83dd4bf0c5ff733fbdd2eeb8fa5e4097d6f9f9b994193428f9193c4aa744fb",
+      "classification": "advisory",
+      "reason": "updated_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ConfigurationDocument.updated_at",
+      "declaration_sha256": "ac83dd4bf0c5ff733fbdd2eeb8fa5e4097d6f9f9b994193428f9193c4aa744fb",
+      "classification": "advisory",
+      "reason": "updated_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationGeneration",
+      "declaration_sha256": "aa78178f93c4107600edcec72a24ec9529f1a85d0c5fa5d68ed018168297bc5e",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationOperationMetadata",
+      "declaration_sha256": "657066c1eaa3e4553ccebf571344d71cdd484ab5585b0f6d4b54889f060553fd",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationOperationPhase",
+      "declaration_sha256": "653e7ebf0d9bc46ce0f8c0d0bd330931d81806d715d7b41fec57c697911eab9a",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationOperationPhase.CONFIGURATION_OPERATION_PHASE_ACCEPTED",
+      "declaration_sha256": "05613b6aa5365213212a258c32ea803f2dce70504bb22fd9cdbabe059a96faf2",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationOperationPhase.CONFIGURATION_OPERATION_PHASE_COMMITTED",
+      "declaration_sha256": "836af29cb38c1aed198bbd16e76d54f742d6ab40eb9af22ccfd90da3c98d5a55",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationOperationPhase.CONFIGURATION_OPERATION_PHASE_FAILED",
+      "declaration_sha256": "9018f73d6eef7522e33eed9d725d2cfb69249c2d87901a08679f2d24e8fdf780",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationOperationPhase.CONFIGURATION_OPERATION_PHASE_PUBLISHED",
+      "declaration_sha256": "06f3fdb01fddca5f3b829f7beaf90a8cdfdbb1f08d96976b1e2272fc833f7417",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationOperationPhase.CONFIGURATION_OPERATION_PHASE_UNSPECIFIED",
+      "declaration_sha256": "f97383c2dd0b15e3cd04e549e82f3ad02b94e933fc9015d99153edfbe22dd019",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationRevision",
+      "declaration_sha256": "a650033e3c8f5d366b26538b69cc9f225350d979344343039c890ed74e43dea2",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0148::use-uid",
+      "symbol": "home.api.v2.ConfigurationRevision.id",
+      "declaration_sha256": "4809fe8ca4905dd164ebf2370ba9136b8b11bdfddc82c24d9356a98b487e0ac7",
+      "classification": "not-applicable",
+      "reason": "DocumentId identifies the source document across revisions, so it cannot be a unique revision uid; canonical identity is name.",
+      "reference": "https://google.aip.dev/148"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSchema",
+      "declaration_sha256": "5e2650b163d5b9c07fecdb79e9bf4ec806e3470742b885bd94f813db4df479cb",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService",
+      "declaration_sha256": "9260dad4117ac9ece7007e572e65ea599b52943b15fee02a6b3446c59649286d",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService.GetConfigurationDocument",
+      "declaration_sha256": "a775dbc1e3605a36f29a005fe9f752828b2586e3ac96497f0d8e09937785d48d",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService.GetConfigurationGeneration",
+      "declaration_sha256": "49187faa80eb1d7ca3585e4847e7384649cfb59ba8f318bcaf165cedcb97d3a1",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService.GetConfigurationRevision",
+      "declaration_sha256": "05d8affc1994f316288866049d54d54b00c7939da1155c4e6ff9ef1174da4444",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService.GetConfigurationSchema",
+      "declaration_sha256": "1bd7624e9227bcf373e0498d509067950f4ca6da9560e71ca6d460028bc11d72",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService.ListConfigurationDocuments",
+      "declaration_sha256": "304e707600c96d793584d19703da45c88d90e28f6701ef01eaf737cbd558c7c0",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService.ListConfigurationGenerations",
+      "declaration_sha256": "b243abca9d55694e79cd08028d8051355cd01bc35e0897e2023af5599c25330c",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService.ListConfigurationRevisions",
+      "declaration_sha256": "ba0f40d73731285da6ca66e17c22d2a1f80382f1fd5b24c20b453fe02c0552a4",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService.ListConfigurationSchemas",
+      "declaration_sha256": "27f03283fc0c4dcf89d209e8af23bdaa3666e183bc7df806e0503da08a128d20",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService.PublishConfigurationDocument",
+      "declaration_sha256": "be58eb763e6a67f1edbb8b767c113e3245a2aca0d720805d68aabe01113d9ba7",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService.RollbackConfigurationDocument",
+      "declaration_sha256": "53456712fd2df428eb2b572526832386a1dd42755465194bb0ae58b995f85fe1",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0162::rollback-response-message-name",
+      "symbol": "home.api.v2.ConfigurationService.RollbackConfigurationDocument",
+      "declaration_sha256": "53456712fd2df428eb2b572526832386a1dd42755465194bb0ae58b995f85fe1",
+      "classification": "draft-not-adopted",
+      "reason": "AIP-162 is Draft and is not adopted by this profile. This rollback operates on typed native source/generation evidence and returns an activation result; it does not claim the draft resource-snapshot rollback contract.",
+      "reference": "https://google.aip.dev/162"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationService.WatchConfiguration",
+      "declaration_sha256": "b2a61bd11457512e5e8b6c26d037246ec1ceeebaf0a68d318be84f10f0f66965",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0123::resource-annotation",
+      "symbol": "home.api.v2.DocumentChange",
+      "declaration_sha256": "20a0593ba7b62d8a5421d3f85515702e7c43f82f8872db9cfc3c0021f87f124c",
+      "classification": "not-applicable",
+      "reason": "This is a change event referring to ConfigurationDocument through resource_reference, not an independent resource.",
+      "reference": "https://google.aip.dev/123"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0216::state-field-output-only",
+      "symbol": "home.api.v2.DocumentChange.dirty",
+      "declaration_sha256": "0f605b9eadc64b437027b2d3592e2a416b1872482dba6fcf5513ce9e09acbd79",
+      "classification": "advisory",
+      "reason": "DirtyState describes the source comparison in a change event, not a mutable resource lifecycle.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.GetConfigurationDocumentRequest",
+      "declaration_sha256": "de034101d592d6b05983e3208bbadfa5d8b1cdb9a1a1f698d45fad1b2c60fb0d",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.GetConfigurationGenerationRequest",
+      "declaration_sha256": "9080460640a61cad141381a7e2616d721273301a9f2d3f6e0db93d79213d7b7f",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.GetConfigurationRevisionRequest",
+      "declaration_sha256": "680ef738cc5341a8c80503b404d19f6bd20fb511e4bab34c1eca4d632cb71a60",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.GetConfigurationSchemaRequest",
+      "declaration_sha256": "80902d32f691104c36a8fa5819f09f020cb8346e83a4e8eeda34ecbf337bea89",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationDocumentsRequest",
+      "declaration_sha256": "a7c5d623652855cdf350c2280a2ddf54f35eb2b10a73dd1a4793afdcb43cfcaa",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationDocumentsResponse",
+      "declaration_sha256": "462b84974f6e4a99347b604efccc0ca38b6b07021ae158b85af139e46f689132",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationDocumentsResponse.configuration_documents",
+      "declaration_sha256": "9a87f6d61e3a37a7d9c058c9bcc39f1a50732b3b3bfa6e08e5f8ac5f638116ee",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationGenerationsRequest",
+      "declaration_sha256": "c205e847ad2f4e9d844a3055ea6dd4f94c31a0f0ac3368dae23516ee67534dcc",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationGenerationsResponse",
+      "declaration_sha256": "a3140a6ce6072dab7a34e50357a8707a1269eda5ee4a20d0a4deadc66cc0cc6a",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationGenerationsResponse.configuration_generations",
+      "declaration_sha256": "e478390254f7477cd11812f18250b1f0edc2b39a2582831dad3d0fb24befe90c",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationRevisionsRequest",
+      "declaration_sha256": "2eb5df6643ee3ac1f546451588ec95d1540c5d8bf9e6bdc5f2ec40bc8334bed2",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationRevisionsResponse",
+      "declaration_sha256": "8bbc95b1a98c2c8733345bcd22f26328b62f2e435e73851ccddf0378d4344888",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationRevisionsResponse.configuration_revisions",
+      "declaration_sha256": "04b08d8a49b959c91eeb8d22867cfe6358429670587be3aa30721bd69e950ca0",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationSchemasRequest",
+      "declaration_sha256": "d0a5dc9442a74293f7f5b708dd51c3286dc3e3a97859c3e3efb58aa8595fd235",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationSchemasResponse",
+      "declaration_sha256": "5a3be269e5c50411e7b887a4658fb40e0f3bb246c19f34617b9617a6b089f344",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationSchemasResponse.configuration_schemas",
+      "declaration_sha256": "a971fe30b15171da6c4b7c900177b4a5ed8d31816db44b1b3939de32372da578",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.PublishConfigurationDocumentRequest",
+      "declaration_sha256": "3dfae1835d7de54a0c49b96602133af1c276e6b0b387cc9b90ecc608d1b63e8f",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.PublishConfigurationDocumentResponse",
+      "declaration_sha256": "dee1708ea84afb8209aa2e6a8b4818352801da8e1ee622e3d6632a1125df899c",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.RollbackConfigurationDocumentRequest",
+      "declaration_sha256": "bfcbd709d506e2b98f63d14324fab7a417f9233ebe536635f95f5902799fe608",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0162::rollback-request-revision-id-field",
+      "symbol": "home.api.v2.RollbackConfigurationDocumentRequest",
+      "declaration_sha256": "bfcbd709d506e2b98f63d14324fab7a417f9233ebe536635f95f5902799fe608",
+      "classification": "draft-not-adopted",
+      "reason": "AIP-162 is Draft and is not adopted by this profile. This rollback operates on typed native source/generation evidence and returns an activation result; it does not claim the draft resource-snapshot rollback contract.",
+      "reference": "https://google.aip.dev/162"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.RollbackConfigurationDocumentResponse",
+      "declaration_sha256": "3deefb19b09d3f53b50b22bc56a2840510121c68de98b7810dd49ab420494835",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.WatchConfigurationRequest",
+      "declaration_sha256": "f6debfb61dbb07255a0789588814b25fabf53b6e336ac5d198ac933cf865a9fe",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.WatchConfigurationResponse",
+      "declaration_sha256": "2e5dc2418f994434b684890ea80eb68e64ad7e4d0c3558f14efc97270887334f",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.WorkspaceDiagnostic.observed_at",
+      "declaration_sha256": "6b38a1721fbc4ff254a8afbdb6dc4de1cb1a20738c05e789d9d59a9b0a60cfdd",
+      "classification": "advisory",
+      "reason": "observed_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.WorkspaceDiagnostic.observed_at",
+      "declaration_sha256": "6b38a1721fbc4ff254a8afbdb6dc4de1cb1a20738c05e789d9d59a9b0a60cfdd",
+      "classification": "advisory",
+      "reason": "observed_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0216::state-field-output-only",
+      "symbol": "home.api.v2.WorkspaceObservation.dirty",
+      "declaration_sha256": "0f605b9eadc64b437027b2d3592e2a416b1872482dba6fcf5513ce9e09acbd79",
+      "classification": "advisory",
+      "reason": "DirtyState compares workspace source to durable configuration; this value object has no resource lifecycle.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.WorkspaceObservation.updated_at",
+      "declaration_sha256": "45282ddb751775485c6be852279f2ad19d93dba124840a0eaf1b0f10fc7f49cf",
+      "classification": "advisory",
+      "reason": "updated_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_documents.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.WorkspaceObservation.updated_at",
+      "declaration_sha256": "45282ddb751775485c6be852279f2ad19d93dba124840a0eaf1b0f10fc7f49cf",
+      "classification": "advisory",
+      "reason": "updated_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlan",
+      "declaration_sha256": "2698077a91d3dce57b9743864b90cdb6f55d8191cf7617b4c806e4687b7b70d5",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanBase",
+      "declaration_sha256": "f2aac8647e6d95a12f5085ed60c526ce464c90bd3b4ee823bb6e54ce9df63a95",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanBaseKind",
+      "declaration_sha256": "dba39659d395683de80d49a3612370dac606e03958434372e09ed59e5a2f9545",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanBaseKind.CONFIGURATION_PLAN_BASE_KIND_ACTIVE_SQL",
+      "declaration_sha256": "c587025f59cffa2f0a49bd764e8af0f24bdaa04c9d812d90832eee531d11eb64",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanBaseKind.CONFIGURATION_PLAN_BASE_KIND_IMMUTABLE_REFERENCE",
+      "declaration_sha256": "3c35e0cca2d40c1a812ffa11dc04412350e8de9a2d3e8295a00fcac991d6f1e4",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanBaseKind.CONFIGURATION_PLAN_BASE_KIND_NO_ACTIVE_DOCUMENT",
+      "declaration_sha256": "26384964cd9d64348db20c901de358f5b14c10dd4e13de97b8b3e4d7b16d7081",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanBaseKind.CONFIGURATION_PLAN_BASE_KIND_UNSPECIFIED",
+      "declaration_sha256": "8694419ab6ee613804c8e8a0e8f3659b5496e06e82f8008a0832871b3dde9989",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanCandidate",
+      "declaration_sha256": "f1a06c77ef8c7fb8e3b878d45114cf3f640850759ba4721007d58fb0b945d9de",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanChange",
+      "declaration_sha256": "20878628730f31249cc28654cfec0f79b881bfe835aabbf059c855201a218372",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanChangeOperation",
+      "declaration_sha256": "dc32a87f3081c3a4ad72ac962c838614705aed6b3c7c30b9a688507949a449aa",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanChangeOperation.CONFIGURATION_PLAN_CHANGE_OPERATION_ADDED",
+      "declaration_sha256": "46d7ac382e0ff999e6a882f426fe3574a24a6e3c53f80f47b7abc5ce963270d3",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanChangeOperation.CONFIGURATION_PLAN_CHANGE_OPERATION_REMOVED",
+      "declaration_sha256": "561fe4746e3cd51beec4c56c376b2e144768c350ae034e5ba3b1ddc7b65d690e",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanChangeOperation.CONFIGURATION_PLAN_CHANGE_OPERATION_REPLACED",
+      "declaration_sha256": "5b7781444f94a918850a464e019ddb81baba4ba058f327db893517f5f14076d3",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanChangeOperation.CONFIGURATION_PLAN_CHANGE_OPERATION_UNSPECIFIED",
+      "declaration_sha256": "67455fbf1b61af64b89a923a2af77be58f79d4c697d907c9fe7c53b7520f63c1",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanDiagnosticCode",
+      "declaration_sha256": "796ea8afc0ab55ef9ef5b399c65a28715c8c3ae21d49b99a76551d0bb6c72a7d",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanDiagnosticCode.CONFIGURATION_PLAN_DIAGNOSTIC_CODE_BASE_UNAVAILABLE",
+      "declaration_sha256": "8203b21c4f2b95b969c88b3f502aa6c7c32d99200dfacb98c3e130f02cd80017",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanDiagnosticCode.CONFIGURATION_PLAN_DIAGNOSTIC_CODE_CAPACITY",
+      "declaration_sha256": "ecae86299b8c3fdf719730668c82e44c95e0e4fb19cf15fbb0148097e76ce39d",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanDiagnosticCode.CONFIGURATION_PLAN_DIAGNOSTIC_CODE_EXCLUDED_REFERENCE",
+      "declaration_sha256": "a91f19c68ba8e2c9fe23aece0e01fdff66cf806766d9314b0a35e3c02f9f7a66",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanDiagnosticCode.CONFIGURATION_PLAN_DIAGNOSTIC_CODE_INVALID_SCHEMA",
+      "declaration_sha256": "20ed4b43d4337d5c0aff2a6091a09b7ae945038e183d97139ec3b0c6e71895cd",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanDiagnosticCode.CONFIGURATION_PLAN_DIAGNOSTIC_CODE_UNSPECIFIED",
+      "declaration_sha256": "40b49d9f26373d2b77feab79ae6efc94d70ac5edb024e8e679a24bdd18cdc86a",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanDiagnosticCode.CONFIGURATION_PLAN_DIAGNOSTIC_CODE_UNSUPPORTED_SOURCE",
+      "declaration_sha256": "61e5dacb46756033c0d25a015dbfa7512dc11663f7c75d42360ade734c71a950",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanEffect",
+      "declaration_sha256": "4ab8dbc52c918664faecd296b9bf5803d0e7168b1e850ceac5fc286568e6e140",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanEffect.CONFIGURATION_PLAN_EFFECT_CONFIGURATION",
+      "declaration_sha256": "b69a50a4d6defbd8a4e4b062306c639765c2e3948b3ba38c87ddece337149ec1",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140",
+      "occurrences": 2
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanEffect.CONFIGURATION_PLAN_EFFECT_DASHBOARD",
+      "declaration_sha256": "14eb196fb90463dae93bc08c7dd98dfb915c2c676d69db388a75271ce2ed61e5",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanEffect.CONFIGURATION_PLAN_EFFECT_HUMAN_RIGHTS",
+      "declaration_sha256": "0028e82ba92d2eddd9a7ec4d0a6202c050bd5a36910fc09a7c0f0f079a9e613f",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanEffect.CONFIGURATION_PLAN_EFFECT_NONE",
+      "declaration_sha256": "20a71c6d2bedf9771b7e21bae4afaee67cfe55415d156782db9b04ecc832196b",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanEffect.CONFIGURATION_PLAN_EFFECT_RUN_TARGETS",
+      "declaration_sha256": "43f564e31a7b8a8f683f354fb26020d19baa5e5c7a4633231ef466ac6a045ed1",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanEffect.CONFIGURATION_PLAN_EFFECT_TECHNICAL_OWNERSHIP",
+      "declaration_sha256": "8b48bf45a8e967659ad8aaa5a58ed888d7036eaddb7dbab6eff18ac43823e17f",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanEffect.CONFIGURATION_PLAN_EFFECT_UNSPECIFIED",
+      "declaration_sha256": "dab1d3c71d5df3140dadb53b665c5310df4b3f2580cc9262727fd7668cb1b180",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanService",
+      "declaration_sha256": "0ac3857568de52408c4516e7e564f0d91b703c99c1a2241e7bda6a8877cda666",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanService.CreateConfigurationPlan",
+      "declaration_sha256": "09e3961eeb3bf9058aab9f01143ef83f22abce1d94517afa498861878a7f8c64",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanService.GetConfigurationPlan",
+      "declaration_sha256": "c8f6bd15d82e3c7ba9ea4d4eba1618d2257f7e8077a9f53e73c117a0435500c7",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanService.ListConfigurationPlans",
+      "declaration_sha256": "337a419974a3677e5acf7341d0047e8bcb7e6d2ff3eaee5f912ba8486f8e914b",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanService.RevalidateConfigurationPlan",
+      "declaration_sha256": "f74fba0db23a9a0c98f1c6e63f3f378521cf5a8cc815fc88f47373a3948486c0",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFamily",
+      "declaration_sha256": "b2b9904a5bffe7bd5301f176129ece85d9ce0dc52112e18bb4f97ebad98af19c",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFamily.CONFIGURATION_PLAN_SOURCE_FAMILY_AUTHORIZATION",
+      "declaration_sha256": "554d8fa6d641b6a4ad693aff26181ee9e5220631d52ebfd7006d4cd85666024e",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFamily.CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION",
+      "declaration_sha256": "89bf5f3ee25d3e33cc7c1c2c29ec27ba9ce82ff9cf557db7202e0a7065658a54",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFamily.CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD",
+      "declaration_sha256": "293386865e64b2a86598b84c487a30f10aa8afe1d7a314b6c5a30587a887968c",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFamily.CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V1",
+      "declaration_sha256": "85d811fddf923b865d19cb49a99d8f29206125050ec05f458ad2e3259bdf86ed",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFamily.CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V2",
+      "declaration_sha256": "084b20f9801519ac5677eb75e484ba7afd930127b8d4b4d6fbc265937f3e21bc",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFamily.CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL",
+      "declaration_sha256": "a848bf3338077162a59f330c4275d7a07f6069103e57d11d67a351cd09d8d585",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFamily.CONFIGURATION_PLAN_SOURCE_FAMILY_OWNERSHIP",
+      "declaration_sha256": "d766ebf9828bfceee45866c559dd7e60d000ee764f16816018fd6febcd4eb7f7",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFamily.CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE",
+      "declaration_sha256": "7d328c588a471dff698c4cfb37cbec593a5c3c618f7a74ca4f295fa49fb05345",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFamily.CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT",
+      "declaration_sha256": "dee794b63df9ec80c685c5870311fe83d91b7b0582df4db3cdaf15867d43974e",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFamily.CONFIGURATION_PLAN_SOURCE_FAMILY_UNSPECIFIED",
+      "declaration_sha256": "372afd1a6ff814dad020b403467d3f409c783753fa6548a65290db1e0dedab10",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanSourceFile",
+      "declaration_sha256": "f1a5cdb8a975bb608bdc1112d947e39d5af3dc261f7b7ea57d41d890519f65f1",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanState",
+      "declaration_sha256": "7f86d3b2c4a313cabdf9346d747646a95e4e53af433d9b1e11fb7739d5515772",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0216::nesting",
+      "symbol": "home.api.v2.ConfigurationPlanState",
+      "declaration_sha256": "7f86d3b2c4a313cabdf9346d747646a95e4e53af433d9b1e11fb7739d5515772",
+      "classification": "advisory",
+      "reason": "The explicitly qualified top-level enum names the configuration-plan lifecycle in public SDKs; nesting is advisory, and the resource state field is OUTPUT_ONLY.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanState.CONFIGURATION_PLAN_STATE_ADMITTED",
+      "declaration_sha256": "622044d2717238e45da7d5b8418798bda5d9d2903cf141418fff370de33227a1",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanState.CONFIGURATION_PLAN_STATE_REJECTED",
+      "declaration_sha256": "62c618c62f9f74cea8e902c62855c0c195222cf67da51696ee63dade5fde971b",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanState.CONFIGURATION_PLAN_STATE_STALE",
+      "declaration_sha256": "fdf9b859a814e87c7a18c705d8453a945aaa14ad72852e2b5b1ec8e7a5e4056a",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationPlanState.CONFIGURATION_PLAN_STATE_UNSPECIFIED",
+      "declaration_sha256": "e1fb7f9558e6ef6e78c4b0718277dbb9df1cbb1821dc4bcd8474c4a0be4718c0",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.CreateConfigurationPlanRequest",
+      "declaration_sha256": "2e809e53590b4146c68591d7e28332391c4c9ba7ce7ef10a20ce2859443f6603",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.CreateConfigurationPlanRequest.configuration_plan",
+      "declaration_sha256": "5dab09c74fee2a48c7303be24c4237b754675e9fb54f9e0812b197dd8dc967b2",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.CreateConfigurationPlanRequest.configuration_plan_id",
+      "declaration_sha256": "a4f519e3fad65c8b171697a07505ef5cea694f9f5d3f84daebafaf36365963df",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.GetConfigurationPlanRequest",
+      "declaration_sha256": "b36702c882d78272d8742b73bb61635b98862e6e0927bed0245500f60948f6c0",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationPlansRequest",
+      "declaration_sha256": "ee2ac4b64fa0760db93095c1121413c215bebcd113c517671b48a9395127a657",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationPlansResponse",
+      "declaration_sha256": "2d0f0a7d0f90ca00e4da54636dc2c668af5d97277d8bb3da0bb14fa43b4fb4e5",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ListConfigurationPlansResponse.configuration_plans",
+      "declaration_sha256": "62a8123f4f2f420812000b55ae86a3d3d2e6a6d0f997786a81849180da351410",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_plans.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.RevalidateConfigurationPlanRequest",
+      "declaration_sha256": "1703118b733899d656f966aaf6529e7d5e2f68c5ebbc0d30e4de457bf2976122",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind",
+      "declaration_sha256": "2795e2e14a3af4e179c7f01b4568c057834089fdf2ef68d942c07a2439125846",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_CALL",
+      "declaration_sha256": "85799a2301f8deaf7a204e0d4700501506f1b7c39bef0393ea75df9139dfe120",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_CHOOSE",
+      "declaration_sha256": "9c44da6100ac675616cee39f56efe27444a0ff89972bdff698e6b20ff7deef2d",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_DELAY",
+      "declaration_sha256": "e5ec553446587d81b903faf8af4f37553f216bbba2806ec05ecd469cc541208c",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_IF",
+      "declaration_sha256": "cd568891dba14d065e6fe0b69d5c6504e297e2dc63ff895549958c6447de2da6",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_PARALLEL",
+      "declaration_sha256": "efc3727731360564157a3781a844fbcce55a0533392758dd1a3f63b11d38733f",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_REPEAT",
+      "declaration_sha256": "9146b434e52d1da96b29511c250407375d4d513d72b215d818f520bb8c195562",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_SEQUENCE",
+      "declaration_sha256": "038fbbcd26a3339144375168ed77072b16435b046057885f1c7b3e30a4b20fd8",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_STOP",
+      "declaration_sha256": "68886a7bf22cef111d670481d80a7601066a8cfd850ddc6c0e272a7111d49a52",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_UNSPECIFIED",
+      "declaration_sha256": "ba1887d5954d2375a2febf20eb741d10fb307787f314fcf4f06341c096e95e86",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_VARIABLES",
+      "declaration_sha256": "e204ce52d084da4d2191dd019519b279127b7a4126bcfa0d26f890f6de7a4790",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_WAIT",
+      "declaration_sha256": "7cd8de077f5073ae59c8fd496e5b106848145cdd068ff3842442cf5c1128bdec",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationActionKind.CONFIGURATION_SIMULATION_ACTION_KIND_WAIT_TEMPLATE",
+      "declaration_sha256": "8c0fe157ec99c247be9e8612a8984c68f0d4c32ffc98f24aad3c21dc8f35e15e",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0123::resource-annotation",
+      "symbol": "home.api.v2.ConfigurationSimulationAttribute",
+      "declaration_sha256": "432ea49ef6416d65e52d6e2672de79647994e5e0e158375261598f5d38a8b9fa",
+      "classification": "not-applicable",
+      "reason": "This is a typed simulation attribute value; name is an attribute key, not an independently addressable resource.",
+      "reference": "https://google.aip.dev/123"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationAttribute",
+      "declaration_sha256": "432ea49ef6416d65e52d6e2672de79647994e5e0e158375261598f5d38a8b9fa",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::reserved-words",
+      "symbol": "home.api.v2.ConfigurationSimulationAttribute.boolean",
+      "declaration_sha256": "8561df35292135fa945459ab235a04524a26a17e65067735d8cc0679d77c2ee8",
+      "classification": "advisory",
+      "reason": "This oneof arm labels a boolean typed attribute value; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationDiagnostic",
+      "declaration_sha256": "613e62564b3d1652cc621574038d9d4743e4dbb2a0430d42415cd1c7f47e84f0",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationDiagnosticCode",
+      "declaration_sha256": "f4c90bd7853cb9133308a88d0f1c88b2f25cb5c3cdc3327143840501e5326b32",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationDiagnosticCode.CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_CAPACITY_EXCEEDED",
+      "declaration_sha256": "dd149c331bbee118d26b9f272732923638c0f634b89091e61905a2c86d27e4f6",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationDiagnosticCode.CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_EXECUTION_FAILED",
+      "declaration_sha256": "109e2bdbd20f124e8c6e0f793e0828fcfdd28d65c6af60f4bdccab97ccb6880e",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationDiagnosticCode.CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_FIXTURE_REFUSED",
+      "declaration_sha256": "d37590441302a8dfb83253323ff63f3de4a00cd04ebf94fbc5e194f0d8e01875",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationDiagnosticCode.CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_INVALID_SOURCE",
+      "declaration_sha256": "2a3c5b25caee9dea07a3b9f9032cf8573bc4d10f991b35fea489ee1d01520a8a",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationDiagnosticCode.CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_MISSING_FIXTURE",
+      "declaration_sha256": "be3774e2a3cbdd83377260c18874625f5c6ad85cc59edfada440856935630b1f",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationDiagnosticCode.CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSPECIFIED",
+      "declaration_sha256": "b80055dcaee820cb820b6b9e7d86ae20c91f9cc4be33ab674f56652b39c9db17",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationDiagnosticCode.CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_CONCURRENCY",
+      "declaration_sha256": "d160f0a4237c71798d41a5098496b863309915e2f932916ce07d2eebd1857cd2",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationDiagnosticCode.CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_EXTENSION",
+      "declaration_sha256": "8a8f023de85802a3703860b4c7136c1cceaca1d3574de24c116180956c024423",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationDiagnosticCode.CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_WAIT",
+      "declaration_sha256": "3e84bf606f455de77f90ce7279a0cd0ac5b731737c0901f779db5fa31d62caca",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationIntent",
+      "declaration_sha256": "5b6a3cbb251511603afa150773db1861178c40dde2e5e687739fcb56fdb688f4",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ConfigurationSimulationIntent.at",
+      "declaration_sha256": "7305606884cef2a15f25523df2ee7158858c3058c07619ad07e35af46875a71d",
+      "classification": "advisory",
+      "reason": "at names the virtual scheduling/trace instant within a simulation. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ConfigurationSimulationIntent.at",
+      "declaration_sha256": "7305606884cef2a15f25523df2ee7158858c3058c07619ad07e35af46875a71d",
+      "classification": "advisory",
+      "reason": "at names the virtual scheduling/trace instant within a simulation. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::reserved-words",
+      "symbol": "home.api.v2.ConfigurationSimulationIntent.switch",
+      "declaration_sha256": "c954584eecb07b7fb841959231c471113d9590ad5944c805923987b16032931a",
+      "classification": "advisory",
+      "reason": "This oneof arm denotes the switch device domain, separate from light and climate intent; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationNodeStage",
+      "declaration_sha256": "155e807d468499d78b822150075dc75d1b862a1623be4750d7fa6db6983e8434",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationNodeStage.CONFIGURATION_SIMULATION_NODE_STAGE_CANCELLED",
+      "declaration_sha256": "6e25c33245b14e7e30b84f1bdf6efefa296d018f4c39c337f04edee512bbb6e8",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationNodeStage.CONFIGURATION_SIMULATION_NODE_STAGE_COMPLETED",
+      "declaration_sha256": "3bac0326f5089f63e3dacad4132bcd3e745df3d899831196ec20d91c64a13108",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationNodeStage.CONFIGURATION_SIMULATION_NODE_STAGE_ENTERED",
+      "declaration_sha256": "2a703ae9a00e21a7dcd6434fdc40cdbcc36ec960fcb6346a773349b19b58f832",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationNodeStage.CONFIGURATION_SIMULATION_NODE_STAGE_FAILED",
+      "declaration_sha256": "90a7629cdd4670a53659f4b24600cdbe1f4a2e5e022d336bc920465efe2ed294",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationNodeStage.CONFIGURATION_SIMULATION_NODE_STAGE_STOPPED",
+      "declaration_sha256": "8e6a6c6dfa40ca54d2fdf705b0ed02349297a2b52142192569277a590d8e08e9",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationNodeStage.CONFIGURATION_SIMULATION_NODE_STAGE_UNSPECIFIED",
+      "declaration_sha256": "2fb47231abd504fdf4a81c0f5d545fa3cf84ef3a37b551f11b019f845a67e4bb",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationNodeStage.CONFIGURATION_SIMULATION_NODE_STAGE_WAITING",
+      "declaration_sha256": "32b9ab53adda635f9559631c6f8a6c5170603e77fe864aa607a05c16f5623230",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationNodeTrace",
+      "declaration_sha256": "75e7cd9b9a713288abab72f697dd441b18997a2f86038b7033df690465ba29d3",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ConfigurationSimulationNodeTrace.at",
+      "declaration_sha256": "7305606884cef2a15f25523df2ee7158858c3058c07619ad07e35af46875a71d",
+      "classification": "advisory",
+      "reason": "at names the virtual scheduling/trace instant within a simulation. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ConfigurationSimulationNodeTrace.at",
+      "declaration_sha256": "7305606884cef2a15f25523df2ee7158858c3058c07619ad07e35af46875a71d",
+      "classification": "advisory",
+      "reason": "at names the virtual scheduling/trace instant within a simulation. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationPosition",
+      "declaration_sha256": "1013f67991f03d621f3e3ab83aa3646d42a34ada8d187852663bc5be999fa141",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationReport",
+      "declaration_sha256": "10a33cb75af727dc835f4d59d6f7300257635ce63eaf2566e7e43af8d0cf592f",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0142::time-field-type",
+      "symbol": "home.api.v2.ConfigurationSimulationReport.elapsed_millis",
+      "declaration_sha256": "59ec2a00ea92e3eada0e3861dbf1d56ed711ddb0a5b3287486e78cfacc00db4b",
+      "classification": "not-applicable",
+      "reason": "elapsed_millis is a bounded duration with an explicit fixed unit, not an absolute timestamp; Timestamp would change its meaning. The fixed-unit numeric representation also intentionally departs from AIP-142 Duration advice.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationService",
+      "declaration_sha256": "fbbc0571c62c0de1b407f9328ceda671b33d5203bc4d5aa689b78bd204ae2f34",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationService.SimulateConfigurationPlan",
+      "declaration_sha256": "ad5eb799ffef558bd2ec7170454195b352fb6536d421868cffe509b935112977",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationStatus",
+      "declaration_sha256": "eb754613a9912c1b7d13f4bcfaa388c9a6611842b68474c664ff6153233d9681",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0216::synonyms",
+      "symbol": "home.api.v2.ConfigurationSimulationStatus",
+      "declaration_sha256": "eb754613a9912c1b7d13f4bcfaa388c9a6611842b68474c664ff6153233d9681",
+      "classification": "not-applicable",
+      "reason": "This is a completed simulation verdict, not a resource lifecycle state or transport status.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationStatus.CONFIGURATION_SIMULATION_STATUS_COMPLETED",
+      "declaration_sha256": "10f7363fd96b21bc78c96c70504b7a1d7201d9d5d76db998512636c58d9106d5",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationStatus.CONFIGURATION_SIMULATION_STATUS_FAILED",
+      "declaration_sha256": "8b344887eed9766b7f90c0b106a9bf24d05c4fabbfb2c23f9ea71ea1e3c9a7f1",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationStatus.CONFIGURATION_SIMULATION_STATUS_PARTIAL",
+      "declaration_sha256": "ca5475e4b49c8a1412bf6a266db601d79d934896cb0650cfbf8fe4eafdcb1761",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationStatus.CONFIGURATION_SIMULATION_STATUS_UNSPECIFIED",
+      "declaration_sha256": "c5b92a73c030e2603e5597981259872ad29ba78862e90497d8d76019e3a213f6",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport",
+      "declaration_sha256": "cd412fc5ec5ba6260cd067b6b098127a3990aaa0ea2b604509fa18708bbcd0e2",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport.CONFIGURATION_SIMULATION_SUPPORT_CLIMATE_SETPOINT",
+      "declaration_sha256": "7bf44457e74c76f0dbe89afe6eee63877195fee10b51fc2687d4f6781e2a31ba",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport.CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_ABSOLUTE",
+      "declaration_sha256": "2c04e3f90bc4200298ae27b34d634a9d2ba1038e4645fdf6f558d5c603f4510d",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport.CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_RELATIVE",
+      "declaration_sha256": "27b42e62a026e178f27a1a03fc34c06b870e406a997e671d0975cdff9513c290",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport.CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TRANSITION",
+      "declaration_sha256": "5f98f1c94495630820c9a6f98258bccfef423c14efb85e3a8b72aa53d776fc5b",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport.CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_OFF",
+      "declaration_sha256": "fd8254323cd1aeaab61e06a60077a76adba9056c6c65bcdad7fdcb659c8a0e4f",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport.CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_ON",
+      "declaration_sha256": "4586af24bd8b1cbb007bceddef0b0864d55a7c4dc90010eaddc5d7f33e2d086f",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport.CONFIGURATION_SIMULATION_SUPPORT_OBSERVE_STATE",
+      "declaration_sha256": "4f623f34eb0b0a18f7f6767b7b7c3d30fc340a13803ba846c27d4ee4253f5d6e",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport.CONFIGURATION_SIMULATION_SUPPORT_SCENE_TRANSITION",
+      "declaration_sha256": "17d91fc0f7f6f6da57d1093a1fb564538c34b8d6cae4d55b17788205a774c03a",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport.CONFIGURATION_SIMULATION_SUPPORT_SCENE_TURN_ON",
+      "declaration_sha256": "5259e564ea1290634db2a12b1319b5371e085169e26653be96ffb65d4ae99325",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport.CONFIGURATION_SIMULATION_SUPPORT_SWITCH_TURN_ON",
+      "declaration_sha256": "e31c27860721e3536998e65aae5875bca926cba79fc78d2ae3442e0a5f2eb784",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.ConfigurationSimulationSupport.CONFIGURATION_SIMULATION_SUPPORT_UNSPECIFIED",
+      "declaration_sha256": "cfb0ce62afd92e346b3e4ac5d353262a7a1d5b5a6e3930639f60676fe01c8dc7",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0142::time-field-type",
+      "symbol": "home.api.v2.LightIntent.transition_seconds",
+      "declaration_sha256": "897b8900bd3248dd422a02e5fae222a6eaa52579ff434eb6212ba46d76ddf7e9",
+      "classification": "not-applicable",
+      "reason": "transition_seconds is a bounded duration with an explicit fixed unit, not an absolute timestamp; Timestamp would change its meaning. The fixed-unit numeric representation also intentionally departs from AIP-142 Duration advice.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.SimulateConfigurationPlanRequest",
+      "declaration_sha256": "0ddf49619914489a7a1695033c4e1c4f1e160a991c7ffbdcee1a0f6a3d1362d1",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.SimulateConfigurationPlanRequest.now",
+      "declaration_sha256": "4d46be39fe83bee391bbccbc4dea41f319ab951a7696678a167e7a98857cc236",
+      "classification": "advisory",
+      "reason": "now names the simulated clock instant, distinct from the real request time. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0142::time-field-type",
+      "symbol": "home.api.v2.SimulateConfigurationPlanRequest.virtual_limit_millis",
+      "declaration_sha256": "da2033c22cfa1046006509a48364cf9f82c7aa3f065846d7dcc971437b4811d8",
+      "classification": "not-applicable",
+      "reason": "virtual_limit_millis is a bounded duration with an explicit fixed unit, not an absolute timestamp; Timestamp would change its meaning. The fixed-unit numeric representation also intentionally departs from AIP-142 Duration advice.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/configuration_simulation.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.SimulateConfigurationPlanResponse",
+      "declaration_sha256": "995e2a9225ef615ade4a8757455b610b3d2501c7d13292346046c53d5c5b8d8c",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/dashboards.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.DashboardIcon.DASHBOARD_ICON_INFORMATION",
+      "declaration_sha256": "6b18cedd1bee9aeb3381d5a6782ddf06fc8f5ab7162d7dd581c6e18d4d0d8bb3",
+      "classification": "advisory",
+      "reason": "INFORMATION names the informational dashboard icon, rather than a metadata/info payload.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/dashboards.proto",
+      "rule": "core::0216::state-field-output-only",
+      "symbol": "home.api.v2.DashboardLiteral.alarm_state",
+      "declaration_sha256": "617ef1d51ce5825e70817d1340deeaf26186b5be1e46ca46cb441d8ce49c4ca8",
+      "classification": "advisory",
+      "reason": "alarm_state is a caller-supplied typed comparison literal used by dashboard conditions; marking it OUTPUT_ONLY would incorrectly forbid that input.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/dashboards.proto",
+      "rule": "core::0216::state-field-output-only",
+      "symbol": "home.api.v2.DashboardLiteral.cover_state",
+      "declaration_sha256": "e2393d8eeb861641647d5cd91c43355f82274705a3ee766c55e04763ad24697a",
+      "classification": "advisory",
+      "reason": "cover_state is a caller-supplied typed comparison literal used by dashboard conditions; marking it OUTPUT_ONLY would incorrectly forbid that input.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/dashboards.proto",
+      "rule": "core::0216::state-field-output-only",
+      "symbol": "home.api.v2.DashboardLiteral.lock_state",
+      "declaration_sha256": "e0fc4a66fd4e47ba3e770abeb864cf7fd066a87924f5a0bb13f23452c05582d1",
+      "classification": "advisory",
+      "reason": "lock_state is a caller-supplied typed comparison literal used by dashboard conditions; marking it OUTPUT_ONLY would incorrectly forbid that input.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/dashboards.proto",
+      "rule": "core::0132::response-unknown-fields",
+      "symbol": "home.api.v2.ListDashboardsResponse.resume_token",
+      "declaration_sha256": "1524ed20dc7e469e29881cb39fc1175428a3189a20e0b636cedc0df8e37dddfa",
+      "classification": "advisory",
+      "reason": "A final-page watch handoff token binds a completed catalogue enumeration to WatchDashboards without a gap; it is a scalar, distinct from next_page_token.",
+      "reference": "https://google.aip.dev/132"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0142::time-field-type",
+      "symbol": "home.api.v2.HistoryAggregate.duration_nanos",
+      "declaration_sha256": "56b62c63088bd065e7067c3716f45d27c696958388c48703e261c7397f81b824",
+      "classification": "not-applicable",
+      "reason": "duration_nanos is a bounded duration with an explicit fixed unit, not an absolute timestamp; Timestamp would change its meaning. The fixed-unit numeric representation also intentionally departs from AIP-142 Duration advice.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.HistoryCoverage.provenance_started_at",
+      "declaration_sha256": "c7d2584a65ec770f01d62e0960fd0a2adac0a378b58713c1bbbc73de8f0a023a",
+      "classification": "advisory",
+      "reason": "provenance_started_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.HistoryCoverage.provenance_started_at",
+      "declaration_sha256": "c7d2584a65ec770f01d62e0960fd0a2adac0a378b58713c1bbbc73de8f0a023a",
+      "classification": "advisory",
+      "reason": "provenance_started_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.HistoryExecutionTrace.configuration_generation",
+      "declaration_sha256": "40975b9b98fe7fdf8129067e4f4ad98ab96f4354130f2153785c60e8ee73ceb7",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0142::time-field-type",
+      "symbol": "home.api.v2.HistoryLimits.query_timeout_millis",
+      "declaration_sha256": "1fae8bcc7dbc30ab11a20932baf0c17d61c75e9825fdecfb3a3f8313141a5156",
+      "classification": "not-applicable",
+      "reason": "query_timeout_millis is a bounded duration with an explicit fixed unit, not an absolute timestamp; Timestamp would change its meaning. The fixed-unit numeric representation also intentionally departs from AIP-142 Duration advice.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.HistoryPeriod.end",
+      "declaration_sha256": "74a44435e6516e2b9ddb65900254a61b46c3986ec2892eed384d012cedc859a2",
+      "classification": "advisory",
+      "reason": "end names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.HistoryPeriod.start",
+      "declaration_sha256": "fb9081999a2059a6f2045f1b178d2d7d31080a5c3443ee0919a40bf4d0de546d",
+      "classification": "advisory",
+      "reason": "start names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.HistoryReadScope.as_of",
+      "declaration_sha256": "1aed08732776cb6a17509c159419e738d7cdd20ec92c1b6337cc461bb51659ce",
+      "classification": "advisory",
+      "reason": "As-of identifies the frozen read observation boundary, distinct from the requested history interval.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.HistoryReadScope.as_of",
+      "declaration_sha256": "1aed08732776cb6a17509c159419e738d7cdd20ec92c1b6337cc461bb51659ce",
+      "classification": "advisory",
+      "reason": "As-of identifies the frozen read observation boundary, distinct from the requested history interval.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.HistoryReadScope.retention_cutoff",
+      "declaration_sha256": "9a8d0e693be078d09fdaa1f61ce5c5456d318138a1cc9ee1e6a5de53d30afaa3",
+      "classification": "advisory",
+      "reason": "retention_cutoff names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.HistoryTraceLoss.from",
+      "declaration_sha256": "3814ce473bfe75648c0b54d9cef08658d1a274e46edc589713b05426fe3c35a0",
+      "classification": "advisory",
+      "reason": "This field is the inclusive beginning of an evidence interval, paired with its ending bound; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0140::reserved-words",
+      "symbol": "home.api.v2.HistoryTraceLoss.from",
+      "declaration_sha256": "3814ce473bfe75648c0b54d9cef08658d1a274e46edc589713b05426fe3c35a0",
+      "classification": "advisory",
+      "reason": "This field is the inclusive beginning of an evidence interval, paired with its ending bound; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.HistoryTraceLoss.from",
+      "declaration_sha256": "3814ce473bfe75648c0b54d9cef08658d1a274e46edc589713b05426fe3c35a0",
+      "classification": "advisory",
+      "reason": "This field is the inclusive beginning of an evidence interval, paired with its ending bound; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/history.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.HistoryTraceLoss.through",
+      "declaration_sha256": "f1c6cf6290e63f65960ad99211d86112a5319dbfc8b7873f4ffb8206f3b31bea",
+      "classification": "advisory",
+      "reason": "through names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/integrations.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.IntegrationConfiguration",
+      "declaration_sha256": "0bed92f4a09e6dba2e1d853c8fb3283e5b584bc74ec219b7a3f360ed3bf4c984",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/integrations.proto",
+      "rule": "core::0216::synonyms",
+      "symbol": "home.api.v2.IntegrationHealthStatus",
+      "declaration_sha256": "3847f614b64d2be999a347d1a667cfb3a9eb5df3acb1d937294c3baface65621",
+      "classification": "not-applicable",
+      "reason": "This is an integration health assessment, independent of the desired lifecycle state.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/integrations.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.IntegrationInstance.configuration_document",
+      "declaration_sha256": "a78c67d7253d85313bdab38754c03ce8d2694d7d5383462941109681cbfa1bed",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/integrations.proto",
+      "rule": "core::0216::state-field-output-only",
+      "symbol": "home.api.v2.IntegrationInstance.desired_state",
+      "declaration_sha256": "010b369415df917ba907228695b5b93b4e9b555e77225ac1778acc17d91ebf8e",
+      "classification": "advisory",
+      "reason": "The caller sets desired enabled/disabled configuration; observed health and actual lifecycle remain separate server observations.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/integrations.proto",
+      "rule": "core::0140::abbreviations",
+      "symbol": "home.api.v2.OpaqueIntegrationConfiguration",
+      "declaration_sha256": "4b7fbcff553650f11c7b7e6166ed619e89e082727d24d69714c4f1104e1d5a99",
+      "classification": "advisory",
+      "reason": "The full Configuration domain term distinguishes authored documents, plans, simulation and activation consistently in the public contract; this is a terminology choice, not a legacy compatibility requirement.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/media.proto",
+      "rule": "core::0133::request-id-field",
+      "symbol": "home.api.v2.CreateMediaSessionRequest",
+      "declaration_sha256": "e9631b9412d6cad9087914a6e37e4c222206ca6ef8c4ab6b03653a8ad14357ee",
+      "classification": "advisory",
+      "reason": "This data-plane read lease receives 256 random identity bits; caller aliases do not identify a source or grant access. AIP-133 recommends, but does not require, data-plane caller IDs.",
+      "reference": "https://google.aip.dev/133"
+    },
+    {
+      "file": "home/api/v2/media.proto",
+      "rule": "core::0131::synonyms",
+      "symbol": "home.api.v2.MediaService.ReadMediaSession",
+      "declaration_sha256": "c9fee3bb1d17d50542e276041d76e44e42daaa9a69ba319356144391aa728c75",
+      "classification": "not-applicable",
+      "reason": "This custom :read method returns bounded source bytes under a live session and target, not a resource representation. GetMediaSession separately implements standard Get.",
+      "reference": "https://google.aip.dev/131"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationActiveCoverage.at_risk",
+      "declaration_sha256": "d8590ec38e6f071c2e894cb1caeb9e2d2d733c7e12e595c0549f175d6961c58c",
+      "classification": "advisory",
+      "reason": "At-risk identifies the coverage evidence category, not a timestamp or an admitted loss.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationActiveCoverageInterval.from",
+      "declaration_sha256": "e2e630b67fb68b34bf4e33f851e2e1a86e1aafe37808e482887dda833ae3283e",
+      "classification": "advisory",
+      "reason": "This field is the inclusive beginning of an evidence interval, paired with its ending bound; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::reserved-words",
+      "symbol": "home.api.v2.ObservationActiveCoverageInterval.from",
+      "declaration_sha256": "e2e630b67fb68b34bf4e33f851e2e1a86e1aafe37808e482887dda833ae3283e",
+      "classification": "advisory",
+      "reason": "This field is the inclusive beginning of an evidence interval, paired with its ending bound; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationAuthenticationAudit.occurred_at",
+      "declaration_sha256": "4a58c0d08bed19eef406de962e98b19992ca313f3c2e627597fcbd202a498647",
+      "classification": "advisory",
+      "reason": "occurred_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ObservationAuthenticationAudit.occurred_at",
+      "declaration_sha256": "4a58c0d08bed19eef406de962e98b19992ca313f3c2e627597fcbd202a498647",
+      "classification": "advisory",
+      "reason": "occurred_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationCommittedGapMetrics.rows_without_known_count_total",
+      "declaration_sha256": "58435a7fd37bb5896318fb8a0ae70fd617a71c7aa0f7df243a275560be16ad70",
+      "classification": "advisory",
+      "reason": "The qualification without_known_count preserves the distinction between unknown and measured loss counts.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationDurableHealth.observed_at",
+      "declaration_sha256": "fb688f1cb331b4f90e36a60de9360c6f9568520ce1514eaf49a54ba50e63f51b",
+      "classification": "advisory",
+      "reason": "observed_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ObservationDurableHealth.observed_at",
+      "declaration_sha256": "fb688f1cb331b4f90e36a60de9360c6f9568520ce1514eaf49a54ba50e63f51b",
+      "classification": "advisory",
+      "reason": "observed_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationInstalledQueueMetrics.in_flight_entries",
+      "declaration_sha256": "f1ed17fd23fbf0b1a7b1c254f2cffe63836993f5b6c29cfb534773a4ace5947f",
+      "classification": "advisory",
+      "reason": "In-flight is the precise queue category: work removed from the queue but not yet completed.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0216::synonyms",
+      "symbol": "home.api.v2.ObservationIntegrationHealthStatus",
+      "declaration_sha256": "51473bf6eabc85c5c56be2b10681beba599a5ff29b6779844d6845bc7f116613",
+      "classification": "not-applicable",
+      "reason": "This is a recorded integration health assessment, independent of lifecycle transitions.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationIntegrationReport.admitted_at",
+      "declaration_sha256": "4d5a16fafd19d311471bce078b693c9eacb6ef2b6c7ee9dbb3d797aa1b039df7",
+      "classification": "advisory",
+      "reason": "admitted_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ObservationIntegrationReport.admitted_at",
+      "declaration_sha256": "4d5a16fafd19d311471bce078b693c9eacb6ef2b6c7ee9dbb3d797aa1b039df7",
+      "classification": "advisory",
+      "reason": "admitted_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationNodeTraceRecord.occurred_at",
+      "declaration_sha256": "cc353e80c8e93f1ece7e3f56815df03aa8c9cfebc6a541ce2ea4bb6450555c0e",
+      "classification": "advisory",
+      "reason": "occurred_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ObservationNodeTraceRecord.occurred_at",
+      "declaration_sha256": "cc353e80c8e93f1ece7e3f56815df03aa8c9cfebc6a541ce2ea4bb6450555c0e",
+      "classification": "advisory",
+      "reason": "occurred_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationObservationCut.captured_at",
+      "declaration_sha256": "7e9f90fdff4af9bc7b1d37dc1a456df2f2671f64ceb951e3b2d39d368d4cdd66",
+      "classification": "advisory",
+      "reason": "captured_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ObservationObservationCut.captured_at",
+      "declaration_sha256": "7e9f90fdff4af9bc7b1d37dc1a456df2f2671f64ceb951e3b2d39d368d4cdd66",
+      "classification": "advisory",
+      "reason": "captured_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationRecorderHealthFact.observed_at",
+      "declaration_sha256": "6b38a1721fbc4ff254a8afbdb6dc4de1cb1a20738c05e789d9d59a9b0a60cfdd",
+      "classification": "advisory",
+      "reason": "observed_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ObservationRecorderHealthFact.observed_at",
+      "declaration_sha256": "6b38a1721fbc4ff254a8afbdb6dc4de1cb1a20738c05e789d9d59a9b0a60cfdd",
+      "classification": "advisory",
+      "reason": "observed_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0216::state-field-output-only",
+      "symbol": "home.api.v2.ObservationRecorderHealthFact.state",
+      "declaration_sha256": "7fa157f737eb48e5c88985fa1fd57cc3cba88f4bef32c84baa2bb80be6625e71",
+      "classification": "advisory",
+      "reason": "This nested observation fact is returned as evidence; it is not independently mutable through Create or Update.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0216::nesting",
+      "symbol": "home.api.v2.ObservationRecorderHealthState",
+      "declaration_sha256": "39ee366f72b04408b799e8c3005c51e0bcd8a6985571f2b65c1313127aa5dc06",
+      "classification": "advisory",
+      "reason": "The explicitly qualified top-level enum identifies recorder health in SDKs without conflating it with other states; nesting is advisory.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationRuntimeEvent.occurred_at",
+      "declaration_sha256": "895f53a5dcb3e440e3ed512771281a25ab861a4314e2f0605ee3c0172c900849",
+      "classification": "advisory",
+      "reason": "occurred_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ObservationRuntimeEvent.occurred_at",
+      "declaration_sha256": "895f53a5dcb3e440e3ed512771281a25ab861a4314e2f0605ee3c0172c900849",
+      "classification": "advisory",
+      "reason": "occurred_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationSecretAccessAudit.occurred_at",
+      "declaration_sha256": "4a58c0d08bed19eef406de962e98b19992ca313f3c2e627597fcbd202a498647",
+      "classification": "advisory",
+      "reason": "occurred_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ObservationSecretAccessAudit.occurred_at",
+      "declaration_sha256": "4a58c0d08bed19eef406de962e98b19992ca313f3c2e627597fcbd202a498647",
+      "classification": "advisory",
+      "reason": "occurred_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationTraceCutMetadata.controller_captured_at",
+      "declaration_sha256": "d7f41e1c1fb297887d0fe9af907cc581b5ffb1525cafb7d246f1e6e04ea16fef",
+      "classification": "advisory",
+      "reason": "controller_captured_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ObservationTraceCutMetadata.controller_captured_at",
+      "declaration_sha256": "d7f41e1c1fb297887d0fe9af907cc581b5ffb1525cafb7d246f1e6e04ea16fef",
+      "classification": "advisory",
+      "reason": "controller_captured_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.ObservationTraceCutMetadata.node_captured_at",
+      "declaration_sha256": "1838ed7a506c73f7921765358ad02164a01cddebbab79d342c653b531530e360",
+      "classification": "advisory",
+      "reason": "node_captured_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.ObservationTraceCutMetadata.node_captured_at",
+      "declaration_sha256": "1838ed7a506c73f7921765358ad02164a01cddebbab79d342c653b531530e360",
+      "classification": "advisory",
+      "reason": "node_captured_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0216::state-field-output-only",
+      "symbol": "home.api.v2.ObservationTraceCutMetadata.order",
+      "declaration_sha256": "685c24b488b5de3aaa744783517b74a15f54adaf3ebe93b490cedd9e503ee759",
+      "classification": "advisory",
+      "reason": "This is the comparison of two capture cuts, not a resource lifecycle state.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::reserved-words",
+      "symbol": "home.api.v2.ObservationTraceOrdinal.native",
+      "declaration_sha256": "c296278baacfcff98e2ddd7f27601cb1b939624e10ca56ef81cfea4a38d7410f",
+      "classification": "advisory",
+      "reason": "This oneof arm explicitly distinguishes a source-native ordinal from other trace positions; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.QueryRecorderCoverageRequest.from",
+      "declaration_sha256": "9ed428e5e5dd6393d0688d739f2293bca417c010ee47bd7a8704b722e71e4c3d",
+      "classification": "advisory",
+      "reason": "This field is the inclusive beginning of an evidence interval, paired with its ending bound; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::reserved-words",
+      "symbol": "home.api.v2.QueryRecorderCoverageRequest.from",
+      "declaration_sha256": "9ed428e5e5dd6393d0688d739f2293bca417c010ee47bd7a8704b722e71e4c3d",
+      "classification": "advisory",
+      "reason": "This field is the inclusive beginning of an evidence interval, paired with its ending bound; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/observability.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.QueryRecorderCoverageRequest.latest_in_epoch",
+      "declaration_sha256": "69fd78312b7d4ee5e49b5a70826c28eceace328c5730ea0be5ff30092461c616",
+      "classification": "advisory",
+      "reason": "This selector requests the latest evidence in a specific epoch, distinct from an unrestricted latest observation.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/recorder_evidence.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.RecorderCoverageGap.from_sequence",
+      "declaration_sha256": "4ddb58b67508d6d214f99ea4a7d20f747ac763c4fdb547709dbb773d5c5e7fb1",
+      "classification": "advisory",
+      "reason": "The inclusive starting sequence bound is paired with the ending bound; from names its interval role.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/recorder_evidence.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.RecorderCoverageSnapshot.from",
+      "declaration_sha256": "e2e630b67fb68b34bf4e33f851e2e1a86e1aafe37808e482887dda833ae3283e",
+      "classification": "advisory",
+      "reason": "This field is the inclusive beginning of an evidence interval, paired with its ending bound; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/recorder_evidence.proto",
+      "rule": "core::0140::reserved-words",
+      "symbol": "home.api.v2.RecorderCoverageSnapshot.from",
+      "declaration_sha256": "e2e630b67fb68b34bf4e33f851e2e1a86e1aafe37808e482887dda833ae3283e",
+      "classification": "advisory",
+      "reason": "This field is the inclusive beginning of an evidence interval, paired with its ending bound; generated SDKs escape reserved identifiers.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/recorder_evidence.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.RecorderEpochCoverage.closed_at",
+      "declaration_sha256": "f60b79ed50f14cb170d380678c68f8e8cda67a986d1398e567b9571a97b56fc5",
+      "classification": "advisory",
+      "reason": "closed_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/recorder_evidence.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.RecorderEpochCoverage.closed_at",
+      "declaration_sha256": "f60b79ed50f14cb170d380678c68f8e8cda67a986d1398e567b9571a97b56fc5",
+      "classification": "advisory",
+      "reason": "closed_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/recorder_evidence.proto",
+      "rule": "core::0216::state-field-output-only",
+      "symbol": "home.api.v2.RecorderEpochCoverage.reconciliation",
+      "declaration_sha256": "b5a0d5046b8155ccefb47ba5681976e9775c12c31f972497931b30263b1e039c",
+      "classification": "advisory",
+      "reason": "This is the evidence reconciliation verdict for an epoch, not a resource lifecycle state.",
+      "reference": "https://google.aip.dev/216"
+    },
+    {
+      "file": "home/api/v2/recorder_evidence.proto",
+      "rule": "core::0140::prepositions",
+      "symbol": "home.api.v2.RecorderEpochCoverage.started_at",
+      "declaration_sha256": "f41cdbdef09b4bcb3f92f8e137621bbe0c5beeb711915befa492bdb7db5ad3a8",
+      "classification": "advisory",
+      "reason": "started_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/140"
+    },
+    {
+      "file": "home/api/v2/recorder_evidence.proto",
+      "rule": "core::0142::time-field-names",
+      "symbol": "home.api.v2.RecorderEpochCoverage.started_at",
+      "declaration_sha256": "f41cdbdef09b4bcb3f92f8e137621bbe0c5beeb711915befa492bdb7db5ad3a8",
+      "classification": "advisory",
+      "reason": "started_at names the explicit interval or observation boundary in this evidence value; its Timestamp type preserves time semantics. The name intentionally departs from the advisory _time/preposition convention.",
+      "reference": "https://google.aip.dev/142"
+    },
+    {
+      "file": "home/api/v2/tasks.proto",
+      "rule": "core::0133::request-id-field",
+      "symbol": "home.api.v2.CreateTaskListRequest",
+      "declaration_sha256": "61229afd2e570d704c341ac7e3279e3bdd6fecfc74dc368760fbc3ebd3b29772",
+      "classification": "advisory",
+      "reason": "This data-plane task collection receives an opaque native owner ID, distinct from imported collection identities. AIP-133 recommends, but does not require, data-plane caller IDs.",
+      "reference": "https://google.aip.dev/133"
+    }
+  ]
+}

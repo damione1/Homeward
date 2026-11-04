@@ -83,11 +83,11 @@ pub fn admit_role(role: EnumValue<auth::AccountRole>) -> Result<auth::AccountRol
         }
     }
 }
-fn status(value: EnumValue<auth::AccountState>) -> bool {
+fn status(value: EnumValue<auth::AccountAccess>) -> bool {
     match value {
-        EnumValue::Known(auth::AccountState::Active)
-        | EnumValue::Known(auth::AccountState::Disabled) => true,
-        EnumValue::Known(auth::AccountState::Unspecified) | EnumValue::Unknown(_) => false,
+        EnumValue::Known(auth::AccountAccess::Enabled)
+        | EnumValue::Known(auth::AccountAccess::Disabled) => true,
+        EnumValue::Known(auth::AccountAccess::Unspecified) | EnumValue::Unknown(_) => false,
     }
 }
 fn family(value: EnumValue<auth::ScopeFamily>) -> bool {
@@ -136,7 +136,7 @@ pub fn admit_account(value: &auth::Account) -> Result<Admitted<auth::Account>, A
         || value.login_name.len() > 256
         || !text(&value.login_name)
         || admit_role(value.role).is_err()
-        || !status(value.state)
+        || !status(value.access)
     {
         return Err(AdmissionError::Invalid);
     }

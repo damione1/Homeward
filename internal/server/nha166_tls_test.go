@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
+	obsv2 "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"os"
@@ -16,9 +16,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
 	"github.com/damione1/Homeward/internal/mqtt/testbroker"
 	"github.com/damione1/Homeward/internal/readonlyobservation"
 	"github.com/damione1/Homeward/internal/testpg"
@@ -45,10 +42,10 @@ func TestNHA166TLSAttestationRequiresReadAuthorizationAndCollectorUsesOnlyReads(
 	running := nha162StartDefaultRun(t, cfg.startup.WithMQTTReadOnlyObservation())
 	client := nha162RunClient(t, roots, running.address)
 	base := "https://" + running.address.String()
-	observationAPI := observabilityv1connect.NewObservabilityServiceClient(client, base)
+	observationAPI := apiv2connect.NewObservabilityServiceClient(client, base)
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	denied, err := observationAPI.GetHealth(ctx, connect.NewRequest(&obs.GetHealthRequest{}))
+	denied, err := observationAPI.GetHealth(ctx, connect.NewRequest(&obsv2.GetHealthRequest{Name: "homes/synthetic/health"}))
 	if err == nil || denied != nil {
 		t.Fatal("anonymous attestation read admitted")
 	}
@@ -58,12 +55,13 @@ func TestNHA166TLSAttestationRequiresReadAuthorizationAndCollectorUsesOnlyReads(
 	}
 	const login = "NHA166 isolated observer admin"
 	const password = "NHA166_SYNTHETIC_PASSWORD_CANARY"
-	admin := nha162RunBootstrap(t, ctx, data, login, password)
-	tokens := nha162RunLogin(t, ctx, authv1connect.NewAuthServiceClient(client, base), login, password)
-	nha162RunPolicy(t, ctx, authv1connect.NewAuthorizationPolicyServiceClient(client, base), admin, tokens.AccessToken, `  - scope: {family: state_registry, operation: read}
+	nha162RunBootstrap(t, ctx, data, login, password)
+	tokens := nha162RunLogin(t, ctx, apiv2connect.NewAuthServiceClient(client, base), login, password)
+	nha162RunPolicy(t, ctx, apiv2connect.NewAuthorizationPolicyServiceClient(client, base), nha203SessionAccount(t, tokens.Session).String(), tokens.AccessToken, `  - scope: {family: state_registry, operation: read}
     objects: {entities: {all: {capabilities: {all: {}}}}}
 `)
-	health, err := observationAPI.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, tokens.AccessToken))
+	home := nha203ObservationHome(t, ctx, client, base, tokens.AccessToken)
+	health, err := observationAPI.GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, tokens.AccessToken))
 	if err != nil {
 		t.Fatal("authorized health read", err)
 	}
@@ -76,7 +74,7 @@ func TestNHA166TLSAttestationRequiresReadAuthorizationAndCollectorUsesOnlyReads(
 	if err := os.WriteFile(credential, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	configuration := readonlyobservation.Config{URL: base, CAFile: filepath.Join(data, nha181CertificateName), CredentialFile: credential, Instance: "nha166-passive", Expected: binding}
+	configuration := readonlyobservation.Config{URL: base, CAFile: filepath.Join(data, nha181CertificateName), CredentialFile: credential, Instance: nha203ObservationInstanceFromAPI(t, ctx, client, base, tokens.AccessToken, home, "nha166-passive"), Expected: binding}
 	collector, err := readonlyobservation.NewNativeSource(configuration)
 	if err != nil {
 		t.Fatal(err)
@@ -101,8 +99,8 @@ func TestNHA166TLSAttestationRequiresReadAuthorizationAndCollectorUsesOnlyReads(
 	if _, err := actionAPI.ExecuteCapability(ctx, nha056SessionRequest(action, tokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatal("native action did not refuse before driver", err)
 	}
-	keyClient := authv1connect.NewMcpKeyServiceClient(client, base)
-	key, err := keyClient.CreateMcpKey(ctx, nha056SessionRequest(&auth.CreateMcpKeyRequest{ClientName: "nha166-double", Scopes: []*auth.Scope{{Family: auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, Operation: auth.ScopeOperation_SCOPE_OPERATION_READ}, {Family: auth.ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY, Operation: auth.ScopeOperation_SCOPE_OPERATION_READ}}}, tokens.AccessToken))
+	keyClient := apiv2connect.NewMcpKeyServiceClient(client, base)
+	key, err := keyClient.IssueMcpKey(ctx, nha056SessionRequest(&api.IssueMcpKeyRequest{Parent: nha203SessionAccount(t, tokens.Session).String(), ClientName: "nha166-double", Scopes: []*api.Scope{{Family: api.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, Operation: api.ScopeOperation_SCOPE_OPERATION_READ}, {Family: api.ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY, Operation: api.ScopeOperation_SCOPE_OPERATION_READ}}}, tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,11 +119,11 @@ func TestNHA166TLSAttestationRequiresReadAuthorizationAndCollectorUsesOnlyReads(
 			t.Fatal("MCP exposed an action tool", tool.Name)
 		}
 	}
-	nha052Call(t, ctx, mcpSession, "homeward.get_health", map[string]any{}, nil)
+	nha052Call(t, ctx, mcpSession, "homeward.get_health", map[string]any{"name": home + "/health"}, nil)
 	if result, err := mcpSession.CallTool(ctx, &mcp.CallToolParams{Name: "homeward.submit_action", Arguments: map[string]any{}}); err == nil && (result == nil || !result.IsError) {
 		t.Fatal("MCP accepted nonexistent action tool")
 	}
-	final, err := observationAPI.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, tokens.AccessToken))
+	final, err := observationAPI.GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, tokens.AccessToken))
 	if err != nil || final.Header().Get("Homeward-Command-Driver-Entries") != "0" {
 		t.Fatal("API/MCP negative entered physical driver", err)
 	}

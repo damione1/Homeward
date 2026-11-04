@@ -39,7 +39,9 @@ func (v *Violation) Error() string {
 	return fmt.Sprintf("invalid command field %s (%d)", v.field, v.kind)
 }
 
-func reject(field string, kind ViolationKind) error { return &Violation{field: field, kind: kind, root: (&wire.ExecuteCapabilityRequest{}).ProtoReflect().Descriptor()} }
+func reject(field string, kind ViolationKind) error {
+	return &Violation{field: field, kind: kind, root: (&wire.ExecuteCapabilityRequest{}).ProtoReflect().Descriptor()}
+}
 
 // knownFields rejects future executable fields, including nested unknown fields.
 // Unknown observation fields are a different, non-actionable read policy.

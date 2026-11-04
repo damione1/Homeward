@@ -18,8 +18,8 @@ func publicHistoryPeriod(start, end time.Time) *api.HistoryPeriod {
 func publicHistoryScope(q historyquery.Query, cutoff, asOf time.Time) *api.HistoryReadScope {
 	start, end := q.Bounds()
 	resolution := api.HistoryResolution_HISTORY_RESOLUTION_RAW
-	maxPeriod := uint32(168)
-	maxPoints := uint32(historyquery.MaxPoints)
+	maxPeriod := int32(168)
+	maxPoints := int32(historyquery.MaxPoints)
 	retainedStart := cutoff
 	if q.Kind() == historyquery.Aggregates {
 		resolution = api.HistoryResolution_HISTORY_RESOLUTION_HOUR

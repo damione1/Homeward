@@ -44,17 +44,17 @@ func nativeScreenVisibility(values []Visibility) (*wire.DashboardScreenVisibilit
 			continue
 		}
 		minimum, maximum, valid := value.Viewport()
-		if !valid {
+		if !valid || minimum > 65535 || maximum > 65535 {
 			return nil, false
 		}
 		if result == nil {
 			result = &wire.DashboardScreenVisibility{}
 		}
-		if minimum > result.MinWidth {
-			result.MinWidth = minimum
+		if int32(minimum) > result.MinWidth {
+			result.MinWidth = int32(minimum)
 		}
-		if maximum != 0 && (result.MaxWidth == 0 || maximum < result.MaxWidth) {
-			result.MaxWidth = maximum
+		if maximum != 0 && (result.MaxWidth == 0 || int32(maximum) < result.MaxWidth) {
+			result.MaxWidth = int32(maximum)
 		}
 	}
 	return result, result == nil || result.MaxWidth == 0 || result.MinWidth <= result.MaxWidth

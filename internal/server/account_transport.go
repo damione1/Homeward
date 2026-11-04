@@ -58,6 +58,7 @@ func registerAccountRoutes(plan *PublicPlan, store *storage.Store, coordinator *
 		ConnectProcedure{Path: apiv2connect.AccountServiceDeleteAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		ConnectProcedure{Path: apiv2connect.AccountServiceIssueInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		ConnectProcedure{Path: apiv2connect.AccountServiceAcceptInvitationProcedure, Access: RouteAccessAnonymous, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceGetInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		ConnectProcedure{Path: apiv2connect.AccountServiceListInvitationsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		ConnectProcedure{Path: apiv2connect.AccountServiceRevokeInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		ConnectProcedure{Path: apiv2connect.AccountServiceGetSecondFactorPolicyProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},

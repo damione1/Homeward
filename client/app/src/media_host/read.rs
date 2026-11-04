@@ -18,9 +18,6 @@ use std::{
     time::{Instant, SystemTime},
 };
 fn failure(error: &Failure) -> Status {
-    if !matches!(error.authorization_termination(), Ok(None)) {
-        return Status::Denied;
-    }
     match error.api_failure() {
         Err(_) => Status::Contract,
         Ok(Some(error)) => {
@@ -31,7 +28,8 @@ fn failure(error: &Failure) -> Status {
                 R::ServiceUnavailable | R::RequestDeadlineExceeded | R::RequestCancelled => {
                     Status::Offline
                 }
-                R::ValidationFailed
+                R::AuthorityUnavailable
+                | R::ValidationFailed
                 | R::ResourceNotFound
                 | R::ResourceAlreadyExists
                 | R::RequestIdReused

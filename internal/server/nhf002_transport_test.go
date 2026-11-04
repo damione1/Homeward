@@ -15,11 +15,10 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	registryv1 "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
@@ -31,7 +30,7 @@ import (
 )
 
 // TestNHF002TransportServer is an explicitly selected helper, never a serving
-// mode in homed. It runs real SQL, auth/policy and StateService routes; only the
+// mode in homed. It runs real SQL, auth/policy and EntityViewService routes; only the
 // source of observations is synthetic. Its private control files are test
 // barriers, not product RPCs. No command driver or physical pilot is attached.
 func TestNHF002TransportServer(t *testing.T) {
@@ -196,15 +195,20 @@ func TestNHF002TransportServer(t *testing.T) {
 		client.Transport.(*http.Transport).TLSClientConfig.ServerName = "wrong.invalid"
 	}
 	base := "https://" + address.String()
-	auth := authv1connect.NewAuthServiceClient(client, base)
-	tokens := nha162RunLogin(t, ctx, auth, login, password)
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
-	current, err := policies.GetPolicy(ctx, nha141BearerRequest(&authv1.GetPolicyRequest{AccountId: account}, tokens.AccessToken))
-	if err != nil || current.Msg.GetPresent() == nil {
+	auth := apiv2connect.NewAuthServiceClient(client, base)
+	loginResponse, err := auth.StartLogin(ctx, connect.NewRequest(&api.StartLoginRequest{LoginName: login, Password: password}))
+	if err != nil || loginResponse == nil || loginResponse.Msg.Decision.GetAuthenticated() == nil {
+		t.Fatal("fixture v2 login:", err)
+	}
+	tokens := loginResponse.Msg.Decision.GetAuthenticated()
+	policyName := nha203SessionAccount(t, tokens.Session).String() + "/authorizationPolicy"
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
+	current, err := policies.GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: policyName}, tokens.AccessToken))
+	if err != nil || current == nil || current.Msg.Name != policyName {
 		t.Fatal("fixture policy:", err)
 	}
 	policy := fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n  - scope: {family: state_registry, operation: read}\n    objects:\n      entities:\n        explicit:\n          - entity_id: %q\n            capabilities: {explicit: [{schema_id: core.switch.v1, endpoint: relay}]}\n", account.Value, entityID)
-	if _, err := policies.ReplacePolicy(ctx, nha141BearerRequest(&authv1.ReplacePolicyRequest{AccountId: account, YamlSource: []byte(policy), Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, tokens.AccessToken)); err != nil {
+	if _, err := policies.ReplaceAuthorizationPolicy(ctx, nha141BearerRequest(&api.ReplaceAuthorizationPolicyRequest{Name: policyName, YamlSource: []byte(policy), Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: current.Msg.Etag}}, tokens.AccessToken)); err != nil {
 		t.Fatal("fixture policy CAS:", err)
 	}
 	publish := func(sequence uint64) {
@@ -277,7 +281,7 @@ func TestNHF002TransportServer(t *testing.T) {
 				restored = true
 			}
 			if _, err := os.Stat(filepath.Join(out, "revoke")); err == nil && !revoked {
-				if _, err := auth.RevokeSession(ctx, nha141BearerRequest(&authv1.RevokeSessionRequest{SessionId: tokens.Session.Id}, tokens.AccessToken)); err != nil {
+				if _, err := auth.RevokeSession(ctx, nha141BearerRequest(&api.RevokeSessionRequest{Name: tokens.Session.Name}, tokens.AccessToken)); err != nil {
 					t.Fatal("synthetic session revocation:", err)
 				}
 				revoked = true

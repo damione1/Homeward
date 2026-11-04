@@ -193,7 +193,7 @@ func (h *historyV2Handler) QueryAggregates(ctx context.Context, r *connect.Reque
 			if err != nil {
 				return nil, err
 			}
-			point := &api.HistoryAggregate{AggregateId: identity, Bucket: publicHistoryPeriod(record.Start, record.End), Descriptor_: descriptor, Quality: quality, DurationNanos: uint64(values.Duration)}
+			point := &api.HistoryAggregate{AggregateId: identity, Bucket: publicHistoryPeriod(record.Start, record.End), Descriptor_: descriptor, Quality: quality, DurationNanos: int64(values.Duration)}
 			if values.HasMeasurement {
 				point.Minimum = proto.Float64(values.Minimum)
 				point.Maximum = proto.Float64(values.Maximum)

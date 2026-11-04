@@ -205,19 +205,19 @@ func (s *Store) UpdateAccountWithOutcome(ctx context.Context, actor, target cont
 }
 
 func (s *Store) DeleteAccount(ctx context.Context, actor, target contracts.AccountID) error {
-	return s.deleteAccount(ctx, actor, target, nil)
+	return s.deleteAccount(ctx, actor, target, nil, false)
 }
 
 // DeleteAccountIfCurrent checks the public metadata CAS under the existing
 // owner locks; it cannot race a role, display-name or MFA metadata mutation.
-func (s *Store) DeleteAccountIfCurrent(ctx context.Context, actor, target contracts.AccountID, expected AccountVersion) error {
+func (s *Store) DeleteAccountIfCurrent(ctx context.Context, actor, target contracts.AccountID, expected AccountVersion, force bool) error {
 	if !expected.valid {
 		return ErrAccountInvalid
 	}
-	return s.deleteAccount(ctx, actor, target, &expected)
+	return s.deleteAccount(ctx, actor, target, &expected, force)
 }
 
-func (s *Store) deleteAccount(ctx context.Context, actor, target contracts.AccountID, expected *AccountVersion) error {
+func (s *Store) deleteAccount(ctx context.Context, actor, target contracts.AccountID, expected *AccountVersion, force bool) error {
 	targetValue, err := sqlAccountID(target)
 	if err != nil {
 		return err
@@ -243,6 +243,15 @@ func (s *Store) deleteAccount(ctx context.Context, actor, target contracts.Accou
 			}
 			if count <= 1 {
 				return struct{}{}, ErrLastActiveAdmin
+			}
+		}
+		if !force {
+			var children bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.auth_sessions WHERE account_id=$1) OR EXISTS(SELECT 1 FROM public.auth_mfa_credentials WHERE account_id=$1) OR EXISTS(SELECT 1 FROM public.auth_mcp_keys WHERE account_id=$1)`, targetValue).Scan(&children); err != nil {
+				return struct{}{}, err
+			}
+			if children {
+				return struct{}{}, ErrAccountHasChildren
 			}
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM public.auth_login_claims WHERE owner_kind=1 AND owner_id=$1`, targetValue); err != nil {

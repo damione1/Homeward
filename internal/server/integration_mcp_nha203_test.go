@@ -11,7 +11,6 @@ import (
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
@@ -73,10 +72,10 @@ func TestNHA203IntegrationMCPBoundaryPreservesAudienceCredentialAndRevocationTLS
 	read := connect.NewClient[longrunningpb.GetOperationRequest, longrunningpb.Operation](server.Client(), server.URL+getPath)
 	nativeHTTP := nha162RunClient(t, f.roots, f.run.address)
 	origin := "https://" + f.run.address.String()
-	issuer := authv1connect.NewMcpKeyServiceClient(nativeHTTP, origin)
-	issue := func(label string, scope auth.ScopeOperation, lifetime *durationpb.Duration) *auth.CreateMcpKeyResponse {
+	issuer := apiv2connect.NewMcpKeyServiceClient(nativeHTTP, origin)
+	issue := func(label string, scope auth.ScopeOperation, lifetime *durationpb.Duration) *api.IssueMcpKeyResponse {
 		t.Helper()
-		response, err := issuer.CreateMcpKey(f.ctx, nha056SessionRequest(&auth.CreateMcpKeyRequest{ClientName: label, Scopes: []*auth.Scope{{Family: auth.ScopeFamily_SCOPE_FAMILY_INTEGRATIONS, Operation: scope}}, Lifetime: lifetime}, f.token))
+		response, err := issuer.IssueMcpKey(f.ctx, nha056SessionRequest(&api.IssueMcpKeyRequest{Parent: nha203SessionAccount(t, f.tokens.Session).String(), ClientName: label, Scopes: []*api.Scope{{Family: api.ScopeFamily_SCOPE_FAMILY_INTEGRATIONS, Operation: api.ScopeOperation(scope)}}, Lifetime: lifetime}, f.token))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,13 +120,13 @@ func TestNHA203IntegrationMCPBoundaryPreservesAudienceCredentialAndRevocationTLS
 		t.Fatal("other MCP key read origin receipt")
 	}
 	expiring := issue("integration expiring", auth.ScopeOperation_SCOPE_OPERATION_ADMINISTER, durationpb.New(200*time.Millisecond))
-	if wait := time.Until(expiring.Key.ExpiresAt.AsTime()) + 5*time.Millisecond; wait > 0 {
+	if wait := time.Until(expiring.McpKey.ExpireTime.AsTime()) + 5*time.Millisecond; wait > 0 {
 		time.Sleep(wait)
 	}
 	if _, err := create.CallUnary(f.ctx, nha056SessionRequest(&api.CreateIntegrationInstanceRequest{}, expiring.Secret)); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatal("expired MCP credential reached handler", err)
 	}
-	if _, err := issuer.RevokeMcpKey(f.ctx, nha056SessionRequest(&auth.RevokeMcpKeyRequest{KeyId: first.Key.Id}, f.token)); err != nil {
+	if _, err := issuer.RevokeMcpKey(f.ctx, nha056SessionRequest(&api.RevokeMcpKeyRequest{Name: first.McpKey.Name}, f.token)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := read.CallUnary(f.ctx, nha056SessionRequest(&longrunningpb.GetOperationRequest{Name: noChange.Msg.Name}, first.Secret)); connect.CodeOf(err) != connect.CodeUnauthenticated {

@@ -215,7 +215,7 @@ func (h *observationV2Handler) GetIntegrationHealth(ctx context.Context, r *conn
 		request = r.Msg
 	}
 	return observationRead(ctx, h, auth.ScopeFamily_SCOPE_FAMILY_INTEGRATIONS, request, func(p *observationProjection) (*api.IntegrationHealth, error) {
-		text, ok := strings.CutSuffix(request.Name, "/health")
+		text, ok := strings.CutSuffix(request.Name, "/integrationHealth")
 		if !ok {
 			return nil, contracts.ErrInvalidObservabilityContract
 		}
@@ -257,7 +257,7 @@ func (h *observationV2Handler) QueryRuntimeLogs(ctx context.Context, r *connect.
 			if err != nil {
 				return nil, err
 			}
-			result := &api.QueryRuntimeLogsResponse{NextPageToken: next, ProcessEpoch: p.projectProcessObservationEpoch(v.Page.ProcessEpoch), UpperSequence: v.Page.UpperSequence}
+			result := &api.QueryRuntimeLogsResponse{NextPageToken: next, ProcessEpoch: p.projectProcessObservationEpoch(v.Page.ProcessEpoch), UpperSequence: apitypes.DecimalUint64FromNative(v.Page.UpperSequence).String()}
 			for _, row := range v.Page.Rows {
 				result.Rows = append(result.Rows, p.projectRuntimeLogRow(row))
 			}
@@ -366,13 +366,21 @@ func (h *observationV2Handler) QueryRecorderCoverage(ctx context.Context, r *con
 		if request.From == nil {
 			return nil, contracts.ErrInvalidObservabilityContract
 		}
-		query := &native.ReadRecorderCoverageRequest{From: &native.AdmissionPosition{Epoch: append([]byte(nil), request.From.Epoch...), Sequence: request.From.Sequence}}
+		from, err := apitypes.ParseDecimalUint64(request.From.Sequence)
+		if err != nil {
+			return nil, contracts.ErrInvalidObservabilityContract
+		}
+		query := &native.ReadRecorderCoverageRequest{From: &native.AdmissionPosition{Epoch: append([]byte(nil), request.From.Epoch...), Sequence: from.Value()}}
 		switch v := request.Through.(type) {
 		case *api.QueryRecorderCoverageRequest_Position:
 			if v == nil || v.Position == nil {
 				return nil, contracts.ErrInvalidObservabilityContract
 			}
-			query.Through = &native.ReadRecorderCoverageRequest_Position{Position: &native.AdmissionPosition{Epoch: append([]byte(nil), v.Position.Epoch...), Sequence: v.Position.Sequence}}
+			through, err := apitypes.ParseDecimalUint64(v.Position.Sequence)
+			if err != nil {
+				return nil, contracts.ErrInvalidObservabilityContract
+			}
+			query.Through = &native.ReadRecorderCoverageRequest_Position{Position: &native.AdmissionPosition{Epoch: append([]byte(nil), v.Position.Epoch...), Sequence: through.Value()}}
 		case *api.QueryRecorderCoverageRequest_LatestInEpoch:
 			if v == nil || v.LatestInEpoch == nil {
 				return nil, contracts.ErrInvalidObservabilityContract

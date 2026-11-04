@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	cv "github.com/damione1/Homeward/gen/home/calendars/v1"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/calendars"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -106,7 +106,7 @@ func TestNHF015CalendarServer(t *testing.T) {
 	id := r.ids[calendars.Local]
 	seedEvents := func() {
 		for _, seed := range seeds.Events {
-			event := new(cv.Event)
+			event := new(api.CalendarEvent)
 			if err = protojson.Unmarshal(seed.Event, event); err != nil {
 				t.Fatal(err)
 			}
@@ -122,7 +122,7 @@ func TestNHF015CalendarServer(t *testing.T) {
 	certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: r.calendarServer.Certificate().Raw})
 	ids := make(map[string]string)
 	for origin, name := range map[calendars.Origin]string{calendars.Local: "local", calendars.RemoteICS: "remote", calendars.Calculated: "calculated"} {
-		ids[name] = r.ids[origin].EntityId
+		ids[name], _ = r.ids[origin].Value()
 	}
 	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "origin": r.calendarServer.URL, "ca_pem": string(certificate), "entities": ids, "reader": map[string]string{"login_name": "NHA162 Admin", "password": "NHA162 synthetic admin password canary"}, "production_calendars": false})
 	defer nhf003WritePrivate(t, out, "result.json", map[string]any{"real_device_driver_instantiated": false, "real_device_writes": 0, "synthetic_only": true})

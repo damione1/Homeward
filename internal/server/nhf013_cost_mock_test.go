@@ -14,17 +14,14 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	history "github.com/damione1/Homeward/gen/home/history/v1"
-	"github.com/damione1/Homeward/gen/home/history/v1/historyv1connect"
-	registry "github.com/damione1/Homeward/gen/home/registry/v1"
-	state "github.com/damione1/Homeward/gen/home/state/v1"
+	history "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 )
 
 const nhf013MockCostLast = "123456789012345678901234567890.123456789"
-const nhf013MockCostSource = "MOCK coûts synthétiques — aucun tarif de production"
 
 type nhf013MonetaryHistory struct {
-	historyv1connect.HistoryServiceClient
+	apiv2connect.HistoryServiceClient
 	first, last time.Time
 }
 
@@ -47,21 +44,21 @@ func (m nhf013MonetaryHistory) QueryAggregates(ctx context.Context, request *con
 }
 
 func nhf013MonetaryPage(response *history.QueryObservationsResponse, first, last time.Time) {
-	page := response.GetPage()
+	page := response
 	if page == nil {
 		return
 	}
 	// This deliberately sparse monetary surface cannot attest a complete
 	// production total. No temporal location is inferred for missing values.
 	if page.Coverage != nil {
-		page.Coverage.Verdict = history.CoverageVerdict_COVERAGE_VERDICT_INCOMPLETE
+		page.Coverage.Verdict = history.HistoryCoverageVerdict_HISTORY_COVERAGE_VERDICT_NOT_PROVEN
 	}
-	points := make([]*history.Observation, 0, 2)
-	for _, point := range page.Points {
-		if point.GetState().GetReceivedAt() == nil {
+	points := make([]*history.HistoryObservation, 0, 2)
+	for _, point := range page.Observations {
+		if point.GetState().GetReceiveTime() == nil {
 			continue
 		}
-		at := point.State.ReceivedAt.AsTime()
+		at := point.State.ReceiveTime.AsTime()
 		var decimal string
 		switch {
 		case at.Equal(first):
@@ -71,16 +68,15 @@ func nhf013MonetaryPage(response *history.QueryObservationsResponse, first, last
 		default:
 			continue // Empty pages retain their actual progress token.
 		}
-		point.State.Value = &state.ObservedState_Measurement{Measurement: &state.Measurement{Unit: "CAD", DecimalValue: &decimal}}
-		point.State.SourceSession = nhf013MockCostSource
-		point.State.Quality = &state.Quality{Availability: state.Availability_AVAILABILITY_AVAILABLE, Freshness: state.Freshness_FRESHNESS_FRESH, Provenance: state.Provenance_PROVENANCE_ESTIMATED}
+		point.State.Value = &history.HistoricalState_Measurement{Measurement: &history.HistoricalMeasurement{Unit: "CAD", DecimalValue: &decimal}}
+		point.State.Quality = &history.ObservationQuality{Availability: history.Availability_AVAILABILITY_AVAILABLE, Freshness: history.Freshness_FRESHNESS_CURRENT, Provenance: history.Provenance_PROVENANCE_ESTIMATED}
 		// Provisional existing-contract representation: a count of CAD units,
 		// never energy or a convertible USD amount. Production monetary domain
 		// semantics and exact aggregate storage remain a server follow-up.
-		point.Descriptor_ = &history.NumericDescriptor{Unit: "CAD", CanonicalUnit: "CAD", Dimension: history.Dimension_DIMENSION_COUNT, Scale: 1, Precision: 9, Semantic: registry.MeasurementSemantic_MEASUREMENT_SEMANTIC_TOTAL, Aggregation: registry.MeasurementAggregation_MEASUREMENT_AGGREGATION_SUM}
+		point.Descriptor_ = &history.HistoryNumericDescriptor{Unit: "CAD", CanonicalUnit: "CAD", Dimension: history.HistoryDimension_HISTORY_DIMENSION_COUNT, Scale: 1, Precision: 9, Semantic: history.MeasurementSemantic_MEASUREMENT_SEMANTIC_TOTAL, Aggregation: history.MeasurementAggregation_MEASUREMENT_AGGREGATION_SUM}
 		points = append(points, point)
 	}
-	page.Points = points
+	page.Observations = points
 }
 
 func nhf013CostMock(t *testing.T, upstream string, client *http.Client, data string, first, last time.Time) string {
@@ -92,7 +88,7 @@ func nhf013CostMock(t *testing.T, upstream string, client *http.Client, data str
 	forward := httputil.NewSingleHostReverseProxy(target)
 	forward.Transport = client.Transport
 	mux := http.NewServeMux()
-	path, handler := historyv1connect.NewHistoryServiceHandler(nhf013MonetaryHistory{HistoryServiceClient: historyv1connect.NewHistoryServiceClient(client, upstream), first: first, last: last}, connect.WithReadMaxBytes(256<<10))
+	path, handler := apiv2connect.NewHistoryServiceHandler(nhf013MonetaryHistory{HistoryServiceClient: apiv2connect.NewHistoryServiceClient(client, upstream), first: first, last: last}, connect.WithReadMaxBytes(256<<10))
 	mux.Handle(path, handler)
 	mux.Handle("/", forward)
 	proxy := httptest.NewUnstartedServer(mux)

@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
+	"github.com/damione1/Homeward/internal/apierrors"
 	"io"
 	"net"
 	"net/http"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,10 +21,8 @@ import (
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
-	statewire "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -36,107 +33,14 @@ import (
 	"github.com/damione1/Homeward/internal/view"
 	"github.com/damione1/Homeward/scope"
 	"github.com/jackc/pgx/v5"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// This is a fixture façade over the existing view.Service, composed through
-// Run's real port.
+// Fixture delegates every public EntityView RPC to the production handler.
 type nha050StateHandler struct {
-	apiv2connect.UnimplementedEntityViewServiceHandler
-	service *view.Service
-	entered chan struct{}
-}
-
-func (h *nha050StateHandler) QueryEntityView(ctx context.Context, r *connect.Request[api.QueryEntityViewRequest]) (*connect.Response[api.QueryEntityViewResponse], error) {
-	actor, ok := ActorFromContext(ctx)
-	if !ok {
-		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("missing actor"))
-	}
-	if r.Msg.PageToken != "" {
-		parts := strings.SplitN(r.Msg.PageToken, "|", 2)
-		if len(parts) != 2 {
-			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("new snapshot required"))
-		}
-		page, err := h.service.ReadPage(ctx, actor, parts[0], parts[1])
-		if err != nil {
-			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("new snapshot required"))
-		}
-		wire, err := view.EncodePage(page)
-		if err != nil {
-			return nil, err
-		}
-		entries := make([]*api.EntityViewEntry, 0, len(wire.Entities))
-		for _, e := range wire.Entities {
-			entries = append(entries, &api.EntityViewEntry{Entity: &api.Entity{Name: e.EntityId}})
-		}
-		return connect.NewResponse(&api.QueryEntityViewResponse{Entries: entries}), nil
-	}
-	page, err := h.service.OpenView(ctx, actor, view.All(), int(r.Msg.PageSize))
-	if err != nil {
-		return nil, err
-	}
-	wire, err := view.EncodePage(page)
-	if err != nil {
-		return nil, err
-	}
-	entries := make([]*api.EntityViewEntry, 0, len(wire.Entities))
-	for _, e := range wire.Entities {
-		entries = append(entries, &api.EntityViewEntry{Entity: &api.Entity{Name: e.EntityId}})
-	}
-	cursorBytes, err := proto.Marshal(wire.Cursor)
-	if err != nil {
-		return nil, err
-	}
-	nextToken := ""
-	if wire.NextPageToken != "" {
-		nextToken = wire.SnapshotToken + "|" + wire.NextPageToken
-	}
-	return connect.NewResponse(&api.QueryEntityViewResponse{
-		Entries:       entries,
-		NextPageToken: nextToken,
-		ResumeToken:   hex.EncodeToString(cursorBytes),
-	}), nil
-}
-
-func (h *nha050StateHandler) WatchEntityView(ctx context.Context, r *connect.Request[api.WatchEntityViewRequest], stream *connect.ServerStream[api.WatchEntityViewResponse]) error {
-	actor, ok := ActorFromContext(ctx)
-	if !ok {
-		return connect.NewError(connect.CodeUnauthenticated, errors.New("missing actor"))
-	}
-	cursorBytes, err := hex.DecodeString(r.Msg.ResumeToken)
-	if err != nil {
-		return err
-	}
-	cursor := new(statewire.ViewCursor)
-	if err := proto.Unmarshal(cursorBytes, cursor); err != nil {
-		return err
-	}
-	watch, err := h.service.WatchView(ctx, actor, &statewire.WatchViewRequest{Cursor: cursor, Filter: &statewire.ViewFilter{}})
-	if err != nil {
-		return err
-	}
-	defer watch.Close()
-	h.entered <- struct{}{}
-	for {
-		frame, err := watch.Next(ctx)
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		out := &api.WatchEntityViewResponse{}
-		if frame.GetDelta() != nil && len(frame.GetDelta().States) > 0 {
-			out.ResumeToken = "delta"
-			out.Change = &api.WatchEntityViewResponse_Upsert{Upsert: &api.EntityViewEntry{Entity: &api.Entity{Name: frame.GetDelta().States[0].GetEntity().GetEntityId()}}}
-		} else if frame.GetResyncRequired() != nil {
-			out.ResumeToken = frame.GetResyncRequired().GetReason().String()
-		}
-		if err := stream.Send(out); err != nil {
-			return err
-		}
-	}
+	*homeResourceHandler
 }
 
 type nha050ViewConfig struct{ stamp view.ConfigStamp }
@@ -205,7 +109,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 			}
 			fixture.entities = append(fixture.entities, resolved.Entity)
 		}
-		fixture.state = &nha050StateHandler{entered: make(chan struct{}, 4)}
+		fixture.state = &nha050StateHandler{}
 		plan, err := NewPublicPlan(nil, nil, accountTransportAudit{store: store})
 		if err != nil {
 			return RuntimePlan{}, err
@@ -213,6 +117,8 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 		err = plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {
 			return apiv2connect.NewEntityViewServiceHandler(fixture.state, options...)
 		},
+			ConnectProcedure{Path: apiv2connect.EntityViewServiceCreateEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+			ConnectProcedure{Path: apiv2connect.EntityViewServiceDeleteEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 			ConnectProcedure{Path: apiv2connect.EntityViewServiceQueryEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 			ConnectProcedure{Path: apiv2connect.EntityViewServiceWatchEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream, Transport: RouteTransportTLSRequired})
 		if err != nil {
@@ -268,7 +174,13 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			fixture.state.service, err = composition.NewViewService(nha050ViewConfig{stamp}, sequencer.RealClock{})
+			native := composition.ViewAuthorizer().(*policyViewAuthorizer)
+			core := &coreRPCHandler{epoch: native.source}
+			views, err := composition.NewViewService(nha050ViewConfig{stamp}, sequencer.RealClock{}, core.capabilityProjector(repository, native.authority))
+			if err != nil {
+				return err
+			}
+			fixture.state.homeResourceHandler, err = newHomeResourceHandler(repository, native.authority, views)
 			if err == nil {
 				fixture.commands, err = integrations.NewVolatileCommandService(fixture.host, nha094Generation{}, integrations.DefaultVolatileCommandLimits())
 			}
@@ -342,23 +254,23 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	defer operatorHTTP.CloseIdleConnections()
 	operator := operatorv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
 	const password = "NHA050 synthetic native policy password"
-	admin, err := operator.BootstrapAdmin(ctx, connect.NewRequest(&authv1.BootstrapAdminRequest{LoginName: "NHA050 Admin", DisplayName: "NHA050 Admin", Password: password}))
+	_, err = operator.BootstrapAdmin(ctx, connect.NewRequest(&authv1.BootstrapAdminRequest{LoginName: "NHA050 Admin", DisplayName: "NHA050 Admin", Password: password}))
 	if err != nil {
 		t.Fatal("first admin after zero-account hydration", err)
 	}
-	login := func(name string) *authv1.SessionTokens {
+	login := func(name string) *api.SessionTokens {
 		t.Helper()
-		response, err := authv1connect.NewAuthServiceClient(client, url()).StartLogin(ctx, connect.NewRequest(&authv1.StartLoginRequest{LoginName: name, Password: password}))
+		response, err := apiv2connect.NewAuthServiceClient(client, url()).StartLogin(ctx, connect.NewRequest(&api.StartLoginRequest{LoginName: name, Password: password}))
 		if err != nil || response.Msg.Decision.GetAuthenticated() == nil {
 			t.Fatal("native login", err)
 		}
 		return response.Msg.Decision.GetAuthenticated()
 	}
 	adminTokens := login("NHA050 Admin")
-	policyClient := func() authv1connect.AuthorizationPolicyServiceClient {
-		return authv1connect.NewAuthorizationPolicyServiceClient(client, url())
+	policyClient := func() apiv2connect.AuthorizationPolicyServiceClient {
+		return apiv2connect.NewAuthorizationPolicyServiceClient(client, url())
 	}
-	accountsClient := func() authv1connect.AccountServiceClient { return authv1connect.NewAccountServiceClient(client, url()) }
+	accountsClient := func() apiv2connect.AccountServiceClient { return apiv2connect.NewAccountServiceClient(client, url()) }
 	stateClient := func() apiv2connect.EntityViewServiceClient {
 		return apiv2connect.NewEntityViewServiceClient(client, url())
 	}
@@ -401,18 +313,18 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 			t.Fatalf("native Run driver emitted %d commands, want %d", got, wantEmitted)
 		}
 	}
-	user, err := accountsClient().CreateAccount(ctx, nha141BearerRequest(&authv1.CreateAccountRequest{LoginName: "NHA050 User", DisplayName: "NHA050 User", Role: authv1.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}, adminTokens.AccessToken))
+	user, err := accountsClient().CreateAccount(ctx, nha141BearerRequest(&api.CreateAccountRequest{Parent: nha203SessionAccount(t, adminTokens.Session).Home().String(), Account: &api.Account{LoginName: "NHA050 User", DisplayName: "NHA050 User", Role: api.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}}, adminTokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	userTokens := login("NHA050 User")
-	getPolicy := func() *authv1.PolicySnapshot {
+	getPolicy := func() *api.AuthorizationPolicy {
 		t.Helper()
-		response, err := policyClient().GetPolicy(ctx, nha141BearerRequest(&authv1.GetPolicyRequest{AccountId: user.Msg.Account.Id}, adminTokens.AccessToken))
-		if err != nil || response.Msg.GetPresent() == nil {
+		response, err := policyClient().GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: user.Msg.Name + "/authorizationPolicy"}, adminTokens.AccessToken))
+		if err != nil || response == nil {
 			t.Fatal("policy read", err)
 		}
-		return response.Msg.GetPresent()
+		return response.Msg
 	}
 	seed := getPolicy()
 	storedRevision := func() int64 {
@@ -420,7 +332,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 		var revision int64
 		if err := fixture.store.InTransaction(ctx, func(tx pgx.Tx) error {
 			return tx.QueryRow(ctx, `SELECT d.last_revision FROM public.config_documents d
-				JOIN public.authorization_policy_active p ON p.document_id=d.id WHERE p.account_id=$1`, user.Msg.Account.Id.Value).Scan(&revision)
+				JOIN public.authorization_policy_active p ON p.document_id=d.id WHERE p.account_id=$1`, nha203AccountText(t, nha203NativeAccount(t, ctx, fixture.store, user.Msg.Name))).Scan(&revision)
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -429,54 +341,76 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	beforeRejected := storedRevision()
 	for _, rejected := range []struct {
 		name   string
-		mutate func(*authv1.ReplacePolicyRequest)
-		code   authv1.AuthorizationPolicyErrorCode
+		mutate func(*api.ReplaceAuthorizationPolicyRequest)
 		path   string
 	}{
-		{"empty-source", func(r *authv1.ReplacePolicyRequest) { r.YamlSource = nil }, authv1.AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE, "yaml_source"},
-		{"non-utf8-source", func(r *authv1.ReplacePolicyRequest) { r.YamlSource = []byte{0xff} }, authv1.AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE, "yaml_source"},
-		{"source-N-plus-one", func(r *authv1.ReplacePolicyRequest) {
+		{"empty-source", func(r *api.ReplaceAuthorizationPolicyRequest) { r.YamlSource = nil }, "yaml_source"},
+		{"non-utf8-source", func(r *api.ReplaceAuthorizationPolicyRequest) { r.YamlSource = []byte{0xff} }, "yaml_source"},
+		{"source-N-plus-one", func(r *api.ReplaceAuthorizationPolicyRequest) {
 			r.YamlSource = bytes.Repeat([]byte{'x'}, authorization.MaxSourceBytes+1)
-		}, authv1.AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE, "yaml_source"},
-		{"absent-precondition", func(r *authv1.ReplacePolicyRequest) { r.Precondition = nil }, authv1.AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION, "precondition"},
-		{"zero-revision", func(r *authv1.ReplacePolicyRequest) { r.GetExpected().Revision = 0 }, authv1.AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION, "precondition"},
-		{"short-hash", func(r *authv1.ReplacePolicyRequest) { r.GetExpected().SourceSha256 = []byte{1} }, authv1.AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION, "precondition"},
+		}, "yaml_source"},
+		{"absent-precondition", func(r *api.ReplaceAuthorizationPolicyRequest) { r.Precondition = nil }, "precondition"},
+		{"empty-etag", func(r *api.ReplaceAuthorizationPolicyRequest) {
+			r.Precondition = &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{}
+		}, "expected_etag"},
+		{"malformed-etag", func(r *api.ReplaceAuthorizationPolicyRequest) {
+			r.Precondition = &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: "invalid"}
+		}, "expected_etag"},
 	} {
 		t.Run(rejected.name, func(t *testing.T) {
-			request := &authv1.ReplacePolicyRequest{AccountId: proto.Clone(user.Msg.Account.Id).(*authv1.AccountId), YamlSource: bytes.Clone(seed.YamlSource),
-				Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: proto.Clone(seed.Version).(*authv1.PolicyVersion)}}
+			request := &api.ReplaceAuthorizationPolicyRequest{Name: seed.Name, YamlSource: bytes.Clone(seed.YamlSource), Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: seed.Etag}}
 			rejected.mutate(request)
-			_, err := policyClient().ReplacePolicy(ctx, nha141BearerRequest(request, adminTokens.AccessToken))
-			var connectErr *connect.Error
-			if connect.CodeOf(err) != connect.CodeInvalidArgument || !errors.As(err, &connectErr) {
-				t.Fatal("wrong rejected policy wire class", err)
+			_, err := policyClient().ReplaceAuthorizationPolicy(ctx, nha141BearerRequest(request, adminTokens.AccessToken))
+			var ce *connect.Error
+			if connect.CodeOf(err) != connect.CodeInvalidArgument || !errors.As(err, &ce) {
+				t.Fatal("wrong rejected policy class", err)
 			}
 			found := false
-			for _, detail := range connectErr.Details() {
+			for _, detail := range ce.Details() {
 				value, decodeErr := detail.Value()
-				if diagnostic, ok := value.(*authv1.AuthorizationPolicyError); decodeErr == nil && ok {
-					found = diagnostic.Code == rejected.code && diagnostic.FieldPath == rejected.path
+				if diagnostic, ok := value.(*errdetails.BadRequest); decodeErr == nil && ok {
+					for _, violation := range diagnostic.FieldViolations {
+						if violation.Field == rejected.path {
+							found = true
+						}
+					}
 				}
 			}
 			if !found {
-				t.Fatal("wrong typed policy diagnostic", err)
+				t.Fatal("missing canonical field diagnostic", err)
 			}
 			if current := getPolicy(); !proto.Equal(current, seed) || storedRevision() != beforeRejected {
-				t.Fatal("rejected source/CAS mutated active policy or source versions")
+				t.Fatal("rejected source/CAS mutated policy")
 			}
 		})
 	}
-	_, err = policyClient().GetPolicy(ctx, nha141BearerRequest(&authv1.GetPolicyRequest{AccountId: admin.Msg.Account.Id}, userTokens.AccessToken))
+
+	_, err = policyClient().GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: nha203SessionAccount(t, adminTokens.Session).String() + "/authorizationPolicy"}, userTokens.AccessToken))
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatal("user policy administration admitted", err)
 	}
+	captureNames := make(map[*api.QueryEntityViewResponse]string)
 	open := func(access string) *api.QueryEntityViewResponse {
 		t.Helper()
-		response, err := stateClient().QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{PageSize: 1}, access))
+		created, err := stateClient().CreateEntityView(ctx, nha141BearerRequest(&api.CreateEntityViewRequest{Parent: nha203SessionAccount(t, adminTokens.Session).Home().String(), EntityView: &api.EntityView{}}, access))
 		if err != nil {
-			t.Fatal("native view", err)
+			t.Fatal("create view", err)
 		}
-		return response.Msg
+		response, err := stateClient().QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{Name: created.Msg.Name, PageSize: 1}, access))
+		if err != nil {
+			t.Fatal("query view", err)
+		}
+		first := response.Msg
+		captureNames[first] = created.Msg.Name
+		for token := first.NextPageToken; token != ""; {
+			next, err := stateClient().QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{Name: created.Msg.Name, PageSize: 1, PageToken: token}, access))
+			if err != nil {
+				t.Fatal("finish capture", err)
+			}
+			token = next.Msg.NextPageToken
+			first.ResumeToken = next.Msg.ResumeToken
+		}
+		return first
 	}
 	if initial := open(userTokens.AccessToken); len(initial.Entries) != 0 {
 		t.Fatal("empty user seed exposed equipment")
@@ -486,19 +420,19 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	}
 	dispatch(userTokens.AccessToken, "nha050-run-empty-user", http.StatusForbidden, 0)
 	dispatch(adminTokens.AccessToken, "nha050-run-empty-admin", http.StatusForbidden, 0)
-	account, _ := contracts.ParseAccountID(user.Msg.Account.Id.Value)
-	allSource := []byte("schema: homeward.authorization/1\naccount_id: \"" + user.Msg.Account.Id.Value + "\"\ngrants:\n  - scope: {family: state_registry, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n  - scope: {family: actions, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n  - scope: {family: actions, operation: write}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n")
+	account, _ := contracts.ParseAccountID(nha203AccountText(t, nha203NativeAccount(t, ctx, fixture.store, user.Msg.Name)))
+	allSource := []byte("schema: homeward.authorization/1\naccount_id: \"" + nha203AccountText(t, nha203NativeAccount(t, ctx, fixture.store, user.Msg.Name)) + "\"\ngrants:\n  - scope: {family: state_registry, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n  - scope: {family: actions, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n  - scope: {family: actions, operation: write}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n")
 	if _, err := authorization.AdmitPolicySource(account, allSource); err != nil {
 		t.Fatal(err)
 	}
-	replace := func(version *authv1.PolicyVersion, source []byte) (*connect.Response[authv1.ReplacePolicyResponse], error) {
-		return policyClient().ReplacePolicy(ctx, nha141BearerRequest(&authv1.ReplacePolicyRequest{AccountId: user.Msg.Account.Id, YamlSource: source, Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: version}}, adminTokens.AccessToken))
+	replace := func(etag string, source []byte) (*connect.Response[api.ReplaceAuthorizationPolicyResponse], error) {
+		return policyClient().ReplaceAuthorizationPolicy(ctx, nha141BearerRequest(&api.ReplaceAuthorizationPolicyRequest{Name: user.Msg.Name + "/authorizationPolicy", YamlSource: source, Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: etag}}, adminTokens.AccessToken))
 	}
-	changed, err := replace(seed.Version, allSource)
-	if err != nil || changed.Msg.RightsChange != authv1.PolicyRightsChange_POLICY_RIGHTS_CHANGE_CHANGED {
+	changed, err := replace(seed.Etag, allSource)
+	if err != nil || changed.Msg.RightsChange != api.PolicyRightsChange_POLICY_RIGHTS_CHANGE_CHANGED {
 		t.Fatal("CAS policy", err)
 	}
-	if _, err := replace(seed.Version, allSource); connect.CodeOf(err) != connect.CodeAborted {
+	if _, err := replace(seed.Etag, allSource); connect.CodeOf(err) != connect.CodeAborted {
 		t.Fatal("stale CAS admitted", err)
 	}
 	publish := func(on bool) {
@@ -525,7 +459,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	watch := func(page *api.QueryEntityViewResponse) {
 		t.Helper()
 		go func() {
-			stream, err := stateClient().WatchEntityView(ctx, nha141BearerRequest(&api.WatchEntityViewRequest{ResumeToken: page.ResumeToken}, userTokens.AccessToken))
+			stream, err := stateClient().WatchEntityView(ctx, nha141BearerRequest(&api.WatchEntityViewRequest{Name: captureNames[page], ResumeToken: page.ResumeToken}, userTokens.AccessToken))
 			if err == nil {
 				for stream.Receive() {
 					frames <- proto.Clone(stream.Msg()).(*api.WatchEntityViewResponse)
@@ -534,8 +468,14 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 			}
 			watchDone <- err
 		}()
+		// A replayable observation confirms that this exact production Watch
+		// has admitted the capture before the policy transaction starts.
+		publish(false)
 		select {
-		case <-fixture.state.entered:
+		case frame := <-frames:
+			if frame.GetUpsert() == nil || frame.ResumeToken == "" {
+				t.Fatal("watch barrier", frame)
+			}
 		case err := <-watchDone:
 			t.Fatal("watch admission", err)
 		case <-ctx.Done():
@@ -543,14 +483,14 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 		}
 	}
 	watch(page)
-	noOp, err := replace(changed.Msg.Policy.Version, append(append([]byte(nil), allSource...), []byte("# same effective rights\n")...))
-	if err != nil || noOp.Msg.RightsChange != authv1.PolicyRightsChange_POLICY_RIGHTS_CHANGE_UNCHANGED {
+	noOp, err := replace(changed.Msg.Policy.Etag, append(append([]byte(nil), allSource...), []byte("# same effective rights\n")...))
+	if err != nil || noOp.Msg.RightsChange != api.PolicyRightsChange_POLICY_RIGHTS_CHANGE_UNCHANGED {
 		t.Fatal("source-only edit revoked policy", err)
 	}
 	publish(true)
 	select {
 	case frame := <-frames:
-		if frame.GetUpsert() == nil || frame.ResumeToken != "delta" {
+		if frame.GetUpsert() == nil || frame.ResumeToken == "" {
 			t.Fatal("no-op terminated active view", frame)
 		}
 	case err := <-watchDone:
@@ -560,40 +500,19 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	}
 	empty, _ := authorization.EmptySource(account)
 	emptyBytes, _ := empty.Bytes()
-	withdrawn, err := replace(noOp.Msg.Policy.Version, emptyBytes)
+	withdrawn, err := replace(noOp.Msg.Policy.Etag, emptyBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	watchFinished := false
 	select {
-	case frame := <-frames:
-		if frame.ResumeToken != statewire.ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED.String() {
-			t.Fatal("idle stream not invalidated", frame)
-		}
 	case err := <-watchDone:
-		if err != nil {
-			t.Fatal("rights stream failed", err)
-		}
-		watchFinished = true
-		// The producer queues every received frame before reporting EOF. Both
-		// channels can already be ready when select runs after the CAS response.
-		select {
-		case frame := <-frames:
-			if frame.ResumeToken != statewire.ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED.String() {
-				t.Fatal("idle stream not invalidated", frame)
-			}
-		default:
-			t.Fatal("stream EOF without rights resync")
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition && connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatal("idle stream not invalidated", err)
 		}
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	if !watchFinished {
-		if err := <-watchDone; err != nil {
-			t.Fatal(err)
-		}
-	}
-	_, err = stateClient().QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{PageToken: page.NextPageToken}, userTokens.AccessToken))
+	_, err = stateClient().QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{Name: captureNames[page], PageToken: page.NextPageToken}, userTokens.AccessToken))
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatal("old page survived rights withdrawal", err)
 	}
@@ -601,7 +520,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 		t.Fatal("new empty view exposed retired rights")
 	}
 	dispatch(userTokens.AccessToken, "nha050-run-withdrawn", http.StatusForbidden, 1)
-	restored, err := replace(withdrawn.Msg.Policy.Version, allSource)
+	restored, err := replace(withdrawn.Msg.Policy.Etag, allSource)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -612,7 +531,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	_, err = replace(restored.Msg.Policy.Version, emptyBytes)
+	_, err = replace(restored.Msg.Policy.Etag, emptyBytes)
 	if connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatal("unknown commit reported success", err)
 	}
@@ -628,7 +547,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	for _, detail := range connectErr.Details() {
 		value, err := detail.Value()
 		if err == nil {
-			if ended, ok := value.(*authv1.AuthorizationTermination); ok && ended.Reason == authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE {
+			if ended, ok := value.(*errdetails.ErrorInfo); ok && ended.Domain == apierrors.Domain() && ended.Reason == "AUTHORITY_UNAVAILABLE" {
 				purge = true
 			}
 		}
@@ -651,7 +570,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	stop()
 	client.CloseIdleConnections()
 	start()
-	if got := getPolicy(); !proto.Equal(got.Version, beforeRestart.Version) || string(got.YamlSource) != string(beforeRestart.YamlSource) {
+	if got := getPolicy(); got.Etag != beforeRestart.Etag || string(got.YamlSource) != string(beforeRestart.YamlSource) {
 		t.Fatal("restart changed persisted policy")
 	}
 	if len(open(userTokens.AccessToken).Entries) != 1 {

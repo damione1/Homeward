@@ -19,15 +19,12 @@ func TestNHF009PathlessNativeRoutesPreserveExplicitHASourcePaths(t *testing.T) {
   sections: []
 `)
 	definition, _ := result.Definition()
-	layout, err := ProjectNativeLayout(result, LayoutProjection{Support: nhf009LayoutSupport(), Entity: nhf009ResolveEverySyntheticAlias})
-	if err != nil {
-		t.Fatal(err)
-	}
+	layout := projectAPIFixture(t, result)
 	want := []string{"$.views[0]", "explicit", "$.views[2]"}
 	for index, id := range layout.Views {
 		for _, node := range layout.Nodes {
-			if node.Id == id && node.Route != want[index] {
-				t.Fatalf("source view %d has no distinct native route: %q", index, node.Route)
+			if node.Id == id && node.GetView().GetRoute() != want[index] {
+				t.Fatalf("source view %d has no distinct native route: %q", index, node.GetView().GetRoute())
 			}
 		}
 	}

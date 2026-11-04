@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/damione1/Homeward/internal/apitypes"
 
 	"connectrpc.com/connect"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
@@ -88,7 +89,7 @@ func (h *historyV2Handler) QueryExecutionTraces(ctx context.Context, r *connect.
 	if _, err = h.native.capture(leased, q, &admitted.binding); err != nil {
 		return nil, err
 	}
-	out := &api.QueryExecutionTracesResponse{Scope: publicHistoryScope(q, page.Cutoff, page.AsOf)}
+	out := &api.QueryExecutionTracesResponse{Scope: publicHistoryScope(q, page.Cutoff, page.AsOf), Checkpoint: "0", CommitHigh: "0"}
 	if !end.After(page.Cutoff) {
 		return historyV2Response(leased, h, q, admitted.binding, selection.Home(), out, admitted.ready, func() { page.Release(); release(); cancel() }, &retained)
 	}
@@ -105,8 +106,11 @@ func (h *historyV2Handler) QueryExecutionTraces(ctx context.Context, r *connect.
 	out.InterruptedPredecessor = page.InterruptedPredecessor
 	out.EpochInterrupted = page.EpochState == storage.HistoryEpochInterrupted
 	out.ScopeReduced = page.ScopeReduced
-	out.Checkpoint = page.Checkpoint
-	out.CommitHigh = uint64(page.CommitHigh)
+	out.Checkpoint = apitypes.DecimalUint64FromNative(page.Checkpoint).String()
+	if page.CommitHigh < 0 {
+		return nil, historyquery.ErrIntegrity
+	}
+	out.CommitHigh = apitypes.DecimalUint64FromNative(uint64(page.CommitHigh)).String()
 	for _, record := range page.Records {
 		if record.Record.ID().Epoch() != page.Epoch {
 			return nil, historyquery.ErrIntegrity
@@ -122,7 +126,7 @@ func (h *historyV2Handler) QueryExecutionTraces(ctx context.Context, r *connect.
 		if err != nil {
 			return nil, err
 		}
-		out.Losses = append(out.Losses, &api.HistoryTraceLoss{Reason: reason, KnownCount: loss.KnownCount, From: timestamppb.New(loss.From), Through: timestamppb.New(loss.Through), UncertainEnvelope: loss.UncertainEnvelope})
+		out.Losses = append(out.Losses, &api.HistoryTraceLoss{Reason: reason, KnownCount: apitypes.DecimalUint64FromNative(loss.KnownCount).String(), From: timestamppb.New(loss.From), Through: timestamppb.New(loss.Through), UncertainEnvelope: loss.UncertainEnvelope})
 	}
 	if page.Next != nil {
 		raw, err := page.Next.MarshalBinary()

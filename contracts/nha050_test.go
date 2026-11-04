@@ -2,54 +2,15 @@ package contracts
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	api "github.com/damione1/Homeward/gen/home/api/v2"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
-
-func TestNHA050NativeTerminationCrossLanguageFixtures(t *testing.T) {
-	index, err := os.ReadFile(filepath.Join("authorization_golden", "index.tsv"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, line := range strings.Split(strings.TrimSpace(string(index)), "\n") {
-		parts := strings.Split(line, "\t")
-		if len(parts) != 3 {
-			t.Fatal("invalid fixture index")
-		}
-		// Only termination is still a current native protocol. Retired policy
-		// bytes are checked by the historical SHA manifest, without a decoder.
-		if parts[1] != "AuthorizationTermination" {
-			continue
-		}
-		t.Run(parts[0], func(t *testing.T) {
-			data, err := os.ReadFile(filepath.Join("authorization_golden", parts[0]+".bin"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			value := new(auth.AuthorizationTermination)
-			if err := proto.Unmarshal(data, value); err != nil {
-				t.Fatal(err)
-			}
-			out, err := (proto.MarshalOptions{Deterministic: true}).Marshal(value)
-			if err != nil || !bytes.Equal(data, out) {
-				t.Fatal("native fixture wire drift", err)
-			}
-			_, err = AdmitAuthorizationTermination(value)
-			if (err == nil) != (parts[2] == "true") {
-				t.Fatal("cross-language admission disagrees", err)
-			}
-		})
-	}
-}
 
 func TestNHA050PolicyWireCASPresenceAndCopies(t *testing.T) {
 	name := "homes/home-a/accounts/account-a/authorizationPolicy"
@@ -125,15 +86,6 @@ func TestNHA050PolicyWireCASPresenceAndCopies(t *testing.T) {
 		mutate(value)
 		if _, err := AdmitAPIAuthorizationPolicy(value); err == nil {
 			t.Fatal("invalid default metadata admitted")
-		}
-	}
-}
-
-func TestNHA050ClosedNativeTermination(t *testing.T) {
-	for _, reason := range []auth.AuthorizationTerminationReason{0, 1, 2, 3, 4, 5, 999} {
-		_, err := AdmitAuthorizationTermination(&auth.AuthorizationTermination{Reason: reason})
-		if (err == nil) != (reason > 0 && reason <= 5) {
-			t.Fatalf("termination %v: %v", reason, err)
 		}
 	}
 }

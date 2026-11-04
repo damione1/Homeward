@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	"github.com/damione1/Homeward/gen/home/configuration/v1/configurationv1connect"
-	wire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
-	"github.com/damione1/Homeward/gen/home/configurationplan/v1/configurationplanv1connect"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationplanv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/testpg"
 	"google.golang.org/protobuf/proto"
@@ -45,9 +45,9 @@ func nha053StartEcobeeScopeTLS(t *testing.T) nha053TLSFixture {
 	t.Cleanup(cancel)
 	const password = "NHA053 synthetic isolated password"
 	nha162RunBootstrap(t, ctx, data, "NHA053 admin", password)
-	authentication := authv1connect.NewAuthServiceClient(client, base)
+	authentication := apiv2connect.NewAuthServiceClient(client, base)
 	tokens := nha162RunLogin(t, ctx, authentication, "NHA053 admin", password)
-	return nha053TLSFixture{nha149TLSFixture: nha149TLSFixture{api: configurationv1connect.NewConfigurationServiceClient(client, base), authentication: authentication, accounts: authv1connect.NewAccountServiceClient(client, base), tokens: tokens, token: tokens.AccessToken, path: path, raw: source.Bytes(), run: run, ctx: ctx}, plans: configurationplanv1connect.NewConfigurationPlanServiceClient(client, base), policies: authv1connect.NewAuthorizationPolicyServiceClient(client, base)}
+	return nha053TLSFixture{nha149TLSFixture: nha149TLSFixture{http: client, origin: base, home: nha203PublicHomeName(t, ctx, client, base, tokens.AccessToken), api: configurationv1connect.NewConfigurationServiceClient(client, base), authentication: authentication, accounts: apiv2connect.NewAccountServiceClient(client, base), tokens: tokens, token: tokens.AccessToken, path: path, raw: source.Bytes(), run: run, ctx: ctx}, plans: configurationplanv1connect.NewConfigurationPlanServiceClient(client, base), policies: apiv2connect.NewAuthorizationPolicyServiceClient(client, base)}
 }
 
 func TestNHA053ActualRunTLSEcobeePreviewUsesActiveScopeAndNeverDials(t *testing.T) {
@@ -74,19 +74,19 @@ func TestNHA053ActualRunTLSEcobeePreviewUsesActiveScopeAndNeverDials(t *testing.
 			}
 			defer listener.Close()
 			source := fmt.Sprintf("ecobee:\n  instance: nha053-private-ecobee\n  address: %q\n  accessory_id: 'CA:FE:00:11:22:33'\n  credential_secret: nha053-absent-pairing\n", listener.Addr().String())
-			enabled := nha053WireCandidate(wire.SourceFamily_SOURCE_FAMILY_OPERATIONAL, "operational.main", []byte(source))
-			disabled := nha053WireCandidate(wire.SourceFamily_SOURCE_FAMILY_OPERATIONAL, "operational.main", []byte(source+"disabled_integrations: [nha053-private-ecobee]\n"))
-			workspace := before.Document.GetWorkspace()
+			enabled := nha053WireCandidate(wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL, "operational.main", []byte(source))
+			disabled := nha053WireCandidate(wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL, "operational.main", []byte(source+"disabled_integrations: [nha053-private-ecobee]\n"))
+			workspace := before.GetWorkspace()
 			if workspace == nil {
 				t.Fatal("fixture has no observed workspace")
 			}
-			assertRejected := func(candidate *wire.Candidate, plan *wire.Plan, diagnostic wire.DiagnosticCode) {
+			assertRejected := func(candidate *wire.ConfigurationPlanCandidate, plan *wire.ConfigurationPlan, diagnostic wire.ConfigurationPlanDiagnosticCode) {
 				t.Helper()
 				digest := sha256.Sum256(candidate.Files[0].ExactSource)
-				if plan == nil || plan.Base == nil || plan.State != wire.PlanState_PLAN_STATE_REJECTED || plan.Author != f.tokens.Session.AccountId.Value || plan.Family != wire.SourceFamily_SOURCE_FAMILY_OPERATIONAL || plan.Identity != "operational.main" || plan.SchemaVersion != "homeward.operational/1" || !bytes.Equal(plan.SourceSha256, digest[:]) || plan.SemanticSha256 != nil || len(plan.Changes) != 0 || plan.Effect != wire.Effect_EFFECT_CONFIGURATION || len(plan.Diagnostics) != 1 || plan.Diagnostics[0] != diagnostic || len(plan.Receipt) < 44 || len(plan.Receipt) > 4200 || plan.ApplicationAvailable {
+				if plan == nil || plan.Base == nil || plan.State != wire.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_REJECTED || plan.Author != f.publicAuthor(t) || plan.Family != wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL || plan.Identity != "operational.main" || plan.SchemaVersion != "homeward.operational/1" || !bytes.Equal(plan.SourceSha256, digest[:]) || plan.SemanticSha256 != nil || len(plan.Changes) != 0 || plan.Effect != wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_CONFIGURATION || len(plan.Diagnostics) != 1 || plan.Diagnostics[0] != diagnostic || len(plan.Receipt) < 44 || len(plan.Receipt) > 4200 || plan.ApplicationAvailable {
 					t.Fatal("rejected candidate lost its signed diagnostic metadata or became applicable")
 				}
-				if plan.Base.Kind != wire.BaseKind_BASE_KIND_ACTIVE_SQL || plan.Base.GetRevision() != before.Document.Version.Revision || !bytes.Equal(plan.Base.SourceSha256, before.Document.Version.SourceSha256) || plan.GenerationRevision != before.ActiveGeneration.Revision || !bytes.Equal(plan.ManifestSha256, before.ActiveGeneration.ManifestSha256) || !bytes.Equal(plan.ObservedWorkspaceSha256, workspace.SourceSha256) {
+				if plan.Base.Kind != wire.ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_ACTIVE_SQL || plan.Base.GetRevision() != before.Version.Revision || !bytes.Equal(plan.Base.SourceSha256, before.Version.SourceSha256) || plan.GenerationRevision != before.ActiveGeneration.Revision || !bytes.Equal(plan.ManifestSha256, before.ActiveGeneration.ManifestSha256) || !bytes.Equal(plan.ObservedWorkspaceSha256, workspace.SourceSha256) {
 					t.Fatal("rejected candidate changed active base, generation, manifest or workspace provenance")
 				}
 				encoded, err := proto.Marshal(plan)
@@ -98,25 +98,25 @@ func TestNHA053ActualRunTLSEcobeePreviewUsesActiveScopeAndNeverDials(t *testing.
 						t.Fatal("private Ecobee settings leaked into rejected response/receipt")
 					}
 				}
-				fresh, err := f.plans.RevalidatePlan(f.ctx, nha056SessionRequest(&wire.RevalidatePlanRequest{Candidate: candidate, Receipt: plan.Receipt}, f.token))
-				if err != nil || fresh.Msg.Plan.State != wire.PlanState_PLAN_STATE_REJECTED || fresh.Msg.Plan.ApplicationAvailable || fresh.Msg.Plan.SemanticSha256 != nil || len(fresh.Msg.Plan.Changes) != 0 || len(fresh.Msg.Plan.Diagnostics) != 1 || fresh.Msg.Plan.Diagnostics[0] != diagnostic || !bytes.Equal(fresh.Msg.Plan.SourceSha256, digest[:]) || fresh.Msg.Plan.Receipt == "" {
+				fresh, err := f.plans.RevalidateConfigurationPlan(f.ctx, nha056SessionRequest(&wire.RevalidateConfigurationPlanRequest{Candidate: candidate, Name: plan.Name, Etag: plan.Etag}, f.token))
+				if err != nil || fresh.Msg.State != wire.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_REJECTED || fresh.Msg.ApplicationAvailable || fresh.Msg.SemanticSha256 != nil || len(fresh.Msg.Changes) != 0 || len(fresh.Msg.Diagnostics) != 1 || fresh.Msg.Diagnostics[0] != diagnostic || !bytes.Equal(fresh.Msg.SourceSha256, digest[:]) || fresh.Msg.Receipt == "" {
 					t.Fatal("signed rejection did not revalidate as a non-applicable rejection", err)
 				}
 				f.unchanged(t, before, raw, info)
 			}
-			for _, candidate := range []*wire.Candidate{enabled, disabled} {
+			for _, candidate := range []*wire.ConfigurationPlanCandidate{enabled, disabled} {
 				plan := f.build(t, candidate)
 				if !amended {
-					assertRejected(candidate, plan, wire.DiagnosticCode_DIAGNOSTIC_CODE_EXCLUDED_REFERENCE)
+					assertRejected(candidate, plan, wire.ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_EXCLUDED_REFERENCE)
 					continue
 				}
-				if plan.State != wire.PlanState_PLAN_STATE_ADMITTED || plan.Effect != wire.Effect_EFFECT_CONFIGURATION || plan.ApplicationAvailable {
+				if plan.State != wire.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_ADMITTED || plan.Effect != wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_CONFIGURATION || plan.ApplicationAvailable {
 					t.Fatal("amended inert Ecobee preview refused or acquired application authority")
 				}
 				var ecobeeField bool
 				for _, change := range plan.Changes {
 					if change.Field == "ecobee" {
-						ecobeeField = change.Effect == wire.Effect_EFFECT_CONFIGURATION
+						ecobeeField = change.Effect == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_CONFIGURATION
 					}
 				}
 				if !ecobeeField {
@@ -131,17 +131,17 @@ func TestNHA053ActualRunTLSEcobeePreviewUsesActiveScopeAndNeverDials(t *testing.
 						t.Fatal("private Ecobee settings leaked into response/receipt")
 					}
 				}
-				fresh, err := f.plans.RevalidatePlan(f.ctx, nha056SessionRequest(&wire.RevalidatePlanRequest{Candidate: candidate, Receipt: plan.Receipt}, f.token))
-				if err != nil || fresh.Msg.Plan.State != wire.PlanState_PLAN_STATE_ADMITTED {
+				fresh, err := f.plans.RevalidateConfigurationPlan(f.ctx, nha056SessionRequest(&wire.RevalidateConfigurationPlanRequest{Candidate: candidate, Name: plan.Name, Etag: plan.Etag}, f.token))
+				if err != nil || fresh.Msg.State != wire.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_ADMITTED {
 					t.Fatal("unchanged inert Ecobee plan could not revalidate", err)
 				}
 			}
 			if !amended {
-				selector := nha053WireCandidate(wire.SourceFamily_SOURCE_FAMILY_OPERATIONAL, "operational.main", []byte("scope_revision: ecobee_mvp_v1\n"+source))
-				assertRejected(selector, f.build(t, selector), wire.DiagnosticCode_DIAGNOSTIC_CODE_EXCLUDED_REFERENCE)
+				selector := nha053WireCandidate(wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL, "operational.main", []byte("scope_revision: ecobee_mvp_v1\n"+source))
+				assertRejected(selector, f.build(t, selector), wire.ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_EXCLUDED_REFERENCE)
 			} else {
-				invalid := nha053WireCandidate(wire.SourceFamily_SOURCE_FAMILY_OPERATIONAL, "operational.main", []byte("ecobee: {instance: nha053-private-ecobee, address: 'localhost:12345', accessory_id: fixture, credential_secret: absent}\ndisabled_integrations: [nha053-private-ecobee]\n"))
-				assertRejected(invalid, f.build(t, invalid), wire.DiagnosticCode_DIAGNOSTIC_CODE_INVALID_SCHEMA)
+				invalid := nha053WireCandidate(wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL, "operational.main", []byte("ecobee: {instance: nha053-private-ecobee, address: 'localhost:12345', accessory_id: fixture, credential_secret: absent}\ndisabled_integrations: [nha053-private-ecobee]\n"))
+				assertRejected(invalid, f.build(t, invalid), wire.ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_INVALID_SCHEMA)
 			}
 			if err := listener.SetDeadline(time.Now().Add(25 * time.Millisecond)); err != nil {
 				t.Fatal(err)

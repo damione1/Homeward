@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"math"
 )
 
 // observationProjection admits a closed native snapshot before copying its
@@ -77,7 +78,7 @@ func (p *observationProjection) projectAdmissionPosition(value *native.Admission
 	}
 	result := &api.AdmissionPosition{}
 	result.Epoch = append([]byte(nil), value.Epoch...)
-	result.Sequence = value.Sequence
+	result.Sequence = apitypes.DecimalUint64FromNative(value.Sequence).String()
 	return result
 }
 
@@ -95,7 +96,7 @@ func (p *observationProjection) projectActiveRevision(value *native.ActiveRevisi
 		return nil
 	}
 	result := &api.ObservationActiveRevision{}
-	result.Value = value.Value
+	result.Value = p.signed(value.Value)
 	return result
 }
 
@@ -154,7 +155,7 @@ func (p *observationProjection) projectPilotPhaseCount(value *native.PilotPhaseC
 	}
 	result := &api.ObservationPilotPhaseCount{}
 	result.Phase = api.ObservationPilotPhase(value.Phase)
-	result.Instances = value.Instances
+	result.Instances = p.signed(value.Instances)
 	return result
 }
 
@@ -285,8 +286,8 @@ func (p *observationProjection) projectSupervisedIntegration(value *native.Super
 	}
 	result := &api.ObservationSupervisedIntegration{}
 	result.Phase = api.ObservationPilotPhase(value.Phase)
-	result.Attempts = value.Attempts
-	result.Tasks = value.Tasks
+	result.Attempts = p.signed(value.Attempts)
+	result.Tasks = p.signed(value.Tasks)
 	return result
 }
 
@@ -319,7 +320,7 @@ func (p *observationProjection) projectSaturatedCounter(value *native.SaturatedC
 		return nil
 	}
 	result := &api.ObservationSaturatedCounter{}
-	result.Value = value.Value
+	result.LowerBound = int64(min(value.Value, uint64(math.MaxInt64)))
 	return result
 }
 
@@ -334,7 +335,11 @@ func (p *observationProjection) projectCounterMeasurement(value *native.CounterM
 			p.err = storage.ErrAPIResourceIntegrity
 			break
 		}
-		result.Result = &api.ObservationCounterMeasurement_Exact{Exact: v.Exact}
+		if v.Exact > math.MaxInt64 {
+			result.Result = &api.ObservationCounterMeasurement_Saturated{Saturated: &api.ObservationSaturatedCounter{LowerBound: math.MaxInt64}}
+		} else {
+			result.Result = &api.ObservationCounterMeasurement_Exact{Exact: int64(v.Exact)}
+		}
 	case *native.CounterMeasurement_Saturated:
 		if v == nil {
 			p.err = storage.ErrAPIResourceIntegrity
@@ -370,7 +375,7 @@ func (p *observationProjection) projectGaugeMeasurement(value *native.GaugeMeasu
 			p.err = storage.ErrAPIResourceIntegrity
 			break
 		}
-		result.Result = &api.ObservationGaugeMeasurement_Value{Value: v.Value}
+		result.Result = &api.ObservationGaugeMeasurement_Value{Value: p.signed(v.Value)}
 	case *native.GaugeMeasurement_NotMeasured:
 		if v == nil {
 			p.err = storage.ErrAPIResourceIntegrity
@@ -424,7 +429,7 @@ func (p *observationProjection) projectLagMeasurement(value *native.LagMeasureme
 			p.err = storage.ErrAPIResourceIntegrity
 			break
 		}
-		result.Result = &api.ObservationLagMeasurement_SameEpochPositions{SameEpochPositions: v.SameEpochPositions}
+		result.Result = &api.ObservationLagMeasurement_SameEpochPositions{SameEpochPositions: apitypes.DecimalUint64FromNative(v.SameEpochPositions).String()}
 	case *native.LagMeasurement_Invalidated:
 		if v == nil {
 			p.err = storage.ErrAPIResourceIntegrity
@@ -460,7 +465,7 @@ func (p *observationProjection) projectKnownLost(value *native.KnownLost) *api.K
 			p.err = storage.ErrAPIResourceIntegrity
 			break
 		}
-		result.Result = &api.KnownLost_LowerBound{LowerBound: v.LowerBound}
+		result.Result = &api.KnownLost_LowerBound{LowerBound: int64(min(v.LowerBound, uint64(math.MaxInt64)))}
 	case *native.KnownLost_NotKnown:
 		if v == nil {
 			p.err = storage.ErrAPIResourceIntegrity
@@ -840,7 +845,7 @@ func (p *observationProjection) projectRuntimeLogRow(value *native.RuntimeLogRow
 		return nil
 	}
 	result := &api.ObservationRuntimeLogRow{}
-	result.Sequence = value.Sequence
+	result.Sequence = apitypes.DecimalUint64FromNative(value.Sequence).String()
 	result.Event = p.projectRuntimeEvent(value.Event)
 	return result
 }
@@ -995,7 +1000,7 @@ func (p *observationProjection) projectTraceOrdinal(value *native.TraceOrdinal) 
 			p.err = storage.ErrAPIResourceIntegrity
 			break
 		}
-		result.Result = &api.ObservationTraceOrdinal_Native{Native: v.Native}
+		result.Result = &api.ObservationTraceOrdinal_Native{Native: apitypes.DecimalUint64FromNative(v.Native).String()}
 	case *native.TraceOrdinal_Exhausted:
 		if v == nil {
 			p.err = storage.ErrAPIResourceIntegrity
@@ -1084,7 +1089,11 @@ func (p *observationProjection) projectTraceRow(value *native.TraceRow) *api.Obs
 	}
 	result := &api.ObservationTraceRow{}
 	result.Run = p.runName(value.RunId)
-	result.LocalIndex = value.LocalIndex
+	if value.LocalIndex > 511 {
+		p.err = storage.ErrAPIResourceIntegrity
+		return nil
+	}
+	result.LocalIndex = int32(value.LocalIndex)
 	result.Ordinal = p.projectTraceOrdinal(value.Ordinal)
 	switch v := value.Record.(type) {
 	case *native.TraceRow_Controller:
@@ -1112,8 +1121,8 @@ func (p *observationProjection) projectTraceCutMetadata(value *native.TraceCutMe
 	result := &api.ObservationTraceCutMetadata{}
 	result.Coherence = api.ObservationTraceCutCoherence(value.Coherence)
 	result.Order = api.ObservationTraceOrderState(value.Order)
-	result.ControllerEvicted = value.ControllerEvicted
-	result.NodeEvicted = value.NodeEvicted
+	result.ControllerEvicted = apitypes.DecimalUint64FromNative(value.ControllerEvicted).String()
+	result.NodeEvicted = apitypes.DecimalUint64FromNative(value.NodeEvicted).String()
 	if value.ControllerCapturedAt != nil {
 		result.ControllerCapturedAt = proto.Clone(value.ControllerCapturedAt).(*timestamppb.Timestamp)
 	}
@@ -1138,7 +1147,7 @@ func (p *observationProjection) projectPreviousRecorderEpoch(value *native.Previ
 	}
 	result := &api.PreviousRecorderEpoch{}
 	result.Epoch = p.projectRecorderEpochIdentity(value.Epoch)
-	result.Checkpoint = value.Checkpoint
+	result.Checkpoint = apitypes.DecimalUint64FromNative(value.Checkpoint).String()
 	result.CleanClose = value.CleanClose
 	return result
 }
@@ -1149,8 +1158,8 @@ func (p *observationProjection) projectRecorderEpochCoverage(value *native.Recor
 	}
 	result := &api.RecorderEpochCoverage{}
 	result.Epoch = p.projectRecorderEpochIdentity(value.Epoch)
-	result.Checkpoint = value.Checkpoint
-	result.PolicyExcluded = value.PolicyExcluded
+	result.Checkpoint = apitypes.DecimalUint64FromNative(value.Checkpoint).String()
+	result.PolicyExcluded = apitypes.DecimalUint64FromNative(value.PolicyExcluded).String()
 	if value.StartedAt != nil {
 		result.StartedAt = proto.Clone(value.StartedAt).(*timestamppb.Timestamp)
 	}
@@ -1197,8 +1206,8 @@ func (p *observationProjection) projectRecorderCoverageGap(value *native.Recorde
 	}
 	result := &api.RecorderCoverageGap{}
 	result.Epoch = p.projectRecorderEpochIdentity(value.Epoch)
-	result.FromSequence = value.FromSequence
-	result.ThroughSequence = value.ThroughSequence
+	result.FromSequence = apitypes.DecimalUint64FromNative(value.FromSequence).String()
+	result.ThroughSequence = apitypes.DecimalUint64FromNative(value.ThroughSequence).String()
 	result.Reason = api.GapReason(value.Reason)
 	result.KnownLost = p.projectKnownLost(value.KnownLost)
 	result.Envelope = api.GapEnvelope(value.Envelope)
@@ -1229,4 +1238,13 @@ func (p *observationProjection) projectRecorderCoverageSnapshot(value *native.Re
 		result.Gaps = append(result.Gaps, p.projectRecorderCoverageGap(item))
 	}
 	return result
+}
+
+// signed admits native bounded gauges/revisions without wrapping a full-width value.
+func (p *observationProjection) signed(value uint64) int64 {
+	if value > math.MaxInt64 {
+		p.err = storage.ErrAPIResourceIntegrity
+		return 0
+	}
+	return int64(value)
 }

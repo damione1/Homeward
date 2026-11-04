@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check public v2 AIP descriptors and complete v1 migration accounting."""
 from enum import Enum
+import argparse
 import hashlib
 import io
 import json
@@ -105,6 +106,115 @@ def check_migrations(manifest, descriptor, root):
     _check_migration_rows(manifest, descriptor, root)
 
 
+# These are reviewed rule classifications, not disabled linter rules. Every
+# diagnostic still needs an exact symbol, declaration digest and explanation.
+# MUST rules (including 140/numbers, 141/forbidden-types, 123/pattern-* and
+# required method signatures) deliberately cannot be registered here.
+LINT_EXCEPTION_CLASSES = {
+    'core::0122::name-suffix': 'advisory',
+    'core::0132::response-unknown-fields': 'advisory',
+    'core::0140::abbreviations': 'advisory',
+    'core::0140::prepositions': 'advisory',
+    'core::0140::reserved-words': 'advisory',
+    'core::0142::time-field-names': 'advisory',
+    'core::0142::time-field-type': 'not-applicable',
+    'core::0123::resource-annotation': 'not-applicable',
+    'core::0148::use-uid': 'not-applicable',
+    'core::0216::state-field-output-only': 'advisory',
+    'core::0216::nesting': 'advisory',
+    'core::0216::synonyms': 'not-applicable',
+    'core::0162::rollback-response-message-name': 'draft-not-adopted',
+    'core::0162::rollback-request-revision-id-field': 'draft-not-adopted',
+    'core::0162::rollback-http-uri-suffix': 'draft-not-adopted',
+}
+# These rules mix mandatory management/Get requirements with data-plane and
+# custom-method heuristics. Only these already reviewed subjects are eligible;
+# adding another subject requires a checker change, not just a registry row.
+LINT_SCOPED_CLASSES = {
+    'core::0133::request-id-field': ('advisory', {
+        'home.api.v2.CreateCalendarRequest', 'home.api.v2.CreateCalendarEventRequest',
+        'home.api.v2.CreateTaskListRequest', 'home.api.v2.CreateMediaSessionRequest'}),
+    'core::0131::synonyms': ('not-applicable', {'home.api.v2.MediaService.ReadMediaSession'}),
+}
+
+
+def lint_symbols(descriptor):
+    """Resolve source positions to declarations, including nested types."""
+    result = {}
+    for file in descriptor['file']:
+        if file.get('package') != 'home.api.v2':
+            continue
+        locations = {tuple(loc.get('path', [])): loc
+                     for loc in file['sourceCodeInfo']['location']}
+        entries = []
+
+        def visit(values, path, prefix, kind):
+            children = {'message': [('field', 2, 'field'), ('nestedType', 3, 'message'),
+                                    ('enumType', 4, 'enum')],
+                        'enum': [('value', 2, 'enum-value')],
+                        'service': [('method', 2, 'method')]}
+            for i, value in enumerate(values):
+                current = path + [i]
+                symbol = prefix + '.' + value['name']
+                span = locations[tuple(current)]['span']
+                entries.append(dict(symbol=symbol, declaration=value,
+                    start=tuple(span[:2]), end=tuple(span[2:]) if len(span) == 4 else (span[0], span[2])))
+                for key, number, child_kind in children.get(kind, []):
+                    visit(value.get(key, []), current + [number], symbol, child_kind)
+
+        for key, number, kind in [('messageType', 4, 'message'), ('enumType', 5, 'enum'),
+                                  ('service', 6, 'service')]:
+            visit(file.get(key, []), [number], file['package'], kind)
+        result[file['name']] = entries
+    return result
+
+
+def lint_identity(file, problem, symbols):
+    position = problem['location']['start_position']
+    point = (position['line_number'] - 1, position['column_number'] - 1)
+    matches = [entry for entry in symbols.get(file, []) if entry['start'] <= point < entry['end']]
+    assert matches, 'unresolved lint location: ' + str(problem)
+    # A field is more specific than its containing message; a method is more
+    # specific than its service. Names are not inferred from diagnostic prose.
+    entry = max(matches, key=lambda value: (value['start'], -value['end'][0], -value['end'][1]))
+    digest = hashlib.sha256(json.dumps(entry['declaration'], sort_keys=True,
+                                       separators=(',', ':')).encode()).hexdigest()
+    return (file, problem['rule_id'], entry['symbol']), digest
+
+
+def check_lint_profile(report, descriptor, registry):
+    assert registry['version'] == 1 and registry['linter_version'] == VERSION, 'lint profile version mismatch'
+    symbols = lint_symbols(descriptor)
+    exceptions = {}
+    for entry in registry['exceptions']:
+        rule = entry['rule']
+        classification = LINT_EXCEPTION_CLASSES.get(rule)
+        if rule in LINT_SCOPED_CLASSES:
+            classification, subjects = LINT_SCOPED_CLASSES[rule]
+            assert entry['symbol'] in subjects, 'mandatory/unreviewed subject cannot be excepted: ' + entry['symbol']
+        assert classification, 'mandatory/unreviewed rule cannot be excepted: ' + rule
+        assert entry['classification'] == classification, 'incorrect lint classification'
+        assert entry.get('reason') and entry.get('reference') == 'https://google.aip.dev/' + str(int(rule.split('::')[1])), 'missing primary AIP justification'
+        key = (entry['file'], rule, entry['symbol'])
+        assert key not in exceptions, 'duplicate lint exception: ' + str(key)
+        assert type(entry.get('occurrences', 1)) is int and entry.get('occurrences', 1) > 0, 'invalid diagnostic count'
+        exceptions[key] = entry
+    used, failures = {}, []
+    for file in report:
+        for problem in file.get('problems', []):
+            key, digest = lint_identity(file['file_path'], problem, symbols)
+            entry = exceptions.get(key)
+            if not entry or entry['declaration_sha256'] != digest:
+                failures.append(str(key) + ': ' + problem['message'])
+            else:
+                used[key] = used.get(key, 0) + 1
+                assert used[key] <= entry.get('occurrences', 1), 'duplicate lint diagnostic: ' + str(key)
+    assert not failures, 'unaccepted API Linter diagnostics:\n' + '\n'.join(failures)
+    assert used.keys() == exceptions.keys(), 'stale lint exceptions: ' + str(sorted(exceptions.keys() - used.keys()))
+    assert all(used[key] == entry.get('occurrences', 1) for key, entry in exceptions.items()), 'stale diagnostic count'
+    return len(used)
+
+
 def _check_migration_rows(manifest, descriptor, root):
     """The baseline is historical accounting, never a quota of old endpoints.
 
@@ -184,6 +294,9 @@ def _check_migration_rows(manifest, descriptor, root):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--lint-report', type=Path, help='retain unfiltered API Linter JSON here')
+    args = parser.parse_args()
     descriptor = json.loads(subprocess.check_output(
         ['buf', 'build', '--as-file-descriptor-set', '-o', '-#format=json'], cwd=ROOT))
     manifest = json.loads((ROOT / 'contracts/api_migration.json').read_text())
@@ -216,6 +329,8 @@ def main():
     check_migrations(manifest, descriptor, ROOT)
     assert public_files, 'missing public v2 descriptor'
     for file in public_files:
+        source = (ROOT / 'proto' / file['name']).read_text()
+        assert 'api-linter:' not in source, 'inline lint configuration bypasses the reviewed profile'
         comments = {tuple(loc['path']) for loc in file['sourceCodeInfo']['location']
                     if loc.get('leadingComments', '').strip() or loc.get('trailingComments', '').strip()}
         for index, service in enumerate(file.get('service', [])):
@@ -241,10 +356,24 @@ def main():
         subprocess.run(['buf', 'build', '--path', 'proto/home/api/v2', '--as-file-descriptor-set', '-o', str(public)], cwd=ROOT, check=True)
         exported = json.loads(subprocess.check_output(['buf', 'build', '--path', 'proto/home/api/v2', '--as-file-descriptor-set', '-o', '-#format=json'], cwd=ROOT))
         assert all(not f.get('package', '').startswith('home.') or f['package'] == 'home.api.v2' for f in exported['file']), 'private/legacy descriptor leaked'
-        subprocess.run([str(linter()), '--skip-compilation', '--descriptor-set-in', str(public),
-                        '--set-exit-status', '--output-format', 'summary',
-                        *[file['name'] for file in public_files]], cwd=ROOT, check=True)
-    print(f'{len(rows)} RPC mappings, documented public resources and API Linter {VERSION}: pass')
+        command = [str(linter()), '--skip-compilation', '--descriptor-set-in', str(public),
+                   '--set-exit-status', '--output-format', 'json',
+                   *[file['name'] for file in public_files]]
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        report_path = args.lint_report or ROOT / '.tools' / 'api-lint-reports' / (hashlib.sha256(str(ROOT).encode()).hexdigest()[:12] + '.json')
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(result.stdout)
+        print(f'Unfiltered API Linter {VERSION} report (exit {result.returncode}): {report_path}', flush=True)
+        expected_stderr = (result.returncode == 1 and re.fullmatch(
+            r'\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} found problems during linting\s*', result.stderr))
+        assert result.returncode in (0, 1) and (not result.stderr.strip() or expected_stderr), 'API Linter failed: ' + result.stderr
+        report = json.loads(result.stdout)
+        assert isinstance(report, list) and {row['file_path'] for row in report} == {file['name'] for file in public_files}, 'incomplete API Linter report'
+        registry = json.loads((ROOT / 'contracts/api_lint_exceptions.json').read_text())
+        count = check_lint_profile(report, descriptor, registry)
+    print(f'{len(rows)} RPC mappings and documented public resources: pass; '
+          f'API lint profile: pass with {count} explicit exceptions. '
+          'This is not an exception-free Google AIP conformity claim.')
 
 
 if __name__ == '__main__':

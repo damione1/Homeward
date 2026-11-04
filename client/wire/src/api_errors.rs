@@ -1,8 +1,8 @@
 //! Admitted canonical error values. Human messages/descriptions are discarded;
 //! no error detail confers authority or permission to retry a mutation.
 use crate::{google::rpc, home::api::v2 as api};
-use home_client_model::api::OperationName;
 use buffa::{EnumValue, Enumeration, Message};
+use home_client_model::api::OperationName;
 use std::collections::BTreeSet;
 
 pub const MAX_DETAILS_BYTES: usize = 16 * 1024;
@@ -231,11 +231,15 @@ pub fn admit_status(status: &rpc::Status) -> Result<ApiFailure, InvalidApiError>
                 let value: rpc::ResourceInfo = decode(&detail.value)?;
                 if !value.__buffa_unknown_fields.is_empty()
                     || value.resource_type != "longrunning.googleapis.com/Operation"
-                    || !value.owner.is_empty() || !value.description.is_empty() {
+                    || !value.owner.is_empty()
+                    || !value.description.is_empty()
+                {
                     return Err(InvalidApiError::Unsupported);
                 }
-                operation = Some(OperationName::try_from(value.resource_name.as_str())
-                    .map_err(|_| InvalidApiError::Malformed)?);
+                operation = Some(
+                    OperationName::try_from(value.resource_name.as_str())
+                        .map_err(|_| InvalidApiError::Malformed)?,
+                );
             }
             _ => return Err(InvalidApiError::Unsupported),
         }
@@ -259,7 +263,7 @@ pub fn admit_status(status: &rpc::Status) -> Result<ApiFailure, InvalidApiError>
         R::RateLimited | R::RequestTooLarge | R::StreamCapacity | R::QueryBudgetExceeded => {
             rpc::Code::RESOURCE_EXHAUSTED
         }
-        R::ServiceUnavailable => rpc::Code::UNAVAILABLE,
+        R::ServiceUnavailable | R::AuthorityUnavailable => rpc::Code::UNAVAILABLE,
         R::RequestCancelled => rpc::Code::CANCELLED,
         R::RequestDeadlineExceeded => rpc::Code::DEADLINE_EXCEEDED,
         R::CommitOutcomeUnknown | R::EffectOutcomeUnknown => rpc::Code::UNKNOWN,
@@ -302,6 +306,7 @@ pub fn admit_status(status: &rpc::Status) -> Result<ApiFailure, InvalidApiError>
         | api::ApiErrorReason::StreamCapacity
         | api::ApiErrorReason::QueryBudgetExceeded
         | api::ApiErrorReason::ServiceUnavailable
+        | api::ApiErrorReason::AuthorityUnavailable
         | api::ApiErrorReason::RequestCancelled
         | api::ApiErrorReason::RequestDeadlineExceeded
         | api::ApiErrorReason::InternalFailure

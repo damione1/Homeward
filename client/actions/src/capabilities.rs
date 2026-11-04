@@ -345,6 +345,7 @@ fn rejected_failure(failure: &ApiFailure) -> bool {
         R::CommitOutcomeUnknown
         | R::EffectOutcomeUnknown
         | R::ServiceUnavailable
+        | R::AuthorityUnavailable
         | R::RequestCancelled
         | R::RequestDeadlineExceeded
         | R::InternalFailure
@@ -356,7 +357,7 @@ fn rejected_failure(failure: &ApiFailure) -> bool {
     }
 }
 fn private_failure(error: &Failure) -> bool {
-    if !matches!(error.authorization_termination(), Ok(None)) {
+    if error.api_failure().is_err() {
         return true;
     }
     error.api_failure().ok().flatten().is_some_and(|failure| {
@@ -364,6 +365,7 @@ fn private_failure(error: &Failure) -> bool {
             failure.reason(),
             home_wire_contract::home::api::v2::ApiErrorReason::AccessDenied
                 | home_wire_contract::home::api::v2::ApiErrorReason::AuthenticationRequired
+                | home_wire_contract::home::api::v2::ApiErrorReason::AuthorityUnavailable
         )
     })
 }

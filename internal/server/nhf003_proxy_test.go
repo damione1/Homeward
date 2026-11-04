@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	authapi "github.com/damione1/Homeward/gen/home/api/v2"
 	"io"
 	"log"
 	"net/http"
@@ -21,8 +22,6 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -107,13 +106,13 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 			p.stateReads.Add(1)
 		case apiv2connect.EntityViewServiceDeleteEntityViewProcedure:
 			p.stateReleases.Add(1)
-		case authv1connect.AuthServiceStartLoginProcedure:
+		case apiv2connect.AuthServiceStartLoginProcedure:
 			p.login.Add(1)
-		case authv1connect.AuthServiceCompleteLoginProcedure:
+		case apiv2connect.AuthServiceCompleteLoginProcedure:
 			p.complete.Add(1)
-		case authv1connect.AuthServiceRefreshSessionProcedure:
+		case apiv2connect.AuthServiceRefreshSessionProcedure:
 			p.refresh.Add(1)
-		case authv1connect.AuthServiceRevokeSessionProcedure:
+		case apiv2connect.AuthServiceRevokeSessionProcedure:
 			p.revoke.Add(1)
 		}
 	}
@@ -130,10 +129,10 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 		if path == apiv2connect.EntityViewServiceDeleteEntityViewProcedure {
 			p.stateReleaseOK.Add(1)
 		}
-		if path == authv1connect.AuthServiceRevokeSessionProcedure {
+		if path == apiv2connect.AuthServiceRevokeSessionProcedure {
 			p.revokeOK.Add(1)
 		}
-		if path == authv1connect.AuthServiceRefreshSessionProcedure {
+		if path == apiv2connect.AuthServiceRefreshSessionProcedure {
 			if _, err := os.Stat(filepath.Join(control, "lose-refresh")); err == nil && p.lost.CompareAndSwap(0, 1) {
 				// Consume/erase only synthetic data. At this point the native
 				// handler has already committed the refresh rotation.
@@ -146,7 +145,7 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 				return nhf003LostResponse
 			}
 		}
-		if path != authv1connect.AuthServiceStartLoginProcedure && path != authv1connect.AuthServiceCompleteLoginProcedure {
+		if path != apiv2connect.AuthServiceStartLoginProcedure && path != apiv2connect.AuthServiceCompleteLoginProcedure {
 			return nil
 		}
 		if _, err := os.Stat(filepath.Join(control, "short-access")); err != nil {
@@ -163,15 +162,15 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 		}
 		defer clear(data)
 		var message proto.Message
-		var decision *authv1.LoginDecision
-		if path == authv1connect.AuthServiceStartLoginProcedure {
-			value := &authv1.StartLoginResponse{}
+		var decision *authapi.LoginDecision
+		if path == apiv2connect.AuthServiceStartLoginProcedure {
+			value := &authapi.StartLoginResponse{}
 			if err := proto.Unmarshal(data, value); err != nil {
 				return err
 			}
 			message, decision = value, value.Decision
 		} else {
-			value := &authv1.CompleteLoginResponse{}
+			value := &authapi.CompleteLoginResponse{}
 			if err := proto.Unmarshal(data, value); err != nil {
 				return err
 			}
@@ -180,7 +179,7 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 		if tokens := decision.GetAuthenticated(); tokens != nil {
 			// The client expires conservatively with 30s clock uncertainty;
 			// advertise three usable seconds before that safety boundary.
-			tokens.AccessExpiresAt = timestamppb.New(time.Now().Add(33 * time.Second))
+			tokens.AccessExpireTime = timestamppb.New(time.Now().Add(33 * time.Second))
 			p.shortened.Add(1)
 		}
 		encoded, err := proto.Marshal(message)
@@ -206,7 +205,7 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 		http.Error(w, "synthetic proxy unavailable", http.StatusBadGateway)
 	}
 	p.server = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == authv1connect.AuthServiceStartLoginProcedure && r.Body != nil {
+		if r.URL.Path == apiv2connect.AuthServiceStartLoginProcedure && r.Body != nil {
 			data, err := io.ReadAll(io.LimitReader(r.Body, 65537))
 			_ = r.Body.Close()
 			if err != nil || len(data) > 65536 {
@@ -216,7 +215,7 @@ func nhf003StartProxy(t *testing.T, upstream string, roots *x509.CertPool, pair 
 			}
 			observation := &nhf003LoginObservation{}
 			if r.Header.Get("Content-Encoding") == "" {
-				message := &authv1.StartLoginRequest{}
+				message := &authapi.StartLoginRequest{}
 				if proto.Unmarshal(data, message) == nil {
 					observation.Decoded = true
 					observation.NameMatches = message.LoginName == expected.name

@@ -22,7 +22,6 @@ import (
 	"github.com/damione1/Homeward/contracts"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/damione1/Homeward/internal/domain"
@@ -67,9 +66,11 @@ func nhf008NumberManifest(alias domain.HAAlias) (registry.Manifest, error) {
 	return registry.ParseManifest(raw)
 }
 
-// Contract fixture only: actual Auth/State/Action handlers, authority, Host,
+// API contract fixture only: actual Auth/EntityView/Capability handlers, authority, Host,
 // helper pilot and SQL. It does not qualify Run/startup or production scope.
 // The only mutable target is a local number row; there is no physical driver.
+// Dashboard is deliberately absent: this exact synthetic manifest is not a Run
+// launch selection. This harness provides no UI or visual qualification.
 func TestNHF008NumberServer(t *testing.T) {
 	out, root := os.Getenv("HOMEWARD_NHF008_NUMBER_FIXTURE"), os.Getenv("HOMEWARD_NHF008_SOURCES")
 	if out == "" {
@@ -197,25 +198,13 @@ func TestNHF008NumberServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	configuration := nha050ViewConfig{stamp}
-	dashboard, err := nhf005DashboardFixture()
-	if err != nil || dashboard == nil {
-		t.Fatal("explicit number dashboard required", err)
-	}
-	dashboard.authority, dashboard.activation = rig.coordinator.authority, configuration
-	account, _ := rig.admin.Value()
-	if err := dashboard.install(account, map[string]domain.EntityID{aliasText: binding.Entity}); err != nil {
-		t.Fatal(err)
-	}
-	grants := "  - scope: {family: dashboards, operation: read}\n    objects: {dashboards: {own: {}}}\n"
+	grants := ""
 	for _, item := range []struct{ family, operation string }{{"state_registry", "read"}, {"actions", "read"}, {"actions", "write"}} {
 		grants += fmt.Sprintf("  - scope: {family: %s, operation: %s}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n", item.family, item.operation)
 	}
 	nha162SetPolicy(t, rig, rig.admin, grants)
 	plan, err := NewPublicPlan(nil, nil, accountTransportAudit{store: rig.store})
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := dashboard.register(plan); err != nil {
 		t.Fatal(err)
 	}
 	core, err := prepareCoreRPC(ctx, rig.coordinator, sequence, identity, configuration, commands)
@@ -234,7 +223,7 @@ func TestNHF008NumberServer(t *testing.T) {
 	if err := registerOperationRoutes(plan, core, nil, rig.coordinator.authority); err != nil {
 		t.Fatal(err)
 	}
-	plan, _, err = composeSessionsWithCoordinator(plan, rig.store, rig.coordinator)
+	plan, _, err = composeSessionsWithCoordinator(plan, rig.store, rig.coordinator, administrationNames{home: rig.lists.registry, store: rig.store})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +247,7 @@ func TestNHF008NumberServer(t *testing.T) {
 	client := nha181Client(roots)
 	defer client.CloseIdleConnections()
 	const login, password = "NHA162 Admin", "NHA162 synthetic admin password canary"
-	tokens := nha162RunLogin(t, ctx, authv1connect.NewAuthServiceClient(client, server.URL), login, password)
+	tokens := nha162RunLogin(t, ctx, apiv2connect.NewAuthServiceClient(client, server.URL), login, password)
 	homeResp, err := apiv2connect.NewHomeServiceClient(client, server.URL).ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{PageSize: 1}, tokens.AccessToken))
 	if err != nil || len(homeResp.Msg.GetHomes()) != 1 {
 		t.Fatal(err)
@@ -310,13 +299,13 @@ func TestNHF008NumberServer(t *testing.T) {
 		nhf003WritePrivate(t, out, "result.json", map[string]any{"server_joined": joined, "fixture_mode": "number-contract-only", "entity_count": 1,
 			"execute_request_ids": calls.execute, "get_operation_names": calls.get, "wait_operation_names": calls.wait, "admitted_operations": calls.admitted, "native_login_calls": calls.logins.Load(), "native_revokes": calls.revokes.Load(),
 			"fake_driver_calls": 0, "command_driver_entries": count, "helper_sql_initial": initial, "helper_sql_final": final,
-			"dashboard_get_calls": dashboard.gets.Load(), "dashboard_watch_calls": dashboard.watches.Load(), "real_device_writes": 0})
+			"real_device_writes": 0})
 	}()
 	certificate, err := os.ReadFile(filepath.Join(data, nha181CertificateName))
 	if err != nil {
 		t.Fatal(err)
 	}
-	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "fixture_mode": "number-contract-only", "origin": proxy.URL, "ca_pem": string(certificate), "login_name": login, "password": password, "entity_count": 1})
+	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "fixture_mode": "number-contract-only", "dashboard_available": false, "origin": proxy.URL, "ca_pem": string(certificate), "login_name": login, "password": password, "entity_count": 1})
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	var previous uint64

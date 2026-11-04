@@ -17,32 +17,62 @@ option java_multiple_files = true;
 option java_outer_classname = "IntegrationsProto";
 option java_package = "com.home.api.v2";
 
-// The standard integration mutation that owns an operation.
-enum IntegrationMutationKind {
-  // Missing; never an executable default.
-  INTEGRATION_MUTATION_KIND_UNSPECIFIED = 0;
-  // Creation of one declared integration instance.
-  INTEGRATION_MUTATION_KIND_CREATE = 1;
-  // A field-mask update of one declared integration instance.
-  INTEGRATION_MUTATION_KIND_UPDATE = 2;
-  // Removal of one declared integration instance.
-  INTEGRATION_MUTATION_KIND_DELETE = 3;
-}
-
-// Native receipt states keep validation separate from configuration publication.
-enum IntegrationOperationPhase {
-  // Missing state; never a successful default.
-  INTEGRATION_OPERATION_PHASE_UNSPECIFIED = 0;
-  // One durable reservation; no compilation, commit or publication is claimed.
-  INTEGRATION_OPERATION_PHASE_ACCEPTED = 1;
-  // The exact native activation committed and is still being reconciled.
-  INTEGRATION_OPERATION_PHASE_COMMITTED = 2;
-  // The exact native generation was coherently published.
-  INTEGRATION_OPERATION_PHASE_PUBLISHED = 3;
-  // The original definition was validated and captured without any publication.
-  INTEGRATION_OPERATION_PHASE_NO_CHANGE = 4;
-  // A known precommit rejection; uncertainty is never a terminal failure.
-  INTEGRATION_OPERATION_PHASE_FAILED = 5;
+// Resource-oriented administration over the existing native activation owner.
+// Mutations preserve shared source CAS and finish only after exact publication.
+service IntegrationService {
+  // Gets the authorized integration type.
+  rpc GetIntegrationType(GetIntegrationTypeRequest) returns (IntegrationType) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/integrationTypes/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Lists the authorized integration types using bounded opaque pagination.
+  rpc ListIntegrationTypes(ListIntegrationTypesRequest) returns (ListIntegrationTypesResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}/integrationTypes"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Gets the authorized integration instance.
+  rpc GetIntegrationInstance(GetIntegrationInstanceRequest) returns (IntegrationInstance) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/integrationInstances/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Lists the authorized integration instances using bounded opaque pagination.
+  rpc ListIntegrationInstances(ListIntegrationInstancesRequest) returns (ListIntegrationInstancesResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}/integrationInstances"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Creates a integration instance.
+  rpc CreateIntegrationInstance(CreateIntegrationInstanceRequest) returns (google.longrunning.Operation) {
+    option (google.api.http) = {
+      post: "/v2/{parent=homes/*}/integrationInstances"
+      body: "integration_instance"
+    };
+    option (google.api.method_signature) = "parent,integration_instance,integration_instance_id";
+    option (google.longrunning.operation_info) = {
+      response_type: "IntegrationInstance"
+      metadata_type: "IntegrationOperationMetadata"
+    };
+  }
+  // Updates the authorized integration instance.
+  rpc UpdateIntegrationInstance(UpdateIntegrationInstanceRequest) returns (google.longrunning.Operation) {
+    option (google.api.http) = {
+      patch: "/v2/{integration_instance.name=homes/*/integrationInstances/*}"
+      body: "integration_instance"
+    };
+    option (google.api.method_signature) = "integration_instance,update_mask";
+    option (google.longrunning.operation_info) = {
+      response_type: "IntegrationInstance"
+      metadata_type: "IntegrationOperationMetadata"
+    };
+  }
+  // Deletes the authorized integration instance.
+  rpc DeleteIntegrationInstance(DeleteIntegrationInstanceRequest) returns (google.longrunning.Operation) {
+    option (google.api.http) = {delete: "/v2/{name=homes/*/integrationInstances/*}"};
+    option (google.api.method_signature) = "name,etag";
+    option (google.longrunning.operation_info) = {
+      response_type: "google.protobuf.Empty"
+      metadata_type: "IntegrationOperationMetadata"
+    };
+  }
 }
 
 // A finite vocabulary on google.longrunning.Operation, backed by the existing
@@ -53,19 +83,26 @@ message IntegrationOperationMetadata {
   IntegrationMutationKind kind = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Target instance. Creation may omit it before its native mapping is committed;
   // updates/deletions and every successful terminal always identify their target.
-  string target = 2 [(google.api.field_behavior) = OUTPUT_ONLY,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationInstance"];
+  string target = 2 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationInstance"
+  ];
   // Original durable reservation time, immutable across reconciliation.
   google.protobuf.Timestamp create_time = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
   // The caller's original UUID when supplied; absent stays absent.
-  string request_id = 4 [(google.api.field_behavior) = OUTPUT_ONLY, (google.api.field_info).format = UUID4];
+  string request_id = 4 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.field_info).format = UUID4
+  ];
   // Current native receipt phase.
   IntegrationOperationPhase phase = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Present only after this operation's actual native configuration commit.
   google.protobuf.Timestamp commit_time = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Exact committed generation; absent for Accepted, Failed and NoChange.
-  string generation = 7 [(google.api.field_behavior) = OUTPUT_ONLY,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/ConfigurationGeneration"];
+  string generation = 7 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/ConfigurationGeneration"
+  ];
   // Native committed generation revision, never a guessed current revision.
   int64 generation_revision = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Exact sealed manifest hash, present only with actual commit evidence.
@@ -126,38 +163,15 @@ message OpaqueIntegrationConfiguration {
   repeated IntegrationSecretReference secrets = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
-// Desired configuration is independent of observed health and supervision.
-enum IntegrationDesiredState {
-  INTEGRATION_DESIRED_STATE_UNSPECIFIED = 0;
-  INTEGRATION_DESIRED_STATE_ENABLED = 1;
-  INTEGRATION_DESIRED_STATE_DISABLED = 2;
-}
-
-// An admitted native report; absence of a report never means READY.
-enum IntegrationHealthStatus {
-  INTEGRATION_HEALTH_STATUS_UNSPECIFIED = 0;
-  INTEGRATION_HEALTH_STATUS_READY = 1;
-  INTEGRATION_HEALTH_STATUS_DEGRADED = 2;
-  INTEGRATION_HEALTH_STATUS_UNAVAILABLE = 3;
-}
-
-// Native lifecycle; RUNNING never manufactures a health report.
-enum IntegrationLifecycle {
-  INTEGRATION_LIFECYCLE_UNSPECIFIED = 0;
-  INTEGRATION_LIFECYCLE_STARTING = 1;
-  INTEGRATION_LIFECYCLE_RUNNING = 2;
-  INTEGRATION_LIFECYCLE_RETRYING = 3;
-  INTEGRATION_LIFECYCLE_DEGRADED = 4;
-  INTEGRATION_LIFECYCLE_STOPPED = 5;
-}
-
 // A redacted report from the existing integration owner.
 message IntegrationHealthReport {
   // Actual admitted report status.
   IntegrationHealthStatus status = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Explicit evidence of when this report entered the native observation owner.
   oneof admission {
+    // Recorded time for admission time. Absence means no timestamp was supplied or recorded.
     google.protobuf.Timestamp admission_time = 2;
+    // Selects the explicit admission not recorded alternative without an additional payload.
     google.protobuf.Empty admission_not_recorded = 3;
   }
 }
@@ -184,86 +198,128 @@ message IntegrationInstance {
   // Persistent resource identity, independent of the native instance key.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
   // Exact descriptor of this declaration.
-  string integration_type = 2 [(google.api.field_behavior) = IMMUTABLE,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationType"];
+  string integration_type = 2 [
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationType"
+  ];
   // Immutable source-authored native identity; never inferred from a label.
   string instance_key = 3 [(google.api.field_behavior) = IMMUTABLE];
   // Explicit desired lifecycle configuration.
   IntegrationDesiredState desired_state = 4 [(google.api.field_behavior) = OPTIONAL];
   // Only schema-owned editable fragments may be supplied by a mutation.
   oneof configuration {
+    // The editable represented by IntegrationConfiguration.
     IntegrationConfiguration editable = 5;
+    // The opaque represented by OpaqueIntegrationConfiguration.
     OpaqueIntegrationConfiguration opaque = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
   }
   // Actual health facts; omitted in definition-only LRO results.
   oneof observed_health {
+    // The health report represented by IntegrationHealthReport.
     IntegrationHealthReport health_report = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Selects absence of an admitted health report.
     google.protobuf.Empty no_health_report = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
   }
   // Actual supervision facts; omitted in definition-only LRO results.
   oneof observed_supervision {
+    // The supervision represented by IntegrationSupervisionSnapshot.
     IntegrationSupervisionSnapshot supervision = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Selects an integration outside native supervision.
     google.protobuf.Empty not_supervised = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
   }
   // Opaque weak etag binding the definition and its native source/workspace
   // capture. Health and supervision observations do not change it.
   string etag = 11 [(google.api.field_behavior) = OPTIONAL];
   // Operational source whose native CAS protects edits to this declaration.
-  string configuration_document = 12 [(google.api.field_behavior) = OUTPUT_ONLY,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/ConfigurationDocument"];
+  string configuration_document = 12 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/ConfigurationDocument"
+  ];
 }
 
+// Request for get integration type.
 message GetIntegrationTypeRequest {
   // Resource to read after current integration-administration authorization.
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationType"];
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationType"
+  ];
 }
+
+// Request for list integration types.
 message ListIntegrationTypesRequest {
   // Authorized installation.
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/IntegrationType"];
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/IntegrationType"
+  ];
   // Zero selects 100; positive values above 500 are clamped; negatives fail.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
   // Opaque continuation bound to the caller and native catalogue capture.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Successful result of list integration types.
 message ListIntegrationTypesResponse {
   // Authorized immutable descriptors in resource-name order.
   repeated IntegrationType integration_types = 1;
   // Empty at the end of this capture.
   string next_page_token = 2;
 }
+
+// Request for get integration instance.
 message GetIntegrationInstanceRequest {
   // Resource to read after current integration-administration authorization.
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationInstance"];
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationInstance"
+  ];
 }
+
+// Request for list integration instances.
 message ListIntegrationInstancesRequest {
   // Authorized installation.
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/IntegrationInstance"];
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/IntegrationInstance"
+  ];
   // Zero selects 100; positive values above 500 are clamped; negatives fail.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
   // Opaque continuation bound to the caller and native configuration capture.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Successful result of list integration instances.
 message ListIntegrationInstancesResponse {
   // Authorized declarations in resource-name order, including disabled ones.
   repeated IntegrationInstance integration_instances = 1;
   // Empty at the end of this capture.
   string next_page_token = 2;
 }
+
+// Request for create integration instance.
 message CreateIntegrationInstanceRequest {
+  // Optional public identifier: 1..63 lowercase letters, digits or hyphens,
+  // beginning with a letter and ending with a letter or digit. When absent the
+  // server allocates an identifier. A requested collision is ALREADY_EXISTS.
+  string integration_instance_id = 3 [(google.api.field_behavior) = OPTIONAL];
   // Installation that owns the existing shared operational configuration.
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/IntegrationInstance"];
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/IntegrationInstance"
+  ];
   // New declaration; instance_key and integration_type are immutable after creation.
   // The native owner captures a clean shared workspace and performs an
   // incremental compare-and-swap; dirty or unreconciled sources are rejected.
   IntegrationInstance integration_instance = 2 [(google.api.field_behavior) = REQUIRED];
   // Optional UUID4 retained for 24 hours; replay reads the original operation.
-  string request_id = 4 [(google.api.field_behavior) = OPTIONAL, (google.api.field_info).format = UUID4];
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }
+
+// Request for update integration instance.
 message UpdateIntegrationInstanceRequest {
   // Declaration with its current weak definition etag.
   IntegrationInstance integration_instance = 1 [(google.api.field_behavior) = REQUIRED];
@@ -271,50 +327,90 @@ message UpdateIntegrationInstanceRequest {
   // both. Output-only paths are ignored; unchanged immutable fields are ignored.
   google.protobuf.FieldMask update_mask = 2 [(google.api.field_behavior) = OPTIONAL];
   // Optional UUID4 retained for 24 hours; replay reads the original operation.
-  string request_id = 4 [(google.api.field_behavior) = OPTIONAL, (google.api.field_info).format = UUID4];
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }
+
+// Request for delete integration instance.
 message DeleteIntegrationInstanceRequest {
   // Native declaration to remove; this does not delete another owner's secrets.
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationInstance"];
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationInstance"
+  ];
   // Required opaque current definition etag.
   string etag = 2 [(google.api.field_behavior) = REQUIRED];
   // Optional UUID4 retained for 24 hours; replay reads the original operation.
-  string request_id = 4 [(google.api.field_behavior) = OPTIONAL, (google.api.field_info).format = UUID4];
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
-// Resource-oriented administration over the existing native activation owner.
-// Mutations preserve shared source CAS and finish only after exact publication.
-service IntegrationService {
-  rpc GetIntegrationType(GetIntegrationTypeRequest) returns (IntegrationType) {
-    option (google.api.http) = { get: "/v2/{name=homes/*/integrationTypes/*}" };
-    option (google.api.method_signature) = "name";
-  }
-  rpc ListIntegrationTypes(ListIntegrationTypesRequest) returns (ListIntegrationTypesResponse) {
-    option (google.api.http) = { get: "/v2/{parent=homes/*}/integrationTypes" };
-    option (google.api.method_signature) = "parent";
-  }
-  rpc GetIntegrationInstance(GetIntegrationInstanceRequest) returns (IntegrationInstance) {
-    option (google.api.http) = { get: "/v2/{name=homes/*/integrationInstances/*}" };
-    option (google.api.method_signature) = "name";
-  }
-  rpc ListIntegrationInstances(ListIntegrationInstancesRequest) returns (ListIntegrationInstancesResponse) {
-    option (google.api.http) = { get: "/v2/{parent=homes/*}/integrationInstances" };
-    option (google.api.method_signature) = "parent";
-  }
-  rpc CreateIntegrationInstance(CreateIntegrationInstanceRequest) returns (google.longrunning.Operation) {
-    option (google.api.http) = { post: "/v2/{parent=homes/*}/integrationInstances" body: "integration_instance" };
-    option (google.api.method_signature) = "parent,integration_instance";
-    option (google.longrunning.operation_info) = { response_type: "IntegrationInstance" metadata_type: "IntegrationOperationMetadata" };
-  }
-  rpc UpdateIntegrationInstance(UpdateIntegrationInstanceRequest) returns (google.longrunning.Operation) {
-    option (google.api.http) = { patch: "/v2/{integration_instance.name=homes/*/integrationInstances/*}" body: "integration_instance" };
-    option (google.api.method_signature) = "integration_instance,update_mask";
-    option (google.longrunning.operation_info) = { response_type: "IntegrationInstance" metadata_type: "IntegrationOperationMetadata" };
-  }
-  rpc DeleteIntegrationInstance(DeleteIntegrationInstanceRequest) returns (google.longrunning.Operation) {
-    option (google.api.http) = { delete: "/v2/{name=homes/*/integrationInstances/*}" };
-    option (google.api.method_signature) = "name";
-    option (google.longrunning.operation_info) = { response_type: "google.protobuf.Empty" metadata_type: "IntegrationOperationMetadata" };
-  }
+// The standard integration mutation that owns an operation.
+enum IntegrationMutationKind {
+  // Missing; never an executable default.
+  INTEGRATION_MUTATION_KIND_UNSPECIFIED = 0;
+  // Creation of one declared integration instance.
+  INTEGRATION_MUTATION_KIND_CREATE = 1;
+  // A field-mask update of one declared integration instance.
+  INTEGRATION_MUTATION_KIND_UPDATE = 2;
+  // Removal of one declared integration instance.
+  INTEGRATION_MUTATION_KIND_DELETE = 3;
+}
+
+// Native receipt states keep validation separate from configuration publication.
+enum IntegrationOperationPhase {
+  // Missing state; never a successful default.
+  INTEGRATION_OPERATION_PHASE_UNSPECIFIED = 0;
+  // One durable reservation; no compilation, commit or publication is claimed.
+  INTEGRATION_OPERATION_PHASE_ACCEPTED = 1;
+  // The exact native activation committed and is still being reconciled.
+  INTEGRATION_OPERATION_PHASE_COMMITTED = 2;
+  // The exact native generation was coherently published.
+  INTEGRATION_OPERATION_PHASE_PUBLISHED = 3;
+  // The original definition was validated and captured without any publication.
+  INTEGRATION_OPERATION_PHASE_NO_CHANGE = 4;
+  // A known precommit rejection; uncertainty is never a terminal failure.
+  INTEGRATION_OPERATION_PHASE_FAILED = 5;
+}
+
+// Desired configuration is independent of observed health and supervision.
+enum IntegrationDesiredState {
+  // No explicit integration desired state. Does not select an action.
+  INTEGRATION_DESIRED_STATE_UNSPECIFIED = 0;
+  // Selects enabled for integration desired state.
+  INTEGRATION_DESIRED_STATE_ENABLED = 1;
+  // Selects disabled for integration desired state.
+  INTEGRATION_DESIRED_STATE_DISABLED = 2;
+}
+
+// An admitted native report; absence of a report never means READY.
+enum IntegrationHealthStatus {
+  // No explicit integration health status. Does not select an action.
+  INTEGRATION_HEALTH_STATUS_UNSPECIFIED = 0;
+  // Selects ready for integration health status.
+  INTEGRATION_HEALTH_STATUS_READY = 1;
+  // Selects degraded for integration health status.
+  INTEGRATION_HEALTH_STATUS_DEGRADED = 2;
+  // Selects unavailable for integration health status.
+  INTEGRATION_HEALTH_STATUS_UNAVAILABLE = 3;
+}
+
+// Native lifecycle; RUNNING never manufactures a health report.
+enum IntegrationLifecycle {
+  // No explicit integration lifecycle. Does not select an action.
+  INTEGRATION_LIFECYCLE_UNSPECIFIED = 0;
+  // Selects starting for integration lifecycle.
+  INTEGRATION_LIFECYCLE_STARTING = 1;
+  // Selects running for integration lifecycle.
+  INTEGRATION_LIFECYCLE_RUNNING = 2;
+  // Selects retrying for integration lifecycle.
+  INTEGRATION_LIFECYCLE_RETRYING = 3;
+  // Selects degraded for integration lifecycle.
+  INTEGRATION_LIFECYCLE_DEGRADED = 4;
+  // Selects stopped for integration lifecycle.
+  INTEGRATION_LIFECYCLE_STOPPED = 5;
 }

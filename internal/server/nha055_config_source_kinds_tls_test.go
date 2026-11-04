@@ -6,7 +6,7 @@ import (
 
 	"github.com/damione1/Homeward/compat/ha/parser"
 	"github.com/damione1/Homeward/contracts"
-	wire "github.com/damione1/Homeward/gen/home/configuration/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/scope"
 )
@@ -86,7 +86,7 @@ func TestNHA055SQL26ActualRunTLSReadListSchemasPreserveSourceKinds(t *testing.T)
 	if err != nil || outcome != storage.TransactionCommitted {
 		t.Fatal("real source persistence requires admitted SQL26", outcome, err)
 	}
-	assertDocument := func(t *testing.T, document *wire.Document, expectedKind wire.DocumentKind, schema, profile string) {
+	assertDocument := func(t *testing.T, document *wire.ConfigurationDocument, expectedKind wire.DocumentKind, schema, profile string) {
 		t.Helper()
 		if document == nil || document.Id == nil || document.Version == nil {
 			t.Fatal("incomplete retained document response")
@@ -102,61 +102,61 @@ func TestNHA055SQL26ActualRunTLSReadListSchemasPreserveSourceKinds(t *testing.T)
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			response, err := f.api.ReadDocument(f.ctx, nha056SessionRequest(&wire.ReadDocumentRequest{Id: &wire.DocumentId{Value: "retained.source-kind." + c.name}}, f.token))
+			response, err := f.api.GetConfigurationDocument(f.ctx, nha056SessionRequest(&wire.GetConfigurationDocumentRequest{Name: nha203DocumentName(t, f.ctx, f.run, "retained.source-kind."+c.name)}, f.token))
 			if err != nil {
 				t.Fatal("actual Run/TLS retained source read", err)
 			}
 			if err := contracts.AdmitConfigurationResponse(response.Msg); err != nil {
 				t.Fatal(err)
 			}
-			assertDocument(t, response.Msg.Document, c.kind, c.schema, c.profile)
+			assertDocument(t, response.Msg, c.kind, c.schema, c.profile)
 		})
 	}
-	listed := make(map[string]*wire.Document)
-	page := &wire.PageRequest{PageSize: 2}
+	listed := make(map[string]*wire.ConfigurationDocument)
+	page := ""
 	for n := 0; ; n++ {
 		if n >= 32 {
 			t.Fatal("document pagination did not terminate")
 		}
-		response, err := f.api.ListDocuments(f.ctx, nha056SessionRequest(&wire.ListDocumentsRequest{Page: page}, f.token))
+		response, err := f.api.ListConfigurationDocuments(f.ctx, nha056SessionRequest(&wire.ListConfigurationDocumentsRequest{Parent: nha203HomeName(t, f.ctx, f.run), PageSize: 2, PageToken: page}, f.token))
 		if err != nil {
 			t.Fatal("actual TLS source-kind list", err)
 		}
 		if err := contracts.AdmitConfigurationResponse(response.Msg); err != nil {
 			t.Fatal(err)
 		}
-		for _, document := range response.Msg.Documents {
+		for _, document := range response.Msg.ConfigurationDocuments {
 			if _, duplicate := listed[document.Id.Value]; duplicate {
 				t.Fatal("document repeated across pages")
 			}
 			listed[document.Id.Value] = document
 		}
-		if response.Msg.Continuation.GetComplete() != nil {
+		if response.Msg.NextPageToken == "" {
 			break
 		}
-		token := response.Msg.Continuation.GetNextPageToken()
+		token := response.Msg.NextPageToken
 		if token == "" {
 			t.Fatal("missing document continuation")
 		}
-		page = &wire.PageRequest{PageSize: 2, PageToken: &token}
+		page = token
 	}
 	for _, c := range cases {
 		assertDocument(t, listed["retained.source-kind."+c.name], c.kind, c.schema, c.profile)
 	}
-	schemas := make(map[wire.DocumentKind]*wire.Schema)
-	page = &wire.PageRequest{PageSize: 1}
+	schemas := make(map[wire.DocumentKind]*wire.ConfigurationSchema)
+	page = ""
 	for n := 0; ; n++ {
 		if n >= 32 {
 			t.Fatal("schema pagination did not terminate")
 		}
-		response, err := f.api.ListSchemas(f.ctx, nha056SessionRequest(&wire.ListSchemasRequest{Page: page}, f.token))
+		response, err := f.api.ListConfigurationSchemas(f.ctx, nha056SessionRequest(&wire.ListConfigurationSchemasRequest{Parent: nha203HomeName(t, f.ctx, f.run), PageSize: 1, PageToken: page}, f.token))
 		if err != nil {
 			t.Fatal("actual TLS admitted SQL schemas", err)
 		}
 		if err := contracts.AdmitConfigurationResponse(response.Msg); err != nil {
 			t.Fatal(err)
 		}
-		for _, schema := range response.Msg.Schemas {
+		for _, schema := range response.Msg.ConfigurationSchemas {
 			// Legacy declarative-1/2 legitimately have the same document kind.
 			if schema.Kind >= wire.DocumentKind_DOCUMENT_KIND_DASHBOARD_SOURCE {
 				if _, duplicate := schemas[schema.Kind]; duplicate {
@@ -165,14 +165,14 @@ func TestNHA055SQL26ActualRunTLSReadListSchemasPreserveSourceKinds(t *testing.T)
 				schemas[schema.Kind] = schema
 			}
 		}
-		if response.Msg.Continuation.GetComplete() != nil {
+		if response.Msg.NextPageToken == "" {
 			break
 		}
-		token := response.Msg.Continuation.GetNextPageToken()
+		token := response.Msg.NextPageToken
 		if token == "" {
 			t.Fatal("missing schema continuation")
 		}
-		page = &wire.PageRequest{PageSize: 1, PageToken: &token}
+		page = token
 	}
 	for _, c := range cases {
 		schema := schemas[c.kind]
@@ -181,7 +181,7 @@ func TestNHA055SQL26ActualRunTLSReadListSchemasPreserveSourceKinds(t *testing.T)
 		}
 	}
 	after := f.read(t)
-	if after.ActiveGeneration.Revision != before.ActiveGeneration.Revision || after.Document.Version.Revision != before.Document.Version.Revision || !bytes.Equal(after.Document.Version.SourceSha256, before.Document.Version.SourceSha256) {
+	if after.ActiveGeneration.Revision != before.ActiveGeneration.Revision || after.Version.Revision != before.Version.Revision || !bytes.Equal(after.Version.SourceSha256, before.Version.SourceSha256) {
 		t.Fatal("metadata transport changed operational activation")
 	}
 	afterAttempts, afterCommands := nha150Counts(t, store)

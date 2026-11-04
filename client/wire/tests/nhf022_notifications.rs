@@ -1,12 +1,12 @@
 use buffa::EnumValue;
 use buffa_types::google::protobuf::Timestamp;
 use home_wire_contract::{
-    auth_contract::{AccountId, SessionId},
     home::{
-        auth::v1 as auth, companion::v1 as companion, notifications::v1 as wire,
-        registry::v1 as registry,
+        auth::v1 as auth, registry::v1 as registry, testing::companion::v1 as companion,
+        testing::notifications::v1 as wire,
     },
     notifications_contract::*,
+    qualification_identity::{AccountId, SessionId},
 };
 fn stamp(seconds: i64) -> Timestamp {
     Timestamp {

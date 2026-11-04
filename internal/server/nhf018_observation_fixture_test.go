@@ -13,10 +13,9 @@ import (
 	"testing"
 	"time"
 
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	auth "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/observability"
 	"github.com/damione1/Homeward/internal/storage"
@@ -74,7 +73,7 @@ func nhf018SeedLogs(t *testing.T, f *nha148TLSFixture, count int) {
 func nhf018ObservationFixture(t *testing.T, f *nha148TLSFixture, out string) string {
 	t.Helper()
 	for range 110 {
-		_, err := f.accounts.GetAccount(f.ctx, nha056SessionRequest(&auth.GetAccountRequest{AccountId: f.tokens.Session.AccountId}, f.token))
+		_, err := f.accounts.GetAccount(f.ctx, nha056SessionRequest(&auth.GetAccountRequest{Name: nha203SessionAccount(t, f.tokens.Session).String()}, f.token))
 		if err != nil {
 			t.Fatal("synthetic authentication audit", err)
 		}
@@ -109,7 +108,7 @@ func nhf018ObservationFixture(t *testing.T, f *nha148TLSFixture, out string) str
 		t.Fatal(err)
 	}
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == authv1connect.AuthServiceStartLoginProcedure {
+		if r.URL.Path == apiv2connect.AuthServiceStartLoginProcedure {
 			mode, err := nhf018ReadFaultFromFile(filepath.Join(out, "read-fault"))
 			if err != nil {
 				http.Error(w, "invalid synthetic fault", http.StatusInternalServerError)
@@ -129,7 +128,7 @@ func nhf018ObservationFixture(t *testing.T, f *nha148TLSFixture, out string) str
 				return
 			}
 		}
-		if r.URL.Path == observabilityv1connect.ObservabilityServiceQueryRuntimeLogsProcedure {
+		if r.URL.Path == apiv2connect.ObservabilityServiceQueryRuntimeLogsProcedure {
 			mode, err := nhf018ReadFaultFromFile(filepath.Join(out, "read-fault"))
 			if err != nil {
 				http.Error(w, "invalid synthetic fault", http.StatusInternalServerError)

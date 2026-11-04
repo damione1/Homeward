@@ -73,7 +73,9 @@ fn gauge(value: &obs::ObservationGaugeMeasurement) -> String {
 fn counter(value: &obs::ObservationCounterMeasurement) -> String {
     match &value.result {
         Some(obs::observation_counter_measurement::Result::Exact(value)) => value.to_string(),
-        Some(obs::observation_counter_measurement::Result::Saturated(_)) => "Counter full".into(),
+        Some(obs::observation_counter_measurement::Result::Saturated(value)) => {
+            format!("At least {}", value.lower_bound)
+        }
         Some(obs::observation_counter_measurement::Result::NotMeasured(_)) => "Not measured".into(),
         Some(obs::observation_counter_measurement::Result::Unavailable(_)) => "Unavailable".into(),
         None => "Not provided".into(),
@@ -162,7 +164,7 @@ pub(super) fn rows(payload: &Payload, identity: &Identity) -> (Vec<Row>, Option<
                         "{} · {} · {}",
                         value.login_name,
                         role(value.role),
-                        name(value.state)
+                        name(value.access)
                     ),
                 );
             }

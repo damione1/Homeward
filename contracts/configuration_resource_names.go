@@ -24,3 +24,10 @@ func configurationHomeName(value string) bool {
 	_, err := apitypes.ParseHomeName(value)
 	return err == nil
 }
+
+func requestedPublicResourceID(value string) bool {
+	if value == "" {
+		return true
+	}
+	return value[0] >= 'a' && value[0] <= 'z' && configurationResourceName("homes/fixture/resources/"+value, "resources")
+}

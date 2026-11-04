@@ -29,12 +29,18 @@ const (
 type DashboardFieldKey int32
 
 const (
-	DashboardFieldKey_DASHBOARD_FIELD_KEY_UNSPECIFIED                 DashboardFieldKey = 0
-	DashboardFieldKey_DASHBOARD_FIELD_KEY_STATE                       DashboardFieldKey = 1
-	DashboardFieldKey_DASHBOARD_FIELD_KEY_VALUE                       DashboardFieldKey = 2
+	// No explicit dashboard field key. Does not select an action.
+	DashboardFieldKey_DASHBOARD_FIELD_KEY_UNSPECIFIED DashboardFieldKey = 0
+	// Selects state for dashboard field key.
+	DashboardFieldKey_DASHBOARD_FIELD_KEY_STATE DashboardFieldKey = 1
+	// Selects value for dashboard field key.
+	DashboardFieldKey_DASHBOARD_FIELD_KEY_VALUE DashboardFieldKey = 2
+	// Selects current temperature celsius for dashboard field key.
 	DashboardFieldKey_DASHBOARD_FIELD_KEY_CURRENT_TEMPERATURE_CELSIUS DashboardFieldKey = 3
-	DashboardFieldKey_DASHBOARD_FIELD_KEY_SETPOINT_CELSIUS            DashboardFieldKey = 4
-	DashboardFieldKey_DASHBOARD_FIELD_KEY_MEASUREMENT                 DashboardFieldKey = 5
+	// Selects setpoint celsius for dashboard field key.
+	DashboardFieldKey_DASHBOARD_FIELD_KEY_SETPOINT_CELSIUS DashboardFieldKey = 4
+	// Selects measurement for dashboard field key.
+	DashboardFieldKey_DASHBOARD_FIELD_KEY_MEASUREMENT DashboardFieldKey = 5
 )
 
 // Enum value maps for DashboardFieldKey.
@@ -1761,7 +1767,7 @@ func (x *DashboardLayoutDimension) GetSize() isDashboardLayoutDimension_Size {
 	return nil
 }
 
-func (x *DashboardLayoutDimension) GetCount() uint32 {
+func (x *DashboardLayoutDimension) GetCount() int32 {
 	if x != nil {
 		if x, ok := x.Size.(*DashboardLayoutDimension_Count); ok {
 			return x.Count
@@ -1793,8 +1799,8 @@ type isDashboardLayoutDimension_Size interface {
 }
 
 type DashboardLayoutDimension_Count struct {
-	// Positive bounded grid count.
-	Count uint32 `protobuf:"varint,1,opt,name=count,proto3,oneof"`
+	// Grid count in the inclusive range 1..12.
+	Count int32 `protobuf:"varint,1,opt,name=count,proto3,oneof"`
 }
 
 type DashboardLayoutDimension_Full struct {
@@ -1818,10 +1824,10 @@ type DashboardLayoutSource struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Source-relative document path, excluding raw contents.
 	File string `protobuf:"bytes,1,opt,name=file,proto3" json:"file,omitempty"`
-	// Source line, when available.
-	Line uint32 `protobuf:"varint,2,opt,name=line,proto3" json:"line,omitempty"`
-	// Source column, when available.
-	Column uint32 `protobuf:"varint,3,opt,name=column,proto3" json:"column,omitempty"`
+	// Source line in 0..2147483647; zero means unavailable.
+	Line int32 `protobuf:"varint,2,opt,name=line,proto3" json:"line,omitempty"`
+	// Source column in 0..2147483647; zero means unavailable.
+	Column int32 `protobuf:"varint,3,opt,name=column,proto3" json:"column,omitempty"`
 	// Stable location inside the published source document.
 	Path string `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
 	// Bounded source variant label for inert diagnostics.
@@ -1867,14 +1873,14 @@ func (x *DashboardLayoutSource) GetFile() string {
 	return ""
 }
 
-func (x *DashboardLayoutSource) GetLine() uint32 {
+func (x *DashboardLayoutSource) GetLine() int32 {
 	if x != nil {
 		return x.Line
 	}
 	return 0
 }
 
-func (x *DashboardLayoutSource) GetColumn() uint32 {
+func (x *DashboardLayoutSource) GetColumn() int32 {
 	if x != nil {
 		return x.Column
 	}
@@ -2285,8 +2291,8 @@ type DashboardChildren struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Unique child-node IDs with no shared child or cycle.
 	Children []string `protobuf:"bytes,1,rep,name=children,proto3" json:"children,omitempty"`
-	// Logical spacing; zero is a legitimate authored value.
-	Gap           uint32 `protobuf:"varint,2,opt,name=gap,proto3" json:"gap,omitempty"`
+	// Logical spacing in 0..256; zero is a legitimate authored value.
+	Gap           int32 `protobuf:"varint,2,opt,name=gap,proto3" json:"gap,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2328,7 +2334,7 @@ func (x *DashboardChildren) GetChildren() []string {
 	return nil
 }
 
-func (x *DashboardChildren) GetGap() uint32 {
+func (x *DashboardChildren) GetGap() int32 {
 	if x != nil {
 		return x.Gap
 	}
@@ -2342,10 +2348,10 @@ type DashboardViewNode struct {
 	Route string `protobuf:"bytes,1,opt,name=route,proto3" json:"route,omitempty"`
 	// Ordered section/container children.
 	Children *DashboardChildren `protobuf:"bytes,2,opt,name=children,proto3" json:"children,omitempty"`
-	// Explicit bounded maximum column count.
-	MaximumColumns uint32 `protobuf:"varint,3,opt,name=maximum_columns,json=maximumColumns,proto3" json:"maximum_columns,omitempty"`
-	// Explicit bounded minimum logical column width.
-	MinimumColumnWidth uint32 `protobuf:"varint,4,opt,name=minimum_column_width,json=minimumColumnWidth,proto3" json:"minimum_column_width,omitempty"`
+	// Maximum column count in 0..12; zero means unspecified.
+	MaximumColumns int32 `protobuf:"varint,3,opt,name=maximum_columns,json=maximumColumns,proto3" json:"maximum_columns,omitempty"`
+	// Minimum logical column width in 0..4096; zero means unspecified.
+	MinimumColumnWidth int32 `protobuf:"varint,4,opt,name=minimum_column_width,json=minimumColumnWidth,proto3" json:"minimum_column_width,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -2394,14 +2400,14 @@ func (x *DashboardViewNode) GetChildren() *DashboardChildren {
 	return nil
 }
 
-func (x *DashboardViewNode) GetMaximumColumns() uint32 {
+func (x *DashboardViewNode) GetMaximumColumns() int32 {
 	if x != nil {
 		return x.MaximumColumns
 	}
 	return 0
 }
 
-func (x *DashboardViewNode) GetMinimumColumnWidth() uint32 {
+func (x *DashboardViewNode) GetMinimumColumnWidth() int32 {
 	if x != nil {
 		return x.MinimumColumnWidth
 	}
@@ -2413,8 +2419,8 @@ type DashboardSectionNode struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Ordered child cards.
 	Children *DashboardChildren `protobuf:"bytes,1,opt,name=children,proto3" json:"children,omitempty"`
-	// Explicit bounded minimum logical column width.
-	MinimumColumnWidth uint32 `protobuf:"varint,2,opt,name=minimum_column_width,json=minimumColumnWidth,proto3" json:"minimum_column_width,omitempty"`
+	// Minimum logical column width in 0..4096; zero means unspecified.
+	MinimumColumnWidth int32 `protobuf:"varint,2,opt,name=minimum_column_width,json=minimumColumnWidth,proto3" json:"minimum_column_width,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -2456,7 +2462,7 @@ func (x *DashboardSectionNode) GetChildren() *DashboardChildren {
 	return nil
 }
 
-func (x *DashboardSectionNode) GetMinimumColumnWidth() uint32 {
+func (x *DashboardSectionNode) GetMinimumColumnWidth() int32 {
 	if x != nil {
 		return x.MinimumColumnWidth
 	}
@@ -2468,12 +2474,12 @@ type DashboardGridNode struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Ordered child cards.
 	Children *DashboardChildren `protobuf:"bytes,1,opt,name=children,proto3" json:"children,omitempty"`
-	// Positive bounded column count.
-	Columns uint32 `protobuf:"varint,2,opt,name=columns,proto3" json:"columns,omitempty"`
+	// Column count in 1..12; zero means unspecified.
+	Columns int32 `protobuf:"varint,2,opt,name=columns,proto3" json:"columns,omitempty"`
 	// Whether to use square cells; absence differs from false.
 	Square *bool `protobuf:"varint,3,opt,name=square,proto3,oneof" json:"square,omitempty"`
-	// Explicit bounded minimum logical column width.
-	MinimumColumnWidth uint32 `protobuf:"varint,4,opt,name=minimum_column_width,json=minimumColumnWidth,proto3" json:"minimum_column_width,omitempty"`
+	// Minimum logical column width in 0..4096; zero means unspecified.
+	MinimumColumnWidth int32 `protobuf:"varint,4,opt,name=minimum_column_width,json=minimumColumnWidth,proto3" json:"minimum_column_width,omitempty"`
 	// Finite authored gestures; no gesture grants command authority.
 	Interactions  *DashboardInteractions `protobuf:"bytes,5,opt,name=interactions,proto3" json:"interactions,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2517,7 +2523,7 @@ func (x *DashboardGridNode) GetChildren() *DashboardChildren {
 	return nil
 }
 
-func (x *DashboardGridNode) GetColumns() uint32 {
+func (x *DashboardGridNode) GetColumns() int32 {
 	if x != nil {
 		return x.Columns
 	}
@@ -2531,7 +2537,7 @@ func (x *DashboardGridNode) GetSquare() bool {
 	return false
 }
 
-func (x *DashboardGridNode) GetMinimumColumnWidth() uint32 {
+func (x *DashboardGridNode) GetMinimumColumnWidth() int32 {
 	if x != nil {
 		return x.MinimumColumnWidth
 	}
@@ -3005,10 +3011,10 @@ func (x *DashboardUnsupportedNode) GetChildren() []string {
 // Inclusive logical-width bounds; zero means no bound, not authority.
 type DashboardScreenVisibility struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Inclusive minimum logical width; zero is unbounded.
-	MinWidth uint32 `protobuf:"varint,1,opt,name=min_width,json=minWidth,proto3" json:"min_width,omitempty"`
-	// Inclusive maximum logical width; zero is unbounded.
-	MaxWidth      uint32 `protobuf:"varint,2,opt,name=max_width,json=maxWidth,proto3" json:"max_width,omitempty"`
+	// Inclusive minimum logical width in 0..65535; zero is unbounded.
+	MinWidth int32 `protobuf:"varint,1,opt,name=min_width,json=minWidth,proto3" json:"min_width,omitempty"`
+	// Inclusive maximum logical width in 0..65535; zero is unbounded.
+	MaxWidth      int32 `protobuf:"varint,2,opt,name=max_width,json=maxWidth,proto3" json:"max_width,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3043,14 +3049,14 @@ func (*DashboardScreenVisibility) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{25}
 }
 
-func (x *DashboardScreenVisibility) GetMinWidth() uint32 {
+func (x *DashboardScreenVisibility) GetMinWidth() int32 {
 	if x != nil {
 		return x.MinWidth
 	}
 	return 0
 }
 
-func (x *DashboardScreenVisibility) GetMaxWidth() uint32 {
+func (x *DashboardScreenVisibility) GetMaxWidth() int32 {
 	if x != nil {
 		return x.MaxWidth
 	}
@@ -3060,10 +3066,10 @@ func (x *DashboardScreenVisibility) GetMaxWidth() uint32 {
 // An authored responsive span for a specified column count.
 type DashboardResponsiveSpan struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Explicit column count.
-	Columns uint32 `protobuf:"varint,1,opt,name=columns,proto3" json:"columns,omitempty"`
-	// Positive authored span within the column count.
-	Span          uint32 `protobuf:"varint,2,opt,name=span,proto3" json:"span,omitempty"`
+	// Explicit column count in 1..12.
+	Columns int32 `protobuf:"varint,1,opt,name=columns,proto3" json:"columns,omitempty"`
+	// Authored span in 1..columns, with columns at most 12.
+	Span          int32 `protobuf:"varint,2,opt,name=span,proto3" json:"span,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3098,14 +3104,14 @@ func (*DashboardResponsiveSpan) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{26}
 }
 
-func (x *DashboardResponsiveSpan) GetColumns() uint32 {
+func (x *DashboardResponsiveSpan) GetColumns() int32 {
 	if x != nil {
 		return x.Columns
 	}
 	return 0
 }
 
-func (x *DashboardResponsiveSpan) GetSpan() uint32 {
+func (x *DashboardResponsiveSpan) GetSpan() int32 {
 	if x != nil {
 		return x.Span
 	}
@@ -3423,8 +3429,8 @@ type DashboardAgendaWidget struct {
 	TimeZone string `protobuf:"bytes,2,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
 	// Positive bounded agenda window.
 	TimeWindow *durationpb.Duration `protobuf:"bytes,3,opt,name=time_window,json=timeWindow,proto3" json:"time_window,omitempty"`
-	// Positive bounded number of displayed items.
-	Limit         uint32 `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Number of displayed items in 1..1000.
+	Limit         int32 `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3480,7 +3486,7 @@ func (x *DashboardAgendaWidget) GetTimeWindow() *durationpb.Duration {
 	return nil
 }
 
-func (x *DashboardAgendaWidget) GetLimit() uint32 {
+func (x *DashboardAgendaWidget) GetLimit() int32 {
 	if x != nil {
 		return x.Limit
 	}
@@ -3492,8 +3498,8 @@ type DashboardTasksWidget struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Exact canonical task-list name.
 	TaskList string `protobuf:"bytes,1,opt,name=task_list,json=taskList,proto3" json:"task_list,omitempty"`
-	// Positive bounded number of displayed items.
-	Limit uint32 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Number of displayed items in 1..1000.
+	Limit int32 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	// Closed explicit presentation selection.
 	Presentation  DashboardTasksPresentation `protobuf:"varint,3,opt,name=presentation,proto3,enum=home.api.v2.DashboardTasksPresentation" json:"presentation,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -3537,7 +3543,7 @@ func (x *DashboardTasksWidget) GetTaskList() string {
 	return ""
 }
 
-func (x *DashboardTasksWidget) GetLimit() uint32 {
+func (x *DashboardTasksWidget) GetLimit() int32 {
 	if x != nil {
 		return x.Limit
 	}
@@ -4728,7 +4734,7 @@ var File_home_api_v2_dashboards_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\n" +
-	"\x1chome/api/v2/dashboards.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x18home/api/v2/traits.proto\x1a!home/api/v2/extended_traits.proto\"\xa2\x03\n" +
+	"\x1chome/api/v2/dashboards.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!home/api/v2/extended_traits.proto\x1a\x18home/api/v2/traits.proto\"\xa2\x03\n" +
 	"\tDashboard\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12'\n" +
 	"\fdisplay_name\x18\x02 \x01(\tB\x04\xe2A\x01\x03R\vdisplayName\x12\x18\n" +
@@ -4798,14 +4804,14 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\tresidence\x18\r \x01(\x0e2\x16.home.api.v2.ResidenceH\x00R\tresidenceB\a\n" +
 	"\x05value\"\x96\x01\n" +
 	"\x18DashboardLayoutDimension\x12\x16\n" +
-	"\x05count\x18\x01 \x01(\rH\x00R\x05count\x12,\n" +
+	"\x05count\x18\x01 \x01(\x05H\x00R\x05count\x12,\n" +
 	"\x04full\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x04full\x12,\n" +
 	"\x04auto\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x04autoB\x06\n" +
 	"\x04size\"\x85\x01\n" +
 	"\x15DashboardLayoutSource\x12\x12\n" +
 	"\x04file\x18\x01 \x01(\tR\x04file\x12\x12\n" +
-	"\x04line\x18\x02 \x01(\rR\x04line\x12\x16\n" +
-	"\x06column\x18\x03 \x01(\rR\x06column\x12\x12\n" +
+	"\x04line\x18\x02 \x01(\x05R\x04line\x12\x16\n" +
+	"\x06column\x18\x03 \x01(\x05R\x06column\x12\x12\n" +
 	"\x04path\x18\x04 \x01(\tR\x04path\x12\x18\n" +
 	"\avariant\x18\x05 \x01(\tR\avariant\"\x8a\t\n" +
 	"\x13DashboardLayoutNode\x12\x0e\n" +
@@ -4840,20 +4846,20 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\x10responsive_spans\x18\x03 \x03(\v2$.home.api.v2.DashboardResponsiveSpanR\x0fresponsiveSpans\"A\n" +
 	"\x11DashboardChildren\x12\x1a\n" +
 	"\bchildren\x18\x01 \x03(\tR\bchildren\x12\x10\n" +
-	"\x03gap\x18\x02 \x01(\rR\x03gap\"\xc0\x01\n" +
+	"\x03gap\x18\x02 \x01(\x05R\x03gap\"\xc0\x01\n" +
 	"\x11DashboardViewNode\x12\x14\n" +
 	"\x05route\x18\x01 \x01(\tR\x05route\x12:\n" +
 	"\bchildren\x18\x02 \x01(\v2\x1e.home.api.v2.DashboardChildrenR\bchildren\x12'\n" +
-	"\x0fmaximum_columns\x18\x03 \x01(\rR\x0emaximumColumns\x120\n" +
-	"\x14minimum_column_width\x18\x04 \x01(\rR\x12minimumColumnWidth\"\x84\x01\n" +
+	"\x0fmaximum_columns\x18\x03 \x01(\x05R\x0emaximumColumns\x120\n" +
+	"\x14minimum_column_width\x18\x04 \x01(\x05R\x12minimumColumnWidth\"\x84\x01\n" +
 	"\x14DashboardSectionNode\x12:\n" +
 	"\bchildren\x18\x01 \x01(\v2\x1e.home.api.v2.DashboardChildrenR\bchildren\x120\n" +
-	"\x14minimum_column_width\x18\x02 \x01(\rR\x12minimumColumnWidth\"\x8b\x02\n" +
+	"\x14minimum_column_width\x18\x02 \x01(\x05R\x12minimumColumnWidth\"\x8b\x02\n" +
 	"\x11DashboardGridNode\x12:\n" +
 	"\bchildren\x18\x01 \x01(\v2\x1e.home.api.v2.DashboardChildrenR\bchildren\x12\x18\n" +
-	"\acolumns\x18\x02 \x01(\rR\acolumns\x12\x1b\n" +
+	"\acolumns\x18\x02 \x01(\x05R\acolumns\x12\x1b\n" +
 	"\x06square\x18\x03 \x01(\bH\x00R\x06square\x88\x01\x01\x120\n" +
-	"\x14minimum_column_width\x18\x04 \x01(\rR\x12minimumColumnWidth\x12F\n" +
+	"\x14minimum_column_width\x18\x04 \x01(\x05R\x12minimumColumnWidth\x12F\n" +
 	"\finteractions\x18\x05 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractionsB\t\n" +
 	"\a_square\"\x98\x01\n" +
 	"\x12DashboardStackNode\x12:\n" +
@@ -4896,11 +4902,11 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"diagnostic\x12\x1a\n" +
 	"\bchildren\x18\x02 \x03(\tR\bchildren\"U\n" +
 	"\x19DashboardScreenVisibility\x12\x1b\n" +
-	"\tmin_width\x18\x01 \x01(\rR\bminWidth\x12\x1b\n" +
-	"\tmax_width\x18\x02 \x01(\rR\bmaxWidth\"G\n" +
+	"\tmin_width\x18\x01 \x01(\x05R\bminWidth\x12\x1b\n" +
+	"\tmax_width\x18\x02 \x01(\x05R\bmaxWidth\"G\n" +
 	"\x17DashboardResponsiveSpan\x12\x18\n" +
-	"\acolumns\x18\x01 \x01(\rR\acolumns\x12\x12\n" +
-	"\x04span\x18\x02 \x01(\rR\x04span\"\x98\x01\n" +
+	"\acolumns\x18\x01 \x01(\x05R\acolumns\x12\x12\n" +
+	"\x04span\x18\x02 \x01(\x05R\x04span\"\x98\x01\n" +
 	"\x15DashboardFieldBinding\x12I\n" +
 	"\n" +
 	"capability\x18\x01 \x01(\tB)\xfaA&\n" +
@@ -4930,11 +4936,11 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\ttime_zone\x18\x02 \x01(\tR\btimeZone\x12:\n" +
 	"\vtime_window\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\n" +
 	"timeWindow\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\rR\x05limit\"\xbf\x01\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\xbf\x01\n" +
 	"\x14DashboardTasksWidget\x12D\n" +
 	"\ttask_list\x18\x01 \x01(\tB'\xfaA$\n" +
 	"\"homeward.damiengoehrig.ca/TaskListR\btaskList\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\rR\x05limit\x12K\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12K\n" +
 	"\fpresentation\x18\x03 \x01(\x0e2'.home.api.v2.DashboardTasksPresentationR\fpresentation\"h\n" +
 	"\x17DashboardSecurityWidget\x12M\n" +
 	"\fcapabilities\x18\x01 \x03(\tB)\xfaA&\n" +
@@ -5338,8 +5344,8 @@ func file_home_api_v2_dashboards_proto_init() {
 	if File_home_api_v2_dashboards_proto != nil {
 		return
 	}
-	file_home_api_v2_traits_proto_init()
 	file_home_api_v2_extended_traits_proto_init()
+	file_home_api_v2_traits_proto_init()
 	file_home_api_v2_dashboards_proto_msgTypes[9].OneofWrappers = []any{
 		(*DashboardLiteral_BooleanValue)(nil),
 		(*DashboardLiteral_IntegerValue)(nil),

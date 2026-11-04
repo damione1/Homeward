@@ -10,9 +10,11 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	history "github.com/damione1/Homeward/gen/home/api/v2"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	history "github.com/damione1/Homeward/gen/home/history/v1"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/historycoverage"
 	"github.com/damione1/Homeward/internal/historyquery"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/integrations/fake"
@@ -60,13 +62,17 @@ func (c *nha164DuringCaptureDeadline) Err() error {
 }
 func TestNHA164DeadlineBetweenCaptureAndPrincipalKeepsItsCause(t *testing.T) {
 	h, base, _, _ := nha164Handler(t, auth.AccountRole_ACCOUNT_ROLE_ADMIN, auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, auth.ScopeOperation_SCOPE_OPERATION_READ)
-	q, _, err := contracts.AdmitHistoryRequest(nha164TraceRequest().Msg)
+	selection, err := contracts.AdmitHistoryV2Selection(nha164TraceRequest().Msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err := selection.NativeQuery(domain.EntityID{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := &nha164DuringCaptureDeadline{Context: base, done: make(chan struct{})}
-	_, err = h.capture(ctx, q, nil)
-	if !errors.Is(err, context.DeadlineExceeded) || connect.CodeOf(historyRPCError(err)) != connect.CodeDeadlineExceeded {
+	_, err = h.native.capture(ctx, q, nil)
+	if !errors.Is(err, context.DeadlineExceeded) || connect.CodeOf(historyFault(err).Connect()) != connect.CodeDeadlineExceeded {
 		t.Fatalf("early principal failure hid deadline: %v", err)
 	}
 }
@@ -127,7 +133,7 @@ func TestNHA164FrozenCoverageClipsLateCoalescedRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := store.ReadHistoricalRecorderPageAt(ctx, q, nil, &live)
+	first, err := store.ReadHistoricalRecorderPageAt(ctx, q, nil, &live, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,20 +159,18 @@ func TestNHA164FrozenCoverageClipsLateCoalescedRetention(t *testing.T) {
 	if from != 3 || through != 4 {
 		t.Fatalf("oracle did not coalesce3..4: %d..%d", from, through)
 	}
-	second, err := store.ReadHistoricalRecorderPageAt(ctx, q, cursor, &live)
+	second, err := store.ReadHistoricalRecorderPageAt(ctx, q, cursor, &live, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer second.Release()
-	coverage, err := historyCoverage(second.Coverage, false)
-	if err != nil {
-		t.Fatalf("valid late retention became integrity failure: %v", err)
+	coverage := publicHistoryCoverage(second.ProvenanceStartedAt)
+	if len(second.Observations) != 1 || second.Observations[0].Sequence != 2 || second.Next != nil {
+		t.Fatal("global retention changed frozen point prefix")
 	}
-	if len(second.Observations) != 1 || second.Observations[0].Sequence != 2 || second.Next != nil || len(coverage.Retention) != 1 || coverage.Retention[0].From.Sequence != 3 || coverage.Retention[0].Through.Sequence != 3 || coverage.RecorderTail == nil || coverage.RecorderTail.From.Sequence != 3 || coverage.RecorderTail.Through.Sequence != 4 {
-		t.Fatalf("frozen prefix/tail changed: %+v", coverage)
-	}
-	response := &history.QueryObservationsResponse{Result: &history.QueryObservationsResponse_Page{Page: &history.ObservationPage{Scope: historyScope(q, second.RawCutoff, second.AsOf), Coverage: coverage, Continuation: historyEnd()}}}
-	if contracts.AdmitHistoryResponse(response) != nil {
+	response := &history.QueryObservationsResponse{Scope: publicHistoryScope(q, second.RawCutoff, second.AsOf), Coverage: coverage}
+	home, _ := apitypes.ParseHomeName("homes/nha164-fixture")
+	if contracts.AdmitHistoryV2Response(response, home) != nil {
 		t.Fatal("clipped frozen coverage did not produce an admitted incomplete response")
 	}
 }
@@ -190,7 +194,7 @@ func TestNHA164ReservedTracePageReleasesAfterCancellationAndRevocation(t *testin
 					return page, err
 				}
 				if revoke {
-					if err := handler.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_USER, uint64(2+i*2))); err != nil {
+					if err := handler.native.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_USER, uint64(2+i*2))); err != nil {
 						t.Fatal(err)
 					}
 				} else {
@@ -208,7 +212,7 @@ func TestNHA164ReservedTracePageReleasesAfterCancellationAndRevocation(t *testin
 				t.Fatalf("reserved page termination escaped: revoke=%v iteration=%d err=%v", revoke, i, err)
 			}
 			if revoke {
-				if err := handler.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_ADMIN, uint64(3+i*2))); err != nil {
+				if err := handler.native.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_ADMIN, uint64(3+i*2))); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -335,6 +339,16 @@ func TestNHA164AdmittedRecorderQueueIsUnprovenUntilCommit(t *testing.T) {
 	if err = fixture.PublishRegistry(context.Background(), []integrations.RegistryRecord{record}); err != nil {
 		t.Fatal(err)
 	}
+	quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
+	value := domain.NewSwitchValue(true)
+	observation, err := integrations.NewStateObservation("relay", quality, &value, &at, at, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = session.Publish(context.Background(), binding, observation); err != nil {
+		t.Fatal(err)
+	}
+
 	select {
 	case <-writer.entered:
 	case <-time.After(time.Second):
@@ -357,20 +371,18 @@ func TestNHA164AdmittedRecorderQueueIsUnprovenUntilCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, err := store.ReadHistoricalRecorderPageAt(context.Background(), q, nil, &high)
+	before, err := store.ReadHistoricalRecorderPageAt(context.Background(), q, nil, &high, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	coverage, err := historyCoverage(before.Coverage, false)
+	coverage := publicHistoryCoverage(before.ProvenanceStartedAt)
 	before.Release()
-	if err != nil {
-		t.Fatal(err)
+	if len(before.Observations) != 0 || coverage.Verdict != history.HistoryCoverageVerdict_HISTORY_COVERAGE_VERDICT_NOT_PROVEN || !nha203NativeTail(nha203NativeCoverage(t, store, epochText, sequence), 0, sequence) {
+		t.Fatal("native pending tail lost or public completeness invented")
 	}
-	if len(before.Observations) != 0 || coverage.Verdict != history.CoverageVerdict_COVERAGE_VERDICT_INCOMPLETE || coverage.RecorderTail == nil || coverage.RecorderTail.Through.Sequence != sequence || coverage.RecorderTail.UnknownUtc == nil {
-		t.Fatalf("queued admission claimed complete or invented UTC: %+v", coverage)
-	}
-	progress := &history.QueryObservationsResponse{Result: &history.QueryObservationsResponse_Page{Page: &history.ObservationPage{Scope: historyScope(q, before.RawCutoff, before.AsOf), Coverage: coverage, Continuation: &history.Continuation{Result: &history.Continuation_NextPageToken{NextPageToken: "bounded-physical-progress"}}}}}
-	if contracts.AdmitHistoryResponse(progress) != nil {
+	progress := &history.QueryObservationsResponse{Scope: publicHistoryScope(q, before.RawCutoff, before.AsOf), Coverage: coverage, NextPageToken: "bounded-physical-progress"}
+	home, _ := apitypes.ParseHomeName("homes/nha164-fixture")
+	if contracts.AdmitHistoryV2Response(progress, home) != nil {
 		t.Fatal("raw empty progression/tail was rejected by the wire contract")
 	}
 	if err = host.CloseAdmissions(); err != nil {
@@ -382,25 +394,56 @@ func TestNHA164AdmittedRecorderQueueIsUnprovenUntilCommit(t *testing.T) {
 	if err = recording.Stop(ctx); err != nil {
 		t.Fatal(err)
 	}
-	after, err := store.ReadHistoricalRecorderPageAt(context.Background(), q, nil, &high)
+	after, err := store.ReadHistoricalRecorderPageAt(context.Background(), q, nil, &high, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	coverage, err = historyCoverage(after.Coverage, false)
+	coverage = publicHistoryCoverage(after.ProvenanceStartedAt)
 	after.Release()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(after.Observations) == 0 || coverage.RecorderTail != nil || coverage.Verdict != history.CoverageVerdict_COVERAGE_VERDICT_COMPLETE_UNDER_POLICY {
-		t.Fatalf("committed real admission did not prove the new query: %+v", coverage)
+	diagnostic, err := historycoverage.FromRecorderSnapshot(nha203NativeCoverage(t, store, epochText, sequence), nil)
+	if err != nil || len(after.Observations) == 0 || diagnostic.Verdict() != historycoverage.CompleteUnderPolicy || coverage.Verdict != history.HistoryCoverageVerdict_HISTORY_COVERAGE_VERDICT_NOT_PROVEN {
+		t.Fatalf("native commit/public confidentiality: %v", err)
 	}
 	wrong, err := storage.NewRecorderLiveHigh("00000000000000000000000000000171", sequence)
 	if err != nil {
 		t.Fatal(err)
 	}
-	page, err := store.ReadHistoricalRecorderPageAt(context.Background(), q, nil, &wrong)
+	page, err := store.ReadHistoricalRecorderPageAt(context.Background(), q, nil, &wrong, nha203RecordedScopeFixture{})
 	page.Release()
 	if err == nil {
 		t.Fatal("a live sequence was attached to another epoch")
 	}
+}
+
+func nha203NativeTail(snapshot storage.RecorderCoverageSnapshot, from, through uint64) bool {
+	diagnostic, err := historycoverage.FromRecorderSnapshot(snapshot, nil)
+	if err != nil {
+		return false
+	}
+	for _, issue := range diagnostic.Issues() {
+		if issue.Kind() == historycoverage.UncommittedTail {
+			a, b := issue.Bounds()
+			if a.Sequence() == from && b.Sequence() == through {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func nha203NativeCoverage(t *testing.T, store *storage.Store, epochText string, sequence uint64) storage.RecorderCoverageSnapshot {
+	t.Helper()
+	epoch, err := storage.ParseRecorderEpoch(epochText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := storage.NewRecorderCoverageRequest(epoch, 0, epoch, &sequence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := store.ReadRecorderCoverage(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
 }

@@ -18,10 +18,6 @@ import (
 
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	dashboardv1 "github.com/damione1/Homeward/gen/home/dashboard/v1"
-	"github.com/damione1/Homeward/gen/home/dashboard/v1/dashboardv1connect"
 	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
@@ -213,9 +209,6 @@ func TestNHF004CacheServer(t *testing.T) {
 			if err != nil {
 				return RuntimePlan{}, err
 			}
-			if err := dashboard.register(public); err != nil {
-				return RuntimePlan{}, err
-			}
 		}
 		return RuntimePlan{Identity: repository, Public: public,
 			ConfigureAuthorization: func(_ context.Context, composition AuthorizationComposition) error {
@@ -301,9 +294,6 @@ func TestNHF004CacheServer(t *testing.T) {
 			result["login_observation"] = proxy.loginObservation()
 		}
 		if dashboard != nil {
-			result["dashboard_list_calls"] = dashboard.lists.Load()
-			result["dashboard_get_calls"] = dashboard.gets.Load()
-			result["dashboard_watch_calls"] = dashboard.watches.Load()
 		}
 		write("result.json", result)
 		if started != joined || connections != 0 || drivers != expectedDrivers {
@@ -389,13 +379,14 @@ func TestNHF004CacheServer(t *testing.T) {
 	client := nha181Client(roots)
 	defer client.CloseIdleConnections()
 	base := "https://" + address
-	auth := authv1connect.NewAuthServiceClient(client, base)
+	auth := apiv2connect.NewAuthServiceClient(client, base)
 	tokens := nha162RunLogin(t, ctx, auth, login, password)
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
+	dashboard.start(t, ctx, client, base, tokens.AccessToken)
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
 	setPolicy := func(allow bool) {
 		t.Helper()
-		current, err := policies.GetPolicy(ctx, nha141BearerRequest(&authv1.GetPolicyRequest{AccountId: account}, tokens.AccessToken))
-		if err != nil || current.Msg.GetPresent() == nil {
+		current, err := policies.GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: nha203SessionAccount(t, tokens.Session).String() + "/authorizationPolicy"}, tokens.AccessToken))
+		if err != nil || current.Msg == nil {
 			t.Fatal("policy read:", err)
 		}
 		policy := fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants: []\n", account.Value)
@@ -414,7 +405,7 @@ func TestNHF004CacheServer(t *testing.T) {
 				policy += fmt.Sprintf("  - scope: {family: actions, operation: %s}\n    objects: {entities: {explicit: [{entity_id: %q, capabilities: {explicit: [{schema_id: core.switch.v1, endpoint: relay}]}}]}}\n", operation, entity)
 			}
 		}
-		if _, err := policies.ReplacePolicy(ctx, nha141BearerRequest(&authv1.ReplacePolicyRequest{AccountId: account, YamlSource: []byte(policy), Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, tokens.AccessToken)); err != nil {
+		if _, err := policies.ReplaceAuthorizationPolicy(ctx, nha141BearerRequest(&api.ReplaceAuthorizationPolicyRequest{Name: nha203SessionAccount(t, tokens.Session).String() + "/authorizationPolicy", YamlSource: []byte(policy), Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: current.Msg.Etag}}, tokens.AccessToken)); err != nil {
 			t.Fatal("policy CAS:", err)
 		}
 	}
@@ -424,11 +415,7 @@ func TestNHF004CacheServer(t *testing.T) {
 		workload.seedList(t, ctx, fixtureStore, client, base, tokens.AccessToken)
 	}
 	if dashboard != nil {
-		api := dashboardv1connect.NewDashboardServiceClient(client, base)
-		response, err := api.GetDashboard(ctx, nha141BearerRequest(&dashboardv1.GetDashboardRequest{Id: &dashboardv1.DashboardId{Value: nhf005DashboardID}}, tokens.AccessToken))
-		if err != nil || response.Msg.GetDashboard().GetNativeOverview() == nil || response.Msg.ResumeToken == "" {
-			t.Fatal("synthetic dashboard TLS readiness:", err)
-		}
+		dashboard.ready(t, ctx, client, base, tokens.AccessToken)
 	}
 	homeResp, err := apiv2connect.NewHomeServiceClient(client, base).ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{PageSize: 1}, tokens.AccessToken))
 	if err != nil || len(homeResp.Msg.GetHomes()) != 1 {
@@ -599,11 +586,7 @@ func TestNHF004CacheServer(t *testing.T) {
 			case nhf004Allow:
 				setPolicy(true)
 				if dashboard != nil {
-					api := dashboardv1connect.NewDashboardServiceClient(client, base)
-					response, err := api.GetDashboard(ctx, nha141BearerRequest(&dashboardv1.GetDashboardRequest{Id: &dashboardv1.DashboardId{Value: nhf005DashboardID}}, tokens.AccessToken))
-					if err != nil || response.Msg.GetDashboard().GetNativeOverview() == nil || response.Msg.ResumeToken == "" {
-						t.Fatal("synthetic dashboard TLS readiness:", err)
-					}
+					dashboard.ready(t, ctx, client, base, tokens.AccessToken)
 				}
 			case nhf004Withdraw:
 				if err := source.Withdraw(ctx, bindings[0]); err != nil {

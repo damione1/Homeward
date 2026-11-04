@@ -41,7 +41,7 @@ pub use connection::initialize_android_trust;
 pub use connectrpc::ErrorCode as RpcCode;
 pub use credential::AccessToken;
 pub use dashboard::{DashboardTransport, DashboardWatch};
-pub use failure::{DetailFailure, Failure, FailureKind};
+pub use failure::{Failure, FailureKind};
 pub use history::HistoryTransport;
 pub use home::HomeTransport;
 pub use home_wire_contract::api_errors::{ApiFailure, InvalidApiError};

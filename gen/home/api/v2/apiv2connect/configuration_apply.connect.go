@@ -46,7 +46,9 @@ const (
 // ConfigurationApplyServiceClient is a client for the home.api.v2.ConfigurationApplyService
 // service.
 type ConfigurationApplyServiceClient interface {
+	// Activates an admitted plan after rechecking source, configuration and authorization preconditions.
 	ApplyConfigurationPlan(context.Context, *connect.Request[v2.ApplyConfigurationPlanRequest]) (*connect.Response[longrunningpb.Operation], error)
+	// Activates retained configuration as a new native generation; never restores an old action ledger.
 	RollbackConfiguration(context.Context, *connect.Request[v2.RollbackConfigurationRequest]) (*connect.Response[longrunningpb.Operation], error)
 }
 
@@ -95,7 +97,9 @@ func (c *configurationApplyServiceClient) RollbackConfiguration(ctx context.Cont
 // ConfigurationApplyServiceHandler is an implementation of the
 // home.api.v2.ConfigurationApplyService service.
 type ConfigurationApplyServiceHandler interface {
+	// Activates an admitted plan after rechecking source, configuration and authorization preconditions.
 	ApplyConfigurationPlan(context.Context, *connect.Request[v2.ApplyConfigurationPlanRequest]) (*connect.Response[longrunningpb.Operation], error)
+	// Activates retained configuration as a new native generation; never restores an old action ledger.
 	RollbackConfiguration(context.Context, *connect.Request[v2.RollbackConfigurationRequest]) (*connect.Response[longrunningpb.Operation], error)
 }
 

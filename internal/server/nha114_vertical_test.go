@@ -2,13 +2,14 @@ package server
 
 import (
 	"bytes"
+	"connectrpc.com/connect"
 	"encoding/hex"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"strconv"
 	"testing"
 	"time"
 
 	api "github.com/damione1/Homeward/gen/home/api/v2"
-	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/jackc/pgx/v5"
 )
@@ -247,12 +248,12 @@ func (f *nha114Fixture) traceForEvent(t *testing.T, event sequencer.Cursor) uint
 	var found uint64
 	read := make(map[uint64]bool)
 	nha114Eventually(t, "public trace never exposed the exact source event position", func() bool {
-		metrics, err := f.observation.GetMetrics(f.ctx, nha056SessionRequest(&obs.GetMetricsRequest{}, f.token))
+		metrics, err := f.observation.GetMetrics(f.ctx, nha056SessionRequest(&api.GetMetricsRequest{Name: f.home + "/metrics"}, f.token))
 		if err != nil {
 			t.Fatal("public controller handle", err)
 		}
-		handle := metrics.Msg.Metrics.Runs.GetInstalled().GetController()
-		if handle == nil {
+		handle := metrics.Msg.Runs.GetInstalled().GetController()
+		if handle == "" {
 			return false
 		}
 		// This bounded fixture admits two intentional ON transitions. Query the
@@ -262,11 +263,15 @@ func (f *nha114Fixture) traceForEvent(t *testing.T, event sequencer.Cursor) uint
 			if read[id] {
 				continue
 			}
-			response, err := f.observation.ReadRunTrace(f.ctx, nha056SessionRequest(&obs.ReadRunTraceRequest{Controller: handle, RunId: id}, f.token))
+			run := nha203ObservationRun(t, handle, id)
+			response, err := f.observation.QueryRunTrace(f.ctx, nha056SessionRequest(&api.QueryRunTraceRequest{Parent: run}, f.token))
+			if connect.CodeOf(err) == connect.CodeNotFound {
+				continue
+			}
 			if err != nil {
 				t.Fatal("public run trace", err)
 			}
-			page := response.Msg.GetPage()
+			page := response.Msg
 			if page == nil {
 				continue
 			}
@@ -275,11 +280,11 @@ func (f *nha114Fixture) traceForEvent(t *testing.T, event sequencer.Cursor) uint
 			read[id] = true
 			for _, row := range page.Rows {
 				position := row.GetController().GetTriggerPosition()
-				if position != nil && bytes.Equal(position.Epoch, epoch) && position.Sequence == eventSequence {
-					if row.RunId != page.RunId || row.RunId != id {
+				if position != nil && bytes.Equal(position.Epoch, epoch) && position.Sequence == strconv.FormatUint(eventSequence, 10) {
+					if row.Run != page.Run || row.Run != run {
 						t.Fatal("trace position has a foreign RunID")
 					}
-					found = row.RunId
+					found = id
 					return true
 				}
 			}

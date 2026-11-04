@@ -1,5 +1,6 @@
 syntax = "proto3";
 package home.api.v2;
+
 import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
@@ -7,260 +8,295 @@ import "google/api/resource.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "home/api/v2/recorder_evidence.proto";
+
 option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
 option java_multiple_files = true;
 option java_outer_classname = "ObservabilityProto";
 option java_package = "com.home.api.v2";
-
 // Read-only projections of native owners. No provider payload, labels, arbitrary
 // attributes, secrets, or command authority are represented by these messages.
 // A controller name is resolved by its membership in the current Metrics cut;
 // a run name identifies the native run selected by QueryRunTrace. Neither
 // relation creates a second registry or permits access without current rights.
 option (google.api.resource_definition) = {
- type: "homeward.damiengoehrig.ca/RuntimeController"
- pattern: "homes/{home}/runtimeControllers/{runtime_controller}"
+  type: "homeward.damiengoehrig.ca/RuntimeController"
+  pattern: "homes/{home}/runtimeControllers/{runtime_controller}"
 };
 option (google.api.resource_definition) = {
- type: "homeward.damiengoehrig.ca/RuntimeRun"
- pattern: "homes/{home}/runtimeControllers/{runtime_controller}/runs/{run}"
+  type: "homeward.damiengoehrig.ca/RuntimeRun"
+  pattern: "homes/{home}/runtimeControllers/{runtime_controller}/runs/{run}"
 };
 
+// Reads bounded, redacted observations of native health, metrics, audits and execution traces.
+service ObservabilityService {
+  option (google.api.default_host) = "homeward.damiengoehrig.ca";
+  // Gets the authorized health.
+  rpc GetHealth(GetHealthRequest) returns (Health) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/health}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Gets the authorized metrics.
+  rpc GetMetrics(GetMetricsRequest) returns (Metrics) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/metrics}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Gets the authorized integration health.
+  rpc GetIntegrationHealth(GetIntegrationHealthRequest) returns (IntegrationHealth) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/integrationInstances/*/integrationHealth}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Reads a bounded redacted projection of native runtime logs.
+  rpc QueryRuntimeLogs(QueryRuntimeLogsRequest) returns (QueryRuntimeLogsResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}:queryRuntimeLogs"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Reads authorized audit metadata without credentials, raw requests or provider messages.
+  rpc QueryAudits(QueryAuditsRequest) returns (QueryAuditsResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}:queryAudits"};
+    option (google.api.method_signature) = "parent,source";
+  }
+  // Reads the selected native run trace and its explicit completeness evidence.
+  rpc QueryRunTrace(QueryRunTraceRequest) returns (QueryRunTraceResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*/runtimeControllers/*/runs/*}:queryRunTrace"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Reads recorder coverage evidence without manufacturing missing observations.
+  rpc QueryRecorderCoverage(QueryRecorderCoverageRequest) returns (QueryRecorderCoverageResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}:queryRecorderCoverage"};
+    option (google.api.method_signature) = "parent,from";
+  }
+}
+
+// Represents process observation epoch.
 message ObservationProcessObservationEpoch {
+  // Exact bytes representing value. Not interpreted as a display string.
   bytes value = 1;
 }
 
-enum ObservationReadUnavailableReason {
-  OBSERVATION_READ_UNAVAILABLE_REASON_UNSPECIFIED = 0;
-  OBSERVATION_READ_UNAVAILABLE_REASON_NOT_OBSERVED = 1;
-  OBSERVATION_READ_UNAVAILABLE_REASON_PRODUCER_STOPPED = 2;
-  OBSERVATION_READ_UNAVAILABLE_REASON_INTEGRITY = 3;
-  OBSERVATION_READ_UNAVAILABLE_REASON_CORE_UNAVAILABLE = 4;
-  OBSERVATION_READ_UNAVAILABLE_REASON_STORAGE_UNAVAILABLE = 5;
-  OBSERVATION_READ_UNAVAILABLE_REASON_AUTHORITY_UNAVAILABLE = 6;
-  OBSERVATION_READ_UNAVAILABLE_REASON_TIME_BUDGET = 7;
-  OBSERVATION_READ_UNAVAILABLE_REASON_COMPLETION_UNKNOWN = 8;
-}
-
+// Reports a closed unavailability reason without a provider error message.
 message ObservationReadUnavailable {
+  // Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
   ObservationReadUnavailableReason reason = 1;
 }
 
-enum ObservationLiveness {
-  OBSERVATION_LIVENESS_UNSPECIFIED = 0;
-  // Processing this read proves only the process is live at this cut.
-  OBSERVATION_LIVENESS_LIVE = 1;
-}
-
-enum ObservationServerReadiness {
-  OBSERVATION_SERVER_READINESS_UNSPECIFIED = 0;
-  OBSERVATION_SERVER_READINESS_STARTING = 1;
-  OBSERVATION_SERVER_READINESS_READY = 2;
-  OBSERVATION_SERVER_READINESS_DRAINING = 3;
-  OBSERVATION_SERVER_READINESS_CORE_UNAVAILABLE = 4;
-}
-
-enum ObservationCoreCause {
-  OBSERVATION_CORE_CAUSE_UNSPECIFIED = 0;
-  OBSERVATION_CORE_CAUSE_GENERATION_NOT_LOADED = 1;
-  OBSERVATION_CORE_CAUSE_REGISTRY_UNAVAILABLE = 2;
-  OBSERVATION_CORE_CAUSE_CONTROL_ADMISSIONS_CLOSED = 3;
-  OBSERVATION_CORE_CAUSE_OWNERS_NOT_STARTED = 4;
-  OBSERVATION_CORE_CAUSE_LISTENER_NOT_READY = 5;
-  OBSERVATION_CORE_CAUSE_SHUTTING_DOWN = 6;
-}
-
+// Represents active revision.
 message ObservationActiveRevision {
   // An actually admitted active revision, in 1..INT64_MAX. Never invented.
-  uint64 value = 1;
+  int64 value = 1;
 }
 
+// Reports an admitted active generation or explicitly states that none is loaded.
 message ObservationGenerationPresence {
   oneof result {
+    // The present represented by ObservationActiveRevision.
     ObservationActiveRevision present = 1;
+    // Selects absence of an admitted active configuration generation.
     google.protobuf.Empty not_loaded = 2;
   }
 }
 
-enum ObservationDurableAvailability {
-  OBSERVATION_DURABLE_AVAILABILITY_UNSPECIFIED = 0;
-  OBSERVATION_DURABLE_AVAILABILITY_AVAILABLE = 1;
-  OBSERVATION_DURABLE_AVAILABILITY_DEGRADED = 2;
-  OBSERVATION_DURABLE_AVAILABILITY_UNAVAILABLE = 3;
-  OBSERVATION_DURABLE_AVAILABILITY_NOT_CONFIGURED = 4;
-  OBSERVATION_DURABLE_AVAILABILITY_UNKNOWN = 5;
-}
-
+// Represents durable health.
 message ObservationDurableHealth {
+  // The availability represented by ObservationDurableAvailability.
   ObservationDurableAvailability availability = 1;
   // UNKNOWN requires not_observed. All other values require the UTC instant of
   // a real admitted local fact. This is not a permanent database probe.
   oneof evidence {
+    // Time recorded for this observation; does not prove a physical command was confirmed.
     google.protobuf.Timestamp observed_at = 2;
+    // Selects the explicit not observed alternative without an additional payload.
     google.protobuf.Empty not_observed = 3;
   }
 }
 
-enum ObservationPilotPhase {
-  OBSERVATION_PILOT_PHASE_UNSPECIFIED = 0;
-  OBSERVATION_PILOT_PHASE_STARTING = 1;
-  OBSERVATION_PILOT_PHASE_RUNNING = 2;
-  OBSERVATION_PILOT_PHASE_RETRYING = 3;
-  OBSERVATION_PILOT_PHASE_DEGRADED = 4;
-  OBSERVATION_PILOT_PHASE_STOPPED = 5;
-}
-
+// Represents pilot phase count.
 message ObservationPilotPhaseCount {
+  // The phase represented by ObservationPilotPhase.
   ObservationPilotPhase phase = 1;
-  uint64 instances = 2;
+  // The instances represented as an exact native quantity.
+  int64 instances = 2;
 }
 
-enum ObservationRecorderPhase {
-  OBSERVATION_RECORDER_PHASE_UNSPECIFIED = 0;
-  OBSERVATION_RECORDER_PHASE_RUNNING = 1;
-  OBSERVATION_RECORDER_PHASE_WRITING = 2;
-  OBSERVATION_RECORDER_PHASE_BACKOFF = 3;
-  OBSERVATION_RECORDER_PHASE_STOPPING = 4;
-  OBSERVATION_RECORDER_PHASE_FAILED = 5;
-  OBSERVATION_RECORDER_PHASE_STOPPED = 6;
-}
-
-enum ObservationRecorderHealthState {
-  OBSERVATION_RECORDER_HEALTH_STATE_UNSPECIFIED = 0;
-  OBSERVATION_RECORDER_HEALTH_STATE_OPERATING = 1;
-  OBSERVATION_RECORDER_HEALTH_STATE_DEGRADED = 2;
-  OBSERVATION_RECORDER_HEALTH_STATE_FAILED = 3;
-}
-
+// Represents recorder health fact.
 message ObservationRecorderHealthFact {
+  // The phase represented by ObservationRecorderPhase.
   ObservationRecorderPhase phase = 1;
+  // The state represented by ObservationRecorderHealthState.
   ObservationRecorderHealthState state = 2;
+  // Time recorded for this observation; does not prove a physical command was confirmed.
   google.protobuf.Timestamp observed_at = 3;
 }
 
+// Represents recorder health.
 message ObservationRecorderHealth {
   oneof result {
+    // The observed represented by ObservationRecorderHealthFact.
     ObservationRecorderHealthFact observed = 1;
+    // Selects explicit absence of an installed native owner.
     google.protobuf.Empty not_installed = 2;
+    // Typed reason this observation could not be produced; contains no provider payload.
     ObservationReadUnavailable unavailable = 3;
   }
 }
 
+// Represents server health.
 message ObservationServerHealth {
+  // The readiness represented by ObservationServerReadiness.
   ObservationServerReadiness readiness = 1;
+  // The generation represented by ObservationGenerationPresence.
   ObservationGenerationPresence generation = 2;
   // At most six distinct known causes; READY requires no causes and a present
   // generation, open core admissions/owners/projection, and the ready listener.
   repeated ObservationCoreCause causes = 3;
 }
 
+// Represents health.
 message Health {
-  option (google.api.resource) = {type: "homeward.damiengoehrig.ca/Health" pattern: "homes/{home}/health" singular: "health" plural: "health"};
+  option (google.api.resource) = {
+    type: "homeward.damiengoehrig.ca/Health"
+    pattern: "homes/{home}/health"
+    singular: "health"
+    plural: "health"
+  };
+  // Canonical resource name. Uses the pattern declared on the resource message.
   string name = 20 [(google.api.field_behavior) = IDENTIFIER];
+  // The process epoch represented by ObservationProcessObservationEpoch.
   ObservationProcessObservationEpoch process_epoch = 1;
+  // The liveness represented by ObservationLiveness.
   ObservationLiveness liveness = 2;
+  // The server represented by ObservationServerHealth.
   ObservationServerHealth server = 3;
+  // The durable represented by ObservationDurableHealth.
   ObservationDurableHealth durable = 4;
+  // The recorder represented by ObservationRecorderHealth.
   ObservationRecorderHealth recorder = 5;
   // Exactly one entry per known nonzero phase, not a metric per integration.
   repeated ObservationPilotPhaseCount pilots = 6;
 }
 
+// Represents integration report.
 message ObservationIntegrationReport {
+  // The status represented by ObservationIntegrationHealthStatus.
   ObservationIntegrationHealthStatus status = 1;
   // The source's private detail is deliberately absent from the schema.
   oneof admission_time {
+    // Recorded time for admitted at. Absence means no timestamp was supplied or recorded.
     google.protobuf.Timestamp admitted_at = 2;
+    // Selects explicit absence of recorded evidence; does not invent a zero value.
     google.protobuf.Empty not_recorded = 3;
   }
 }
 
+// Represents integration report presence.
 message ObservationIntegrationReportPresence {
   oneof result {
+    // The present represented by ObservationIntegrationReport.
     ObservationIntegrationReport present = 1;
+    // Selects absence of an admitted integration report.
     google.protobuf.Empty no_report = 2;
   }
 }
 
+// Represents supervised integration.
 message ObservationSupervisedIntegration {
+  // The phase represented by ObservationPilotPhase.
   ObservationPilotPhase phase = 1;
-  uint64 attempts = 2;
-  uint64 tasks = 3;
+  // The attempts represented as an exact native quantity.
+  int64 attempts = 2;
+  // The tasks represented as an exact native quantity.
+  int64 tasks = 3;
 }
 
+// Represents integration supervision.
 message ObservationIntegrationSupervision {
   oneof result {
+    // Projection of the native supervision owner.
     ObservationSupervisedIntegration supervised = 1;
+    // Selects an integration outside native supervision.
     google.protobuf.Empty not_supervised = 2;
   }
 }
 
+// Reports an exact counter or an explicit saturation state.
 message ObservationSaturatedCounter {
-  // Must equal UINT64_MAX. Reaching that value exactly is still an exact
-  // counter; only a subsequent attempted overflow produces this variant.
-  uint64 value = 1;
+  // Nonnegative lower bound capped at 9223372036854775807. This variant
+  // means at least this value, never an exact measurement.
+  int64 lower_bound = 1;
 }
 
+// Represents counter measurement.
 message ObservationCounterMeasurement {
   oneof result {
-    uint64 exact = 1;
+    // Exact value reported by the native owner, distinct from saturation or absence.
+    int64 exact = 1;
+    // Selects a counter whose exact value can no longer be represented.
     ObservationSaturatedCounter saturated = 2;
+    // Selects explicit absence of a measurement; distinct from a measured zero.
     google.protobuf.Empty not_measured = 3;
+    // Typed reason this observation could not be produced; contains no provider payload.
     ObservationReadUnavailable unavailable = 4;
   }
 }
 
+// Represents gauge measurement.
 message ObservationGaugeMeasurement {
   oneof result {
-    uint64 value = 1;
+    // The value represented as an exact native quantity.
+    int64 value = 1;
+    // Selects explicit absence of a measurement; distinct from a measured zero.
     google.protobuf.Empty not_measured = 2;
+    // Typed reason this observation could not be produced; contains no provider payload.
     ObservationReadUnavailable unavailable = 3;
   }
 }
 
+// Represents position measurement.
 message ObservationPositionMeasurement {
   oneof result {
+    // The value represented by AdmissionPosition.
     AdmissionPosition value = 1;
+    // Typed reason this observation could not be produced; contains no provider payload.
     ObservationReadUnavailable unavailable = 2;
   }
 }
 
+// Represents lag measurement.
 message ObservationLagMeasurement {
   oneof result {
     // Source admission positions, never milliseconds or lost-event counts.
-    uint64 same_epoch_positions = 1;
+    // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+    string same_epoch_positions = 1;
+    // Selects the explicit invalidated alternative without an additional payload.
     google.protobuf.Empty invalidated = 2;
+    // Selects the explicit epoch mismatch alternative without an additional payload.
     google.protobuf.Empty epoch_mismatch = 3;
+    // Typed reason this observation could not be produced; contains no provider payload.
     ObservationReadUnavailable unavailable = 4;
   }
 }
 
-enum ObservationQueueClass {
-  OBSERVATION_QUEUE_CLASS_UNSPECIFIED = 0;
-  OBSERVATION_QUEUE_CLASS_UI = 1;
-  OBSERVATION_QUEUE_CLASS_EDGE = 2;
-  OBSERVATION_QUEUE_CLASS_RECORDER = 3;
-  OBSERVATION_QUEUE_CLASS_VIEW = 4;
-  OBSERVATION_QUEUE_CLASS_AUTOMATION_PENDING = 5;
-  OBSERVATION_QUEUE_CLASS_SCRIPT_PENDING = 6;
-  OBSERVATION_QUEUE_CLASS_MQTT_INBOUND = 7;
-  OBSERVATION_QUEUE_CLASS_WORKER_COMMANDS = 8;
-  OBSERVATION_QUEUE_CLASS_CLOUD_REQUESTS = 9;
-}
-
+// Represents installed queue metrics.
 message ObservationInstalledQueueMetrics {
   // Nine common numeric slots per class, plus worker in-flight/pending and
   // cloud in-flight only. Every field is
   // present; an inapplicable slot uses not_measured. Bytes are only reported
   // when actually accounted by the owner. No IDs, URIs, or error labels.
   ObservationGaugeMeasurement active_queues = 1;
+  // The queued entries represented by ObservationGaugeMeasurement.
   ObservationGaugeMeasurement queued_entries = 2;
+  // The capacity entries represented by ObservationGaugeMeasurement.
   ObservationGaugeMeasurement capacity_entries = 3;
+  // Cumulative rejected reported by the native owner.
   ObservationCounterMeasurement rejected_total = 4;
+  // Cumulative lost deliveries reported by the native owner.
   ObservationCounterMeasurement lost_deliveries_total = 5;
+  // Cumulative coalesced reported by the native owner.
   ObservationCounterMeasurement coalesced_total = 6;
+  // The degraded queues represented by ObservationGaugeMeasurement.
   ObservationGaugeMeasurement degraded_queues = 7;
+  // Size of queued accounted in bytes.
   ObservationGaugeMeasurement queued_accounted_bytes = 8;
+  // Size of capacity accounted in bytes.
   ObservationGaugeMeasurement capacity_accounted_bytes = 9;
   // Applicable only to WorkerCommands and CloudRequests; otherwise NotMeasured.
   ObservationGaugeMeasurement in_flight_entries = 10;
@@ -269,437 +305,349 @@ message ObservationInstalledQueueMetrics {
   ObservationGaugeMeasurement pending_entries = 11;
 }
 
+// Represents queue aggregate.
 message ObservationQueueAggregate {
+  // The queue class represented by ObservationQueueClass.
   ObservationQueueClass queue_class = 1;
   oneof result {
+    // The installed represented by ObservationInstalledQueueMetrics.
     ObservationInstalledQueueMetrics installed = 2;
+    // Selects explicit absence of an installed native owner.
     google.protobuf.Empty not_installed = 3;
+    // Typed reason this observation could not be produced; contains no provider payload.
     ObservationReadUnavailable unavailable = 4;
   }
 }
 
+// Represents queue lag.
 message ObservationQueueLag {
   // Only UI, Edge, Recorder, and View, once each. If any member is invalidated,
   // the class is invalidated instead of reporting another member's healthy max.
   ObservationQueueClass queue_class = 1;
   oneof result {
+    // The installed represented by ObservationLagMeasurement.
     ObservationLagMeasurement installed = 2;
+    // Selects explicit absence of an installed native owner.
     google.protobuf.Empty not_installed = 3;
+    // Typed reason this observation could not be produced; contains no provider payload.
     ObservationReadUnavailable unavailable = 4;
   }
 }
 
+// Represents committed gap metrics.
 message ObservationCommittedGapMetrics {
+  // Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
   GapReason reason = 1;
+  // Cumulative rows reported by the native owner.
   ObservationCounterMeasurement rows_total = 2;
+  // Cumulative known lost lower bound reported by the native owner.
   ObservationCounterMeasurement known_lost_lower_bound_total = 3;
+  // Cumulative rows without known count reported by the native owner.
   ObservationCounterMeasurement rows_without_known_count_total = 4;
 }
 
+// Represents active coverage interval.
 message ObservationActiveCoverageInterval {
   // A volatile at-risk interval, not a committed historical gap.
   AdmissionPosition from = 1;
+  // Upper bound within the declared scope; follow the enclosing interval contract.
   AdmissionPosition through = 2;
+  // Explicitly known loss evidence; unknown loss is represented separately.
   KnownLost known_lost = 3;
 }
 
+// Represents active coverage.
 message ObservationActiveCoverage {
   oneof result {
+    // The at risk represented by ObservationActiveCoverageInterval.
     ObservationActiveCoverageInterval at_risk = 1;
+    // Selects no currently observed recorder risk; does not reconstruct missing history.
     google.protobuf.Empty no_active_risk = 2;
+    // Typed reason this observation could not be produced; contains no provider payload.
     ObservationReadUnavailable unavailable = 3;
   }
 }
 
+// Represents installed recorder metrics.
 message ObservationInstalledRecorderMetrics {
   // Eleven numeric slots. Positions carry source epoch context, not labels.
   ObservationGaugeMeasurement queued_bytes = 1;
+  // Size of pending in bytes.
   ObservationGaugeMeasurement pending_bytes = 2;
+  // Size of total capacity in bytes.
   ObservationGaugeMeasurement total_capacity_bytes = 3;
+  // Size of queue capacity in bytes.
   ObservationGaugeMeasurement queue_capacity_bytes = 4;
+  // The queued entries represented by ObservationGaugeMeasurement.
   ObservationGaugeMeasurement queued_entries = 5;
+  // Cumulative retries reported by the native owner.
   ObservationCounterMeasurement retries_total = 6;
+  // Cumulative lost entries reported by the native owner.
   ObservationCounterMeasurement lost_entries_total = 7;
+  // Cumulative policy excluded reported by the native owner.
   ObservationCounterMeasurement policy_excluded_total = 8;
+  // Checkpoint within the admitted capture; does not authorize another capture.
   ObservationPositionMeasurement checkpoint = 9;
+  // The tail represented by ObservationPositionMeasurement.
   ObservationPositionMeasurement tail = 10;
+  // The recorder lag positions represented by ObservationLagMeasurement.
   ObservationLagMeasurement recorder_lag_positions = 11;
   // Three reasons, three cumulative counters each. Count only confirmed
   // runtime commits, never retries, historical scans, or ObservationActiveCoverage.
   repeated ObservationCommittedGapMetrics committed_gaps = 12;
+  // Coverage evidence for the currently active recorder interval.
   ObservationActiveCoverage active_coverage = 13;
 }
 
+// Represents recorder metrics.
 message ObservationRecorderMetrics {
   oneof result {
+    // The installed represented by ObservationInstalledRecorderMetrics.
     ObservationInstalledRecorderMetrics installed = 1;
+    // Selects explicit absence of an installed native owner.
     google.protobuf.Empty not_installed = 2;
+    // Typed reason this observation could not be produced; contains no provider payload.
     ObservationReadUnavailable unavailable = 3;
   }
 }
 
-enum ObservationAttemptLedger {
-  OBSERVATION_ATTEMPT_LEDGER_UNSPECIFIED = 0;
-  OBSERVATION_ATTEMPT_LEDGER_VOLATILE = 1;
-  OBSERVATION_ATTEMPT_LEDGER_DURABLE = 2;
-}
-
+// Represents first attempt metrics.
 message ObservationFirstAttemptMetrics {
+  // The ledger represented by ObservationAttemptLedger.
   ObservationAttemptLedger ledger = 1;
+  // Cumulative indeterminate reported by the native owner.
   ObservationCounterMeasurement indeterminate_total = 2;
 }
 
+// Represents action metrics.
 message ObservationActionMetrics {
   // These are three distinct, nonadditive populations: live progression,
   // responses to first attempts, and old dispatching rows recovered durably.
   ObservationCounterMeasurement progress_indeterminate_total = 1;
   // Exactly Volatile and Durable once each. Replays do not increment.
   repeated ObservationFirstAttemptMetrics first_attempts = 2;
+  // Cumulative durable recovered indeterminate reported by the native owner.
   ObservationCounterMeasurement durable_recovered_indeterminate_total = 3;
 }
 
-enum ObservationRunKind {
-  OBSERVATION_RUN_KIND_UNSPECIFIED = 0;
-  OBSERVATION_RUN_KIND_AUTOMATION = 1;
-  OBSERVATION_RUN_KIND_SCRIPT = 2;
-}
-
+// Represents run kind metrics.
 message ObservationRunKindMetrics {
+  // The kind represented by ObservationRunKind.
   ObservationRunKind kind = 1;
+  // The active represented by ObservationGaugeMeasurement.
   ObservationGaugeMeasurement active = 2;
   // FIFO plus replacement, distinct from active and preparing.
   ObservationGaugeMeasurement pending = 3;
+  // Cumulative cancelled reported by the native owner.
   ObservationCounterMeasurement cancelled_total = 4;
+  // Cumulative superseded reported by the native owner.
   ObservationCounterMeasurement superseded_total = 5;
 }
 
+// Represents installed run metrics.
 message ObservationInstalledRunMetrics {
   // Exactly Automation and Script. Totals survive native trace eviction,
   // owner replacement, and reads; NodeCancelled is not another cancelled run.
   repeated ObservationRunKindMetrics kinds = 1;
+  // The preparing represented by ObservationGaugeMeasurement.
   ObservationGaugeMeasurement preparing = 2;
   // Stable identity of this actual Controller, independent of causal revision.
   // Context for targeted trace reads; no metric series or authority is added.
   string controller = 3;
 }
 
+// Represents run metrics.
 message ObservationRunMetrics {
   oneof result {
+    // The installed represented by ObservationInstalledRunMetrics.
     ObservationInstalledRunMetrics installed = 1;
+    // Selects explicit absence of an installed native owner.
     google.protobuf.Empty not_installed = 2;
+    // Typed reason this observation could not be produced; contains no provider payload.
     ObservationReadUnavailable unavailable = 3;
   }
 }
 
+// Represents journal metrics.
 message ObservationJournalMetrics {
+  // The retained rows represented by ObservationGaugeMeasurement.
   ObservationGaugeMeasurement retained_rows = 1;
+  // Size of charged in bytes.
   ObservationGaugeMeasurement charged_bytes = 2;
+  // Cumulative evicted reported by the native owner.
   ObservationCounterMeasurement evicted_total = 3;
 }
 
-enum ObservationMetricOwner {
-  OBSERVATION_METRIC_OWNER_UNSPECIFIED = 0;
-  OBSERVATION_METRIC_OWNER_SEQUENCER = 1;
-  OBSERVATION_METRIC_OWNER_RECORDER = 2;
-  OBSERVATION_METRIC_OWNER_ACTIONS = 3;
-  OBSERVATION_METRIC_OWNER_AUTOMATION_RUNS = 4;
-  OBSERVATION_METRIC_OWNER_MQTT = 5;
-  OBSERVATION_METRIC_OWNER_WORKER = 6;
-  OBSERVATION_METRIC_OWNER_CLOUD_POLICY = 7;
-  OBSERVATION_METRIC_OWNER_JOURNAL = 8;
-}
-
+// Identifies the native owner and epoch of this observation cut.
 message ObservationObservationCut {
+  // The owner represented by ObservationMetricOwner.
   ObservationMetricOwner owner = 1;
+  // Time when the native owner captured this projection.
   google.protobuf.Timestamp captured_at = 2;
 }
 
+// Represents metrics.
 message Metrics {
-  option (google.api.resource) = {type: "homeward.damiengoehrig.ca/Metrics" pattern: "homes/{home}/metrics" singular: "metrics" plural: "metrics"};
+  option (google.api.resource) = {
+    type: "homeward.damiengoehrig.ca/Metrics"
+    pattern: "homes/{home}/metrics"
+    singular: "metrics"
+    plural: "metrics"
+  };
+  // Canonical resource name. Uses the pattern declared on the resource message.
   string name = 20 [(google.api.field_behavior) = IDENTIFIER];
+  // The process epoch represented by ObservationProcessObservationEpoch.
   ObservationProcessObservationEpoch process_epoch = 1;
   // Exactly nine classes, once each; four sequencer lag classes, once each.
   repeated ObservationQueueAggregate queues = 2;
+  // Collection of queue lags for this message.
   repeated ObservationQueueLag queue_lags = 3;
+  // The recorder represented by ObservationRecorderMetrics.
   ObservationRecorderMetrics recorder = 4;
+  // The actions represented by ObservationActionMetrics.
   ObservationActionMetrics actions = 5;
+  // The runs represented by ObservationRunMetrics.
   ObservationRunMetrics runs = 6;
+  // The journal represented by ObservationJournalMetrics.
   ObservationJournalMetrics journal = 7;
   // At most eight known owners, no duplicates. These qualify independent cuts,
   // not a global transaction or wall-clock ordering proof between owners.
   repeated ObservationObservationCut cuts = 8;
 }
 
-enum ObservationLogLevel {
-  OBSERVATION_LOG_LEVEL_UNSPECIFIED = 0;
-  OBSERVATION_LOG_LEVEL_INFO = 1;
-  OBSERVATION_LOG_LEVEL_WARNING = 2;
-  OBSERVATION_LOG_LEVEL_ERROR = 3;
-}
-
-enum ObservationLogComponent {
-  OBSERVATION_LOG_COMPONENT_UNSPECIFIED = 0;
-  OBSERVATION_LOG_COMPONENT_PROCESS = 1;
-  OBSERVATION_LOG_COMPONENT_PUBLIC_TRANSPORT = 2;
-  OBSERVATION_LOG_COMPONENT_OPERATOR_TRANSPORT = 3;
-  OBSERVATION_LOG_COMPONENT_WORKER_TRANSPORT = 4;
-  OBSERVATION_LOG_COMPONENT_MQTT = 5;
-  OBSERVATION_LOG_COMPONENT_SUPERVISOR = 6;
-}
-
-enum ObservationLogCode {
-  OBSERVATION_LOG_CODE_UNSPECIFIED = 0;
-  OBSERVATION_LOG_CODE_PROCESS_CONFIG_READ_FAILED = 1;
-  OBSERVATION_LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED = 2;
-  OBSERVATION_LOG_CODE_PROCESS_RUNTIME_START_FAILED = 3;
-  OBSERVATION_LOG_CODE_PROCESS_RUNTIME_FAILED = 4;
-  OBSERVATION_LOG_CODE_PROCESS_READY = 5;
-  OBSERVATION_LOG_CODE_PROCESS_STOPPED = 6;
-  OBSERVATION_LOG_CODE_TRANSPORT_INTERNAL_DIAGNOSTIC = 7;
-  OBSERVATION_LOG_CODE_MQTT_UNKNOWN_DISCOVERY = 8;
-  OBSERVATION_LOG_CODE_MQTT_INVALID_DISCOVERY = 9;
-  OBSERVATION_LOG_CODE_MQTT_UNCONFIGURED_SOURCE = 10;
-  OBSERVATION_LOG_CODE_MQTT_UNSUPPORTED_EFFECT = 11;
-  OBSERVATION_LOG_CODE_MQTT_UNSUPPORTED_COLOR_MODE = 12;
-  OBSERVATION_LOG_CODE_MQTT_INVALID_STATE = 13;
-  OBSERVATION_LOG_CODE_MQTT_INVALID_AVAILABILITY = 14;
-  OBSERVATION_LOG_CODE_MQTT_RETIREMENT_FAILED = 15;
-  OBSERVATION_LOG_CODE_MQTT_SNAPSHOT_OVERFLOW = 16;
-  OBSERVATION_LOG_CODE_MQTT_UNCONFIGURED_ACTION_ANCHOR = 17;
-  OBSERVATION_LOG_CODE_MQTT_AMBIGUOUS_ACTION_DEVICE = 18;
-  OBSERVATION_LOG_CODE_MQTT_ACTION_OVERFLOW = 19;
-  OBSERVATION_LOG_CODE_MQTT_INVALID_ACTION = 20;
-  OBSERVATION_LOG_CODE_PILOT_STARTING = 21;
-  OBSERVATION_LOG_CODE_PILOT_RUNNING = 22;
-  OBSERVATION_LOG_CODE_PILOT_RETRYING = 23;
-  OBSERVATION_LOG_CODE_PILOT_DEGRADED = 24;
-  OBSERVATION_LOG_CODE_PILOT_STOPPED = 25;
-  OBSERVATION_LOG_CODE_PILOT_JOIN_TIMEOUT = 26;
-  OBSERVATION_LOG_CODE_PILOT_TASK_CAPACITY = 27;
-  OBSERVATION_LOG_CODE_PILOT_FACTORY_FAILED = 28;
-}
-
+// Represents runtime author.
 message ObservationRuntimeAuthor {
   oneof result {
+    // Selects the explicit process alternative without an additional payload.
     google.protobuf.Empty process = 1;
+    // Identifies execution inside an admitted internal routine, without a human principal.
     google.protobuf.Empty internal_automation = 2;
     // Canonical account resource allocated by the native account owner.
     string human_account = 3;
+    // Identifies an attempt for which no human account was authenticated.
     google.protobuf.Empty unauthenticated = 4;
   }
 }
 
+// Represents runtime event.
 message ObservationRuntimeEvent {
   // At most 1 KiB serialized and charged before retention. Message text is
   // rendered from ObservationLogCode by a client, never copied from a provider.
   ObservationLogCode code = 1;
+  // The level represented by ObservationLogLevel.
   ObservationLogLevel level = 2;
+  // The component represented by ObservationLogComponent.
   ObservationLogComponent component = 3;
+  // Recorded time of the event represented by this row.
   google.protobuf.Timestamp occurred_at = 4;
+  // The author represented by ObservationRuntimeAuthor.
   ObservationRuntimeAuthor author = 5;
 }
 
+// Represents runtime log row.
 message ObservationRuntimeLogRow {
-  uint64 sequence = 1;
+  // Position within the corresponding epoch, not a global time or authority token.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string sequence = 1;
+  // The event represented by ObservationRuntimeEvent.
   ObservationRuntimeEvent event = 2;
 }
 
-enum ObservationAuditSource {
-  OBSERVATION_AUDIT_SOURCE_UNSPECIFIED = 0;
-  OBSERVATION_AUDIT_SOURCE_AUTHENTICATION = 1;
-  OBSERVATION_AUDIT_SOURCE_SECRET_ACCESS = 2;
-}
-
-enum ObservationAuthAuditAction {
-  OBSERVATION_AUTH_AUDIT_ACTION_UNSPECIFIED = 0;
-  OBSERVATION_AUTH_AUDIT_ACTION_BOOTSTRAP = 1;
-  OBSERVATION_AUTH_AUDIT_ACTION_RECOVER = 2;
-  OBSERVATION_AUTH_AUDIT_ACTION_CREATE_ACCOUNT = 3;
-  OBSERVATION_AUTH_AUDIT_ACTION_GET_ACCOUNT = 4;
-  OBSERVATION_AUTH_AUDIT_ACTION_LIST_ACCOUNTS = 5;
-  OBSERVATION_AUTH_AUDIT_ACTION_UPDATE_ACCOUNT = 6;
-  OBSERVATION_AUTH_AUDIT_ACTION_DELETE_ACCOUNT = 7;
-  OBSERVATION_AUTH_AUDIT_ACTION_CREATE_INVITATION = 8;
-  OBSERVATION_AUTH_AUDIT_ACTION_ACCEPT_INVITATION = 9;
-  OBSERVATION_AUTH_AUDIT_ACTION_LIST_INVITATIONS = 10;
-  OBSERVATION_AUTH_AUDIT_ACTION_REVOKE_INVITATION = 11;
-  OBSERVATION_AUTH_AUDIT_ACTION_TRANSPORT = 12;
-  OBSERVATION_AUTH_AUDIT_ACTION_LOGIN_DENIED = 13;
-  OBSERVATION_AUTH_AUDIT_ACTION_LOGIN_LIMITED = 14;
-  OBSERVATION_AUTH_AUDIT_ACTION_CHALLENGE_ISSUED = 15;
-  OBSERVATION_AUTH_AUDIT_ACTION_CHALLENGE_DENIED = 16;
-  OBSERVATION_AUTH_AUDIT_ACTION_SESSION_CREATE = 17;
-  OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REFRESH = 18;
-  OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REPLAY = 19;
-  OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REVOKE = 20;
-  OBSERVATION_AUTH_AUDIT_ACTION_POLICY_READ = 21;
-  OBSERVATION_AUTH_AUDIT_ACTION_POLICY_REPLACE = 22;
-  OBSERVATION_AUTH_AUDIT_ACTION_POLICY_SEED = 23;
-  OBSERVATION_AUTH_AUDIT_ACTION_MFA_ENROLL = 24;
-  OBSERVATION_AUTH_AUDIT_ACTION_MFA_REMOVE = 25;
-  OBSERVATION_AUTH_AUDIT_ACTION_MFA_RECOVERY_REPLACE = 26;
-  OBSERVATION_AUTH_AUDIT_ACTION_MFA_RESET = 27;
-  OBSERVATION_AUTH_AUDIT_ACTION_MFA_POLICY_REPLACE = 28;
-  OBSERVATION_AUTH_AUDIT_ACTION_MFA_POLICY_READ = 29;
-}
-
-enum ObservationAuditOutcome {
-  OBSERVATION_AUDIT_OUTCOME_UNSPECIFIED = 0;
-  OBSERVATION_AUDIT_OUTCOME_ADMITTED = 1;
-  OBSERVATION_AUDIT_OUTCOME_DENIED = 2;
-}
-
-enum ObservationSecretDenialReason {
-  OBSERVATION_SECRET_DENIAL_REASON_UNSPECIFIED = 0;
-  OBSERVATION_SECRET_DENIAL_REASON_FOREIGN_HANDLE = 1;
-  OBSERVATION_SECRET_DENIAL_REASON_INACTIVE_SESSION = 2;
-}
-
+// Represents integration reference.
 message ObservationIntegrationReference {
+  // Exact bytes representing value. Not interpreted as a display string.
   bytes value = 1;
 }
 
+// Represents audit author.
 message ObservationAuditAuthor {
   oneof result {
+    // Canonical account associated with this human-originated observation.
     string human_account = 1;
+    // The internal integration represented by ObservationIntegrationReference.
     ObservationIntegrationReference internal_integration = 2;
+    // Selects explicit absence of recorded evidence; does not invent a zero value.
     google.protobuf.Empty not_recorded = 3;
   }
 }
 
+// Represents audit route.
 message ObservationAuditRoute {
   oneof result {
     // A canonical path from the existing frozen PublicPlan procedure catalogue,
     // <=256 UTF-8 bytes. Never an unchecked historical route_path column.
     string registered_procedure = 1;
+    // Identifies a registered route without exposing a raw URL or request.
     google.protobuf.Empty other_registered_route = 2;
+    // Selects explicit absence of recorded evidence; does not invent a zero value.
     google.protobuf.Empty not_recorded = 3;
   }
 }
 
-enum ObservationStoredMetadataField {
-  OBSERVATION_STORED_METADATA_FIELD_UNSPECIFIED = 0;
-  OBSERVATION_STORED_METADATA_FIELD_ACTOR = 1;
-  OBSERVATION_STORED_METADATA_FIELD_ROUTE = 2;
-  OBSERVATION_STORED_METADATA_FIELD_OCCURRED_AT = 3;
-  OBSERVATION_STORED_METADATA_FIELD_ACTION = 4;
-  OBSERVATION_STORED_METADATA_FIELD_OUTCOME = 5;
-  OBSERVATION_STORED_METADATA_FIELD_REQUESTING_INSTANCE = 6;
-}
-
+// Represents stored metadata invalid.
 message ObservationStoredMetadataInvalid {
   // At most six distinct known fields, never their rejected stored values.
   repeated ObservationStoredMetadataField fields = 1;
 }
 
+// Represents authentication audit.
 message ObservationAuthenticationAudit {
+  // Recorded time of the event represented by this row.
   google.protobuf.Timestamp occurred_at = 1;
+  // The action represented by ObservationAuthAuditAction.
   ObservationAuthAuditAction action = 2;
+  // Closed outcome recorded by the native owner; distinguish acknowledgment from confirmed effect.
   ObservationAuditOutcome outcome = 3;
+  // The author represented by ObservationAuditAuthor.
   ObservationAuditAuthor author = 4;
+  // The route represented by ObservationAuditRoute.
   ObservationAuditRoute route = 5;
 }
 
+// Represents secret access audit.
 message ObservationSecretAccessAudit {
+  // Recorded time of the event represented by this row.
   google.protobuf.Timestamp occurred_at = 1;
+  // Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
   ObservationSecretDenialReason reason = 2;
+  // The author represented by ObservationAuditAuthor.
   ObservationAuditAuthor author = 3;
 }
 
+// Represents audit row.
 message ObservationAuditRow {
   // Positive PK from the selected source; not a global wall-clock/commit order.
   int64 id = 1;
   oneof result {
+    // The authentication represented by ObservationAuthenticationAudit.
     ObservationAuthenticationAudit authentication = 2;
+    // The secret access represented by ObservationSecretAccessAudit.
     ObservationSecretAccessAudit secret_access = 3;
+    // Signals invalid stored metadata without returning its raw contents.
     ObservationStoredMetadataInvalid stored_metadata_invalid = 4;
   }
 }
 
-enum ObservationTraceDecision {
-  OBSERVATION_TRACE_DECISION_UNSPECIFIED = 0;
-  OBSERVATION_TRACE_DECISION_PREPARING = 1;
-  OBSERVATION_TRACE_DECISION_ADMITTED = 2;
-  OBSERVATION_TRACE_DECISION_QUEUED = 3;
-  OBSERVATION_TRACE_DECISION_RESTART_PENDING = 4;
-  OBSERVATION_TRACE_DECISION_SINGLE_BUSY = 5;
-  OBSERVATION_TRACE_DECISION_MAX_EXCEEDED = 6;
-  OBSERVATION_TRACE_DECISION_PREPARATION_SATURATED = 7;
-  OBSERVATION_TRACE_DECISION_MEMORY_SATURATED = 8;
-  OBSERVATION_TRACE_DECISION_CONDITION_FALSE = 9;
-  OBSERVATION_TRACE_DECISION_PREPARATION_ERROR = 10;
-  OBSERVATION_TRACE_DECISION_EXECUTION_ERROR = 11;
-  OBSERVATION_TRACE_DECISION_FINISHED = 12;
-  OBSERVATION_TRACE_DECISION_CANCELLED = 13;
-  OBSERVATION_TRACE_DECISION_SUPERSEDED = 14;
-  OBSERVATION_TRACE_DECISION_CLOSED = 15;
-  OBSERVATION_TRACE_DECISION_UNKNOWN_AUTOMATION = 16;
-  OBSERVATION_TRACE_DECISION_TRIGGER_MISSED = 17;
-  OBSERVATION_TRACE_DECISION_TRIGGER_DEGRADED = 18;
-}
-
-enum ObservationTraceMaxExceededMode {
-  OBSERVATION_TRACE_MAX_EXCEEDED_MODE_UNSPECIFIED = 0;
-  OBSERVATION_TRACE_MAX_EXCEEDED_MODE_SILENT = 1;
-  OBSERVATION_TRACE_MAX_EXCEEDED_MODE_WARNING = 2;
-  OBSERVATION_TRACE_MAX_EXCEEDED_MODE_ERROR = 3;
-}
-
-enum ObservationTraceActionKind {
-  OBSERVATION_TRACE_ACTION_KIND_UNSPECIFIED = 0;
-  OBSERVATION_TRACE_ACTION_KIND_VARIABLES = 1;
-  OBSERVATION_TRACE_ACTION_KIND_SEQUENCE = 2;
-  OBSERVATION_TRACE_ACTION_KIND_CHOOSE = 3;
-  OBSERVATION_TRACE_ACTION_KIND_IF = 4;
-  OBSERVATION_TRACE_ACTION_KIND_REPEAT = 5;
-  OBSERVATION_TRACE_ACTION_KIND_PARALLEL = 6;
-  OBSERVATION_TRACE_ACTION_KIND_WAIT = 7;
-  OBSERVATION_TRACE_ACTION_KIND_STOP = 8;
-  OBSERVATION_TRACE_ACTION_KIND_CALL = 9;
-  OBSERVATION_TRACE_ACTION_KIND_DELAY = 10;
-  OBSERVATION_TRACE_ACTION_KIND_WAIT_TEMPLATE = 11;
-}
-
-enum ObservationTraceNodeStage {
-  OBSERVATION_TRACE_NODE_STAGE_UNSPECIFIED = 0;
-  OBSERVATION_TRACE_NODE_STAGE_ENTERED = 1;
-  OBSERVATION_TRACE_NODE_STAGE_COMPLETED = 2;
-  OBSERVATION_TRACE_NODE_STAGE_STOPPED = 3;
-  OBSERVATION_TRACE_NODE_STAGE_CANCELLED = 4;
-  OBSERVATION_TRACE_NODE_STAGE_FAILED = 5;
-  OBSERVATION_TRACE_NODE_STAGE_WAITING = 6;
-}
-
-enum ObservationTraceExecutionErrorKind {
-  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_UNSPECIFIED = 0;
-  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_INVALID_PROGRAM = 1;
-  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_WORK_BUDGET = 2;
-  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_RECURSION = 3;
-  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_WAIT_TIMEOUT = 4;
-  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_SOURCE_UNAVAILABLE = 5;
-  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_CONDITION_ERROR = 6;
-  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_COMMAND_ERROR = 7;
-}
-
-enum ObservationTraceOrderState {
-  OBSERVATION_TRACE_ORDER_STATE_UNSPECIFIED = 0;
-  OBSERVATION_TRACE_ORDER_STATE_HEALTHY = 1;
-  OBSERVATION_TRACE_ORDER_STATE_EXHAUSTED = 2;
-}
-
+// Represents trace ordinal.
 message ObservationTraceOrdinal {
   oneof result {
     // Native 188 ordinal in 1..UINT64_MAX-1. Same Controller only; no sorting
     // across Controllers, no renumbering, and no continuity claim on eviction.
-    uint64 native = 1;
+    // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+    string native = 1;
+    // Selects the explicit exhausted alternative without an additional payload.
     google.protobuf.Empty exhausted = 2;
   }
 }
 
+// Represents controller trace record.
 message ObservationControllerTraceRecord {
+  // The decision represented by ObservationTraceDecision.
   ObservationTraceDecision decision = 1;
   oneof max_exceeded {
+    // The mode represented by ObservationTraceMaxExceededMode.
     ObservationTraceMaxExceededMode mode = 2;
+    // Selects a value that does not apply to this observation.
     google.protobuf.Empty not_applicable = 3;
   }
   // Exact existing sequencer position that triggered this run. Present only
@@ -710,151 +658,758 @@ message ObservationControllerTraceRecord {
   optional AdmissionPosition trigger_position = 4;
 }
 
+// Represents trace failure.
 message ObservationTraceFailure {
   oneof result {
+    // The known represented by ObservationTraceExecutionErrorKind.
     ObservationTraceExecutionErrorKind known = 1;
+    // Selects the explicit no failure alternative without an additional payload.
     google.protobuf.Empty no_failure = 2;
     // An unclassified source error is not turned into an invented known code.
     google.protobuf.Empty not_recorded = 3;
   }
 }
 
+// Represents node trace record.
 message ObservationNodeTraceRecord {
+  // The action kind represented by ObservationTraceActionKind.
   ObservationTraceActionKind action_kind = 1;
+  // The stage represented by ObservationTraceNodeStage.
   ObservationTraceNodeStage stage = 2;
+  // Recorded time of the event represented by this row.
   google.protobuf.Timestamp occurred_at = 3;
+  // The failure represented by ObservationTraceFailure.
   ObservationTraceFailure failure = 4;
 }
 
+// Represents trace row.
 message ObservationTraceRow {
+  // The run associated with this message.
   string run = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/RuntimeRun"];
   // Zero-based stable index in this bounded capture, not a source ordinal.
-  uint32 local_index = 2;
+  int32 local_index = 2;
+  // The ordinal represented by ObservationTraceOrdinal.
   ObservationTraceOrdinal ordinal = 3;
   oneof record {
+    // The controller represented by ObservationControllerTraceRecord.
     ObservationControllerTraceRecord controller = 4;
+    // The node represented by ObservationNodeTraceRecord.
     ObservationNodeTraceRecord node = 5;
   }
 }
 
+// Describes independently captured native trace cuts and their coherence.
+message ObservationTraceCutMetadata {
+  // The coherence represented by ObservationTraceCutCoherence.
+  ObservationTraceCutCoherence coherence = 1;
+  // The order represented by ObservationTraceOrderState.
+  ObservationTraceOrderState order = 2;
+  // Source-reported native eviction counts, distinct from truncation by 056.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string controller_evicted = 3;
+  // The node evicted represented as an exact native quantity.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string node_evicted = 4;
+  // Recorded time for controller captured at. Absence means no timestamp was supplied or recorded.
+  google.protobuf.Timestamp controller_captured_at = 5;
+  // Recorded time for node captured at. Absence means no timestamp was supplied or recorded.
+  google.protobuf.Timestamp node_captured_at = 6;
+}
+
+// Represents integration health.
+message IntegrationHealth {
+  option (google.api.resource) = {
+    type: "homeward.damiengoehrig.ca/IntegrationHealth"
+    pattern: "homes/{home}/integrationInstances/{integration_instance}/integrationHealth"
+    singular: "integrationHealth"
+    plural: "integrationHealths"
+  };
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // The report represented by ObservationIntegrationReportPresence.
+  ObservationIntegrationReportPresence report = 2;
+  // The supervision represented by ObservationIntegrationSupervision.
+  ObservationIntegrationSupervision supervision = 3;
+}
+
+// Request for get health.
+message GetHealthRequest {
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Health"
+  ];
+}
+
+// Request for get metrics.
+message GetMetricsRequest {
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Metrics"
+  ];
+}
+
+// Request for get integration health.
+message GetIntegrationHealthRequest {
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationHealth"
+  ];
+}
+
+// Request for query runtime logs.
+message QueryRuntimeLogsRequest {
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"
+  ];
+  // Requested page size. Zero selects the documented default; negative values are invalid.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Successful result of query runtime logs.
+message QueryRuntimeLogsResponse {
+  // Authorized rows selected for this bounded query.
+  repeated ObservationRuntimeLogRow rows = 1;
+  // Opaque continuation for the next page. Empty when no continuation is available.
+  string next_page_token = 2;
+  // The process epoch represented by ObservationProcessObservationEpoch.
+  ObservationProcessObservationEpoch process_epoch = 3;
+  // The upper sequence represented as an exact native quantity.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string upper_sequence = 4;
+}
+
+// Request for query audits.
+message QueryAuditsRequest {
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"
+  ];
+  // The source represented by ObservationAuditSource.
+  ObservationAuditSource source = 2 [(google.api.field_behavior) = REQUIRED];
+  // Requested page size. Zero selects the documented default; negative values are invalid.
+  int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+  string page_token = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Successful result of query audits.
+message QueryAuditsResponse {
+  // Authorized rows selected for this bounded query.
+  repeated ObservationAuditRow rows = 1;
+  // Opaque continuation for the next page. Empty when no continuation is available.
+  string next_page_token = 2;
+  // The source represented by ObservationAuditSource.
+  ObservationAuditSource source = 3;
+}
+
+// Request for query run trace.
+message QueryRunTraceRequest {
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/RuntimeRun"
+  ];
+  // Requested page size. Zero selects the documented default; negative values are invalid.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Successful result of query run trace.
+message QueryRunTraceResponse {
+  // Authorized rows selected for this bounded query.
+  repeated ObservationTraceRow rows = 1;
+  // Exact native run selected by the request, including its process controller.
+  string run = 5 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/RuntimeRun"];
+  // Opaque continuation for the next page. Empty when no continuation is available.
+  string next_page_token = 2;
+  // The cuts represented by ObservationTraceCutMetadata.
+  ObservationTraceCutMetadata cuts = 3;
+  // Optional means the retained native capture was truncated by this bound.
+  optional ObservationTraceTruncationReason truncation_reason = 4;
+}
+
+// Request for query recorder coverage.
+message QueryRecorderCoverageRequest {
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"
+  ];
+  // Inclusive lower bound within the declared scope.
+  AdmissionPosition from = 2 [(google.api.field_behavior) = REQUIRED];
+  oneof through {
+    // Position within the corresponding native owner and epoch.
+    AdmissionPosition position = 3;
+    // The latest in epoch represented by RecorderEpochIdentity.
+    RecorderEpochIdentity latest_in_epoch = 4;
+  }
+}
+
+// Successful result of query recorder coverage.
+message QueryRecorderCoverageResponse {
+  // Evidence of observed, retained and missing data within the admitted scope.
+  RecorderCoverageSnapshot coverage = 1;
+}
+
+// Defines the closed vocabulary for read unavailable reason.
+enum ObservationReadUnavailableReason {
+  // No explicit observation read unavailable reason. Does not select an action.
+  OBSERVATION_READ_UNAVAILABLE_REASON_UNSPECIFIED = 0;
+  // Selects not observed for read unavailable reason.
+  OBSERVATION_READ_UNAVAILABLE_REASON_NOT_OBSERVED = 1;
+  // Selects producer stopped for read unavailable reason.
+  OBSERVATION_READ_UNAVAILABLE_REASON_PRODUCER_STOPPED = 2;
+  // Selects integrity for read unavailable reason.
+  OBSERVATION_READ_UNAVAILABLE_REASON_INTEGRITY = 3;
+  // Selects core unavailable for read unavailable reason.
+  OBSERVATION_READ_UNAVAILABLE_REASON_CORE_UNAVAILABLE = 4;
+  // Selects storage unavailable for read unavailable reason.
+  OBSERVATION_READ_UNAVAILABLE_REASON_STORAGE_UNAVAILABLE = 5;
+  // Selects authority unavailable for read unavailable reason.
+  OBSERVATION_READ_UNAVAILABLE_REASON_AUTHORITY_UNAVAILABLE = 6;
+  // Selects time budget for read unavailable reason.
+  OBSERVATION_READ_UNAVAILABLE_REASON_TIME_BUDGET = 7;
+  // Selects completion unknown for read unavailable reason.
+  OBSERVATION_READ_UNAVAILABLE_REASON_COMPLETION_UNKNOWN = 8;
+}
+
+// Defines the closed vocabulary for liveness.
+enum ObservationLiveness {
+  // No explicit observation liveness. Does not select an action.
+  OBSERVATION_LIVENESS_UNSPECIFIED = 0;
+  // Processing this read proves only the process is live at this cut.
+  OBSERVATION_LIVENESS_LIVE = 1;
+}
+
+// Defines the closed vocabulary for server readiness.
+enum ObservationServerReadiness {
+  // No explicit observation server readiness. Does not select an action.
+  OBSERVATION_SERVER_READINESS_UNSPECIFIED = 0;
+  // Selects starting for server readiness.
+  OBSERVATION_SERVER_READINESS_STARTING = 1;
+  // Selects ready for server readiness.
+  OBSERVATION_SERVER_READINESS_READY = 2;
+  // Selects draining for server readiness.
+  OBSERVATION_SERVER_READINESS_DRAINING = 3;
+  // Selects core unavailable for server readiness.
+  OBSERVATION_SERVER_READINESS_CORE_UNAVAILABLE = 4;
+}
+
+// Defines the closed vocabulary for core cause.
+enum ObservationCoreCause {
+  // No explicit observation core cause. Does not select an action.
+  OBSERVATION_CORE_CAUSE_UNSPECIFIED = 0;
+  // Selects generation not loaded for core cause.
+  OBSERVATION_CORE_CAUSE_GENERATION_NOT_LOADED = 1;
+  // Selects registry unavailable for core cause.
+  OBSERVATION_CORE_CAUSE_REGISTRY_UNAVAILABLE = 2;
+  // Selects control admissions closed for core cause.
+  OBSERVATION_CORE_CAUSE_CONTROL_ADMISSIONS_CLOSED = 3;
+  // Selects owners not started for core cause.
+  OBSERVATION_CORE_CAUSE_OWNERS_NOT_STARTED = 4;
+  // Selects listener not ready for core cause.
+  OBSERVATION_CORE_CAUSE_LISTENER_NOT_READY = 5;
+  // Selects shutting down for core cause.
+  OBSERVATION_CORE_CAUSE_SHUTTING_DOWN = 6;
+}
+
+// Defines the closed vocabulary for durable availability.
+enum ObservationDurableAvailability {
+  // No explicit observation durable availability. Does not select an action.
+  OBSERVATION_DURABLE_AVAILABILITY_UNSPECIFIED = 0;
+  // Selects available for durable availability.
+  OBSERVATION_DURABLE_AVAILABILITY_AVAILABLE = 1;
+  // Selects degraded for durable availability.
+  OBSERVATION_DURABLE_AVAILABILITY_DEGRADED = 2;
+  // Selects unavailable for durable availability.
+  OBSERVATION_DURABLE_AVAILABILITY_UNAVAILABLE = 3;
+  // Selects not configured for durable availability.
+  OBSERVATION_DURABLE_AVAILABILITY_NOT_CONFIGURED = 4;
+  // Selects unknown for durable availability.
+  OBSERVATION_DURABLE_AVAILABILITY_UNKNOWN = 5;
+}
+
+// Defines the closed vocabulary for pilot phase.
+enum ObservationPilotPhase {
+  // No explicit observation pilot phase. Does not select an action.
+  OBSERVATION_PILOT_PHASE_UNSPECIFIED = 0;
+  // Selects starting for pilot phase.
+  OBSERVATION_PILOT_PHASE_STARTING = 1;
+  // Selects running for pilot phase.
+  OBSERVATION_PILOT_PHASE_RUNNING = 2;
+  // Selects retrying for pilot phase.
+  OBSERVATION_PILOT_PHASE_RETRYING = 3;
+  // Selects degraded for pilot phase.
+  OBSERVATION_PILOT_PHASE_DEGRADED = 4;
+  // Selects stopped for pilot phase.
+  OBSERVATION_PILOT_PHASE_STOPPED = 5;
+}
+
+// Defines the closed vocabulary for recorder phase.
+enum ObservationRecorderPhase {
+  // No explicit observation recorder phase. Does not select an action.
+  OBSERVATION_RECORDER_PHASE_UNSPECIFIED = 0;
+  // Selects running for recorder phase.
+  OBSERVATION_RECORDER_PHASE_RUNNING = 1;
+  // Selects writing for recorder phase.
+  OBSERVATION_RECORDER_PHASE_WRITING = 2;
+  // Selects backoff for recorder phase.
+  OBSERVATION_RECORDER_PHASE_BACKOFF = 3;
+  // Selects stopping for recorder phase.
+  OBSERVATION_RECORDER_PHASE_STOPPING = 4;
+  // Selects failed for recorder phase.
+  OBSERVATION_RECORDER_PHASE_FAILED = 5;
+  // Selects stopped for recorder phase.
+  OBSERVATION_RECORDER_PHASE_STOPPED = 6;
+}
+
+// Defines the closed vocabulary for recorder health state.
+enum ObservationRecorderHealthState {
+  // No explicit observation recorder health state. Does not select an action.
+  OBSERVATION_RECORDER_HEALTH_STATE_UNSPECIFIED = 0;
+  // Selects operating for recorder health state.
+  OBSERVATION_RECORDER_HEALTH_STATE_OPERATING = 1;
+  // Selects degraded for recorder health state.
+  OBSERVATION_RECORDER_HEALTH_STATE_DEGRADED = 2;
+  // Selects failed for recorder health state.
+  OBSERVATION_RECORDER_HEALTH_STATE_FAILED = 3;
+}
+
+// Defines the closed vocabulary for queue class.
+enum ObservationQueueClass {
+  // No explicit observation queue class. Does not select an action.
+  OBSERVATION_QUEUE_CLASS_UNSPECIFIED = 0;
+  // Selects ui for queue class.
+  OBSERVATION_QUEUE_CLASS_UI = 1;
+  // Selects edge for queue class.
+  OBSERVATION_QUEUE_CLASS_EDGE = 2;
+  // Selects recorder for queue class.
+  OBSERVATION_QUEUE_CLASS_RECORDER = 3;
+  // Selects view for queue class.
+  OBSERVATION_QUEUE_CLASS_VIEW = 4;
+  // Selects automation pending for queue class.
+  OBSERVATION_QUEUE_CLASS_AUTOMATION_PENDING = 5;
+  // Selects script pending for queue class.
+  OBSERVATION_QUEUE_CLASS_SCRIPT_PENDING = 6;
+  // Selects mqtt inbound for queue class.
+  OBSERVATION_QUEUE_CLASS_MQTT_INBOUND = 7;
+  // Selects worker commands for queue class.
+  OBSERVATION_QUEUE_CLASS_WORKER_COMMANDS = 8;
+  // Selects cloud requests for queue class.
+  OBSERVATION_QUEUE_CLASS_CLOUD_REQUESTS = 9;
+}
+
+// Defines the closed vocabulary for attempt ledger.
+enum ObservationAttemptLedger {
+  // No explicit observation attempt ledger. Does not select an action.
+  OBSERVATION_ATTEMPT_LEDGER_UNSPECIFIED = 0;
+  // Selects volatile for attempt ledger.
+  OBSERVATION_ATTEMPT_LEDGER_VOLATILE = 1;
+  // Selects durable for attempt ledger.
+  OBSERVATION_ATTEMPT_LEDGER_DURABLE = 2;
+}
+
+// Defines the closed vocabulary for run kind.
+enum ObservationRunKind {
+  // No explicit observation run kind. Does not select an action.
+  OBSERVATION_RUN_KIND_UNSPECIFIED = 0;
+  // Selects automation for run kind.
+  OBSERVATION_RUN_KIND_AUTOMATION = 1;
+  // Selects script for run kind.
+  OBSERVATION_RUN_KIND_SCRIPT = 2;
+}
+
+// Defines the closed vocabulary for metric owner.
+enum ObservationMetricOwner {
+  // No explicit observation metric owner. Does not select an action.
+  OBSERVATION_METRIC_OWNER_UNSPECIFIED = 0;
+  // Selects sequencer for metric owner.
+  OBSERVATION_METRIC_OWNER_SEQUENCER = 1;
+  // Selects recorder for metric owner.
+  OBSERVATION_METRIC_OWNER_RECORDER = 2;
+  // Selects actions for metric owner.
+  OBSERVATION_METRIC_OWNER_ACTIONS = 3;
+  // Selects automation runs for metric owner.
+  OBSERVATION_METRIC_OWNER_AUTOMATION_RUNS = 4;
+  // Selects mqtt for metric owner.
+  OBSERVATION_METRIC_OWNER_MQTT = 5;
+  // Selects worker for metric owner.
+  OBSERVATION_METRIC_OWNER_WORKER = 6;
+  // Selects cloud policy for metric owner.
+  OBSERVATION_METRIC_OWNER_CLOUD_POLICY = 7;
+  // Selects journal for metric owner.
+  OBSERVATION_METRIC_OWNER_JOURNAL = 8;
+}
+
+// Defines the closed vocabulary for log level.
+enum ObservationLogLevel {
+  // No explicit observation log level. Does not select an action.
+  OBSERVATION_LOG_LEVEL_UNSPECIFIED = 0;
+  // Selects info for log level.
+  OBSERVATION_LOG_LEVEL_INFO = 1;
+  // Selects warning for log level.
+  OBSERVATION_LOG_LEVEL_WARNING = 2;
+  // Selects error for log level.
+  OBSERVATION_LOG_LEVEL_ERROR = 3;
+}
+
+// Defines the closed vocabulary for log component.
+enum ObservationLogComponent {
+  // No explicit observation log component. Does not select an action.
+  OBSERVATION_LOG_COMPONENT_UNSPECIFIED = 0;
+  // Selects process for log component.
+  OBSERVATION_LOG_COMPONENT_PROCESS = 1;
+  // Selects public transport for log component.
+  OBSERVATION_LOG_COMPONENT_PUBLIC_TRANSPORT = 2;
+  // Selects operator transport for log component.
+  OBSERVATION_LOG_COMPONENT_OPERATOR_TRANSPORT = 3;
+  // Selects worker transport for log component.
+  OBSERVATION_LOG_COMPONENT_WORKER_TRANSPORT = 4;
+  // Selects mqtt for log component.
+  OBSERVATION_LOG_COMPONENT_MQTT = 5;
+  // Selects supervisor for log component.
+  OBSERVATION_LOG_COMPONENT_SUPERVISOR = 6;
+}
+
+// Defines the closed vocabulary for log code.
+enum ObservationLogCode {
+  // No explicit observation log code. Does not select an action.
+  OBSERVATION_LOG_CODE_UNSPECIFIED = 0;
+  // Selects process config read failed for log code.
+  OBSERVATION_LOG_CODE_PROCESS_CONFIG_READ_FAILED = 1;
+  // Selects process config admission failed for log code.
+  OBSERVATION_LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED = 2;
+  // Selects process runtime start failed for log code.
+  OBSERVATION_LOG_CODE_PROCESS_RUNTIME_START_FAILED = 3;
+  // Selects process runtime failed for log code.
+  OBSERVATION_LOG_CODE_PROCESS_RUNTIME_FAILED = 4;
+  // Selects process ready for log code.
+  OBSERVATION_LOG_CODE_PROCESS_READY = 5;
+  // Selects process stopped for log code.
+  OBSERVATION_LOG_CODE_PROCESS_STOPPED = 6;
+  // Selects transport internal diagnostic for log code.
+  OBSERVATION_LOG_CODE_TRANSPORT_INTERNAL_DIAGNOSTIC = 7;
+  // Selects mqtt unknown discovery for log code.
+  OBSERVATION_LOG_CODE_MQTT_UNKNOWN_DISCOVERY = 8;
+  // Selects mqtt invalid discovery for log code.
+  OBSERVATION_LOG_CODE_MQTT_INVALID_DISCOVERY = 9;
+  // Selects mqtt unconfigured source for log code.
+  OBSERVATION_LOG_CODE_MQTT_UNCONFIGURED_SOURCE = 10;
+  // Selects mqtt unsupported effect for log code.
+  OBSERVATION_LOG_CODE_MQTT_UNSUPPORTED_EFFECT = 11;
+  // Selects mqtt unsupported color mode for log code.
+  OBSERVATION_LOG_CODE_MQTT_UNSUPPORTED_COLOR_MODE = 12;
+  // Selects mqtt invalid state for log code.
+  OBSERVATION_LOG_CODE_MQTT_INVALID_STATE = 13;
+  // Selects mqtt invalid availability for log code.
+  OBSERVATION_LOG_CODE_MQTT_INVALID_AVAILABILITY = 14;
+  // Selects mqtt retirement failed for log code.
+  OBSERVATION_LOG_CODE_MQTT_RETIREMENT_FAILED = 15;
+  // Selects mqtt snapshot overflow for log code.
+  OBSERVATION_LOG_CODE_MQTT_SNAPSHOT_OVERFLOW = 16;
+  // Selects mqtt unconfigured action anchor for log code.
+  OBSERVATION_LOG_CODE_MQTT_UNCONFIGURED_ACTION_ANCHOR = 17;
+  // Selects mqtt ambiguous action device for log code.
+  OBSERVATION_LOG_CODE_MQTT_AMBIGUOUS_ACTION_DEVICE = 18;
+  // Selects mqtt action overflow for log code.
+  OBSERVATION_LOG_CODE_MQTT_ACTION_OVERFLOW = 19;
+  // Selects mqtt invalid action for log code.
+  OBSERVATION_LOG_CODE_MQTT_INVALID_ACTION = 20;
+  // Selects pilot starting for log code.
+  OBSERVATION_LOG_CODE_PILOT_STARTING = 21;
+  // Selects pilot running for log code.
+  OBSERVATION_LOG_CODE_PILOT_RUNNING = 22;
+  // Selects pilot retrying for log code.
+  OBSERVATION_LOG_CODE_PILOT_RETRYING = 23;
+  // Selects pilot degraded for log code.
+  OBSERVATION_LOG_CODE_PILOT_DEGRADED = 24;
+  // Selects pilot stopped for log code.
+  OBSERVATION_LOG_CODE_PILOT_STOPPED = 25;
+  // Selects pilot join timeout for log code.
+  OBSERVATION_LOG_CODE_PILOT_JOIN_TIMEOUT = 26;
+  // Selects pilot task capacity for log code.
+  OBSERVATION_LOG_CODE_PILOT_TASK_CAPACITY = 27;
+  // Selects pilot factory failed for log code.
+  OBSERVATION_LOG_CODE_PILOT_FACTORY_FAILED = 28;
+}
+
+// Defines the closed vocabulary for audit source.
+enum ObservationAuditSource {
+  // No explicit observation audit source. Does not select an action.
+  OBSERVATION_AUDIT_SOURCE_UNSPECIFIED = 0;
+  // Selects authentication for audit source.
+  OBSERVATION_AUDIT_SOURCE_AUTHENTICATION = 1;
+  // Selects secret access for audit source.
+  OBSERVATION_AUDIT_SOURCE_SECRET_ACCESS = 2;
+}
+
+// Defines the closed vocabulary for auth audit action.
+enum ObservationAuthAuditAction {
+  // No explicit observation auth audit action. Does not select an action.
+  OBSERVATION_AUTH_AUDIT_ACTION_UNSPECIFIED = 0;
+  // Selects bootstrap for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_BOOTSTRAP = 1;
+  // Selects recover for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_RECOVER = 2;
+  // Selects create account for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_CREATE_ACCOUNT = 3;
+  // Selects get account for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_GET_ACCOUNT = 4;
+  // Selects list accounts for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_LIST_ACCOUNTS = 5;
+  // Selects update account for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_UPDATE_ACCOUNT = 6;
+  // Selects delete account for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_DELETE_ACCOUNT = 7;
+  // Selects create invitation for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_CREATE_INVITATION = 8;
+  // Selects accept invitation for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_ACCEPT_INVITATION = 9;
+  // Selects list invitations for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_LIST_INVITATIONS = 10;
+  // Selects revoke invitation for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_REVOKE_INVITATION = 11;
+  // Selects transport for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_TRANSPORT = 12;
+  // Selects login denied for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_LOGIN_DENIED = 13;
+  // Selects login limited for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_LOGIN_LIMITED = 14;
+  // Selects challenge issued for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_CHALLENGE_ISSUED = 15;
+  // Selects challenge denied for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_CHALLENGE_DENIED = 16;
+  // Selects session create for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_SESSION_CREATE = 17;
+  // Selects session refresh for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REFRESH = 18;
+  // Selects session replay for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REPLAY = 19;
+  // Selects session revoke for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REVOKE = 20;
+  // Selects policy read for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_POLICY_READ = 21;
+  // Selects policy replace for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_POLICY_REPLACE = 22;
+  // Selects policy seed for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_POLICY_SEED = 23;
+  // Selects mfa enroll for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_MFA_ENROLL = 24;
+  // Selects mfa remove for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_MFA_REMOVE = 25;
+  // Selects mfa recovery replace for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_MFA_RECOVERY_REPLACE = 26;
+  // Selects mfa reset for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_MFA_RESET = 27;
+  // Selects mfa policy replace for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_MFA_POLICY_REPLACE = 28;
+  // Selects mfa policy read for auth audit action.
+  OBSERVATION_AUTH_AUDIT_ACTION_MFA_POLICY_READ = 29;
+}
+
+// Defines the closed vocabulary for audit outcome.
+enum ObservationAuditOutcome {
+  // No explicit observation audit outcome. Does not select an action.
+  OBSERVATION_AUDIT_OUTCOME_UNSPECIFIED = 0;
+  // Selects admitted for audit outcome.
+  OBSERVATION_AUDIT_OUTCOME_ADMITTED = 1;
+  // Selects denied for audit outcome.
+  OBSERVATION_AUDIT_OUTCOME_DENIED = 2;
+}
+
+// Defines the closed vocabulary for secret denial reason.
+enum ObservationSecretDenialReason {
+  // No explicit observation secret denial reason. Does not select an action.
+  OBSERVATION_SECRET_DENIAL_REASON_UNSPECIFIED = 0;
+  // Selects foreign handle for secret denial reason.
+  OBSERVATION_SECRET_DENIAL_REASON_FOREIGN_HANDLE = 1;
+  // Selects inactive session for secret denial reason.
+  OBSERVATION_SECRET_DENIAL_REASON_INACTIVE_SESSION = 2;
+}
+
+// Defines the closed vocabulary for stored metadata field.
+enum ObservationStoredMetadataField {
+  // No explicit observation stored metadata field. Does not select an action.
+  OBSERVATION_STORED_METADATA_FIELD_UNSPECIFIED = 0;
+  // Selects actor for stored metadata field.
+  OBSERVATION_STORED_METADATA_FIELD_ACTOR = 1;
+  // Selects route for stored metadata field.
+  OBSERVATION_STORED_METADATA_FIELD_ROUTE = 2;
+  // Selects occurred at for stored metadata field.
+  OBSERVATION_STORED_METADATA_FIELD_OCCURRED_AT = 3;
+  // Selects action for stored metadata field.
+  OBSERVATION_STORED_METADATA_FIELD_ACTION = 4;
+  // Selects outcome for stored metadata field.
+  OBSERVATION_STORED_METADATA_FIELD_OUTCOME = 5;
+  // Selects requesting instance for stored metadata field.
+  OBSERVATION_STORED_METADATA_FIELD_REQUESTING_INSTANCE = 6;
+}
+
+// Defines the closed vocabulary for trace decision.
+enum ObservationTraceDecision {
+  // No explicit observation trace decision. Does not select an action.
+  OBSERVATION_TRACE_DECISION_UNSPECIFIED = 0;
+  // Selects preparing for trace decision.
+  OBSERVATION_TRACE_DECISION_PREPARING = 1;
+  // Selects admitted for trace decision.
+  OBSERVATION_TRACE_DECISION_ADMITTED = 2;
+  // Selects queued for trace decision.
+  OBSERVATION_TRACE_DECISION_QUEUED = 3;
+  // Selects restart pending for trace decision.
+  OBSERVATION_TRACE_DECISION_RESTART_PENDING = 4;
+  // Selects single busy for trace decision.
+  OBSERVATION_TRACE_DECISION_SINGLE_BUSY = 5;
+  // Selects max exceeded for trace decision.
+  OBSERVATION_TRACE_DECISION_MAX_EXCEEDED = 6;
+  // Selects preparation saturated for trace decision.
+  OBSERVATION_TRACE_DECISION_PREPARATION_SATURATED = 7;
+  // Selects memory saturated for trace decision.
+  OBSERVATION_TRACE_DECISION_MEMORY_SATURATED = 8;
+  // Selects condition false for trace decision.
+  OBSERVATION_TRACE_DECISION_CONDITION_FALSE = 9;
+  // Selects preparation error for trace decision.
+  OBSERVATION_TRACE_DECISION_PREPARATION_ERROR = 10;
+  // Selects execution error for trace decision.
+  OBSERVATION_TRACE_DECISION_EXECUTION_ERROR = 11;
+  // Selects finished for trace decision.
+  OBSERVATION_TRACE_DECISION_FINISHED = 12;
+  // Selects cancelled for trace decision.
+  OBSERVATION_TRACE_DECISION_CANCELLED = 13;
+  // Selects superseded for trace decision.
+  OBSERVATION_TRACE_DECISION_SUPERSEDED = 14;
+  // Selects closed for trace decision.
+  OBSERVATION_TRACE_DECISION_CLOSED = 15;
+  // Selects unknown automation for trace decision.
+  OBSERVATION_TRACE_DECISION_UNKNOWN_AUTOMATION = 16;
+  // Selects trigger missed for trace decision.
+  OBSERVATION_TRACE_DECISION_TRIGGER_MISSED = 17;
+  // Selects trigger degraded for trace decision.
+  OBSERVATION_TRACE_DECISION_TRIGGER_DEGRADED = 18;
+}
+
+// Defines the closed vocabulary for trace max exceeded mode.
+enum ObservationTraceMaxExceededMode {
+  // No explicit observation trace max exceeded mode. Does not select an action.
+  OBSERVATION_TRACE_MAX_EXCEEDED_MODE_UNSPECIFIED = 0;
+  // Selects silent for trace max exceeded mode.
+  OBSERVATION_TRACE_MAX_EXCEEDED_MODE_SILENT = 1;
+  // Selects warning for trace max exceeded mode.
+  OBSERVATION_TRACE_MAX_EXCEEDED_MODE_WARNING = 2;
+  // Selects error for trace max exceeded mode.
+  OBSERVATION_TRACE_MAX_EXCEEDED_MODE_ERROR = 3;
+}
+
+// Defines the closed vocabulary for trace action kind.
+enum ObservationTraceActionKind {
+  // No explicit observation trace action kind. Does not select an action.
+  OBSERVATION_TRACE_ACTION_KIND_UNSPECIFIED = 0;
+  // Selects variables for trace action kind.
+  OBSERVATION_TRACE_ACTION_KIND_VARIABLES = 1;
+  // Selects sequence for trace action kind.
+  OBSERVATION_TRACE_ACTION_KIND_SEQUENCE = 2;
+  // Selects choose for trace action kind.
+  OBSERVATION_TRACE_ACTION_KIND_CHOOSE = 3;
+  // Selects if for trace action kind.
+  OBSERVATION_TRACE_ACTION_KIND_IF = 4;
+  // Selects repeat for trace action kind.
+  OBSERVATION_TRACE_ACTION_KIND_REPEAT = 5;
+  // Selects parallel for trace action kind.
+  OBSERVATION_TRACE_ACTION_KIND_PARALLEL = 6;
+  // Selects wait for trace action kind.
+  OBSERVATION_TRACE_ACTION_KIND_WAIT = 7;
+  // Selects stop for trace action kind.
+  OBSERVATION_TRACE_ACTION_KIND_STOP = 8;
+  // Selects call for trace action kind.
+  OBSERVATION_TRACE_ACTION_KIND_CALL = 9;
+  // Selects delay for trace action kind.
+  OBSERVATION_TRACE_ACTION_KIND_DELAY = 10;
+  // Selects wait template for trace action kind.
+  OBSERVATION_TRACE_ACTION_KIND_WAIT_TEMPLATE = 11;
+}
+
+// Defines the closed vocabulary for trace node stage.
+enum ObservationTraceNodeStage {
+  // No explicit observation trace node stage. Does not select an action.
+  OBSERVATION_TRACE_NODE_STAGE_UNSPECIFIED = 0;
+  // Selects entered for trace node stage.
+  OBSERVATION_TRACE_NODE_STAGE_ENTERED = 1;
+  // Selects completed for trace node stage.
+  OBSERVATION_TRACE_NODE_STAGE_COMPLETED = 2;
+  // Selects stopped for trace node stage.
+  OBSERVATION_TRACE_NODE_STAGE_STOPPED = 3;
+  // Selects cancelled for trace node stage.
+  OBSERVATION_TRACE_NODE_STAGE_CANCELLED = 4;
+  // Selects failed for trace node stage.
+  OBSERVATION_TRACE_NODE_STAGE_FAILED = 5;
+  // Selects waiting for trace node stage.
+  OBSERVATION_TRACE_NODE_STAGE_WAITING = 6;
+}
+
+// Defines the closed vocabulary for trace execution error kind.
+enum ObservationTraceExecutionErrorKind {
+  // No explicit observation trace execution error kind. Does not select an action.
+  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_UNSPECIFIED = 0;
+  // Selects invalid program for trace execution error kind.
+  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_INVALID_PROGRAM = 1;
+  // Selects work budget for trace execution error kind.
+  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_WORK_BUDGET = 2;
+  // Selects recursion for trace execution error kind.
+  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_RECURSION = 3;
+  // Selects wait timeout for trace execution error kind.
+  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_WAIT_TIMEOUT = 4;
+  // Selects source unavailable for trace execution error kind.
+  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_SOURCE_UNAVAILABLE = 5;
+  // Selects condition error for trace execution error kind.
+  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_CONDITION_ERROR = 6;
+  // Selects command error for trace execution error kind.
+  OBSERVATION_TRACE_EXECUTION_ERROR_KIND_COMMAND_ERROR = 7;
+}
+
+// Defines the closed vocabulary for trace order state.
+enum ObservationTraceOrderState {
+  // No explicit observation trace order state. Does not select an action.
+  OBSERVATION_TRACE_ORDER_STATE_UNSPECIFIED = 0;
+  // Selects healthy for trace order state.
+  OBSERVATION_TRACE_ORDER_STATE_HEALTHY = 1;
+  // Selects exhausted for trace order state.
+  OBSERVATION_TRACE_ORDER_STATE_EXHAUSTED = 2;
+}
+
+// Defines the closed vocabulary for trace cut coherence.
 enum ObservationTraceCutCoherence {
+  // No explicit observation trace cut coherence. Does not select an action.
   OBSERVATION_TRACE_CUT_COHERENCE_UNSPECIFIED = 0;
   // Even with 188, copying two independently locked rings is not atomic.
   OBSERVATION_TRACE_CUT_COHERENCE_SEPARATE_OWNER_CUTS = 1;
 }
 
-message ObservationTraceCutMetadata {
-  ObservationTraceCutCoherence coherence = 1;
-  ObservationTraceOrderState order = 2;
-  // Source-reported native eviction counts, distinct from truncation by 056.
-  uint64 controller_evicted = 3;
-  uint64 node_evicted = 4;
-  google.protobuf.Timestamp controller_captured_at = 5;
-  google.protobuf.Timestamp node_captured_at = 6;
-}
-
+// Defines the closed vocabulary for trace truncation reason.
 enum ObservationTraceTruncationReason {
+  // No explicit observation trace truncation reason. Does not select an action.
   OBSERVATION_TRACE_TRUNCATION_REASON_UNSPECIFIED = 0;
+  // Selects row limit for trace truncation reason.
   OBSERVATION_TRACE_TRUNCATION_REASON_ROW_LIMIT = 1;
+  // Selects byte limit for trace truncation reason.
   OBSERVATION_TRACE_TRUNCATION_REASON_BYTE_LIMIT = 2;
 }
 
+// Defines the closed vocabulary for integration health status.
 enum ObservationIntegrationHealthStatus {
+  // No explicit observation integration health status. Does not select an action.
   OBSERVATION_INTEGRATION_HEALTH_STATUS_UNSPECIFIED = 0;
+  // Selects ready for integration health status.
   OBSERVATION_INTEGRATION_HEALTH_STATUS_READY = 1;
+  // Selects degraded for integration health status.
   OBSERVATION_INTEGRATION_HEALTH_STATUS_DEGRADED = 2;
+  // Selects unavailable for integration health status.
   OBSERVATION_INTEGRATION_HEALTH_STATUS_UNAVAILABLE = 3;
-}
-message IntegrationHealth {
-  option (google.api.resource) = {type: "homeward.damiengoehrig.ca/IntegrationHealth" pattern: "homes/{home}/integrationInstances/{integration_instance}/health" singular: "integrationHealth" plural: "integrationHealths"};
-  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
-  ObservationIntegrationReportPresence report = 2;
-  ObservationIntegrationSupervision supervision = 3;
-}
-message GetHealthRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Health"];
-}
-message GetMetricsRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Metrics"];
-}
-message GetIntegrationHealthRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/IntegrationHealth"];
-}
-message QueryRuntimeLogsRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"];
-  int32 page_size = 2;
-  string page_token = 3;
-}
-message QueryRuntimeLogsResponse {
-  repeated ObservationRuntimeLogRow rows = 1;
-  string next_page_token = 2;
-  ObservationProcessObservationEpoch process_epoch = 3;
-  uint64 upper_sequence = 4;
-}
-message QueryAuditsRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"];
-  ObservationAuditSource source = 2 [(google.api.field_behavior) = REQUIRED];
-  int32 page_size = 3;
-  string page_token = 4;
-}
-message QueryAuditsResponse {
-  repeated ObservationAuditRow rows = 1;
-  string next_page_token = 2;
-  ObservationAuditSource source = 3;
-}
-message QueryRunTraceRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/RuntimeRun"];
-  int32 page_size = 2;
-  string page_token = 3;
-}
-message QueryRunTraceResponse {
-  // Exact native run selected by the request, including its process controller.
-  string run = 5 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/RuntimeRun"];
-  repeated ObservationTraceRow rows = 1;
-  string next_page_token = 2;
-  ObservationTraceCutMetadata cuts = 3;
-  // Optional means the retained native capture was truncated by this bound.
-  optional ObservationTraceTruncationReason truncation_reason = 4;
-}
-message QueryRecorderCoverageRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"];
-  AdmissionPosition from = 2 [(google.api.field_behavior) = REQUIRED];
-  oneof through {
-    AdmissionPosition position = 3;
-    RecorderEpochIdentity latest_in_epoch = 4;
-  }
-}
-message QueryRecorderCoverageResponse {
-  RecorderCoverageSnapshot coverage = 1;
-}
-service ObservabilityService {
-  option (google.api.default_host) = "homeward.damiengoehrig.ca";
-  rpc GetHealth(GetHealthRequest) returns (Health) {
-    option (google.api.http) = {get: "/v2/{name=homes/*/health}"};
-    option (google.api.method_signature) = "name";
-  }
-  rpc GetMetrics(GetMetricsRequest) returns (Metrics) {
-    option (google.api.http) = {get: "/v2/{name=homes/*/metrics}"};
-    option (google.api.method_signature) = "name";
-  }
-  rpc GetIntegrationHealth(GetIntegrationHealthRequest) returns (IntegrationHealth) {
-    option (google.api.http) = {get: "/v2/{name=homes/*/integrationInstances/*/health}"};
-    option (google.api.method_signature) = "name";
-  }
-  rpc QueryRuntimeLogs(QueryRuntimeLogsRequest) returns (QueryRuntimeLogsResponse) {
-    option (google.api.http) = {get: "/v2/{parent=homes/*}:queryRuntimeLogs"};
-    option (google.api.method_signature) = "parent";
-  }
-  rpc QueryAudits(QueryAuditsRequest) returns (QueryAuditsResponse) {
-    option (google.api.http) = {get: "/v2/{parent=homes/*}:queryAudits"};
-    option (google.api.method_signature) = "parent,source";
-  }
-  rpc QueryRunTrace(QueryRunTraceRequest) returns (QueryRunTraceResponse) {
-    option (google.api.http) = {get: "/v2/{parent=homes/*/runtimeControllers/*/runs/*}:queryRunTrace"};
-    option (google.api.method_signature) = "parent";
-  }
-  rpc QueryRecorderCoverage(QueryRecorderCoverageRequest) returns (QueryRecorderCoverageResponse) {
-    option (google.api.http) = {get: "/v2/{parent=homes/*}:queryRecorderCoverage"};
-    option (google.api.method_signature) = "parent,from";
-  }
 }

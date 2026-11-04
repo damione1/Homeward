@@ -8,6 +8,9 @@ pub enum ConfigurationAdmissionError {
 }
 
 pub enum ConfigurationRequest<'a> {
+    Revision(&'a wire::GetConfigurationRevisionRequest),
+    Generation(&'a wire::GetConfigurationGenerationRequest),
+    Schema(&'a wire::GetConfigurationSchemaRequest),
     Read(&'a wire::GetConfigurationDocumentRequest),
     Documents(&'a wire::ListConfigurationDocumentsRequest),
     Versions(&'a wire::ListConfigurationRevisionsRequest),
@@ -69,10 +72,42 @@ pub fn document_name(value: &str) -> bool {
     resource_name(value, "configurationDocuments")
 }
 
+pub(crate) fn requested_resource_id(value: &str) -> bool {
+    value.is_empty() || (resource_id(value) && value.as_bytes()[0].is_ascii_lowercase())
+}
+fn canonical_revision(value: &str, prefix: &str) -> Option<i64> {
+    let raw = value.strip_prefix(prefix)?;
+    let number = raw.parse::<i64>().ok()?;
+    (number > 0 && raw == number.to_string()).then_some(number)
+}
+fn revision_name(value: &str) -> Option<i64> {
+    let (parent, id) = value.split_once("/configurationRevisions/")?;
+    if !document_name(parent) {
+        return None;
+    };
+    canonical_revision(id, "r-")
+}
+fn generation_name(value: &str) -> Option<i64> {
+    let (parent, id) = value.split_once("/configurationGenerations/")?;
+    if !home_name(parent) {
+        return None;
+    };
+    canonical_revision(id, "g-")
+}
+
 pub fn admit_configuration_request(
     value: ConfigurationRequest<'_>,
 ) -> Result<AdmittedConfigurationRequest<'_>, ConfigurationAdmissionError> {
     let valid = match &value {
+        ConfigurationRequest::Revision(v) => {
+            v.__buffa_unknown_fields.is_empty() && revision_name(&v.name).is_some()
+        }
+        ConfigurationRequest::Generation(v) => {
+            v.__buffa_unknown_fields.is_empty() && generation_name(&v.name).is_some()
+        }
+        ConfigurationRequest::Schema(v) => {
+            v.__buffa_unknown_fields.is_empty() && resource_name(&v.name, "configurationSchemas")
+        }
         ConfigurationRequest::Read(v) => {
             v.__buffa_unknown_fields.is_empty() && document_name(&v.name)
         }
@@ -309,6 +344,9 @@ pub fn admit_configuration_read(
 }
 
 pub enum ConfigurationResponse<'a> {
+    Revision(&'a wire::ConfigurationRevision),
+    Generation(&'a wire::ConfigurationGeneration),
+    Schema(&'a wire::ConfigurationSchema),
     Read(&'a wire::ConfigurationDocument),
     Documents(&'a wire::ListConfigurationDocumentsResponse),
     Versions(&'a wire::ListConfigurationRevisionsResponse),
@@ -319,78 +357,98 @@ pub enum ConfigurationResponse<'a> {
     Watch(&'a wire::WatchConfigurationResponse),
 }
 
+fn admit_revision_resource(value: &wire::ConfigurationRevision) -> bool {
+    value.__buffa_unknown_fields.is_empty()
+        && value.id.as_option().is_some_and(id)
+        && value.version.as_option().is_some_and(version)
+        && match value.availability {
+            EnumValue::Known(wire::VersionAvailability::Retained) => {
+                value.update_time.as_option().is_some_and(timestamp)
+                    && !value.schema_version.is_empty()
+                    && value.schema_version.len() <= 128
+            }
+            EnumValue::Known(wire::VersionAvailability::Purged) => {
+                !value.update_time.is_set() && value.schema_version.is_empty()
+            }
+            EnumValue::Known(wire::VersionAvailability::Unspecified) | EnumValue::Unknown(_) => {
+                false
+            }
+        }
+        && revision_name(&value.name).is_some_and(|number| number == value.version.revision)
+}
+fn admit_generation_resource(value: &wire::ConfigurationGeneration) -> bool {
+    value.__buffa_unknown_fields.is_empty()
+        && resource_name(&value.name, "configurationGenerations")
+        && value.generation.as_option().is_some_and(generation)
+        && value.create_time.as_option().is_some_and(timestamp)
+        && match value.availability {
+            EnumValue::Known(
+                wire::GenerationAvailability::Complete
+                | wire::GenerationAvailability::PartiallyPurged,
+            ) => true,
+            EnumValue::Known(wire::GenerationAvailability::Unspecified) | EnumValue::Unknown(_) => {
+                false
+            }
+        }
+        && generation_name(&value.name).is_some_and(|number| number == value.generation.revision)
+}
+fn admit_schema_resource(value: &wire::ConfigurationSchema) -> bool {
+    value.__buffa_unknown_fields.is_empty()
+        && resource_name(&value.name, "configurationSchemas")
+        && schema(&wire::ConfigurationDocument {
+            kind: value.kind,
+            schema_version: value.schema_version.clone(),
+            syntax_profile: value.syntax_profile.clone(),
+            ..Default::default()
+        })
+        && value.editable_operational_workspace
+            == (value.kind == wire::DocumentKind::OperationalYaml)
+}
+
 pub fn admit_configuration_response(
     value: ConfigurationResponse<'_>,
 ) -> Result<(), ConfigurationAdmissionError> {
     let valid = match value {
+        ConfigurationResponse::Revision(value) => admit_revision_resource(value),
+        ConfigurationResponse::Generation(value) => admit_generation_resource(value),
+        ConfigurationResponse::Schema(value) => admit_schema_resource(value),
         ConfigurationResponse::Read(value) => return admit_configuration_read(value),
         ConfigurationResponse::Watch(value) => return admit_configuration_watch(value),
         ConfigurationResponse::Documents(value) => {
             value.__buffa_unknown_fields.is_empty()
-                && value.documents.len() <= 100
+                && value.configuration_documents.len() <= 100
                 && value.next_page_token.len() <= 1200
                 && value
-                    .documents
+                    .configuration_documents
                     .iter()
                     .all(|document| admit_document(document).is_ok())
         }
         ConfigurationResponse::Versions(value) => {
             value.__buffa_unknown_fields.is_empty()
-                && value.versions.len() <= 100
+                && value.configuration_revisions.len() <= 100
                 && value.next_page_token.len() <= 1200
-                && value.versions.iter().all(|value| {
-                    value.__buffa_unknown_fields.is_empty()
-                        && value.id.as_option().is_some_and(id)
-                        && value.version.as_option().is_some_and(version)
-                        && match value.availability {
-                            EnumValue::Known(wire::VersionAvailability::Retained) => {
-                                value.updated_at.as_option().is_some_and(timestamp)
-                                    && !value.schema_version.is_empty()
-                                    && value.schema_version.len() <= 128
-                            }
-                            EnumValue::Known(wire::VersionAvailability::Purged) => {
-                                !value.updated_at.is_set() && value.schema_version.is_empty()
-                            }
-                            EnumValue::Known(wire::VersionAvailability::Unspecified)
-                            | EnumValue::Unknown(_) => false,
-                        }
-                })
+                && value
+                    .configuration_revisions
+                    .iter()
+                    .all(admit_revision_resource)
         }
         ConfigurationResponse::Generations(value) => {
             value.__buffa_unknown_fields.is_empty()
-                && value.generations.len() <= 100
+                && value.configuration_generations.len() <= 100
                 && value.next_page_token.len() <= 1200
-                && value.generations.iter().all(|value| {
-                    value.__buffa_unknown_fields.is_empty()
-                        && resource_name(&value.name, "configurationGenerations")
-                        && value.generation.as_option().is_some_and(generation)
-                        && value.created_at.as_option().is_some_and(timestamp)
-                        && match value.availability {
-                            EnumValue::Known(
-                                wire::GenerationAvailability::Complete
-                                | wire::GenerationAvailability::PartiallyPurged,
-                            ) => true,
-                            EnumValue::Known(wire::GenerationAvailability::Unspecified)
-                            | EnumValue::Unknown(_) => false,
-                        }
-                })
+                && value
+                    .configuration_generations
+                    .iter()
+                    .all(admit_generation_resource)
         }
         ConfigurationResponse::Schemas(value) => {
             value.__buffa_unknown_fields.is_empty()
-                && value.schemas.len() <= 100
+                && value.configuration_schemas.len() <= 100
                 && value.next_page_token.len() <= 1200
-                && value.schemas.iter().all(|value| {
-                    value.__buffa_unknown_fields.is_empty()
-                        && resource_name(&value.name, "configurationSchemas")
-                        && schema(&wire::ConfigurationDocument {
-                            kind: value.kind,
-                            schema_version: value.schema_version.clone(),
-                            syntax_profile: value.syntax_profile.clone(),
-                            ..Default::default()
-                        })
-                        && value.editable_operational_workspace
-                            == (value.kind == wire::DocumentKind::OperationalYaml)
-                })
+                && value
+                    .configuration_schemas
+                    .iter()
+                    .all(admit_schema_resource)
         }
         ConfigurationResponse::Write(value) | ConfigurationResponse::Restore(value) => {
             crate::configuration_operations_contract::admit_response(value).is_ok()

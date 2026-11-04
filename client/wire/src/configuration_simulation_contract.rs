@@ -219,20 +219,24 @@ fn intent(value: &wire::ConfigurationSimulationIntent) -> bool {
             value.__buffa_unknown_fields.is_empty()
         }
         Some(wire::configuration_simulation_intent::Parameters::Fan(value)) => {
-            value.__buffa_unknown_fields.is_empty() && value.percentage <= 100
+            value.__buffa_unknown_fields.is_empty() && (0..=100).contains(&value.percentage)
         }
         Some(wire::configuration_simulation_intent::Parameters::Light(value)) => {
             let brightness = usize::from(value.brightness_percent.is_some())
                 + usize::from(value.brightness_step_percent.is_some())
-                + usize::from(value.brightness_255.is_some());
+                + usize::from(value.brightness_level.is_some());
             value.__buffa_unknown_fields.is_empty()
                 && brightness <= 1
                 && (value.on.is_some() || brightness > 0 || value.color_temp_mireds.is_some())
                 && finite(value.brightness_percent, 0., 100.)
                 && finite(value.brightness_step_percent, -100., 100.)
                 && finite(value.transition_seconds, 0., 86400.)
-                && value.brightness_255.is_none_or(|value| value <= 255)
-                && value.color_temp_mireds.is_none_or(|value| value > 0)
+                && value
+                    .brightness_level
+                    .is_none_or(|value| (0..=255).contains(&value))
+                && value
+                    .color_temp_mireds
+                    .is_none_or(|value| (1..=i64::from(u32::MAX)).contains(&value))
         }
         Some(wire::configuration_simulation_intent::Parameters::Climate(value)) => {
             value.__buffa_unknown_fields.is_empty()
@@ -278,7 +282,7 @@ pub fn admit_simulation_response(
         || !report.simulated
         || report.hardware_validated
         || !coherent
-        || report.elapsed_millis > 3_600_000
+        || !(0..=3_600_000).contains(&report.elapsed_millis)
         || report.intents.len() > 256
         || report.nodes.len() > 1024
         || report.diagnostics.len() > 512
@@ -303,6 +307,8 @@ pub fn admit_simulation_response(
                     .at
                     .as_option()
                     .is_some_and(configuration_contract::timestamp)
+                || value.branches.iter().any(|v| *v < 0)
+                || value.iterations.iter().any(|v| *v < 0)
                 || value.branches.len() > 8
                 || value.iterations.len() > 8
         })

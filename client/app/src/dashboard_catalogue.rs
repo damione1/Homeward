@@ -152,71 +152,44 @@ impl Capture {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn reply(id: &str) -> wire::GetDashboardResponse {
+    fn name(id: &str) -> DashboardName {
+        DashboardName::try_from(format!("homes/synthetic/dashboards/{id}").as_str()).unwrap()
+    }
+    fn reply(id: &str, view: &home_client_cache::CachedView) -> wire::QueryDashboardResponse {
         let mut document = crate::dashboard::fixture_wire();
-        document
-            .metadata
-            .as_option_mut()
-            .unwrap()
-            .id
-            .as_option_mut()
-            .unwrap()
-            .value = id.into();
-        wire::GetDashboardResponse {
-            dashboard: document.into(),
+        document.name = name(id).as_str().into();
+        crate::dashboard::query_fixture(document, view)
+    }
+    fn list(replies: &[wire::QueryDashboardResponse]) -> wire::ListDashboardsResponse {
+        wire::ListDashboardsResponse {
+            dashboards: replies
+                .iter()
+                .map(|r| r.dashboard.as_option().unwrap().clone())
+                .collect(),
             resume_token: "opaque-cohort-a".into(),
             ..Default::default()
         }
     }
     fn insert(
         capture: &mut Capture,
-        response: &wire::GetDashboardResponse,
+        response: &wire::QueryDashboardResponse,
     ) -> Result<CaptureOutcome, LayoutFailure> {
-        let id = DashboardId::parse(
-            &response
-                .dashboard
-                .as_option()
-                .unwrap()
-                .metadata
-                .as_option()
-                .unwrap()
-                .id
-                .as_option()
-                .unwrap()
-                .value,
+        capture.insert(
+            &DashboardName::try_from(response.dashboard.name.as_str()).unwrap(),
+            response,
         )
-        .unwrap();
-        capture.insert(&id, response)
-    }
-    fn list(replies: &[wire::GetDashboardResponse]) -> wire::ListDashboardsResponse {
-        wire::ListDashboardsResponse {
-            dashboards: replies
-                .iter()
-                .map(|reply| {
-                    reply
-                        .dashboard
-                        .as_option()
-                        .unwrap()
-                        .metadata
-                        .as_option()
-                        .unwrap()
-                        .clone()
-                })
-                .collect(),
-            resume_token: "opaque-cohort-a".into(),
-            ..Default::default()
-        }
     }
     #[test]
-    fn only_a_complete_list_get_cohort_can_be_published_and_tokens_are_redacted() {
-        let replies = [reply("first"), reply("second")];
-        let mut capture = Capture::new(&list(&replies)).unwrap();
+    fn only_a_complete_list_query_capture_can_be_published_and_tokens_are_redacted() {
+        let view = Arc::new(crate::dashboard::capture_fixture(vec![]));
+        let replies = [reply("first", &view), reply("second", &view)];
+        let mut capture = Capture::new(&list(&replies), view.clone()).unwrap();
         assert!(matches!(
             insert(&mut capture, &replies[1]),
             Ok(CaptureOutcome::Accepted)
         ));
         assert!(capture.finish().is_err());
-        let mut capture = Capture::new(&list(&replies)).unwrap();
+        let mut capture = Capture::new(&list(&replies), view).unwrap();
         for reply in &replies {
             assert!(matches!(
                 insert(&mut capture, reply),
@@ -224,163 +197,59 @@ mod tests {
             ));
         }
         let snapshot = capture.finish().unwrap();
-        assert!(
-            snapshot
-                .layout(&DashboardId::parse("first").unwrap())
-                .is_some()
-        );
-        assert!(
-            snapshot
-                .layout(&DashboardId::parse("absent").unwrap())
-                .is_none()
-        );
+        assert!(snapshot.layout(&name("first")).is_some());
+        assert!(snapshot.layout(&name("absent")).is_none());
         assert!(!format!("{snapshot:?}").contains("opaque-cohort-a"));
     }
     #[test]
-    fn a_changed_token_requires_a_new_capture_instead_of_mixing_documents() {
-        let replies = [reply("first"), reply("second")];
-        let mut capture = Capture::new(&list(&replies)).unwrap();
-        assert!(matches!(
-            insert(&mut capture, &replies[0]),
-            Ok(CaptureOutcome::Accepted)
-        ));
-        let mut changed = replies[1].clone();
-        changed.resume_token = "opaque-cohort-b".into();
-        assert!(matches!(
-            insert(&mut capture, &changed),
-            Ok(CaptureOutcome::Changed)
-        ));
-        assert!(
-            insert(&mut capture, &replies[1]).is_err(),
-            "a changed capture cannot be repaired with a later matching response"
-        );
-        assert!(capture.finish().is_err());
-    }
-    #[test]
-    fn get_cannot_return_a_different_even_if_authorized_dashboard_from_the_same_list() {
-        let replies = [reply("first"), reply("second")];
-        let mut capture = Capture::new(&list(&replies)).unwrap();
-        assert!(matches!(
-            capture.insert(&DashboardId::parse("first").unwrap(), &replies[1]),
-            Err(LayoutFailure::Invalid)
-        ));
-        assert!(
-            insert(&mut capture, &replies[0]).is_err(),
-            "a contract violation poisons the entire capture"
-        );
-        assert!(capture.finish().is_err());
-    }
-    #[derive(Clone, Copy, Debug)]
-    enum Contradiction {
-        Metadata,
-        Configuration,
-        Authorization,
-        Hash,
-        Unlisted,
-        Duplicate,
-    }
-    #[test]
-    fn a_reused_token_cannot_admit_metadata_or_active_authority_contradictions() {
-        for case in [
-            Contradiction::Metadata,
-            Contradiction::Configuration,
-            Contradiction::Authorization,
-            Contradiction::Hash,
-            Contradiction::Unlisted,
-            Contradiction::Duplicate,
-        ] {
-            let replies = [reply("first"), reply("second")];
-            let mut capture = Capture::new(&list(&replies)).unwrap();
-            assert!(matches!(
-                insert(&mut capture, &replies[0]),
-                Ok(CaptureOutcome::Accepted)
-            ));
+    fn changed_checkpoint_foreign_capture_missing_binding_and_expiry_poison_the_capture() {
+        let view = Arc::new(crate::dashboard::capture_fixture(vec![]));
+        let replies = [reply("first", &view), reply("second", &view)];
+        for case in 0..4 {
+            let mut capture = Capture::new(&list(&replies), view.clone()).unwrap();
+            assert!(insert(&mut capture, &replies[0]).is_ok());
             let mut changed = replies[1].clone();
-            let document = changed.dashboard.as_option_mut().unwrap();
             match case {
-                Contradiction::Metadata => {
-                    document
-                        .metadata
-                        .as_option_mut()
-                        .unwrap()
-                        .version
-                        .as_option_mut()
-                        .unwrap()
-                        .revision += 1
-                }
-                Contradiction::Configuration => {
-                    document
-                        .native_overview
-                        .as_option_mut()
-                        .unwrap()
-                        .config_revision += 1
-                }
-                Contradiction::Authorization => {
-                    document
-                        .native_overview
-                        .as_option_mut()
-                        .unwrap()
-                        .authorization_revision += 1
-                }
-                Contradiction::Hash => {
-                    document
-                        .native_overview
-                        .as_option_mut()
-                        .unwrap()
-                        .config_sha256 = vec![9; 32]
-                }
-                Contradiction::Unlisted => {
-                    document
-                        .metadata
-                        .as_option_mut()
-                        .unwrap()
-                        .id
-                        .as_option_mut()
-                        .unwrap()
-                        .value = "unlisted".into()
-                }
-                Contradiction::Duplicate => changed = replies[0].clone(),
+                0 => changed.resume_token = "other-checkpoint".into(),
+                1 => changed.entity_view = "homes/synthetic/entityViews/other-capture".into(),
+                2 => changed.binding.clear(),
+                _ => changed.expire_time.get_or_insert_default().seconds += 1,
             }
-            assert!(
-                matches!(insert(&mut capture, &changed), Err(LayoutFailure::Invalid)),
-                "{case:?}"
-            );
+            assert!(insert(&mut capture, &changed).is_err());
+            assert!(insert(&mut capture, &replies[1]).is_err());
+            assert!(capture.finish().is_err());
         }
     }
     #[test]
-    fn unsupported_documents_stay_inert_and_preserved_source_counts_toward_the_capture_budget() {
-        let mut replies = [reply("first"), reply("second")];
-        replies[1]
-            .dashboard
-            .as_option_mut()
-            .unwrap()
-            .metadata
-            .as_option_mut()
-            .unwrap()
-            .profile = "future-profile".into();
-        let mut capture = Capture::new(&list(&replies)).unwrap();
-        for reply in &replies {
-            assert!(matches!(
-                insert(&mut capture, reply),
-                Ok(CaptureOutcome::Accepted)
-            ));
-        }
-        let snapshot = capture.finish().unwrap();
-        assert!(matches!(
-            snapshot.state(&DashboardId::parse("second").unwrap()),
-            LayoutState::Unsupported(_)
-        ));
-        let mut large = reply("large");
-        large.dashboard.as_option_mut().unwrap().definition = wire::Definition {
-            files: vec![wire::SourceFile {
-                path: "synthetic.yaml".into(),
-                exact_source: vec![b' '; MAX_CAPTURE_BYTES as usize],
-                ..Default::default()
-            }],
-            ..Default::default()
-        }
-        .into();
-        let mut capture = Capture::new(&list(&[large.clone()])).unwrap();
+    fn query_cannot_substitute_another_authorized_unlisted_or_duplicate_dashboard() {
+        let view = Arc::new(crate::dashboard::capture_fixture(vec![]));
+        let replies = [reply("first", &view), reply("second", &view)];
+        let mut capture = Capture::new(&list(&replies), view.clone()).unwrap();
+        assert!(capture.insert(&name("first"), &replies[1]).is_err());
+        assert!(insert(&mut capture, &replies[0]).is_err());
+        assert!(capture.finish().is_err());
+        let mut capture = Capture::new(&list(&replies), view.clone()).unwrap();
+        assert!(insert(&mut capture, &reply("unlisted", &view)).is_err());
+        let mut capture = Capture::new(&list(&replies), view).unwrap();
+        assert!(insert(&mut capture, &replies[0]).is_ok());
+        assert!(insert(&mut capture, &replies[0]).is_err());
+        assert!(capture.finish().is_err());
+    }
+    #[test]
+    fn unknown_documents_refuse_publication_and_all_received_bytes_count_toward_budget() {
+        let view = Arc::new(crate::dashboard::capture_fixture(vec![]));
+        let replies = [reply("first", &view)];
+        let mut bytes = replies[0].dashboard.encode_to_vec();
+        bytes.extend_from_slice(&[0x98, 0x06, 0x01]);
+        let mut unknown = replies[0].clone();
+        unknown.dashboard = wire::Dashboard::decode_from_slice(&bytes).unwrap().into();
+        let mut capture = Capture::new(&list(&replies), view.clone()).unwrap();
+        assert!(insert(&mut capture, &unknown).is_err());
+        assert!(capture.finish().is_err());
+        let mut large = replies[0].clone();
+        large.dashboard.get_or_insert_default().display_name =
+            "x".repeat(MAX_CAPTURE_BYTES as usize);
+        let mut capture = Capture::new(&list(&replies), view).unwrap();
         assert!(matches!(
             insert(&mut capture, &large),
             Err(LayoutFailure::Budget)

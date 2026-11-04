@@ -15,7 +15,6 @@ option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
 option java_multiple_files = true;
 option java_outer_classname = "HistoryProto";
 option java_package = "com.home.api.v2";
-
 // Correlation references are resolved by membership in the epoch returned by
 // QueryExecutionTraces. They identify persisted rows/relations, not separately
 // indexed mutable resources and confer no right to read another query.
@@ -50,149 +49,240 @@ service HistoryService {
   }
 }
 
+// Request for query observations.
 message QueryObservationsRequest {
   // Canonical entity name; aliases and native entity IDs are not accepted.
-  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"];
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"
+  ];
+  // The period represented by HistoryPeriod.
   HistoryPeriod period = 2 [(google.api.field_behavior) = REQUIRED];
   // Zero uses the native default; positive values are capped to its page bound.
   int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
   // Opaque continuation bound to query, credential and current native authority.
   string page_token = 4 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Request for query aggregates.
 message QueryAggregatesRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"
+  ];
+  // The period represented by HistoryPeriod.
   HistoryPeriod period = 2 [(google.api.field_behavior) = REQUIRED];
+  // Requested page size. Zero selects the documented default; negative values are invalid.
   int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation from the preceding page. Keep all other query parameters unchanged.
   string page_token = 4 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Request for query execution traces.
 message QueryExecutionTracesRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"
+  ];
+  // The period represented by HistoryPeriod.
   HistoryPeriod period = 2 [(google.api.field_behavior) = REQUIRED];
   // Empty selects the currently persisted epoch. Otherwise a returned opaque
   // epoch token selects retained history; it conveys no authority.
   string execution_epoch = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Requested page size. Zero selects the documented default; negative values are invalid.
   int32 page_size = 4 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation from the preceding page. Keep all other query parameters unchanged.
   string page_token = 5 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Successful result of query observations.
 message QueryObservationsResponse {
+  // Collection of observations for this message.
   repeated HistoryObservation observations = 1;
   // A nonempty token can accompany an empty bounded scan page.
   string next_page_token = 2;
+  // The scope represented by HistoryReadScope.
   HistoryReadScope scope = 3;
+  // Evidence of observed, retained and missing data within the admitted scope.
   HistoryCoverage coverage = 4;
 }
+
+// Successful result of query aggregates.
 message QueryAggregatesResponse {
+  // Collection of aggregates for this message.
   repeated HistoryAggregate aggregates = 1;
+  // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
+  // The scope represented by HistoryReadScope.
   HistoryReadScope scope = 3;
+  // Evidence of observed, retained and missing data within the admitted scope.
   HistoryCoverage coverage = 4;
 }
+
+// Successful result of query execution traces.
 message QueryExecutionTracesResponse {
+  // Collection of execution traces for this message.
   repeated HistoryExecutionTrace execution_traces = 1;
+  // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
+  // The scope represented by HistoryReadScope.
   HistoryReadScope scope = 3;
+  // The execution epoch associated with this message.
   string execution_epoch = 4;
+  // The previous execution epoch associated with this message.
   string previous_execution_epoch = 5;
+  // Indicates whether interrupted predecessor.
   bool interrupted_predecessor = 6;
+  // Indicates whether epoch interrupted.
   bool epoch_interrupted = 7;
+  // Indicates whether scope reduced.
   bool scope_reduced = 8;
-  uint64 checkpoint = 9;
-  uint64 commit_high = 10;
+  // Checkpoint within the admitted capture; does not authorize another capture.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string checkpoint = 9;
+  // The commit high represented as an exact native quantity.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string commit_high = 10;
+  // Collection of losses for this message.
   repeated HistoryTraceLoss losses = 11;
 }
 
 // A recorded value is independent of today's capability definitions. The
 // enclosing query identifies the entity; no native source/session ID escapes.
 message HistoricalState {
+  // Typed provenance, freshness and validity of the observation.
   ObservationQuality quality = 1;
+  // Recorded time for observed time. Absence means no timestamp was supplied or recorded.
   google.protobuf.Timestamp observed_time = 2;
+  // Recorded time for receive time. Absence means no timestamp was supplied or recorded.
   google.protobuf.Timestamp receive_time = 3;
+  // Recorded time for last change time. Absence means no timestamp was supplied or recorded.
   google.protobuf.Timestamp last_change_time = 4;
+  // Recorded time for last update time. Absence means no timestamp was supplied or recorded.
   google.protobuf.Timestamp last_update_time = 5;
+  // Recorded time for last report time. Absence means no timestamp was supplied or recorded.
   google.protobuf.Timestamp last_report_time = 6;
   oneof value {
+    // Indicates whether switch on.
     bool switch_on = 11;
+    // The measurement represented by HistoricalMeasurement.
     HistoricalMeasurement measurement = 12;
+    // The light represented by HistoricalLight.
     HistoricalLight light = 13;
+    // The fan speed represented by FanSpeed.
     FanSpeed fan_speed = 14;
+    // The temperature control represented by HistoricalTemperatureControl.
     HistoricalTemperatureControl temperature_control = 15;
+    // The helper represented by HelperValue.
     HelperValue helper = 16;
+    // The solar represented by SolarValue.
     SolarValue solar = 17;
+    // The solar event represented by SolarEventValue.
     SolarEventValue solar_event = 18;
+    // The cover represented by CoverValue.
     CoverValue cover = 19;
+    // The lock represented by LockValue.
     LockValue lock = 20;
+    // The alarm represented by AlarmValue.
     AlarmValue alarm = 21;
+    // The weather represented by WeatherValue.
     WeatherValue weather = 22;
+    // The presence represented by PresenceValue.
     PresenceValue presence = 23;
+    // The presence details represented by PresenceDetailsValue.
     PresenceDetailsValue presence_details = 24;
   }
 }
+
+// Represents historical measurement.
 message HistoricalMeasurement {
+  // The value represented by double.
   double value = 1;
+  // Declared measurement unit; does not authorize an implicit unit conversion.
   string unit = 2;
   // Preserves decimal cost precision; never interpreted as float currency.
   optional string decimal_value = 3;
 }
+
+// Represents historical light.
 message HistoricalLight {
+  // Indicates whether on.
   optional bool on = 1;
+  // Value of brightness in percent.
   optional double brightness_percent = 2;
-  optional uint32 color_temp_mireds = 3;
-}
-message HistoricalTemperatureControl {
-  optional double current_temperature_celsius = 1;
-  oneof setpoint {
-    double setpoint_celsius = 2;
-    TemperatureRange setpoint_range_celsius = 3;
-  }
-  optional TemperatureMode mode = 4;
-  optional TemperatureActivity activity = 5;
-  optional bool fan_active = 6;
-  optional double humidity_percent = 7;
-  optional TemperatureFanTarget fan_target = 8;
+  // The color temp mireds represented as a bounded nonnegative integer.
+  optional int64 color_temp_mireds = 3;
 }
 
-enum HistoryResolution {
-  HISTORY_RESOLUTION_UNSPECIFIED = 0;
-  HISTORY_RESOLUTION_RAW = 1;
-  HISTORY_RESOLUTION_HOUR = 2;
+// Represents historical temperature control.
+message HistoricalTemperatureControl {
+  // Value of current temperature in degrees Celsius.
+  optional double current_temperature_celsius = 1;
+  oneof setpoint {
+    // Value of setpoint in degrees Celsius.
+    double setpoint_celsius = 2;
+    // Value of setpoint range in degrees Celsius.
+    TemperatureRange setpoint_range_celsius = 3;
+  }
+  // The mode represented by TemperatureMode.
+  optional TemperatureMode mode = 4;
+  // The activity represented by TemperatureActivity.
+  optional TemperatureActivity activity = 5;
+  // Indicates whether fan active.
+  optional bool fan_active = 6;
+  // Value of humidity in percent.
+  optional double humidity_percent = 7;
+  // The fan target represented by TemperatureFanTarget.
+  optional TemperatureFanTarget fan_target = 8;
 }
 
 // UTC half-open [start,end). Observations use received_at, aggregates local
 // admission buckets, execution traces emission_time. Source observed_at remains
 // optional and is never substituted for received_at or used for retention.
 message HistoryPeriod {
-  google.protobuf.Timestamp start = 1;
-  google.protobuf.Timestamp end = 2;
-}
-message HistoryLimits {
-  uint32 max_points = 1;
-  uint32 max_response_bytes = 2;
-  uint32 max_token_bytes = 3;
-  uint32 query_timeout_millis = 4;
-  uint32 max_readers = 5;
-  uint32 max_period_hours = 6;
+  // Inclusive beginning of the time interval.
+  google.protobuf.Timestamp start = 1 [(google.api.field_behavior) = REQUIRED];
+  // Exclusive end of the time interval.
+  google.protobuf.Timestamp end = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
+// Represents history limits.
+message HistoryLimits {
+  // The max points represented as a bounded nonnegative integer.
+  int32 max_points = 1;
+  // Maximum encoded response size in bytes for this query profile.
+  int32 max_response_bytes = 2;
+  // Maximum continuation-token size in bytes for this query profile.
+  int32 max_token_bytes = 3;
+  // Query time budget in milliseconds.
+  int32 query_timeout_millis = 4;
+  // The max readers represented as a bounded nonnegative integer.
+  int32 max_readers = 5;
+  // The max period hours represented as a bounded nonnegative integer.
+  int32 max_period_hours = 6;
+}
+
+// Describes the authorized historical scope and the retained time interval.
 message HistoryReadScope {
+  // The requested represented by HistoryPeriod.
   HistoryPeriod requested = 1;
+  // The retained represented by HistoryPeriod.
   HistoryPeriod retained = 2;
+  // Earliest retained point known to the native owner.
   google.protobuf.Timestamp retention_cutoff = 3;
+  // Read cutoff used to produce this bounded result.
   google.protobuf.Timestamp as_of = 4;
+  // The resolution represented by HistoryResolution.
   HistoryResolution resolution = 5;
+  // The limits represented by HistoryLimits.
   HistoryLimits limits = 6;
   // A clipped prefix is absent due to retention; never synthesized as zero.
   optional HistoryPeriod not_retained_prefix = 7;
 }
-// A next token may accompany zero points after a bounded candidate scan. That
-// page is progress, not a complete empty history; only end terminates the scan.
 
-// Historical entity reads never disclose global Recorder positions, queue
-// sizes, policy-excluded counts or loss envelopes. The diagnostic service owns
-// those separately authorized facts.
-enum HistoryCoverageVerdict {
-  HISTORY_COVERAGE_VERDICT_UNSPECIFIED = 0;
-  HISTORY_COVERAGE_VERDICT_NOT_PROVEN = 1;
-}
+// Describes retained, missing and excluded historical evidence within the admitted query scope.
 message HistoryCoverage {
   // Filtering by the recorded authorization scope cannot prove completeness.
   HistoryCoverageVerdict verdict = 1;
@@ -201,116 +291,85 @@ message HistoryCoverage {
   // observation clocks may regress. Missing means no proven activation yet.
   optional google.protobuf.Timestamp provenance_started_at = 2;
 }
+
+// Represents history observation.
 message HistoryObservation {
   // Opaque identity stable within the server incarnation for duplicate detection, never an ordinal or a
   // cursor. The returned list preserves native admission order; do not sort
   // observations by receive_time when clocks regress.
   string observation_id = 1;
+  // The state represented by HistoricalState.
   HistoricalState state = 2;
   // Historical interpretation is carried separately from current capabilities.
   optional HistoryNumericDescriptor descriptor = 3;
 }
-enum HistoryDimension {
-  HISTORY_DIMENSION_UNSPECIFIED = 0;
-  HISTORY_DIMENSION_POWER = 1;
-  HISTORY_DIMENSION_ENERGY = 2;
-  HISTORY_DIMENSION_TEMPERATURE = 3;
-  HISTORY_DIMENSION_RATIO = 4;
-  HISTORY_DIMENSION_ILLUMINANCE = 5;
-  HISTORY_DIMENSION_COUNT = 6;
-}
+
+// Represents history numeric descriptor.
 message HistoryNumericDescriptor {
+  // Declared measurement unit; does not authorize an implicit unit conversion.
   string unit = 1;
+  // Canonical unit used for the admitted numeric series.
   string canonical_unit = 2;
+  // Scale used by the declared numeric conversion.
   double scale = 3;
+  // Offset used by the declared numeric conversion.
   double offset = 4;
+  // Physical dimension of the declared measurement.
   HistoryDimension dimension = 5;
+  // Precision declared by the native measurement descriptor.
   sint32 precision = 6;
+  // The semantic represented by MeasurementSemantic.
   MeasurementSemantic semantic = 7;
+  // Aggregation semantic applicable to this series; never inferred from a display label.
   MeasurementAggregation aggregation = 8;
 }
-enum HistoryReset {
-  HISTORY_RESET_UNSPECIFIED = 0;
-  HISTORY_RESET_NOT_APPLICABLE = 1;
-  HISTORY_RESET_UNKNOWN = 2;
-  HISTORY_RESET_NOT_DETECTED = 3;
-  HISTORY_RESET_INFERRED = 4;
-}
-enum HistoryAggregateReason {
-  HISTORY_AGGREGATE_REASON_UNSPECIFIED = 0;
-  HISTORY_AGGREGATE_REASON_GAP = 1;
-  HISTORY_AGGREGATE_REASON_EPOCH_BOUNDARY = 2;
-  HISTORY_AGGREGATE_REASON_RETENTION_PRUNED = 3;
-  HISTORY_AGGREGATE_REASON_QUALITY_BREAK = 4;
-  HISTORY_AGGREGATE_REASON_UNIT_BREAK = 5;
-  HISTORY_AGGREGATE_REASON_CLOCK_REGRESSION = 6;
-  HISTORY_AGGREGATE_REASON_COUNTER_DIP = 7;
-  HISTORY_AGGREGATE_REASON_UNKNOWN_BASELINE = 8;
-  HISTORY_AGGREGATE_REASON_BUDGET_LIMIT = 9;
-  HISTORY_AGGREGATE_REASON_UNPROVEN_TAIL = 10;
-  HISTORY_AGGREGATE_REASON_NON_NUMERIC = 11;
-  HISTORY_AGGREGATE_REASON_UNSUPPORTED_NUMERIC = 12;
-}
+
+// Represents history aggregate.
 message HistoryAggregate {
+  // The bucket represented by HistoryPeriod.
   HistoryPeriod bucket = 1;
+  // The descriptor represented by HistoryNumericDescriptor.
   HistoryNumericDescriptor descriptor = 2;
+  // Typed provenance, freshness and validity of the observation.
   ObservationQuality quality = 3;
-  uint64 duration_nanos = 4;
+  // Duration in nanoseconds.
+  // Inclusive range 0..3600000000000 nanoseconds.
+  int64 duration_nanos = 4;
+  // The minimum represented by double.
   optional double minimum = 5;
+  // The maximum represented by double.
   optional double maximum = 6;
+  // The mean represented by double.
   optional double mean = 7;
+  // The contribution represented by double.
   optional double contribution = 8;
+  // The reset represented by HistoryReset.
   HistoryReset reset = 9;
+  // Collection of reasons for this message.
   repeated HistoryAggregateReason reasons = 10;
   // Opaque bucket/group identity; distinct admission scopes are never merged.
   string aggregate_id = 11;
 }
 
-// Persisted trace variants extend the 056 in-memory trace projection without
-// exposing payloads, frame data, source arguments, causes or free-form errors.
-enum HistorySceneMemberOutcome {
-  HISTORY_SCENE_MEMBER_OUTCOME_UNSPECIFIED = 0;
-  HISTORY_SCENE_MEMBER_OUTCOME_PREPARED = 1;
-  HISTORY_SCENE_MEMBER_OUTCOME_ALREADY_SATISFIED = 2;
-  HISTORY_SCENE_MEMBER_OUTCOME_REFUSED = 3;
-  HISTORY_SCENE_MEMBER_OUTCOME_ACCEPTED = 4;
-  HISTORY_SCENE_MEMBER_OUTCOME_DISPATCHED = 5;
-  HISTORY_SCENE_MEMBER_OUTCOME_ACKNOWLEDGED = 6;
-  HISTORY_SCENE_MEMBER_OUTCOME_CONFIRMED = 7;
-  HISTORY_SCENE_MEMBER_OUTCOME_INDETERMINATE = 8;
-}
-enum HistorySceneOutcome {
-  HISTORY_SCENE_OUTCOME_UNSPECIFIED = 0;
-  HISTORY_SCENE_OUTCOME_COMPLETE = 1;
-  HISTORY_SCENE_OUTCOME_PARTIAL = 2;
-  HISTORY_SCENE_OUTCOME_NONE = 3;
-  HISTORY_SCENE_OUTCOME_INDETERMINATE = 4;
-  HISTORY_SCENE_OUTCOME_NOT_ATTEMPTED = 5;
-}
-enum HistoryScriptMode {
-  HISTORY_SCRIPT_MODE_UNSPECIFIED = 0;
-  HISTORY_SCRIPT_MODE_WAIT = 1;
-  HISTORY_SCRIPT_MODE_DETACHED = 2;
-}
-enum HistoryCommandOutcome {
-  HISTORY_COMMAND_OUTCOME_UNSPECIFIED = 0;
-  HISTORY_COMMAND_OUTCOME_ACCEPTED = 1;
-  HISTORY_COMMAND_OUTCOME_DISPATCHED = 2;
-  HISTORY_COMMAND_OUTCOME_ACKNOWLEDGED = 3;
-  HISTORY_COMMAND_OUTCOME_CONFIRMED = 4;
-  HISTORY_COMMAND_OUTCOME_INDETERMINATE = 5;
-  HISTORY_COMMAND_OUTCOME_REFUSED = 6;
-  HISTORY_COMMAND_OUTCOME_NOT_ATTEMPTED = 7;
-}
+// Represents history execution trace.
 message HistoryExecutionTrace {
-  uint64 ordinal = 1;
+  // The ordinal represented as an exact native quantity.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string ordinal = 1;
+  // Recorded time for emission time. Absence means no timestamp was supplied or recorded.
   google.protobuf.Timestamp emission_time = 2;
   oneof outcome {
+    // The decision represented by RecorderTraceDecision.
     RecorderTraceDecision decision = 3;
+    // The node stage represented by RecorderTraceNodeStage.
     RecorderTraceNodeStage node_stage = 4;
+    // Native command outcome. An acknowledgment alone is not physical confirmation.
     HistoryCommandOutcome command_outcome = 5;
+    // The scene member outcome represented by HistorySceneMemberOutcome.
     HistorySceneMemberOutcome scene_member_outcome = 6;
+    // The scene outcome represented by HistorySceneOutcome.
     HistorySceneOutcome scene_outcome = 7;
+    // The script mode represented by HistoryScriptMode.
     HistoryScriptMode script_mode = 8;
   }
   // Same canonical reference joins rows from this run within the retained epoch.
@@ -319,22 +378,195 @@ message HistoryExecutionTrace {
   optional string parent_run = 10 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/HistoricalExecutionRun"];
   // Identifies the native controller generation within the same persisted epoch.
   optional string controller = 11 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/HistoricalExecutionController"];
+  // Configuration generation selected by this trace, independent of SQL schema.
   optional string configuration_generation = 12;
+  // SHA-256 digest identifying the complete configuration manifest.
   optional bytes manifest_sha256 = 13;
+  // The action kind represented by RecorderTraceActionKind.
   optional RecorderTraceActionKind action_kind = 14;
+  // The failure kind represented by RecorderTraceExecutionErrorKind.
   optional RecorderTraceExecutionErrorKind failure_kind = 15;
 }
-enum HistoryTraceLossReason {
-  HISTORY_TRACE_LOSS_REASON_UNSPECIFIED = 0;
-  HISTORY_TRACE_LOSS_REASON_QUEUE_FULL = 1;
-  HISTORY_TRACE_LOSS_REASON_TOO_LARGE = 2;
-  HISTORY_TRACE_LOSS_REASON_CONTENTION = 3;
-  HISTORY_TRACE_LOSS_REASON_INVALID_METADATA = 4;
-}
+
+// Represents history trace loss.
 message HistoryTraceLoss {
+  // Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
   HistoryTraceLossReason reason = 1;
-  uint64 known_count = 2;
+  // The known count represented as an exact native quantity.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string known_count = 2;
+  // Inclusive lower bound within the declared scope.
   google.protobuf.Timestamp from = 3;
+  // Upper bound within the declared scope; follow the enclosing interval contract.
   google.protobuf.Timestamp through = 4;
+  // Indicates whether uncertain envelope.
   bool uncertain_envelope = 5;
+}
+
+// Defines the closed vocabulary for history resolution.
+enum HistoryResolution {
+  // No explicit history resolution. Does not select an action.
+  HISTORY_RESOLUTION_UNSPECIFIED = 0;
+  // Selects raw for history resolution.
+  HISTORY_RESOLUTION_RAW = 1;
+  // Selects hour for history resolution.
+  HISTORY_RESOLUTION_HOUR = 2;
+}
+
+// A next token may accompany zero points after a bounded candidate scan. That
+// page is progress, not a complete empty history; only end terminates the scan.
+//
+// Historical entity reads never disclose global Recorder positions, queue
+// sizes, policy-excluded counts or loss envelopes. The diagnostic service owns
+// those separately authorized facts.
+enum HistoryCoverageVerdict {
+  // No explicit history coverage verdict. Does not select an action.
+  HISTORY_COVERAGE_VERDICT_UNSPECIFIED = 0;
+  // Selects not proven for history coverage verdict.
+  HISTORY_COVERAGE_VERDICT_NOT_PROVEN = 1;
+}
+
+// Defines the closed vocabulary for history dimension.
+enum HistoryDimension {
+  // No explicit history dimension. Does not select an action.
+  HISTORY_DIMENSION_UNSPECIFIED = 0;
+  // Selects power for history dimension.
+  HISTORY_DIMENSION_POWER = 1;
+  // Selects energy for history dimension.
+  HISTORY_DIMENSION_ENERGY = 2;
+  // Selects temperature for history dimension.
+  HISTORY_DIMENSION_TEMPERATURE = 3;
+  // Selects ratio for history dimension.
+  HISTORY_DIMENSION_RATIO = 4;
+  // Selects illuminance for history dimension.
+  HISTORY_DIMENSION_ILLUMINANCE = 5;
+  // Selects count for history dimension.
+  HISTORY_DIMENSION_COUNT = 6;
+}
+
+// Defines the closed vocabulary for history reset.
+enum HistoryReset {
+  // No explicit history reset. Does not select an action.
+  HISTORY_RESET_UNSPECIFIED = 0;
+  // Selects not applicable for history reset.
+  HISTORY_RESET_NOT_APPLICABLE = 1;
+  // Selects unknown for history reset.
+  HISTORY_RESET_UNKNOWN = 2;
+  // Selects not detected for history reset.
+  HISTORY_RESET_NOT_DETECTED = 3;
+  // Selects inferred for history reset.
+  HISTORY_RESET_INFERRED = 4;
+}
+
+// Defines the closed vocabulary for history aggregate reason.
+enum HistoryAggregateReason {
+  // No explicit history aggregate reason. Does not select an action.
+  HISTORY_AGGREGATE_REASON_UNSPECIFIED = 0;
+  // Selects gap for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_GAP = 1;
+  // Selects epoch boundary for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_EPOCH_BOUNDARY = 2;
+  // Selects retention pruned for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_RETENTION_PRUNED = 3;
+  // Selects quality break for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_QUALITY_BREAK = 4;
+  // Selects unit break for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_UNIT_BREAK = 5;
+  // Selects clock regression for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_CLOCK_REGRESSION = 6;
+  // Selects counter dip for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_COUNTER_DIP = 7;
+  // Selects unknown baseline for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_UNKNOWN_BASELINE = 8;
+  // Selects budget limit for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_BUDGET_LIMIT = 9;
+  // Selects unproven tail for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_UNPROVEN_TAIL = 10;
+  // Selects non numeric for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_NON_NUMERIC = 11;
+  // Selects unsupported numeric for history aggregate reason.
+  HISTORY_AGGREGATE_REASON_UNSUPPORTED_NUMERIC = 12;
+}
+
+// Persisted trace variants extend the 056 in-memory trace projection without
+// exposing payloads, frame data, source arguments, causes or free-form errors.
+enum HistorySceneMemberOutcome {
+  // No explicit history scene member outcome. Does not select an action.
+  HISTORY_SCENE_MEMBER_OUTCOME_UNSPECIFIED = 0;
+  // Selects prepared for history scene member outcome.
+  HISTORY_SCENE_MEMBER_OUTCOME_PREPARED = 1;
+  // Selects already satisfied for history scene member outcome.
+  HISTORY_SCENE_MEMBER_OUTCOME_ALREADY_SATISFIED = 2;
+  // Selects refused for history scene member outcome.
+  HISTORY_SCENE_MEMBER_OUTCOME_REFUSED = 3;
+  // Selects accepted for history scene member outcome.
+  HISTORY_SCENE_MEMBER_OUTCOME_ACCEPTED = 4;
+  // Selects dispatched for history scene member outcome.
+  HISTORY_SCENE_MEMBER_OUTCOME_DISPATCHED = 5;
+  // Selects acknowledged for history scene member outcome.
+  HISTORY_SCENE_MEMBER_OUTCOME_ACKNOWLEDGED = 6;
+  // Selects confirmed for history scene member outcome.
+  HISTORY_SCENE_MEMBER_OUTCOME_CONFIRMED = 7;
+  // Selects indeterminate for history scene member outcome.
+  HISTORY_SCENE_MEMBER_OUTCOME_INDETERMINATE = 8;
+}
+
+// Defines the closed vocabulary for history scene outcome.
+enum HistorySceneOutcome {
+  // No explicit history scene outcome. Does not select an action.
+  HISTORY_SCENE_OUTCOME_UNSPECIFIED = 0;
+  // Selects complete for history scene outcome.
+  HISTORY_SCENE_OUTCOME_COMPLETE = 1;
+  // Selects partial for history scene outcome.
+  HISTORY_SCENE_OUTCOME_PARTIAL = 2;
+  // Selects none for history scene outcome.
+  HISTORY_SCENE_OUTCOME_NONE = 3;
+  // Selects indeterminate for history scene outcome.
+  HISTORY_SCENE_OUTCOME_INDETERMINATE = 4;
+  // Selects not attempted for history scene outcome.
+  HISTORY_SCENE_OUTCOME_NOT_ATTEMPTED = 5;
+}
+
+// Defines the closed vocabulary for history script mode.
+enum HistoryScriptMode {
+  // No explicit history script mode. Does not select an action.
+  HISTORY_SCRIPT_MODE_UNSPECIFIED = 0;
+  // Selects wait for history script mode.
+  HISTORY_SCRIPT_MODE_WAIT = 1;
+  // Selects detached for history script mode.
+  HISTORY_SCRIPT_MODE_DETACHED = 2;
+}
+
+// Defines the closed vocabulary for history command outcome.
+enum HistoryCommandOutcome {
+  // No explicit history command outcome. Does not select an action.
+  HISTORY_COMMAND_OUTCOME_UNSPECIFIED = 0;
+  // Selects accepted for history command outcome.
+  HISTORY_COMMAND_OUTCOME_ACCEPTED = 1;
+  // Selects dispatched for history command outcome.
+  HISTORY_COMMAND_OUTCOME_DISPATCHED = 2;
+  // Selects acknowledged for history command outcome.
+  HISTORY_COMMAND_OUTCOME_ACKNOWLEDGED = 3;
+  // Selects confirmed for history command outcome.
+  HISTORY_COMMAND_OUTCOME_CONFIRMED = 4;
+  // Selects indeterminate for history command outcome.
+  HISTORY_COMMAND_OUTCOME_INDETERMINATE = 5;
+  // Selects refused for history command outcome.
+  HISTORY_COMMAND_OUTCOME_REFUSED = 6;
+  // Selects not attempted for history command outcome.
+  HISTORY_COMMAND_OUTCOME_NOT_ATTEMPTED = 7;
+}
+
+// Defines the closed vocabulary for history trace loss reason.
+enum HistoryTraceLossReason {
+  // No explicit history trace loss reason. Does not select an action.
+  HISTORY_TRACE_LOSS_REASON_UNSPECIFIED = 0;
+  // Selects queue full for history trace loss reason.
+  HISTORY_TRACE_LOSS_REASON_QUEUE_FULL = 1;
+  // Selects too large for history trace loss reason.
+  HISTORY_TRACE_LOSS_REASON_TOO_LARGE = 2;
+  // Selects contention for history trace loss reason.
+  HISTORY_TRACE_LOSS_REASON_CONTENTION = 3;
+  // Selects invalid metadata for history trace loss reason.
+  HISTORY_TRACE_LOSS_REASON_INVALID_METADATA = 4;
 }

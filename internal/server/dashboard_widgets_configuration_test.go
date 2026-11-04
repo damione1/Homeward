@@ -20,24 +20,23 @@ import (
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
-	authwire "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
-	"github.com/damione1/Homeward/gen/home/configuration/v1/configurationv1connect"
-	applywire "github.com/damione1/Homeward/gen/home/configurationapply/v1"
-	"github.com/damione1/Homeward/gen/home/configurationapply/v1/configurationapplyv1connect"
-	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
-	"github.com/damione1/Homeward/gen/home/configurationplan/v1/configurationplanv1connect"
-	dashboardwire "github.com/damione1/Homeward/gen/home/dashboard/v1"
-	"github.com/damione1/Homeward/gen/home/dashboard/v1/dashboardv1connect"
-	listswire "github.com/damione1/Homeward/gen/home/lists/v1"
-	"github.com/damione1/Homeward/gen/home/lists/v1/listsv1connect"
+	applywire "github.com/damione1/Homeward/gen/home/api/v2"
+	configuration "github.com/damione1/Homeward/gen/home/api/v2"
+	dashboardwire "github.com/damione1/Homeward/gen/home/api/v2"
+	planwire "github.com/damione1/Homeward/gen/home/api/v2"
+	taskwire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationapplyv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationplanv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	dashboardv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/registry"
+	"github.com/damione1/Homeward/internal/tasknames"
 	"github.com/damione1/Homeward/internal/testpg"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -276,23 +275,23 @@ func TestDashboardWidgetsConfigurationServer(t *testing.T) {
 	client := nha181Client(roots)
 	defer client.CloseIdleConnections()
 	base := "https://" + address.String()
-	authAPI := authv1connect.NewAuthServiceClient(client, base)
+	authAPI := apiv2connect.NewAuthServiceClient(client, base)
 	tokens := nha162RunLogin(t, ctx, authAPI, login, password)
 	// Control RPCs use the real rotating credential contract too. A long
 	// physical review must not retain the initial short-lived access token.
 	renewControlSession := func() {
 		t.Helper()
-		if tokens.AccessExpiresAt != nil && tokens.AccessExpiresAt.AsTime().After(time.Now().Add(time.Minute)) {
+		if tokens.AccessExpireTime != nil && tokens.AccessExpireTime.AsTime().After(time.Now().Add(time.Minute)) {
 			return
 		}
-		response, e := authAPI.RefreshSession(ctx, connect.NewRequest(&authwire.RefreshSessionRequest{RefreshToken: tokens.RefreshToken}))
-		if e != nil || response == nil || response.Msg.Tokens == nil || response.Msg.Tokens.GetSession().GetId().GetValue() != tokens.GetSession().GetId().GetValue() {
+		response, e := authAPI.RefreshSession(ctx, connect.NewRequest(&applywire.RefreshSessionRequest{RefreshToken: tokens.RefreshToken, RenewalKey: []byte("0123456789abcdef0123456789abcdef")}))
+		if e != nil || response == nil || response.Msg.Tokens == nil || response.Msg.Tokens.GetSession().GetName() != tokens.GetSession().GetName() {
 			t.Fatal("owned control session refresh failed", e)
 		}
 		tokens = response.Msg.Tokens
 	}
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
-	nha162RunPolicy(t, ctx, policies, account, tokens.AccessToken, "  - scope: {family: dashboards, operation: read}\n    objects: {dashboards: {own: {}}}\n  - scope: {family: state_registry, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n  - scope: {family: actions, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n  - scope: {family: actions, operation: write}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n"+nha162All)
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
+	nha162RunPolicy(t, ctx, policies, nha203SessionAccount(t, tokens.Session).String(), tokens.AccessToken, "  - scope: {family: dashboards, operation: read}\n    objects: {dashboards: {own: {}}}\n  - scope: {family: state_registry, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n  - scope: {family: actions, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n  - scope: {family: actions, operation: write}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n"+nha162All)
 	documents := configurationv1connect.NewConfigurationServiceClient(client, base)
 	plans := configurationplanv1connect.NewConfigurationPlanServiceClient(client, base)
 	apply := configurationapplyv1connect.NewConfigurationApplyServiceClient(client, base)
@@ -301,10 +300,7 @@ func TestDashboardWidgetsConfigurationServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sessionID, err := contracts.ParseSessionID(tokens.Session.Id.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	sessionID := nha203NativeSession(t, ctx, actualRuntime.store, tokens.Session.Name)
 	principal, err := authorization.NativePrincipal(accountID, sessionID)
 	if err != nil {
 		t.Fatal(err)
@@ -317,12 +313,24 @@ func TestDashboardWidgetsConfigurationServer(t *testing.T) {
 	if err != nil {
 		t.Fatal("real list source import", err)
 	}
-	listAPI := listsv1connect.NewListServiceClient(client, base)
+	listAPI := apiv2connect.NewTaskServiceClient(client, base)
+	home, err := actualLists.registry.HomeName(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	snapshotLists := func(name string) {
 		t.Helper()
 		result := make(map[string]json.RawMessage)
 		for slot, id := range listIDs {
-			page, err := listAPI.ListItems(ctx, nha056SessionRequest(&listswire.ListItemsRequest{ListId: &listswire.ListId{Value: id}, PageSize: 16}, tokens.AccessToken))
+			native, err := domain.ParseListID(id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			name, err := tasknames.List(home, native)
+			if err != nil {
+				t.Fatal(err)
+			}
+			page, err := listAPI.ListTasks(ctx, nha056SessionRequest(&taskwire.ListTasksRequest{Parent: name.String(), PageSize: 16}, tokens.AccessToken))
 			if err != nil {
 				t.Fatal("public ListItems", err)
 			}
@@ -356,41 +364,42 @@ func TestDashboardWidgetsConfigurationServer(t *testing.T) {
 				raw = bytes.ReplaceAll(raw, []byte(key), []byte(id))
 			}
 		}
-		candidate := &planwire.Candidate{Family: planwire.SourceFamily_SOURCE_FAMILY_DASHBOARD, Identity: "dashboard.configuration-qualification", Entry: "dashboard.yaml", Files: []*planwire.SourceFile{{LogicalPath: "dashboard.yaml", ExactSource: raw}}}
-		before, err := documents.ReadDocument(ctx, nha056SessionRequest(&configuration.ReadDocumentRequest{Id: &configuration.DocumentId{Value: "operational.main"}}, tokens.AccessToken))
+		candidate := &planwire.ConfigurationPlanCandidate{Family: planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD, Identity: "dashboard.configuration-qualification", Entry: "dashboard.yaml", Files: []*planwire.ConfigurationPlanSourceFile{{LogicalPath: "dashboard.yaml", ExactSource: raw}}}
+		before, err := documents.GetConfigurationDocument(ctx, nha056SessionRequest(&configuration.GetConfigurationDocumentRequest{Name: nha203PublicDocumentName(t, ctx, client, base, tokens.AccessToken, "operational.main")}, tokens.AccessToken))
 		if err != nil {
 			t.Fatal(err)
 		}
-		plan, err := plans.BuildPlan(ctx, nha056SessionRequest(&planwire.BuildPlanRequest{Candidate: candidate}, tokens.AccessToken))
+		plan, err := plans.CreateConfigurationPlan(ctx, nha056SessionRequest(&planwire.CreateConfigurationPlanRequest{Parent: strings.Split(before.Msg.Name, "/configurationDocuments/")[0], ConfigurationPlan: &planwire.ConfigurationPlan{Candidate: candidate}}, tokens.AccessToken))
 		if err != nil {
 			t.Fatal("public plan", err)
 		}
-		request := nha055Request(before.Msg, candidate, &plan.Msg.Plan.Receipt)
+		request := nha055Request(before.Msg, candidate, plan.Msg)
 		request.Sources = []*applywire.SourcePrecondition{nha055PublicationExpected("dashboard.configuration-qualification", "dashboard.yaml", previous, previousRaw)}
-		response, err := apply.Apply(ctx, nha056SessionRequest(request, tokens.AccessToken))
+		response, err := apply.ApplyConfigurationPlan(ctx, nha056SessionRequest(request, tokens.AccessToken))
 		if err != nil {
 			t.Fatal("public Apply", err)
 		}
-		if response.Msg.Activation.Outcome != configuration.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED {
+		if !response.Msg.Done {
 			t.Fatal("dashboard not published")
 		}
-		read, err := documents.ReadDocument(ctx, nha056SessionRequest(&configuration.ReadDocumentRequest{Id: &configuration.DocumentId{Value: "dashboard.configuration-qualification"}}, tokens.AccessToken))
+		read, err := documents.GetConfigurationDocument(ctx, nha056SessionRequest(&configuration.GetConfigurationDocumentRequest{Name: nha203PublicDocumentName(t, ctx, client, base, tokens.AccessToken, "dashboard.configuration-qualification")}, tokens.AccessToken))
 		if err != nil {
 			t.Fatal(err)
 		}
-		previous, previousRaw = read.Msg.Document.Version, raw
+		previous, previousRaw = read.Msg.Version, raw
 		publication++
 		sum := sha256.Sum256(raw)
-		dashboardWidgetsWritePrivate(t, out, "published.json", map[string]any{"name": name, "publication": publication, "generation": response.Msg.Current.ActiveGeneration.Revision, "source_revision": previous.Revision, "source_sha256": hex.EncodeToString(sum[:])})
+		dashboardWidgetsWritePrivate(t, out, "published.json", map[string]any{"name": name, "publication": publication, "generation": nha203PublishedMetadata(t, response.Msg).GenerationRevision, "source_revision": previous.Revision, "source_sha256": hex.EncodeToString(sum[:])})
 		if err = os.WriteFile(filepath.Join(out, "published-"+name+".yaml"), raw, 0600); err != nil {
 			t.Fatal(err)
 		}
-		layout, err := dashboards.GetDashboard(ctx, nha056SessionRequest(&dashboardwire.GetDashboardRequest{Id: &dashboardwire.DashboardId{Value: "dashboard.configuration-qualification"}, Support: dashboardWidgetsSupport()}, tokens.AccessToken))
-		if err != nil {
-			t.Fatal("production DashboardService Get", err)
+		listed, err := dashboards.ListDashboards(ctx, nha056SessionRequest(&dashboardwire.ListDashboardsRequest{Parent: nha203DocumentParent(before.Msg.Name)}, tokens.AccessToken))
+		if err != nil || len(listed.Msg.Dashboards) != 1 || listed.Msg.NextPageToken != "" {
+			t.Fatal("production DashboardService List", err)
 		}
-		if layout.Msg.Dashboard.Definition != nil {
-			t.Fatal("raw configuration exposed through dashboard route")
+		layout, err := dashboards.GetDashboard(ctx, nha056SessionRequest(&dashboardwire.GetDashboardRequest{Name: listed.Msg.Dashboards[0].Name}, tokens.AccessToken))
+		if err != nil || layout.Msg.Layout == nil || layout.Msg.Etag == "" {
+			t.Fatal("production DashboardService Get", err)
 		}
 		encoded, err := protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(layout.Msg)
 		if err != nil {

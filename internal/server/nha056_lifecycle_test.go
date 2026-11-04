@@ -4,20 +4,18 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	obsv2 "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/jackc/pgx/v5"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/observability"
 	"github.com/damione1/Homeward/internal/testpg"
-	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -40,21 +38,21 @@ func TestNHA056ActualTLSClientReadsAdmittedFactsAndPersistedAudit(t *testing.T) 
 	const login = "NHA056 facts admin"
 	const password = "NHA056_ADMIN_PASSWORD_CANARY"
 	account := nha162RunBootstrap(t, ctx, data, login, password)
-	token := nha162RunLogin(t, ctx, authv1connect.NewAuthServiceClient(client, base), login, password).AccessToken
-	accounts := authv1connect.NewAccountServiceClient(client, base)
-	created, err := accounts.CreateAccount(ctx, nha056SessionRequest(&auth.CreateAccountRequest{LoginName: "NHA056 audit user", DisplayName: "NHA056 audit user", Role: auth.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}, token))
+	token := nha162RunLogin(t, ctx, apiv2connect.NewAuthServiceClient(client, base), login, password).AccessToken
+	accounts := apiv2connect.NewAccountServiceClient(client, base)
+	created, err := accounts.CreateAccount(ctx, nha056SessionRequest(&obsv2.CreateAccountRequest{Parent: nha203ObservationHome(t, ctx, client, base, token), Account: &obsv2.Account{LoginName: "NHA056 audit user", DisplayName: "NHA056 audit user", Role: obsv2.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}}, token))
 	if err != nil {
 		t.Fatal(err)
 	}
-	nha162RunPolicy(t, ctx, authv1connect.NewAuthorizationPolicyServiceClient(client, base), created.Msg.Account.Id, token, "  - scope: {family: state_registry, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n")
-	mfaPolicy, err := accounts.GetSecondFactorPolicy(ctx, nha056SessionRequest(&auth.GetSecondFactorPolicyRequest{}, token))
+	nha162RunPolicy(t, ctx, apiv2connect.NewAuthorizationPolicyServiceClient(client, base), created.Msg.Name, token, "  - scope: {family: state_registry, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n")
+	mfaPolicy, err := accounts.GetSecondFactorPolicy(ctx, nha056SessionRequest(&obsv2.GetSecondFactorPolicyRequest{Name: nha203ObservationHome(t, ctx, client, base, token) + "/secondFactorPolicy"}, token))
 	if err != nil {
 		t.Fatal("real MFA policy read failed", err)
 	}
 	// GetSecondFactorPolicy emits a transport audit, without a dedicated action29
 	// row. The real SetMFAPolicy producer persists action28 even for the same
 	// value, so exercise that operation and retain a positive MFA audit oracle.
-	if _, err := accounts.SetSecondFactorPolicy(ctx, nha056SessionRequest(&auth.SetSecondFactorPolicyRequest{Expected: mfaPolicy.Msg.Policy.Version, RequireAdminFactor: mfaPolicy.Msg.Policy.RequireAdminFactor}, token)); err != nil {
+	if _, err := accounts.ChangeSecondFactorPolicy(ctx, nha056SessionRequest(&obsv2.ChangeSecondFactorPolicyRequest{Name: mfaPolicy.Msg.Name, Etag: mfaPolicy.Msg.Etag, RequireAdminFactor: mfaPolicy.Msg.RequireAdminFactor}, token)); err != nil {
 		t.Fatal("real MFA policy replacement failed", err)
 	}
 	requester, err := domain.ParseIntegrationInstanceID("NHA056_REQUESTER_CANARY")
@@ -79,46 +77,47 @@ func TestNHA056ActualTLSClientReadsAdmittedFactsAndPersistedAudit(t *testing.T) 
 	}); err != nil {
 		t.Fatal(err)
 	}
-	reader := observabilityv1connect.NewObservabilityServiceClient(client, base)
-	health, err := reader.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, token))
-	if err != nil || contracts.AdmitObservabilityResponse(health.Msg) != nil {
+	reader := apiv2connect.NewObservabilityServiceClient(client, base)
+	home := nha203ObservationHome(t, ctx, client, base, token)
+	health, err := reader.GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, token))
+	if err != nil || contracts.AdmitObservationResponse(health.Msg) != nil {
 		t.Fatal("real TLS health not admitted", err)
 	}
 	admittedRevision := nha056AdmittedSQLRevision(t, runtime.store, 0)
-	if health.Msg.Health.Liveness != obs.Liveness_LIVENESS_LIVE || health.Msg.Health.Server.Generation.GetPresent().GetValue() != admittedRevision || health.Msg.Health.Server.Readiness != obs.ServerReadiness_SERVER_READINESS_READY {
+	if health.Msg.Liveness != obsv2.ObservationLiveness_OBSERVATION_LIVENESS_LIVE || nha204UnsignedNonnegative(t, health.Msg.Server.Generation.GetPresent().GetValue()) != admittedRevision || health.Msg.Server.Readiness != obsv2.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY {
 		t.Fatal("health did not identify the actually admitted SQL generation and ready core")
 	}
-	if health.Msg.Health.Durable.GetObservedAt() == nil || health.Msg.Health.Durable.Availability != obs.DurableAvailability_DURABLE_AVAILABILITY_AVAILABLE {
+	if health.Msg.Durable.GetObservedAt() == nil || health.Msg.Durable.Availability != obsv2.ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_AVAILABLE {
 		t.Fatal("actual Recorder startup commit was not a durable fact")
 	}
-	metrics, err := reader.GetMetrics(ctx, nha056SessionRequest(&obs.GetMetricsRequest{}, token))
-	if err != nil || contracts.AdmitObservabilityResponse(metrics.Msg) != nil {
+	metrics, err := reader.GetMetrics(ctx, nha056SessionRequest(&obsv2.GetMetricsRequest{Name: home + "/metrics"}, token))
+	if err != nil || contracts.AdmitObservationResponse(metrics.Msg) != nil {
 		t.Fatal("real TLS metrics not admitted", err)
 	}
-	if len(metrics.Msg.Metrics.Queues) != 9 || len(metrics.Msg.Metrics.QueueLags) != 4 || len(observability.MetricCatalogue()) != 124 {
+	if len(metrics.Msg.Queues) != 9 || len(metrics.Msg.QueueLags) != 4 || len(observability.MetricCatalogue()) != 124 {
 		t.Fatal("real catalogue drift")
 	}
-	size := uint32(100)
-	logs, err := reader.QueryRuntimeLogs(ctx, nha056SessionRequest(&obs.QueryRuntimeLogsRequest{PageSize: &size}, token))
+	size := int32(100)
+	logs, err := reader.QueryRuntimeLogs(ctx, nha056SessionRequest(&obsv2.QueryRuntimeLogsRequest{Parent: home, PageSize: size}, token))
 	if err != nil {
 		t.Fatal(err)
 	}
 	positive := false
-	for _, row := range logs.Msg.GetPage().Rows {
-		if row.Event.Code == obs.LogCode_LOG_CODE_PROCESS_READY && row.Event.Author.GetProcess() != nil && row.Event.OccurredAt != nil {
+	for _, row := range logs.Msg.Rows {
+		if row.Event.Code == obsv2.ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_READY && row.Event.Author.GetProcess() != nil && row.Event.OccurredAt != nil {
 			positive = true
 		}
 	}
 	if !positive {
 		t.Fatal("real startup emitter did not publish its safe code")
 	}
-	audits, err := reader.QueryAudits(ctx, nha056SessionRequest(&obs.QueryAuditsRequest{Source: obs.AuditSource_AUDIT_SOURCE_AUTHENTICATION, PageSize: &size}, token))
-	if err != nil || contracts.AdmitObservabilityResponse(audits.Msg) != nil {
+	audits, err := reader.QueryAudits(ctx, nha056SessionRequest(&obsv2.QueryAuditsRequest{Parent: home, Source: obsv2.ObservationAuditSource_OBSERVATION_AUDIT_SOURCE_AUTHENTICATION, PageSize: size}, token))
+	if err != nil || contracts.AdmitObservationResponse(audits.Msg) != nil {
 		t.Fatal("real persisted audits unavailable", err)
 	}
 	positive = false
-	for _, row := range audits.Msg.GetPage().Rows {
-		if audit := row.GetAuthentication(); audit != nil && audit.Action == obs.AuthAuditAction_AUTH_AUDIT_ACTION_TRANSPORT && audit.Author.GetHumanAccount().GetValue() == account.Value && audit.OccurredAt != nil && audit.Route.GetRegisteredProcedure() == observabilityv1connect.ObservabilityServiceQueryAuditsProcedure {
+	for _, row := range audits.Msg.Rows {
+		if audit := row.GetAuthentication(); audit != nil && audit.Action == obsv2.ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_TRANSPORT && audit.Author.GetHumanAccount() == nha203ObservationAccount(t, ctx, runtime.store, home, account.Value) && audit.OccurredAt != nil && audit.Route.GetRegisteredProcedure() == apiv2connect.ObservabilityServiceQueryAuditsProcedure {
 			positive = true
 		}
 	}
@@ -128,11 +127,11 @@ func TestNHA056ActualTLSClientReadsAdmittedFactsAndPersistedAudit(t *testing.T) 
 	// These rows come from the real account, session, policy and MFA services
 	// above, then through the common TLS reader. Match persisted dates/actors by
 	// PK instead of inferring them from the response time or target account.
-	seen := make(map[obs.AuthAuditAction]bool)
+	seen := make(map[obsv2.ObservationAuthAuditAction]bool)
 	historical := false
 	mfaReadTransport := false
 	mfaReplaceTransport := false
-	for _, row := range audits.Msg.GetPage().Rows {
+	for _, row := range audits.Msg.Rows {
 		audit := row.GetAuthentication()
 		if audit == nil {
 			continue
@@ -153,11 +152,11 @@ func TestNHA056ActualTLSClientReadsAdmittedFactsAndPersistedAudit(t *testing.T) 
 			if audit.Author.GetNotRecorded() == nil {
 				t.Fatal("absent audit author was invented")
 			}
-		} else if audit.Author.GetHumanAccount().GetValue() != *actor {
+		} else if audit.Author.GetHumanAccount() != nha203ObservationAccount(t, ctx, runtime.store, home, *actor) {
 			t.Fatal("audit actor differs from its persisted source")
 		}
 		seen[audit.Action] = true
-		if audit.Action == obs.AuthAuditAction_AUTH_AUDIT_ACTION_MFA_POLICY_REPLACE {
+		if audit.Action == obsv2.ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_POLICY_REPLACE {
 			// insertSessionAudit stores this operation's native account as the
 			// target, without an actor. Preserve that absence; the real TLS
 			// transport row below supplies the authenticated actor independently.
@@ -166,11 +165,11 @@ func TestNHA056ActualTLSClientReadsAdmittedFactsAndPersistedAudit(t *testing.T) 
 			}
 			t.Logf("actual MFA replacement audit PK=%d persisted_action=%d actor_not_recorded=true target_matches_native=true", row.Id, persistedAction)
 		}
-		if audit.Action == obs.AuthAuditAction_AUTH_AUDIT_ACTION_TRANSPORT && audit.Author.GetHumanAccount().GetValue() == account.Value && audit.Outcome == obs.AuditOutcome_AUDIT_OUTCOME_ADMITTED {
+		if audit.Action == obsv2.ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_TRANSPORT && audit.Author.GetHumanAccount() == nha203ObservationAccount(t, ctx, runtime.store, home, account.Value) && audit.Outcome == obsv2.ObservationAuditOutcome_OBSERVATION_AUDIT_OUTCOME_ADMITTED {
 			switch audit.Route.GetRegisteredProcedure() {
-			case authv1connect.AccountServiceGetSecondFactorPolicyProcedure:
+			case apiv2connect.AccountServiceGetSecondFactorPolicyProcedure:
 				mfaReadTransport = true
-			case authv1connect.AccountServiceSetSecondFactorPolicyProcedure:
+			case apiv2connect.AccountServiceChangeSecondFactorPolicyProcedure:
 				mfaReplaceTransport = true
 			}
 		}
@@ -178,7 +177,7 @@ func TestNHA056ActualTLSClientReadsAdmittedFactsAndPersistedAudit(t *testing.T) 
 			historical = true
 		}
 	}
-	for _, action := range []obs.AuthAuditAction{obs.AuthAuditAction_AUTH_AUDIT_ACTION_BOOTSTRAP, obs.AuthAuditAction_AUTH_AUDIT_ACTION_CREATE_ACCOUNT, obs.AuthAuditAction_AUTH_AUDIT_ACTION_SESSION_CREATE, obs.AuthAuditAction_AUTH_AUDIT_ACTION_POLICY_REPLACE, obs.AuthAuditAction_AUTH_AUDIT_ACTION_MFA_POLICY_REPLACE} {
+	for _, action := range []obsv2.ObservationAuthAuditAction{obsv2.ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_BOOTSTRAP, obsv2.ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_CREATE_ACCOUNT, obsv2.ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_SESSION_CREATE, obsv2.ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_POLICY_REPLACE, obsv2.ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_POLICY_REPLACE} {
 		if !seen[action] {
 			t.Fatal("real service audit missing from TLS reader", action)
 		}
@@ -192,17 +191,17 @@ func TestNHA056ActualTLSClientReadsAdmittedFactsAndPersistedAudit(t *testing.T) 
 	if !mfaReplaceTransport {
 		t.Fatal("real MFA policy replacement transport lost its authenticated native actor")
 	}
-	secrets, err := reader.QueryAudits(ctx, nha056SessionRequest(&obs.QueryAuditsRequest{Source: obs.AuditSource_AUDIT_SOURCE_SECRET_ACCESS, PageSize: &size}, token))
-	if err != nil || contracts.AdmitObservabilityResponse(secrets.Msg) != nil || len(secrets.Msg.GetPage().Rows) != 1 {
+	secrets, err := reader.QueryAudits(ctx, nha056SessionRequest(&obsv2.QueryAuditsRequest{Parent: home, Source: obsv2.ObservationAuditSource_OBSERVATION_AUDIT_SOURCE_SECRET_ACCESS, PageSize: size}, token))
+	if err != nil || contracts.AdmitObservationResponse(secrets.Msg) != nil || len(secrets.Msg.Rows) != 1 {
 		t.Fatal("real secret refusal missing from TLS reader", err)
 	}
-	secretAudit := secrets.Msg.GetPage().Rows[0].GetSecretAccess()
-	if secretAudit == nil || secretAudit.Author.GetInternalIntegration() == nil || secretAudit.OccurredAt == nil || secretAudit.Reason != obs.SecretDenialReason_SECRET_DENIAL_REASON_FOREIGN_HANDLE {
+	secretAudit := secrets.Msg.Rows[0].GetSecretAccess()
+	if secretAudit == nil || secretAudit.Author.GetInternalIntegration() == nil || secretAudit.OccurredAt == nil || secretAudit.Reason != obsv2.ObservationSecretDenialReason_OBSERVATION_SECRET_DENIAL_REASON_FOREIGN_HANDLE {
 		t.Fatal("secret refusal lost its closed reason, date or opaque internal author")
 	}
 	var secretAt time.Time
 	if err := runtime.store.InTransaction(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `SELECT recorded_at FROM public.secret_access_audit WHERE id=$1`, secrets.Msg.GetPage().Rows[0].Id).Scan(&secretAt)
+		return tx.QueryRow(ctx, `SELECT recorded_at FROM public.secret_access_audit WHERE id=$1`, secrets.Msg.Rows[0].Id).Scan(&secretAt)
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -226,16 +225,16 @@ func TestNHA056ActualTLSClientReadsAdmittedFactsAndPersistedAudit(t *testing.T) 
 		}
 	}
 	orphanEpoch := bytes.Repeat([]byte{0xa5}, 16)
-	coverage, err := reader.ReadRecorderCoverage(ctx, nha056SessionRequest(&obs.ReadRecorderCoverageRequest{From: &obs.AdmissionPosition{Epoch: orphanEpoch, Sequence: 0}, Through: &obs.ReadRecorderCoverageRequest_LatestInEpoch{LatestInEpoch: &obs.RecorderEpochIdentity{Value: orphanEpoch}}}, token))
-	if err != nil || coverage.Msg.GetNotRetained() == nil {
+	coverage, err := reader.QueryRecorderCoverage(ctx, nha056SessionRequest(&obsv2.QueryRecorderCoverageRequest{Parent: home, From: &obsv2.AdmissionPosition{Epoch: orphanEpoch, Sequence: "0"}, Through: &obsv2.QueryRecorderCoverageRequest_LatestInEpoch{LatestInEpoch: &obsv2.RecorderEpochIdentity{Value: orphanEpoch}}}, token))
+	if connect.CodeOf(err) != connect.CodeNotFound || coverage != nil {
 		t.Fatal("absent retained Recorder epoch lost its explicit result", err)
 	}
-	for _, invalid := range []uint32{0, 101} {
-		if _, err := reader.QueryRuntimeLogs(ctx, nha056SessionRequest(&obs.QueryRuntimeLogsRequest{PageSize: &invalid}, token)); connect.CodeOf(err) != connect.CodeInvalidArgument {
+	for _, invalid := range []int32{-1} {
+		if _, err := reader.QueryRuntimeLogs(ctx, nha056SessionRequest(&obsv2.QueryRuntimeLogsRequest{Parent: home, PageSize: invalid}, token)); connect.CodeOf(err) != connect.CodeInvalidArgument {
 			t.Fatal("invalid page boundary admitted", err)
 		}
 	}
-	if _, err := reader.GetHealth(ctx, connect.NewRequest(&obs.GetHealthRequest{})); err == nil {
+	if _, err := reader.GetHealth(ctx, connect.NewRequest(&obsv2.GetHealthRequest{Name: home + "/health"})); err == nil {
 		t.Fatal("anonymous reader admitted")
 	}
 }

@@ -104,6 +104,11 @@ func homeAdminPermission() authorization.Permission {
 }
 
 func (h *homeResourceHandler) GetHome(ctx context.Context, request *connect.Request[api.GetHomeRequest]) (*connect.Response[api.Home], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	principal, _, err := h.current(ctx, nil)
 	if err != nil || !principal.Native() {
 		return nil, apiRPCError(ctx, authorization.ErrDenied)
@@ -129,6 +134,11 @@ func (h *homeResourceHandler) GetHome(ctx context.Context, request *connect.Requ
 }
 
 func (h *homeResourceHandler) ListHomes(ctx context.Context, request *connect.Request[api.ListHomesRequest]) (*connect.Response[api.ListHomesResponse], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	principal, _, err := h.current(ctx, nil)
 	if err != nil || !principal.Native() {
 		return nil, apiRPCError(ctx, authorization.ErrDenied)
@@ -206,6 +216,11 @@ func (h *homeResourceHandler) entityPage(ctx context.Context, name apitypes.Enti
 }
 
 func (h *homeResourceHandler) GetEntity(ctx context.Context, request *connect.Request[api.GetEntityRequest]) (*connect.Response[api.Entity], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	permission := homeReadPermission()
 	_, current, err := h.current(ctx, &permission)
 	if err != nil {
@@ -223,9 +238,12 @@ func (h *homeResourceHandler) GetEntity(ctx context.Context, request *connect.Re
 		return nil, apiRPCError(ctx, err)
 	}
 	actor, _ := coreRPCActor(ctx)
-	defer h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken)
+	defer releaseReadResponse(ctx, func() { _ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken) })
 	out, err := encodeEntity(name.Home(), page.Items[0].Registry().Metadata())
 	if err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	if err := h.retainReadCapture(ctx, page.SnapshotToken); err != nil {
 		return nil, apiRPCError(ctx, err)
 	}
 	return connect.NewResponse(out), nil
@@ -274,6 +292,11 @@ func (h *homeResourceHandler) openPage(token string, binding []byte) (homePageCu
 }
 
 func (h *homeResourceHandler) ListEntities(ctx context.Context, request *connect.Request[api.ListEntitiesRequest]) (*connect.Response[api.ListEntitiesResponse], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	permission := homeReadPermission()
 	_, current, err := h.current(ctx, &permission)
 	if err != nil {
@@ -333,7 +356,7 @@ func (h *homeResourceHandler) ListEntities(ctx context.Context, request *connect
 	retain := r.PageToken != ""
 	defer func() {
 		if !retain {
-			_ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken)
+			releaseReadResponse(ctx, func() { _ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken) })
 		}
 	}()
 	out := &api.ListEntitiesResponse{}
@@ -351,5 +374,8 @@ func (h *homeResourceHandler) ListEntities(ctx context.Context, request *connect
 		}
 	}
 	retain = retain || out.NextPageToken != ""
+	if err := h.retainReadCapture(ctx, page.SnapshotToken); err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
 	return connect.NewResponse(out), nil
 }

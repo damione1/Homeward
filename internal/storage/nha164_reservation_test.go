@@ -25,7 +25,7 @@ func TestNHA164RequestReservationIsSingleStoreBoundAndCannotBeReused(t *testing.
 		if len(s.historyReadSlots) != 1 {
 			t.Fatal("request did not acquire exactly one slot")
 		}
-		raw, err := s.ReadHistoricalRecorderPageAt(ctx, q, nil, nil)
+		raw, err := s.ReadHistoricalRecorderPageAt(ctx, q, nil, nil, nha203RecordedScopeFixture{})
 		if err != nil {
 			return err
 		}

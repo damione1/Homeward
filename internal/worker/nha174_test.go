@@ -2,9 +2,7 @@ package worker
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
-	"os"
 	"testing"
 	"time"
 
@@ -26,7 +24,7 @@ func nha174Request[T any](value *T) *connect.Request[T] {
 	return request
 }
 
-func nha174Profile(t *testing.T, minor uint32) (*pilot, *fake.Fixture, *nha077CountingHost) {
+func nha174Profile(t *testing.T) (*pilot, *fake.Fixture, *nha077CountingHost) {
 	t.Helper()
 	host, fixture, err := fake.NewCommandFixture()
 	if err != nil {
@@ -62,26 +60,13 @@ func nha174Profile(t *testing.T, minor uint32) (*pilot, *fake.Fixture, *nha077Co
 	counted := &nha077CountingHost{SessionHost: session}
 	p := newPilot(Config{})
 	p.active, p.token, p.ctx, p.host = true, "synthetic-nha174-token", context.Background(), counted
-	var expected string
-	switch minor {
-	case 0:
-		expected = schemaDigestV10Hex
-	case 1:
-		expected = schemaDigestV11Hex
-	case 2:
-		expected = schemaDigestV12Hex
-	case 3:
-		expected = schemaDigestV13Hex
-	default:
-		t.Fatal("invalid test profile")
-	}
-	digest, err := hex.DecodeString(expected)
+	digest, err := hex.DecodeString(schemaDigestHex)
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := nha174Request(&wire.HandshakeRequest{HostMajor: 1, HostMinor: minor, DriverMajor: 1, DriverMinor: minor, SchemaSha256: digest, MaxFrameBytes: 65536, Capabilities: []wire.Capability{wire.Capability_CAPABILITY_DISCOVER, wire.Capability_CAPABILITY_PUBLISH, wire.Capability_CAPABILITY_HEALTH}})
+	request := nha174Request(&wire.HandshakeRequest{HostMajor: 1, HostMinor: hostProtocolMinor, DriverMajor: 1, DriverMinor: hostProtocolMinor, SchemaSha256: digest, MaxFrameBytes: 65536, Capabilities: []wire.Capability{wire.Capability_CAPABILITY_DISCOVER, wire.Capability_CAPABILITY_PUBLISH, wire.Capability_CAPABILITY_HEALTH}})
 	response, err := p.Handshake(context.Background(), request)
-	if err != nil || response.Msg.HostMinor != minor || response.Msg.DriverMinor != minor {
+	if err != nil || response.Msg.HostMinor != hostProtocolMinor || response.Msg.DriverMinor != hostProtocolMinor {
 		t.Fatalf("profile handshake: %v", err)
 	}
 	return p, fixture, counted
@@ -96,52 +81,42 @@ func nha174Discover(description *registry.CapabilityDescription) *connect.Reques
 	return nha174Request(&wire.DiscoverRequest{Candidates: []*wire.Candidate{{Source: &wire.SourceKey{Device: "synthetic-thermostat", Entity: "climate"}, Descriptions: []*registry.CapabilityDescription{description}}}})
 }
 
-func TestNHA174LegacyProfilesRejectNewClimateBeforeHost(t *testing.T) {
-	for _, minor := range []uint32{0, 1} {
-		p, _, counted := nha174Profile(t, minor)
-		for name, set := range map[string]func(*registry.ClimateConstraints){
-			"temperature-wrapper-unknown-bounds": func(c *registry.ClimateConstraints) {
-				c.ObservedTemperatureCelsius = &registry.ClimateTemperatureObservation{}
-			},
-			"setpoint-wrapper-unknown-bounds": func(c *registry.ClimateConstraints) {
-				c.ObservedSetpointCelsius = &registry.ClimateTemperatureObservation{}
-			},
-			"range-unknown-bounds": func(c *registry.ClimateConstraints) {
-				c.ObservedSetpointRangeCelsius = &registry.ClimateSetpointRangeConstraints{}
-			},
-			"observed-mode": func(c *registry.ClimateConstraints) {
-				c.ObservedModeOptions = []registry.ClimateMode{registry.ClimateMode_CLIMATE_MODE_HEAT}
-			},
-			"observes-fan-true": func(c *registry.ClimateConstraints) { c.ObservesFanActivity = true },
-		} {
-			t.Run(name+"-profile"+string(rune('0'+minor)), func(t *testing.T) {
-				description := nha174WorkerDescription()
-				set(description.GetClimate())
-				if _, err := p.Discover(context.Background(), nha174Discover(description)); connect.CodeOf(err) != connect.CodeInvalidArgument {
-					t.Fatalf("new declaration crossed old profile: %v", err)
-				}
-			})
-		}
-		publish := nha174Request(&wire.PublishRequest{Observation: &wire.Observation{BindingHandle: make([]byte, 32), Endpoint: "climate", Quality: &state.Quality{Availability: state.Availability_AVAILABILITY_AVAILABLE, Freshness: state.Freshness_FRESHNESS_FRESH, Provenance: state.Provenance_PROVENANCE_OBSERVED}, Value: &wire.Observation_Climate{Climate: &state.ClimateValue{FanActive: nha174Pointer(false)}}}})
-		if _, err := p.Publish(context.Background(), publish); connect.CodeOf(err) != connect.CodeInvalidArgument {
-			t.Fatalf("present fan false climate passed profile %d: %v", minor, err)
-		}
-		if counted.discoverCalls.Load() != 0 || counted.publishCalls.Load() != 0 || len(p.bindings) != 0 {
-			t.Fatal("new climate reached Host through legacy profile")
-		}
-		// The declaration flag is non-optional proto3: false has no feature or
-		// distinguishable presence. An otherwise old empty declaration is valid.
-		if _, err := p.Discover(context.Background(), nha174Discover(nha174WorkerDescription())); err != nil {
-			t.Fatalf("old empty climate description rejected: %v", err)
-		}
-		if counted.discoverCalls.Load() != 1 {
-			t.Fatal("old declaration did not reach Host")
-		}
+// A rejected version cannot open any data or secret path, even with a valid
+// process token and the current digest. No SessionHost is installed deliberately.
+func nha174RejectedProfile(t *testing.T, minor uint32) *pilot {
+	t.Helper()
+	p := newPilot(Config{})
+	p.active, p.token = true, "synthetic-nha174-token"
+	digest, _ := hex.DecodeString(schemaDigestHex)
+	response, err := p.Handshake(context.Background(), nha174Request(&wire.HandshakeRequest{
+		HostMajor: 1, HostMinor: minor, DriverMajor: 1, DriverMinor: minor,
+		SchemaSha256: digest, MaxFrameBytes: 65536,
+		Capabilities: []wire.Capability{wire.Capability_CAPABILITY_DISCOVER, wire.Capability_CAPABILITY_PUBLISH, wire.Capability_CAPABILITY_SECRET_READ}}))
+	if response != nil || connect.CodeOf(err) != connect.CodeFailedPrecondition || p.handshaken {
+		t.Fatalf("old Host admitted: %v", err)
+	}
+	if _, err := p.Discover(context.Background(), nha174Discover(nha174WorkerDescription())); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("Discover after refused handshake: %v", err)
+	}
+	if _, err := p.Publish(context.Background(), nha174Request(&wire.PublishRequest{})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("Publish after refused handshake: %v", err)
+	}
+	if _, err := p.ReadSecret(context.Background(), nha174Request(&wire.ReadSecretRequest{Name: "synthetic-secret"})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("ReadSecret after refused handshake: %v", err)
+	}
+	if len(p.bindings) != 0 {
+		t.Fatal("refused handshake created bindings")
+	}
+	return p
+}
+func TestNHA174OldProfilesRefusedBeforeHostAndSecrets(t *testing.T) {
+	for _, minor := range []uint32{0, 1, 2, 3, 5} {
+		nha174RejectedProfile(t, minor)
 	}
 }
 
-func TestNHA174Profile12PublishesCoherentClimateThroughTrueHost(t *testing.T) {
-	p, fixture, counted := nha174Profile(t, 2)
+func TestNHA174CurrentProfilePublishesCoherentClimateThroughTrueHost(t *testing.T) {
+	p, fixture, counted := nha174Profile(t)
 	description := nha174WorkerDescription()
 	constraints := description.GetClimate()
 	constraints.ObservedTemperatureCelsius = &registry.ClimateTemperatureObservation{}
@@ -151,39 +126,39 @@ func TestNHA174Profile12PublishesCoherentClimateThroughTrueHost(t *testing.T) {
 	constraints.ObservesFanActivity = true
 	response, err := p.Discover(context.Background(), nha174Discover(description))
 	if err != nil || len(response.Msg.Bindings) != 1 {
-		t.Fatalf("1.2 discovery: %v", err)
+		t.Fatalf("1.4 discovery: %v", err)
 	}
 	publish := nha174Request(&wire.PublishRequest{Observation: &wire.Observation{BindingHandle: response.Msg.Bindings[0].Handle, Endpoint: "climate", Quality: &state.Quality{Availability: state.Availability_AVAILABILITY_AVAILABLE, Freshness: state.Freshness_FRESHNESS_FRESH, Provenance: state.Provenance_PROVENANCE_OBSERVED}, Value: &wire.Observation_Climate{Climate: &state.ClimateValue{CurrentTemperatureCelsius: nha174Pointer(0.0), Setpoint: &state.ClimateValue_SetpointCelsius{SetpointCelsius: 21}, Mode: nha174Pointer(registry.ClimateMode_CLIMATE_MODE_HEAT), Activity: nha174Pointer(registry.ClimateActivity_CLIMATE_ACTIVITY_IDLE), FanActive: nha174Pointer(false)}}}})
 	if _, err := p.Publish(context.Background(), publish); err != nil {
-		t.Fatalf("1.2 publish: %v", err)
+		t.Fatalf("1.4 publish: %v", err)
 	}
 	snapshot, err := fixture.Sequencer().Capture()
 	if err != nil || len(snapshot.States) != 1 {
-		t.Fatalf("1.2 projection: %v", err)
+		t.Fatalf("1.4 projection: %v", err)
 	}
 	for _, observed := range snapshot.States {
 		value, present := observed.CurrentValue()
 		if !present {
-			t.Fatal("1.2 current climate absent")
+			t.Fatal("1.4 current climate absent")
 		}
 		climate, ok := value.Climate()
 		if !ok {
-			t.Fatal("1.2 climate variant absent")
+			t.Fatal("1.4 climate variant absent")
 		}
 		parts, err := climate.Components()
 		if err != nil || parts.CurrentTemperature == nil || parts.Setpoint == nil || parts.Mode == nil || parts.Activity == nil || parts.FanActive == nil || *parts.FanActive {
-			t.Fatal("1.2 climate lost fields")
+			t.Fatal("1.4 climate lost fields")
 		}
 	}
 	if counted.discoverCalls.Load() != 1 || counted.publishCalls.Load() != 1 {
-		t.Fatal("1.2 failed shared Host composition")
+		t.Fatal("1.4 failed shared Host composition")
 	}
 	for _, status := range []wire.HealthStatus{wire.HealthStatus_HEALTH_STATUS_READY, wire.HealthStatus_HEALTH_STATUS_DEGRADED} {
 		if _, err := p.ReportHealth(context.Background(), nha174Request(&wire.ReportHealthRequest{Status: status})); err != nil {
 			t.Fatal(err)
 		}
 		if p.ready != (status == wire.HealthStatus_HEALTH_STATUS_READY) {
-			t.Fatal("1.2 lost 1.1 readiness fence")
+			t.Fatal("1.4 lost readiness fence")
 		}
 	}
 	if _, err := parseValue(&wire.Observation{Value: (*wire.Observation_Climate)(nil)}); err == nil {
@@ -191,44 +166,27 @@ func TestNHA174Profile12PublishesCoherentClimateThroughTrueHost(t *testing.T) {
 	}
 }
 
-func TestNHA174ExactProfilesKeepHistoricalDigestsAndRejectCrossedVersions(t *testing.T) {
-	for _, profile := range []struct{ file, digest string }{{"host-v1.0.pb", schemaDigestV10Hex}, {"host-v1.1.pb", schemaDigestV11Hex}} {
-		bytes, err := os.ReadFile("../../testworker/fixtures/" + profile.file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		digest := sha256.Sum256(bytes)
-		if hex.EncodeToString(digest[:]) != profile.digest {
-			t.Fatal("historical descriptor changed")
-		}
-	}
-	for _, test := range []struct {
-		host, driver uint32
-		digest       string
-	}{{1, 2, schemaDigestV12Hex}, {2, 1, schemaDigestV11Hex}, {1, 1, schemaDigestV12Hex}, {2, 2, schemaDigestV11Hex}, {3, 3, schemaDigestV12Hex}} {
-		p := newPilot(Config{})
-		p.active, p.token = true, "synthetic-nha174-token"
-		digest, err := hex.DecodeString(test.digest)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := p.Handshake(context.Background(), nha174Request(&wire.HandshakeRequest{HostMajor: 1, HostMinor: test.host, DriverMajor: 1, DriverMinor: test.driver, SchemaSha256: digest, MaxFrameBytes: 65536, Capabilities: []wire.Capability{wire.Capability_CAPABILITY_PUBLISH}})); connect.CodeOf(err) != connect.CodeFailedPrecondition || p.handshaken {
-			t.Fatalf("crossed/future profile admitted: %v", err)
-		}
+func TestNHA174CurrentProfileRejectsWrongDigest(t *testing.T) {
+	p := newPilot(Config{})
+	p.active, p.token = true, "synthetic-nha174-token"
+	digest, _ := hex.DecodeString(schemaDigestHex)
+	digest[0] ^= 1
+	if _, err := p.Handshake(context.Background(), nha174Request(&wire.HandshakeRequest{HostMajor: 1, HostMinor: hostProtocolMinor, DriverMajor: 1, DriverMinor: hostProtocolMinor, SchemaSha256: digest, MaxFrameBytes: 65536})); connect.CodeOf(err) != connect.CodeFailedPrecondition || p.handshaken {
+		t.Fatalf("wrong digest admitted: %v", err)
 	}
 }
 
-func TestNHA174UnchangedProfile11WorkerStillRunsOverUnixTransport(t *testing.T) {
+func TestNHA174CurrentWorkerRunsOverUnixTransport(t *testing.T) {
 	rig := startWorkerRigWithCapture(t, "hold", true)
 	waitMarker(t, rig.marker, "second_stream_rejected", 5*time.Second)
 	rig.pilot.mu.Lock()
-	minor := rig.pilot.hostMinor
+	handshaken := rig.pilot.handshaken
 	rig.pilot.mu.Unlock()
-	if minor != 1 {
-		t.Fatal("old worker was silently promoted to a new profile")
+	if !handshaken {
+		t.Fatal("current worker did not handshake")
 	}
 	snapshot, err := rig.fixture.Sequencer().Capture()
 	if err != nil || len(snapshot.States) != 2 {
-		t.Fatalf("old worker did not publish through true Host: %v", err)
+		t.Fatalf("current worker did not publish through true Host: %v", err)
 	}
 }

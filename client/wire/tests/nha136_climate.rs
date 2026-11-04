@@ -28,107 +28,79 @@ fn nha136_climate_optional_zero_and_target_survive_wire_roundtrip() {
 }
 
 use buffa::EnumValue;
-use buffa_types::google::protobuf::{Empty, Timestamp};
+use buffa_types::google::protobuf::Timestamp;
 use home_wire_contract::history_contract::admit_observations_response;
-use home_wire_contract::home::{
-    history::v1 as history, observability::v1 as obs, registry::v1 as registry, state::v1 as state,
-};
+use home_wire_contract::home::api::v2 as history;
 
-// A complete valid NHA-164 response envelope reaches the private climate
-// admission through the public history boundary. No test-only API is exposed.
-fn climate_history_response(climate: ClimateValue) -> history::QueryObservationsResponse {
-    let scope_hex = include_str!("fixtures/nha164_not_retained.hex").trim();
-    let scope_bytes: Vec<u8> = (0..scope_hex.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&scope_hex[i..i + 2], 16).unwrap())
-        .collect();
-    let scope_response =
-        history::QueryObservationsResponse::decode_from_slice(&scope_bytes).unwrap();
-    let Some(history::query_observations_response::Result::NotRetained(scope)) =
-        scope_response.result
-    else {
-        panic!("NHA-164 scope fixture changed");
-    };
+// Same retained scope and limits as the current NHA-164 public fixture. The
+// historical value is independent of the entity's current capabilities.
+fn climate_history_response(
+    climate: history::HistoricalTemperatureControl,
+) -> history::QueryObservationsResponse {
     let at = Timestamp {
         seconds: 1_792_540_800,
         ..Default::default()
     };
-    let position = obs::AdmissionPosition {
-        epoch: vec![136; 16],
-        sequence: 1,
-        ..Default::default()
-    };
-    let epoch = obs::RecorderEpochCoverage {
-        epoch: obs::RecorderEpochIdentity {
-            value: position.epoch.clone(),
-            ..Default::default()
-        }
-        .into(),
-        checkpoint: 1,
-        started_at: at.clone().into(),
-        close_time: Some(obs::recorder_epoch_coverage::CloseTime::NotRecorded(
-            Empty::default().into(),
-        )),
-        reconciliation: obs::RecorderReconciliationState::Complete.into(),
-        predecessor: Some(obs::recorder_epoch_coverage::Predecessor::NoPrevious(
-            Empty::default().into(),
-        )),
-        ..Default::default()
-    };
-    let observed = state::ObservedState {
-        entity: registry::EntityRef {
-            reference: Some(registry::entity_ref::Reference::EntityId(
-                "nha136-history-entity".into(),
-            )),
-            ..Default::default()
-        }
-        .into(),
-        quality: state::Quality {
-            availability: state::Availability::Available.into(),
-            freshness: state::Freshness::Fresh.into(),
-            provenance: state::Provenance::Observed.into(),
-            ..Default::default()
-        }
-        .into(),
-        received_at: at.clone().into(),
-        last_changed: at.clone().into(),
-        last_updated: at.clone().into(),
-        last_reported: at.into(),
-        revision: 1,
-        source_session: "nha136-synthetic-session".into(),
-        value: Some(state::observed_state::Value::Climate(climate.into())),
-        ..Default::default()
-    };
-    let page = history::ObservationPage {
-        scope: (*scope).into(),
-        points: vec![history::Observation {
-            position: position.clone().into(),
-            state: observed.into(),
-            ..Default::default()
-        }],
-        coverage: history::Coverage {
-            logical: obs::RecorderCoverageSnapshot {
-                from: position.clone().into(),
-                through: position.into(),
-                epochs: vec![epoch],
-                ..Default::default()
-            }
-            .into(),
-            verdict: history::CoverageVerdict::CompleteUnderPolicy.into(),
-            ..Default::default()
-        }
-        .into(),
-        continuation: history::Continuation {
-            result: Some(history::continuation::Result::End(Empty::default().into())),
+    let period = history::HistoryPeriod {
+        start: at.clone().into(),
+        end: Timestamp {
+            seconds: at.seconds + 3600,
             ..Default::default()
         }
         .into(),
         ..Default::default()
     };
     history::QueryObservationsResponse {
-        result: Some(history::query_observations_response::Result::Page(
-            page.into(),
-        )),
+        scope: history::HistoryReadScope {
+            requested: period.clone().into(),
+            retained: period.into(),
+            retention_cutoff: at.clone().into(),
+            as_of: Timestamp {
+                seconds: at.seconds + 3700,
+                ..Default::default()
+            }
+            .into(),
+            resolution: history::HistoryResolution::Raw.into(),
+            limits: history::HistoryLimits {
+                max_points: 100,
+                max_response_bytes: 256 * 1024,
+                max_token_bytes: 512,
+                query_timeout_millis: 2000,
+                max_readers: 2,
+                max_period_hours: 168,
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        }
+        .into(),
+        coverage: history::HistoryCoverage {
+            verdict: history::HistoryCoverageVerdict::NotProven.into(),
+            ..Default::default()
+        }
+        .into(),
+        observations: vec![history::HistoryObservation {
+            observation_id: "a".repeat(64),
+            state: history::HistoricalState {
+                quality: history::ObservationQuality {
+                    availability: history::Availability::Available.into(),
+                    freshness: history::Freshness::Current.into(),
+                    provenance: history::Provenance::Observed.into(),
+                    ..Default::default()
+                }
+                .into(),
+                receive_time: at.clone().into(),
+                last_change_time: at.clone().into(),
+                last_update_time: at.clone().into(),
+                last_report_time: at.into(),
+                value: Some(history::historical_state::Value::TemperatureControl(
+                    climate.into(),
+                )),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        }],
         ..Default::default()
     }
 }
@@ -136,29 +108,29 @@ fn climate_history_response(climate: ClimateValue) -> history::QueryObservations
 #[test]
 fn nha136_history_public_admission_preserves_only_new_fields_zero_and_absence() {
     let values = [
-        ClimateValue {
+        history::HistoricalTemperatureControl {
             humidity_percent: Some(0.0),
             ..Default::default()
         },
-        ClimateValue {
+        history::HistoricalTemperatureControl {
             humidity_percent: Some(100.0),
             ..Default::default()
         },
-        ClimateValue {
-            fan_target: Some(ClimateFanTarget::On.into()),
+        history::HistoricalTemperatureControl {
+            fan_target: Some(history::TemperatureFanTarget::On.into()),
             ..Default::default()
         },
-        ClimateValue {
-            fan_target: Some(ClimateFanTarget::Auto.into()),
+        history::HistoricalTemperatureControl {
+            fan_target: Some(history::TemperatureFanTarget::Auto.into()),
             ..Default::default()
         },
-        ClimateValue {
+        history::HistoricalTemperatureControl {
             current_temperature_celsius: Some(0.0),
             ..Default::default()
         },
-        ClimateValue {
+        history::HistoricalTemperatureControl {
             humidity_percent: Some(0.0),
-            fan_target: Some(ClimateFanTarget::On.into()),
+            fan_target: Some(history::TemperatureFanTarget::On.into()),
             ..Default::default()
         },
     ];
@@ -172,14 +144,10 @@ fn nha136_history_public_admission_preserves_only_new_fields_zero_and_absence() 
             history::QueryObservationsResponse::decode_from_slice(&response.encode_to_vec())
                 .unwrap();
         let admitted = admit_observations_response(&decoded).expect("public history admission");
-        let Some(history::query_observations_response::Result::Page(page)) =
-            &admitted.wire().result
+        let Some(history::historical_state::Value::TemperatureControl(actual)) =
+            &admitted.wire().observations[0].state.value
         else {
-            panic!("history page lost")
-        };
-        let Some(state::observed_state::Value::Climate(actual)) = &page.points[0].state.value
-        else {
-            panic!("climate state lost")
+            panic!("temperature control state lost");
         };
         assert_eq!(actual.humidity_percent, climate.humidity_percent);
         assert_eq!(actual.fan_target, climate.fan_target);
@@ -189,7 +157,10 @@ fn nha136_history_public_admission_preserves_only_new_fields_zero_and_absence() 
         );
     }
     assert!(
-        admit_observations_response(&climate_history_response(ClimateValue::default())).is_err(),
+        admit_observations_response(&climate_history_response(
+            history::HistoricalTemperatureControl::default()
+        ))
+        .is_err(),
         "empty climate admitted"
     );
 }
@@ -198,7 +169,7 @@ fn nha136_history_public_admission_preserves_only_new_fields_zero_and_absence() 
 fn nha136_history_public_admission_rejects_bad_new_fields_even_with_old_presence() {
     for old_temperature in [None, Some(21.5)] {
         for humidity in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -0.1, 100.1] {
-            let response = climate_history_response(ClimateValue {
+            let response = climate_history_response(history::HistoricalTemperatureControl {
                 current_temperature_celsius: old_temperature,
                 humidity_percent: Some(humidity),
                 ..Default::default()
@@ -216,11 +187,11 @@ fn nha136_history_public_admission_rejects_bad_new_fields_even_with_old_presence
             );
         }
         for target in [
-            ClimateFanTarget::Unspecified.into(),
+            history::TemperatureFanTarget::Unspecified.into(),
             EnumValue::Unknown(999),
             EnumValue::Unknown(-1),
         ] {
-            let response = climate_history_response(ClimateValue {
+            let response = climate_history_response(history::HistoricalTemperatureControl {
                 current_temperature_celsius: old_temperature,
                 fan_target: Some(target),
                 ..Default::default()

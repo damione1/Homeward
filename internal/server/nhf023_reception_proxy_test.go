@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	authapi "github.com/damione1/Homeward/gen/home/api/v2"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -13,8 +14,7 @@ import (
 	"sync"
 	"time"
 
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -49,12 +49,12 @@ func nhf023ReceptionProxy(proxy *httputil.ReverseProxy, out string) {
 			return nil
 		}
 		path := response.Request.URL.Path
-		if path != authv1connect.AuthServiceStartLoginProcedure && path != authv1connect.AuthServiceRefreshSessionProcedure {
+		if path != apiv2connect.AuthServiceStartLoginProcedure && path != apiv2connect.AuthServiceRefreshSessionProcedure {
 			return nil
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		if path == authv1connect.AuthServiceRefreshSessionProcedure {
+		if path == apiv2connect.AuthServiceRefreshSessionProcedure {
 			refreshes++
 			return store("background-refresh-observed.json", map[string]uint64{"native_refresh_http_200": refreshes})
 		}
@@ -68,15 +68,15 @@ func nhf023ReceptionProxy(proxy *httputil.ReverseProxy, out string) {
 		if len(data) > 65536 {
 			return errors.New("synthetic auth response exceeds bound")
 		}
-		value := &auth.StartLoginResponse{}
+		value := &authapi.StartLoginResponse{}
 		if err := proto.Unmarshal(data, value); err != nil {
 			return err
 		}
 		if tokens := value.GetDecision().GetAuthenticated(); tokens != nil {
 			// Client safety subtracts30s. Refresh is due about240s after login,
 			// after explicit service start/Activity suspension in this scenario.
-			tokens.AccessExpiresAt = timestamppb.New(time.Now().Add(270 * time.Second))
-			if err := store("background-short-access.json", map[string]int64{"advertised_expiry_unix": tokens.AccessExpiresAt.Seconds}); err != nil {
+			tokens.AccessExpireTime = timestamppb.New(time.Now().Add(270 * time.Second))
+			if err := store("background-short-access.json", map[string]int64{"advertised_expiry_unix": tokens.AccessExpireTime.Seconds}); err != nil {
 				return err
 			}
 		}

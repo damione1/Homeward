@@ -423,9 +423,7 @@ async fn execute(
     }
 }
 fn classify(failure: &Failure) -> CalendarWriteOutcome {
-    if failure.kind() == FailureKind::Rpc(RpcCode::Unauthenticated)
-        || !matches!(failure.authorization_termination(), Ok(None))
-    {
+    if failure.kind() == FailureKind::Rpc(RpcCode::Unauthenticated) {
         return CalendarWriteOutcome::AuthorityTerminated;
     }
     let detail = match failure.api_failure() {
@@ -437,7 +435,9 @@ fn classify(failure: &Failure) -> CalendarWriteOutcome {
     };
     use wire::ApiErrorReason as R;
     match detail.reason() {
-        R::AuthenticationRequired | R::AccessDenied => CalendarWriteOutcome::AuthorityTerminated,
+        R::AuthenticationRequired | R::AccessDenied | R::AuthorityUnavailable => {
+            CalendarWriteOutcome::AuthorityTerminated
+        }
         R::EtagMismatch | R::ResourceAlreadyExists => CalendarWriteOutcome::Conflict,
         R::ValidationFailed => CalendarWriteOutcome::Rejected(Rejection::Invalid),
         R::ResourceNotFound => CalendarWriteOutcome::Rejected(Rejection::NotFound),

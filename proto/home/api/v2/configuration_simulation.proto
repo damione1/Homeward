@@ -14,161 +14,6 @@ option java_multiple_files = true;
 option java_outer_classname = "ConfigurationSimulationProto";
 option java_package = "com.home.api.v2";
 
-enum ConfigurationSimulationSupport {
-  CONFIGURATION_SIMULATION_SUPPORT_UNSPECIFIED = 0;
-  CONFIGURATION_SIMULATION_SUPPORT_OBSERVE_STATE = 1;
-  CONFIGURATION_SIMULATION_SUPPORT_CLIMATE_SETPOINT = 2;
-  CONFIGURATION_SIMULATION_SUPPORT_SWITCH_TURN_ON = 3;
-  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_ON = 4;
-  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_OFF = 5;
-  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_ABSOLUTE = 6;
-  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_RELATIVE = 7;
-  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TRANSITION = 8;
-  CONFIGURATION_SIMULATION_SUPPORT_SCENE_TURN_ON = 9;
-  CONFIGURATION_SIMULATION_SUPPORT_SCENE_TRANSITION = 10;
-}
-message ConfigurationSimulationAttribute {
-  string name = 1;
-  oneof value {
-    string text = 2;
-    bool boolean = 3;
-    int64 integer = 4;
-    double number = 5;
-    bool null_value = 6;
-  }
-}
-message Fixture {
-  string alias = 1;
-  // Absence means unobserved; "unknown" and "unavailable" are observations.
-  optional string state = 2;
-  repeated ConfigurationSimulationAttribute attributes = 3;
-  repeated ConfigurationSimulationSupport supports = 4;
-  // A synthetic refusal tests failure propagation, never a device response.
-  bool refuse_intent = 5;
-}
-message SimulateConfigurationPlanRequest {
-  string name = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"
-  ];
-  home.api.v2.ConfigurationPlanCandidate candidate = 2 [(google.api.field_behavior) = REQUIRED];
-  repeated Fixture fixtures = 3;
-  repeated string event_types = 4;
-  google.protobuf.Timestamp now = 5;
-  string time_zone = 6;
-  uint64 virtual_limit_millis = 7;
-}
-enum ConfigurationSimulationStatus {
-  CONFIGURATION_SIMULATION_STATUS_UNSPECIFIED = 0;
-  CONFIGURATION_SIMULATION_STATUS_COMPLETED = 1;
-  CONFIGURATION_SIMULATION_STATUS_PARTIAL = 2;
-  CONFIGURATION_SIMULATION_STATUS_FAILED = 3;
-}
-enum ConfigurationSimulationDiagnosticCode {
-  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSPECIFIED = 0;
-  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_EXTENSION = 1;
-  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_CONCURRENCY = 2;
-  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_WAIT = 3;
-  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_INVALID_SOURCE = 4;
-  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_MISSING_FIXTURE = 5;
-  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_FIXTURE_REFUSED = 6;
-  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_EXECUTION_FAILED = 7;
-  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_CAPACITY_EXCEEDED = 8;
-}
-message ConfigurationSimulationPosition {
-  string file = 1;
-  string path = 2;
-  uint32 line = 3;
-  uint32 column = 4;
-}
-message ConfigurationSimulationDiagnostic {
-  ConfigurationSimulationDiagnosticCode code = 1;
-  ConfigurationSimulationPosition position = 2;
-}
-enum IntentOutcome {
-  INTENT_OUTCOME_UNSPECIFIED = 0;
-  INTENT_OUTCOME_RECORDED = 1;
-  INTENT_OUTCOME_REFUSED = 2;
-}
-message SwitchIntent {
-  bool on = 1;
-}
-message LightIntent {
-  optional bool on = 1;
-  optional double brightness_percent = 2;
-  optional double brightness_step_percent = 3;
-  optional uint32 brightness_255 = 4;
-  optional uint32 color_temp_mireds = 5;
-  optional double transition_seconds = 6;
-}
-message ClimateIntent {
-  optional double temperature_celsius = 1;
-  optional TemperatureMode mode = 2;
-  optional double humidity_percent = 3;
-  optional string fan_mode = 4;
-  optional string preset_mode = 5;
-}
-message FanIntent {
-  bool on = 1;
-  uint32 percentage = 2;
-}
-message ConfigurationSimulationIntent {
-  string alias = 1;
-  ConfigurationSimulationPosition position = 2;
-  IntentOutcome outcome = 3;
-  google.protobuf.Timestamp at = 4;
-  oneof parameters {
-    SwitchIntent switch = 5;
-    LightIntent light = 6;
-    ClimateIntent climate = 7;
-    FanIntent fan = 8;
-  }
-}
-enum ConfigurationSimulationActionKind {
-  CONFIGURATION_SIMULATION_ACTION_KIND_UNSPECIFIED = 0;
-  CONFIGURATION_SIMULATION_ACTION_KIND_VARIABLES = 1;
-  CONFIGURATION_SIMULATION_ACTION_KIND_SEQUENCE = 2;
-  CONFIGURATION_SIMULATION_ACTION_KIND_CHOOSE = 3;
-  CONFIGURATION_SIMULATION_ACTION_KIND_IF = 4;
-  CONFIGURATION_SIMULATION_ACTION_KIND_REPEAT = 5;
-  CONFIGURATION_SIMULATION_ACTION_KIND_PARALLEL = 6;
-  CONFIGURATION_SIMULATION_ACTION_KIND_WAIT = 7;
-  CONFIGURATION_SIMULATION_ACTION_KIND_STOP = 8;
-  CONFIGURATION_SIMULATION_ACTION_KIND_CALL = 9;
-  CONFIGURATION_SIMULATION_ACTION_KIND_DELAY = 10;
-  CONFIGURATION_SIMULATION_ACTION_KIND_WAIT_TEMPLATE = 11;
-}
-enum ConfigurationSimulationNodeStage {
-  CONFIGURATION_SIMULATION_NODE_STAGE_UNSPECIFIED = 0;
-  CONFIGURATION_SIMULATION_NODE_STAGE_ENTERED = 1;
-  CONFIGURATION_SIMULATION_NODE_STAGE_COMPLETED = 2;
-  CONFIGURATION_SIMULATION_NODE_STAGE_STOPPED = 3;
-  CONFIGURATION_SIMULATION_NODE_STAGE_CANCELLED = 4;
-  CONFIGURATION_SIMULATION_NODE_STAGE_FAILED = 5;
-  CONFIGURATION_SIMULATION_NODE_STAGE_WAITING = 6;
-}
-message ConfigurationSimulationNodeTrace {
-  ConfigurationSimulationPosition position = 1;
-  ConfigurationSimulationActionKind action = 2;
-  ConfigurationSimulationNodeStage stage = 3;
-  google.protobuf.Timestamp at = 4;
-  repeated uint32 branches = 5;
-  repeated uint32 iterations = 6;
-}
-message ConfigurationSimulationReport {
-  bool simulated = 1;
-  bool hardware_validated = 2;
-  ConfigurationSimulationStatus status = 3;
-  repeated ConfigurationSimulationIntent intents = 4;
-  repeated ConfigurationSimulationNodeTrace nodes = 5;
-  repeated ConfigurationSimulationDiagnostic diagnostics = 6;
-  uint64 elapsed_millis = 7;
-  repeated string limitations = 8;
-}
-message SimulateConfigurationPlanResponse {
-  ConfigurationSimulationReport report = 1;
-}
-
 // Human admin and current GLOBAL_CONFIGURATION/ADMINISTER on the common TLS
 // listener. Fixture declarations convey no production capability or authority.
 service ConfigurationSimulationService {
@@ -179,6 +24,303 @@ service ConfigurationSimulationService {
       post: "/v2/{name=homes/*}:simulateConfigurationPlan"
       body: "*"
     };
-    option (google.api.method_signature) = "name,candidate";
+    option (google.api.method_signature) = "name,candidate,now,time_zone,virtual_limit_millis";
   }
+}
+
+// Represents configuration simulation attribute.
+message ConfigurationSimulationAttribute {
+  // Attribute key within the simulated entity; not a resource name.
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  oneof value {
+    // The text associated with this message.
+    string text = 2;
+    // Indicates whether boolean.
+    bool boolean = 3;
+    // The integer represented by int64.
+    int64 integer = 4;
+    // The number represented by double.
+    double number = 5;
+    // Indicates whether null value.
+    bool null_value = 6;
+  }
+}
+
+// Represents fixture.
+message Fixture {
+  // The alias associated with this message.
+  string alias = 1 [(google.api.field_behavior) = REQUIRED];
+  // Absence means unobserved; "unknown" and "unavailable" are observations.
+  optional string state = 2;
+  // Collection of attributes for this message.
+  repeated ConfigurationSimulationAttribute attributes = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Collection of supports for this message.
+  repeated ConfigurationSimulationSupport supports = 4 [(google.api.field_behavior) = OPTIONAL];
+  // A synthetic refusal tests failure propagation, never a device response.
+  bool refuse_intent = 5 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Request for simulate configuration plan.
+message SimulateConfigurationPlanRequest {
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"
+  ];
+  // Source candidate to validate or simulate; validation does not activate it.
+  home.api.v2.ConfigurationPlanCandidate candidate = 2 [(google.api.field_behavior) = REQUIRED];
+  // Collection of fixtures for this message.
+  repeated Fixture fixtures = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Collection of event types for this message.
+  repeated string event_types = 4 [(google.api.field_behavior) = OPTIONAL];
+  // Recorded time for now. Absence means no timestamp was supplied or recorded.
+  google.protobuf.Timestamp now = 5 [(google.api.field_behavior) = REQUIRED];
+  // The time zone associated with this message.
+  string time_zone = 6 [(google.api.field_behavior) = REQUIRED];
+  // Maximum simulated elapsed time in milliseconds; does not run physical effects.
+  int64 virtual_limit_millis = 7 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Represents configuration simulation position.
+message ConfigurationSimulationPosition {
+  // The file associated with this message.
+  string file = 1;
+  // The path associated with this message.
+  string path = 2;
+  // The line represented as a bounded nonnegative integer.
+  int32 line = 3;
+  // The column represented as a bounded nonnegative integer.
+  int32 column = 4;
+}
+
+// Represents configuration simulation diagnostic.
+message ConfigurationSimulationDiagnostic {
+  // Closed diagnostic code; contains no raw parser, provider, or SQL message.
+  ConfigurationSimulationDiagnosticCode code = 1;
+  // Position within the corresponding native owner and epoch.
+  ConfigurationSimulationPosition position = 2;
+}
+
+// Represents switch intent.
+message SwitchIntent {
+  // Indicates whether on.
+  bool on = 1;
+}
+
+// Represents light intent.
+message LightIntent {
+  // Indicates whether on.
+  optional bool on = 1;
+  // Value of brightness in percent.
+  optional double brightness_percent = 2;
+  // Value of brightness step in percent.
+  optional double brightness_step_percent = 3;
+  // Absolute brightness in the inclusive integer range 0..255.
+  optional int32 brightness_level = 4;
+  // The color temp mireds represented as a bounded nonnegative integer.
+  optional int64 color_temp_mireds = 5;
+  // The transition seconds represented by double.
+  optional double transition_seconds = 6;
+}
+
+// Represents climate intent.
+message ClimateIntent {
+  // Value of temperature in degrees Celsius.
+  optional double temperature_celsius = 1;
+  // The mode represented by TemperatureMode.
+  optional TemperatureMode mode = 2;
+  // Value of humidity in percent.
+  optional double humidity_percent = 3;
+  // The fan mode associated with this message.
+  optional string fan_mode = 4;
+  // The preset mode associated with this message.
+  optional string preset_mode = 5;
+}
+
+// Represents fan intent.
+message FanIntent {
+  // Indicates whether on.
+  bool on = 1;
+  // The percentage represented as a bounded nonnegative integer.
+  int32 percentage = 2;
+}
+
+// Represents configuration simulation intent.
+message ConfigurationSimulationIntent {
+  // The alias associated with this message.
+  string alias = 1;
+  // Position within the corresponding native owner and epoch.
+  ConfigurationSimulationPosition position = 2;
+  // Closed outcome recorded by the native owner; distinguish acknowledgment from confirmed effect.
+  IntentOutcome outcome = 3;
+  // Recorded time for at. Absence means no timestamp was supplied or recorded.
+  google.protobuf.Timestamp at = 4;
+  oneof parameters {
+    // The switch represented by SwitchIntent.
+    SwitchIntent switch = 5;
+    // The light represented by LightIntent.
+    LightIntent light = 6;
+    // The climate represented by ClimateIntent.
+    ClimateIntent climate = 7;
+    // The fan represented by FanIntent.
+    FanIntent fan = 8;
+  }
+}
+
+// Represents configuration simulation node trace.
+message ConfigurationSimulationNodeTrace {
+  // Position within the corresponding native owner and epoch.
+  ConfigurationSimulationPosition position = 1;
+  // The action represented by ConfigurationSimulationActionKind.
+  ConfigurationSimulationActionKind action = 2;
+  // The stage represented by ConfigurationSimulationNodeStage.
+  ConfigurationSimulationNodeStage stage = 3;
+  // Recorded time for at. Absence means no timestamp was supplied or recorded.
+  google.protobuf.Timestamp at = 4;
+  // Collection of branches for this message.
+  repeated int32 branches = 5;
+  // Collection of iterations for this message.
+  repeated int32 iterations = 6;
+}
+
+// Reports simulated behavior and limitations; does not establish physical effects.
+message ConfigurationSimulationReport {
+  // Whether this result came from simulation rather than a physical effect.
+  bool simulated = 1;
+  // Whether hardware validation evidence is present. Simulation alone does not establish it.
+  bool hardware_validated = 2;
+  // The status represented by ConfigurationSimulationStatus.
+  ConfigurationSimulationStatus status = 3;
+  // Collection of intents for this message.
+  repeated ConfigurationSimulationIntent intents = 4;
+  // Collection of nodes for this message.
+  repeated ConfigurationSimulationNodeTrace nodes = 5;
+  // Collection of diagnostics for this message.
+  repeated ConfigurationSimulationDiagnostic diagnostics = 6;
+  // Elapsed simulated time in milliseconds.
+  int64 elapsed_millis = 7;
+  // Collection of limitations for this message.
+  repeated string limitations = 8;
+}
+
+// Successful result of simulate configuration plan.
+message SimulateConfigurationPlanResponse {
+  // The report represented by ConfigurationSimulationReport.
+  ConfigurationSimulationReport report = 1;
+}
+
+// Defines the closed vocabulary for configuration simulation support.
+enum ConfigurationSimulationSupport {
+  // No explicit configuration simulation support. Does not select an action.
+  CONFIGURATION_SIMULATION_SUPPORT_UNSPECIFIED = 0;
+  // Selects observe state for configuration simulation support.
+  CONFIGURATION_SIMULATION_SUPPORT_OBSERVE_STATE = 1;
+  // Selects climate setpoint for configuration simulation support.
+  CONFIGURATION_SIMULATION_SUPPORT_CLIMATE_SETPOINT = 2;
+  // Selects switch turn on for configuration simulation support.
+  CONFIGURATION_SIMULATION_SUPPORT_SWITCH_TURN_ON = 3;
+  // Selects light turn on for configuration simulation support.
+  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_ON = 4;
+  // Selects light turn off for configuration simulation support.
+  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_OFF = 5;
+  // Selects light brightness absolute for configuration simulation support.
+  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_ABSOLUTE = 6;
+  // Selects light brightness relative for configuration simulation support.
+  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_RELATIVE = 7;
+  // Selects light transition for configuration simulation support.
+  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TRANSITION = 8;
+  // Selects scene turn on for configuration simulation support.
+  CONFIGURATION_SIMULATION_SUPPORT_SCENE_TURN_ON = 9;
+  // Selects scene transition for configuration simulation support.
+  CONFIGURATION_SIMULATION_SUPPORT_SCENE_TRANSITION = 10;
+}
+
+// Defines the closed vocabulary for configuration simulation status.
+enum ConfigurationSimulationStatus {
+  // No explicit configuration simulation status. Does not select an action.
+  CONFIGURATION_SIMULATION_STATUS_UNSPECIFIED = 0;
+  // Selects completed for configuration simulation status.
+  CONFIGURATION_SIMULATION_STATUS_COMPLETED = 1;
+  // Selects partial for configuration simulation status.
+  CONFIGURATION_SIMULATION_STATUS_PARTIAL = 2;
+  // Selects failed for configuration simulation status.
+  CONFIGURATION_SIMULATION_STATUS_FAILED = 3;
+}
+
+// Defines the closed vocabulary for configuration simulation diagnostic code.
+enum ConfigurationSimulationDiagnosticCode {
+  // No explicit configuration simulation diagnostic code. Does not select an action.
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSPECIFIED = 0;
+  // Selects unsupported extension for configuration simulation diagnostic code.
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_EXTENSION = 1;
+  // Selects unsupported concurrency for configuration simulation diagnostic code.
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_CONCURRENCY = 2;
+  // Selects unsupported wait for configuration simulation diagnostic code.
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_WAIT = 3;
+  // Selects invalid source for configuration simulation diagnostic code.
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_INVALID_SOURCE = 4;
+  // Selects missing fixture for configuration simulation diagnostic code.
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_MISSING_FIXTURE = 5;
+  // Selects fixture refused for configuration simulation diagnostic code.
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_FIXTURE_REFUSED = 6;
+  // Selects execution failed for configuration simulation diagnostic code.
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_EXECUTION_FAILED = 7;
+  // Selects capacity exceeded for configuration simulation diagnostic code.
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_CAPACITY_EXCEEDED = 8;
+}
+
+// Defines the closed vocabulary for intent outcome.
+enum IntentOutcome {
+  // No explicit intent outcome. Does not select an action.
+  INTENT_OUTCOME_UNSPECIFIED = 0;
+  // Selects recorded for intent outcome.
+  INTENT_OUTCOME_RECORDED = 1;
+  // Selects refused for intent outcome.
+  INTENT_OUTCOME_REFUSED = 2;
+}
+
+// Defines the closed vocabulary for configuration simulation action kind.
+enum ConfigurationSimulationActionKind {
+  // No explicit configuration simulation action kind. Does not select an action.
+  CONFIGURATION_SIMULATION_ACTION_KIND_UNSPECIFIED = 0;
+  // Selects variables for configuration simulation action kind.
+  CONFIGURATION_SIMULATION_ACTION_KIND_VARIABLES = 1;
+  // Selects sequence for configuration simulation action kind.
+  CONFIGURATION_SIMULATION_ACTION_KIND_SEQUENCE = 2;
+  // Selects choose for configuration simulation action kind.
+  CONFIGURATION_SIMULATION_ACTION_KIND_CHOOSE = 3;
+  // Selects if for configuration simulation action kind.
+  CONFIGURATION_SIMULATION_ACTION_KIND_IF = 4;
+  // Selects repeat for configuration simulation action kind.
+  CONFIGURATION_SIMULATION_ACTION_KIND_REPEAT = 5;
+  // Selects parallel for configuration simulation action kind.
+  CONFIGURATION_SIMULATION_ACTION_KIND_PARALLEL = 6;
+  // Selects wait for configuration simulation action kind.
+  CONFIGURATION_SIMULATION_ACTION_KIND_WAIT = 7;
+  // Selects stop for configuration simulation action kind.
+  CONFIGURATION_SIMULATION_ACTION_KIND_STOP = 8;
+  // Selects call for configuration simulation action kind.
+  CONFIGURATION_SIMULATION_ACTION_KIND_CALL = 9;
+  // Selects delay for configuration simulation action kind.
+  CONFIGURATION_SIMULATION_ACTION_KIND_DELAY = 10;
+  // Selects wait template for configuration simulation action kind.
+  CONFIGURATION_SIMULATION_ACTION_KIND_WAIT_TEMPLATE = 11;
+}
+
+// Defines the closed vocabulary for configuration simulation node stage.
+enum ConfigurationSimulationNodeStage {
+  // No explicit configuration simulation node stage. Does not select an action.
+  CONFIGURATION_SIMULATION_NODE_STAGE_UNSPECIFIED = 0;
+  // Selects entered for configuration simulation node stage.
+  CONFIGURATION_SIMULATION_NODE_STAGE_ENTERED = 1;
+  // Selects completed for configuration simulation node stage.
+  CONFIGURATION_SIMULATION_NODE_STAGE_COMPLETED = 2;
+  // Selects stopped for configuration simulation node stage.
+  CONFIGURATION_SIMULATION_NODE_STAGE_STOPPED = 3;
+  // Selects cancelled for configuration simulation node stage.
+  CONFIGURATION_SIMULATION_NODE_STAGE_CANCELLED = 4;
+  // Selects failed for configuration simulation node stage.
+  CONFIGURATION_SIMULATION_NODE_STAGE_FAILED = 5;
+  // Selects waiting for configuration simulation node stage.
+  CONFIGURATION_SIMULATION_NODE_STAGE_WAITING = 6;
 }

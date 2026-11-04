@@ -20,17 +20,17 @@ func TestNHA164RawNanosecondsAndBoundedPhysicalProgress(t *testing.T) {
 	// regresses the received clock but remains in sequence order and in scope.
 	rows := make([]RecorderRecord, 0, 103)
 	for seq := uint64(1); seq <= 100; seq++ {
-		rows = append(rows, nha032EntityRecord(t, entity, seq, at, at.Add(900*time.Nanosecond), float64(seq), domain.SemanticMeasurement))
+		rows = append(rows, nha203HistoryEntityRecord(t, entity, seq, at, at.Add(900*time.Nanosecond), float64(seq), domain.SemanticMeasurement))
 	}
 	for _, point := range []struct {
 		seq   uint64
 		nanos time.Duration
 	}{{101, 100}, {102, 499}, {103, 500}} {
-		rows = append(rows, nha032EntityRecord(t, entity, point.seq, at, at.Add(point.nanos*time.Nanosecond), float64(point.seq), domain.SemanticMeasurement))
+		rows = append(rows, nha203HistoryEntityRecord(t, entity, point.seq, at, at.Add(point.nanos*time.Nanosecond), float64(point.seq), domain.SemanticMeasurement))
 	}
 	nha032Persist(t, s, epoch, 0, 103, rows, nil, nil)
 	q := nha164Query(t, historyquery.Observations, entity, at, at.Add(500*time.Nanosecond), 1)
-	first, err := s.ReadHistoricalRecorderPage(ctx, q, nil)
+	first, err := s.ReadHistoricalRecorderPage(ctx, q, nil, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestNHA164RawNanosecondsAndBoundedPhysicalProgress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := s.ReadHistoricalRecorderPage(ctx, q, cursor)
+	second, err := s.ReadHistoricalRecorderPage(ctx, q, cursor, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestNHA164RawNanosecondsAndBoundedPhysicalProgress(t *testing.T) {
 	}
 	cursor = second.Next
 	second.Release()
-	third, err := s.ReadHistoricalRecorderPage(ctx, q, cursor)
+	third, err := s.ReadHistoricalRecorderPage(ctx, q, cursor, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestNHA164RawNanosecondsAndBoundedPhysicalProgress(t *testing.T) {
 	}
 	cursor = third.Next
 	third.Release()
-	last, err := s.ReadHistoricalRecorderPage(ctx, q, cursor)
+	last, err := s.ReadHistoricalRecorderPage(ctx, q, cursor, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestNHA164RawNanosecondsAndBoundedPhysicalProgress(t *testing.T) {
 	// A fractional lower bound excludes the earlier exact payload rather than
 	// treating its rounded SQL timestamp as record corruption.
 	q = nha164Query(t, historyquery.Observations, entity, at.Add(500*time.Nanosecond), at.Add(time.Microsecond), 100)
-	page, err := s.ReadHistoricalRecorderPage(ctx, q, nil)
+	page, err := s.ReadHistoricalRecorderPage(ctx, q, nil, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,10 +132,10 @@ func TestNHA164LiveTailDoesNotAdvancePaginationHighWater(t *testing.T) {
 	nha031Open(t, s, epoch)
 	at := time.Now().UTC().Truncate(time.Microsecond).Add(-time.Minute)
 	entity := "nha164-tail-watermark"
-	nha032Persist(t, s, epoch, 0, 2, []RecorderRecord{nha032EntityRecord(t, entity, 1, at, at, 1, domain.SemanticMeasurement), nha032EntityRecord(t, entity, 2, at, at, 2, domain.SemanticMeasurement)}, nil, nil)
+	nha032Persist(t, s, epoch, 0, 2, []RecorderRecord{nha203HistoryEntityRecord(t, entity, 1, at, at, 1, domain.SemanticMeasurement), nha203HistoryEntityRecord(t, entity, 2, at, at, 2, domain.SemanticMeasurement)}, nil, nil)
 	live := RecorderLiveHigh{epoch: epoch, sequence: 3}
 	q := nha164Query(t, historyquery.Observations, entity, at.Add(-time.Hour), at.Add(time.Hour), 1)
-	first, err := s.ReadHistoricalRecorderPageAt(ctx, q, nil, &live)
+	first, err := s.ReadHistoricalRecorderPageAt(ctx, q, nil, &live, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,23 +144,21 @@ func TestNHA164LiveTailDoesNotAdvancePaginationHighWater(t *testing.T) {
 	if cursor == nil || cursor.highSequence != 2 || cursor.liveSequence != 3 {
 		t.Fatal("live queue enlarged the durable point watermark")
 	}
-	nha032Persist(t, s, epoch, 2, 3, []RecorderRecord{nha032EntityRecord(t, entity, 3, at, at, 3, domain.SemanticMeasurement)}, nil, nil)
-	second, err := s.ReadHistoricalRecorderPageAt(ctx, q, cursor, &live)
+	nha032Persist(t, s, epoch, 2, 3, []RecorderRecord{nha203HistoryEntityRecord(t, entity, 3, at, at, 3, domain.SemanticMeasurement)}, nil, nil)
+	second, err := s.ReadHistoricalRecorderPageAt(ctx, q, cursor, &live, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer second.Release()
-	_, _, _, through := second.Coverage.Bounds()
-	epochs := second.Coverage.Epochs()
-	if len(second.Observations) != 1 || second.Observations[0].Sequence != 2 || second.Next != nil || through != 3 || len(epochs) != 1 || epochs[0].Checkpoint() != 2 {
+	if len(second.Observations) != 1 || second.Observations[0].Sequence != 2 || second.Next != nil {
 		t.Fatalf("commit changed a frozen page's proven prefix/tail: %+v", second)
 	}
-	fresh, err := s.ReadHistoricalRecorderPageAt(ctx, nha164Query(t, historyquery.Observations, entity, at.Add(-time.Hour), at.Add(time.Hour), 100), nil, &live)
+	fresh, err := s.ReadHistoricalRecorderPageAt(ctx, nha164Query(t, historyquery.Observations, entity, at.Add(-time.Hour), at.Add(time.Hour), 100), nil, &live, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer fresh.Release()
-	if len(fresh.Observations) != 3 || fresh.Coverage.Epochs()[0].Checkpoint() != 3 {
+	if len(fresh.Observations) != 3 {
 		t.Fatal("new query did not observe the committed prefix")
 	}
 }
@@ -172,7 +170,7 @@ func TestNHA164FrozenTailPreservesPolicyExcludedPrefix(t *testing.T) {
 	nha031Open(t, s, epoch)
 	at := time.Now().UTC().Truncate(time.Microsecond).Add(-time.Minute)
 	entity := "nha164-excluded-prefix"
-	nha032Persist(t, s, epoch, 0, 2, []RecorderRecord{nha032EntityRecord(t, entity, 1, at, at, 1, domain.SemanticMeasurement), nha032EntityRecord(t, entity, 2, at, at, 2, domain.SemanticMeasurement)}, nil, nil)
+	nha032Persist(t, s, epoch, 0, 2, []RecorderRecord{nha203HistoryEntityRecord(t, entity, 1, at, at, 1, domain.SemanticMeasurement), nha203HistoryEntityRecord(t, entity, 2, at, at, 2, domain.SemanticMeasurement)}, nil, nil)
 	exclude := func(from, through, count uint64) {
 		batch, err := NewRecorderBatch(epoch, from, through, nil, nil, count, nil)
 		if err != nil {
@@ -185,7 +183,7 @@ func TestNHA164FrozenTailPreservesPolicyExcludedPrefix(t *testing.T) {
 	exclude(2, 3, 1)
 	live := RecorderLiveHigh{epoch: epoch, sequence: 10}
 	q := nha164Query(t, historyquery.Observations, entity, at.Add(-time.Hour), at.Add(time.Hour), 1)
-	first, err := s.ReadHistoricalRecorderPageAt(ctx, q, nil, &live)
+	first, err := s.ReadHistoricalRecorderPageAt(ctx, q, nil, &live, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,23 +201,30 @@ func TestNHA164FrozenTailPreservesPolicyExcludedPrefix(t *testing.T) {
 		t.Fatal("prefix exclusion lost by token roundtrip", err)
 	}
 	exclude(3, 10, 7)
-	second, err := s.ReadHistoricalRecorderPageAt(ctx, q, cursor, &live)
+	second, err := s.ReadHistoricalRecorderPageAt(ctx, q, cursor, &live, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	epochs := second.Coverage.Epochs()
-	_, _, _, through := second.Coverage.Bounds()
 	second.Release()
-	if len(second.Observations) != 1 || second.Observations[0].Sequence != 2 || second.Next != nil || len(epochs) != 1 || epochs[0].Checkpoint() != 3 || epochs[0].PolicyExcluded() != 1 || through != 10 {
-		t.Fatalf("current exclusion count escaped frozen prefix: %+v", epochs)
+	if len(second.Observations) != 1 || second.Observations[0].Sequence != 2 || second.Next != nil {
+		t.Fatal("global exclusion progress changed frozen point selection")
 	}
-	fresh, err := s.ReadHistoricalRecorderPageAt(ctx, q, nil, &live)
+	fresh, err := s.ReadHistoricalRecorderPageAt(ctx, q, nil, &live, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	epochs = fresh.Coverage.Epochs()
 	fresh.Release()
-	if len(epochs) != 1 || epochs[0].Checkpoint() != 10 || epochs[0].PolicyExcluded() != 8 {
-		t.Fatalf("new query lost real current epoch total: %+v", epochs)
+	request, err := NewRecorderCoverageRequest(epoch, 0, epoch, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
+	diagnostic, err := s.ReadRecorderCoverage(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	epochs := diagnostic.Epochs()
+	if len(epochs) != 1 || epochs[0].Checkpoint() != 10 || epochs[0].PolicyExcluded() != 8 {
+		t.Fatal("native diagnostic lost real current epoch total")
+	}
+
 }

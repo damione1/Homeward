@@ -17,8 +17,6 @@ import (
 
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/damione1/Homeward/internal/configactivation"
@@ -97,9 +95,6 @@ func TestNHF008ControlServer(t *testing.T) {
 		}
 		public, err := NewPublicPlan(nil, nil, accountTransportAudit{store: store})
 		if err != nil {
-			return RuntimePlan{}, err
-		}
-		if err := dashboard.register(public); err != nil {
 			return RuntimePlan{}, err
 		}
 		plan := RuntimePlan{Identity: identities, Public: public,
@@ -194,7 +189,7 @@ func TestNHF008ControlServer(t *testing.T) {
 		nhf003WritePrivate(t, out, "result.json", map[string]any{"server_joined": joined, "fake_driver_calls": driver.count.Load(), "command_driver_entries": count,
 			"execute_request_ids": calls.execute, "get_operation_names": calls.get, "wait_operation_names": calls.wait, "admitted_operations": calls.admitted, "entity_count": len(devices) + len(definitions),
 			"native_login_calls": calls.logins.Load(), "native_revokes": calls.revokes.Load(), "helper_sql_initial": initial, "helper_sql_final": final,
-			"dashboard_get_calls": dashboard.gets.Load(), "dashboard_watch_calls": dashboard.watches.Load(), "real_device_writes": 0, "last_device_arguments": deviceArguments, "device_arguments": allArguments})
+			"real_device_writes": 0, "last_device_arguments": deviceArguments, "device_arguments": allArguments})
 	}()
 	source, err := host.OpenSession(instance)
 	if err != nil {
@@ -286,12 +281,13 @@ func TestNHF008ControlServer(t *testing.T) {
 	client := nha181Client(roots)
 	defer client.CloseIdleConnections()
 	base := "https://" + address.String()
-	tokens := nha162RunLogin(t, ctx, authv1connect.NewAuthServiceClient(client, base), login, password)
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
+	tokens := nha162RunLogin(t, ctx, apiv2connect.NewAuthServiceClient(client, base), login, password)
+	dashboard.start(t, ctx, client, base, tokens.AccessToken)
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
 	setPolicy := func(write bool) {
 		t.Helper()
-		current, err := policies.GetPolicy(ctx, nha141BearerRequest(&auth.GetPolicyRequest{AccountId: account}, tokens.AccessToken))
-		if err != nil || current.Msg.GetPresent() == nil {
+		current, err := policies.GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: nha203SessionAccount(t, tokens.Session).String() + "/authorizationPolicy"}, tokens.AccessToken))
+		if err != nil || current.Msg == nil {
 			t.Fatal("policy read", err)
 		}
 		policy := fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n", account.Value)
@@ -303,7 +299,7 @@ func TestNHF008ControlServer(t *testing.T) {
 			policy += fmt.Sprintf("  - scope: {family: %s, operation: %s}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n", permission.family, permission.operation)
 		}
 		policy += "  - scope: {family: dashboards, operation: read}\n    objects: {dashboards: {own: {}}}\n"
-		if _, err := policies.ReplacePolicy(ctx, nha141BearerRequest(&auth.ReplacePolicyRequest{AccountId: account, YamlSource: []byte(policy), Precondition: &auth.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, tokens.AccessToken)); err != nil {
+		if _, err := policies.ReplaceAuthorizationPolicy(ctx, nha141BearerRequest(&api.ReplaceAuthorizationPolicyRequest{Name: nha203SessionAccount(t, tokens.Session).String() + "/authorizationPolicy", YamlSource: []byte(policy), Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: current.Msg.Etag}}, tokens.AccessToken)); err != nil {
 			t.Fatal(err)
 		}
 	}

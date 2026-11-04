@@ -2,7 +2,7 @@ use buffa::EnumValue;
 use buffa_types::google::protobuf::Timestamp;
 use home_wire_contract::{
     companion_contract::*,
-    home::{auth::v1 as auth, companion::v1 as wire},
+    home::{auth::v1 as auth, testing::companion::v1 as wire},
 };
 
 fn device() -> wire::DeviceDescription {
@@ -203,10 +203,13 @@ fn no_hardware_denied_and_stale_survive_without_zero_or_off() {
 fn own_installation_is_bound_to_native_account_session_and_device() {
     let record = installation();
     assert!(valid_installation(&record));
-    let account = home_wire_contract::auth_contract::AccountId::parse("synthetic-account").unwrap();
-    let session = home_wire_contract::auth_contract::SessionId::parse("synthetic-session").unwrap();
+    let account =
+        home_wire_contract::qualification_identity::AccountId::parse("synthetic-account").unwrap();
+    let session =
+        home_wire_contract::qualification_identity::SessionId::parse("synthetic-session").unwrap();
     assert!(bind_native(&record, &account, &session).is_ok());
-    let other = home_wire_contract::auth_contract::SessionId::parse("other-session").unwrap();
+    let other =
+        home_wire_contract::qualification_identity::SessionId::parse("other-session").unwrap();
     assert_eq!(
         bind_native(&record, &account, &other),
         Err(Invalid::ForeignIdentity)
@@ -297,13 +300,18 @@ fn first_mutation_requires_a_previously_admitted_synthetic_context() {
         ))
         .is_err()
     );
-    assert!(
-        admit_response(Response::Describe(&wire::DescribeCompanionResponse {
-            context: context().into(),
-            ..Default::default()
-        }))
-        .is_ok()
-    );
+    let mut description = wire::DescribeCompanionResponse {
+        context: context().into(),
+        ..Default::default()
+    };
+    assert!(admit_response(Response::Describe(&description)).is_err());
+    description.synthetic_identity = wire::SyntheticIdentity {
+        account_id: installation().account_id,
+        session_id: installation().session_id,
+        ..Default::default()
+    }
+    .into();
+    assert!(admit_response(Response::Describe(&description)).is_ok());
 }
 
 #[test]

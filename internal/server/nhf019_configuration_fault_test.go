@@ -1,11 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,12 +20,16 @@ import (
 	"testing"
 	"time"
 
+	longrunningpb "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
-	cfg "github.com/damione1/Homeward/gen/home/configuration/v1"
-	"github.com/damione1/Homeward/gen/home/configuration/v1/configurationv1connect"
-	apply "github.com/damione1/Homeward/gen/home/configurationapply/v1"
-	"github.com/damione1/Homeward/gen/home/configurationapply/v1/configurationapplyv1connect"
+	apply "github.com/damione1/Homeward/gen/home/api/v2"
+	cfg "github.com/damione1/Homeward/gen/home/api/v2"
+	configurationapplyv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	"github.com/damione1/Homeward/internal/apierrors"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type nhf019Fault uint8
@@ -106,7 +112,7 @@ type nhf019FaultKey struct{}
 
 func nhf019Mutation(path string) bool {
 	switch path {
-	case configurationv1connect.ConfigurationServiceWriteDocumentProcedure, configurationv1connect.ConfigurationServiceRestoreDocumentProcedure, configurationapplyv1connect.ConfigurationApplyServiceApplyProcedure, configurationapplyv1connect.ConfigurationApplyServiceRollbackProcedure:
+	case configurationv1connect.ConfigurationServicePublishConfigurationDocumentProcedure, configurationv1connect.ConfigurationServiceRollbackConfigurationDocumentProcedure, configurationapplyv1connect.ConfigurationApplyServiceApplyConfigurationPlanProcedure, configurationapplyv1connect.ConfigurationApplyServiceRollbackConfigurationProcedure:
 		return true
 	default:
 		return false
@@ -115,8 +121,8 @@ func nhf019Mutation(path string) bool {
 
 // The proxy forwards production code except for explicitly injected outcomes.
 // A lost response is cut only AFTER the real backend completed its mutation.
-// Injected outcomes authenticate by a real ReadDocument and never forward Apply.
-func nhf019StartFaultProxy(t *testing.T, out, data, origin string, roots *x509.CertPool, documents configurationv1connect.ConfigurationServiceClient) *nhf019FaultProxy {
+// Injected outcomes authenticate by a real GetConfigurationDocument and never forward Apply.
+func nhf019StartFaultProxy(t *testing.T, out, data, origin string, roots *x509.CertPool, documents configurationv1connect.ConfigurationServiceClient, documentName string) *nhf019FaultProxy {
 	t.Helper()
 	target, err := url.Parse(origin)
 	if err != nil || target.Scheme != "https" || target.Hostname() != "127.0.0.1" {
@@ -144,13 +150,13 @@ func nhf019StartFaultProxy(t *testing.T, out, data, origin string, roots *x509.C
 		}
 		return nil
 	}
-	injected := connect.NewUnaryHandler(configurationapplyv1connect.ConfigurationApplyServiceApplyProcedure, func(ctx context.Context, request *connect.Request[apply.ApplyRequest]) (*connect.Response[apply.ApplyResponse], error) {
+	injected := connect.NewUnaryHandler(configurationapplyv1connect.ConfigurationApplyServiceApplyConfigurationPlanProcedure, func(ctx context.Context, request *connect.Request[apply.ApplyConfigurationPlanRequest]) (*connect.Response[longrunningpb.Operation], error) {
 		if contracts.AdmitConfigurationApplyRequest(request.Msg) != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("synthetic invalid candidate"))
 		}
-		read := connect.NewRequest(&cfg.ReadDocumentRequest{Id: &cfg.DocumentId{Value: "operational.main"}})
+		read := connect.NewRequest(&cfg.GetConfigurationDocumentRequest{Name: documentName})
 		read.Header().Set("Authorization", request.Header().Get("Authorization"))
-		current, err := documents.ReadDocument(ctx, read)
+		current, err := documents.GetConfigurationDocument(ctx, read)
 		if err != nil {
 			return nil, err
 		}
@@ -158,28 +164,32 @@ func nhf019StartFaultProxy(t *testing.T, out, data, origin string, roots *x509.C
 		if !ok {
 			return nil, connect.NewError(connect.CodeInternal, errors.New("unbound synthetic fault"))
 		}
-		target := current.Msg.ActiveGeneration.Revision + 1
-		activation := &cfg.ActivationResult{}
+		p.update(func(counts *nhf019Counts) { counts.Injected++ })
 		switch mode {
 		case nhf019Unknown:
-			activation.Outcome = cfg.ActivationOutcome_ACTIVATION_OUTCOME_COMMIT_UNKNOWN
-			activation.Transaction = cfg.TransactionOutcome_TRANSACTION_OUTCOME_COMMIT_UNKNOWN
-			activation.GenerationRevision = &target
-		case nhf019Reconciling:
-			activation.Outcome = cfg.ActivationOutcome_ACTIVATION_OUTCOME_COMMITTED_RECONCILING
-			activation.Transaction = cfg.TransactionOutcome_TRANSACTION_OUTCOME_COMMITTED
-			activation.GenerationRevision = &target
+			return nil, apiRPCError(ctx, apierrors.New(cfg.ApiErrorReason_API_ERROR_REASON_COMMIT_OUTCOME_UNKNOWN))
 		case nhf019Restart:
-			activation.Outcome = cfg.ActivationOutcome_ACTIVATION_OUTCOME_RESTART_REQUIRED
-			activation.Transaction = cfg.TransactionOutcome_TRANSACTION_OUTCOME_NO_TRANSACTION
+			return nil, apiRPCError(ctx, apierrors.New(cfg.ApiErrorReason_API_ERROR_REASON_CONFIG_RESTART_REQUIRED))
+		case nhf019Reconciling:
+			// This isolated fault proxy intentionally models a pending response,
+			// never native commit/publication evidence or a production owner.
 		case nhf019Normal, nhf019LoseCommitted, nhf019Held:
 			return nil, connect.NewError(connect.CodeInternal, errors.New("wrong synthetic fault handler"))
 		}
-		response := &apply.ApplyResponse{Activation: activation}
-		if contracts.AdmitConfigurationApplyResponse(response) != nil {
-			return nil, connect.NewError(connect.CodeInternal, errors.New("invalid synthetic outcome"))
+		target := current.Msg.ActiveGeneration.Revision + 1
+		home := strings.Split(current.Msg.Name, "/configurationDocuments/")[0]
+		metadata, err := anypb.New(&cfg.ConfigurationOperationMetadata{
+			CreateTime: timestamppb.Now(), Generation: fmt.Sprintf("%s/configurationGenerations/g-%d", home, target), GenerationRevision: target,
+			ManifestSha256: bytes.Repeat([]byte{1}, 32), Phase: cfg.ConfigurationOperationPhase_CONFIGURATION_OPERATION_PHASE_COMMITTED,
+		})
+		if err != nil {
+			return nil, err
 		}
-		p.update(func(counts *nhf019Counts) { counts.Injected++ })
+		response := &longrunningpb.Operation{Name: home + "/operations/config-11111111111111111111111111111111", Metadata: metadata}
+		if contracts.AdmitConfigurationApplyResponse(response) != nil {
+			return nil, connect.NewError(connect.CodeInternal, errors.New("invalid synthetic operation"))
+		}
+
 		return connect.NewResponse(response), nil
 	})
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -200,7 +210,7 @@ func nhf019StartFaultProxy(t *testing.T, out, data, origin string, roots *x509.C
 			p.update(func(counts *nhf019Counts) { counts.Forwarded++ })
 			proxy.ServeHTTP(w, r)
 		case nhf019Unknown, nhf019Reconciling, nhf019Restart:
-			if r.URL.Path != configurationapplyv1connect.ConfigurationApplyServiceApplyProcedure {
+			if r.URL.Path != configurationapplyv1connect.ConfigurationApplyServiceApplyConfigurationPlanProcedure {
 				http.Error(w, "injected outcome is Apply-only", http.StatusBadRequest)
 				return
 			}

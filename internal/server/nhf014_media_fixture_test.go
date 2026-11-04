@@ -21,7 +21,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"sort"
 	"syscall"
 	"testing"
 	"time"
@@ -29,19 +28,17 @@ import (
 	"connectrpc.com/connect"
 	imported "github.com/damione1/Homeward/compat/ha/dashboard"
 	"github.com/damione1/Homeward/contracts"
-	actions "github.com/damione1/Homeward/gen/home/actions/v1"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	media "github.com/damione1/Homeward/gen/home/media/v1"
-	"github.com/damione1/Homeward/gen/home/media/v1/mediav1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
 	state "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/internal/config"
+	"github.com/damione1/Homeward/internal/apitypes"
+	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
+	"github.com/damione1/Homeward/internal/mediasessions"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
@@ -115,34 +112,37 @@ func nhf014ReadPlayers(root string) ([]nhf014PlayerSource, error) {
 	return value.Players, nil
 }
 
-func nhf014DescriptorHash() ([]byte, error) {
-	files := make(map[string]protoreflect.FileDescriptor)
+func nhf014Descriptor() ([]byte, []byte, error) {
+	// Match the native compiled descriptor fingerprint: dependencies precede
+	// their importer in declared import order, as in Sonos/AndroidTV.
+	seen := make(map[string]bool)
+	set := new(descriptorpb.FileDescriptorSet)
 	var visit func(protoreflect.FileDescriptor)
 	visit = func(file protoreflect.FileDescriptor) {
-		if files[file.Path()] != nil {
+		if seen[file.Path()] {
 			return
 		}
-		files[file.Path()] = file
+		seen[file.Path()] = true
 		for i := 0; i < file.Imports().Len(); i++ {
 			visit(file.Imports().Get(i).FileDescriptor)
 		}
+		set.File = append(set.File, protodesc.ToFileDescriptorProto(file))
 	}
 	visit(media.File_home_media_v1_media_proto)
-	names := make([]string, 0, len(files))
-	for name := range files {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	set := new(descriptorpb.FileDescriptorSet)
-	for _, name := range names {
-		set.File = append(set.File, protodesc.ToFileDescriptorProto(files[name]))
-	}
 	raw, err := proto.MarshalOptions{Deterministic: true}.Marshal(set)
+	if err != nil {
+		return nil, nil, err
+	}
+	digest := sha256.Sum256(raw)
+	return raw, digest[:], nil
+}
+func nhf014DescriptorHash() ([]byte, error) { _, hash, err := nhf014Descriptor(); return hash, err }
+func nhf014Description(label string) (*registrywire.CapabilityDescription, error) {
+	raw, hash, err := nhf014Descriptor()
 	if err != nil {
 		return nil, err
 	}
-	digest := sha256.Sum256(raw)
-	return digest[:], nil
+	return &registrywire.CapabilityDescription{SchemaId: nhf014MediaSchema, Major: 1, Endpoint: "media", DisplayName: label, DescriptorSet: raw, DescriptorSha256: hash, Constraints: &registrywire.CapabilityDescription_Extension{Extension: &registrywire.ExtensionConstraints{ActionMessage: proto.String("home.media.v1.MediaAction")}}}, nil
 }
 func nhf014NewMock(players []nhf014PlayerSource, resolved map[string]domain.EntityID, cursor *state.ViewCursor) (*nhf014MediaMock, error) {
 	digest, err := nhf014DescriptorHash()
@@ -284,7 +284,7 @@ func nhf014ReadControl(root string, previous uint64) (*nhf014Control, error) {
 	}
 	switch value.Action {
 	case nhf014Confirm:
-		if _, err = domain.ParseCommandID(value.Command); err != nil {
+		if _, err = apitypes.ParseRequestID(value.Command); err != nil {
 			return nil, err
 		}
 	default:
@@ -295,34 +295,44 @@ func nhf014ReadControl(root string, previous uint64) (*nhf014Control, error) {
 	return &value, nil
 }
 
-// A sidecar transport reuses Run's exact native session/authority and certificate.
-// Only auth/state/dashboard calls are forwarded to its loopback origin.
-func nhf014StartMock(t *testing.T, m *nhf014MediaMock, sessions *sessionCoordinator, store *storage.Store, client *http.Client, upstream, data string) (string, func()) {
+// A loopback proxy models an explicitly lost command response. All authority,
+// admission, durable effects and Operations remain in the one Run owner.
+func nhf014StartMock(t *testing.T, m *nhf014MediaMock, client *http.Client, upstream, data string) (string, func()) {
 	t.Helper()
-	authenticator := &sessionAuth{store: store, coordinator: sessions}
-	plan, err := NewPublicPlan(authenticator, authenticator, accountTransportAudit{store: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = m.register(plan); err != nil {
-		t.Fatal(err)
-	}
-	settings := config.DefaultPublicSettings()
-	compiled, err := compilePublicPlan(plan, settings)
-	if err != nil {
-		t.Fatal(err)
-	}
-	protected := compiled.handler(settings, newPublicAdmissions())
 	target, err := url.Parse(upstream)
 	if err != nil || target.Scheme != "https" || target.Hostname() != "127.0.0.1" {
 		t.Fatal("synthetic loopback upstream required", err)
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.Transport = client.Transport
-	mux := http.NewServeMux()
-	mux.Handle("/"+mediav1connect.MediaServiceName+"/", protected)
-	mux.Handle("/", proxy)
-	server := httptest.NewUnstartedServer(mux)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != apiv2connect.CapabilityServiceExecuteCapabilityProcedure {
+			proxy.ServeHTTP(w, r)
+			return
+		}
+		m.mu.Lock()
+		m.submitCalls++
+		lose := m.loseReply
+		m.loseReply = false
+		m.mu.Unlock()
+		if !lose {
+			proxy.ServeHTTP(w, r)
+			return
+		}
+		captured := httptest.NewRecorder()
+		proxy.ServeHTTP(captured, r)
+		if captured.Code == http.StatusOK {
+			_ = connect.NewErrorWriter().Write(w, r, connect.NewError(connect.CodeUnavailable, errors.New("synthetic response lost after upstream execution")))
+			return
+		}
+		for name, values := range captured.Header() {
+			for _, value := range values {
+				w.Header().Add(name, value)
+			}
+		}
+		w.WriteHeader(captured.Code)
+		_, _ = w.Write(captured.Body.Bytes())
+	}))
 	pair, err := tls.LoadX509KeyPair(filepath.Join(data, nha181CertificateName), filepath.Join(data, nha181PrivateKeyName))
 	if err != nil {
 		t.Fatal(err)
@@ -335,7 +345,8 @@ func nhf014StartMock(t *testing.T, m *nhf014MediaMock, sessions *sessionCoordina
 
 // Starts only through the explicit isolated qualification executable. No real
 // pilot is configured, even if a source alias resembles an installed alias.
-func TestNHF014MediaServer(t *testing.T) {
+func TestNHF014MediaServer(t *testing.T) { nhf014RunFixture(t, false) }
+func nhf014RunFixture(t *testing.T, smoke bool) {
 	out, root := os.Getenv("HOMEWARD_NHF014_FIXTURE"), os.Getenv("HOMEWARD_NHF014_SOURCES")
 	if out == "" {
 		t.Skip("explicit isolated NHF014 fixture only")
@@ -365,46 +376,60 @@ func TestNHF014MediaServer(t *testing.T) {
 	dashboard := &nhf005Dashboard{file: filepath.Join(root, "dashboard.yaml"), compilation: imported.CompilationRecipes}
 	instance, _ := domain.ParseIntegrationInstanceID("nhf014-synthetic-only")
 	var host *integrations.Manager
-	var store *storage.Store
 	var sessions *sessionCoordinator
-	var sequence *sequencer.Sequencer
-	var activationOwner *configactivation.Owner
+	var epochs integrations.CommandEpochAuthority
+	var identity *registry.Repository
+	var fixtureStore *storage.Store
+	mock := &nhf014MediaMock{now: time.Now, artwork: make(map[domain.EntityID]*nha202MediaOwner)}
 	keys := make(map[string]integrations.SourceKey)
+	var mediaSources []MediaResourceSource
 	factory := RuntimeFactory(func(factoryCtx context.Context, actual *storage.Store) (RuntimePlan, error) {
+		fixtureStore = actual
 		identities, err := registry.NewRepository(actual, manifest)
 		if err != nil {
 			return RuntimePlan{}, err
 		}
+		identity = identities
 		for _, player := range players {
-			key, err := integrations.NewSourceKey("synthetic-media", string(player.Kind))
+			key, err := integrations.NewSourceKey("synthetic-media-"+string(player.Kind), "media")
 			if err != nil {
 				return RuntimePlan{}, err
 			}
 			keys[player.Alias] = key
-			if _, err = identities.ConfigureBinding(factoryCtx, instance, key, player.Alias); err != nil {
+			resolved, err := identities.ConfigureBinding(factoryCtx, instance, key, player.Alias)
+			if err != nil {
 				return RuntimePlan{}, err
+			}
+			if player.Kind == nhf014Group {
+				id, err := resolved.Entity.Value()
+				if err != nil {
+					return RuntimePlan{}, err
+				}
+				owner := nha202NewMediaOwner(t, id, mediasessions.Artwork, color.NRGBA{R: 64, G: 128, B: 155, A: 255})
+				mock.artwork[resolved.Entity] = owner
+				source, err := NewMediaResourceSource(resolved.Entity, owner.binding.Slot(), owner)
+				if err != nil {
+					return RuntimePlan{}, err
+				}
+				mediaSources = append(mediaSources, source)
 			}
 		}
 		public, err := NewPublicPlan(nil, nil, accountTransportAudit{store: actual})
 		if err != nil {
 			return RuntimePlan{}, err
 		}
-		if err = dashboard.register(public); err != nil {
-			return RuntimePlan{}, err
-		}
-		return RuntimePlan{Identity: identities, Public: public, ConfigureAuthorization: func(_ context.Context, c AuthorizationComposition) error {
+		return RuntimePlan{Identity: identities, Public: public, MediaSources: mediaSources, ConfigureAuthorization: func(_ context.Context, c AuthorizationComposition) error {
 			dashboard.authority = c.ViewAuthorizer().(*policyViewAuthorizer).authority
-			sequence = c.ViewAuthorizer().(*policyViewAuthorizer).source
+			mock.authority = dashboard.authority
 			return nil
 		}, ConfigureActivation: func(_ context.Context, owner *configactivation.Owner) error {
 			if owner == nil {
 				return errors.New("actual activation owner required")
 			}
 			dashboard.activation = owner
-			activationOwner = owner
 			return nil
 		}, Configure: func(_ context.Context, manager *integrations.Manager, actual *storage.Store) error {
-			host, store = manager, actual
+			host = manager
 			return nil
 		}}, nil
 	})
@@ -414,10 +439,18 @@ func TestNHF014MediaServer(t *testing.T) {
 	go func() {
 		done <- runWithDependencies(runCtx, settings.startup, func(listenCtx context.Context, kind, _ string) (net.Listener, error) {
 			return (&net.ListenConfig{}).Listen(listenCtx, kind, "127.0.0.1:0")
-		}, func(address net.Addr) { ready <- address }, factory, runDependencies{observeLists: func(_ *listComposition, actual *sessionCoordinator) { sessions = actual }})
+		}, func(address net.Addr) { ready <- address }, factory, runDependencies{observeLists: func(_ *listComposition, actual *sessionCoordinator) { sessions = actual }, mediaProjector: mock, observe: func(_ context.Context, sequence *sequencer.Sequencer) error { epochs = sequence; return nil }, configureCapabilityCatalog: func(catalog *contracts.CapabilityCatalog) error {
+			description, err := nhf014Description("Synthetic media")
+			if err != nil {
+				return err
+			}
+			if err = catalog.RegisterExtensionCodec(description, nhf014MediaCodec{}); err != nil {
+				return err
+			}
+			return nil
+		}})
 	}()
 	joined := false
-	var mock *nhf014MediaMock
 	defer func() {
 		stop()
 		if !joined {
@@ -442,8 +475,8 @@ func TestNHF014MediaServer(t *testing.T) {
 			mock.mu.Unlock()
 		}
 		nhf003WritePrivate(t, out, "result.json", map[string]any{"server_joined": joined, "command_driver_entries": entries, "real_device_writes": 0, "synthetic_submit_calls": calls, "synthetic_mutations": mutations, "synthetic_action_records": records})
-		if entries != 0 {
-			t.Error("synthetic media entered real command driver")
+		if entries != mutations {
+			t.Error("native driver entries differ from synthetic committed effects")
 		}
 	}()
 	var address net.Addr
@@ -461,7 +494,11 @@ func TestNHF014MediaServer(t *testing.T) {
 	}
 	candidates := make([]integrations.Candidate, 0, len(players))
 	for _, player := range players {
-		candidate, err := integrations.NewCandidate(keys[player.Alias], []*registrywire.CapabilityDescription{{SchemaId: contracts.BinarySchema, Major: 1, Endpoint: "media", DisplayName: player.Title, Constraints: &registrywire.CapabilityDescription_Binary{Binary: &registrywire.BinaryConstraints{}}}})
+		description, err := nhf014Description(player.Title)
+		if err != nil {
+			t.Fatal(err)
+		}
+		candidate, err := integrations.NewCandidate(keys[player.Alias], []*registrywire.CapabilityDescription{description})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -478,41 +515,30 @@ func TestNHF014MediaServer(t *testing.T) {
 			t.Fatal(err)
 		}
 		resolved[players[i].Alias] = entity
-		quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
-		value := domain.NewSwitchValue(false)
-		observation, err := integrations.NewStateObservation("media", quality, &value, nil, time.Now(), nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err = source.Publish(ctx, binding, observation); err != nil {
-			t.Fatal(err)
-		}
+
 	}
 	const adminName, adminPassword = "NHF014 isolated admin", "NHF014 synthetic admin password"
 	adminID := nha162RunBootstrap(t, ctx, data, adminName, adminPassword)
 	client := nha181Client(roots)
 	defer client.CloseIdleConnections()
 	base := "https://" + address.String()
-	authAPI := authv1connect.NewAuthServiceClient(client, base)
+	authAPI := apiv2connect.NewAuthServiceClient(client, base)
 	admin := nha162RunLogin(t, ctx, authAPI, adminName, adminPassword)
 	if err = dashboard.install(adminID.Value, resolved); err != nil {
 		t.Fatal(err)
 	}
-	accounts := authv1connect.NewAccountServiceClient(client, base)
+	accounts := apiv2connect.NewAccountServiceClient(client, base)
 	const readerName, readerPassword = "NHF014 Reader", "NHF014 synthetic reader password"
-	created, err := accounts.CreateAccount(ctx, nha162Bearer(&auth.CreateAccountRequest{LoginName: readerName, DisplayName: readerName, InitialPassword: readerPassword, Role: auth.AccountRole_ACCOUNT_ROLE_USER}, admin.AccessToken))
+	created, err := accounts.CreateAccount(ctx, nha162Bearer(&api.CreateAccountRequest{Parent: nha203SessionAccount(t, admin.Session).Home().String(), Account: &api.Account{LoginName: readerName, DisplayName: readerName, InitialPassword: readerPassword, Role: api.AccountRole_ACCOUNT_ROLE_USER}}, admin.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	dashboard.mu.Lock()
-	readerAccount, err := contracts.ParseAccountID(created.Msg.Account.Id.Value)
-	if err != nil {
-		dashboard.mu.Unlock()
-		t.Fatal(err)
-	}
+	readerAccount := nha203NativeAccount(t, ctx, sessions.store, created.Msg.Name)
 	dashboard.owners = map[contracts.AccountID]contracts.AccountID{readerAccount: readerAccount}
 	dashboard.mu.Unlock()
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
+	dashboard.start(t, ctx, client, base, admin.AccessToken)
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
 	readAllowed, writeAllowed := true, true
 	setPolicy := func() {
 		grants := `  - scope: {family: state_registry, operation: read}
@@ -532,37 +558,49 @@ func TestNHF014MediaServer(t *testing.T) {
     objects: {entities: {all: {capabilities: {all: {}}}}}
 `
 		}
-		nha162RunPolicy(t, ctx, policies, created.Msg.Account.Id, admin.AccessToken, grants)
+		nha162RunPolicy(t, ctx, policies, created.Msg.Name, admin.AccessToken, grants)
 	}
 	setPolicy()
 	reader := nha162RunLogin(t, ctx, authAPI, readerName, readerPassword)
-	homes, err := apiv2connect.NewHomeServiceClient(client, base).ListHomes(ctx, nha162Bearer(&api.ListHomesRequest{PageSize: 10}, reader.AccessToken))
-	if err != nil || len(homes.Msg.GetHomes()) != 1 {
-		t.Fatal(err)
+	if epochs == nil || identity == nil || sessions == nil {
+		t.Fatal("actual sequence, identity and sessions required")
 	}
-	viewAPI := apiv2connect.NewEntityViewServiceClient(client, base)
-	createdView, err := viewAPI.CreateEntityView(ctx, nha162Bearer(&api.CreateEntityViewRequest{Parent: homes.Msg.GetHomes()[0].GetName(), EntityView: &api.EntityView{}}, reader.AccessToken))
+	epoch, err := epochs.CurrentAdmissionEpoch()
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _ = viewAPI.DeleteEntityView(ctx, nha162Bearer(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, reader.AccessToken))
-	epoch, err := sequence.CurrentAdmissionEpoch()
+	stamp, err := dashboard.activation.CurrentConfig(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	stamp, err := activationOwner.CurrentConfig(ctx)
+	revision, _, err := stamp.Components()
 	if err != nil {
 		t.Fatal(err)
 	}
-	configRevision, _, err := stamp.Components()
+	seeded, err := nhf014NewMock(players, resolved, &state.ViewCursor{Epoch: epoch, ConfigRevision: revision})
 	if err != nil {
 		t.Fatal(err)
 	}
-	mock, err = nhf014NewMock(players, resolved, &state.ViewCursor{Epoch: epoch, ConfigRevision: configRevision})
+	mock.mu.Lock()
+	mock.snapshots = seeded.snapshots
+	mock.records = seeded.records
+	mock.unavailable = seeded.unavailable
+	mock.groups = seeded.groups
+	mock.png = seeded.png
+	mock.mu.Unlock()
+	if err = host.AttachCommandDriver(source, mock); err != nil {
+		t.Fatal(err)
+	}
+	readerSession := nha203NativeSession(t, ctx, sessions.store, reader.Session.Name)
+	readerPrincipal, err := authorization.NativePrincipal(readerAccount, readerSession)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mock.authority = sessions.authority
+	readerActor, err := readerPrincipal.Actor()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	var group domain.EntityID
 	for _, player := range players {
 		if player.Kind == nhf014Group {
@@ -570,27 +608,39 @@ func TestNHF014MediaServer(t *testing.T) {
 		}
 	}
 	original := proto.Clone(mock.snapshots[group]).(*media.Snapshot)
-	origin, closeMock := nhf014StartMock(t, mock, sessions, store, client, base, data)
+	origin, closeMock := nhf014StartMock(t, mock, client, base, data)
 	defer closeMock()
 	certificate, err := os.ReadFile(filepath.Join(data, nha181CertificateName))
 	if err != nil {
 		t.Fatal(err)
 	}
 	ids := make(map[string]string)
-	for _, player := range players {
-		ids[string(player.Kind)], _ = resolved[player.Alias].Value()
+	home, err := identity.HomeName(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	mediaAPI := mediav1connect.NewMediaServiceClient(client, origin)
+	for _, player := range players {
+		name, err := apitypes.EntityNameForIdentity(home, resolved[player.Alias])
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids[string(player.Kind)] = name.String()
+	}
+	mediaAPI := apiv2connect.NewHomeServiceClient(client, origin)
 	for _, kind := range []nhf014PlayerKind{nhf014Minimal, nhf014Group} {
-		response, err := mediaAPI.ReadSnapshot(ctx, nha162Bearer(&media.ReadSnapshotRequest{EntityId: ids[string(kind)]}, reader.AccessToken))
-		if err != nil || response.Msg.GetSnapshot() == nil || response.Msg.GetSnapshot().GetRoute().GetEntityId() != ids[string(kind)] || response.Msg.GetSnapshot().ActionAccess != state.ActionAccess_ACTION_ACCESS_ALLOWED {
-			t.Fatal("native authenticated media read failed", err)
+		response, err := mediaAPI.ListCapabilities(ctx, nha162Bearer(&api.ListCapabilitiesRequest{Parent: ids[string(kind)]}, reader.AccessToken))
+		if err != nil || len(response.Msg.Capabilities) != 1 || response.Msg.Capabilities[0].GetMediaPlayback() == nil || response.Msg.Capabilities[0].GetMediaPlayback().ActionAccess != api.ActionAccess_ACTION_ACCESS_ALLOWED {
+			t.Fatal("native authenticated capability projection", err)
 		}
 	}
-	if _, err = mediaAPI.ReadSnapshot(ctx, connect.NewRequest(&media.ReadSnapshotRequest{EntityId: ids[string(nhf014Group)]})); connect.CodeOf(err) != connect.CodeUnauthenticated {
-		t.Fatal("anonymous media read was not refused", err)
+	if _, err = mediaAPI.ListCapabilities(ctx, connect.NewRequest(&api.ListCapabilitiesRequest{Parent: ids[string(nhf014Group)]})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatal("anonymous capability read not refused", err)
 	}
 	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "origin": origin, "ca_pem": string(certificate), "entities": ids, "reader": map[string]string{"login_name": readerName, "password": readerPassword}, "production_media": false})
+	if smoke {
+		nhf014SmokeCore(t, ctx, client, origin, reader.AccessToken, ids[string(nhf014Group)], mock, fixtureStore, host)
+		return
+	}
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	var controlSequence uint64
@@ -662,19 +712,29 @@ func TestNHF014MediaServer(t *testing.T) {
 				case nhf014LoseReply:
 					mock.loseReply = true
 				case nhf014Confirm:
-					id, _ := domain.ParseCommandID(control.Command)
+					key, err := apitypes.ParseRequestID(control.Command)
+					if err != nil {
+						mock.mu.Unlock()
+						t.Fatal(err)
+					}
+					id, err := publicCommandID(readerActor, &key)
+					if err != nil {
+						mock.mu.Unlock()
+						t.Fatal(err)
+					}
 					record := mock.records[id]
 					if record == nil {
 						mock.mu.Unlock()
-						t.Fatal("unbound synthetic confirmation")
+						t.Fatal("unbound synthetic effect confirmation")
 					}
-					record.response = proto.Clone(record.response).(*actions.CommandResponse)
-					record.progress = proto.Clone(record.progress).(*actions.ActionProgress)
-					record.response.Status = actions.ActionStatus_ACTION_STATUS_CONFIRMED
-					record.progress.Status = actions.ActionStatus_ACTION_STATUS_CONFIRMED
-					record.progress.Sequence++
-					close(record.changed)
-					record.changed = make(chan struct{})
+					admitted, entity := record.command, record.entity
+					mock.mu.Unlock()
+					err = admitted.ConfirmProtocol(nhf014SyntheticProof{id, entity})
+					mock.mu.Lock()
+					if err != nil {
+						mock.mu.Unlock()
+						t.Fatal(err)
+					}
 				case nhf014DenyArtwork:
 					mock.artworkMode = nhf014ArtworkDenied
 					// Publish a new reference so an already cached allowed image
@@ -685,6 +745,11 @@ func TestNHF014MediaServer(t *testing.T) {
 						t.Fatal(err)
 					}
 					value.Artwork = &media.ArtworkReference{Reference: reference, ExpiresAt: timestamppb.New(time.Now().Add(30 * time.Second))}
+					if owner := mock.artwork[group]; owner != nil {
+						owner.mu.Lock()
+						copy(owner.key[:], reference)
+						owner.mu.Unlock()
+					}
 				case nhf014ExpireArtwork:
 					mock.artworkMode = nhf014ArtworkExpired
 					if value.Artwork != nil {
@@ -700,6 +765,11 @@ func TestNHF014MediaServer(t *testing.T) {
 						t.Fatal(err)
 					}
 					value.Artwork = &media.ArtworkReference{Reference: reference, ExpiresAt: timestamppb.New(time.Now().Add(30 * time.Second))}
+					if owner := mock.artwork[group]; owner != nil {
+						owner.mu.Lock()
+						copy(owner.key[:], reference)
+						owner.mu.Unlock()
+					}
 				case nhf014Outage:
 					mock.offline = true
 				case nhf014RestoreNetwork:
@@ -710,6 +780,18 @@ func TestNHF014MediaServer(t *testing.T) {
 				default:
 					mock.mu.Unlock()
 					t.Fatal("unparsed media fixture control")
+				}
+				for entity, owner := range mock.artwork {
+					owner.mu.Lock()
+					owner.artworkDenied = mock.artworkMode == nhf014ArtworkDenied
+					owner.offline = mock.offline
+					value := mock.snapshots[entity]
+					if value != nil && value.Artwork != nil {
+						owner.artworkExpiry = value.Artwork.ExpiresAt.AsTime()
+					} else {
+						owner.artworkExpiry = time.Now().Add(-time.Second)
+					}
+					owner.mu.Unlock()
 				}
 				mock.mu.Unlock()
 			}

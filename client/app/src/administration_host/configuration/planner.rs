@@ -840,11 +840,9 @@ mod tests {
         let Some(Operation::Revalidate(request)) = editor.action(ProAdminAction::Revalidate) else {
             panic!("revalidate")
         };
-        assert_eq!(request.receipt, "r".repeat(44));
-        assert_eq!(
-            request.configuration_plan.candidate.files[0].exact_source,
-            b"views: []\n"
-        );
+        assert_eq!(request.name, "homes/test/configurationPlans/p-synthetic");
+        assert_eq!(request.etag, "synthetic-plan-etag");
+        assert_eq!(request.candidate.files[0].exact_source, b"views: []\n");
         editor.edit(Field::Source as i32, "# replacement\nviews: []\n".into());
         assert!(editor.plan.is_none());
         assert!(editor.action(ProAdminAction::Revalidate).is_none());

@@ -136,6 +136,14 @@ fn unknown_semantics_at_every_nested_boundary_never_fall_back_to_a_command() {
     for wire in cases {
         assert_eq!(decode_interactions(&wire), Err(RecipeFailure::Unsupported));
     }
+    for (line, column) in [(-1, 3), (7, -1)] {
+        let mut wire = recipes();
+        let mut location = source();
+        location.line = line;
+        location.column = column;
+        wire.interactions[0].source = location.into();
+        assert_eq!(decode_interactions(&wire), Err(RecipeFailure::Invalid));
+    }
     let mut wire = recipes();
     wire.interactions[0].intention = None;
     assert_eq!(decode_interactions(&wire), Err(RecipeFailure::Invalid));

@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"errors"
+	"math"
 	"strings"
 	"unicode"
 
@@ -18,7 +19,10 @@ type projectedRecipes struct {
 
 func nativeSource(location Location, variant string) *wire.DashboardLayoutSource {
 	at := location.Position()
-	return &wire.DashboardLayoutSource{File: at.File, Line: uint32(max(0, at.Line)), Column: uint32(max(0, at.Column)), Path: location.Path(), Variant: variant}
+	if at.Line < 0 || at.Column < 0 || int64(at.Line) > math.MaxInt32 || int64(at.Column) > math.MaxInt32 {
+		return nil
+	}
+	return &wire.DashboardLayoutSource{File: at.File, Line: int32(at.Line), Column: int32(at.Column), Path: location.Path(), Variant: variant}
 }
 
 func nativeEntity(alias domain.HAAlias, resolver *apiProjector) (string, error) {
@@ -66,6 +70,9 @@ func projectRecipes(owner Location, actions []Action, visibility []Visibility, r
 			continue
 		}
 		interaction := &wire.DashboardInteraction{Gesture: gesture, Source: nativeSource(action.Location(), "action")}
+		if interaction.Source == nil {
+			return nil, ErrUnprojectableRecipe
+		}
 		if text, present := action.Confirmation(); present {
 			interaction.Confirmation = &wire.DashboardConfirmation{Text: text}
 		}
@@ -153,11 +160,13 @@ func projectRecipes(owner Location, actions []Action, visibility []Visibility, r
 		}
 		if len(list.Conditions) != 0 {
 			recipes.Visibility = &wire.DashboardPredicate{Source: nativeSource(owner, "visibility"), Condition: &wire.DashboardPredicate_All{All: list}}
+			if recipes.Visibility.Source == nil {
+				return nil, ErrUnprojectableRecipe
+			}
 		}
 	}
-	if len(recipes.Interactions) == 0 && recipes.Visibility == nil {
-		return nil, nil
-	}
+	// Successful projection always owns a value, including an empty recipe.
+	// Both layout consumers read its fields after checking only the error.
 	return recipes, nil
 }
 
@@ -167,6 +176,9 @@ func projectNativePredicate(value Visibility, resolver *apiProjector, depth int,
 	}
 	*remaining--
 	predicate := &wire.DashboardPredicate{Source: nativeSource(value.Location(), "visibility")}
+	if predicate.Source == nil {
+		return nil, ErrUnprojectableRecipe
+	}
 	switch value.Kind() {
 	case VisibilityFlag:
 		flag, present := value.Flag()

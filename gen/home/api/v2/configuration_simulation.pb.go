@@ -23,20 +23,32 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Defines the closed vocabulary for configuration simulation support.
 type ConfigurationSimulationSupport int32
 
 const (
-	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_UNSPECIFIED               ConfigurationSimulationSupport = 0
-	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_OBSERVE_STATE             ConfigurationSimulationSupport = 1
-	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_CLIMATE_SETPOINT          ConfigurationSimulationSupport = 2
-	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_SWITCH_TURN_ON            ConfigurationSimulationSupport = 3
-	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_ON             ConfigurationSimulationSupport = 4
-	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_OFF            ConfigurationSimulationSupport = 5
+	// No explicit configuration simulation support. Does not select an action.
+	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_UNSPECIFIED ConfigurationSimulationSupport = 0
+	// Selects observe state for configuration simulation support.
+	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_OBSERVE_STATE ConfigurationSimulationSupport = 1
+	// Selects climate setpoint for configuration simulation support.
+	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_CLIMATE_SETPOINT ConfigurationSimulationSupport = 2
+	// Selects switch turn on for configuration simulation support.
+	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_SWITCH_TURN_ON ConfigurationSimulationSupport = 3
+	// Selects light turn on for configuration simulation support.
+	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_ON ConfigurationSimulationSupport = 4
+	// Selects light turn off for configuration simulation support.
+	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_OFF ConfigurationSimulationSupport = 5
+	// Selects light brightness absolute for configuration simulation support.
 	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_ABSOLUTE ConfigurationSimulationSupport = 6
+	// Selects light brightness relative for configuration simulation support.
 	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_RELATIVE ConfigurationSimulationSupport = 7
-	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TRANSITION          ConfigurationSimulationSupport = 8
-	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_SCENE_TURN_ON             ConfigurationSimulationSupport = 9
-	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_SCENE_TRANSITION          ConfigurationSimulationSupport = 10
+	// Selects light transition for configuration simulation support.
+	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TRANSITION ConfigurationSimulationSupport = 8
+	// Selects scene turn on for configuration simulation support.
+	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_SCENE_TURN_ON ConfigurationSimulationSupport = 9
+	// Selects scene transition for configuration simulation support.
+	ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_SCENE_TRANSITION ConfigurationSimulationSupport = 10
 )
 
 // Enum value maps for ConfigurationSimulationSupport.
@@ -96,13 +108,18 @@ func (ConfigurationSimulationSupport) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_simulation_proto_rawDescGZIP(), []int{0}
 }
 
+// Defines the closed vocabulary for configuration simulation status.
 type ConfigurationSimulationStatus int32
 
 const (
+	// No explicit configuration simulation status. Does not select an action.
 	ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_UNSPECIFIED ConfigurationSimulationStatus = 0
-	ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_COMPLETED   ConfigurationSimulationStatus = 1
-	ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_PARTIAL     ConfigurationSimulationStatus = 2
-	ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_FAILED      ConfigurationSimulationStatus = 3
+	// Selects completed for configuration simulation status.
+	ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_COMPLETED ConfigurationSimulationStatus = 1
+	// Selects partial for configuration simulation status.
+	ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_PARTIAL ConfigurationSimulationStatus = 2
+	// Selects failed for configuration simulation status.
+	ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_FAILED ConfigurationSimulationStatus = 3
 )
 
 // Enum value maps for ConfigurationSimulationStatus.
@@ -148,18 +165,28 @@ func (ConfigurationSimulationStatus) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_simulation_proto_rawDescGZIP(), []int{1}
 }
 
+// Defines the closed vocabulary for configuration simulation diagnostic code.
 type ConfigurationSimulationDiagnosticCode int32
 
 const (
-	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSPECIFIED             ConfigurationSimulationDiagnosticCode = 0
-	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_EXTENSION   ConfigurationSimulationDiagnosticCode = 1
+	// No explicit configuration simulation diagnostic code. Does not select an action.
+	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSPECIFIED ConfigurationSimulationDiagnosticCode = 0
+	// Selects unsupported extension for configuration simulation diagnostic code.
+	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_EXTENSION ConfigurationSimulationDiagnosticCode = 1
+	// Selects unsupported concurrency for configuration simulation diagnostic code.
 	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_CONCURRENCY ConfigurationSimulationDiagnosticCode = 2
-	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_WAIT        ConfigurationSimulationDiagnosticCode = 3
-	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_INVALID_SOURCE          ConfigurationSimulationDiagnosticCode = 4
-	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_MISSING_FIXTURE         ConfigurationSimulationDiagnosticCode = 5
-	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_FIXTURE_REFUSED         ConfigurationSimulationDiagnosticCode = 6
-	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_EXECUTION_FAILED        ConfigurationSimulationDiagnosticCode = 7
-	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_CAPACITY_EXCEEDED       ConfigurationSimulationDiagnosticCode = 8
+	// Selects unsupported wait for configuration simulation diagnostic code.
+	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_WAIT ConfigurationSimulationDiagnosticCode = 3
+	// Selects invalid source for configuration simulation diagnostic code.
+	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_INVALID_SOURCE ConfigurationSimulationDiagnosticCode = 4
+	// Selects missing fixture for configuration simulation diagnostic code.
+	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_MISSING_FIXTURE ConfigurationSimulationDiagnosticCode = 5
+	// Selects fixture refused for configuration simulation diagnostic code.
+	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_FIXTURE_REFUSED ConfigurationSimulationDiagnosticCode = 6
+	// Selects execution failed for configuration simulation diagnostic code.
+	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_EXECUTION_FAILED ConfigurationSimulationDiagnosticCode = 7
+	// Selects capacity exceeded for configuration simulation diagnostic code.
+	ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_CAPACITY_EXCEEDED ConfigurationSimulationDiagnosticCode = 8
 )
 
 // Enum value maps for ConfigurationSimulationDiagnosticCode.
@@ -215,12 +242,16 @@ func (ConfigurationSimulationDiagnosticCode) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_simulation_proto_rawDescGZIP(), []int{2}
 }
 
+// Defines the closed vocabulary for intent outcome.
 type IntentOutcome int32
 
 const (
+	// No explicit intent outcome. Does not select an action.
 	IntentOutcome_INTENT_OUTCOME_UNSPECIFIED IntentOutcome = 0
-	IntentOutcome_INTENT_OUTCOME_RECORDED    IntentOutcome = 1
-	IntentOutcome_INTENT_OUTCOME_REFUSED     IntentOutcome = 2
+	// Selects recorded for intent outcome.
+	IntentOutcome_INTENT_OUTCOME_RECORDED IntentOutcome = 1
+	// Selects refused for intent outcome.
+	IntentOutcome_INTENT_OUTCOME_REFUSED IntentOutcome = 2
 )
 
 // Enum value maps for IntentOutcome.
@@ -264,20 +295,33 @@ func (IntentOutcome) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_simulation_proto_rawDescGZIP(), []int{3}
 }
 
+// Defines the closed vocabulary for configuration simulation action kind.
 type ConfigurationSimulationActionKind int32
 
 const (
-	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_UNSPECIFIED   ConfigurationSimulationActionKind = 0
-	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_VARIABLES     ConfigurationSimulationActionKind = 1
-	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_SEQUENCE      ConfigurationSimulationActionKind = 2
-	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_CHOOSE        ConfigurationSimulationActionKind = 3
-	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_IF            ConfigurationSimulationActionKind = 4
-	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_REPEAT        ConfigurationSimulationActionKind = 5
-	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_PARALLEL      ConfigurationSimulationActionKind = 6
-	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_WAIT          ConfigurationSimulationActionKind = 7
-	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_STOP          ConfigurationSimulationActionKind = 8
-	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_CALL          ConfigurationSimulationActionKind = 9
-	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_DELAY         ConfigurationSimulationActionKind = 10
+	// No explicit configuration simulation action kind. Does not select an action.
+	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_UNSPECIFIED ConfigurationSimulationActionKind = 0
+	// Selects variables for configuration simulation action kind.
+	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_VARIABLES ConfigurationSimulationActionKind = 1
+	// Selects sequence for configuration simulation action kind.
+	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_SEQUENCE ConfigurationSimulationActionKind = 2
+	// Selects choose for configuration simulation action kind.
+	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_CHOOSE ConfigurationSimulationActionKind = 3
+	// Selects if for configuration simulation action kind.
+	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_IF ConfigurationSimulationActionKind = 4
+	// Selects repeat for configuration simulation action kind.
+	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_REPEAT ConfigurationSimulationActionKind = 5
+	// Selects parallel for configuration simulation action kind.
+	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_PARALLEL ConfigurationSimulationActionKind = 6
+	// Selects wait for configuration simulation action kind.
+	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_WAIT ConfigurationSimulationActionKind = 7
+	// Selects stop for configuration simulation action kind.
+	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_STOP ConfigurationSimulationActionKind = 8
+	// Selects call for configuration simulation action kind.
+	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_CALL ConfigurationSimulationActionKind = 9
+	// Selects delay for configuration simulation action kind.
+	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_DELAY ConfigurationSimulationActionKind = 10
+	// Selects wait template for configuration simulation action kind.
 	ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_WAIT_TEMPLATE ConfigurationSimulationActionKind = 11
 )
 
@@ -340,16 +384,24 @@ func (ConfigurationSimulationActionKind) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_simulation_proto_rawDescGZIP(), []int{4}
 }
 
+// Defines the closed vocabulary for configuration simulation node stage.
 type ConfigurationSimulationNodeStage int32
 
 const (
+	// No explicit configuration simulation node stage. Does not select an action.
 	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_UNSPECIFIED ConfigurationSimulationNodeStage = 0
-	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_ENTERED     ConfigurationSimulationNodeStage = 1
-	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_COMPLETED   ConfigurationSimulationNodeStage = 2
-	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_STOPPED     ConfigurationSimulationNodeStage = 3
-	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_CANCELLED   ConfigurationSimulationNodeStage = 4
-	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_FAILED      ConfigurationSimulationNodeStage = 5
-	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_WAITING     ConfigurationSimulationNodeStage = 6
+	// Selects entered for configuration simulation node stage.
+	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_ENTERED ConfigurationSimulationNodeStage = 1
+	// Selects completed for configuration simulation node stage.
+	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_COMPLETED ConfigurationSimulationNodeStage = 2
+	// Selects stopped for configuration simulation node stage.
+	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_STOPPED ConfigurationSimulationNodeStage = 3
+	// Selects cancelled for configuration simulation node stage.
+	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_CANCELLED ConfigurationSimulationNodeStage = 4
+	// Selects failed for configuration simulation node stage.
+	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_FAILED ConfigurationSimulationNodeStage = 5
+	// Selects waiting for configuration simulation node stage.
+	ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_WAITING ConfigurationSimulationNodeStage = 6
 )
 
 // Enum value maps for ConfigurationSimulationNodeStage.
@@ -401,9 +453,11 @@ func (ConfigurationSimulationNodeStage) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_simulation_proto_rawDescGZIP(), []int{5}
 }
 
+// Represents configuration simulation attribute.
 type ConfigurationSimulationAttribute struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Attribute key within the simulated entity; not a resource name.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Types that are valid to be assigned to Value:
 	//
 	//	*ConfigurationSimulationAttribute_Text
@@ -510,22 +564,27 @@ type isConfigurationSimulationAttribute_Value interface {
 }
 
 type ConfigurationSimulationAttribute_Text struct {
+	// The text associated with this message.
 	Text string `protobuf:"bytes,2,opt,name=text,proto3,oneof"`
 }
 
 type ConfigurationSimulationAttribute_Boolean struct {
+	// Indicates whether boolean.
 	Boolean bool `protobuf:"varint,3,opt,name=boolean,proto3,oneof"`
 }
 
 type ConfigurationSimulationAttribute_Integer struct {
+	// The integer represented by int64.
 	Integer int64 `protobuf:"varint,4,opt,name=integer,proto3,oneof"`
 }
 
 type ConfigurationSimulationAttribute_Number struct {
+	// The number represented by double.
 	Number float64 `protobuf:"fixed64,5,opt,name=number,proto3,oneof"`
 }
 
 type ConfigurationSimulationAttribute_NullValue struct {
+	// Indicates whether null value.
 	NullValue bool `protobuf:"varint,6,opt,name=null_value,json=nullValue,proto3,oneof"`
 }
 
@@ -539,13 +598,17 @@ func (*ConfigurationSimulationAttribute_Number) isConfigurationSimulationAttribu
 
 func (*ConfigurationSimulationAttribute_NullValue) isConfigurationSimulationAttribute_Value() {}
 
+// Represents fixture.
 type Fixture struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Alias string                 `protobuf:"bytes,1,opt,name=alias,proto3" json:"alias,omitempty"`
+	// The alias associated with this message.
+	Alias string `protobuf:"bytes,1,opt,name=alias,proto3" json:"alias,omitempty"`
 	// Absence means unobserved; "unknown" and "unavailable" are observations.
-	State      *string                             `protobuf:"bytes,2,opt,name=state,proto3,oneof" json:"state,omitempty"`
+	State *string `protobuf:"bytes,2,opt,name=state,proto3,oneof" json:"state,omitempty"`
+	// Collection of attributes for this message.
 	Attributes []*ConfigurationSimulationAttribute `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty"`
-	Supports   []ConfigurationSimulationSupport    `protobuf:"varint,4,rep,packed,name=supports,proto3,enum=home.api.v2.ConfigurationSimulationSupport" json:"supports,omitempty"`
+	// Collection of supports for this message.
+	Supports []ConfigurationSimulationSupport `protobuf:"varint,4,rep,packed,name=supports,proto3,enum=home.api.v2.ConfigurationSimulationSupport" json:"supports,omitempty"`
 	// A synthetic refusal tests failure propagation, never a device response.
 	RefuseIntent  bool `protobuf:"varint,5,opt,name=refuse_intent,json=refuseIntent,proto3" json:"refuse_intent,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -617,15 +680,23 @@ func (x *Fixture) GetRefuseIntent() bool {
 	return false
 }
 
+// Request for simulate configuration plan.
 type SimulateConfigurationPlanRequest struct {
-	state              protoimpl.MessageState      `protogen:"open.v1"`
-	Name               string                      `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Candidate          *ConfigurationPlanCandidate `protobuf:"bytes,2,opt,name=candidate,proto3" json:"candidate,omitempty"`
-	Fixtures           []*Fixture                  `protobuf:"bytes,3,rep,name=fixtures,proto3" json:"fixtures,omitempty"`
-	EventTypes         []string                    `protobuf:"bytes,4,rep,name=event_types,json=eventTypes,proto3" json:"event_types,omitempty"`
-	Now                *timestamppb.Timestamp      `protobuf:"bytes,5,opt,name=now,proto3" json:"now,omitempty"`
-	TimeZone           string                      `protobuf:"bytes,6,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
-	VirtualLimitMillis uint64                      `protobuf:"varint,7,opt,name=virtual_limit_millis,json=virtualLimitMillis,proto3" json:"virtual_limit_millis,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Source candidate to validate or simulate; validation does not activate it.
+	Candidate *ConfigurationPlanCandidate `protobuf:"bytes,2,opt,name=candidate,proto3" json:"candidate,omitempty"`
+	// Collection of fixtures for this message.
+	Fixtures []*Fixture `protobuf:"bytes,3,rep,name=fixtures,proto3" json:"fixtures,omitempty"`
+	// Collection of event types for this message.
+	EventTypes []string `protobuf:"bytes,4,rep,name=event_types,json=eventTypes,proto3" json:"event_types,omitempty"`
+	// Recorded time for now. Absence means no timestamp was supplied or recorded.
+	Now *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=now,proto3" json:"now,omitempty"`
+	// The time zone associated with this message.
+	TimeZone string `protobuf:"bytes,6,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	// Maximum simulated elapsed time in milliseconds; does not run physical effects.
+	VirtualLimitMillis int64 `protobuf:"varint,7,opt,name=virtual_limit_millis,json=virtualLimitMillis,proto3" json:"virtual_limit_millis,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -702,19 +773,24 @@ func (x *SimulateConfigurationPlanRequest) GetTimeZone() string {
 	return ""
 }
 
-func (x *SimulateConfigurationPlanRequest) GetVirtualLimitMillis() uint64 {
+func (x *SimulateConfigurationPlanRequest) GetVirtualLimitMillis() int64 {
 	if x != nil {
 		return x.VirtualLimitMillis
 	}
 	return 0
 }
 
+// Represents configuration simulation position.
 type ConfigurationSimulationPosition struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	File          string                 `protobuf:"bytes,1,opt,name=file,proto3" json:"file,omitempty"`
-	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
-	Line          uint32                 `protobuf:"varint,3,opt,name=line,proto3" json:"line,omitempty"`
-	Column        uint32                 `protobuf:"varint,4,opt,name=column,proto3" json:"column,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The file associated with this message.
+	File string `protobuf:"bytes,1,opt,name=file,proto3" json:"file,omitempty"`
+	// The path associated with this message.
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// The line represented as a bounded nonnegative integer.
+	Line int32 `protobuf:"varint,3,opt,name=line,proto3" json:"line,omitempty"`
+	// The column represented as a bounded nonnegative integer.
+	Column        int32 `protobuf:"varint,4,opt,name=column,proto3" json:"column,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -763,24 +839,27 @@ func (x *ConfigurationSimulationPosition) GetPath() string {
 	return ""
 }
 
-func (x *ConfigurationSimulationPosition) GetLine() uint32 {
+func (x *ConfigurationSimulationPosition) GetLine() int32 {
 	if x != nil {
 		return x.Line
 	}
 	return 0
 }
 
-func (x *ConfigurationSimulationPosition) GetColumn() uint32 {
+func (x *ConfigurationSimulationPosition) GetColumn() int32 {
 	if x != nil {
 		return x.Column
 	}
 	return 0
 }
 
+// Represents configuration simulation diagnostic.
 type ConfigurationSimulationDiagnostic struct {
-	state         protoimpl.MessageState                `protogen:"open.v1"`
-	Code          ConfigurationSimulationDiagnosticCode `protobuf:"varint,1,opt,name=code,proto3,enum=home.api.v2.ConfigurationSimulationDiagnosticCode" json:"code,omitempty"`
-	Position      *ConfigurationSimulationPosition      `protobuf:"bytes,2,opt,name=position,proto3" json:"position,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Closed diagnostic code; contains no raw parser, provider, or SQL message.
+	Code ConfigurationSimulationDiagnosticCode `protobuf:"varint,1,opt,name=code,proto3,enum=home.api.v2.ConfigurationSimulationDiagnosticCode" json:"code,omitempty"`
+	// Position within the corresponding native owner and epoch.
+	Position      *ConfigurationSimulationPosition `protobuf:"bytes,2,opt,name=position,proto3" json:"position,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -829,9 +908,11 @@ func (x *ConfigurationSimulationDiagnostic) GetPosition() *ConfigurationSimulati
 	return nil
 }
 
+// Represents switch intent.
 type SwitchIntent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	On            bool                   `protobuf:"varint,1,opt,name=on,proto3" json:"on,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Indicates whether on.
+	On            bool `protobuf:"varint,1,opt,name=on,proto3" json:"on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -873,16 +954,23 @@ func (x *SwitchIntent) GetOn() bool {
 	return false
 }
 
+// Represents light intent.
 type LightIntent struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	On                    *bool                  `protobuf:"varint,1,opt,name=on,proto3,oneof" json:"on,omitempty"`
-	BrightnessPercent     *float64               `protobuf:"fixed64,2,opt,name=brightness_percent,json=brightnessPercent,proto3,oneof" json:"brightness_percent,omitempty"`
-	BrightnessStepPercent *float64               `protobuf:"fixed64,3,opt,name=brightness_step_percent,json=brightnessStepPercent,proto3,oneof" json:"brightness_step_percent,omitempty"`
-	Brightness_255        *uint32                `protobuf:"varint,4,opt,name=brightness_255,json=brightness255,proto3,oneof" json:"brightness_255,omitempty"`
-	ColorTempMireds       *uint32                `protobuf:"varint,5,opt,name=color_temp_mireds,json=colorTempMireds,proto3,oneof" json:"color_temp_mireds,omitempty"`
-	TransitionSeconds     *float64               `protobuf:"fixed64,6,opt,name=transition_seconds,json=transitionSeconds,proto3,oneof" json:"transition_seconds,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Indicates whether on.
+	On *bool `protobuf:"varint,1,opt,name=on,proto3,oneof" json:"on,omitempty"`
+	// Value of brightness in percent.
+	BrightnessPercent *float64 `protobuf:"fixed64,2,opt,name=brightness_percent,json=brightnessPercent,proto3,oneof" json:"brightness_percent,omitempty"`
+	// Value of brightness step in percent.
+	BrightnessStepPercent *float64 `protobuf:"fixed64,3,opt,name=brightness_step_percent,json=brightnessStepPercent,proto3,oneof" json:"brightness_step_percent,omitempty"`
+	// Absolute brightness in the inclusive integer range 0..255.
+	BrightnessLevel *int32 `protobuf:"varint,4,opt,name=brightness_level,json=brightnessLevel,proto3,oneof" json:"brightness_level,omitempty"`
+	// The color temp mireds represented as a bounded nonnegative integer.
+	ColorTempMireds *int64 `protobuf:"varint,5,opt,name=color_temp_mireds,json=colorTempMireds,proto3,oneof" json:"color_temp_mireds,omitempty"`
+	// The transition seconds represented by double.
+	TransitionSeconds *float64 `protobuf:"fixed64,6,opt,name=transition_seconds,json=transitionSeconds,proto3,oneof" json:"transition_seconds,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *LightIntent) Reset() {
@@ -936,14 +1024,14 @@ func (x *LightIntent) GetBrightnessStepPercent() float64 {
 	return 0
 }
 
-func (x *LightIntent) GetBrightness_255() uint32 {
-	if x != nil && x.Brightness_255 != nil {
-		return *x.Brightness_255
+func (x *LightIntent) GetBrightnessLevel() int32 {
+	if x != nil && x.BrightnessLevel != nil {
+		return *x.BrightnessLevel
 	}
 	return 0
 }
 
-func (x *LightIntent) GetColorTempMireds() uint32 {
+func (x *LightIntent) GetColorTempMireds() int64 {
 	if x != nil && x.ColorTempMireds != nil {
 		return *x.ColorTempMireds
 	}
@@ -957,15 +1045,21 @@ func (x *LightIntent) GetTransitionSeconds() float64 {
 	return 0
 }
 
+// Represents climate intent.
 type ClimateIntent struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	TemperatureCelsius *float64               `protobuf:"fixed64,1,opt,name=temperature_celsius,json=temperatureCelsius,proto3,oneof" json:"temperature_celsius,omitempty"`
-	Mode               *TemperatureMode       `protobuf:"varint,2,opt,name=mode,proto3,enum=home.api.v2.TemperatureMode,oneof" json:"mode,omitempty"`
-	HumidityPercent    *float64               `protobuf:"fixed64,3,opt,name=humidity_percent,json=humidityPercent,proto3,oneof" json:"humidity_percent,omitempty"`
-	FanMode            *string                `protobuf:"bytes,4,opt,name=fan_mode,json=fanMode,proto3,oneof" json:"fan_mode,omitempty"`
-	PresetMode         *string                `protobuf:"bytes,5,opt,name=preset_mode,json=presetMode,proto3,oneof" json:"preset_mode,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Value of temperature in degrees Celsius.
+	TemperatureCelsius *float64 `protobuf:"fixed64,1,opt,name=temperature_celsius,json=temperatureCelsius,proto3,oneof" json:"temperature_celsius,omitempty"`
+	// The mode represented by TemperatureMode.
+	Mode *TemperatureMode `protobuf:"varint,2,opt,name=mode,proto3,enum=home.api.v2.TemperatureMode,oneof" json:"mode,omitempty"`
+	// Value of humidity in percent.
+	HumidityPercent *float64 `protobuf:"fixed64,3,opt,name=humidity_percent,json=humidityPercent,proto3,oneof" json:"humidity_percent,omitempty"`
+	// The fan mode associated with this message.
+	FanMode *string `protobuf:"bytes,4,opt,name=fan_mode,json=fanMode,proto3,oneof" json:"fan_mode,omitempty"`
+	// The preset mode associated with this message.
+	PresetMode    *string `protobuf:"bytes,5,opt,name=preset_mode,json=presetMode,proto3,oneof" json:"preset_mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ClimateIntent) Reset() {
@@ -1033,10 +1127,13 @@ func (x *ClimateIntent) GetPresetMode() string {
 	return ""
 }
 
+// Represents fan intent.
 type FanIntent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	On            bool                   `protobuf:"varint,1,opt,name=on,proto3" json:"on,omitempty"`
-	Percentage    uint32                 `protobuf:"varint,2,opt,name=percentage,proto3" json:"percentage,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Indicates whether on.
+	On bool `protobuf:"varint,1,opt,name=on,proto3" json:"on,omitempty"`
+	// The percentage represented as a bounded nonnegative integer.
+	Percentage    int32 `protobuf:"varint,2,opt,name=percentage,proto3" json:"percentage,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1078,19 +1175,24 @@ func (x *FanIntent) GetOn() bool {
 	return false
 }
 
-func (x *FanIntent) GetPercentage() uint32 {
+func (x *FanIntent) GetPercentage() int32 {
 	if x != nil {
 		return x.Percentage
 	}
 	return 0
 }
 
+// Represents configuration simulation intent.
 type ConfigurationSimulationIntent struct {
-	state    protoimpl.MessageState           `protogen:"open.v1"`
-	Alias    string                           `protobuf:"bytes,1,opt,name=alias,proto3" json:"alias,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The alias associated with this message.
+	Alias string `protobuf:"bytes,1,opt,name=alias,proto3" json:"alias,omitempty"`
+	// Position within the corresponding native owner and epoch.
 	Position *ConfigurationSimulationPosition `protobuf:"bytes,2,opt,name=position,proto3" json:"position,omitempty"`
-	Outcome  IntentOutcome                    `protobuf:"varint,3,opt,name=outcome,proto3,enum=home.api.v2.IntentOutcome" json:"outcome,omitempty"`
-	At       *timestamppb.Timestamp           `protobuf:"bytes,4,opt,name=at,proto3" json:"at,omitempty"`
+	// Closed outcome recorded by the native owner; distinguish acknowledgment from confirmed effect.
+	Outcome IntentOutcome `protobuf:"varint,3,opt,name=outcome,proto3,enum=home.api.v2.IntentOutcome" json:"outcome,omitempty"`
+	// Recorded time for at. Absence means no timestamp was supplied or recorded.
+	At *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=at,proto3" json:"at,omitempty"`
 	// Types that are valid to be assigned to Parameters:
 	//
 	//	*ConfigurationSimulationIntent_Switch
@@ -1208,18 +1310,22 @@ type isConfigurationSimulationIntent_Parameters interface {
 }
 
 type ConfigurationSimulationIntent_Switch struct {
+	// The switch represented by SwitchIntent.
 	Switch *SwitchIntent `protobuf:"bytes,5,opt,name=switch,proto3,oneof"`
 }
 
 type ConfigurationSimulationIntent_Light struct {
+	// The light represented by LightIntent.
 	Light *LightIntent `protobuf:"bytes,6,opt,name=light,proto3,oneof"`
 }
 
 type ConfigurationSimulationIntent_Climate struct {
+	// The climate represented by ClimateIntent.
 	Climate *ClimateIntent `protobuf:"bytes,7,opt,name=climate,proto3,oneof"`
 }
 
 type ConfigurationSimulationIntent_Fan struct {
+	// The fan represented by FanIntent.
 	Fan *FanIntent `protobuf:"bytes,8,opt,name=fan,proto3,oneof"`
 }
 
@@ -1231,14 +1337,21 @@ func (*ConfigurationSimulationIntent_Climate) isConfigurationSimulationIntent_Pa
 
 func (*ConfigurationSimulationIntent_Fan) isConfigurationSimulationIntent_Parameters() {}
 
+// Represents configuration simulation node trace.
 type ConfigurationSimulationNodeTrace struct {
-	state         protoimpl.MessageState            `protogen:"open.v1"`
-	Position      *ConfigurationSimulationPosition  `protobuf:"bytes,1,opt,name=position,proto3" json:"position,omitempty"`
-	Action        ConfigurationSimulationActionKind `protobuf:"varint,2,opt,name=action,proto3,enum=home.api.v2.ConfigurationSimulationActionKind" json:"action,omitempty"`
-	Stage         ConfigurationSimulationNodeStage  `protobuf:"varint,3,opt,name=stage,proto3,enum=home.api.v2.ConfigurationSimulationNodeStage" json:"stage,omitempty"`
-	At            *timestamppb.Timestamp            `protobuf:"bytes,4,opt,name=at,proto3" json:"at,omitempty"`
-	Branches      []uint32                          `protobuf:"varint,5,rep,packed,name=branches,proto3" json:"branches,omitempty"`
-	Iterations    []uint32                          `protobuf:"varint,6,rep,packed,name=iterations,proto3" json:"iterations,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Position within the corresponding native owner and epoch.
+	Position *ConfigurationSimulationPosition `protobuf:"bytes,1,opt,name=position,proto3" json:"position,omitempty"`
+	// The action represented by ConfigurationSimulationActionKind.
+	Action ConfigurationSimulationActionKind `protobuf:"varint,2,opt,name=action,proto3,enum=home.api.v2.ConfigurationSimulationActionKind" json:"action,omitempty"`
+	// The stage represented by ConfigurationSimulationNodeStage.
+	Stage ConfigurationSimulationNodeStage `protobuf:"varint,3,opt,name=stage,proto3,enum=home.api.v2.ConfigurationSimulationNodeStage" json:"stage,omitempty"`
+	// Recorded time for at. Absence means no timestamp was supplied or recorded.
+	At *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=at,proto3" json:"at,omitempty"`
+	// Collection of branches for this message.
+	Branches []int32 `protobuf:"varint,5,rep,packed,name=branches,proto3" json:"branches,omitempty"`
+	// Collection of iterations for this message.
+	Iterations    []int32 `protobuf:"varint,6,rep,packed,name=iterations,proto3" json:"iterations,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1301,32 +1414,41 @@ func (x *ConfigurationSimulationNodeTrace) GetAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *ConfigurationSimulationNodeTrace) GetBranches() []uint32 {
+func (x *ConfigurationSimulationNodeTrace) GetBranches() []int32 {
 	if x != nil {
 		return x.Branches
 	}
 	return nil
 }
 
-func (x *ConfigurationSimulationNodeTrace) GetIterations() []uint32 {
+func (x *ConfigurationSimulationNodeTrace) GetIterations() []int32 {
 	if x != nil {
 		return x.Iterations
 	}
 	return nil
 }
 
+// Reports simulated behavior and limitations; does not establish physical effects.
 type ConfigurationSimulationReport struct {
-	state             protoimpl.MessageState               `protogen:"open.v1"`
-	Simulated         bool                                 `protobuf:"varint,1,opt,name=simulated,proto3" json:"simulated,omitempty"`
-	HardwareValidated bool                                 `protobuf:"varint,2,opt,name=hardware_validated,json=hardwareValidated,proto3" json:"hardware_validated,omitempty"`
-	Status            ConfigurationSimulationStatus        `protobuf:"varint,3,opt,name=status,proto3,enum=home.api.v2.ConfigurationSimulationStatus" json:"status,omitempty"`
-	Intents           []*ConfigurationSimulationIntent     `protobuf:"bytes,4,rep,name=intents,proto3" json:"intents,omitempty"`
-	Nodes             []*ConfigurationSimulationNodeTrace  `protobuf:"bytes,5,rep,name=nodes,proto3" json:"nodes,omitempty"`
-	Diagnostics       []*ConfigurationSimulationDiagnostic `protobuf:"bytes,6,rep,name=diagnostics,proto3" json:"diagnostics,omitempty"`
-	ElapsedMillis     uint64                               `protobuf:"varint,7,opt,name=elapsed_millis,json=elapsedMillis,proto3" json:"elapsed_millis,omitempty"`
-	Limitations       []string                             `protobuf:"bytes,8,rep,name=limitations,proto3" json:"limitations,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Whether this result came from simulation rather than a physical effect.
+	Simulated bool `protobuf:"varint,1,opt,name=simulated,proto3" json:"simulated,omitempty"`
+	// Whether hardware validation evidence is present. Simulation alone does not establish it.
+	HardwareValidated bool `protobuf:"varint,2,opt,name=hardware_validated,json=hardwareValidated,proto3" json:"hardware_validated,omitempty"`
+	// The status represented by ConfigurationSimulationStatus.
+	Status ConfigurationSimulationStatus `protobuf:"varint,3,opt,name=status,proto3,enum=home.api.v2.ConfigurationSimulationStatus" json:"status,omitempty"`
+	// Collection of intents for this message.
+	Intents []*ConfigurationSimulationIntent `protobuf:"bytes,4,rep,name=intents,proto3" json:"intents,omitempty"`
+	// Collection of nodes for this message.
+	Nodes []*ConfigurationSimulationNodeTrace `protobuf:"bytes,5,rep,name=nodes,proto3" json:"nodes,omitempty"`
+	// Collection of diagnostics for this message.
+	Diagnostics []*ConfigurationSimulationDiagnostic `protobuf:"bytes,6,rep,name=diagnostics,proto3" json:"diagnostics,omitempty"`
+	// Elapsed simulated time in milliseconds.
+	ElapsedMillis int64 `protobuf:"varint,7,opt,name=elapsed_millis,json=elapsedMillis,proto3" json:"elapsed_millis,omitempty"`
+	// Collection of limitations for this message.
+	Limitations   []string `protobuf:"bytes,8,rep,name=limitations,proto3" json:"limitations,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ConfigurationSimulationReport) Reset() {
@@ -1401,7 +1523,7 @@ func (x *ConfigurationSimulationReport) GetDiagnostics() []*ConfigurationSimulat
 	return nil
 }
 
-func (x *ConfigurationSimulationReport) GetElapsedMillis() uint64 {
+func (x *ConfigurationSimulationReport) GetElapsedMillis() int64 {
 	if x != nil {
 		return x.ElapsedMillis
 	}
@@ -1415,8 +1537,10 @@ func (x *ConfigurationSimulationReport) GetLimitations() []string {
 	return nil
 }
 
+// Successful result of simulate configuration plan.
 type SimulateConfigurationPlanResponse struct {
-	state         protoimpl.MessageState         `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The report represented by ConfigurationSimulationReport.
 	Report        *ConfigurationSimulationReport `protobuf:"bytes,1,opt,name=report,proto3" json:"report,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1463,56 +1587,56 @@ var File_home_api_v2_configuration_simulation_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_configuration_simulation_proto_rawDesc = "" +
 	"\n" +
-	"*home/api/v2/configuration_simulation.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%home/api/v2/configuration_plans.proto\x1a\x18home/api/v2/traits.proto\"\xc8\x01\n" +
-	" ConfigurationSimulationAttribute\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"*home/api/v2/configuration_simulation.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%home/api/v2/configuration_plans.proto\x1a\x18home/api/v2/traits.proto\"\xce\x01\n" +
+	" ConfigurationSimulationAttribute\x12\x18\n" +
+	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\x02R\x04name\x12\x14\n" +
 	"\x04text\x18\x02 \x01(\tH\x00R\x04text\x12\x1a\n" +
 	"\aboolean\x18\x03 \x01(\bH\x00R\aboolean\x12\x1a\n" +
 	"\ainteger\x18\x04 \x01(\x03H\x00R\ainteger\x12\x18\n" +
 	"\x06number\x18\x05 \x01(\x01H\x00R\x06number\x12\x1f\n" +
 	"\n" +
 	"null_value\x18\x06 \x01(\bH\x00R\tnullValueB\a\n" +
-	"\x05value\"\x81\x02\n" +
-	"\aFixture\x12\x14\n" +
-	"\x05alias\x18\x01 \x01(\tR\x05alias\x12\x19\n" +
-	"\x05state\x18\x02 \x01(\tH\x00R\x05state\x88\x01\x01\x12M\n" +
+	"\x05value\"\x99\x02\n" +
+	"\aFixture\x12\x1a\n" +
+	"\x05alias\x18\x01 \x01(\tB\x04\xe2A\x01\x02R\x05alias\x12\x19\n" +
+	"\x05state\x18\x02 \x01(\tH\x00R\x05state\x88\x01\x01\x12S\n" +
 	"\n" +
-	"attributes\x18\x03 \x03(\v2-.home.api.v2.ConfigurationSimulationAttributeR\n" +
-	"attributes\x12G\n" +
-	"\bsupports\x18\x04 \x03(\x0e2+.home.api.v2.ConfigurationSimulationSupportR\bsupports\x12#\n" +
-	"\rrefuse_intent\x18\x05 \x01(\bR\frefuseIntentB\b\n" +
-	"\x06_state\"\xfc\x02\n" +
+	"attributes\x18\x03 \x03(\v2-.home.api.v2.ConfigurationSimulationAttributeB\x04\xe2A\x01\x01R\n" +
+	"attributes\x12M\n" +
+	"\bsupports\x18\x04 \x03(\x0e2+.home.api.v2.ConfigurationSimulationSupportB\x04\xe2A\x01\x01R\bsupports\x12)\n" +
+	"\rrefuse_intent\x18\x05 \x01(\bB\x04\xe2A\x01\x01R\frefuseIntentB\b\n" +
+	"\x06_state\"\x9a\x03\n" +
 	" SimulateConfigurationPlanRequest\x12;\n" +
 	"\x04name\x18\x01 \x01(\tB'\xe2A\x01\x02\xfaA \n" +
 	"\x1ehomeward.damiengoehrig.ca/HomeR\x04name\x12K\n" +
-	"\tcandidate\x18\x02 \x01(\v2'.home.api.v2.ConfigurationPlanCandidateB\x04\xe2A\x01\x02R\tcandidate\x120\n" +
-	"\bfixtures\x18\x03 \x03(\v2\x14.home.api.v2.FixtureR\bfixtures\x12\x1f\n" +
-	"\vevent_types\x18\x04 \x03(\tR\n" +
-	"eventTypes\x12,\n" +
-	"\x03now\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x03now\x12\x1b\n" +
-	"\ttime_zone\x18\x06 \x01(\tR\btimeZone\x120\n" +
-	"\x14virtual_limit_millis\x18\a \x01(\x04R\x12virtualLimitMillis\"u\n" +
+	"\tcandidate\x18\x02 \x01(\v2'.home.api.v2.ConfigurationPlanCandidateB\x04\xe2A\x01\x02R\tcandidate\x126\n" +
+	"\bfixtures\x18\x03 \x03(\v2\x14.home.api.v2.FixtureB\x04\xe2A\x01\x01R\bfixtures\x12%\n" +
+	"\vevent_types\x18\x04 \x03(\tB\x04\xe2A\x01\x01R\n" +
+	"eventTypes\x122\n" +
+	"\x03now\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x02R\x03now\x12!\n" +
+	"\ttime_zone\x18\x06 \x01(\tB\x04\xe2A\x01\x02R\btimeZone\x126\n" +
+	"\x14virtual_limit_millis\x18\a \x01(\x03B\x04\xe2A\x01\x02R\x12virtualLimitMillis\"u\n" +
 	"\x1fConfigurationSimulationPosition\x12\x12\n" +
 	"\x04file\x18\x01 \x01(\tR\x04file\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
-	"\x04line\x18\x03 \x01(\rR\x04line\x12\x16\n" +
-	"\x06column\x18\x04 \x01(\rR\x06column\"\xb5\x01\n" +
+	"\x04line\x18\x03 \x01(\x05R\x04line\x12\x16\n" +
+	"\x06column\x18\x04 \x01(\x05R\x06column\"\xb5\x01\n" +
 	"!ConfigurationSimulationDiagnostic\x12F\n" +
 	"\x04code\x18\x01 \x01(\x0e22.home.api.v2.ConfigurationSimulationDiagnosticCodeR\x04code\x12H\n" +
 	"\bposition\x18\x02 \x01(\v2,.home.api.v2.ConfigurationSimulationPositionR\bposition\"\x1e\n" +
 	"\fSwitchIntent\x12\x0e\n" +
-	"\x02on\x18\x01 \x01(\bR\x02on\"\x9e\x03\n" +
+	"\x02on\x18\x01 \x01(\bR\x02on\"\xa4\x03\n" +
 	"\vLightIntent\x12\x13\n" +
 	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x122\n" +
 	"\x12brightness_percent\x18\x02 \x01(\x01H\x01R\x11brightnessPercent\x88\x01\x01\x12;\n" +
-	"\x17brightness_step_percent\x18\x03 \x01(\x01H\x02R\x15brightnessStepPercent\x88\x01\x01\x12*\n" +
-	"\x0ebrightness_255\x18\x04 \x01(\rH\x03R\rbrightness255\x88\x01\x01\x12/\n" +
-	"\x11color_temp_mireds\x18\x05 \x01(\rH\x04R\x0fcolorTempMireds\x88\x01\x01\x122\n" +
+	"\x17brightness_step_percent\x18\x03 \x01(\x01H\x02R\x15brightnessStepPercent\x88\x01\x01\x12.\n" +
+	"\x10brightness_level\x18\x04 \x01(\x05H\x03R\x0fbrightnessLevel\x88\x01\x01\x12/\n" +
+	"\x11color_temp_mireds\x18\x05 \x01(\x03H\x04R\x0fcolorTempMireds\x88\x01\x01\x122\n" +
 	"\x12transition_seconds\x18\x06 \x01(\x01H\x05R\x11transitionSeconds\x88\x01\x01B\x05\n" +
 	"\x03_onB\x15\n" +
 	"\x13_brightness_percentB\x1a\n" +
-	"\x18_brightness_step_percentB\x11\n" +
-	"\x0f_brightness_255B\x14\n" +
+	"\x18_brightness_step_percentB\x13\n" +
+	"\x11_brightness_levelB\x14\n" +
 	"\x12_color_temp_miredsB\x15\n" +
 	"\x13_transition_seconds\"\xc5\x02\n" +
 	"\rClimateIntent\x124\n" +
@@ -1530,7 +1654,7 @@ const file_home_api_v2_configuration_simulation_proto_rawDesc = "" +
 	"\tFanIntent\x12\x0e\n" +
 	"\x02on\x18\x01 \x01(\bR\x02on\x12\x1e\n" +
 	"\n" +
-	"percentage\x18\x02 \x01(\rR\n" +
+	"percentage\x18\x02 \x01(\x05R\n" +
 	"percentage\"\xba\x03\n" +
 	"\x1dConfigurationSimulationIntent\x12\x14\n" +
 	"\x05alias\x18\x01 \x01(\tR\x05alias\x12H\n" +
@@ -1548,9 +1672,9 @@ const file_home_api_v2_configuration_simulation_proto_rawDesc = "" +
 	"\x06action\x18\x02 \x01(\x0e2..home.api.v2.ConfigurationSimulationActionKindR\x06action\x12C\n" +
 	"\x05stage\x18\x03 \x01(\x0e2-.home.api.v2.ConfigurationSimulationNodeStageR\x05stage\x12*\n" +
 	"\x02at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x12\x1a\n" +
-	"\bbranches\x18\x05 \x03(\rR\bbranches\x12\x1e\n" +
+	"\bbranches\x18\x05 \x03(\x05R\bbranches\x12\x1e\n" +
 	"\n" +
-	"iterations\x18\x06 \x03(\rR\n" +
+	"iterations\x18\x06 \x03(\x05R\n" +
 	"iterations\"\xd6\x03\n" +
 	"\x1dConfigurationSimulationReport\x12\x1c\n" +
 	"\tsimulated\x18\x01 \x01(\bR\tsimulated\x12-\n" +
@@ -1559,7 +1683,7 @@ const file_home_api_v2_configuration_simulation_proto_rawDesc = "" +
 	"\aintents\x18\x04 \x03(\v2*.home.api.v2.ConfigurationSimulationIntentR\aintents\x12C\n" +
 	"\x05nodes\x18\x05 \x03(\v2-.home.api.v2.ConfigurationSimulationNodeTraceR\x05nodes\x12P\n" +
 	"\vdiagnostics\x18\x06 \x03(\v2..home.api.v2.ConfigurationSimulationDiagnosticR\vdiagnostics\x12%\n" +
-	"\x0eelapsed_millis\x18\a \x01(\x04R\relapsedMillis\x12 \n" +
+	"\x0eelapsed_millis\x18\a \x01(\x03R\relapsedMillis\x12 \n" +
 	"\vlimitations\x18\b \x03(\tR\vlimitations\"g\n" +
 	"!SimulateConfigurationPlanResponse\x12B\n" +
 	"\x06report\x18\x01 \x01(\v2*.home.api.v2.ConfigurationSimulationReportR\x06report*\xfd\x04\n" +
@@ -1616,9 +1740,9 @@ const file_home_api_v2_configuration_simulation_proto_rawDesc = "" +
 	"+CONFIGURATION_SIMULATION_NODE_STAGE_STOPPED\x10\x03\x121\n" +
 	"-CONFIGURATION_SIMULATION_NODE_STAGE_CANCELLED\x10\x04\x12.\n" +
 	"*CONFIGURATION_SIMULATION_NODE_STAGE_FAILED\x10\x05\x12/\n" +
-	"+CONFIGURATION_SIMULATION_NODE_STAGE_WAITING\x10\x062\xe7\x01\n" +
-	"\x1eConfigurationSimulationService\x12\xc4\x01\n" +
-	"\x19SimulateConfigurationPlan\x12-.home.api.v2.SimulateConfigurationPlanRequest\x1a..home.api.v2.SimulateConfigurationPlanResponse\"H\xdaA\x0ename,candidate\x82\xd3\xe4\x93\x021:\x01*\",/v2/{name=homes/*}:simulateConfigurationPlanBe\n" +
+	"+CONFIGURATION_SIMULATION_NODE_STAGE_WAITING\x10\x062\x8a\x02\n" +
+	"\x1eConfigurationSimulationService\x12\xe7\x01\n" +
+	"\x19SimulateConfigurationPlan\x12-.home.api.v2.SimulateConfigurationPlanRequest\x1a..home.api.v2.SimulateConfigurationPlanResponse\"k\xdaA1name,candidate,now,time_zone,virtual_limit_millis\x82\xd3\xe4\x93\x021:\x01*\",/v2/{name=homes/*}:simulateConfigurationPlanBe\n" +
 	"\x0fcom.home.api.v2B\x1cConfigurationSimulationProtoP\x01Z2github.com/damione1/Homeward/gen/home/api/v2;apiv2b\x06proto3"
 
 var (

@@ -15,10 +15,10 @@ import (
 
 	"connectrpc.com/connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	companion "github.com/damione1/Homeward/gen/home/companion/v1"
-	wire "github.com/damione1/Homeward/gen/home/notifications/v1"
-	"github.com/damione1/Homeward/gen/home/notifications/v1/notificationsv1connect"
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
+	companion "github.com/damione1/Homeward/gen/home/testing/companion/v1"
+	wire "github.com/damione1/Homeward/gen/home/testing/notifications/v1"
+	"github.com/damione1/Homeward/gen/home/testing/notifications/v1/notificationsv1connect"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"

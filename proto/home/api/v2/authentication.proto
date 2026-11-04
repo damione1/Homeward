@@ -16,22 +16,218 @@ option java_multiple_files = true;
 option java_outer_classname = "AuthenticationProto";
 option java_package = "com.home.api.v2";
 
-// Human roles are closed. Internal routines have no human or service account.
-enum AccountRole {
-  ACCOUNT_ROLE_UNSPECIFIED = 0;
-  ACCOUNT_ROLE_ADMIN = 1;
-  ACCOUNT_ROLE_USER = 2;
+// Account administration uses current native account rights. Syntax/existence
+// diagnostics follow authentication and authorization. Mutations have no
+// automatic replay guarantee; UNKNOWN requires reconciliation, never a retry.
+service AccountService {
+  // Reads metadata under the same native admission as the collection. No credential secret is returned.
+  rpc GetInvitation(GetInvitationRequest) returns (Invitation) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/invitations/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Creates a account.
+  rpc CreateAccount(CreateAccountRequest) returns (Account) {
+    option (google.api.http) = {
+      post: "/v2/{parent=homes/*}/accounts"
+      body: "account"
+    };
+    option (google.api.method_signature) = "parent,account,account_id";
+  }
+  // Gets the authorized account.
+  rpc GetAccount(GetAccountRequest) returns (Account) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/accounts/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Lists the authorized accounts using bounded opaque pagination.
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}/accounts"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Updates the authorized account.
+  rpc UpdateAccount(UpdateAccountRequest) returns (Account) {
+    option (google.api.http) = {
+      patch: "/v2/{account.name=homes/*/accounts/*}"
+      body: "account"
+    };
+    option (google.api.method_signature) = "account,update_mask";
+  }
+  // Deletes the authorized account.
+  rpc DeleteAccount(DeleteAccountRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/v2/{name=homes/*/accounts/*}"};
+    option (google.api.method_signature) = "name,etag";
+  }
+  // One-shot issuance, not a standard Create returning reusable metadata only.
+  rpc IssueInvitation(IssueInvitationRequest) returns (IssueInvitationResponse) {
+    option (google.api.http) = {
+      post: "/v2/{parent=homes/*}/invitations:issue"
+      body: "*"
+    };
+  }
+  // The invitation bearer authenticates this one-shot transition. Failure does
+  // not disclose account existence; acceptance never creates a login session.
+  rpc AcceptInvitation(AcceptInvitationRequest) returns (AcceptInvitationResponse) {
+    option (google.api.http) = {
+      post: "/v2:acceptInvitation"
+      body: "*"
+    };
+  }
+  // Lists the authorized invitations using bounded opaque pagination.
+  rpc ListInvitations(ListInvitationsRequest) returns (ListInvitationsResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}/invitations"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Revocation preserves native audit metadata; it does not delete the row.
+  rpc RevokeInvitation(RevokeInvitationRequest) returns (RevokeInvitationResponse) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*/invitations/*}:revoke"
+      body: "*"
+    };
+  }
+  // Gets the authorized second factor policy.
+  rpc GetSecondFactorPolicy(GetSecondFactorPolicyRequest) returns (SecondFactorPolicy) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/secondFactorPolicy}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Custom security transition: it may revoke sessions and returns the caller's
+  // continuation explicitly. Native CAS and MFA publication remain atomic.
+  rpc ChangeSecondFactorPolicy(ChangeSecondFactorPolicyRequest) returns (ChangeSecondFactorPolicyResponse) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*/secondFactorPolicy}:change"
+      body: "*"
+    };
+  }
 }
 
-// Account lifecycle, independent from enrollment and session satisfaction.
-enum AccountState {
-  ACCOUNT_STATE_UNSPECIFIED = 0;
-  ACCOUNT_STATE_ACTIVE = 1;
-  ACCOUNT_STATE_DISABLED = 2;
+// TLS is mandatory. Anonymous here means the request carries its own login,
+// refresh, or enrollment proof; it never bypasses native credential admission.
+// Enrollment performs its own native-session or restricted-grant admission.
+service AuthService {
+  // Reads metadata under the same native admission as the collection. No credential secret is returned.
+  rpc GetFactorCredential(GetFactorCredentialRequest) returns (FactorCredential) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/accounts/*/factorCredentials/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Reads metadata under the same native admission as the collection. No credential secret is returned.
+  rpc GetSession(GetSessionRequest) returns (Session) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/accounts/*/sessions/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Starts password authentication and returns the offered next step without revealing account existence.
+  rpc StartLogin(StartLoginRequest) returns (StartLoginResponse) {
+    option (google.api.http) = {
+      post: "/v2:startLogin"
+      body: "*"
+    };
+  }
+  // Consumes the offered factor proof and issues credentials for the resulting native session.
+  rpc CompleteLogin(CompleteLoginRequest) returns (CompleteLoginResponse) {
+    option (google.api.http) = {
+      post: "/v2:completeLogin"
+      body: "*"
+    };
+  }
+  // Renews the same native session using the saved renewal key; uncertain replies do not authorize a new operation.
+  rpc RefreshSession(RefreshSessionRequest) returns (RefreshSessionResponse) {
+    option (google.api.http) = {
+      post: "/v2:refreshSession"
+      body: "*"
+    };
+  }
+  // Lists the authorized sessions using bounded opaque pagination.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*/accounts/*}/sessions"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Revokes the selected session.
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*/accounts/*/sessions/*}:revoke"
+      body: "*"
+    };
+  }
+  // Offers a bounded enrollment challenge to the authorized caller.
+  rpc BeginFactorEnrollment(BeginFactorEnrollmentRequest) returns (BeginFactorEnrollmentResponse) {
+    option (google.api.http) = {
+      post: "/v2/{parent=homes/*/accounts/*}/factorCredentials:beginEnrollment"
+      body: "*"
+    };
+  }
+  // Consumes the enrollment proof and returns newly issued recovery material once.
+  rpc CompleteFactorEnrollment(CompleteFactorEnrollmentRequest) returns (CompleteFactorEnrollmentResponse) {
+    option (google.api.http) = {
+      post: "/v2/{parent=homes/*/accounts/*}/factorCredentials:completeEnrollment"
+      body: "*"
+    };
+  }
+  // Lists the authorized factor credentials using bounded opaque pagination.
+  rpc ListFactorCredentials(ListFactorCredentialsRequest) returns (ListFactorCredentialsResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*/accounts/*}/factorCredentials"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Removes the selected factor credential.
+  rpc RemoveFactorCredential(RemoveFactorCredentialRequest) returns (RemoveFactorCredentialResponse) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*/accounts/*/factorCredentials/*}:remove"
+      body: "*"
+    };
+  }
+  // Replaces recovery codes under the native security preconditions and returns them once.
+  rpc ReplaceRecoveryCodes(ReplaceRecoveryCodesRequest) returns (ReplaceRecoveryCodesResponse) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*/accounts/*}:replaceRecoveryCodes"
+      body: "*"
+    };
+  }
+}
+
+// Key management itself requires an interactive session. An issued key has MCP
+// audience only and is rejected on every public Connect route, including these.
+service McpKeyService {
+  // Reads metadata under the same native admission as the collection. No credential secret is returned.
+  rpc GetMcpKey(GetMcpKeyRequest) returns (McpKey) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/accounts/*/mcpKeys/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Issues a key under the caller's permitted MCP scopes; returns its secret once.
+  rpc IssueMcpKey(IssueMcpKeyRequest) returns (IssueMcpKeyResponse) {
+    option (google.api.http) = {
+      post: "/v2/{parent=homes/*/accounts/*}/mcpKeys:issue"
+      body: "*"
+    };
+  }
+  // Lists the authorized mcp keys using bounded opaque pagination.
+  rpc ListMcpKeys(ListMcpKeysRequest) returns (ListMcpKeysResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*/accounts/*}/mcpKeys"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Revokes the selected mcp key.
+  rpc RevokeMcpKey(RevokeMcpKeyRequest) returns (RevokeMcpKeyResponse) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*/accounts/*/mcpKeys/*}:revoke"
+      body: "*"
+    };
+  }
+}
+
+// Reads and replaces the native human authorization policy under current administrative authority.
+service AuthorizationPolicyService {
+  // Gets the native default or stored authorization policy visible to the caller.
+  rpc GetAuthorizationPolicy(GetAuthorizationPolicyRequest) returns (AuthorizationPolicy) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/accounts/*/authorizationPolicy}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Exact document replacement with the native absence/CAS union. This is an
+  // atomic security transition and reports whether effective rights changed.
+  rpc ReplaceAuthorizationPolicy(ReplaceAuthorizationPolicyRequest) returns (ReplaceAuthorizationPolicyResponse) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*/accounts/*/authorizationPolicy}:replace"
+      body: "*"
+    };
+  }
 }
 
 // An account's mutable metadata. Passwords are accepted only on creation and
-// are never returned. Updating role/state preserves the native last-admin rule
+// are never returned. Updating role/access preserves the native last-admin rule
 // and invalidates affected credentials under the same native transaction.
 message Account {
   option (google.api.resource) = {
@@ -40,20 +236,32 @@ message Account {
     singular: "account"
     plural: "accounts"
   };
+  // Canonical resource name. Uses the pattern declared on the resource message.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
-  // Unique native login; immutable after creation, never used as resource ID.
-  string login_name = 2 [(google.api.field_behavior) = IMMUTABLE];
-  string display_name = 3;
-  AccountRole role = 4;
-  AccountState state = 5;
+  // Required on creation; ignored when omitted in UpdateAccount. Immutable native login, never used as resource ID.
+  string login_name = 2 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+  // Required on creation; optional on update. Human-readable label, not identity or authority.
+  string display_name = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Required on creation; optional on update. Internal routines do not acquire a human role.
+  AccountRole role = 4 [(google.api.field_behavior) = OPTIONAL];
+  // Optional. Creation defaults to ENABLED; UpdateAccount changes access only when selected by the update mask.
+  AccountAccess access = 5 [(google.api.field_behavior) = OPTIONAL];
   // Verified active enrollment only; does not imply a session satisfied MFA.
   bool second_factor_enabled = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time when this resource was created; absent when no historical creation time was recorded.
   google.protobuf.Timestamp create_time = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time of the latest recorded resource update.
   google.protobuf.Timestamp update_time = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Opaque native metadata CAS, required for update/delete. Not a credential.
   string etag = 9;
   // Required on CreateAccount only; ignored as output and forbidden in updates.
-  string initial_password = 10 [(google.api.field_behavior) = INPUT_ONLY];
+  string initial_password = 10 [
+    (google.api.field_behavior) = INPUT_ONLY,
+    (google.api.field_behavior) = OPTIONAL
+  ];
 }
 
 // Invitation metadata contains no bearer secret. IssueInvitation emits its
@@ -65,12 +273,19 @@ message Invitation {
     singular: "invitation"
     plural: "invitations"
   };
+  // Canonical resource name. Uses the pattern declared on the resource message.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // Native account login. Distinct from the canonical account resource name.
   string login_name = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Human account role. Internal routines do not acquire a human role.
   AccountRole role = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time when this resource or credential expires.
   google.protobuf.Timestamp expire_time = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time when this resource was created; absent when no historical creation time was recorded.
   google.protobuf.Timestamp create_time = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time when the invitation was accepted, if acceptance was recorded.
   google.protobuf.Timestamp accept_time = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time when revocation was recorded; absent when no revocation was recorded.
   google.protobuf.Timestamp revoke_time = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
@@ -83,173 +298,184 @@ message SecondFactorPolicy {
     singular: "secondFactorPolicy"
     plural: "secondFactorPolicies"
   };
+  // Canonical resource name. Uses the pattern declared on the resource message.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // Whether the native policy requires a second factor for administrators.
   bool require_admin_factor = 2;
+  // Time of the latest recorded resource update.
   google.protobuf.Timestamp update_time = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Native policy revision and exact source hash; never the account revision.
   string etag = 4;
 }
 
-// Whether the policy transition invalidated the caller's current session.
-enum SecondFactorSessionContinuation {
-  SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED = 0;
-  SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES = 1;
-  SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED = 2;
-}
-
-// Account administration uses current native account rights. Syntax/existence
-// diagnostics follow authentication and authorization. Mutations have no
-// automatic replay guarantee; UNKNOWN requires reconciliation, never a retry.
-service AccountService {
-  rpc CreateAccount(CreateAccountRequest) returns (Account) {
-    option (google.api.http) = { post: "/v2/{parent=homes/*}/accounts" body: "account" };
-    option (google.api.method_signature) = "parent,account";
-  }
-  rpc GetAccount(GetAccountRequest) returns (Account) {
-    option (google.api.http) = { get: "/v2/{name=homes/*/accounts/*}" };
-    option (google.api.method_signature) = "name";
-  }
-  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse) {
-    option (google.api.http) = { get: "/v2/{parent=homes/*}/accounts" };
-    option (google.api.method_signature) = "parent";
-  }
-  rpc UpdateAccount(UpdateAccountRequest) returns (Account) {
-    option (google.api.http) = { patch: "/v2/{account.name=homes/*/accounts/*}" body: "account" };
-    option (google.api.method_signature) = "account,update_mask";
-  }
-  rpc DeleteAccount(DeleteAccountRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = { delete: "/v2/{name=homes/*/accounts/*}" };
-    option (google.api.method_signature) = "name";
-  }
-  // One-shot issuance, not a standard Create returning reusable metadata only.
-  rpc IssueInvitation(IssueInvitationRequest) returns (IssueInvitationResponse) {
-    option (google.api.http) = { post: "/v2/{parent=homes/*}/invitations:issue" body: "*" };
-  }
-  // The invitation bearer authenticates this one-shot transition. Failure does
-  // not disclose account existence; acceptance never creates a login session.
-  rpc AcceptInvitation(AcceptInvitationRequest) returns (AcceptInvitationResponse) {
-    option (google.api.http) = { post: "/v2:acceptInvitation" body: "*" };
-  }
-  rpc ListInvitations(ListInvitationsRequest) returns (ListInvitationsResponse) {
-    option (google.api.http) = { get: "/v2/{parent=homes/*}/invitations" };
-    option (google.api.method_signature) = "parent";
-  }
-  // Revocation preserves native audit metadata; it does not delete the row.
-  rpc RevokeInvitation(RevokeInvitationRequest) returns (RevokeInvitationResponse) {
-    option (google.api.http) = { post: "/v2/{name=homes/*/invitations/*}:revoke" body: "*" };
-  }
-  rpc GetSecondFactorPolicy(GetSecondFactorPolicyRequest) returns (SecondFactorPolicy) {
-    option (google.api.http) = { get: "/v2/{name=homes/*/secondFactorPolicy}" };
-    option (google.api.method_signature) = "name";
-  }
-  // Custom security transition: it may revoke sessions and returns the caller's
-  // continuation explicitly. Native CAS and MFA publication remain atomic.
-  rpc ChangeSecondFactorPolicy(ChangeSecondFactorPolicyRequest) returns (ChangeSecondFactorPolicyResponse) {
-    option (google.api.http) = { post: "/v2/{name=homes/*/secondFactorPolicy}:change" body: "*" };
-  }
-}
-
+// Request for create account.
 message CreateAccountRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Account"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Account"
+  ];
+  // The account represented by Account.
   Account account = 2 [(google.api.field_behavior) = REQUIRED];
+  // Optional public ID, lowercase letter followed by lowercase letters, digits or hyphens, at most 63 characters, without a trailing hyphen. Omission allocates an ID. Native identity remains independent.
+  string account_id = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Request for get account.
 message GetAccountRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Account"];
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Account"
+  ];
 }
+
+// Request for list accounts.
 message ListAccountsRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Account"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Account"
+  ];
   // Default 50, maximum 100. Negative is invalid; larger values clamp to 100.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
   // Opaque, bounded, bound to the caller/credential/current rights and parent.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Successful result of list accounts.
 message ListAccountsResponse {
+  // Collection of accounts for this message.
   repeated Account accounts = 1;
+  // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
 }
+
+// Request for update account.
 message UpdateAccountRequest {
+  // The account represented by Account.
   Account account = 1 [(google.api.field_behavior) = REQUIRED];
-  // Mutable paths: display_name, role, state. Absent means populated fields;
+  // Mutable paths: display_name, role, access. Absent means populated fields;
   // present empty means no-op; * selects all three. CAS is checked even on no-op.
   google.protobuf.FieldMask update_mask = 2 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Request for delete account.
 message DeleteAccountRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Account"];
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Account"
+  ];
+  // Opaque revision token for optimistic concurrency. Compare it without interpretation.
   string etag = 2 [(google.api.field_behavior) = REQUIRED];
+  // Explicitly permits deleting existing sessions, factors and MCP keys. Otherwise child resources prevent deletion.
+  bool force = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Request for issue invitation.
 message IssueInvitationRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Invitation"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Invitation"
+  ];
+  // Native account login. Distinct from the canonical account resource name.
   string login_name = 2 [(google.api.field_behavior) = REQUIRED];
+  // Human account role. Internal routines do not acquire a human role.
   AccountRole role = 3 [(google.api.field_behavior) = REQUIRED];
+  // Time when this resource or credential expires.
   google.protobuf.Timestamp expire_time = 4 [(google.api.field_behavior) = REQUIRED];
 }
+
+// Successful result of issue invitation.
 message IssueInvitationResponse {
+  // The invitation represented by Invitation.
   Invitation invitation = 1;
   // Returned once. Never persist in an idempotency result, audit, or log.
   string invitation_token = 2;
 }
+
+// Request for accept invitation.
 message AcceptInvitationRequest {
+  // One-time invitation secret. Cannot be recovered by listing invitation metadata.
   string invitation_token = 1 [(google.api.field_behavior) = REQUIRED];
+  // Password supplied for this authentication attempt. Never returned or included in diagnostics.
   string password = 2 [(google.api.field_behavior) = REQUIRED];
+  // Human-readable label. Does not identify the resource or grant permission.
   string display_name = 3 [(google.api.field_behavior) = REQUIRED];
 }
-message AcceptInvitationResponse { Account account = 1; }
+
+// Successful result of accept invitation.
+message AcceptInvitationResponse {
+  // The account represented by Account.
+  Account account = 1;
+}
+
+// Request for list invitations.
 message ListInvitationsRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Invitation"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Invitation"
+  ];
   // Default 50; maximum 100; negative is invalid.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation from the preceding page. Keep all other query parameters unchanged.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Successful result of list invitations.
 message ListInvitationsResponse {
+  // Collection of invitations for this message.
   repeated Invitation invitations = 1;
+  // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
 }
+
+// Request for revoke invitation.
 message RevokeInvitationRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Invitation"];
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Invitation"
+  ];
 }
+
+// Successful result of revoke invitation.
 message RevokeInvitationResponse {}
+
+// Request for get second factor policy.
 message GetSecondFactorPolicyRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/SecondFactorPolicy"];
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/SecondFactorPolicy"
+  ];
 }
+
+// Request for change second factor policy.
 message ChangeSecondFactorPolicyRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/SecondFactorPolicy"];
-  bool require_admin_factor = 2 [(google.api.field_behavior) = REQUIRED];
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/SecondFactorPolicy"
+  ];
+  // Whether the native policy requires a second factor for administrators.
+  bool require_admin_factor = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque revision token for optimistic concurrency. Compare it without interpretation.
   string etag = 3 [(google.api.field_behavior) = REQUIRED];
 }
+
+// Successful result of change second factor policy.
 message ChangeSecondFactorPolicyResponse {
+  // The policy represented by SecondFactorPolicy.
   SecondFactorPolicy policy = 1;
+  // The continuation represented by SecondFactorSessionContinuation.
   SecondFactorSessionContinuation continuation = 2;
 }
 
-// Only FIDO2 is enrollable; recovery codes are issued with verified enrollment.
-enum FactorKind {
-  FACTOR_KIND_UNSPECIFIED = 0;
-  FACTOR_KIND_FIDO2 = 1;
-}
-enum CredentialAudience {
-  CREDENTIAL_AUDIENCE_UNSPECIFIED = 0;
-  CREDENTIAL_AUDIENCE_INTERACTIVE = 1;
-  CREDENTIAL_AUDIENCE_MCP = 2;
-}
-// Original login evidence. Refresh never upgrades its value or timestamp.
-enum AuthenticationSatisfaction {
-  AUTHENTICATION_SATISFACTION_UNSPECIFIED = 0;
-  AUTHENTICATION_SATISFACTION_PASSWORD_ONLY = 1;
-  AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 = 2;
-  AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE = 3;
-  // The native session predates recorded authentication evidence. Refresh must
-  // not invent evidence or a timestamp; current MFA policy still governs access.
-  AUTHENTICATION_SATISFACTION_NOT_RECORDED = 4;
-}
+// Represents session.
 message Session {
   option (google.api.resource) = {
     type: "homeward.damiengoehrig.ca/Session"
@@ -257,15 +483,23 @@ message Session {
     singular: "session"
     plural: "sessions"
   };
+  // Canonical resource name. Uses the pattern declared on the resource message.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // Time when this resource was created; absent when no historical creation time was recorded.
   google.protobuf.Timestamp create_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Sliding session/refresh-family expiry, distinct from access-token expiry.
   google.protobuf.Timestamp expire_time = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time when revocation was recorded; absent when no revocation was recorded.
   google.protobuf.Timestamp revoke_time = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time of the last recorded use; absence does not mean a use occurred.
   google.protobuf.Timestamp last_use_time = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Recorded authentication proof category, independent of account enrollment.
   AuthenticationSatisfaction authentication_satisfaction = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time of the recorded authentication proof; absent for unrecorded historical evidence.
   google.protobuf.Timestamp authentication_time = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
+
+// Represents factor credential.
 message FactorCredential {
   option (google.api.resource) = {
     type: "homeward.damiengoehrig.ca/FactorCredential"
@@ -273,232 +507,332 @@ message FactorCredential {
     singular: "factorCredential"
     plural: "factorCredentials"
   };
+  // Canonical resource name. Uses the pattern declared on the resource message.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // The kind represented by FactorKind.
   FactorKind kind = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time when this resource was created; absent when no historical creation time was recorded.
   google.protobuf.Timestamp create_time = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time of the last recorded use; absence does not mean a use occurred.
   google.protobuf.Timestamp last_use_time = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
+
 // Bearer values occur only in successful login/refresh responses, never Session.
 message SessionTokens {
+  // The session represented by Session.
   Session session = 1;
+  // The audience represented by CredentialAudience.
   CredentialAudience audience = 2;
+  // Secret bearer access credential. Never log it or use it as a resource identity.
   string access_token = 3;
+  // Time when the access token expires, independently of the refresh credential.
   google.protobuf.Timestamp access_expire_time = 4;
+  // Secret refresh credential. Recover only the same durably saved renewal operation after an uncertain response.
   string refresh_token = 5;
 }
+
+// Represents fido2 assertion challenge.
 message Fido2AssertionChallenge {
+  // Typed challenge offered for this flow. Its expiry and proof alternatives remain authoritative.
   bytes challenge = 1;
+  // WebAuthn relying-party identifier bound to the configured public origin.
   string rp_id = 2;
+  // Credential identifiers admitted for this challenge.
   repeated bytes allowed_credential_ids = 3;
+  // The instance id associated with this message.
   string instance_id = 4;
+  // The origin associated with this message.
   string origin = 5;
 }
+
+// Represents fido2 enrollment challenge.
 message Fido2EnrollmentChallenge {
+  // Typed challenge offered for this flow. Its expiry and proof alternatives remain authoritative.
   bytes challenge = 1;
+  // WebAuthn relying-party identifier bound to the configured public origin.
   string rp_id = 2;
+  // Exact bytes representing user id. Not interpreted as a display string.
   bytes user_id = 3;
+  // The user name associated with this message.
   string user_name = 4;
+  // The instance id associated with this message.
   string instance_id = 5;
+  // The origin associated with this message.
   string origin = 6;
 }
+
+// Represents recovery code challenge.
 message RecoveryCodeChallenge {}
+
+// Describes one proof alternative actually offered by the native authentication owner.
 message FactorOption {
   oneof method {
+    // The fido2 represented by Fido2AssertionChallenge.
     Fido2AssertionChallenge fido2 = 1;
+    // One-time recovery proof. Never log it or reuse it after successful consumption.
     RecoveryCodeChallenge recovery_code = 2;
   }
 }
+
 // Ephemeral ceremony, not a readable resource. Completion must match one of
 // these distinct options; recovery code is never a silent FIDO2 downgrade.
 message FactorChallenge {
+  // Opaque identifier of the exact offered challenge.
   string challenge_id = 1;
+  // Time when this resource or credential expires.
   google.protobuf.Timestamp expire_time = 2;
+  // Collection of options for this message.
   repeated FactorOption options = 3;
 }
+
+// Represents enrollment challenge.
 message EnrollmentChallenge {
+  // Opaque identifier of the exact offered challenge.
   string challenge_id = 1;
+  // Time when this resource or credential expires.
   google.protobuf.Timestamp expire_time = 2;
+  // The fido2 represented by Fido2EnrollmentChallenge.
   Fido2EnrollmentChallenge fido2 = 3;
 }
+
+// Carries an exact WebAuthn assertion for native challenge verification.
 message Fido2Assertion {
-  bytes credential_id = 1;
-  bytes authenticator_data = 2;
-  bytes client_data_json = 3;
-  bytes signature = 4;
-  optional bytes user_handle = 5;
+  // Opaque native credential identifier scoped to the account.
+  bytes credential_id = 1 [(google.api.field_behavior) = REQUIRED];
+  // Exact WebAuthn authenticator-data bytes to verify.
+  bytes authenticator_data = 2 [(google.api.field_behavior) = REQUIRED];
+  // Exact WebAuthn client-data bytes. Verified against the offered challenge and origin.
+  bytes client_data_json = 3 [(google.api.field_behavior) = REQUIRED];
+  // Cryptographic assertion signature, not a display value.
+  bytes signature = 4 [(google.api.field_behavior) = REQUIRED];
+  // Optional opaque WebAuthn user handle returned by the authenticator.
+  optional bytes user_handle = 5 [(google.api.field_behavior) = OPTIONAL];
   // Server recomputes it from client_data_json; client bytes are untrusted.
-  bytes client_data_hash = 6;
+  bytes client_data_hash = 6 [(google.api.field_behavior) = REQUIRED];
 }
+
+// Carries an exact WebAuthn enrollment attestation for native verification.
 message Fido2Attestation {
-  bytes credential_id = 1;
-  bytes client_data_json = 2;
-  bytes attestation_object = 3;
-  bytes client_data_hash = 4;
+  // Opaque native credential identifier scoped to the account.
+  bytes credential_id = 1 [(google.api.field_behavior) = REQUIRED];
+  // Exact WebAuthn client-data bytes. Verified against the offered challenge and origin.
+  bytes client_data_json = 2 [(google.api.field_behavior) = REQUIRED];
+  // Exact WebAuthn attestation object for enrollment verification.
+  bytes attestation_object = 3 [(google.api.field_behavior) = REQUIRED];
+  // SHA-256 hash of the exact client-data bytes.
+  bytes client_data_hash = 4 [(google.api.field_behavior) = REQUIRED];
 }
+
+// Selects one proof matching the offered authentication challenge.
+// Exactly one offered proof must be selected; fields in the selected proof are required as annotated.
 message FactorProof {
   oneof proof {
+    // The fido2 represented by Fido2Assertion.
     Fido2Assertion fido2 = 1;
+    // One-time recovery proof. Never log it or reuse it after successful consumption.
     string recovery_code = 2;
   }
 }
+
 // This grant is accepted only for enrollment, never for a business/API session.
 message EnrollmentRequired {
+  // The account associated with this message.
   string account = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/Account"];
+  // Short-lived secret authorizing the offered enrollment flow.
   string enrollment_token = 2;
+  // Time when this resource or credential expires.
   google.protobuf.Timestamp expire_time = 3;
 }
+
+// Selects exactly one authenticated, challenge or enrollment outcome.
 message LoginDecision {
   oneof outcome {
+    // The authenticated represented by SessionTokens.
     SessionTokens authenticated = 1;
+    // Typed challenge offered for this flow. Its expiry and proof alternatives remain authoritative.
     FactorChallenge challenge = 2;
+    // The enrollment required represented by EnrollmentRequired.
     EnrollmentRequired enrollment_required = 3;
   }
 }
 
-// TLS is mandatory. Anonymous here means the request carries its own login,
-// refresh, or enrollment proof; it never bypasses native credential admission.
-// Enrollment performs its own native-session or restricted-grant admission.
-service AuthService {
-  rpc StartLogin(StartLoginRequest) returns (StartLoginResponse) {
-    option (google.api.http) = { post: "/v2:startLogin" body: "*" };
-  }
-  rpc CompleteLogin(CompleteLoginRequest) returns (CompleteLoginResponse) {
-    option (google.api.http) = { post: "/v2:completeLogin" body: "*" };
-  }
-  rpc RefreshSession(RefreshSessionRequest) returns (RefreshSessionResponse) {
-    option (google.api.http) = { post: "/v2:refreshSession" body: "*" };
-  }
-  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
-    option (google.api.http) = { get: "/v2/{parent=homes/*/accounts/*}/sessions" };
-    option (google.api.method_signature) = "parent";
-  }
-  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse) {
-    option (google.api.http) = { post: "/v2/{name=homes/*/accounts/*/sessions/*}:revoke" body: "*" };
-  }
-  rpc BeginFactorEnrollment(BeginFactorEnrollmentRequest) returns (BeginFactorEnrollmentResponse) {
-    option (google.api.http) = { post: "/v2/{parent=homes/*/accounts/*}/factorCredentials:beginEnrollment" body: "*" };
-  }
-  rpc CompleteFactorEnrollment(CompleteFactorEnrollmentRequest) returns (CompleteFactorEnrollmentResponse) {
-    option (google.api.http) = { post: "/v2/{parent=homes/*/accounts/*}/factorCredentials:completeEnrollment" body: "*" };
-  }
-  rpc ListFactorCredentials(ListFactorCredentialsRequest) returns (ListFactorCredentialsResponse) {
-    option (google.api.http) = { get: "/v2/{parent=homes/*/accounts/*}/factorCredentials" };
-    option (google.api.method_signature) = "parent";
-  }
-  rpc RemoveFactorCredential(RemoveFactorCredentialRequest) returns (RemoveFactorCredentialResponse) {
-    option (google.api.http) = { post: "/v2/{name=homes/*/accounts/*/factorCredentials/*}:remove" body: "*" };
-  }
-  rpc ReplaceRecoveryCodes(ReplaceRecoveryCodesRequest) returns (ReplaceRecoveryCodesResponse) {
-    option (google.api.http) = { post: "/v2/{name=homes/*/accounts/*}:replaceRecoveryCodes" body: "*" };
-  }
-}
+// Request for start login.
 message StartLoginRequest {
+  // Native account login. Distinct from the canonical account resource name.
   string login_name = 1 [(google.api.field_behavior) = REQUIRED];
+  // Password supplied for this authentication attempt. Never returned or included in diagnostics.
   string password = 2 [(google.api.field_behavior) = REQUIRED];
 }
-message StartLoginResponse { LoginDecision decision = 1; }
+
+// Successful result of start login.
+message StartLoginResponse {
+  // The decision represented by LoginDecision.
+  LoginDecision decision = 1;
+}
+
+// Request for complete login.
 message CompleteLoginRequest {
+  // Opaque identifier of the exact offered challenge.
   string challenge_id = 1 [(google.api.field_behavior) = REQUIRED];
+  // Exactly one proof matching the offered challenge; unknown alternatives are rejected.
   FactorProof proof = 2 [(google.api.field_behavior) = REQUIRED];
 }
-message CompleteLoginResponse { LoginDecision decision = 1; }
+
+// Successful result of complete login.
+message CompleteLoginResponse {
+  // The decision represented by LoginDecision.
+  LoginDecision decision = 1;
+}
+
+// Request for refresh session.
 message RefreshSessionRequest {
+  // Secret refresh credential. Recover only the same durably saved renewal operation after an uncertain response.
   string refresh_token = 1 [(google.api.field_behavior) = REQUIRED];
   // Exactly 32 random bytes, saved durably before dispatch. Retry only this same
   // token/key; native NHA-198 can recover only its still-current successor.
   bytes renewal_key = 2 [(google.api.field_behavior) = REQUIRED];
 }
-message RefreshSessionResponse { SessionTokens tokens = 1; }
+
+// Successful result of refresh session.
+message RefreshSessionResponse {
+  // The tokens represented by SessionTokens.
+  SessionTokens tokens = 1;
+}
+
+// Request for list sessions.
 message ListSessionsRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Session"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Session"
+  ];
   // Default 50; maximum 100; negative is invalid.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation from the preceding page. Keep all other query parameters unchanged.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Successful result of list sessions.
 message ListSessionsResponse {
+  // Collection of sessions for this message.
   repeated Session sessions = 1;
+  // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
 }
+
+// Request for revoke session.
 message RevokeSessionRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Session"];
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Session"
+  ];
 }
+
+// Successful result of revoke session.
 message RevokeSessionResponse {}
+
+// Request for begin factor enrollment.
 message BeginFactorEnrollmentRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/FactorCredential"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/FactorCredential"
+  ];
+  // The kind represented by FactorKind.
   FactorKind kind = 2 [(google.api.field_behavior) = REQUIRED];
   // Required only for the restricted enrollment flow. Must not coexist with an
   // Authorization header; the interactive-session flow leaves it empty.
   string enrollment_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
-message BeginFactorEnrollmentResponse { EnrollmentChallenge challenge = 1; }
+
+// Successful result of begin factor enrollment.
+message BeginFactorEnrollmentResponse {
+  // Typed challenge offered for this flow. Its expiry and proof alternatives remain authoritative.
+  EnrollmentChallenge challenge = 1;
+}
+
+// Request for complete factor enrollment.
 message CompleteFactorEnrollmentRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/FactorCredential"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/FactorCredential"
+  ];
+  // Opaque identifier of the exact offered challenge.
   string challenge_id = 2 [(google.api.field_behavior) = REQUIRED];
+  // The attestation represented by Fido2Attestation.
   Fido2Attestation attestation = 3 [(google.api.field_behavior) = REQUIRED];
+  // Required only for the restricted enrollment flow. Must not coexist with an
+  // Authorization header; the interactive-session flow leaves it empty.
   string enrollment_token = 4 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Successful result of complete factor enrollment.
 message CompleteFactorEnrollmentResponse {
+  // Metadata of the factor credential; contains no private key or recovery secret.
   FactorCredential factor_credential = 1;
   // Native bounded batch returned once after verified activation; never logged.
   repeated string recovery_codes = 2;
 }
+
+// Request for list factor credentials.
 message ListFactorCredentialsRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/FactorCredential"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/FactorCredential"
+  ];
   // Default 50; maximum 100; negative is invalid.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation from the preceding page. Keep all other query parameters unchanged.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Successful result of list factor credentials.
 message ListFactorCredentialsResponse {
+  // Factor credential metadata visible to the admitted caller.
   repeated FactorCredential factor_credentials = 1;
+  // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
 }
+
+// Request for remove factor credential.
 message RemoveFactorCredentialRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/FactorCredential"];
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/FactorCredential"
+  ];
 }
+
+// Successful result of remove factor credential.
 message RemoveFactorCredentialResponse {}
+
+// Request for replace recovery codes.
 message ReplaceRecoveryCodesRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Account"];
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Account"
+  ];
 }
+
+// Successful result of replace recovery codes.
 message ReplaceRecoveryCodesResponse {
   // One-shot replacement invalidates all unused previous codes atomically.
   repeated string recovery_codes = 1;
 }
 
-// Requested ceilings only. Current account rights, object grants, credential
-// audience and revocation remain independent checks on every admission.
-enum ScopeFamily {
-  SCOPE_FAMILY_UNSPECIFIED = 0;
-  SCOPE_FAMILY_STATE_REGISTRY = 1;
-  SCOPE_FAMILY_HISTORY = 2;
-  SCOPE_FAMILY_MEDIA = 3;
-  SCOPE_FAMILY_LOCATION = 4;
-  SCOPE_FAMILY_ACTIONS = 5;
-  SCOPE_FAMILY_DASHBOARDS = 6;
-  SCOPE_FAMILY_CALENDARS = 7;
-  SCOPE_FAMILY_LISTS = 8;
-  SCOPE_FAMILY_LOGIC = 9;
-  SCOPE_FAMILY_INTEGRATIONS = 10;
-  SCOPE_FAMILY_GLOBAL_CONFIGURATION = 11;
-  SCOPE_FAMILY_ACCOUNTS = 12;
-  SCOPE_FAMILY_BACKUPS = 13;
-}
-enum ScopeOperation {
-  SCOPE_OPERATION_UNSPECIFIED = 0;
-  SCOPE_OPERATION_READ = 1;
-  SCOPE_OPERATION_WRITE = 2;
-  SCOPE_OPERATION_ADMINISTER = 3;
-}
+// Represents scope.
 message Scope {
-  ScopeFamily family = 1;
-  ScopeOperation operation = 2;
+  // The family represented by ScopeFamily.
+  ScopeFamily family = 1 [(google.api.field_behavior) = REQUIRED];
+  // The operation represented by ScopeOperation.
+  ScopeOperation operation = 2 [(google.api.field_behavior) = REQUIRED];
 }
+
+// Represents mcp key.
 message McpKey {
   option (google.api.resource) = {
     type: "homeward.damiengoehrig.ca/McpKey"
@@ -506,69 +840,81 @@ message McpKey {
     singular: "mcpKey"
     plural: "mcpKeys"
   };
+  // Canonical resource name. Uses the pattern declared on the resource message.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  // The client name associated with this message.
   string client_name = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // The audience represented by CredentialAudience.
   CredentialAudience audience = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Collection of scopes for this message.
   repeated Scope scopes = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time when this resource was created; absent when no historical creation time was recorded.
   google.protobuf.Timestamp create_time = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time when this resource or credential expires.
   google.protobuf.Timestamp expire_time = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time when revocation was recorded; absent when no revocation was recorded.
   google.protobuf.Timestamp revoke_time = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time of the last recorded use; absence does not mean a use occurred.
   google.protobuf.Timestamp last_use_time = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
-// Key management itself requires an interactive session. An issued key has MCP
-// audience only and is rejected on every public Connect route, including these.
-service McpKeyService {
-  rpc IssueMcpKey(IssueMcpKeyRequest) returns (IssueMcpKeyResponse) {
-    option (google.api.http) = { post: "/v2/{parent=homes/*/accounts/*}/mcpKeys:issue" body: "*" };
-  }
-  rpc ListMcpKeys(ListMcpKeysRequest) returns (ListMcpKeysResponse) {
-    option (google.api.http) = { get: "/v2/{parent=homes/*/accounts/*}/mcpKeys" };
-    option (google.api.method_signature) = "parent";
-  }
-  rpc RevokeMcpKey(RevokeMcpKeyRequest) returns (RevokeMcpKeyResponse) {
-    option (google.api.http) = { post: "/v2/{name=homes/*/accounts/*/mcpKeys/*}:revoke" body: "*" };
-  }
-}
+
+// Request for issue mcp key.
 message IssueMcpKeyRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/McpKey"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/McpKey"
+  ];
+  // The client name associated with this message.
   string client_name = 2 [(google.api.field_behavior) = REQUIRED];
   // Empty grants no scope. Duplicate or unknown family/operation is invalid.
   repeated Scope scopes = 3 [(google.api.field_behavior) = OPTIONAL];
   // Absent means 30 days. Nonpositive or greater than 365 days is invalid.
   google.protobuf.Duration lifetime = 4 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Successful result of issue mcp key.
 message IssueMcpKeyResponse {
+  // The mcp key represented by McpKey.
   McpKey mcp_key = 1;
   // Single issuance only, never metadata and never an idempotency replay value.
   string secret = 2;
 }
+
+// Request for list mcp keys.
 message ListMcpKeysRequest {
-  string parent = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/McpKey"];
+  // Canonical parent resource under which this request is authorized.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/McpKey"
+  ];
   // Default 50; maximum 100; negative is invalid.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation from the preceding page. Keep all other query parameters unchanged.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
+// Successful result of list mcp keys.
 message ListMcpKeysResponse {
+  // Collection of mcp keys for this message.
   repeated McpKey mcp_keys = 1;
+  // Opaque continuation for the next page. Empty when no continuation is available.
   string next_page_token = 2;
 }
+
+// Request for revoke mcp key.
 message RevokeMcpKeyRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/McpKey"];
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/McpKey"
+  ];
 }
+
+// Successful result of revoke mcp key.
 message RevokeMcpKeyResponse {}
 
-// Exact source owned by the native authorization owner. Neither role nor
-// status is encoded here; it cannot create a second authority for account facts.
-// Origin of the effective configurable policy. DEFAULT has no stored document,
-// etag or update_time; its exact deny-all source comes from the native owner.
-enum AuthorizationPolicyOrigin {
-  AUTHORIZATION_POLICY_ORIGIN_UNSPECIFIED = 0;
-  AUTHORIZATION_POLICY_ORIGIN_DEFAULT = 1;
-  AUTHORIZATION_POLICY_ORIGIN_STORED = 2;
-}
+// Represents the native default or stored policy, with exact source distinct from its effective rights.
 message AuthorizationPolicy {
   option (google.api.resource) = {
     type: "homeward.damiengoehrig.ca/AuthorizationPolicy"
@@ -576,46 +922,220 @@ message AuthorizationPolicy {
     singular: "authorizationPolicy"
     plural: "authorizationPolicies"
   };
+  // Canonical resource name. Uses the pattern declared on the resource message.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
   // Exact UTF-8 source, 1..1048576 bytes, with no includes or credentials.
   bytes yaml_source = 2;
+  // The schema associated with this message.
   string schema = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Closed source syntax profile understood by the native compiler.
   string syntax_profile = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Time of the latest recorded resource update.
   google.protobuf.Timestamp update_time = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Opaque revision token for optimistic concurrency. Compare it without interpretation.
   string etag = 6;
+  // The origin represented by AuthorizationPolicyOrigin.
   AuthorizationPolicyOrigin origin = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
-enum PolicyRightsChange {
-  POLICY_RIGHTS_CHANGE_UNSPECIFIED = 0;
-  POLICY_RIGHTS_CHANGE_CHANGED = 1;
-  POLICY_RIGHTS_CHANGE_UNCHANGED = 2;
-}
-service AuthorizationPolicyService {
-  rpc GetAuthorizationPolicy(GetAuthorizationPolicyRequest) returns (AuthorizationPolicy) {
-    option (google.api.http) = { get: "/v2/{name=homes/*/accounts/*/authorizationPolicy}" };
-    option (google.api.method_signature) = "name";
-  }
-  // Exact document replacement with the native absence/CAS union. This is an
-  // atomic security transition and reports whether effective rights changed.
-  rpc ReplaceAuthorizationPolicy(ReplaceAuthorizationPolicyRequest) returns (ReplaceAuthorizationPolicyResponse) {
-    option (google.api.http) = { post: "/v2/{name=homes/*/accounts/*/authorizationPolicy}:replace" body: "*" };
-  }
-}
+
+// Request for get authorization policy.
 message GetAuthorizationPolicyRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/AuthorizationPolicy"];
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/AuthorizationPolicy"
+  ];
 }
+
+// Request for replace authorization policy.
 message ReplaceAuthorizationPolicyRequest {
-  string name = 1 [(google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/AuthorizationPolicy"];
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/AuthorizationPolicy"
+  ];
+  // Exact policy source bytes represented as UTF-8 text; not a serialized filtered projection.
   bytes yaml_source = 2 [(google.api.field_behavior) = REQUIRED];
   // Exactly one is required. Empty expected_etag is invalid, never absence.
   oneof precondition {
+    // Expected current revision token; a stale value fails the conditional write.
     string expected_etag = 3;
+    // Selects the explicit expect absent alternative without an additional payload.
     google.protobuf.Empty expect_absent = 4;
   }
 }
+
+// Successful result of replace authorization policy.
 message ReplaceAuthorizationPolicyResponse {
+  // The policy represented by AuthorizationPolicy.
   AuthorizationPolicy policy = 1;
+  // The rights change represented by PolicyRightsChange.
   PolicyRightsChange rights_change = 2;
+}
+
+// Request for GetInvitation.
+message GetInvitationRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Invitation"
+  ];
+}
+
+// Request for GetSession.
+message GetSessionRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Session"
+  ];
+}
+
+// Request for GetFactorCredential.
+message GetFactorCredentialRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/FactorCredential"
+  ];
+}
+
+// Request for GetMcpKey.
+message GetMcpKeyRequest {
+  // Canonical resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/McpKey"
+  ];
+}
+
+// Human roles are closed. Internal routines have no human or service account.
+enum AccountRole {
+  // No explicit account role. Does not select an action.
+  ACCOUNT_ROLE_UNSPECIFIED = 0;
+  // Selects admin for account role.
+  ACCOUNT_ROLE_ADMIN = 1;
+  // Selects user for account role.
+  ACCOUNT_ROLE_USER = 2;
+}
+
+// Account access, independent from enrollment and session satisfaction.
+enum AccountAccess {
+  // No explicit account access. Does not select an action.
+  ACCOUNT_ACCESS_UNSPECIFIED = 0;
+  // Selects enabled for account access.
+  ACCOUNT_ACCESS_ENABLED = 1;
+  // Selects disabled for account access.
+  ACCOUNT_ACCESS_DISABLED = 2;
+}
+
+// Whether the policy transition invalidated the caller's current session.
+enum SecondFactorSessionContinuation {
+  // No explicit second factor session continuation. Does not select an action.
+  SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED = 0;
+  // Selects continues for second factor session continuation.
+  SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES = 1;
+  // Selects reauthentication required for second factor session continuation.
+  SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED = 2;
+}
+
+// Only FIDO2 is enrollable; recovery codes are issued with verified enrollment.
+enum FactorKind {
+  // No explicit factor kind. Does not select an action.
+  FACTOR_KIND_UNSPECIFIED = 0;
+  // Selects fido2 for factor kind.
+  FACTOR_KIND_FIDO2 = 1;
+}
+
+// Defines the closed vocabulary for credential audience.
+enum CredentialAudience {
+  // No explicit credential audience. Does not select an action.
+  CREDENTIAL_AUDIENCE_UNSPECIFIED = 0;
+  // Selects interactive for credential audience.
+  CREDENTIAL_AUDIENCE_INTERACTIVE = 1;
+  // Selects mcp for credential audience.
+  CREDENTIAL_AUDIENCE_MCP = 2;
+}
+
+// Original login evidence. Refresh never upgrades its value or timestamp.
+enum AuthenticationSatisfaction {
+  // No explicit authentication satisfaction. Does not select an action.
+  AUTHENTICATION_SATISFACTION_UNSPECIFIED = 0;
+  // Selects password only for authentication satisfaction.
+  AUTHENTICATION_SATISFACTION_PASSWORD_ONLY = 1;
+  // Selects password fido2 for authentication satisfaction.
+  AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 = 2;
+  // Selects password recovery code for authentication satisfaction.
+  AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE = 3;
+  // The native session predates recorded authentication evidence. Refresh must
+  // not invent evidence or a timestamp; current MFA policy still governs access.
+  AUTHENTICATION_SATISFACTION_NOT_RECORDED = 4;
+}
+
+// Requested ceilings only. Current account rights, object grants, credential
+// audience and revocation remain independent checks on every admission.
+enum ScopeFamily {
+  // No explicit scope family. Does not select an action.
+  SCOPE_FAMILY_UNSPECIFIED = 0;
+  // Selects state registry for scope family.
+  SCOPE_FAMILY_STATE_REGISTRY = 1;
+  // Selects history for scope family.
+  SCOPE_FAMILY_HISTORY = 2;
+  // Selects media for scope family.
+  SCOPE_FAMILY_MEDIA = 3;
+  // Selects location for scope family.
+  SCOPE_FAMILY_LOCATION = 4;
+  // Selects actions for scope family.
+  SCOPE_FAMILY_ACTIONS = 5;
+  // Selects dashboards for scope family.
+  SCOPE_FAMILY_DASHBOARDS = 6;
+  // Selects calendars for scope family.
+  SCOPE_FAMILY_CALENDARS = 7;
+  // Selects lists for scope family.
+  SCOPE_FAMILY_LISTS = 8;
+  // Selects logic for scope family.
+  SCOPE_FAMILY_LOGIC = 9;
+  // Selects integrations for scope family.
+  SCOPE_FAMILY_INTEGRATIONS = 10;
+  // Selects global configuration for scope family.
+  SCOPE_FAMILY_GLOBAL_CONFIGURATION = 11;
+  // Selects accounts for scope family.
+  SCOPE_FAMILY_ACCOUNTS = 12;
+  // Selects backups for scope family.
+  SCOPE_FAMILY_BACKUPS = 13;
+}
+
+// Defines the closed vocabulary for scope operation.
+enum ScopeOperation {
+  // No explicit scope operation. Does not select an action.
+  SCOPE_OPERATION_UNSPECIFIED = 0;
+  // Selects read for scope operation.
+  SCOPE_OPERATION_READ = 1;
+  // Selects write for scope operation.
+  SCOPE_OPERATION_WRITE = 2;
+  // Selects administer for scope operation.
+  SCOPE_OPERATION_ADMINISTER = 3;
+}
+
+// Exact source owned by the native authorization owner. Neither role nor
+// status is encoded here; it cannot create a second authority for account facts.
+// Origin of the effective configurable policy. DEFAULT has no stored document,
+// etag or update_time; its exact deny-all source comes from the native owner.
+enum AuthorizationPolicyOrigin {
+  // No explicit authorization policy origin. Does not select an action.
+  AUTHORIZATION_POLICY_ORIGIN_UNSPECIFIED = 0;
+  // Selects default for authorization policy origin.
+  AUTHORIZATION_POLICY_ORIGIN_DEFAULT = 1;
+  // Selects stored for authorization policy origin.
+  AUTHORIZATION_POLICY_ORIGIN_STORED = 2;
+}
+
+// Defines the closed vocabulary for policy rights change.
+enum PolicyRightsChange {
+  // No explicit policy rights change. Does not select an action.
+  POLICY_RIGHTS_CHANGE_UNSPECIFIED = 0;
+  // Selects changed for policy rights change.
+  POLICY_RIGHTS_CHANGE_CHANGED = 1;
+  // Selects unchanged for policy rights change.
+  POLICY_RIGHTS_CHANGE_UNCHANGED = 2;
 }

@@ -1565,50 +1565,6 @@ func (*FactorProof_Fido2) isFactorProof_Proof() {}
 
 func (*FactorProof_RecoveryCode) isFactorProof_Proof() {}
 
-type AuthorizationTermination struct {
-	state         protoimpl.MessageState         `protogen:"open.v1"`
-	Reason        AuthorizationTerminationReason `protobuf:"varint,1,opt,name=reason,proto3,enum=home.auth.v1.AuthorizationTerminationReason" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AuthorizationTermination) Reset() {
-	*x = AuthorizationTermination{}
-	mi := &file_home_auth_v1_auth_proto_msgTypes[20]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AuthorizationTermination) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AuthorizationTermination) ProtoMessage() {}
-
-func (x *AuthorizationTermination) ProtoReflect() protoreflect.Message {
-	mi := &file_home_auth_v1_auth_proto_msgTypes[20]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AuthorizationTermination.ProtoReflect.Descriptor instead.
-func (*AuthorizationTermination) Descriptor() ([]byte, []int) {
-	return file_home_auth_v1_auth_proto_rawDescGZIP(), []int{20}
-}
-
-func (x *AuthorizationTermination) GetReason() AuthorizationTerminationReason {
-	if x != nil {
-		return x.Reason
-	}
-	return AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED
-}
-
 var File_home_auth_v1_auth_proto protoreflect.FileDescriptor
 
 const file_home_auth_v1_auth_proto_rawDesc = "" +
@@ -1698,9 +1654,7 @@ const file_home_auth_v1_auth_proto_rawDesc = "" +
 	"\vFactorProof\x124\n" +
 	"\x05fido2\x18\x01 \x01(\v2\x1c.home.auth.v1.Fido2AssertionH\x00R\x05fido2\x12%\n" +
 	"\rrecovery_code\x18\x02 \x01(\tH\x00R\frecoveryCodeB\a\n" +
-	"\x05proof\"`\n" +
-	"\x18AuthorizationTermination\x12D\n" +
-	"\x06reason\x18\x01 \x01(\x0e2,.home.auth.v1.AuthorizationTerminationReasonR\x06reason*Z\n" +
+	"\x05proof*Z\n" +
 	"\vAccountRole\x12\x1c\n" +
 	"\x18ACCOUNT_ROLE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12ACCOUNT_ROLE_ADMIN\x10\x01\x12\x15\n" +
@@ -1757,7 +1711,7 @@ func file_home_auth_v1_auth_proto_rawDescGZIP() []byte {
 }
 
 var file_home_auth_v1_auth_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_home_auth_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_home_auth_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_home_auth_v1_auth_proto_goTypes = []any{
 	(AccountRole)(0),                    // 0: home.auth.v1.AccountRole
 	(AccountStatus)(0),                  // 1: home.auth.v1.AccountStatus
@@ -1785,8 +1739,7 @@ var file_home_auth_v1_auth_proto_goTypes = []any{
 	(*Fido2Assertion)(nil),              // 23: home.auth.v1.Fido2Assertion
 	(*Fido2Attestation)(nil),            // 24: home.auth.v1.Fido2Attestation
 	(*FactorProof)(nil),                 // 25: home.auth.v1.FactorProof
-	(*AuthorizationTermination)(nil),    // 26: home.auth.v1.AuthorizationTermination
-	(*timestamppb.Timestamp)(nil),       // 27: google.protobuf.Timestamp
+	(*timestamppb.Timestamp)(nil),       // 26: google.protobuf.Timestamp
 }
 var file_home_auth_v1_auth_proto_depIdxs = []int32{
 	2,  // 0: home.auth.v1.Scope.family:type_name -> home.auth.v1.ScopeFamily
@@ -1794,8 +1747,8 @@ var file_home_auth_v1_auth_proto_depIdxs = []int32{
 	6,  // 2: home.auth.v1.Account.id:type_name -> home.auth.v1.AccountId
 	0,  // 3: home.auth.v1.Account.role:type_name -> home.auth.v1.AccountRole
 	1,  // 4: home.auth.v1.Account.status:type_name -> home.auth.v1.AccountStatus
-	27, // 5: home.auth.v1.Account.created_at:type_name -> google.protobuf.Timestamp
-	27, // 6: home.auth.v1.Account.updated_at:type_name -> google.protobuf.Timestamp
+	26, // 5: home.auth.v1.Account.created_at:type_name -> google.protobuf.Timestamp
+	26, // 6: home.auth.v1.Account.updated_at:type_name -> google.protobuf.Timestamp
 	11, // 7: home.auth.v1.BootstrapAdminResponse.account:type_name -> home.auth.v1.Account
 	6,  // 8: home.auth.v1.RecoverAccountRequest.account_id:type_name -> home.auth.v1.AccountId
 	11, // 9: home.auth.v1.RecoverAccountResponse.account:type_name -> home.auth.v1.Account
@@ -1806,15 +1759,14 @@ var file_home_auth_v1_auth_proto_depIdxs = []int32{
 	18, // 14: home.auth.v1.FactorOption.fido2:type_name -> home.auth.v1.Fido2AssertionChallenge
 	20, // 15: home.auth.v1.FactorOption.recovery_code:type_name -> home.auth.v1.RecoveryCodeChallenge
 	8,  // 16: home.auth.v1.FactorChallenge.id:type_name -> home.auth.v1.ChallengeId
-	27, // 17: home.auth.v1.FactorChallenge.expires_at:type_name -> google.protobuf.Timestamp
+	26, // 17: home.auth.v1.FactorChallenge.expires_at:type_name -> google.protobuf.Timestamp
 	21, // 18: home.auth.v1.FactorChallenge.options:type_name -> home.auth.v1.FactorOption
 	23, // 19: home.auth.v1.FactorProof.fido2:type_name -> home.auth.v1.Fido2Assertion
-	5,  // 20: home.auth.v1.AuthorizationTermination.reason:type_name -> home.auth.v1.AuthorizationTerminationReason
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_home_auth_v1_auth_proto_init() }
@@ -1837,7 +1789,7 @@ func file_home_auth_v1_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_auth_v1_auth_proto_rawDesc), len(file_home_auth_v1_auth_proto_rawDesc)),
 			NumEnums:      6,
-			NumMessages:   21,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

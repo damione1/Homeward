@@ -72,7 +72,13 @@ pub(crate) fn project(
         view,
         viewport,
         &ProjectionRequest {
-            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
+            dashboard: view
+                .map(|view| {
+                    dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::joined_fixture(
+                        view,
+                    )))
+                })
+                .unwrap_or_default(),
             ..Default::default()
         },
     )
@@ -1262,52 +1268,22 @@ pub(crate) fn event_message(event: CacheEvent) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use buffa::EnumValue;
     use buffa::Message;
-    use buffa_types::google::protobuf::Timestamp;
-    use home_client_cache::{Filter, ProjectionMailbox, SnapshotCapture};
+    use home_client_cache::ProjectionMailbox;
 
+    use crate::device_view::fixture as fixtures;
     fn view(count: usize) -> CachedView {
-        view_with(count, |index| state::ViewEntity {
-            entity_id: format!("private-entity-{index:04}"),
-            current_alias: format!("Élément {index}"),
-            ..Default::default()
+        view_with(count, |index| {
+            fixtures::entry(
+                &format!("homes/synthetic/entities/private-entity-{index:04}"),
+                &format!("Élément {index}"),
+                Vec::new(),
+            )
         })
     }
-
-    fn view_with(count: usize, entity: impl Fn(usize) -> state::ViewEntity) -> CachedView {
-        let filter = Filter::all();
-        let cursor = state::ViewCursor {
-            epoch: "private-epoch-not-a-label".into(),
-            config_revision: 1,
-            authorization_revision: 1,
-            global_sequence: 10,
-            filter_sha256: filter.digest().to_vec(),
-            config_sha256: vec![1; 32],
-            grant_sha256: vec![2; 32],
-            admission_proof: vec![3; 40],
-            ..Default::default()
-        };
-        let page = |start: usize, end: usize| state::OpenViewResponse {
-            snapshot_token: "private-snapshot-not-a-label".into(),
-            cursor: cursor.clone().into(),
-            expires_at: Timestamp::from_unix_secs(60).into(),
-            next_page_token: if end == count {
-                String::new()
-            } else {
-                format!("page-{end}")
-            },
-            entities: (start..end).map(&entity).collect(),
-            ..Default::default()
-        };
-        let now = Timestamp::from_unix_secs(0);
-        let mut capture =
-            SnapshotCapture::begin(filter, 256, page(0, count.min(256)), &now).unwrap();
-        for start in (256..count).step_by(256) {
-            capture
-                .push(page(start, (start + 256).min(count)), &now)
-                .unwrap();
-        }
-        capture.finish(&now).unwrap()
+    fn view_with(count: usize, entity: impl Fn(usize) -> wire::EntityViewEntry) -> CachedView {
+        fixtures::capture((0..count).map(entity).collect())
     }
 
     #[test]
@@ -1361,29 +1337,32 @@ mod tests {
     }
 
     fn home_view() -> CachedView {
-        let fixture: serde_json::Value =
+        let data: serde_json::Value =
             serde_json::from_str(include_str!("../tests/fixtures/overview.json")).unwrap();
-        let entities = fixture["entities"].as_array().unwrap();
-        view_with(entities.len(), |index| state::ViewEntity {
-            entity_id: entities[index]["id"].as_str().unwrap().into(),
-            current_alias: entities[index]["alias"].as_str().unwrap().into(),
-            state: state::ObservedState {
-                entity: home_wire_contract::home::registry::v1::EntityRef {
-                    reference: Some(
-                        home_wire_contract::home::registry::v1::entity_ref::Reference::EntityName(
-                            entities[index]["id"].as_str().unwrap().into(),
-                        ),
-                    ),
+        let entities = data["entities"].as_array().unwrap();
+        view_with(entities.len(), |index| {
+            let name = format!(
+                "homes/synthetic/entities/{}",
+                entities[index]["id"].as_str().unwrap()
+            );
+            let mut capability = fixtures::power(
+                &format!("{name}/capabilities/power"),
+                Some(wire::PowerValue::Off),
+            );
+            let Some(wire::capability::Trait::Power(value)) = capability.r#trait.as_mut() else {
+                panic!("power fixture");
+            };
+            value.observation.as_option_mut().unwrap().observed_time =
+                buffa_types::google::protobuf::Timestamp {
+                    seconds: 10,
                     ..Default::default()
                 }
-                .into(),
-                revision: 1,
-                value: Some(state::observed_state::Value::SwitchOn(false)),
-                observed_at: Timestamp::from_unix_secs(10).into(),
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
+                .into();
+            fixtures::entry(
+                &name,
+                entities[index]["alias"].as_str().unwrap(),
+                vec![capability],
+            )
         })
     }
 
@@ -1422,7 +1401,10 @@ mod tests {
         window.set_show_endpoint(false);
         window.set_page(crate::ViewPage::Rooms);
         let destination = Destination {
-            dashboard: home_client_model::dashboard::DashboardId::parse("exact-dashboard").unwrap(),
+            dashboard: home_client_model::api::DashboardName::try_from(
+                "homes/synthetic/dashboards/exact-dashboard",
+            )
+            .unwrap(),
             node: NodeId::parse("exact-configured-popup").unwrap(),
             presentation: Presentation::Popup,
         };
@@ -1430,7 +1412,6 @@ mod tests {
             room: dashboard::RoomId::parse("exact-room-id").unwrap(),
             temperature: None,
             activity: Vec::new(),
-            active_states: Vec::new(),
         });
         room.id = NodeId::parse("configured-room-widget").unwrap();
         room.widget.as_mut().unwrap().action = Some(destination.clone());
@@ -1442,7 +1423,6 @@ mod tests {
         let mut layout = dashboard::fixture();
         layout.rooms.clear();
         layout.native = Some(NativeLayout {
-            version: 3,
             views: vec![root.id.clone()],
             nodes: [root.clone(), room.clone()]
                 .into_iter()
@@ -1526,49 +1506,40 @@ mod tests {
     fn configured_room_temperature_never_falls_back_to_another_observed_entity() {
         use crate::dashboard_widgets::{Content, Field, FieldKey};
         let climate = |index: usize| {
-            let id = format!("temperature-{index}");
-            state::ViewEntity {
-                entity_id: id.clone(),
-                current_alias: format!("Thermostat {index}"),
-                state: state::ObservedState {
-                    entity: home_wire_contract::home::registry::v1::EntityRef {
-                        reference: Some(
-                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityName(
-                                id,
-                            ),
-                        ),
-                        ..Default::default()
-                    }
-                    .into(),
-                    revision: 1,
-                    quality: state::Quality {
-                        availability: state::Availability::Available.into(),
-                        freshness: state::Freshness::Fresh.into(),
-                        provenance: state::Provenance::Observed.into(),
-                        ..Default::default()
-                    }
-                    .into(),
-                    value: Some(state::observed_state::Value::Climate(Box::new(
-                        state::ClimateValue {
-                            current_temperature_celsius: Some(if index == 0 { 99. } else { 0. }),
+            let name = format!("homes/synthetic/entities/temperature-{index}");
+            fixtures::entry(
+                &name,
+                &format!("Thermostat {index}"),
+                vec![fixtures::capability(
+                    &format!("{name}/capabilities/temperature"),
+                    wire::capability::Trait::NumericMeasurement(Box::new(
+                        wire::NumericMeasurementCapability {
+                            unit: "Cel".into(),
+                            role: wire::MeasurementRole::Temperature.into(),
+                            observation: wire::NumericObservation {
+                                value: Some(if index == 0 { 99. } else { 0. }),
+                                quality: fixtures::quality().into(),
+                                ..Default::default()
+                            }
+                            .into(),
                             ..Default::default()
                         },
-                    ))),
-                    ..Default::default()
-                }
-                .into(),
-                ..Default::default()
-            }
+                    )),
+                )],
+            )
         };
         let layout = dashboard::fixture();
         let node = widget_node(Content::Room {
             room: layout.rooms[0].id.clone(),
             temperature: Some(Field {
-                entity: "temperature-1".parse().unwrap(),
+                entity: EntityName::try_from("homes/synthetic/entities/temperature-1").unwrap(),
+                capability: home_client_model::api::CapabilityName::try_from(
+                    "homes/synthetic/entities/temperature-1/capabilities/temperature",
+                )
+                .unwrap(),
                 key: FieldKey::CurrentTemperature,
             }),
             activity: Vec::new(),
-            active_states: Vec::new(),
         });
         let full = view_with(2, climate);
         let reading =
@@ -1587,14 +1558,19 @@ mod tests {
         let stale = view_with(2, |index| {
             let mut entity = climate(index);
             if index == 1 {
-                entity
-                    .state
+                let Some(wire::capability::Trait::NumericMeasurement(value)) =
+                    entity.capabilities[0].r#trait.as_mut()
+                else {
+                    panic!()
+                };
+                value
+                    .observation
                     .as_option_mut()
                     .unwrap()
                     .quality
                     .as_option_mut()
                     .unwrap()
-                    .freshness = state::Freshness::Stale.into();
+                    .freshness = wire::Freshness::Stale.into();
             }
             entity
         });
@@ -1610,42 +1586,38 @@ mod tests {
         use crate::dashboard_widgets::Content;
         let layout = dashboard::fixture();
         let node = widget_node(Content::Security {
-            entities: vec!["security-1".parse().unwrap(), "security-0".parse().unwrap()],
+            capabilities: [
+                "homes/synthetic/entities/security-1/capabilities/power",
+                "homes/synthetic/entities/security-0/capabilities/power",
+            ]
+            .map(|name| home_client_model::api::CapabilityName::try_from(name).unwrap())
+            .to_vec(),
         });
         let source = |index: usize, stale: bool| {
-            let id = format!("security-{index}");
-            state::ViewEntity {
-                entity_id: id.clone(),
-                current_alias: format!("Source {index}"),
-                state: state::ObservedState {
-                    entity: home_wire_contract::home::registry::v1::EntityRef {
-                        reference: Some(
-                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityName(
-                                id,
-                            ),
-                        ),
-                        ..Default::default()
-                    }
-                    .into(),
-                    revision: 1,
-                    quality: state::Quality {
-                        availability: state::Availability::Available.into(),
-                        freshness: if stale {
-                            state::Freshness::Stale
-                        } else {
-                            state::Freshness::Fresh
-                        }
-                        .into(),
-                        provenance: state::Provenance::Observed.into(),
-                        ..Default::default()
-                    }
-                    .into(),
-                    value: Some(state::observed_state::Value::SwitchOn(index == 1)),
-                    ..Default::default()
-                }
-                .into(),
-                ..Default::default()
+            let name = format!("homes/synthetic/entities/security-{index}");
+            let mut capability = fixtures::power(
+                &format!("{name}/capabilities/power"),
+                Some(if index == 1 {
+                    wire::PowerValue::On
+                } else {
+                    wire::PowerValue::Off
+                }),
+            );
+            if stale {
+                let Some(wire::capability::Trait::Power(value)) = capability.r#trait.as_mut()
+                else {
+                    panic!()
+                };
+                value
+                    .observation
+                    .as_option_mut()
+                    .unwrap()
+                    .quality
+                    .as_option_mut()
+                    .unwrap()
+                    .freshness = wire::Freshness::Stale.into();
             }
+            fixtures::entry(&name, &format!("Source {index}"), vec![capability])
         };
         let full = view_with(2, |index| source(index, false));
         let reading =
@@ -1656,34 +1628,57 @@ mod tests {
         assert_eq!(reading.security[1].title, "Source 0");
         assert_eq!(reading.security[1].value, "Off");
         let field = crate::dashboard_widgets::Field {
-            entity: "security-1".parse().unwrap(),
+            entity: EntityName::try_from("homes/synthetic/entities/security-1").unwrap(),
+            capability: home_client_model::api::CapabilityName::try_from(
+                "homes/synthetic/entities/security-1/capabilities/power",
+            )
+            .unwrap(),
             key: crate::dashboard_widgets::FieldKey::State,
         };
-        assert_eq!(field.reading(Some(&full)).as_deref(), Some("on"));
+        assert_eq!(field.reading(Some(&full)).as_deref(), Some("On"));
         assert_eq!(
-            crate::dashboard_visibility::literal(full.get(&field.entity).unwrap()),
-            Some("on"),
+            crate::dashboard_visibility::literal(
+                &full,
+                &home_client_model::dashboard::FieldBinding {
+                    capability: field.capability.clone(),
+                    field: home_client_model::dashboard::FieldKey::State
+                }
+            ),
+            Some(home_client_model::dashboard::Literal::Power(
+                home_client_model::api::Power::On
+            )),
             "the configured state field retains its exact literal"
         );
         let light = view_with(1, |index| {
             let mut entity = source(index, false);
-            entity.state.as_option_mut().unwrap().value = Some(
-                state::observed_state::Value::Light(Box::new(state::LightValue {
-                    on: Some(true),
-                    brightness_percent: Some(42.),
+            entity.capabilities[0] = fixtures::capability(
+                "homes/synthetic/entities/security-0/capabilities/light",
+                wire::capability::Trait::LightControl(Box::new(wire::LightControlCapability {
+                    observation: wire::LightControlObservation {
+                        on: Some(true),
+                        brightness_percent: Some(42.),
+                        quality: fixtures::quality().into(),
+                        ..Default::default()
+                    }
+                    .into(),
                     ..Default::default()
                 })),
             );
+
             entity
         });
         let field = crate::dashboard_widgets::Field {
-            entity: "security-0".parse().unwrap(),
+            entity: EntityName::try_from("homes/synthetic/entities/security-0").unwrap(),
+            capability: home_client_model::api::CapabilityName::try_from(
+                "homes/synthetic/entities/security-0/capabilities/power",
+            )
+            .unwrap(),
             key: crate::dashboard_widgets::FieldKey::State,
         };
         assert_eq!(
             field.reading(Some(&light)).as_deref(),
-            Some("on"),
-            "a state binding must not include unselected brightness or other value properties"
+            None,
+            "an exact power capability binding must not fall back to a different light trait"
         );
         assert!(
             reading
@@ -1704,17 +1699,25 @@ mod tests {
     #[test]
     fn widget_thermostat_uses_the_canonical_field_and_preserves_observed_values_during_drafts() {
         use crate::dashboard_widgets::{Content, Field, FieldKey};
-        let entity: EntityName = "climate.configured".parse().unwrap();
+        let entity = EntityName::try_from("homes/synthetic/entities/climate-configured").unwrap();
         let node = widget_node(Content::Thermostat {
             detailed: false,
             summary_only: false,
             entity: entity.clone(),
             current: Field {
                 entity: entity.clone(),
+                capability: home_client_model::api::CapabilityName::try_from(
+                    "homes/synthetic/entities/climate-configured/capabilities/temperature",
+                )
+                .unwrap(),
                 key: FieldKey::CurrentTemperature,
             },
             target: Field {
                 entity,
+                capability: home_client_model::api::CapabilityName::try_from(
+                    "homes/synthetic/entities/climate-configured/capabilities/setpoint",
+                )
+                .unwrap(),
                 key: FieldKey::Setpoint,
             },
         });
@@ -1777,13 +1780,7 @@ mod tests {
     #[test]
     fn an_empty_server_layout_is_valid_and_does_not_create_dashboard_widgets() {
         let mut wire = dashboard::fixture_wire();
-        wire.metadata.as_option_mut().unwrap().profile =
-            home_client_model::dashboard::Profile::Widgets.name().into();
-        wire.native_layout = home_wire_contract::home::dashboard::v1::NativeLayout {
-            version: 3,
-            ..Default::default()
-        }
-        .into();
+        wire.layout = wire::DashboardLayout::default().into();
         let layout = Layout::try_from(&wire).unwrap();
         let native = layout.native.as_ref().unwrap();
         assert!(native.nodes.is_empty());
@@ -1821,8 +1818,16 @@ mod tests {
         conditional.recipes = Some(Recipes {
             interactions: BTreeMap::new(),
             visibility: Some(Predicate::State {
-                entity: "condition".parse().unwrap(),
-                expected: "on".into(),
+                field: home_client_model::dashboard::FieldBinding {
+                    capability: home_client_model::api::CapabilityName::try_from(
+                        "homes/synthetic/entities/condition/capabilities/power",
+                    )
+                    .unwrap(),
+                    field: home_client_model::dashboard::FieldKey::State,
+                },
+                expected: home_client_model::dashboard::Literal::Power(
+                    home_client_model::api::Power::On,
+                ),
                 comparison: Comparison::Equal,
             }),
         });
@@ -1837,9 +1842,25 @@ mod tests {
         root.id = NodeId::parse("view").unwrap();
         root.kind = Kind::View;
         root.children = vec![section.id.clone()];
-        let mut layout = dashboard::fixture();
+        let entry = |on| {
+            fixtures::entry(
+                "homes/synthetic/entities/condition",
+                "Condition du serveur",
+                vec![fixtures::power(
+                    "homes/synthetic/entities/condition/capabilities/power",
+                    Some(if on {
+                        wire::PowerValue::On
+                    } else {
+                        wire::PowerValue::Off
+                    }),
+                )],
+            )
+        };
+        let live = RefCell::new(home_client_cache::LiveView::new(fixtures::capture(vec![
+            entry(false),
+        ])));
+        let mut layout = dashboard::joined_fixture(live.borrow().current().unwrap());
         layout.native = Some(NativeLayout {
-            version: 3,
             views: vec![root.id.clone()],
             nodes: [root, section, conditional, remaining]
                 .into_iter()
@@ -1851,35 +1872,16 @@ mod tests {
             ..Default::default()
         };
         let observed = |on: bool, revision: u64| {
-            view_with(1, |_| {
-                state::ViewEntity {
-                entity_id: "condition".into(),
-                current_alias: "Condition du serveur".into(),
-                state: state::ObservedState {
-                    entity: home_wire_contract::home::registry::v1::EntityRef {
-                        reference: Some(
-                            home_wire_contract::home::registry::v1::entity_ref::Reference::EntityName(
-                                "condition".into(),
-                            ),
-                        ),
-                        ..Default::default()
-                    }
-                    .into(),
-                    revision,
-                    quality: state::Quality {
-                        availability: state::Availability::Available.into(),
-                        freshness: state::Freshness::Fresh.into(),
-                        provenance: state::Provenance::Observed.into(),
-                        ..Default::default()
-                    }
-                    .into(),
-                    value: Some(state::observed_state::Value::SwitchOn(on)),
-                    ..Default::default()
-                }
-                .into(),
+            let mut live = live.borrow_mut();
+            live.apply(wire::WatchEntityViewResponse {
+                resume_token: format!("checkpoint-{revision}"),
+                change: Some(wire::watch_entity_view_response::Change::Upsert(Box::new(
+                    entry(on),
+                ))),
                 ..Default::default()
-            }
             })
+            .unwrap();
+            live.current().unwrap().clone()
         };
         let generation = ProjectionMailbox::<()>::new().generation();
         render(
@@ -2030,9 +2032,13 @@ mod tests {
             revision: 7,
             room: Some(dashboard::fixture().rooms[1].id.clone()),
             native: None,
-            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(
+                dashboard::joined_fixture(&view),
+            )),
             query: "main".into(),
-            detail: Some("private-entity-0001".parse().unwrap()),
+            detail: Some(
+                EntityName::try_from("homes/synthetic/entities/private-entity-0001").unwrap(),
+            ),
             catalogue: None,
         };
         let projection =
@@ -2047,14 +2053,9 @@ mod tests {
         assert_eq!(detail[0], "light.synthetic_workbench_main");
         assert_eq!(detail[1], "Off");
         assert_eq!(detail[3], "1970-01-01T00:00:10+00:00");
-        let weather = projection
-            .home
-            .observations
-            .iter()
-            .find(|item| item.token == dashboard::OBSERVATION_TOKEN_BASE + 1)
-            .unwrap();
-        assert!(weather.id.is_none());
-        assert_eq!(weather.value, "No observation");
+        // The removed overview-v1 favorites collection is not a v2 data source.
+        // Missing readings are exercised by exact widget bindings above.
+        assert!(projection.home.observations.is_empty());
     }
 
     #[test]
@@ -2081,20 +2082,14 @@ mod tests {
             "value-only updates retain pointer/keyboard gestures"
         );
         let mut replaced = project(CachePhase::Live, Some(&view), Viewport::default());
-        let replacement = "private-replacement".parse::<EntityName>().unwrap();
+        let replacement =
+            EntityName::try_from("homes/synthetic/entities/private-replacement").unwrap();
         replaced.rows[0].id = Some(replacement.clone());
         model.apply(generation, replaced);
         assert!(model.resolve(0, first, 0).is_none());
         assert_eq!(model.resolve(0, model.serial.get(), 0), Some(replacement));
-        let previous = model.home_serial.get();
-        let mut changed_favorite = project(CachePhase::Live, Some(&view), Viewport::default());
-        changed_favorite.home.observations[0].id = Some("private-other-favorite".parse().unwrap());
-        model.apply(generation, changed_favorite);
-        assert!(
-            model
-                .resolve_observation(dashboard::OBSERVATION_TOKEN_BASE, previous, 0)
-                .is_none()
-        );
+        // Overview-v1 favorite slots were removed. Current widget/room owner
+        // invalidation is asserted in the exact-binding tests above.
         model.clear();
         assert!(model.state.borrow().observations.is_empty());
         assert!(
@@ -2117,8 +2112,11 @@ mod tests {
         };
         i_slint_backend_testing::init_no_event_loop();
         let window = crate::create_window().unwrap();
+        let view = home_view();
         let request = std::sync::Arc::new(std::sync::Mutex::new(ProjectionRequest {
-            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(
+                dashboard::joined_fixture(&view),
+            )),
             ..Default::default()
         }));
         bind(&window);
@@ -2132,7 +2130,7 @@ mod tests {
         render(
             &window,
             ProjectionMailbox::<()>::new().generation(),
-            project(CachePhase::Live, Some(&home_view()), Viewport::default()),
+            project(CachePhase::Live, Some(&view), Viewport::default()),
         );
         window.invoke_room_open(dashboard::ROOM_TOKEN_BASE, window.get_home_generation());
         let button = ElementQuery::from_root(&window)
@@ -2190,8 +2188,11 @@ mod tests {
         use slint::ComponentHandle;
         i_slint_backend_testing::init_no_event_loop();
         let window = crate::create_window().unwrap();
+        let view = home_view();
         let request = std::sync::Arc::new(std::sync::Mutex::new(ProjectionRequest {
-            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(
+                dashboard::joined_fixture(&view),
+            )),
             ..Default::default()
         }));
         bind(&window);
@@ -2199,7 +2200,6 @@ mod tests {
         window.set_access_stage(crate::ProAccessStage::Connected);
         window.set_show_endpoint(false);
         window.show().unwrap();
-        let view = home_view();
         let generation = ProjectionMailbox::<()>::new().generation();
         render(
             &window,
@@ -2265,16 +2265,32 @@ mod tests {
         assert!(window.invoke_system_back());
         assert_eq!(window.get_page(), crate::ViewPage::Home);
         assert!(!window.invoke_system_back());
+        // The current native dashboard has no overview-v1 observation slots.
+        // Resolve the authorized entity through the live inventory projection.
+        window.invoke_quick_navigation(crate::ViewPage::Inventory);
         let current = request.lock().unwrap().clone();
         render(
             &window,
             generation,
             project_request(CachePhase::Live, Some(&view), Viewport::default(), &current),
         );
-        window.invoke_observation_open(
-            dashboard::OBSERVATION_TOKEN_BASE,
-            window.get_home_generation(),
-        );
+        let token = {
+            let model = window.get_cache_rows();
+            let rows = model.as_any().downcast_ref::<CacheRows>().unwrap();
+            let state = rows.state.borrow();
+            let target =
+                EntityName::try_from("homes/synthetic/entities/private-entity-0000").unwrap();
+            i32::try_from(
+                *state
+                    .rows
+                    .iter()
+                    .find(|(_, (row, _))| row.id.as_ref() == Some(&target))
+                    .unwrap()
+                    .0,
+            )
+            .unwrap()
+        };
+        window.invoke_cache_activate(token, window.get_cache_generation());
         assert_eq!(window.get_page(), crate::ViewPage::Detail);
         let current = request.lock().unwrap().clone();
         render(
@@ -2346,7 +2362,7 @@ mod tests {
         let view = home_view();
         let generation = ProjectionMailbox::<()>::new().generation();
         let model = CacheRows::default();
-        let mut layout = dashboard::fixture();
+        let mut layout = dashboard::joined_fixture(&view);
         let mut request = ProjectionRequest {
             dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(layout.clone())),
             ..Default::default()
@@ -2362,10 +2378,11 @@ mod tests {
                 .is_some()
         );
         layout.title = "Changed by server".into();
-        layout.document_revision += 1;
-        layout.document_hash = [9; 32];
-        layout.rooms[0].entities =
-            dashboard::RoomEntities::new(vec!["private-entity-0001".parse().unwrap()]).unwrap();
+        layout.etag = "changed-dashboard-etag".into();
+        layout.rooms[0].entities = dashboard::RoomEntities::new(vec![
+            EntityName::try_from("homes/synthetic/entities/private-entity-0001").unwrap(),
+        ])
+        .unwrap();
         request.dashboard = dashboard::LayoutState::Ready(std::sync::Arc::new(layout.clone()));
         assert!(
             model
@@ -2391,7 +2408,7 @@ mod tests {
                 )
                 .is_some()
         );
-        layout.authorization_revision += 1;
+        layout.capture = Some(home_view().incarnation().clone());
         request.dashboard = dashboard::LayoutState::Ready(std::sync::Arc::new(layout.clone()));
         let unauthorized_cohort =
             project_request(CachePhase::Live, Some(&view), Viewport::default(), &request);
@@ -2399,8 +2416,7 @@ mod tests {
             unauthorized_cohort.home.layout.is_none()
                 && unauthorized_cohort.home.observations.is_empty()
         );
-        layout.authorization_revision -= 1;
-        layout.config_revision += 1;
+        layout.capture = None;
         request.dashboard = dashboard::LayoutState::Ready(std::sync::Arc::new(layout));
         let incompatible =
             project_request(CachePhase::Live, Some(&view), Viewport::default(), &request);
@@ -2546,68 +2562,74 @@ mod tests {
             ))),
             "Empty text"
         );
-        assert_eq!(value_text(&helper(None)), "No observation");
+        assert_eq!(value_text(&helper(None)), "Value not provided");
     }
     #[test]
     fn native_layout_models_survive_switching_and_private_clear_without_losing_their_binding() {
-        use home_wire_contract::home::dashboard::v1 as wire;
+        use crate::dashboard_layout::Kind;
+        use crate::dashboard_layout::tests::{children, node as strict_node};
         use slint::ComponentHandle;
+        use wire::dashboard_layout_node::Content as C;
         i_slint_backend_testing::init_no_event_loop();
         let window = crate::create_window().unwrap();
         window.set_show_endpoint(false);
         window.set_access_stage(crate::ProAccessStage::Connected);
-        let node =
-            |id: &str, kind: wire::LayoutKind, children: &[&str], title: &str| wire::LayoutNode {
-                id: id.into(),
-                kind: kind.into(),
-                title: title.into(),
-                children: children.iter().map(|id| (*id).into()).collect(),
-                source: wire::LayoutSource {
-                    file: "synthetic.yaml".into(),
-                    path: id.into(),
-                    variant: "synthetic".into(),
-                    ..Default::default()
-                }
-                .into(),
-                ..Default::default()
+        let node = |id: &str, kind: Kind, child_ids: &[&str], title: &str| {
+            let payload = match kind {
+                Kind::View => C::View(
+                    wire::DashboardViewNode {
+                        children: children(child_ids).into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
+                Kind::Section => C::Section(
+                    wire::DashboardSectionNode {
+                        children: children(child_ids).into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
+                Kind::Heading => C::Heading(
+                    wire::DashboardHeadingNode {
+                        style: wire::DashboardHeadingStyle::Default.into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
+                Kind::Unsupported => C::Unsupported(
+                    wire::DashboardUnsupportedNode {
+                        diagnostic: "Unsupported source card".into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
+                _ => panic!("fixture only declares four closed node variants"),
             };
-        let mut layout = dashboard::fixture();
+            let mut result = strict_node(id, payload);
+            result.display_name = title.into();
+            result
+        };
+        let cache = home_view();
+        let mut layout = dashboard::joined_fixture(&cache);
         let fixture: serde_json::Value =
             serde_json::from_str(include_str!("../tests/fixtures/overview.json")).unwrap();
-        let mut room_node = node("room", wire::LayoutKind::View, &["room-section"], "Room");
-        room_node.route = fixture["rooms"][0]["id"].as_str().unwrap().into();
+        let mut room_node = node("room", Kind::View, &["room-section"], "Room");
+        let Some(C::View(content)) = room_node.content.as_mut() else {
+            panic!()
+        };
+        content.route = fixture["rooms"][0]["id"].as_str().unwrap().into();
         layout.native = Some(
-            crate::dashboard_layout::NativeLayout::try_from(&wire::NativeLayout {
-                version: 1,
+            crate::dashboard_layout::NativeLayout::try_from(&wire::DashboardLayout {
                 views: vec!["view".into(), "room".into()],
                 nodes: vec![
-                    node("view", wire::LayoutKind::View, &["section"], "Home"),
-                    node(
-                        "section",
-                        wire::LayoutKind::Section,
-                        &["heading", "unknown"],
-                        "",
-                    ),
-                    node("heading", wire::LayoutKind::Heading, &[], "Server heading"),
-                    node(
-                        "unknown",
-                        wire::LayoutKind::Unsupported,
-                        &[],
-                        "Unknown custom card",
-                    ),
+                    node("view", Kind::View, &["section"], "Home"),
+                    node("section", Kind::Section, &["heading", "unknown"], ""),
+                    node("heading", Kind::Heading, &[], "Server heading"),
+                    node("unknown", Kind::Unsupported, &[], "Unknown custom card"),
                     room_node,
-                    node(
-                        "room-section",
-                        wire::LayoutKind::Section,
-                        &["room-heading"],
-                        "",
-                    ),
-                    node(
-                        "room-heading",
-                        wire::LayoutKind::Heading,
-                        &[],
-                        "Room heading",
-                    ),
+                    node("room-section", Kind::Section, &["room-heading"], ""),
+                    node("room-heading", Kind::Heading, &[], "Room heading"),
                 ],
                 ..Default::default()
             })
@@ -2620,7 +2642,6 @@ mod tests {
         bind(&window);
         crate::navigation::bind(&window, request.clone(), || {});
         let generation = ProjectionMailbox::<()>::new().generation();
-        let cache = home_view();
         render(
             &window,
             generation,

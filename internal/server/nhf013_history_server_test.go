@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	authapi "github.com/damione1/Homeward/gen/home/api/v2"
 	"io"
 	"net"
 	"os"
@@ -19,8 +20,7 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
@@ -244,15 +244,15 @@ func TestNHF013HistoryServer(t *testing.T) {
 	client := nha181Client(roots)
 	defer client.CloseIdleConnections()
 	base := "https://" + address.String()
-	authAPI := authv1connect.NewAuthServiceClient(client, base)
+	authAPI := apiv2connect.NewAuthServiceClient(client, base)
 	admin := nha162RunLogin(t, ctx, authAPI, adminName, adminPassword)
-	accounts := authv1connect.NewAccountServiceClient(client, base)
+	accounts := apiv2connect.NewAccountServiceClient(client, base)
 	const readerName, readerPassword = "NHF013 Reader", "NHF013 synthetic reader password"
-	created, err := accounts.CreateAccount(ctx, nha162Bearer(&auth.CreateAccountRequest{LoginName: readerName, DisplayName: readerName, InitialPassword: readerPassword, Role: auth.AccountRole_ACCOUNT_ROLE_USER}, admin.AccessToken))
+	created, err := accounts.CreateAccount(ctx, nha162Bearer(&authapi.CreateAccountRequest{Parent: nha203SessionAccount(t, admin.Session).Home().String(), Account: &authapi.Account{LoginName: readerName, DisplayName: readerName, InitialPassword: readerPassword, Role: authapi.AccountRole_ACCOUNT_ROLE_USER}}, admin.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
 	setHistory := func(allowed bool) {
 		grants := `  - scope: {family: state_registry, operation: read}
     objects: {entities: {all: {capabilities: {all: {}}}}}
@@ -264,7 +264,7 @@ func TestNHF013HistoryServer(t *testing.T) {
     objects: {entities: {all: {capabilities: {all: {}}}}}
 `
 		}
-		nha162RunPolicy(t, ctx, policies, created.Msg.Account.Id, admin.AccessToken, grants)
+		nha162RunPolicy(t, ctx, policies, created.Msg.Name, admin.AccessToken, grants)
 	}
 	setHistory(true)
 	certificate, err := os.ReadFile(filepath.Join(data, nha181CertificateName))

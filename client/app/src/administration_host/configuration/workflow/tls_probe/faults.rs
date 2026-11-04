@@ -88,11 +88,9 @@ async fn candidate(owner: &Administration, source: &str) {
     owner.editor_action(1, generation(owner), ProAdminAction::Preview);
     until(owner, "fault candidate admitted", |state| {
         state.configuration.active.is_none()
-            && state
-                .configuration
-                .planner
-                .as_ref()
-                .is_some_and(|editor| editor.plan_state() == Some(plan::PlanState::Admitted))
+            && state.configuration.planner.as_ref().is_some_and(|editor| {
+                editor.plan_state() == Some(plan::ConfigurationPlanState::Admitted)
+            })
     })
     .await;
 }

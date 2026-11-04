@@ -37,6 +37,9 @@ func registerConfigDocumentsRoutes(plan *PublicPlan, service *configdocuments.Se
 		flow      RouteFlow
 	}
 	routes := []route{
+		{configurationv1connect.ConfigurationServiceGetConfigurationRevisionProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
+		{configurationv1connect.ConfigurationServiceGetConfigurationGenerationProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
+		{configurationv1connect.ConfigurationServiceGetConfigurationSchemaProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
 		{configurationv1connect.ConfigurationServiceGetConfigurationDocumentProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
 		{configurationv1connect.ConfigurationServiceListConfigurationDocumentsProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
 		{configurationv1connect.ConfigurationServiceListConfigurationRevisionsProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},

@@ -159,7 +159,7 @@ func nhf015NewCalendarRig(t *testing.T, lifetime time.Duration) *nhf015CalendarR
 	if err = nhf015RegisterCalendarRoutes(plan, handler); err != nil {
 		t.Fatal(err)
 	}
-	plan, _, err = composeSessionsWithCoordinator(plan, base.store, base.coordinator)
+	plan, _, err = composeSessionsWithCoordinator(plan, base.store, base.coordinator, administrationNames{home: base.lists.registry, store: base.store})
 	if err != nil {
 		t.Fatal(err)
 	}

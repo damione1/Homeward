@@ -180,5 +180,13 @@ class MigrationAccounting(unittest.TestCase):
             check(self.manifest, self.descriptor('home.api.v2'), self.root)
 
 
+def load_tests(loader, tests, pattern):
+    # Keep the existing release gate command authoritative for both accounting
+    # and the public lint profile's negative checks.
+    lint = runpy.run_path(str(Path(__file__).with_name('test-api-lint.py')))
+    tests.addTests(loader.loadTestsFromTestCase(lint['LintProfile']))
+    return tests
+
+
 if __name__ == '__main__':
     unittest.main()

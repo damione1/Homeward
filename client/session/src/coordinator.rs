@@ -8,10 +8,7 @@ use std::{
 
 use buffa_types::google::protobuf::Timestamp;
 use home_client_transport::{AccessToken, AuthTransport, Failure, FailureKind};
-use home_wire_contract::{
-    auth_contract,
-    home::{api::v2 as auth, auth::v1 as native},
-};
+use home_wire_contract::{auth_contract, home::api::v2 as auth};
 use tokio::sync::{Mutex, RwLock, RwLockReadGuard, watch};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use zeroize::{Zeroize, Zeroizing};
@@ -574,18 +571,18 @@ impl SessionCoordinator {
                     )
                     .await
             {
-                // Older admission guards cannot distinguish an expired access
-                // bearer. The independent refresh asks the session authority.
-                let expired_access = error.kind()
-                    == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated)
-                    && match error.authorization_termination() {
-                        Ok(None) => true,
-                        Ok(Some(detail)) => {
-                            detail.reason
-                                == native::AuthorizationTerminationReason::CredentialExpired
-                        }
-                        Err(_) => false,
-                    };
+                // Access rejection cannot determine the independent refresh
+                // family's validity. Only RefreshSession can decide that.
+                let expired_access = match error.api_failure() {
+                    Ok(Some(detail)) => {
+                        detail.reason() == auth::ApiErrorReason::AuthenticationRequired
+                    }
+                    Ok(None) => {
+                        error.kind()
+                            == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated)
+                    }
+                    Err(_) => false,
+                };
                 if !expired_access {
                     let reaction = self.observe_failure_inner(generation, &error).await?;
                     if reaction != SessionReaction::Unchanged {
@@ -830,21 +827,16 @@ impl SessionCoordinator {
         generation: Generation,
         failure: &Failure,
     ) -> Result<SessionReaction, SessionFailure> {
-        use native::AuthorizationTerminationReason as Reason;
-        // On an ordinary RPC, an access refusal does not prove the refresh
-        // family invalid. Only the renewal boundary can make that decision.
-        failure
+        use auth::ApiErrorReason as Reason;
+        // Only the renewal boundary can prove the refresh family invalid.
+        let detail = failure
             .api_failure()
             .map_err(|_| SessionFailure::InvalidResponse)?;
-        let access_expired = matches!(failure.authorization_termination(),
-            Ok(Some(detail)) if detail.reason == Reason::CredentialExpired);
-        // A stream expires with its access lease too. Only RefreshSession's
-        // Expired(Session) proves that the independent session is unusable.
-        // A bare access refusal says nothing definitive about the independent
-        // refresh credential. Fence this view and ask the session authority.
-        if access_expired
-            || (failure.kind() == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated)
-                && matches!(failure.authorization_termination(), Ok(None)))
+        let reason = detail.as_ref().map(|detail| detail.reason());
+        if reason == Some(Reason::AuthenticationRequired)
+            || (reason.is_none()
+                && failure.kind()
+                    == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated))
         {
             let mut state = self.inner.state.lock().await;
             if !self.is_current(generation) {
@@ -872,55 +864,32 @@ impl SessionCoordinator {
             self.persist(next, Some(bytes)).await?;
             return Ok(SessionReaction::ViewSuspended);
         }
-        let reason = match failure.authorization_termination() {
-            Ok(Some(detail)) => Some(detail.reason.as_known()),
-            Ok(None)
-                if failure.kind()
-                    == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated) =>
-            {
-                Some(None)
-            }
-            Ok(None) => return Ok(SessionReaction::Unchanged),
-            Err(_) => Some(None),
-        };
+        if !matches!(
+            reason,
+            Some(Reason::AuthorityUnavailable | Reason::AccessDenied)
+        ) {
+            return Ok(SessionReaction::Unchanged);
+        }
         let mut state = self.inner.state.lock().await;
         if !self.is_current(generation) {
             return Ok(SessionReaction::IgnoredOldGeneration);
         }
-        let next = self.advance();
-        let reaction = match reason.flatten() {
+        self.advance();
+        let reaction = match reason {
             Some(Reason::AuthorityUnavailable) => {
                 state.phase = Phase::AuthorityUnavailable;
                 state.failure = Some(SessionFailure::AuthorityUnavailable);
                 SessionReaction::ViewSuspended
             }
-            Some(Reason::RightsChanged) => {
+            Some(Reason::AccessDenied) => {
                 state.phase = Phase::RightsChanged;
                 state.failure = Some(SessionFailure::NeedsLogin);
                 SessionReaction::ViewReset
             }
-            Some(
-                Reason::CredentialRevoked
-                | Reason::CredentialExpired
-                | Reason::AccountDisabled
-                | Reason::Unspecified,
-            )
-            | None => {
-                self.inner.identity_epoch.fetch_add(1, Ordering::SeqCst);
-                state.record = None;
-                state.challenge = None;
-                state.phase = Phase::NeedsLogin;
-                state.failure = Some(SessionFailure::NeedsLogin);
-                SessionReaction::CredentialsDiscarded
-            }
+            _ => unreachable!("only admitted suspension reasons reach this branch"),
         };
         self.publish_failure(state.phase, state.failure);
         drop(state);
-        if reaction == SessionReaction::CredentialsDiscarded
-            && let Err(error) = self.persist(next, None).await
-        {
-            return Err(self.fail(next, error).await);
-        }
         Ok(reaction)
     }
 

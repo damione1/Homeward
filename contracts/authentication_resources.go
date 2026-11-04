@@ -22,7 +22,7 @@ func AdmitAuthenticationRequestShape(value proto.Message) error {
 	switch value.(type) {
 	case *api.ReplaceAuthorizationPolicyRequest:
 		limit = (1 << 20) + 4096
-	case *api.CreateAccountRequest, *api.GetAccountRequest, *api.ListAccountsRequest,
+	case *api.GetInvitationRequest, *api.GetSessionRequest, *api.GetFactorCredentialRequest, *api.GetMcpKeyRequest, *api.CreateAccountRequest, *api.GetAccountRequest, *api.ListAccountsRequest,
 		*api.UpdateAccountRequest, *api.DeleteAccountRequest, *api.IssueInvitationRequest,
 		*api.AcceptInvitationRequest, *api.ListInvitationsRequest, *api.RevokeInvitationRequest,
 		*api.GetSecondFactorPolicyRequest, *api.ChangeSecondFactorPolicyRequest,

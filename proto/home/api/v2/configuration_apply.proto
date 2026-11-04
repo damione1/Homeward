@@ -17,69 +17,22 @@ option java_multiple_files = true;
 option java_outer_classname = "ConfigurationApplyProto";
 option java_package = "com.home.api.v2";
 
-message SourcePrecondition {
-  home.api.v2.DocumentId id = 1;
-  string logical_path = 2;
-  oneof sql_state {
-    home.api.v2.DocumentVersion existing = 3;
-    google.protobuf.Empty sql_absent = 4;
-  }
-  oneof workspace_state {
-    bytes workspace_sha256 = 5;
-    google.protobuf.Empty workspace_absent = 6;
-  }
-}
-
-message ApplyConfigurationPlanRequest {
-  string name = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/ConfigurationPlan"
-  ];
-  // Exact source bytes remain explicit input and are checked against the
-  // named plan's native receipt. The catalogue does not retain source bytes.
-  home.api.v2.ConfigurationPlanCandidate candidate = 2 [(google.api.field_behavior) = REQUIRED];
-  home.api.v2.DocumentVersion expected = 3;
-  bytes expected_workspace_sha256 = 4;
-  // Every entry/include has an independent SQL and editable-file CAS.
-  repeated SourcePrecondition sources = 5;
-  // The exact plan capture being applied; native source/workspace CAS remains
-  // independently required and is never inferred from this token.
-  string etag = 6 [(google.api.field_behavior) = REQUIRED];
-  // UUID identifying this intent for 24-hour durable result lookup.
-  string request_id = 7 [(google.api.field_behavior) = OPTIONAL, (google.api.field_info).format = UUID4];
-}
-message RollbackConfigurationRequest {
-  string name = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/ConfigurationDocument"
-  ];
-  home.api.v2.DocumentVersion expected = 2;
-  bytes expected_workspace_sha256 = 3;
-  home.api.v2.ActiveGeneration historical = 4;
-  repeated SourcePrecondition sources = 5;
-  home.api.v2.ConfigurationPlanSourceFamily family = 6;
-  string identity = 7;
-  // Authorization may select an exact retained policy version without a
-  // historical configuration generation. Exactly one selector is required.
-  home.api.v2.DocumentVersion historical_policy_version = 8;
-  // UUID identifying this intent for 24-hour durable result lookup.
-  string request_id = 9 [(google.api.field_behavior) = OPTIONAL, (google.api.field_info).format = UUID4];
-}
-
 // These methods use the existing editable workspace, CAS and activation owner.
 // The diagnostic plan service remains separate from mutation authorization.
 service ConfigurationApplyService {
+  // Activates an admitted plan after rechecking source, configuration and authorization preconditions.
   rpc ApplyConfigurationPlan(ApplyConfigurationPlanRequest) returns (google.longrunning.Operation) {
     option (google.api.http) = {
       post: "/v2/{name=homes/*/configurationPlans/*}:apply"
       body: "*"
     };
-    option (google.api.method_signature) = "name,candidate,expected,expected_workspace_sha256,sources";
+    option (google.api.method_signature) = "name,candidate,expected,expected_workspace_sha256,sources,etag";
     option (google.longrunning.operation_info) = {
-      response_type: "ConfigurationActivationResult"
+      response_type: "ApplyConfigurationPlanResponse"
       metadata_type: "ConfigurationOperationMetadata"
     };
   }
+  // Activates retained configuration as a new native generation; never restores an old action ledger.
   rpc RollbackConfiguration(RollbackConfigurationRequest) returns (google.longrunning.Operation) {
     option (google.api.http) = {
       post: "/v2/{name=homes/*/configurationDocuments/*}:rollbackConfiguration"
@@ -87,8 +40,95 @@ service ConfigurationApplyService {
     };
     option (google.api.method_signature) = "name,expected,expected_workspace_sha256,historical";
     option (google.longrunning.operation_info) = {
-      response_type: "ConfigurationActivationResult"
+      response_type: "RollbackConfigurationResponse"
       metadata_type: "ConfigurationOperationMetadata"
     };
   }
+}
+
+// Represents source precondition.
+message SourcePrecondition {
+  // The id represented by DocumentId.
+  home.api.v2.DocumentId id = 1 [(google.api.field_behavior) = REQUIRED];
+  // Logical path within the candidate source bundle, never an arbitrary host filesystem path.
+  string logical_path = 2 [(google.api.field_behavior) = REQUIRED];
+  oneof sql_state {
+    // The existing represented by DocumentVersion.
+    home.api.v2.DocumentVersion existing = 3;
+    // Selects the explicit sql absent alternative without an additional payload.
+    google.protobuf.Empty sql_absent = 4;
+  }
+  oneof workspace_state {
+    // Digest of the workspace source, independent of the SQL revision.
+    bytes workspace_sha256 = 5;
+    // Selects the explicit workspace absent alternative without an additional payload.
+    google.protobuf.Empty workspace_absent = 6;
+  }
+}
+
+// Request for apply configuration plan.
+message ApplyConfigurationPlanRequest {
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/ConfigurationPlan"
+  ];
+  // Exact source bytes remain explicit input and are checked against the
+  // named plan's native receipt. The catalogue does not retain source bytes.
+  home.api.v2.ConfigurationPlanCandidate candidate = 2 [(google.api.field_behavior) = REQUIRED];
+  // Typed precondition checked against the native owner before mutation.
+  home.api.v2.DocumentVersion expected = 3 [(google.api.field_behavior) = REQUIRED];
+  // Expected digest of the workspace source; distinct from the SQL revision.
+  bytes expected_workspace_sha256 = 4 [(google.api.field_behavior) = REQUIRED];
+  // Every entry/include has an independent SQL and editable-file CAS.
+  repeated SourcePrecondition sources = 5 [(google.api.field_behavior) = OPTIONAL];
+  // The exact plan capture being applied; native source/workspace CAS remains
+  // independently required and is never inferred from this token.
+  string etag = 6 [(google.api.field_behavior) = REQUIRED];
+  // UUID identifying this intent for 24-hour durable result lookup.
+  string request_id = 7 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request for rollback configuration.
+message RollbackConfigurationRequest {
+  // Canonical resource name. Uses the pattern declared on the resource message.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/ConfigurationDocument"
+  ];
+  // Typed precondition checked against the native owner before mutation.
+  home.api.v2.DocumentVersion expected = 2 [(google.api.field_behavior) = REQUIRED];
+  // Expected digest of the workspace source; distinct from the SQL revision.
+  bytes expected_workspace_sha256 = 3 [(google.api.field_behavior) = REQUIRED];
+  // The historical represented by ActiveGeneration.
+  home.api.v2.ActiveGeneration historical = 4 [(google.api.field_behavior) = OPTIONAL];
+  // Collection of sources for this message.
+  repeated SourcePrecondition sources = 5 [(google.api.field_behavior) = OPTIONAL];
+  // The family represented by ConfigurationPlanSourceFamily.
+  home.api.v2.ConfigurationPlanSourceFamily family = 6 [(google.api.field_behavior) = OPTIONAL];
+  // The identity associated with this message.
+  string identity = 7 [(google.api.field_behavior) = OPTIONAL];
+  // Authorization may select an exact retained policy version without a
+  // historical configuration generation. Exactly one selector is required.
+  home.api.v2.DocumentVersion historical_policy_version = 8 [(google.api.field_behavior) = OPTIONAL];
+  // UUID identifying this intent for 24-hour durable result lookup.
+  string request_id = 9 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Reports publication established by the native configuration owner after Apply.
+message ApplyConfigurationPlanResponse {
+  // Shared immutable publication evidence, without changing the native ledger.
+  ConfigurationActivationResult result = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Reports publication established by the native configuration owner after rollback.
+message RollbackConfigurationResponse {
+  // Shared immutable publication evidence; rollback does not restore an old ledger.
+  ConfigurationActivationResult result = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

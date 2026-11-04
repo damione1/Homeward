@@ -1,8 +1,7 @@
 package dashboard
 
 import (
-	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
-	"github.com/damione1/Homeward/internal/domain"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"strings"
 	"testing"
 )
@@ -26,47 +25,40 @@ func TestScreenMediaQueryClosedGrammar(t *testing.T) {
 func screenSource(query string) string {
 	return strings.Replace(widgetSource, "            title: Exact clock", "            title: Exact clock\n            visibility:\n              - condition: screen\n                media_query: '"+query+"'", 1)
 }
-func screenProject(t *testing.T, source string, support *wire.ClientLayoutSupport) *wire.NativeLayout {
+func screenProject(t *testing.T, source string) *wire.DashboardLayoutNode {
 	t.Helper()
-	compiled := compileWidgets(t, source)
-	projected, err := ProjectNativeLayout(compiled, LayoutProjection{Support: support, Entity: func(alias domain.HAAlias) (domain.EntityID, bool) {
-		id, e := domain.ParseEntityID("synthetic:" + func() string { s, _ := alias.Value(); return s }())
-		return id, e == nil
-	}})
-	if err != nil {
-		t.Fatal(err)
+	source = strings.Replace(source, "            weather_entity: weather.configured\n", "", 1)
+	for _, node := range projectAPIFixture(t, compileWidgets(t, source)).Nodes {
+		if node.Source.GetVariant() == "custom:homeward-clock-weather" {
+			return node
+		}
 	}
-	return projected
+	t.Fatal("missing authored clock")
+	return nil
 }
-func TestScreenVisibilityNegotiatesAndNeverBecomesADomainPredicate(t *testing.T) {
+func TestScreenVisibilityIsExplicitAndNeverBecomesADomainPredicate(t *testing.T) {
 	source := screenSource("(min-width:768px) and (max-width:1199px)")
 	result := compileWidgets(t, source)
 	if result.Status() != StatusSupported {
 		t.Fatalf("closed screen condition rejected: %v", result.Diagnostics())
 	}
-	node := widgetNodes(screenProject(t, source, widgetsSupport()))[0]
-	if node.Kind != wire.LayoutKind_LAYOUT_KIND_WIDGET || node.ScreenVisibility == nil || node.ScreenVisibility.MinWidth != 768 || node.ScreenVisibility.MaxWidth != 1199 {
+	node := screenProject(t, source)
+	if node.GetWidget() == nil || node.ScreenVisibility == nil || node.ScreenVisibility.MinWidth != 768 || node.ScreenVisibility.MaxWidth != 1199 {
 		t.Fatalf("screen projection lost bounds: %v", node)
 	}
-	if node.Recipes != nil && node.Recipes.Visibility != nil {
+	if node.Visibility != nil {
 		t.Fatal("screen entered domain predicate tree")
 	}
-	old := widgetsSupport()
-	old.ScreenVisibility = false
-	unsupported := widgetNodes(screenProject(t, source, old))[0]
-	if unsupported.Kind != wire.LayoutKind_LAYOUT_KIND_UNSUPPORTED || unsupported.Widget != nil || unsupported.Recipes != nil {
-		t.Fatal("old client received interactive conditioned node")
-	}
 	mixed := strings.Replace(source, "media_query: '(min-width:768px) and (max-width:1199px)'", "media_query: '(min-width:768px) and (max-width:1199px)'\n              - condition: state\n                entity: light.room\n                state: 'on'", 1)
-	node = widgetNodes(screenProject(t, mixed, widgetsSupport()))[0]
-	if node.ScreenVisibility == nil || node.Recipes == nil || node.Recipes.Visibility == nil || len(node.Recipes.Visibility.GetAll().Conditions) != 1 || node.Recipes.Visibility.GetAll().Conditions[0].GetState() == nil {
+	node = screenProject(t, mixed)
+	if node.ScreenVisibility == nil || node.Visibility == nil || len(node.Visibility.GetAll().Conditions) != 1 || node.Visibility.GetAll().Conditions[0].GetState() == nil {
 		t.Fatal("domain state predicate changed when paired with screen presentation")
 	}
 }
 func TestScreenVisibilityUnknownNestedAndContradictoryRulesAreInert(t *testing.T) {
 	for _, source := range []string{screenSource("(orientation:portrait)"), strings.Replace(screenSource("(max-width:767px)"), "              - condition: screen\n                media_query:", "              - condition: or\n                conditions:\n                  - condition: screen\n                    media_query:", 1), strings.Replace(screenSource("(max-width:767px)"), "media_query: '(max-width:767px)'", "media_query: '(max-width:767px)'\n              - condition: screen\n                media_query: '(min-width:1200px)'", 1)} {
-		node := widgetNodes(screenProject(t, source, widgetsSupport()))[0]
-		if node.Kind != wire.LayoutKind_LAYOUT_KIND_UNSUPPORTED || node.Widget != nil || node.Recipes != nil {
+		node := screenProject(t, source)
+		if node.GetUnsupported() == nil || node.GetWidget() != nil || node.Visibility != nil {
 			t.Fatalf("invalid viewport rule became active: %v", node)
 		}
 	}

@@ -5,7 +5,7 @@ use forms::advanced::{
     ChoiceField, Field,
     policy::{PolicyCommand, PolicyDraft, Preset},
 };
-use home_wire_contract::{auth_contract::AccountName, home::integrationadmin::v1 as integration};
+use home_wire_contract::{auth_contract::AccountName, home::api::v2 as integration};
 
 fn edit(owner: &Administration, field: Field, value: impl Into<String>) {
     owner.edit(1, generation(owner), field as i32, value.into());
@@ -212,20 +212,40 @@ async fn rights(owner: &Administration, connection: &Connection, session: &Sessi
         "closing a read-only policy detail returns to the account catalogue"
     );
 }
-async fn integration(owner: &Administration, id: &IntegrationId) {
+async fn integration(owner: &Administration, instance_key: &str) {
     section(owner, Section::Integrations).await;
-    let token = {
+    let (token, id) = {
         let state = owner.0.state.lock().unwrap();
-        state
+        let Some(Payload::Integrations(catalogue)) = state
+            .private
+            .pane(Section::Integrations)
+            .and_then(|pane| pane.content.as_ref())
+        else {
+            panic!("integration catalogue")
+        };
+        let matches: Vec<_> = catalogue
+            .response
+            .integration_instances
+            .iter()
+            .filter(|value| value.instance_key == instance_key)
+            .collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "exact declared integration key must resolve uniquely"
+        );
+        let id = IntegrationId::parse(&matches[0].name).unwrap();
+        let token = state
             .rows
             .iter()
             .find(|row| row.target == render::Target::Integration(id.clone()))
             .unwrap()
-            .token
+            .token;
+        (token, id)
     };
     owner.select(token, generation(owner));
     until(owner, "selected integration", |state| {
-        ready(state) && matches!(state.private.pane(Section::Integrations).and_then(|pane|pane.content.as_ref()), Some(Payload::Integration(value)) if value.response.instance.integration_instance_id == id.as_str())
+        ready(state) && matches!(state.private.pane(Section::Integrations).and_then(|pane|pane.content.as_ref()), Some(Payload::Integration(value)) if value.instance.name == id.as_str())
     }).await;
 }
 fn detail(owner: &Administration) -> read::IntegrationDetail {
@@ -239,9 +259,9 @@ fn detail(owner: &Administration) -> read::IntegrationDetail {
     };
     *value.clone()
 }
-fn public(value: &read::IntegrationDetail) -> &integration::PublicConfiguration {
+fn public(value: &read::IntegrationDetail) -> &integration::IntegrationConfiguration {
     let Some(integration::integration_instance::Configuration::Editable(source)) =
-        &value.response.instance.configuration
+        &value.instance.configuration
     else {
         panic!("public integration")
     };
@@ -252,10 +272,10 @@ async fn integrations(
     connection: &Connection,
     session: &SessionCoordinator,
 ) {
-    let opaque = IntegrationId::parse("nha148-opaque").unwrap();
+    let opaque = "nha148-opaque";
     integration(owner, &opaque).await;
     let value = detail(owner);
-    assert!(value.response.instance.type_id.is_empty());
+    assert!(value.instance.integration_type.is_empty());
     assert!(value.kind.is_err());
     {
         let state = owner.0.state.lock().unwrap();
@@ -267,13 +287,13 @@ async fn integrations(
         );
         assert!(state.rows.iter().any(|row| row.detail.contains("opaque")));
     }
-    let encoded = format!("{:?}", value.response);
+    let encoded = format!("{:?}", value.instance);
     assert!(!encoded.contains("PRIVATE_OPAQUE_ARGUMENT") && !encoded.contains("/usr/bin/true"));
     owner.action(0, generation(owner), ProAdminAction::Remove);
     confirm(owner);
     saved(owner).await;
     // The worker remains disabled until it is deleted: no executable launches.
-    let workday = IntegrationId::parse("homeward-workday-v1").unwrap();
+    let workday = "homeward-workday-v1";
     integration(owner, &workday).await;
     let original = detail(owner);
     owner.action(0, generation(owner), ProAdminAction::Save);
@@ -294,8 +314,8 @@ async fn integrations(
     saved(owner).await;
     integration(owner, &workday).await;
     assert_eq!(
-        detail(owner).response.instance.desired_state,
-        integration::DesiredState::Enabled
+        detail(owner).instance.desired_state,
+        integration::IntegrationDesiredState::Enabled
     );
     owner.action(0, generation(owner), ProAdminAction::Disable);
     confirm(owner);
@@ -305,13 +325,9 @@ async fn integrations(
     owner.action(0, generation(owner), ProAdminAction::Save);
     let cancel = CancellationToken::new();
     let lease = session.access(&cancel).await.unwrap();
-    let mut concurrent = crate::administration::IntegrationDraft::open(
-        &current.response.instance,
-        &current.response.document,
-    )
-    .unwrap();
+    let mut concurrent = crate::administration::IntegrationDraft::open(&current.instance).unwrap();
     concurrent.edit_yaml("timezone: Europe/Paris\n").unwrap();
-    connection
+    let committed = connection
         .integrations()
         .update_instance(
             concurrent.prepare_update().unwrap(),
@@ -321,6 +337,11 @@ async fn integrations(
         )
         .await
         .unwrap();
+    assert!(committed.done);
+    assert_eq!(
+        MutationState::integration_operation(&committed).unwrap(),
+        MutationState::Published
+    );
     edit(owner, Field::Fragment, "timezone: UTC\n");
     confirm(owner);
     outcome(owner, MutationState::Conflict).await;
@@ -364,12 +385,12 @@ async fn integrations(
     );
     confirm(owner);
     saved(owner).await;
-    let mqtt = IntegrationId::parse("nha148-mqtt").unwrap();
+    let mqtt = "nha148-mqtt";
     integration(owner, &mqtt).await;
     let original = detail(owner);
     assert_eq!(
-        original.response.instance.desired_state,
-        integration::DesiredState::Disabled
+        original.instance.desired_state,
+        integration::IntegrationDesiredState::Disabled
     );
     let references = public(&original).secrets.clone();
     assert_eq!(references.len(), 2);
@@ -389,11 +410,11 @@ async fn integrations(
         "editing public YAML preserves scoped secret references exactly"
     );
     assert_eq!(
-        updated.response.instance.desired_state,
-        integration::DesiredState::Disabled,
+        updated.instance.desired_state,
+        integration::IntegrationDesiredState::Disabled,
         "no broker is ever started"
     );
-    let encoded = format!("{:?}", updated.response);
+    let encoded = format!("{:?}", updated.instance);
     assert!(!encoded.contains("NHF018_PRIVATE_SYNTHETIC"));
     owner.action(0, generation(owner), ProAdminAction::Remove);
     confirm(owner);

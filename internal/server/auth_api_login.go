@@ -341,6 +341,9 @@ func (h *authResourceHandler) CompleteLogin(ctx context.Context, request *connec
 	if err != nil {
 		return nil, authCredentialError(ctx, err)
 	}
+	if err := guard.retainIssuedSession(ctx, created.Session, created.AccessExpiresAt); err != nil {
+		return nil, authCredentialError(ctx, err)
+	}
 	return connect.NewResponse(&api.CompleteLoginResponse{Decision: &api.LoginDecision{Outcome: &api.LoginDecision_Authenticated{Authenticated: tokens}}}), nil
 }
 

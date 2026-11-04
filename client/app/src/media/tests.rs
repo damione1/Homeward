@@ -82,7 +82,7 @@ pub(crate) fn media(value: &mut wire::Capability) -> &mut wire::MediaPlaybackCap
 fn data() -> Data {
     Data::new(
         playback(&snapshot()).unwrap().unwrap(),
-        &"homes/test/entities/player".parse().unwrap(),
+        &EntityName::try_from("homes/test/entities/player").unwrap(),
     )
     .unwrap()
 }
@@ -148,7 +148,7 @@ fn absent_reading_is_not_zero_and_renderer_positions_still_obey_canonical_steps(
         .modify(|v| v.step = 100);
     let data = Data::new(
         playback(&snapshot).unwrap().unwrap(),
-        &"homes/test/entities/player".parse().unwrap(),
+        &EntityName::try_from("homes/test/entities/player").unwrap(),
     )
     .unwrap();
     assert_eq!(data.observed(Field::Volume), None);
@@ -193,7 +193,7 @@ fn route_or_permission_changes_replace_control_identity_but_plain_observations_d
     .into();
     let updated = Data::new(
         playback(&snapshot).unwrap().unwrap(),
-        &"homes/test/entities/player".parse().unwrap(),
+        &EntityName::try_from("homes/test/entities/player").unwrap(),
     )
     .unwrap();
     assert!(original.same_controls(&updated));
@@ -208,7 +208,7 @@ fn route_or_permission_changes_replace_control_identity_but_plain_observations_d
         });
     let moved = Data::new(
         playback(&snapshot).unwrap().unwrap(),
-        &"homes/test/entities/player".parse().unwrap(),
+        &EntityName::try_from("homes/test/entities/player").unwrap(),
     )
     .unwrap();
     assert!(!original.same_controls(&moved));
@@ -222,7 +222,7 @@ fn route_or_permission_changes_replace_control_identity_but_plain_observations_d
     snapshot.action_access = wire::ActionAccess::Denied.into();
     let denied = Data::new(
         playback(&snapshot).unwrap().unwrap(),
-        &"homes/test/entities/player".parse().unwrap(),
+        &EntityName::try_from("homes/test/entities/player").unwrap(),
     )
     .unwrap();
     assert!(!moved.same_controls(&denied));

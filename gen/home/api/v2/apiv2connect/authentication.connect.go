@@ -41,6 +41,9 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// AccountServiceGetInvitationProcedure is the fully-qualified name of the AccountService's
+	// GetInvitation RPC.
+	AccountServiceGetInvitationProcedure = "/home.api.v2.AccountService/GetInvitation"
 	// AccountServiceCreateAccountProcedure is the fully-qualified name of the AccountService's
 	// CreateAccount RPC.
 	AccountServiceCreateAccountProcedure = "/home.api.v2.AccountService/CreateAccount"
@@ -74,6 +77,11 @@ const (
 	// AccountServiceChangeSecondFactorPolicyProcedure is the fully-qualified name of the
 	// AccountService's ChangeSecondFactorPolicy RPC.
 	AccountServiceChangeSecondFactorPolicyProcedure = "/home.api.v2.AccountService/ChangeSecondFactorPolicy"
+	// AuthServiceGetFactorCredentialProcedure is the fully-qualified name of the AuthService's
+	// GetFactorCredential RPC.
+	AuthServiceGetFactorCredentialProcedure = "/home.api.v2.AuthService/GetFactorCredential"
+	// AuthServiceGetSessionProcedure is the fully-qualified name of the AuthService's GetSession RPC.
+	AuthServiceGetSessionProcedure = "/home.api.v2.AuthService/GetSession"
 	// AuthServiceStartLoginProcedure is the fully-qualified name of the AuthService's StartLogin RPC.
 	AuthServiceStartLoginProcedure = "/home.api.v2.AuthService/StartLogin"
 	// AuthServiceCompleteLoginProcedure is the fully-qualified name of the AuthService's CompleteLogin
@@ -103,6 +111,8 @@ const (
 	// AuthServiceReplaceRecoveryCodesProcedure is the fully-qualified name of the AuthService's
 	// ReplaceRecoveryCodes RPC.
 	AuthServiceReplaceRecoveryCodesProcedure = "/home.api.v2.AuthService/ReplaceRecoveryCodes"
+	// McpKeyServiceGetMcpKeyProcedure is the fully-qualified name of the McpKeyService's GetMcpKey RPC.
+	McpKeyServiceGetMcpKeyProcedure = "/home.api.v2.McpKeyService/GetMcpKey"
 	// McpKeyServiceIssueMcpKeyProcedure is the fully-qualified name of the McpKeyService's IssueMcpKey
 	// RPC.
 	McpKeyServiceIssueMcpKeyProcedure = "/home.api.v2.McpKeyService/IssueMcpKey"
@@ -122,19 +132,28 @@ const (
 
 // AccountServiceClient is a client for the home.api.v2.AccountService service.
 type AccountServiceClient interface {
+	// Reads metadata under the same native admission as the collection. No credential secret is returned.
+	GetInvitation(context.Context, *connect.Request[v2.GetInvitationRequest]) (*connect.Response[v2.Invitation], error)
+	// Creates a account.
 	CreateAccount(context.Context, *connect.Request[v2.CreateAccountRequest]) (*connect.Response[v2.Account], error)
+	// Gets the authorized account.
 	GetAccount(context.Context, *connect.Request[v2.GetAccountRequest]) (*connect.Response[v2.Account], error)
+	// Lists the authorized accounts using bounded opaque pagination.
 	ListAccounts(context.Context, *connect.Request[v2.ListAccountsRequest]) (*connect.Response[v2.ListAccountsResponse], error)
+	// Updates the authorized account.
 	UpdateAccount(context.Context, *connect.Request[v2.UpdateAccountRequest]) (*connect.Response[v2.Account], error)
+	// Deletes the authorized account.
 	DeleteAccount(context.Context, *connect.Request[v2.DeleteAccountRequest]) (*connect.Response[emptypb.Empty], error)
 	// One-shot issuance, not a standard Create returning reusable metadata only.
 	IssueInvitation(context.Context, *connect.Request[v2.IssueInvitationRequest]) (*connect.Response[v2.IssueInvitationResponse], error)
 	// The invitation bearer authenticates this one-shot transition. Failure does
 	// not disclose account existence; acceptance never creates a login session.
 	AcceptInvitation(context.Context, *connect.Request[v2.AcceptInvitationRequest]) (*connect.Response[v2.AcceptInvitationResponse], error)
+	// Lists the authorized invitations using bounded opaque pagination.
 	ListInvitations(context.Context, *connect.Request[v2.ListInvitationsRequest]) (*connect.Response[v2.ListInvitationsResponse], error)
 	// Revocation preserves native audit metadata; it does not delete the row.
 	RevokeInvitation(context.Context, *connect.Request[v2.RevokeInvitationRequest]) (*connect.Response[v2.RevokeInvitationResponse], error)
+	// Gets the authorized second factor policy.
 	GetSecondFactorPolicy(context.Context, *connect.Request[v2.GetSecondFactorPolicyRequest]) (*connect.Response[v2.SecondFactorPolicy], error)
 	// Custom security transition: it may revoke sessions and returns the caller's
 	// continuation explicitly. Native CAS and MFA publication remain atomic.
@@ -152,6 +171,12 @@ func NewAccountServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 	baseURL = strings.TrimRight(baseURL, "/")
 	accountServiceMethods := v2.File_home_api_v2_authentication_proto.Services().ByName("AccountService").Methods()
 	return &accountServiceClient{
+		getInvitation: connect.NewClient[v2.GetInvitationRequest, v2.Invitation](
+			httpClient,
+			baseURL+AccountServiceGetInvitationProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("GetInvitation")),
+			connect.WithClientOptions(opts...),
+		),
 		createAccount: connect.NewClient[v2.CreateAccountRequest, v2.Account](
 			httpClient,
 			baseURL+AccountServiceCreateAccountProcedure,
@@ -223,6 +248,7 @@ func NewAccountServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // accountServiceClient implements AccountServiceClient.
 type accountServiceClient struct {
+	getInvitation            *connect.Client[v2.GetInvitationRequest, v2.Invitation]
 	createAccount            *connect.Client[v2.CreateAccountRequest, v2.Account]
 	getAccount               *connect.Client[v2.GetAccountRequest, v2.Account]
 	listAccounts             *connect.Client[v2.ListAccountsRequest, v2.ListAccountsResponse]
@@ -234,6 +260,11 @@ type accountServiceClient struct {
 	revokeInvitation         *connect.Client[v2.RevokeInvitationRequest, v2.RevokeInvitationResponse]
 	getSecondFactorPolicy    *connect.Client[v2.GetSecondFactorPolicyRequest, v2.SecondFactorPolicy]
 	changeSecondFactorPolicy *connect.Client[v2.ChangeSecondFactorPolicyRequest, v2.ChangeSecondFactorPolicyResponse]
+}
+
+// GetInvitation calls home.api.v2.AccountService.GetInvitation.
+func (c *accountServiceClient) GetInvitation(ctx context.Context, req *connect.Request[v2.GetInvitationRequest]) (*connect.Response[v2.Invitation], error) {
+	return c.getInvitation.CallUnary(ctx, req)
 }
 
 // CreateAccount calls home.api.v2.AccountService.CreateAccount.
@@ -293,19 +324,28 @@ func (c *accountServiceClient) ChangeSecondFactorPolicy(ctx context.Context, req
 
 // AccountServiceHandler is an implementation of the home.api.v2.AccountService service.
 type AccountServiceHandler interface {
+	// Reads metadata under the same native admission as the collection. No credential secret is returned.
+	GetInvitation(context.Context, *connect.Request[v2.GetInvitationRequest]) (*connect.Response[v2.Invitation], error)
+	// Creates a account.
 	CreateAccount(context.Context, *connect.Request[v2.CreateAccountRequest]) (*connect.Response[v2.Account], error)
+	// Gets the authorized account.
 	GetAccount(context.Context, *connect.Request[v2.GetAccountRequest]) (*connect.Response[v2.Account], error)
+	// Lists the authorized accounts using bounded opaque pagination.
 	ListAccounts(context.Context, *connect.Request[v2.ListAccountsRequest]) (*connect.Response[v2.ListAccountsResponse], error)
+	// Updates the authorized account.
 	UpdateAccount(context.Context, *connect.Request[v2.UpdateAccountRequest]) (*connect.Response[v2.Account], error)
+	// Deletes the authorized account.
 	DeleteAccount(context.Context, *connect.Request[v2.DeleteAccountRequest]) (*connect.Response[emptypb.Empty], error)
 	// One-shot issuance, not a standard Create returning reusable metadata only.
 	IssueInvitation(context.Context, *connect.Request[v2.IssueInvitationRequest]) (*connect.Response[v2.IssueInvitationResponse], error)
 	// The invitation bearer authenticates this one-shot transition. Failure does
 	// not disclose account existence; acceptance never creates a login session.
 	AcceptInvitation(context.Context, *connect.Request[v2.AcceptInvitationRequest]) (*connect.Response[v2.AcceptInvitationResponse], error)
+	// Lists the authorized invitations using bounded opaque pagination.
 	ListInvitations(context.Context, *connect.Request[v2.ListInvitationsRequest]) (*connect.Response[v2.ListInvitationsResponse], error)
 	// Revocation preserves native audit metadata; it does not delete the row.
 	RevokeInvitation(context.Context, *connect.Request[v2.RevokeInvitationRequest]) (*connect.Response[v2.RevokeInvitationResponse], error)
+	// Gets the authorized second factor policy.
 	GetSecondFactorPolicy(context.Context, *connect.Request[v2.GetSecondFactorPolicyRequest]) (*connect.Response[v2.SecondFactorPolicy], error)
 	// Custom security transition: it may revoke sessions and returns the caller's
 	// continuation explicitly. Native CAS and MFA publication remain atomic.
@@ -319,6 +359,12 @@ type AccountServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	accountServiceMethods := v2.File_home_api_v2_authentication_proto.Services().ByName("AccountService").Methods()
+	accountServiceGetInvitationHandler := connect.NewUnaryHandler(
+		AccountServiceGetInvitationProcedure,
+		svc.GetInvitation,
+		connect.WithSchema(accountServiceMethods.ByName("GetInvitation")),
+		connect.WithHandlerOptions(opts...),
+	)
 	accountServiceCreateAccountHandler := connect.NewUnaryHandler(
 		AccountServiceCreateAccountProcedure,
 		svc.CreateAccount,
@@ -387,6 +433,8 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 	)
 	return "/home.api.v2.AccountService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case AccountServiceGetInvitationProcedure:
+			accountServiceGetInvitationHandler.ServeHTTP(w, r)
 		case AccountServiceCreateAccountProcedure:
 			accountServiceCreateAccountHandler.ServeHTTP(w, r)
 		case AccountServiceGetAccountProcedure:
@@ -417,6 +465,10 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 
 // UnimplementedAccountServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedAccountServiceHandler struct{}
+
+func (UnimplementedAccountServiceHandler) GetInvitation(context.Context, *connect.Request[v2.GetInvitationRequest]) (*connect.Response[v2.Invitation], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.AccountService.GetInvitation is not implemented"))
+}
 
 func (UnimplementedAccountServiceHandler) CreateAccount(context.Context, *connect.Request[v2.CreateAccountRequest]) (*connect.Response[v2.Account], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.AccountService.CreateAccount is not implemented"))
@@ -464,15 +516,29 @@ func (UnimplementedAccountServiceHandler) ChangeSecondFactorPolicy(context.Conte
 
 // AuthServiceClient is a client for the home.api.v2.AuthService service.
 type AuthServiceClient interface {
+	// Reads metadata under the same native admission as the collection. No credential secret is returned.
+	GetFactorCredential(context.Context, *connect.Request[v2.GetFactorCredentialRequest]) (*connect.Response[v2.FactorCredential], error)
+	// Reads metadata under the same native admission as the collection. No credential secret is returned.
+	GetSession(context.Context, *connect.Request[v2.GetSessionRequest]) (*connect.Response[v2.Session], error)
+	// Starts password authentication and returns the offered next step without revealing account existence.
 	StartLogin(context.Context, *connect.Request[v2.StartLoginRequest]) (*connect.Response[v2.StartLoginResponse], error)
+	// Consumes the offered factor proof and issues credentials for the resulting native session.
 	CompleteLogin(context.Context, *connect.Request[v2.CompleteLoginRequest]) (*connect.Response[v2.CompleteLoginResponse], error)
+	// Renews the same native session using the saved renewal key; uncertain replies do not authorize a new operation.
 	RefreshSession(context.Context, *connect.Request[v2.RefreshSessionRequest]) (*connect.Response[v2.RefreshSessionResponse], error)
+	// Lists the authorized sessions using bounded opaque pagination.
 	ListSessions(context.Context, *connect.Request[v2.ListSessionsRequest]) (*connect.Response[v2.ListSessionsResponse], error)
+	// Revokes the selected session.
 	RevokeSession(context.Context, *connect.Request[v2.RevokeSessionRequest]) (*connect.Response[v2.RevokeSessionResponse], error)
+	// Offers a bounded enrollment challenge to the authorized caller.
 	BeginFactorEnrollment(context.Context, *connect.Request[v2.BeginFactorEnrollmentRequest]) (*connect.Response[v2.BeginFactorEnrollmentResponse], error)
+	// Consumes the enrollment proof and returns newly issued recovery material once.
 	CompleteFactorEnrollment(context.Context, *connect.Request[v2.CompleteFactorEnrollmentRequest]) (*connect.Response[v2.CompleteFactorEnrollmentResponse], error)
+	// Lists the authorized factor credentials using bounded opaque pagination.
 	ListFactorCredentials(context.Context, *connect.Request[v2.ListFactorCredentialsRequest]) (*connect.Response[v2.ListFactorCredentialsResponse], error)
+	// Removes the selected factor credential.
 	RemoveFactorCredential(context.Context, *connect.Request[v2.RemoveFactorCredentialRequest]) (*connect.Response[v2.RemoveFactorCredentialResponse], error)
+	// Replaces recovery codes under the native security preconditions and returns them once.
 	ReplaceRecoveryCodes(context.Context, *connect.Request[v2.ReplaceRecoveryCodesRequest]) (*connect.Response[v2.ReplaceRecoveryCodesResponse], error)
 }
 
@@ -487,6 +553,18 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 	baseURL = strings.TrimRight(baseURL, "/")
 	authServiceMethods := v2.File_home_api_v2_authentication_proto.Services().ByName("AuthService").Methods()
 	return &authServiceClient{
+		getFactorCredential: connect.NewClient[v2.GetFactorCredentialRequest, v2.FactorCredential](
+			httpClient,
+			baseURL+AuthServiceGetFactorCredentialProcedure,
+			connect.WithSchema(authServiceMethods.ByName("GetFactorCredential")),
+			connect.WithClientOptions(opts...),
+		),
+		getSession: connect.NewClient[v2.GetSessionRequest, v2.Session](
+			httpClient,
+			baseURL+AuthServiceGetSessionProcedure,
+			connect.WithSchema(authServiceMethods.ByName("GetSession")),
+			connect.WithClientOptions(opts...),
+		),
 		startLogin: connect.NewClient[v2.StartLoginRequest, v2.StartLoginResponse](
 			httpClient,
 			baseURL+AuthServiceStartLoginProcedure,
@@ -552,6 +630,8 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 
 // authServiceClient implements AuthServiceClient.
 type authServiceClient struct {
+	getFactorCredential      *connect.Client[v2.GetFactorCredentialRequest, v2.FactorCredential]
+	getSession               *connect.Client[v2.GetSessionRequest, v2.Session]
 	startLogin               *connect.Client[v2.StartLoginRequest, v2.StartLoginResponse]
 	completeLogin            *connect.Client[v2.CompleteLoginRequest, v2.CompleteLoginResponse]
 	refreshSession           *connect.Client[v2.RefreshSessionRequest, v2.RefreshSessionResponse]
@@ -562,6 +642,16 @@ type authServiceClient struct {
 	listFactorCredentials    *connect.Client[v2.ListFactorCredentialsRequest, v2.ListFactorCredentialsResponse]
 	removeFactorCredential   *connect.Client[v2.RemoveFactorCredentialRequest, v2.RemoveFactorCredentialResponse]
 	replaceRecoveryCodes     *connect.Client[v2.ReplaceRecoveryCodesRequest, v2.ReplaceRecoveryCodesResponse]
+}
+
+// GetFactorCredential calls home.api.v2.AuthService.GetFactorCredential.
+func (c *authServiceClient) GetFactorCredential(ctx context.Context, req *connect.Request[v2.GetFactorCredentialRequest]) (*connect.Response[v2.FactorCredential], error) {
+	return c.getFactorCredential.CallUnary(ctx, req)
+}
+
+// GetSession calls home.api.v2.AuthService.GetSession.
+func (c *authServiceClient) GetSession(ctx context.Context, req *connect.Request[v2.GetSessionRequest]) (*connect.Response[v2.Session], error) {
+	return c.getSession.CallUnary(ctx, req)
 }
 
 // StartLogin calls home.api.v2.AuthService.StartLogin.
@@ -616,15 +706,29 @@ func (c *authServiceClient) ReplaceRecoveryCodes(ctx context.Context, req *conne
 
 // AuthServiceHandler is an implementation of the home.api.v2.AuthService service.
 type AuthServiceHandler interface {
+	// Reads metadata under the same native admission as the collection. No credential secret is returned.
+	GetFactorCredential(context.Context, *connect.Request[v2.GetFactorCredentialRequest]) (*connect.Response[v2.FactorCredential], error)
+	// Reads metadata under the same native admission as the collection. No credential secret is returned.
+	GetSession(context.Context, *connect.Request[v2.GetSessionRequest]) (*connect.Response[v2.Session], error)
+	// Starts password authentication and returns the offered next step without revealing account existence.
 	StartLogin(context.Context, *connect.Request[v2.StartLoginRequest]) (*connect.Response[v2.StartLoginResponse], error)
+	// Consumes the offered factor proof and issues credentials for the resulting native session.
 	CompleteLogin(context.Context, *connect.Request[v2.CompleteLoginRequest]) (*connect.Response[v2.CompleteLoginResponse], error)
+	// Renews the same native session using the saved renewal key; uncertain replies do not authorize a new operation.
 	RefreshSession(context.Context, *connect.Request[v2.RefreshSessionRequest]) (*connect.Response[v2.RefreshSessionResponse], error)
+	// Lists the authorized sessions using bounded opaque pagination.
 	ListSessions(context.Context, *connect.Request[v2.ListSessionsRequest]) (*connect.Response[v2.ListSessionsResponse], error)
+	// Revokes the selected session.
 	RevokeSession(context.Context, *connect.Request[v2.RevokeSessionRequest]) (*connect.Response[v2.RevokeSessionResponse], error)
+	// Offers a bounded enrollment challenge to the authorized caller.
 	BeginFactorEnrollment(context.Context, *connect.Request[v2.BeginFactorEnrollmentRequest]) (*connect.Response[v2.BeginFactorEnrollmentResponse], error)
+	// Consumes the enrollment proof and returns newly issued recovery material once.
 	CompleteFactorEnrollment(context.Context, *connect.Request[v2.CompleteFactorEnrollmentRequest]) (*connect.Response[v2.CompleteFactorEnrollmentResponse], error)
+	// Lists the authorized factor credentials using bounded opaque pagination.
 	ListFactorCredentials(context.Context, *connect.Request[v2.ListFactorCredentialsRequest]) (*connect.Response[v2.ListFactorCredentialsResponse], error)
+	// Removes the selected factor credential.
 	RemoveFactorCredential(context.Context, *connect.Request[v2.RemoveFactorCredentialRequest]) (*connect.Response[v2.RemoveFactorCredentialResponse], error)
+	// Replaces recovery codes under the native security preconditions and returns them once.
 	ReplaceRecoveryCodes(context.Context, *connect.Request[v2.ReplaceRecoveryCodesRequest]) (*connect.Response[v2.ReplaceRecoveryCodesResponse], error)
 }
 
@@ -635,6 +739,18 @@ type AuthServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	authServiceMethods := v2.File_home_api_v2_authentication_proto.Services().ByName("AuthService").Methods()
+	authServiceGetFactorCredentialHandler := connect.NewUnaryHandler(
+		AuthServiceGetFactorCredentialProcedure,
+		svc.GetFactorCredential,
+		connect.WithSchema(authServiceMethods.ByName("GetFactorCredential")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceGetSessionHandler := connect.NewUnaryHandler(
+		AuthServiceGetSessionProcedure,
+		svc.GetSession,
+		connect.WithSchema(authServiceMethods.ByName("GetSession")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceStartLoginHandler := connect.NewUnaryHandler(
 		AuthServiceStartLoginProcedure,
 		svc.StartLogin,
@@ -697,6 +813,10 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 	)
 	return "/home.api.v2.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case AuthServiceGetFactorCredentialProcedure:
+			authServiceGetFactorCredentialHandler.ServeHTTP(w, r)
+		case AuthServiceGetSessionProcedure:
+			authServiceGetSessionHandler.ServeHTTP(w, r)
 		case AuthServiceStartLoginProcedure:
 			authServiceStartLoginHandler.ServeHTTP(w, r)
 		case AuthServiceCompleteLoginProcedure:
@@ -725,6 +845,14 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 
 // UnimplementedAuthServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedAuthServiceHandler struct{}
+
+func (UnimplementedAuthServiceHandler) GetFactorCredential(context.Context, *connect.Request[v2.GetFactorCredentialRequest]) (*connect.Response[v2.FactorCredential], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.AuthService.GetFactorCredential is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) GetSession(context.Context, *connect.Request[v2.GetSessionRequest]) (*connect.Response[v2.Session], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.AuthService.GetSession is not implemented"))
+}
 
 func (UnimplementedAuthServiceHandler) StartLogin(context.Context, *connect.Request[v2.StartLoginRequest]) (*connect.Response[v2.StartLoginResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.AuthService.StartLogin is not implemented"))
@@ -768,8 +896,13 @@ func (UnimplementedAuthServiceHandler) ReplaceRecoveryCodes(context.Context, *co
 
 // McpKeyServiceClient is a client for the home.api.v2.McpKeyService service.
 type McpKeyServiceClient interface {
+	// Reads metadata under the same native admission as the collection. No credential secret is returned.
+	GetMcpKey(context.Context, *connect.Request[v2.GetMcpKeyRequest]) (*connect.Response[v2.McpKey], error)
+	// Issues a key under the caller's permitted MCP scopes; returns its secret once.
 	IssueMcpKey(context.Context, *connect.Request[v2.IssueMcpKeyRequest]) (*connect.Response[v2.IssueMcpKeyResponse], error)
+	// Lists the authorized mcp keys using bounded opaque pagination.
 	ListMcpKeys(context.Context, *connect.Request[v2.ListMcpKeysRequest]) (*connect.Response[v2.ListMcpKeysResponse], error)
+	// Revokes the selected mcp key.
 	RevokeMcpKey(context.Context, *connect.Request[v2.RevokeMcpKeyRequest]) (*connect.Response[v2.RevokeMcpKeyResponse], error)
 }
 
@@ -784,6 +917,12 @@ func NewMcpKeyServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 	baseURL = strings.TrimRight(baseURL, "/")
 	mcpKeyServiceMethods := v2.File_home_api_v2_authentication_proto.Services().ByName("McpKeyService").Methods()
 	return &mcpKeyServiceClient{
+		getMcpKey: connect.NewClient[v2.GetMcpKeyRequest, v2.McpKey](
+			httpClient,
+			baseURL+McpKeyServiceGetMcpKeyProcedure,
+			connect.WithSchema(mcpKeyServiceMethods.ByName("GetMcpKey")),
+			connect.WithClientOptions(opts...),
+		),
 		issueMcpKey: connect.NewClient[v2.IssueMcpKeyRequest, v2.IssueMcpKeyResponse](
 			httpClient,
 			baseURL+McpKeyServiceIssueMcpKeyProcedure,
@@ -807,9 +946,15 @@ func NewMcpKeyServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // mcpKeyServiceClient implements McpKeyServiceClient.
 type mcpKeyServiceClient struct {
+	getMcpKey    *connect.Client[v2.GetMcpKeyRequest, v2.McpKey]
 	issueMcpKey  *connect.Client[v2.IssueMcpKeyRequest, v2.IssueMcpKeyResponse]
 	listMcpKeys  *connect.Client[v2.ListMcpKeysRequest, v2.ListMcpKeysResponse]
 	revokeMcpKey *connect.Client[v2.RevokeMcpKeyRequest, v2.RevokeMcpKeyResponse]
+}
+
+// GetMcpKey calls home.api.v2.McpKeyService.GetMcpKey.
+func (c *mcpKeyServiceClient) GetMcpKey(ctx context.Context, req *connect.Request[v2.GetMcpKeyRequest]) (*connect.Response[v2.McpKey], error) {
+	return c.getMcpKey.CallUnary(ctx, req)
 }
 
 // IssueMcpKey calls home.api.v2.McpKeyService.IssueMcpKey.
@@ -829,8 +974,13 @@ func (c *mcpKeyServiceClient) RevokeMcpKey(ctx context.Context, req *connect.Req
 
 // McpKeyServiceHandler is an implementation of the home.api.v2.McpKeyService service.
 type McpKeyServiceHandler interface {
+	// Reads metadata under the same native admission as the collection. No credential secret is returned.
+	GetMcpKey(context.Context, *connect.Request[v2.GetMcpKeyRequest]) (*connect.Response[v2.McpKey], error)
+	// Issues a key under the caller's permitted MCP scopes; returns its secret once.
 	IssueMcpKey(context.Context, *connect.Request[v2.IssueMcpKeyRequest]) (*connect.Response[v2.IssueMcpKeyResponse], error)
+	// Lists the authorized mcp keys using bounded opaque pagination.
 	ListMcpKeys(context.Context, *connect.Request[v2.ListMcpKeysRequest]) (*connect.Response[v2.ListMcpKeysResponse], error)
+	// Revokes the selected mcp key.
 	RevokeMcpKey(context.Context, *connect.Request[v2.RevokeMcpKeyRequest]) (*connect.Response[v2.RevokeMcpKeyResponse], error)
 }
 
@@ -841,6 +991,12 @@ type McpKeyServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewMcpKeyServiceHandler(svc McpKeyServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	mcpKeyServiceMethods := v2.File_home_api_v2_authentication_proto.Services().ByName("McpKeyService").Methods()
+	mcpKeyServiceGetMcpKeyHandler := connect.NewUnaryHandler(
+		McpKeyServiceGetMcpKeyProcedure,
+		svc.GetMcpKey,
+		connect.WithSchema(mcpKeyServiceMethods.ByName("GetMcpKey")),
+		connect.WithHandlerOptions(opts...),
+	)
 	mcpKeyServiceIssueMcpKeyHandler := connect.NewUnaryHandler(
 		McpKeyServiceIssueMcpKeyProcedure,
 		svc.IssueMcpKey,
@@ -861,6 +1017,8 @@ func NewMcpKeyServiceHandler(svc McpKeyServiceHandler, opts ...connect.HandlerOp
 	)
 	return "/home.api.v2.McpKeyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case McpKeyServiceGetMcpKeyProcedure:
+			mcpKeyServiceGetMcpKeyHandler.ServeHTTP(w, r)
 		case McpKeyServiceIssueMcpKeyProcedure:
 			mcpKeyServiceIssueMcpKeyHandler.ServeHTTP(w, r)
 		case McpKeyServiceListMcpKeysProcedure:
@@ -875,6 +1033,10 @@ func NewMcpKeyServiceHandler(svc McpKeyServiceHandler, opts ...connect.HandlerOp
 
 // UnimplementedMcpKeyServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedMcpKeyServiceHandler struct{}
+
+func (UnimplementedMcpKeyServiceHandler) GetMcpKey(context.Context, *connect.Request[v2.GetMcpKeyRequest]) (*connect.Response[v2.McpKey], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.McpKeyService.GetMcpKey is not implemented"))
+}
 
 func (UnimplementedMcpKeyServiceHandler) IssueMcpKey(context.Context, *connect.Request[v2.IssueMcpKeyRequest]) (*connect.Response[v2.IssueMcpKeyResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("home.api.v2.McpKeyService.IssueMcpKey is not implemented"))
@@ -891,6 +1053,7 @@ func (UnimplementedMcpKeyServiceHandler) RevokeMcpKey(context.Context, *connect.
 // AuthorizationPolicyServiceClient is a client for the home.api.v2.AuthorizationPolicyService
 // service.
 type AuthorizationPolicyServiceClient interface {
+	// Gets the native default or stored authorization policy visible to the caller.
 	GetAuthorizationPolicy(context.Context, *connect.Request[v2.GetAuthorizationPolicyRequest]) (*connect.Response[v2.AuthorizationPolicy], error)
 	// Exact document replacement with the native absence/CAS union. This is an
 	// atomic security transition and reports whether effective rights changed.
@@ -943,6 +1106,7 @@ func (c *authorizationPolicyServiceClient) ReplaceAuthorizationPolicy(ctx contex
 // AuthorizationPolicyServiceHandler is an implementation of the
 // home.api.v2.AuthorizationPolicyService service.
 type AuthorizationPolicyServiceHandler interface {
+	// Gets the native default or stored authorization policy visible to the caller.
 	GetAuthorizationPolicy(context.Context, *connect.Request[v2.GetAuthorizationPolicyRequest]) (*connect.Response[v2.AuthorizationPolicy], error)
 	// Exact document replacement with the native absence/CAS union. This is an
 	// atomic security transition and reports whether effective rights changed.

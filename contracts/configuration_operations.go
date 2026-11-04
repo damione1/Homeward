@@ -83,8 +83,11 @@ func AdmitConfigurationOperation(raw *longrunningpb.Operation, expected apitypes
 		return ErrInvalidConfigurationOperation
 	}
 	response, ok := raw.Result.(*longrunningpb.Operation_Response)
-	result := new(api.ConfigurationActivationResult)
-	if !ok || response == nil || !configurationOperationPayload(result, response.Response) || result.Generation != metadata.Generation ||
+	if !ok || response == nil {
+		return ErrInvalidConfigurationOperation
+	}
+	result, err := ParseConfigurationActivationResult(response.Response)
+	if err != nil || result.Generation != metadata.Generation ||
 		result.GenerationRevision != metadata.GenerationRevision || !bytes.Equal(result.ManifestSha256, metadata.ManifestSha256) {
 		return ErrInvalidConfigurationOperation
 	}

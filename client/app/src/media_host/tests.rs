@@ -59,14 +59,14 @@ fn model_publication_does_not_reenter_state_from_gesture_cancellation() {
 fn ready(owner: &Media, session: &SessionCoordinator) {
     let data = Data::new(
         playback(&crate::media::tests::snapshot()).unwrap().unwrap(),
-        &"homes/test/entities/player".parse().unwrap(),
+        &EntityName::try_from("homes/test/entities/player").unwrap(),
     )
     .unwrap();
     let mut state = owner.0.state.lock().unwrap();
     state.foreground = true;
     state.interactive = true;
     state.active = true;
-    state.entity = Some("homes/test/entities/player".parse().unwrap());
+    state.entity = Some(EntityName::try_from("homes/test/entities/player").unwrap());
     state.apply(Arc::new(data), session.generation(), Picture::Absent);
 }
 
@@ -76,7 +76,7 @@ fn a_new_view_cohort_of_the_same_entity_cancels_unsent_media_intent() {
     let session = session();
     let view = ProjectionMailbox::<()>::new();
     owner.choose(
-        Some("homes/test/entities/player".parse().unwrap()),
+        Some(EntityName::try_from("homes/test/entities/player").unwrap()),
         view.generation(),
     );
     ready(&owner, &session);
@@ -84,7 +84,10 @@ fn a_new_view_cohort_of_the_same_entity_cancels_unsent_media_intent() {
     owner.operation(1, generation, ProMediaOperation::Play);
     assert!(owner.0.state.lock().unwrap().pending.is_some());
     let next = view.invalidate().unwrap();
-    owner.choose(Some("homes/test/entities/player".parse().unwrap()), next);
+    owner.choose(
+        Some(EntityName::try_from("homes/test/entities/player").unwrap()),
+        next,
+    );
     owner.operation(1, generation, ProMediaOperation::Play);
     let state = owner.0.state.lock().unwrap();
     assert!(state.pending.is_none() && state.data.is_none());
@@ -130,7 +133,7 @@ fn polling_preserves_a_draft_but_capability_withdrawal_cancels_its_gesture() {
             Arc::new(
                 Data::new(
                     playback(&snapshot).unwrap().unwrap(),
-                    &"homes/test/entities/player".parse().unwrap(),
+                    &EntityName::try_from("homes/test/entities/player").unwrap(),
                 )
                 .unwrap(),
             ),
@@ -150,7 +153,7 @@ fn polling_preserves_a_draft_but_capability_withdrawal_cancels_its_gesture() {
             Arc::new(
                 Data::new(
                     playback(&snapshot).unwrap().unwrap(),
-                    &"homes/test/entities/player".parse().unwrap(),
+                    &EntityName::try_from("homes/test/entities/player").unwrap(),
                 )
                 .unwrap(),
             ),

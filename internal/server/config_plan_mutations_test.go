@@ -23,7 +23,7 @@ func TestNHA203PlanReplayRetainsCaptureWithoutResurrectingExpiredOrRestartedPlan
 	home, _ := apitypes.ParseHomeName("homes/synthetic")
 	binding := nha203PlanBinding(t, 1)
 	catalog.mu.Lock()
-	record, err := catalog.prepareAddLocked(home, binding, nha203PlanMetadata(), now.Add(5*time.Minute))
+	record, err := catalog.prepareAddLocked(home, binding, nha203PlanMetadata(), now.Add(5*time.Minute), nil)
 	if err != nil {
 		catalog.mu.Unlock()
 		t.Fatal(err)

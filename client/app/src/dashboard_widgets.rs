@@ -342,8 +342,9 @@ impl TryFrom<&wire::DashboardWidget> for Widget {
                         .time_zone
                         .parse()
                         .map_err(|_| LayoutFailure::Unsupported)?,
-                    window_seconds: duration.seconds as u32,
-                    limit: v.limit as usize,
+                    window_seconds: u32::try_from(duration.seconds)
+                        .map_err(|_| LayoutFailure::Invalid)?,
+                    limit: usize::try_from(v.limit).map_err(|_| LayoutFailure::Invalid)?,
                 }
             }
             W::Tasks(v) => {
@@ -361,7 +362,7 @@ impl TryFrom<&wire::DashboardWidget> for Widget {
                 Content::Tasks {
                     list: TaskListName::try_from(v.task_list.as_str())
                         .map_err(|_| LayoutFailure::Invalid)?,
-                    limit: v.limit as usize,
+                    limit: usize::try_from(v.limit).map_err(|_| LayoutFailure::Invalid)?,
                     shopping_only,
                 }
             }
@@ -433,11 +434,12 @@ mod tests {
     use super::*;
     #[test]
     fn task_source_and_limit_are_exact_server_values() {
-        let wire = wire::NativeWidget {
-            content: Some(wire::native_widget::Content::Tasks(Box::new(
-                wire::NativeTasksWidget {
-                    list_id: "tasks.second-not-first".into(),
+        let wire = wire::DashboardWidget {
+            content: Some(wire::dashboard_widget::Content::Tasks(Box::new(
+                wire::DashboardTasksWidget {
+                    task_list: "homes/synthetic/taskLists/second-not-first".into(),
                     limit: 7,
+                    presentation: wire::DashboardTasksPresentation::Preview.into(),
                     ..Default::default()
                 },
             ))),
@@ -450,11 +452,11 @@ mod tests {
         else {
             panic!("task widget");
         };
-        assert_eq!(list.as_str(), "tasks.second-not-first");
+        assert_eq!(list.as_str(), "homes/synthetic/taskLists/second-not-first");
         assert_eq!(limit, 7);
         let mut missing = wire.clone();
-        if let Some(wire::native_widget::Content::Tasks(v)) = missing.content.as_mut() {
-            v.presentation = wire::NativeTasksPresentation::Shopping.into();
+        if let Some(wire::dashboard_widget::Content::Tasks(v)) = missing.content.as_mut() {
+            v.presentation = wire::DashboardTasksPresentation::Shopping.into();
         }
         assert!(matches!(
             Widget::try_from(&missing).unwrap().content,
@@ -463,49 +465,58 @@ mod tests {
                 ..
             }
         ));
-        if let Some(wire::native_widget::Content::Tasks(v)) = missing.content.as_mut() {
+        if let Some(wire::dashboard_widget::Content::Tasks(v)) = missing.content.as_mut() {
             v.presentation = EnumValue::Unknown(99);
         }
         assert_eq!(Widget::try_from(&missing), Err(LayoutFailure::Unsupported));
         let mut missing = wire;
-        if let Some(wire::native_widget::Content::Tasks(v)) = missing.content.as_mut() {
-            v.list_id.clear();
+        if let Some(wire::dashboard_widget::Content::Tasks(v)) = missing.content.as_mut() {
+            v.task_list.clear();
         }
         assert_eq!(Widget::try_from(&missing), Err(LayoutFailure::Invalid));
     }
     #[test]
     fn thermostat_cannot_mix_observation_and_command_entities() {
-        let binding = |id: &str, key: &str| wire::NativeFieldBinding {
-            entity_id: id.into(),
-            field_key: key.into(),
+        let binding = |id: &str, key: wire::DashboardFieldKey| wire::DashboardFieldBinding {
+            capability: format!("homes/synthetic/entities/{id}/capabilities/temperature"),
+            field: key.into(),
             ..Default::default()
         };
-        let mut value = wire::NativeWidget {
-            content: Some(wire::native_widget::Content::Thermostat(Box::new(
-                wire::NativeThermostatWidget {
-                    entity_id: "climate.target".into(),
-                    current_temperature: binding("climate.target", "current_temperature_celsius")
-                        .into(),
-                    target_temperature: binding("climate.other", "setpoint_celsius").into(),
+        let mut value = wire::DashboardWidget {
+            content: Some(wire::dashboard_widget::Content::Thermostat(Box::new(
+                wire::DashboardThermostatWidget {
+                    entity: "homes/synthetic/entities/climate-target".into(),
+                    presentation: wire::DashboardThermostatPresentation::Compact.into(),
+                    current_temperature: binding(
+                        "climate-target",
+                        wire::DashboardFieldKey::CurrentTemperatureCelsius,
+                    )
+                    .into(),
+                    target_temperature: binding(
+                        "climate-other",
+                        wire::DashboardFieldKey::SetpointCelsius,
+                    )
+                    .into(),
                     ..Default::default()
                 },
             ))),
             ..Default::default()
         };
         assert_eq!(Widget::try_from(&value), Err(LayoutFailure::Invalid));
-        if let Some(wire::native_widget::Content::Thermostat(v)) = value.content.as_mut() {
-            v.target_temperature.as_option_mut().unwrap().entity_id = "climate.target".into();
+        if let Some(wire::dashboard_widget::Content::Thermostat(v)) = value.content.as_mut() {
+            v.target_temperature.as_option_mut().unwrap().capability =
+                "homes/synthetic/entities/climate-target/capabilities/temperature".into();
         }
         assert!(Widget::try_from(&value).is_ok());
-        if let Some(wire::native_widget::Content::Thermostat(v)) = value.content.as_mut() {
-            v.presentation = wire::NativeThermostatPresentation::Detail.into();
+        if let Some(wire::dashboard_widget::Content::Thermostat(v)) = value.content.as_mut() {
+            v.presentation = wire::DashboardThermostatPresentation::Detail.into();
         }
         assert!(matches!(
             Widget::try_from(&value).unwrap().content,
             Content::Thermostat { detailed: true, .. }
         ));
-        if let Some(wire::native_widget::Content::Thermostat(v)) = value.content.as_mut() {
-            v.presentation = wire::NativeThermostatPresentation::Summary.into();
+        if let Some(wire::dashboard_widget::Content::Thermostat(v)) = value.content.as_mut() {
+            v.presentation = wire::DashboardThermostatPresentation::Summary.into();
         }
         assert!(matches!(
             Widget::try_from(&value).unwrap().content,
@@ -515,22 +526,29 @@ mod tests {
                 ..
             }
         ));
-        if let Some(wire::native_widget::Content::Thermostat(v)) = value.content.as_mut() {
+        if let Some(wire::dashboard_widget::Content::Thermostat(v)) = value.content.as_mut() {
             v.presentation = EnumValue::Unknown(99);
         }
         assert_eq!(Widget::try_from(&value), Err(LayoutFailure::Unsupported));
     }
     #[test]
     fn unknown_fields_never_become_an_implicit_state_reading() {
-        let value = wire::NativeFieldBinding {
-            entity_id: "sensor.explicit".into(),
-            field_key: "pick-first-temperature".into(),
+        let value = wire::DashboardFieldBinding {
+            capability: "homes/synthetic/entities/sensor-explicit/capabilities/measurement".into(),
+            field: EnumValue::Unknown(99),
             ..Default::default()
         };
         assert_eq!(field(&value), Err(LayoutFailure::Unsupported));
-        assert_eq!(
-            entities(&["one".into(), "one".into()], 64),
-            Err(LayoutFailure::Invalid)
-        );
+        let duplicate = wire::DashboardWidget {
+            content: Some(wire::dashboard_widget::Content::Security(
+                wire::DashboardSecurityWidget {
+                    capabilities: vec!["homes/synthetic/entities/one/capabilities/lock".into(); 2],
+                    ..Default::default()
+                }
+                .into(),
+            )),
+            ..Default::default()
+        };
+        assert_eq!(Widget::try_from(&duplicate), Err(LayoutFailure::Invalid));
     }
 }

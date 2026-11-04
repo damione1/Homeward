@@ -452,7 +452,7 @@ impl Editor {
         if let Some(response) = reply.generations {
             let mut ids = BTreeSet::new();
             if response
-                .generations
+                .configuration_generations
                 .iter()
                 .any(|value| !ids.insert(value.generation.revision))
             {
@@ -460,7 +460,7 @@ impl Editor {
                 return false;
             }
             history.generation_next = next(&response.next_page_token);
-            history.generations = response.generations;
+            history.generations = response.configuration_generations;
         }
         if let Some((id, response)) = reply.versions {
             let mut revisions = BTreeSet::new();
@@ -469,7 +469,7 @@ impl Editor {
                     .files
                     .iter()
                     .any(|file| file.reference.id == id.as_str())
-                || response.versions.iter().any(|value| {
+                || response.configuration_revisions.iter().any(|value| {
                     value.id.value != id.as_str() || !revisions.insert(value.version.revision)
                 })
             {
@@ -478,7 +478,7 @@ impl Editor {
             }
             history.policy = Some(id);
             history.policy_next = next(&response.next_page_token);
-            history.versions = response.versions;
+            history.versions = response.configuration_revisions;
         }
         history.selected = None;
         if history.generation_next.is_none() && history.policy_next.is_some() {
@@ -1061,7 +1061,7 @@ mod tests {
         let id = DocumentId::parse("synthetic.dashboard").unwrap();
         let reply = HistoryReply {
             generations: Some(document::ListConfigurationGenerationsResponse {
-                generations: vec![
+                configuration_generations: vec![
                     document::ConfigurationGeneration {
                         name: "homes/test/configurationGenerations/g-5".into(),
                         generation: document::ActiveGeneration {
@@ -1071,7 +1071,7 @@ mod tests {
                         }
                         .into(),
                         availability: document::GenerationAvailability::PartiallyPurged.into(),
-                        created_at: Timestamp {
+                        create_time: Timestamp {
                             seconds: 1_700_000_000,
                             ..Default::default()
                         }
@@ -1087,7 +1087,7 @@ mod tests {
                         }
                         .into(),
                         availability: document::GenerationAvailability::Complete.into(),
-                        created_at: Timestamp {
+                        create_time: Timestamp {
                             seconds: 1_700_000_000,
                             ..Default::default()
                         }
@@ -1101,7 +1101,10 @@ mod tests {
             versions: Some((
                 id.clone(),
                 document::ListConfigurationRevisionsResponse {
-                    versions: vec![document::ConfigurationRevision {
+                    configuration_revisions: vec![document::ConfigurationRevision {
+                        name:
+                            "homes/test/configurationDocuments/document/configurationRevisions/r-3"
+                                .into(),
                         id: id.to_wire().into(),
                         version: document::DocumentVersion {
                             revision: 3,
@@ -1111,7 +1114,7 @@ mod tests {
                         .into(),
                         availability: document::VersionAvailability::Retained.into(),
                         schema_version: "homeward.authorization/1".into(),
-                        updated_at: Timestamp {
+                        update_time: Timestamp {
                             seconds: 1_700_000_000,
                             ..Default::default()
                         }
@@ -1138,7 +1141,10 @@ mod tests {
         assert!(!request.historical.is_set());
         assert_eq!(request.historical_policy_version.revision, 3);
         assert_eq!(request.expected.revision, 7);
-        assert_eq!(request.family, plan::SourceFamily::Authorization);
+        assert_eq!(
+            request.family,
+            plan::ConfigurationPlanSourceFamily::Authorization
+        );
         assert!(editor.action(ProAdminAction::Rollback).is_none());
     }
 }

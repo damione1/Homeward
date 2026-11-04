@@ -128,7 +128,13 @@ func withCalendarResource[T any](h *calendarResourceHandler, ctx context.Context
 	if err != nil {
 		return zero, err
 	}
-	defer permit.Release()
+	retained := false
+	defer func() {
+		if !retained {
+			permit.Release()
+		}
+	}()
+
 	home, err := h.homes.HomeName(permit.Context())
 	if err != nil {
 		return zero, calendarRPCError(ctx, err)
@@ -157,6 +163,13 @@ func withCalendarResource[T any](h *calendarResourceHandler, ctx context.Context
 	}
 	if !permit.Ready() {
 		return zero, taskDenied()
+	}
+	if err == nil {
+		var transferErr error
+		retained, transferErr = retainPublicResponse(ctx, permit.Context(), permit.Ready, permit.Release)
+		if transferErr != nil {
+			return zero, apiRPCError(ctx, transferErr)
+		}
 	}
 	return value, err
 }

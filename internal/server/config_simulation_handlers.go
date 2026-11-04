@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"connectrpc.com/connect"
@@ -148,7 +149,10 @@ func simulationSnapshot(request *wire.SimulateConfigurationPlanRequest) (configs
 	return configsimulation.NewSnapshotWithEvents(fixtures, events)
 }
 func simulationPosition(value configsimulation.Position) *wire.ConfigurationSimulationPosition {
-	return &wire.ConfigurationSimulationPosition{File: value.File, Path: value.Path, Line: uint32(value.Line), Column: uint32(value.Column)}
+	if value.Line < 0 || value.Column < 0 || int64(value.Line) > math.MaxInt32 || int64(value.Column) > math.MaxInt32 {
+		return nil
+	}
+	return &wire.ConfigurationSimulationPosition{File: value.File, Path: value.Path, Line: int32(value.Line), Column: int32(value.Column)}
 }
 func simulationSource(value ir.Source) *wire.ConfigurationSimulationPosition {
 	at := value.At()
@@ -197,9 +201,9 @@ func simulationIntent(value configsimulation.Intent) *wire.ConfigurationSimulati
 		case hascene.MemberLight:
 			intent, _ := member.Light()
 			on, brightness, ct := intent.Components()
-			light := &wire.LightIntent{On: &on, ColorTempMireds: ct}
+			light := &wire.LightIntent{On: &on, ColorTempMireds: simulationMireds(ct)}
 			if brightness != nil {
-				light.Brightness_255 = simulationPointer(uint32(*brightness))
+				light.BrightnessLevel = simulationPointer(int32(*brightness))
 			}
 			out.Parameters = &wire.ConfigurationSimulationIntent_Light{Light: light}
 		case hascene.MemberSwitch:
@@ -207,7 +211,7 @@ func simulationIntent(value configsimulation.Intent) *wire.ConfigurationSimulati
 			out.Parameters = &wire.ConfigurationSimulationIntent_Switch{Switch: &wire.SwitchIntent{On: on}}
 		case hascene.MemberFan:
 			intent, _ := member.Fan()
-			out.Parameters = &wire.ConfigurationSimulationIntent_Fan{Fan: &wire.FanIntent{On: intent.On(), Percentage: uint32(intent.Percentage())}}
+			out.Parameters = &wire.ConfigurationSimulationIntent_Fan{Fan: &wire.FanIntent{On: intent.On(), Percentage: int32(intent.Percentage())}}
 		case hascene.MemberClimate:
 			intent, _ := member.Climate()
 			mode, temperature, humidity, fan, preset := intent.Components()
@@ -304,7 +308,7 @@ func simulationDiagnostic(value configsimulation.DiagnosticCode) wire.Configurat
 	}
 }
 func simulationReport(value configsimulation.Report) *wire.ConfigurationSimulationReport {
-	out := &wire.ConfigurationSimulationReport{Simulated: value.Simulated(), HardwareValidated: value.HardwareValidated(), ElapsedMillis: uint64(value.Elapsed() / time.Millisecond), Limitations: value.Limitations()}
+	out := &wire.ConfigurationSimulationReport{Simulated: value.Simulated(), HardwareValidated: value.HardwareValidated(), ElapsedMillis: int64(value.Elapsed() / time.Millisecond), Limitations: value.Limitations()}
 	switch value.Status() {
 	case configsimulation.Completed:
 		out.Status = wire.ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_COMPLETED
@@ -324,10 +328,16 @@ func simulationReport(value configsimulation.Report) *wire.ConfigurationSimulati
 	for _, node := range value.Nodes() {
 		trace := &wire.ConfigurationSimulationNodeTrace{Position: simulationSource(node.Source()), Action: simulationAction(node.Kind()), Stage: simulationStage(node.Stage()), At: timestamppb.New(node.At())}
 		for _, branch := range node.Branches() {
-			trace.Branches = append(trace.Branches, uint32(branch))
+			if uint64(branch) > math.MaxInt32 {
+				return nil
+			}
+			trace.Branches = append(trace.Branches, int32(branch))
 		}
 		for _, iteration := range node.Iterations() {
-			trace.Iterations = append(trace.Iterations, uint32(iteration))
+			if uint64(iteration) > math.MaxInt32 {
+				return nil
+			}
+			trace.Iterations = append(trace.Iterations, int32(iteration))
 		}
 		out.Nodes = append(out.Nodes, trace)
 	}
@@ -353,4 +363,12 @@ func simulationClimateMode(value domain.ClimateMode) wire.TemperatureMode {
 	default:
 		return wire.TemperatureMode_TEMPERATURE_MODE_UNSPECIFIED
 	}
+}
+
+func simulationMireds(value *uint32) *int64 {
+	if value == nil {
+		return nil
+	}
+	result := int64(*value)
+	return &result
 }

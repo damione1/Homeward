@@ -5,20 +5,22 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	history "github.com/damione1/Homeward/gen/home/history/v1"
-	"github.com/damione1/Homeward/gen/home/history/v1/historyv1connect"
+	history "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/automationruns"
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/config"
@@ -32,6 +34,7 @@ import (
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/damione1/Homeward/scope"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -215,28 +218,35 @@ func TestNHA164NativeRunTLSHistoryOwnerGenerationAndRevocation(t *testing.T) {
 
 	client := nha162RunClient(t, roots, run.address)
 	base := "https://" + run.address.String()
-	authAPI := authv1connect.NewAuthServiceClient(client, base)
-	policyAPI := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
-	api := historyv1connect.NewHistoryServiceClient(client, base)
+	authAPI := apiv2connect.NewAuthServiceClient(client, base)
+	policyAPI := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
+	api := apiv2connect.NewHistoryServiceClient(client, base)
 	const password = "NHA164 native synthetic password"
 	nha162RunBootstrap(t, ctx, data, "NHA164 native admin", password)
 	admin := nha162RunLogin(t, ctx, authAPI, "NHA164 native admin", password)
-	created, err := authv1connect.NewAccountServiceClient(client, base).CreateAccount(ctx, nha162Bearer(&auth.CreateAccountRequest{LoginName: "NHA164 native reader", DisplayName: "NHA164 native reader", InitialPassword: password, Role: auth.AccountRole_ACCOUNT_ROLE_USER}, admin.AccessToken))
+	created, err := apiv2connect.NewAccountServiceClient(client, base).CreateAccount(ctx, nha162Bearer(&history.CreateAccountRequest{Parent: nha203SessionAccount(t, admin.Session).Home().String(), Account: &history.Account{LoginName: "NHA164 native reader", DisplayName: "NHA164 native reader", InitialPassword: password, Role: history.AccountRole_ACCOUNT_ROLE_USER}}, admin.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	reader := nha162RunLogin(t, ctx, authAPI, "NHA164 native reader", password)
-	period := &history.Period{Start: timestamppb.New(at.Add(-time.Hour)), End: timestamppb.New(time.Now().UTC().Add(time.Hour))}
-	name, _ := meterEntity.Value()
+	period := &history.HistoryPeriod{Start: timestamppb.New(at.Add(-time.Hour)), End: timestamppb.New(time.Now().UTC().Add(time.Hour))}
+	home, err := apitypes.ParseHomeName(nha203PublicHomeName(t, ctx, client, base, admin.AccessToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entityName, err := apitypes.EntityNameForIdentity(home, meterEntity)
+	if err != nil {
+		t.Fatal(err)
+	}
 	request := func(token string) *history.QueryObservationsRequest {
-		return &history.QueryObservationsRequest{EntityId: name, Period: proto.Clone(period).(*history.Period), Resolution: history.Resolution_RESOLUTION_RAW, PageSize: proto.Uint32(1), PageToken: token}
+		return &history.QueryObservationsRequest{Parent: entityName.String(), Period: proto.Clone(period).(*history.HistoryPeriod), PageSize: 1, PageToken: token}
 	}
 	if response, err := api.QueryObservations(ctx, nha162Bearer(request(""), reader.AccessToken)); response != nil || connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatal("native equipment denial failed", err)
 	}
 	historyGrant := "  - scope: {family: history, operation: read}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n"
-	nha162RunPolicy(t, ctx, policyAPI, created.Msg.Account.Id, admin.AccessToken, historyGrant)
-	if response, err := api.QueryExecutionTraces(ctx, nha162Bearer(&history.QueryExecutionTracesRequest{Period: period}, reader.AccessToken)); response != nil || connect.CodeOf(err) != connect.CodePermissionDenied {
+	nha162RunPolicy(t, ctx, policyAPI, created.Msg.Name, admin.AccessToken, historyGrant)
+	if response, err := api.QueryExecutionTraces(ctx, nha162Bearer(&history.QueryExecutionTracesRequest{Parent: home.String(), Period: period}, reader.AccessToken)); response != nil || connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatal("history grant admitted global traces", err)
 	}
 
@@ -295,23 +305,24 @@ func TestNHA164NativeRunTLSHistoryOwnerGenerationAndRevocation(t *testing.T) {
 	})
 	maintenanceClock.advance()
 	nha042ServerWait(t, "ordinary Run maintenance produced nonempty aggregate", func() bool {
-		rows, err := store.ReadRecorderHourlyAggregates(ctx, name, at, at.Add(time.Hour))
+		nativeEntity, _ := meterEntity.Value()
+		rows, err := store.ReadRecorderHourlyAggregates(ctx, nativeEntity, at, at.Add(time.Hour))
 		return err == nil && len(rows) == 1
 	})
 	first, err := api.QueryObservations(ctx, nha162Bearer(request(""), reader.AccessToken))
-	if err != nil || contracts.AdmitHistoryResponse(first.Msg) != nil || len(first.Msg.GetPage().Points) != 1 {
+	if err != nil || contracts.AdmitHistoryV2Response(first.Msg, home) != nil || len(first.Msg.Observations) != 1 {
 		t.Fatal("native observation route", err)
 	}
-	token := first.Msg.GetPage().Continuation.GetNextPageToken()
+	token := first.Msg.NextPageToken
 	if token == "" {
 		t.Fatal("native raw continuation missing")
 	}
-	aggregates, err := api.QueryAggregates(ctx, nha162Bearer(&history.QueryAggregatesRequest{EntityId: name, Period: &history.Period{Start: timestamppb.New(at), End: timestamppb.New(at.Add(time.Hour))}, Resolution: history.Resolution_RESOLUTION_HOUR}, reader.AccessToken))
-	if err != nil || contracts.AdmitHistoryResponse(aggregates.Msg) != nil || len(aggregates.Msg.GetPage().Points) != 1 {
+	aggregates, err := api.QueryAggregates(ctx, nha162Bearer(&history.QueryAggregatesRequest{Parent: entityName.String(), Period: &history.HistoryPeriod{Start: timestamppb.New(at), End: timestamppb.New(at.Add(time.Hour))}}, reader.AccessToken))
+	if err != nil || contracts.AdmitHistoryV2Response(aggregates.Msg, home) != nil || len(aggregates.Msg.Aggregates) != 1 {
 		t.Fatal("native nonempty aggregate TLS", err)
 	}
-	aggregate := aggregates.Msg.GetPage().Points[0]
-	if aggregate.Mean == nil || *aggregate.Mean != 25 || aggregate.DurationNanos != uint64(time.Hour) {
+	aggregate := aggregates.Msg.Aggregates[0]
+	if aggregate.Mean == nil || *aggregate.Mean != 25 || aggregate.DurationNanos != int64(time.Hour) {
 		t.Fatal("032 weighted value lost through native TLS")
 	}
 
@@ -339,9 +350,22 @@ func TestNHA164NativeRunTLSHistoryOwnerGenerationAndRevocation(t *testing.T) {
 		t.Fatal("native generation did not advance", err)
 	}
 	stale, err := api.QueryObservations(ctx, nha162Bearer(request(token), reader.AccessToken))
-	if err != nil || stale.Msg.GetStaleCursor() == nil {
+	if stale != nil || connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatal("owner publication did not stale cursor", err)
 	}
+	classified := false
+	if failure, ok := err.(*connect.Error); ok {
+		for _, detail := range failure.Details() {
+			value, decodeErr := detail.Value()
+			if info, valid := value.(*errdetails.ErrorInfo); decodeErr == nil && valid && info.Reason == "RESYNC_REQUIRED" {
+				classified = true
+			}
+		}
+	}
+	if !classified {
+		t.Fatal("stale cursor lost canonical resync reason")
+	}
+
 	pilot.emit(t, "nha042_start")
 	// Keep this a true native Run observation. The owner published B, but the
 	// request retained the A program; provenance belongs to the admitted IR.
@@ -371,9 +395,25 @@ func TestNHA164NativeRunTLSHistoryOwnerGenerationAndRevocation(t *testing.T) {
 			}
 		}
 		if runID != 0 {
+			// Correlate against the same native journal epoch, not by decoding
+			// any public selector or reconstructing an identity from its hash.
+			nativePage, readErr := store.ReadExecutionHistoryPage(ctx, storage.HistoryPageQuery{Since: period.Start.AsTime(), Until: period.End.AsTime(), Limit: 1, ClipRetention: true})
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			nativeEpoch, decodeErr := hex.DecodeString(nativePage.Epoch.String())
+			nativePage.Release()
+			if decodeErr != nil || len(nativeEpoch) != 16 {
+				t.Fatal("native trace epoch missing")
+			}
+			expectedRun, nameErr := apitypes.HistoryRunNameForIdentity(home, [16]byte(nativeEpoch), runID)
+			if nameErr != nil {
+				t.Fatal(nameErr)
+			}
+
 			token := ""
 			for pageNumber := 0; pageNumber < 8; pageNumber++ {
-				response, err := api.QueryExecutionTraces(ctx, nha162Bearer(&history.QueryExecutionTracesRequest{Period: period, PageSize: proto.Uint32(historyquery.MaxTracePoints), PageToken: token}, admin.AccessToken))
+				response, err := api.QueryExecutionTraces(ctx, nha162Bearer(&history.QueryExecutionTracesRequest{Parent: home.String(), Period: period, PageSize: int32(historyquery.MaxTracePoints), PageToken: token}, admin.AccessToken))
 				if err != nil {
 					progress.rpcCode = connect.CodeOf(err)
 					break
@@ -382,36 +422,40 @@ func TestNHA164NativeRunTLSHistoryOwnerGenerationAndRevocation(t *testing.T) {
 					progress.result = "missing_response"
 					break
 				}
-				if err := contracts.AdmitHistoryResponse(response.Msg); err != nil {
+				if err := contracts.AdmitHistoryV2Response(response.Msg, home); err != nil {
 					progress.result = "invalid_response"
 					break
 				}
-				page := response.Msg.GetPage()
+				page := response.Msg
 				if page == nil {
 					progress.result = "non_page"
 					break
 				}
 				progress.pages++
-				progress.points += len(page.Points)
+				progress.points += len(page.ExecutionTraces)
 				progress.losses += len(page.Losses)
-				progress.checkpoint = page.Checkpoint
-				for _, point := range page.Points {
-					if point.RunId == nil || *point.RunId != runID {
+				checkpoint, parseErr := apitypes.ParseDecimalUint64(page.Checkpoint)
+				if parseErr != nil {
+					t.Fatal(parseErr)
+				}
+				progress.checkpoint = checkpoint.Value()
+				for _, point := range page.ExecutionTraces {
+					if point.Run == nil || *point.Run != expectedRun.String() {
 						continue
 					}
 					progress.runPoints++
 					switch {
-					case point.ConfigRevision == nil && len(point.ManifestSha256) == 0:
+					case point.ConfigurationGeneration == nil && len(point.ManifestSha256) == 0:
 						progress.unbound++
-					case point.ConfigRevision != nil && *point.ConfigRevision == revision && bytes.Equal(point.ManifestSha256, manifestSHA[:]):
+					case point.ConfigurationGeneration != nil && *point.ConfigurationGeneration == fmt.Sprintf("%s/configurationGenerations/g-%d", home.String(), revision) && bytes.Equal(point.ManifestSha256, manifestSHA[:]):
 						progress.matchedA++
-					case point.ConfigRevision != nil && *point.ConfigRevision == nextRevision && bytes.Equal(point.ManifestSha256, nextManifest[:]):
+					case point.ConfigurationGeneration != nil && *point.ConfigurationGeneration == fmt.Sprintf("%s/configurationGenerations/g-%d", home.String(), nextRevision) && bytes.Equal(point.ManifestSha256, nextManifest[:]):
 						progress.mislabeledB++
 					default:
 						progress.otherProvenance++
 					}
 				}
-				token = page.Continuation.GetNextPageToken()
+				token = page.NextPageToken
 				if token == "" {
 					break
 				}
@@ -458,8 +502,8 @@ func TestNHA164NativeRunTLSHistoryOwnerGenerationAndRevocation(t *testing.T) {
 		result <- err
 	}()
 	nha162WaitSQLBlockedBy(t, ctx, store, blocker, "%FROM public.state_history%")
-	nha162RunPolicy(t, ctx, policyAPI, created.Msg.Account.Id, admin.AccessToken, "  []\n")
-	nha162RunPolicy(t, ctx, policyAPI, created.Msg.Account.Id, admin.AccessToken, historyGrant)
+	nha162RunPolicy(t, ctx, policyAPI, created.Msg.Name, admin.AccessToken, "  []\n")
+	nha162RunPolicy(t, ctx, policyAPI, created.Msg.Name, admin.AccessToken, historyGrant)
 	if err = lock.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -471,6 +515,39 @@ func TestNHA164NativeRunTLSHistoryOwnerGenerationAndRevocation(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("revoked native read failed to join", ctx.Err())
 	}
+
+	t.Run("recorded-slot-A-is-not-authorized-by-current-slot-B", func(t *testing.T) {
+		replacement, err := integrations.NewCandidate(meterKey, []*registrywire.CapabilityDescription{{SchemaId: contracts.MeasurementSchema, Major: 1, DisplayName: "Synthetic replacement power", Endpoint: "replacement-power", Constraints: &registrywire.CapabilityDescription_Measurement{Measurement: &registrywire.MeasurementConstraints{Unit: "W", Precision: 2, Semantic: registrywire.MeasurementSemantic_MEASUREMENT_SEMANTIC_MEASUREMENT, Aggregation: registrywire.MeasurementAggregation_MEASUREMENT_AGGREGATION_CURRENT}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = meterSession.Discover(ctx, []integrations.Candidate{replacement}); err != nil {
+			t.Fatal("replace native capability", err)
+		}
+		limited := "  - scope: {family: history, operation: read}\n    objects:\n      entities:\n        all:\n          capabilities:\n            explicit:\n              - {schema_id: core.measurement.v1, endpoint: replacement-power}\n"
+		nha162RunPolicy(t, ctx, policyAPI, created.Msg.Name, admin.AccessToken, limited)
+		if response, err := api.QueryObservations(ctx, nha162Bearer(request(""), reader.AccessToken)); err != nil || response == nil || len(response.Msg.Observations) != 0 {
+			t.Fatal("current slot B disclosed recorded slot A observation", err)
+		}
+		aggregateRequest := &history.QueryAggregatesRequest{Parent: entityName.String(), Period: &history.HistoryPeriod{Start: timestamppb.New(at), End: timestamppb.New(at.Add(time.Hour))}}
+		if response, err := api.QueryAggregates(ctx, nha162Bearer(aggregateRequest, reader.AccessToken)); err != nil || response == nil || len(response.Msg.Aggregates) != 0 {
+			t.Fatal("current slot B disclosed recorded slot A aggregate", err)
+		}
+		historical := strings.ReplaceAll(limited, "replacement-power", "power")
+		nha162RunPolicy(t, ctx, policyAPI, created.Msg.Name, admin.AccessToken, historical)
+		old, err := api.QueryObservations(ctx, nha162Bearer(request(""), reader.AccessToken))
+		if err != nil || old == nil || len(old.Msg.Observations) != 1 || old.Msg.NextPageToken == "" {
+			t.Fatal("current B catalogue prevented authorized historical A read", err)
+		}
+		if old.Msg.Coverage == nil || old.Msg.Coverage.Verdict != history.HistoryCoverageVerdict_HISTORY_COVERAGE_VERDICT_NOT_PROVEN {
+			t.Fatal("filtered history claimed global completeness")
+		}
+		nha162RunPolicy(t, ctx, policyAPI, created.Msg.Name, admin.AccessToken, limited)
+		if response, err := api.QueryObservations(ctx, nha162Bearer(request(old.Msg.NextPageToken), reader.AccessToken)); response != nil || connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Fatal("revoked historical scope reused its continuation", err)
+		}
+
+	})
 	if err = run.join(t); err != nil {
 		t.Fatal(err)
 	}

@@ -13,8 +13,6 @@ import (
 
 	"connectrpc.com/connect"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
-	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
-	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -102,14 +100,15 @@ func (f *nha114Fixture) reconnectMQTT(t *testing.T) {
 	if !ok {
 		t.Fatal("actual pilot connection absent")
 	}
+	instance := nha203ObservationInstanceFromAPI(t, f.ctx, f.client, "https://"+f.run.address.String(), f.token, f.home, nha114Instance)
 	f.mqttWire.cut()
 	nha114Eventually(t, "actual network loss was not publicly visible", func() bool {
-		r, err := f.observation.GetIntegrationHealth(f.ctx, nha056SessionRequest(&obs.GetIntegrationHealthRequest{IntegrationInstanceId: nha114Instance}, f.token))
+		r, err := f.observation.GetIntegrationHealth(f.ctx, nha056SessionRequest(&api.GetIntegrationHealthRequest{Name: instance + "/integrationHealth"}, f.token))
 		if err != nil {
 			t.Fatal("authenticated integration health", err)
 		}
 		phase := r.Msg.Supervision.GetSupervised().GetPhase()
-		return phase == obs.PilotPhase_PILOT_PHASE_RETRYING || phase == obs.PilotPhase_PILOT_PHASE_DEGRADED
+		return phase == api.ObservationPilotPhase_OBSERVATION_PILOT_PHASE_RETRYING || phase == api.ObservationPilotPhase_OBSERVATION_PILOT_PHASE_DEGRADED
 	})
 	f.mqttWire.resume()
 	nha114Eventually(t, "actual MQTT transport did not reconnect cleanly", func() bool {
@@ -235,7 +234,7 @@ func TestNHA114PostStartupPostgresStopAndSameCatalogRecovery(t *testing.T) {
 	// port while SQL is stopped, bypassing no human authentication boundary.
 	// This creates a real durable I/O failure, without a synthetic SQL error.
 	raw := []byte("id: nha114_database_fault\ntriggers:\n - trigger: state\n   entity_id: " + nha114Aliases[0] + "\n   from: 'off'\n   to: 'on'\nactions:\n - action: switch.turn_on\n   target: {entity_id: " + nha114Aliases[1] + "}\n   data: {}\n")
-	f.applySource(t, planwire.SourceFamily_SOURCE_FAMILY_AUTOMATION, "automation.turn_on_lights_at_sunset", "nha114.db-automation", "automation.yaml", raw)
+	f.applySource(t, api.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION, "automation.turn_on_lights_at_sunset", "nha114.db-automation", "automation.yaml", raw)
 	command := f.command(t, "nha114-before-pg-stop", nha114Aliases[2], true)
 	f.submit(t, command)
 	f.nextCommand(t)
@@ -248,7 +247,7 @@ func TestNHA114PostStartupPostgresStopAndSameCatalogRecovery(t *testing.T) {
 	nha114Eventually(t, "real post-start durable failure not visible on same-UID health", func() bool { _, degraded := f.operatorHealth(t); return degraded })
 	ctx, cancel := context.WithTimeout(f.ctx, 3*time.Second)
 	defer cancel()
-	if _, err := f.observation.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, f.token)); connect.CodeOf(err) != connect.CodeUnavailable {
+	if _, err := f.observation.GetHealth(ctx, nha056SessionRequest(&api.GetHealthRequest{Name: f.home + "/health"}, f.token)); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatal("public authenticated health did not expose exact SQL unavailability", err)
 	}
 	f.noCommands(t, 1)

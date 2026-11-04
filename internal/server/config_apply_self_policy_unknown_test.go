@@ -6,25 +6,24 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	longrunningpb "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
-	"github.com/damione1/Homeward/gen/home/configuration/v1/configurationv1connect"
-	wire "github.com/damione1/Homeward/gen/home/configurationapply/v1"
-	"github.com/damione1/Homeward/gen/home/configurationapply/v1/configurationapplyv1connect"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationapplyv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
-	"github.com/jackc/pgx/v5"
 )
 
 func nha055UncertainSelfPolicyFixture(t *testing.T, abort bool) (nha055TLSFixture, *configactivation.Owner, *nha029OwnerCommitACKProxy, *pgx.Conn, *nha150StepClock) {
@@ -99,13 +98,13 @@ func nha055UncertainSelfPolicyFixture(t *testing.T, abort bool) (nha055TLSFixtur
 	t.Cleanup(cancel)
 	const password = "NHA055 uncertain self-policy password"
 	nha162RunBootstrap(t, ctx, data, "NHA055 uncertain admin", password)
-	authentication := authv1connect.NewAuthServiceClient(client, base)
+	authentication := apiv2connect.NewAuthServiceClient(client, base)
 	tokens := nha162RunLogin(t, ctx, authentication, "NHA055 uncertain admin", password)
 	f := nha055TLSFixture{nha053TLSFixture: nha053TLSFixture{nha149TLSFixture: nha149TLSFixture{
-		api: configurationv1connect.NewConfigurationServiceClient(client, base), authentication: authentication,
-		accounts: authv1connect.NewAccountServiceClient(client, base), tokens: tokens, token: tokens.AccessToken,
+		http: client, origin: base, home: nha203PublicHomeName(t, ctx, client, base, tokens.AccessToken), api: configurationv1connect.NewConfigurationServiceClient(client, base), authentication: authentication,
+		accounts: apiv2connect.NewAccountServiceClient(client, base), tokens: tokens, token: tokens.AccessToken,
 		path: path, raw: source.Bytes(), run: run, ctx: ctx,
-	}, policies: authv1connect.NewAuthorizationPolicyServiceClient(client, base)}, apply: configurationapplyv1connect.NewConfigurationApplyServiceClient(client, base)}
+	}, policies: apiv2connect.NewAuthorizationPolicyServiceClient(client, base)}, apply: configurationapplyv1connect.NewConfigurationApplyServiceClient(client, base)}
 	return f, owner, proxy, observer, clock
 }
 
@@ -121,24 +120,25 @@ func TestNHA055ActualRunTLSSelfPolicyUnknownReturnsBeforeReconciliation(t *testi
 				defer cancel()
 				_, _ = owner.Reconcile(ctx)
 			}()
-			account := f.tokens.Session.AccountId
-			policy, err := f.policies.GetPolicy(f.ctx, nha056SessionRequest(&auth.GetPolicyRequest{AccountId: account}, f.token))
-			if err != nil || policy.Msg.GetPresent() == nil {
+			accountName := nha203SessionAccount(t, f.tokens.Session).String()
+			account := nha203NativeAccount(t, f.ctx, f.run.observed.sessions.store, accountName)
+			policy, err := f.policies.GetAuthorizationPolicy(f.ctx, nha056SessionRequest(&wire.GetAuthorizationPolicyRequest{Name: accountName + "/authorizationPolicy"}, f.token))
+			if err != nil || policy.Msg == nil {
 				t.Fatal("initial own policy", err)
 			}
-			prior := policy.Msg.GetPresent()
+			prior := policy.Msg
 			before := f.read(t)
-			raw := []byte(fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n - scope: {family: state_registry, operation: read}\n   objects: {entities: {all: {capabilities: {all: {}}}}}\n", account.Value))
-			request := nha055Request(before, nha055PolicyCandidate(t, account, raw), nil)
-			request.Sources = []*wire.SourcePrecondition{nha055PolicyExpected(t, account, prior.Version, nil)}
+			raw := []byte(fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n - scope: {family: state_registry, operation: read}\n   objects: {entities: {all: {capabilities: {all: {}}}}}\n", nha203AccountText(t, account)))
+			request := nha055Request(before, nha055PolicyCandidate(t, account, raw), f.build(t, nha055PolicyCandidate(t, account, raw)))
+			request.Sources = []*wire.SourcePrecondition{nha055PolicyExpected(t, account, nha055PolicyVersion(t, prior), nil)}
 			type answer struct {
-				response *connect.Response[wire.ApplyResponse]
+				response *connect.Response[longrunningpb.Operation]
 				err      error
 			}
 			completed := make(chan answer, 1)
 			proxy.armed.Store(true)
 			go func() {
-				response, err := f.apply.Apply(f.ctx, nha056SessionRequest(request, f.token))
+				response, err := f.apply.ApplyConfigurationPlan(f.ctx, nha056SessionRequest(request, f.token))
 				completed <- answer{response, err}
 			}()
 			nha034WaitSignal(t, proxy.held, "055 real policy transaction ACK withheld")
@@ -148,15 +148,15 @@ func TestNHA055ActualRunTLSSelfPolicyUnknownReturnsBeforeReconciliation(t *testi
 			 (SELECT generation_revision FROM public.config_active WHERE singleton),
 			 (SELECT count(*) FROM public.command_intents)
 			 FROM public.authorization_policy_active p JOIN public.config_versions v
-			 ON v.document_id=p.document_id AND v.revision=p.version_revision WHERE p.account_id=$1`, account.Value).Scan(&sqlRaw, &sqlRevision, &generation, &commands)
+			 ON v.document_id=p.document_id AND v.revision=p.version_revision WHERE p.account_id=$1`, nha203AccountText(t, account)).Scan(&sqlRaw, &sqlRevision, &generation, &commands)
 			if err != nil || commands != 0 {
 				t.Fatal("independent SQL observer", err)
 			}
 			if abort {
-				if !bytes.Equal(sqlRaw, prior.YamlSource) || sqlRevision != int64(prior.Version.Revision) || generation != before.ActiveGeneration.Revision {
+				if !bytes.Equal(sqlRaw, prior.YamlSource) || sqlRevision != int64(nha055PolicyVersion(t, prior).Revision) || generation != before.ActiveGeneration.Revision {
 					t.Fatal("proxy rollback did not preserve original SQL authority")
 				}
-			} else if !bytes.Equal(sqlRaw, raw) || sqlRevision != int64(prior.Version.Revision)+1 || generation != before.ActiveGeneration.Revision+1 {
+			} else if !bytes.Equal(sqlRaw, raw) || sqlRevision != int64(nha055PolicyVersion(t, prior).Revision)+1 || generation != before.ActiveGeneration.Revision+1 {
 				t.Fatal("backend did not commit policy and generation before withholding ACK")
 			}
 			proxy.allowDrop()
@@ -166,16 +166,10 @@ func TestNHA055ActualRunTLSSelfPolicyUnknownReturnsBeforeReconciliation(t *testi
 			case <-time.After(3 * time.Second):
 				t.Fatal("self-policy unknown response waited on its own retained policy barrier")
 			}
-			if result.err != nil || result.response == nil || result.response.Msg.Activation == nil {
-				t.Fatal("unknown attempt was hidden by authorization failure", result.err)
+			if connect.CodeOf(result.err) != connect.CodeUnknown || result.response != nil {
+				t.Fatal("indeterminate self-policy commit must return canonical uncertainty without terminal result", result.err)
 			}
-			if result.response.Msg.Activation.Outcome != configuration.ActivationOutcome_ACTIVATION_OUTCOME_COMMIT_UNKNOWN || result.response.Msg.Activation.Transaction != configuration.TransactionOutcome_TRANSACTION_OUTCOME_COMMIT_UNKNOWN || result.response.Msg.Current != nil {
-				t.Fatal("ambiguous attempt was reported as known or exposed a new snapshot")
-			}
-			if _, err := owner.CurrentConfig(f.ctx); err == nil {
-				t.Fatal("response depended on prior external reconciliation")
-			}
-			accountID, err := contracts.ParseAccountID(account.Value)
+			accountID, err := contracts.ParseAccountID(nha203AccountText(t, account))
 			if err != nil {
 				t.Fatal(err)
 			}

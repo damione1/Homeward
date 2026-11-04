@@ -31,15 +31,15 @@ func TestNHA164RawReceivedAxisLogicalOrderAndHighWater(t *testing.T) {
 	nha031Open(t, s, epoch)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	entity := "nha164-raw"
-	a := nha032EntityRecord(t, entity, 1, now.Add(-time.Minute), now.Add(-time.Second), 0, domain.SemanticMeasurement)
-	b := nha032EntityRecord(t, entity, 2, now, now.Add(-2*time.Second), 2, domain.SemanticMeasurement)
+	a := nha203HistoryEntityRecord(t, entity, 1, now.Add(-time.Minute), now.Add(-time.Second), 0, domain.SemanticMeasurement)
+	b := nha203HistoryEntityRecord(t, entity, 2, now, now.Add(-2*time.Second), 2, domain.SemanticMeasurement)
 	// Source capture is older than seven days, while local reception is fresh.
 	// Rebuild payload/digests through the real admission instead of mutating the
 	// record used by the writer: a separate stale-source fixture below does that.
 	a = nha164SourceTimeRecord(t, a, now.Add(-8*24*time.Hour))
 	nha032Persist(t, s, epoch, 0, 2, []RecorderRecord{a, b}, nil, nil)
 	q := nha164Query(t, historyquery.Observations, entity, now.Add(-time.Hour), now.Add(time.Hour), 1)
-	first, err := s.ReadHistoricalRecorderPage(ctx, q, nil)
+	first, err := s.ReadHistoricalRecorderPage(ctx, q, nil, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,9 +60,9 @@ func TestNHA164RawReceivedAxisLogicalOrderAndHighWater(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := nha032EntityRecord(t, entity, 3, now.Add(time.Second), now, 3, domain.SemanticMeasurement)
+	c := nha203HistoryEntityRecord(t, entity, 3, now.Add(time.Second), now, 3, domain.SemanticMeasurement)
 	nha032Persist(t, s, epoch, 2, 3, []RecorderRecord{c}, nil, nil)
-	second, err := s.ReadHistoricalRecorderPage(ctx, q, cursor)
+	second, err := s.ReadHistoricalRecorderPage(ctx, q, cursor, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func nha164SourceRecord(t *testing.T, row RecorderRecord, source time.Time, sess
 	if err != nil {
 		t.Fatal(err)
 	}
-	return record
+	return nha203EvidenceRecord(t, record)
 }
 func TestNHA164CursorInvalidatesOnActualRawPurge(t *testing.T) {
 	s := nha032SQLFixture(t)
@@ -124,10 +124,10 @@ func TestNHA164CursorInvalidatesOnActualRawPurge(t *testing.T) {
 	epoch := nha031Epoch(t, 165)
 	nha031Open(t, s, epoch)
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	rows := []RecorderRecord{nha032EntityRecord(t, "nha164-purge", 1, now, now, 1, domain.SemanticMeasurement), nha032EntityRecord(t, "nha164-purge", 2, now, now, 2, domain.SemanticMeasurement)}
+	rows := []RecorderRecord{nha203HistoryEntityRecord(t, "nha164-purge", 1, now, now, 1, domain.SemanticMeasurement), nha203HistoryEntityRecord(t, "nha164-purge", 2, now, now, 2, domain.SemanticMeasurement)}
 	nha032Persist(t, s, epoch, 0, 2, rows, nil, nil)
 	q := nha164Query(t, historyquery.Observations, "nha164-purge", now.Add(-time.Hour), now.Add(time.Hour), 1)
-	page, err := s.ReadHistoricalRecorderPage(ctx, q, nil)
+	page, err := s.ReadHistoricalRecorderPage(ctx, q, nil, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestNHA164CursorInvalidatesOnActualRawPurge(t *testing.T) {
 	if _, _, err = s.PurgeRecorderRaw(ctx, now.Add(time.Microsecond)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.ReadHistoricalRecorderPage(ctx, q, cursor); !errors.Is(err, historyquery.ErrStale) {
+	if _, err = s.ReadHistoricalRecorderPage(ctx, q, cursor, nha203RecordedScopeFixture{}); !errors.Is(err, historyquery.ErrStale) {
 		t.Fatalf("purged continuation was not stale: %v", err)
 	}
 }
@@ -174,12 +174,12 @@ func TestNHA164PersistedTracesUntilAndCursorRoundTrip(t *testing.T) {
 func TestNHA164AggregatePaginationPurgeRevisionAndRollback(t *testing.T) {
 	s := nha032SQLFixture(t)
 	ctx := context.Background()
-	epoch, at := nha032SeedWeighted(t, s)
+	epoch, at := nha203SeedWeighted(t, s)
 	if _, _, err := s.AggregateRecorderPrefix(ctx, nha032Boundary(t, epoch, 3, at.Add(2*time.Hour))); err != nil {
 		t.Fatal(err)
 	}
 	q := nha164Query(t, historyquery.Aggregates, "nha032-measurement", at, at.Add(2*time.Hour), 1)
-	first, err := s.ReadHistoricalRecorderPage(ctx, q, nil)
+	first, err := s.ReadHistoricalRecorderPage(ctx, q, nil, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func TestNHA164AggregatePaginationPurgeRevisionAndRollback(t *testing.T) {
 	if n, _, err := s.PurgeRecorderAggregates(ctx, at.Add(time.Hour)); err != nil || n != 1 {
 		t.Fatalf("actual purge failed: %d %v", n, err)
 	}
-	if _, err = s.ReadHistoricalRecorderPage(ctx, q, cursor); !errors.Is(err, historyquery.ErrStale) {
+	if _, err = s.ReadHistoricalRecorderPage(ctx, q, cursor, nha203RecordedScopeFixture{}); !errors.Is(err, historyquery.ErrStale) {
 		t.Fatalf("actual purge did not invalidate cursor: %v", err)
 	}
 	if err = s.pool.QueryRow(ctx, `SELECT revision FROM public.recorder_maintenance_head WHERE singleton=true`).Scan(&after); err != nil || after != before+1 {
@@ -230,8 +230,8 @@ func TestNHA164ClosedDatabaseNeverProducesCompleteEmptyPage(t *testing.T) {
 	s.Close()
 	now := time.Now().UTC()
 	q := nha164Query(t, historyquery.Observations, "nha164-closed", now.Add(-time.Hour), now, 1)
-	page, err := s.ReadHistoricalRecorderPage(context.Background(), q, nil)
-	if !errors.Is(err, historyquery.ErrUnavailable) || page.Coverage.Kind() != RecorderCoverageReadUnspecified {
+	page, err := s.ReadHistoricalRecorderPage(context.Background(), q, nil, nha203RecordedScopeFixture{})
+	if !errors.Is(err, historyquery.ErrUnavailable) || len(page.Observations) != 0 || len(page.Aggregates) != 0 {
 		t.Fatalf("unavailable DB masqueraded as complete empty page: %+v %v", page, err)
 	}
 }
@@ -251,8 +251,9 @@ func TestNHA164OversizedValidPointRejectedBeforePayloadRead(t *testing.T) {
 	epoch := nha031Epoch(t, 166)
 	nha031Open(t, s, epoch)
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	row := nha032EntityRecord(t, "nha164-oversized", 1, now, now, 0, domain.SemanticMeasurement)
+	row := nha203HistoryEntityRecord(t, "nha164-oversized", 1, now, now, 0, domain.SemanticMeasurement)
 	row = nha164SourceRecord(t, row, now, strings.Repeat("synthetic", 32<<10))
+	row = nha203EvidenceRecord(t, row)
 	nha032Persist(t, s, epoch, 0, 1, []RecorderRecord{row}, nil, nil)
 	spy := &nha164PayloadSpy{}
 	configuration := s.pool.Config()
@@ -264,7 +265,7 @@ func TestNHA164OversizedValidPointRejectedBeforePayloadRead(t *testing.T) {
 	s.pool.Close()
 	s.pool = pool
 	q := nha164Query(t, historyquery.Observations, "nha164-oversized", now.Add(-time.Hour), now.Add(time.Hour), 100)
-	if _, err = s.ReadHistoricalRecorderPage(ctx, q, nil); !errors.Is(err, historyquery.ErrPointTooLarge) {
+	if _, err = s.ReadHistoricalRecorderPage(ctx, q, nil, nha203RecordedScopeFixture{}); !errors.Is(err, historyquery.ErrPointTooLarge) {
 		t.Fatalf("oversized valid recorder point not refused: %v", err)
 	}
 	if spy.payloadReads.Load() != 0 {
@@ -277,8 +278,9 @@ func TestNHA164ReaderOwnerChargesCopiesAndThirdReaderDeadline(t *testing.T) {
 	epoch := nha031Epoch(t, 167)
 	nha031Open(t, s, epoch)
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	row := nha032EntityRecord(t, "nha164-owner", 1, now, now, 0, domain.SemanticMeasurement)
+	row := nha203HistoryEntityRecord(t, "nha164-owner", 1, now, now, 0, domain.SemanticMeasurement)
 	row = nha164SourceRecord(t, row, now, strings.Repeat("s", 120<<10))
+	row = nha203EvidenceRecord(t, row)
 	nha032Persist(t, s, epoch, 0, 1, []RecorderRecord{row}, nil, nil)
 	q := nha164Query(t, historyquery.Observations, "nha164-owner", now.Add(-time.Hour), now.Add(time.Hour), 100)
 	runtime.GC()
@@ -286,12 +288,12 @@ func TestNHA164ReaderOwnerChargesCopiesAndThirdReaderDeadline(t *testing.T) {
 	defer debug.SetGCPercent(previousGC)
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	first, err := s.ReadHistoricalRecorderPage(ctx, q, nil)
+	first, err := s.ReadHistoricalRecorderPage(ctx, q, nil, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Release()
-	second, err := s.ReadHistoricalRecorderPage(ctx, q, nil)
+	second, err := s.ReadHistoricalRecorderPage(ctx, q, nil, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +310,7 @@ func TestNHA164ReaderOwnerChargesCopiesAndThirdReaderDeadline(t *testing.T) {
 	bounded, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
 	started := time.Now()
-	if _, err = s.ReadHistoricalRecorderPage(bounded, q, nil); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err = s.ReadHistoricalRecorderPage(bounded, q, nil, nha203RecordedScopeFixture{}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("third reader bypassed shared gate: %v", err)
 	}
 	if time.Since(started) > historyquery.QueryTimeout {
@@ -316,7 +318,7 @@ func TestNHA164ReaderOwnerChargesCopiesAndThirdReaderDeadline(t *testing.T) {
 	}
 	first.Release()
 	second.Release()
-	again, err := s.ReadHistoricalRecorderPage(ctx, q, nil)
+	again, err := s.ReadHistoricalRecorderPage(ctx, q, nil, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -366,9 +368,10 @@ func TestNHA164RawHistoricalUnitsAreIndependentOfAnalyticalAdmission(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	row = nha203EvidenceRecord(t, row)
 	nha032Persist(t, s, epoch, 0, 1, []RecorderRecord{row}, nil, nil)
 	q := nha164Query(t, historyquery.Observations, "nha164-long-historical-unit", now.Add(-time.Hour), now.Add(time.Hour), 1)
-	page, err := s.ReadHistoricalRecorderPage(ctx, q, nil)
+	page, err := s.ReadHistoricalRecorderPage(ctx, q, nil, nha203RecordedScopeFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}

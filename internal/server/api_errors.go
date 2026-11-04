@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	boundary "github.com/damione1/Homeward/contracts/apiv2"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
@@ -111,16 +110,7 @@ func apiFault(err error) apierrors.Fault {
 // body/decompression budgets and revocation publication fences stay outside it.
 func apiRPCError(ctx context.Context, err error) error {
 	if terminal := authorizationTerminationError(ctx); terminal != nil {
-		var reason api.ApiErrorReason
-		switch terminal.Code() {
-		case connect.CodeUnauthenticated:
-			reason = api.ApiErrorReason_API_ERROR_REASON_AUTHENTICATION_REQUIRED
-		case connect.CodePermissionDenied:
-			reason = api.ApiErrorReason_API_ERROR_REASON_ACCESS_DENIED
-		default:
-			reason = api.ApiErrorReason_API_ERROR_REASON_SERVICE_UNAVAILABLE
-		}
-		return apierrors.New(reason).Connect()
+		return terminal
 	}
 	return apiFault(err).Connect()
 }

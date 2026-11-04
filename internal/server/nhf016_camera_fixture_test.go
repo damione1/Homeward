@@ -11,7 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/damione1/Homeward/internal/mediasessions"
+	"github.com/jackc/pgx/v5"
 )
 
 type nhf016CameraControl string
@@ -60,18 +61,20 @@ func TestNHF016CameraServer(t *testing.T) {
 	if err := os.Mkdir(out, 0700); err != nil {
 		t.Fatal(err)
 	}
-	r := nhf016NewCameraRig(t, 10*time.Minute)
+	r := nhf016NewResourceRig(t, 10*time.Minute)
 	if videoRoot := os.Getenv("HOMEWARD_NHF017_VIDEO"); videoRoot != "" {
 		if os.Getenv("HOMEWARD_NHF017_SYNTHETIC_ONLY") != "1" || !filepath.IsAbs(videoRoot) || filepath.Clean(videoRoot) != videoRoot {
 			t.Fatal("explicit absolute synthetic-only video fixture required")
 		}
-		source, err := nhf017LoadVideoSource(videoRoot)
+		source, err := nha202LoadVideoSource(videoRoot)
 		if err != nil {
 			t.Fatal(err)
 		}
-		r.handler.mu.Lock()
-		r.handler.videoSource = source
-		r.handler.mu.Unlock()
+		for _, owner := range r.owners {
+			owner.mu.Lock()
+			owner.video = source
+			owner.mu.Unlock()
+		}
 	}
 	certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: r.cameraServer.Certificate().Raw})
 	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "origin": r.cameraServer.URL, "ca_pem": string(certificate), "reader": map[string]string{"login_name": "NHA162 Admin", "password": "NHA162 synthetic admin password canary"}, "production_cameras": false})
@@ -127,19 +130,12 @@ func TestNHF016CameraServer(t *testing.T) {
 			}
 			switch command.Action {
 			case nhf017CameraVideoUnsupported, nhf017CameraVideoUnavailable, nhf017CameraVideoAvailable:
-				r.handler.mu.Lock()
-				switch command.Action {
-				case nhf017CameraVideoUnsupported:
-					r.handler.videoMode = nhf017VideoUnsupported
-				case nhf017CameraVideoUnavailable:
-					r.handler.videoMode = nhf017VideoNegotiationFailure
-				case nhf017CameraVideoAvailable:
-					r.handler.videoMode = nhf017VideoAvailable
-				default:
-					r.handler.mu.Unlock()
-					t.Fatal("invalid video fixture control")
+				for _, owner := range r.owners {
+					owner.mu.Lock()
+					owner.videoUnsupported = command.Action == nhf017CameraVideoUnsupported
+					owner.videoUnavailable = command.Action == nhf017CameraVideoUnavailable
+					owner.mu.Unlock()
 				}
-				r.handler.mu.Unlock()
 			case nhf016CameraRevoke:
 				nha162SetPolicy(t, r.nha162RPCRig, r.admin, "  []\n")
 			case nhf016CameraAllow:
@@ -149,65 +145,66 @@ func TestNHF016CameraServer(t *testing.T) {
 					t.Fatal("images already paused")
 				}
 				pause = make(chan struct{})
-				r.handler.mu.Lock()
-				r.handler.imageGate = pause
-				r.handler.mu.Unlock()
+				for _, owner := range r.owners {
+					owner.mu.Lock()
+					owner.imageGate = pause
+					owner.mu.Unlock()
+				}
 			case nhf016CameraResumeImages:
-				r.handler.mu.Lock()
 				if pause != nil {
 					close(pause)
 				}
 				pause = nil
-				r.handler.imageGate = nil
-				r.handler.mu.Unlock()
-			case nhf016CameraExpire:
-				r.handler.mu.Lock()
-				for _, lease := range r.handler.leases {
-					lease.wire.ExpiresAt = timestamppb.New(time.Now().Add(-time.Second))
-					nhf016EndCameraLease(lease, nhf016LeaseExpired)
+				for _, owner := range r.owners {
+					owner.mu.Lock()
+					owner.imageGate = nil
+					owner.mu.Unlock()
 				}
-				r.handler.mu.Unlock()
+			case nhf016CameraExpire:
+				r.clock.advance(mediasessions.MaxLifetime + time.Second)
+				for _, owner := range r.owners {
+					owner.invalidate()
+				}
 			case nhf016CameraMissingImage, nhf016CameraWrongCamera, nhf016CameraRestoreImages, nhf016CameraChangeEvents:
-				entity, err := nhf016CameraID(command.Entity)
-				if err != nil {
+				owner := r.owners[command.Entity]
+				if owner == nil {
+					t.Fatal("unknown exact synthetic MediaSource")
+				}
+				if command.Action == nhf016CameraChangeEvents {
+					owner.invalidate()
+				} else {
+					owner.mu.Lock()
+					owner.missingImage = command.Action == nhf016CameraMissingImage
+					owner.wrongImage = command.Action == nhf016CameraWrongCamera
+					owner.mu.Unlock()
+				}
+			case nhf016CameraOutage, nhf016CameraRestore:
+				for _, owner := range r.owners {
+					owner.mu.Lock()
+					owner.offline = command.Action == nhf016CameraOutage
+					owner.mu.Unlock()
+				}
+				if command.Action == nhf016CameraOutage {
+					r.cameraServer.CloseClientConnections()
+				}
+			case nhf016CameraSnapshot:
+				var imageRequests, activeReads, activeStreams, videoStreams, videoSamples int64
+				for _, owner := range r.owners {
+					imageRequests += owner.imageRequests.Load()
+					activeReads += owner.activeImages.Load()
+					videoStreams += owner.activeVideos.Load()
+					videoSamples += owner.videoSamples.Load()
+					owner.mu.Lock()
+					activeStreams += int64(len(owner.subscriptions))
+					owner.mu.Unlock()
+				}
+				var leases int64
+				if err = r.store.InTransaction(r.ctx, func(tx pgx.Tx) error {
+					return tx.QueryRow(r.ctx, `SELECT count(*) FROM public.api_media_sessions WHERE retire_time IS NULL AND expire_time>$1`, r.clock.Now()).Scan(&leases)
+				}); err != nil {
 					t.Fatal(err)
 				}
-				r.handler.mu.Lock()
-				record := r.handler.records[entity]
-				if record == nil {
-					r.handler.mu.Unlock()
-					t.Fatal("unknown synthetic camera")
-				}
-				switch command.Action {
-				case nhf016CameraMissingImage:
-					record.imageState = nhf016ImageMissing
-				case nhf016CameraWrongCamera:
-					record.imageState = nhf016ImageWrongCamera
-				case nhf016CameraRestoreImages:
-					record.imageState = nhf016ImageAvailable
-				case nhf016CameraChangeEvents:
-					record.revision++
-					close(record.changed)
-					record.changed = make(chan struct{})
-				default:
-					r.handler.mu.Unlock()
-					t.Fatal("wrong targeted camera control")
-				}
-				r.handler.mu.Unlock()
-			case nhf016CameraOutage:
-				r.handler.mu.Lock()
-				r.handler.offline = true
-				r.handler.mu.Unlock()
-				r.cameraServer.CloseClientConnections()
-			case nhf016CameraRestore:
-				r.handler.mu.Lock()
-				r.handler.offline = false
-				r.handler.mu.Unlock()
-			case nhf016CameraSnapshot:
-				r.handler.mu.Lock()
-				leases := len(r.handler.leases)
-				r.handler.mu.Unlock()
-				nhf003WritePrivate(t, out, fmt.Sprintf("stats-%02d.json", command.Sequence), map[string]any{"image_requests": r.handler.imageRequests.Load(), "active_reads": r.handler.activeReads.Load(), "active_streams": r.handler.activeStreams.Load(), "retained_leases": leases, "video_streams": r.handler.videoStreams.Load(), "video_samples": r.handler.videoSamples.Load()})
+				nhf003WritePrivate(t, out, fmt.Sprintf("stats-%02d.json", command.Sequence), map[string]any{"image_requests": imageRequests, "active_reads": activeReads, "active_streams": activeStreams, "retained_leases": leases, "video_streams": videoStreams, "video_samples": videoSamples})
 			default:
 				t.Fatal("unparsed camera control")
 			}

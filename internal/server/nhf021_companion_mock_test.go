@@ -17,8 +17,8 @@ import (
 
 	"connectrpc.com/connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	wire "github.com/damione1/Homeward/gen/home/companion/v1"
-	"github.com/damione1/Homeward/gen/home/companion/v1/companionv1connect"
+	wire "github.com/damione1/Homeward/gen/home/testing/companion/v1"
+	"github.com/damione1/Homeward/gen/home/testing/companion/v1/companionv1connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -392,10 +392,14 @@ func (h *nhf021Companion) DescribeCompanion(ctx context.Context, r *connect.Requ
 	if !nhf021Known(r.Msg) {
 		return nil, nhf021Error(connect.CodeInvalidArgument)
 	}
-	if err := h.withNative(ctx, func(nhf021Owner, time.Time) error { return nil }); err != nil {
+	var identity *wire.SyntheticIdentity
+	if err := h.withNative(ctx, func(owner nhf021Owner, _ time.Time) error {
+		identity = &wire.SyntheticIdentity{AccountId: &auth.AccountId{Value: owner.account}, SessionId: &auth.SessionId{Value: owner.session}}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&wire.DescribeCompanionResponse{Context: h.context()}), nil
+	return connect.NewResponse(&wire.DescribeCompanionResponse{Context: h.context(), SyntheticIdentity: identity}), nil
 }
 func (h *nhf021Companion) GetInstallation(ctx context.Context, r *connect.Request[wire.GetInstallationRequest]) (*connect.Response[wire.GetInstallationResponse], error) {
 	if !nhf021Known(r.Msg) {

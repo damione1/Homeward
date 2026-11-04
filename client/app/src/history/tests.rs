@@ -15,32 +15,27 @@ fn observation(
     unit: &str,
     decimal: Option<&str>,
     value: f64,
-) -> wire::Observation {
-    wire::Observation {
-        position: home_wire_contract::home::observability::v1::AdmissionPosition {
-            epoch: vec![1; 16],
-            sequence,
-            ..Default::default()
-        }
-        .into(),
-        descriptor: Some(wire::NumericDescriptor {
+) -> wire::HistoryObservation {
+    wire::HistoryObservation {
+        observation_id: format!("{sequence:064x}"),
+        descriptor: Some(wire::HistoryNumericDescriptor {
             unit: unit.into(),
             canonical_unit: unit.into(),
             scale: 1.,
             ..Default::default()
         })
         .into(),
-        state: state::ObservedState {
-            received_at: time(nanos).into(),
-            quality: state::Quality {
-                availability: state::Availability::Available.into(),
-                freshness: state::Freshness::Stale.into(),
-                provenance: state::Provenance::Restored.into(),
+        state: wire::HistoricalState {
+            receive_time: time(nanos).into(),
+            quality: wire::ObservationQuality {
+                availability: wire::Availability::Available.into(),
+                freshness: wire::Freshness::Stale.into(),
+                provenance: wire::Provenance::Restored.into(),
                 ..Default::default()
             }
             .into(),
-            value: Some(state::observed_state::Value::Measurement(Box::new(
-                state::Measurement {
+            value: Some(wire::historical_state::Value::Measurement(Box::new(
+                wire::HistoricalMeasurement {
                     unit: unit.into(),
                     decimal_value: decimal.map(str::to_owned),
                     value,
@@ -62,8 +57,9 @@ fn snapshot(content: Content) -> Arc<Snapshot> {
     };
     Arc::new(Snapshot {
         query: Query::new(
-            "synthetic-history".parse().unwrap(),
-            wire::Period {
+            home_client_model::api::EntityName::try_from("homes/test/entities/synthetic-history")
+                .unwrap(),
+            wire::HistoryPeriod {
                 start: WireTime {
                     seconds: 1_792_540_800,
                     ..Default::default()
@@ -94,8 +90,8 @@ fn display_sort_preserves_logical_positions_nanoseconds_and_coincident_source_in
     ];
     let original: Vec<_> = points.iter().map(Message::encode_to_vec).collect();
     let source = snapshot(Content::Retained(Pages::Observations(vec![
-        wire::ObservationPage {
-            points,
+        wire::QueryObservationsResponse {
+            observations: points,
             ..Default::default()
         },
     ])));
@@ -126,7 +122,7 @@ fn display_sort_preserves_logical_positions_nanoseconds_and_coincident_source_in
     };
     assert_eq!(
         pages[0]
-            .points
+            .observations
             .iter()
             .map(Message::encode_to_vec)
             .collect::<Vec<_>>(),
@@ -138,8 +134,8 @@ fn decimal_text_and_currency_survive_pixel_projection_beyond_editor_precision() 
     let exact = "12345678901234567890.000000000000000001";
     assert!(slint_kit::DecimalValue::parse_canonical(exact).is_err());
     let source = snapshot(Content::Retained(Pages::Observations(vec![
-        wire::ObservationPage {
-            points: vec![observation(1, 1, "CAD", Some(exact), 0.)],
+        wire::QueryObservationsResponse {
+            observations: vec![observation(1, 1, "CAD", Some(exact), 0.)],
             ..Default::default()
         },
     ])));
@@ -149,7 +145,7 @@ fn decimal_text_and_currency_survive_pixel_projection_beyond_editor_precision() 
     assert!(data.groups[0].series.samples()[0].value() > 1e19);
     assert_eq!(
         data.groups[0].quality.provenance,
-        state::Provenance::Restored
+        wire::Provenance::Restored
     );
     for malformed in ["NaN", "inf", "1e3", "1.2.3", "", "-", " 1", "1\n", "1."] {
         assert!(
@@ -167,18 +163,18 @@ fn source_units_and_quality_are_separate_groups_and_absence_never_becomes_zero()
         .get_or_insert_default()
         .quality
         .get_or_insert_default()
-        .availability = state::Availability::Unavailable.into();
+        .availability = wire::Availability::Unavailable.into();
     let mut fresh = observation(3, 3, "kWh", None, 0.);
     fresh
         .state
         .get_or_insert_default()
         .quality
         .get_or_insert_default()
-        .freshness = state::Freshness::Fresh.into();
+        .freshness = wire::Freshness::Current.into();
     let data = Data::from_snapshot(
         snapshot(Content::Retained(Pages::Observations(vec![
-            wire::ObservationPage {
-                points: vec![
+            wire::QueryObservationsResponse {
+                observations: vec![
                     observation(1, 1, "kWh", None, 0.),
                     observation(2, 2, "Wh", None, 0.),
                     fresh,
@@ -202,19 +198,14 @@ fn source_units_and_quality_are_separate_groups_and_absence_never_becomes_zero()
 }
 #[test]
 fn unknown_utc_logical_evidence_never_becomes_a_chart_time_gap() {
-    let coverage = wire::Coverage {
-        verdict: wire::CoverageVerdict::Incomplete.into(),
-        logical: home_wire_contract::home::observability::v1::RecorderCoverageSnapshot {
-            gaps: vec![Default::default()],
-            ..Default::default()
-        }
-        .into(),
+    let coverage = wire::HistoryCoverage {
+        verdict: wire::HistoryCoverageVerdict::NotProven.into(),
         ..Default::default()
     };
     let data = Data::from_snapshot(
         snapshot(Content::Retained(Pages::Observations(vec![
-            wire::ObservationPage {
-                points: vec![observation(1, 1, "kWh", None, 0.)],
+            wire::QueryObservationsResponse {
+                observations: vec![observation(1, 1, "kWh", None, 0.)],
                 coverage: coverage.into(),
                 ..Default::default()
             },
@@ -227,13 +218,13 @@ fn unknown_utc_logical_evidence_never_becomes_a_chart_time_gap() {
 }
 #[test]
 fn server_statistic_presence_and_numeric_zero_remain_distinct() {
-    let row = wire::Aggregate {
-        descriptor: wire::NumericDescriptor {
+    let row = wire::HistoryAggregate {
+        descriptor: wire::HistoryNumericDescriptor {
             unit: "kWh".into(),
             ..Default::default()
         }
         .into(),
-        bucket: wire::Period {
+        bucket: wire::HistoryPeriod {
             start: time(1).into(),
             end: time(2).into(),
             ..Default::default()
@@ -245,8 +236,8 @@ fn server_statistic_presence_and_numeric_zero_remain_distinct() {
         ..Default::default()
     };
     let source = snapshot(Content::Retained(Pages::Hourly(vec![
-        wire::AggregatePage {
-            points: vec![row],
+        wire::QueryAggregatesResponse {
+            aggregates: vec![row],
             ..Default::default()
         },
     ])));

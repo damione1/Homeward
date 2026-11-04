@@ -5,8 +5,9 @@ import (
 	"errors"
 
 	"connectrpc.com/connect"
-	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
+	"github.com/damione1/Homeward/internal/apierrors"
 )
 
 type authorizationTerminationCause struct {
@@ -25,27 +26,20 @@ func authorizationTerminationError(ctx context.Context) *connect.Error {
 	if !errors.As(context.Cause(ctx), &cause) {
 		return nil
 	}
-	detail := &authv1.AuthorizationTermination{Reason: cause.reason}
-	if _, err := contracts.AdmitAuthorizationTermination(detail); err != nil {
-		return nil
-	}
-	code := connect.CodeUnavailable
+	var reason api.ApiErrorReason
 	switch cause.reason {
 	case authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED, authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_EXPIRED:
-		code = connect.CodeUnauthenticated
+		reason = api.ApiErrorReason_API_ERROR_REASON_AUTHENTICATION_REQUIRED
 	case authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_ACCOUNT_DISABLED, authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED:
-		code = connect.CodePermissionDenied
+		reason = api.ApiErrorReason_API_ERROR_REASON_ACCESS_DENIED
 	case authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE:
+		reason = api.ApiErrorReason_API_ERROR_REASON_AUTHORITY_UNAVAILABLE
 	case authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_UNSPECIFIED:
 		return nil
 	default:
 		return nil
 	}
-	err := connect.NewError(code, errors.New("authorization ended; discard cached view"))
-	if wire, e := connect.NewErrorDetail(detail); e == nil {
-		err.AddDetail(wire)
-	}
-	return err
+	return apierrors.New(reason).Connect()
 }
 
 // The generated handlers retain one common terminal rule even after a stream

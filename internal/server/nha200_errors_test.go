@@ -15,16 +15,14 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/damione1/Homeward/contracts"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	listwire "github.com/damione1/Homeward/gen/home/lists/v1"
 	"github.com/damione1/Homeward/internal/apierrors"
 	"github.com/damione1/Homeward/internal/authorization"
-	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/lists"
+	"github.com/damione1/Homeward/internal/tasknames"
 	"google.golang.org/genproto/googleapis/rpc/code"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 )
@@ -58,27 +56,32 @@ func nha200Info(t *testing.T, err error) *errdetails.ErrorInfo {
 
 func TestNHA200AddItemAuthorizesObjectBeforePayloadAndCASOverTLS(t *testing.T) {
 	r := nha162NewRPCRig(t)
-	create := func(name string) *listwire.MutationReceipt {
-		response, err := r.client.CreateList(r.ctx, nha162Bearer(&listwire.CreateListRequest{Name: name}, r.adminToken))
+	create := func(name string) *api.TaskList {
+		response, err := r.tasks.CreateTaskList(r.ctx, nha162Bearer(&api.CreateTaskListRequest{Parent: r.taskHome(t), TaskList: &api.TaskList{DisplayName: name}}, r.adminToken))
 		if err != nil {
 			t.Fatal(err)
 		}
-		return response.Msg.Receipt
+		return response.Msg
 	}
 	allowed, forbidden := create("Synthetic writable tasks"), create("Synthetic private tasks")
 	const password = "NHA200 synthetic password canary"
-	account, err := r.accounts.CreateAccount(r.ctx, nha162Bearer(&auth.CreateAccountRequest{LoginName: "NHA200 scoped writer", DisplayName: "NHA200 scoped writer", InitialPassword: password, Role: auth.AccountRole_ACCOUNT_ROLE_USER}, r.adminToken))
+	account, err := r.accounts.CreateAccount(r.ctx, nha162Bearer(&api.CreateAccountRequest{Parent: r.taskHome(t), Account: &api.Account{LoginName: "NHA200 scoped writer", DisplayName: "NHA200 scoped writer", InitialPassword: password, Role: api.AccountRole_ACCOUNT_ROLE_USER}}, r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	user, err := contracts.ParseAccountID(account.Msg.Account.Id.Value)
+	user := nha203NativeAccount(t, r.ctx, r.store, account.Msg.Name)
+	allowedName, err := tasknames.ParseList(allowed.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	nha162SetPolicy(t, r, user, fmt.Sprintf("  - scope: {family: lists, operation: write}\n    objects: {lists: {explicit: [%q]}}\n", allowed.ListId.Value))
+	allowedID, err := allowedName.ID().Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nha162SetPolicy(t, r, user, fmt.Sprintf("  - scope: {family: lists, operation: write}\n    objects: {lists: {explicit: [%q]}}\n", allowedID))
 	token := r.login(t, "NHA200 scoped writer", password)
-	for _, target := range []*listwire.ListId{forbidden.ListId, {Value: "list-synthetic-absent"}, nil} {
-		_, err := r.client.AddItem(r.ctx, nha162Bearer(&listwire.AddItemRequest{ListId: target, Item: &listwire.ItemPayload{Summary: "SYNTHETIC_SECRET_CANARY\n"}}, token))
+	for _, target := range []string{forbidden.Name, r.taskHome(t) + "/taskLists/list-synthetic-absent", ""} {
+		_, err := r.tasks.AppendTask(r.ctx, nha162Bearer(&api.AppendTaskRequest{Name: target, Task: &api.TaskContent{Summary: "SYNTHETIC_SECRET_CANARY\n"}}, token))
 		if connect.CodeOf(err) != connect.CodePermissionDenied || nha200Info(t, err).Reason != "ACCESS_DENIED" {
 			t.Fatalf("unauthorized payload diagnosed before target admission: %v", err)
 		}
@@ -92,9 +95,9 @@ func TestNHA200AddItemAuthorizesObjectBeforePayloadAndCASOverTLS(t *testing.T) {
 			}
 		}
 	}
-	_, err = r.client.AddItem(r.ctx, nha162Bearer(&listwire.AddItemRequest{
-		ListId: allowed.ListId, ExpectedListRevision: &listwire.ListRevision{ListId: allowed.ListId},
-		Item: &listwire.ItemPayload{Description: nha200String("SYNTHETIC_SECRET_CANARY\x00")},
+	_, err = r.tasks.AppendTask(r.ctx, nha162Bearer(&api.AppendTaskRequest{
+		Name: allowed.Name,
+		Task: &api.TaskContent{Description: nha200String("SYNTHETIC_SECRET_CANARY\x00")},
 	}, token))
 	if connect.CodeOf(err) != connect.CodeInvalidArgument || nha200Info(t, err).Reason != "VALIDATION_FAILED" {
 		t.Fatalf("authorized bad request lost diagnostics: %v", err)
@@ -105,18 +108,17 @@ func TestNHA200AddItemAuthorizesObjectBeforePayloadAndCASOverTLS(t *testing.T) {
 			bad = value
 		}
 	}
-	if bad == nil || len(bad.FieldViolations) != 4 {
-		t.Fatal("independent CAS, presence, text and description violations not collected")
+	if bad == nil || len(bad.FieldViolations) != 3 {
+		t.Fatal("independent etag, text and description violations not collected")
 	}
-	want := []string{"expected_list_revision.number", "item.completed", "item.description", "item.summary"}
+	want := []string{"etag", "task.description", "task.summary"}
 	for i, issue := range bad.FieldViolations {
 		if issue.Field != want[i] || strings.Contains(issue.Description, "CANARY") {
 			t.Fatal("unstable or unsafe field diagnostics")
 		}
 	}
-	completed := false
-	response, err := r.client.AddItem(r.ctx, nha162Bearer(&listwire.AddItemRequest{ListId: allowed.ListId, ExpectedListRevision: allowed.ListRevision, Item: &listwire.ItemPayload{Summary: "Explicit false remains admitted", Completed: &completed}}, token))
-	if err != nil || response.Msg.Receipt == nil {
+	response, err := r.tasks.AppendTask(r.ctx, nha162Bearer(&api.AppendTaskRequest{Name: allowed.Name, Etag: allowed.Etag, Task: &api.TaskContent{Summary: "Explicit false remains admitted", Completed: false}}, token))
+	if err != nil || response.Msg.Task == nil {
 		t.Fatal("explicit false rejected or invalid attempts changed CAS", err)
 	}
 }
@@ -133,15 +135,15 @@ func nha200DetailValue(t *testing.T, detail *connect.ErrorDetail) any {
 
 func TestNHA200RevocationWinsOverCompletedRepresentationValidation(t *testing.T) {
 	r := nha162NewRPCRig(t)
-	created, err := r.client.CreateList(r.ctx, nha162Bearer(&listwire.CreateListRequest{Name: "Synthetic validation barrier"}, r.adminToken))
+	created, err := r.tasks.CreateTaskList(r.ctx, nha162Bearer(&api.CreateTaskListRequest{Parent: r.taskHome(t), TaskList: &api.TaskList{DisplayName: "Synthetic validation barrier"}}, r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := nha162ImportContext(t, r)
-	_, err = withListTarget(r.lists.handler, ctx, created.Msg.Receipt.ListId, auth.ScopeOperation_SCOPE_OPERATION_WRITE,
-		func(domain.ListID) (int, error) {
+	_, err = withTaskList(r.lists.tasks, ctx, created.Msg.Name, auth.ScopeOperation_SCOPE_OPERATION_WRITE,
+		func(context.Context, tasknames.ListName) (int, error) {
 			nha162SetPolicy(t, r, r.admin, "  []\n")
-			return 0, listRPCCode(lists.Invalid)
+			return 0, listFault(lists.Invalid).Connect()
 		})
 	if connect.CodeOf(err) != connect.CodePermissionDenied || nha200Info(t, err).Reason != "ACCESS_DENIED" {
 		t.Fatal("revoked validation result escaped", err)

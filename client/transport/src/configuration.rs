@@ -36,6 +36,24 @@ pub struct ConfigurationTransport {
 }
 impl ConfigurationTransport {
     unary!(
+        get_revision,
+        get_configuration_revision_with_options,
+        document::GetConfigurationRevisionRequest,
+        document::ConfigurationRevision
+    );
+    unary!(
+        get_generation,
+        get_configuration_generation_with_options,
+        document::GetConfigurationGenerationRequest,
+        document::ConfigurationGeneration
+    );
+    unary!(
+        get_schema,
+        get_configuration_schema_with_options,
+        document::GetConfigurationSchemaRequest,
+        document::ConfigurationSchema
+    );
+    unary!(
         read_document,
         get_configuration_document_with_options,
         document::GetConfigurationDocumentRequest,

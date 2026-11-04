@@ -2,16 +2,8 @@ use buffa::Message;
 use home_wire_contract::{
     configuration_apply_contract::{ActivationRequest, admit_activation_request},
     configuration_contract::{ConfigurationResponse, admit_configuration_response},
-    home::{
-        configuration::v1 as config, configurationapply::v1 as apply, configurationplan::v1 as plan,
-    },
+    home::{api::v2 as config, api::v2 as apply, api::v2 as plan},
 };
-fn complete() -> config::PageContinuation {
-    config::PageContinuation {
-        result: Some(config::page_continuation::Result::Complete(Box::default())),
-        ..Default::default()
-    }
-}
 fn version() -> config::DocumentVersion {
     config::DocumentVersion {
         revision: 7,
@@ -19,13 +11,15 @@ fn version() -> config::DocumentVersion {
         ..Default::default()
     }
 }
-fn apply() -> apply::ApplyRequest {
-    apply::ApplyRequest {
-        candidate: plan::Candidate {
-            family: plan::SourceFamily::Script.into(),
+fn apply() -> apply::ApplyConfigurationPlanRequest {
+    apply::ApplyConfigurationPlanRequest {
+        name: "homes/synthetic/configurationPlans/plan-fixture".into(),
+        etag: "opaque-plan-etag".into(),
+        candidate: plan::ConfigurationPlanCandidate {
+            family: plan::ConfigurationPlanSourceFamily::Script.into(),
             identity: "synthetic.script".into(),
             entry: "entry.yaml".into(),
-            files: vec![plan::SourceFile {
+            files: vec![plan::ConfigurationPlanSourceFile {
                 logical_path: "entry.yaml".into(),
                 exact_source: b"sequence: []".to_vec(),
                 ..Default::default()
@@ -55,8 +49,9 @@ fn apply() -> apply::ApplyRequest {
 }
 #[test]
 fn a_purged_historical_version_has_no_invented_timestamp_or_schema() {
-    let mut response = config::ListVersionsResponse {
-        versions: vec![config::HistoricalVersion {
+    let mut response = config::ListConfigurationRevisionsResponse {
+        configuration_revisions: vec![config::ConfigurationRevision {
+            name: "homes/synthetic/configurationDocuments/synthetic-document/configurationRevisions/r-7".into(),
             id: config::DocumentId {
                 value: "synthetic.document".into(),
                 ..Default::default()
@@ -66,14 +61,13 @@ fn a_purged_historical_version_has_no_invented_timestamp_or_schema() {
             availability: config::VersionAvailability::Purged.into(),
             ..Default::default()
         }],
-        continuation: complete().into(),
         ..Default::default()
     };
     assert!(admit_configuration_response(ConfigurationResponse::Versions(&response)).is_ok());
-    response.versions[0].schema_version = "invented".into();
+    response.configuration_revisions[0].schema_version = "invented".into();
     assert!(admit_configuration_response(ConfigurationResponse::Versions(&response)).is_err());
-    response.versions[0].schema_version.clear();
-    response.versions[0].availability = 999.into();
+    response.configuration_revisions[0].schema_version.clear();
+    response.configuration_revisions[0].availability = 999.into();
     assert!(admit_configuration_response(ConfigurationResponse::Versions(&response)).is_err());
 }
 #[test]
@@ -94,15 +88,11 @@ fn source_preconditions_require_both_states_and_reject_unknown_empty_payloads() 
 #[test]
 fn rollback_never_guesses_which_historical_authority_to_restore() {
     let request = apply();
-    let mut rollback = apply::RollbackRequest {
-        id: config::DocumentId {
-            value: "operational.main".into(),
-            ..Default::default()
-        }
-        .into(),
+    let mut rollback = apply::RollbackConfigurationRequest {
+        name: "homes/synthetic/configurationDocuments/operational-main".into(),
         expected: version().into(),
         expected_workspace_sha256: vec![2; 32],
-        family: plan::SourceFamily::Authorization.into(),
+        family: plan::ConfigurationPlanSourceFamily::Authorization.into(),
         identity: "synthetic.account".into(),
         sources: request.sources,
         historical_policy_version: version().into(),

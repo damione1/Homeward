@@ -3,7 +3,7 @@ package server
 import (
 	"testing"
 
-	wire "github.com/damione1/Homeward/gen/home/configuration/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/storage"
 )
 

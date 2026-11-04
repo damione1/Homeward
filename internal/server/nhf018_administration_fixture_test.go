@@ -9,9 +9,7 @@ import (
 	"testing"
 	"time"
 
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	cfg "github.com/damione1/Homeward/gen/home/configuration/v1"
-	integration "github.com/damione1/Homeward/gen/home/integrationadmin/v1"
+	cfg "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/testpg"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -48,24 +46,24 @@ func TestNHF018AdministrationServer(t *testing.T) {
 	f.start(t)
 	nha162RunBootstrap(t, ctx, data, "NHA148 admin", "NHA148 synthetic isolated password")
 	f.login(t)
-	create := func(name, password string, role auth.AccountRole) {
+	create := func(name, password string, role cfg.AccountRole) {
 		t.Helper()
-		_, err := f.accounts.CreateAccount(ctx, nha056SessionRequest(&auth.CreateAccountRequest{
+		_, err := f.accounts.CreateAccount(ctx, nha056SessionRequest(&cfg.CreateAccountRequest{Parent: nha203SessionAccount(t, f.tokens.Session).Home().String(), Account: &cfg.Account{
 			LoginName: name, DisplayName: name, InitialPassword: password, Role: role,
-		}, f.token))
+		}}, f.token))
 		if err != nil {
 			t.Fatal("synthetic account creation", err)
 		}
 	}
-	create("NHF018 keeper", "NHF018 synthetic keeper password", auth.AccountRole_ACCOUNT_ROLE_ADMIN)
-	create("NHF018 ordinary", "NHF018 synthetic ordinary password", auth.AccountRole_ACCOUNT_ROLE_USER)
+	create("NHF018 keeper", "NHF018 synthetic keeper password", cfg.AccountRole_ACCOUNT_ROLE_ADMIN)
+	create("NHF018 ordinary", "NHF018 synthetic ordinary password", cfg.AccountRole_ACCOUNT_ROLE_USER)
 	before := f.read(t)
 	raw, err := os.ReadFile(f.path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	raw = append(raw, []byte("external_workers:\n  - instance: nha148-opaque\n    executable: /usr/bin/true\n    args: [NHA148_PRIVATE_OPAQUE_ARGUMENT]\n    secret_names: [opaque-ref]\ndisabled_integrations: [nha148-opaque]\n")...)
-	_, err = f.documents.WriteDocument(ctx, nha056SessionRequest(&cfg.WriteDocumentRequest{Id: before.Document.Id, Expected: before.Document.Version, ExpectedWorkspaceSha256: before.Document.GetWorkspace().SourceSha256, ExactYamlSource: raw}, f.token))
+	_, err = f.documents.PublishConfigurationDocument(ctx, nha056SessionRequest(&cfg.PublishConfigurationDocumentRequest{Name: before.Name, Expected: before.Version, ExpectedWorkspaceSha256: before.GetWorkspace().SourceSha256, ExactYamlSource: raw}, f.token))
 	if err != nil {
 		t.Fatal("synthetic disabled opaque source", err)
 	}
@@ -74,33 +72,33 @@ func TestNHF018AdministrationServer(t *testing.T) {
 	f.seed(t, "user-ref", "NHF018_PRIVATE_SYNTHETIC_USER")
 	f.seed(t, "password-ref", "NHF018_PRIVATE_SYNTHETIC_PASSWORD")
 	// These two local cryptographic authenticators never use hardware or a device.
-	enroll := func(name, password string, role auth.AccountRole) ([]string, *auth.SessionTokens) {
+	enroll := func(name, password string, role cfg.AccountRole) ([]string, *cfg.SessionTokens) {
 		t.Helper()
 		create(name, password, role)
 		plain := nha162RunLogin(t, ctx, f.authentication, name, password)
 		authenticator := nha142NewAuthenticator(t)
-		begun, err := f.authentication.BeginFactorEnrollment(ctx, nha056SessionRequest(&auth.BeginFactorEnrollmentRequest{Kind: auth.FactorKind_FACTOR_KIND_FIDO2}, plain.AccessToken))
+		begun, err := f.authentication.BeginFactorEnrollment(ctx, nha056SessionRequest(&cfg.BeginFactorEnrollmentRequest{Parent: nha203SessionAccount(t, plain.Session).String(), Kind: cfg.FactorKind_FACTOR_KIND_FIDO2}, plain.AccessToken))
 		if err != nil {
 			t.Fatal("synthetic enrollment begin", err)
 		}
-		activated, err := f.authentication.CompleteFactorEnrollment(ctx, nha056SessionRequest(&auth.CompleteFactorEnrollmentRequest{ChallengeId: begun.Msg.Challenge.Id, Attestation: authenticator.attestation(t, begun.Msg.Challenge)}, plain.AccessToken))
+		activated, err := f.authentication.CompleteFactorEnrollment(ctx, nha056SessionRequest(&cfg.CompleteFactorEnrollmentRequest{Parent: nha203SessionAccount(t, plain.Session).String(), ChallengeId: begun.Msg.Challenge.ChallengeId, Attestation: authenticator.attestation(t, begun.Msg.Challenge)}, plain.AccessToken))
 		if err != nil {
 			t.Fatal("synthetic enrollment complete", err)
 		}
-		challenge, err := f.authentication.StartLogin(ctx, connect.NewRequest(&auth.StartLoginRequest{LoginName: name, Password: password}))
+		challenge, err := f.authentication.StartLogin(ctx, connect.NewRequest(&cfg.StartLoginRequest{LoginName: name, Password: password}))
 		if err != nil || challenge.Msg.Decision.GetChallenge() == nil {
 			t.Fatal("synthetic FIDO2 challenge", err)
 		}
-		completed, err := f.authentication.CompleteLogin(ctx, connect.NewRequest(&auth.CompleteLoginRequest{ChallengeId: challenge.Msg.Decision.GetChallenge().Id, Proof: authenticator.assertion(t, challenge.Msg.Decision.GetChallenge(), 0x05)}))
+		completed, err := f.authentication.CompleteLogin(ctx, connect.NewRequest(&cfg.CompleteLoginRequest{ChallengeId: challenge.Msg.Decision.GetChallenge().ChallengeId, Proof: authenticator.assertion(t, challenge.Msg.Decision.GetChallenge(), 0x05)}))
 		if err != nil || completed.Msg.Decision.GetAuthenticated() == nil {
 			t.Fatal("synthetic FIDO2 login", err)
 		}
 		return activated.Msg.RecoveryCodes, completed.Msg.Decision.GetAuthenticated()
 	}
-	factorCodes, _ := enroll("NHF018 factors", "NHF018 synthetic factors password", auth.AccountRole_ACCOUNT_ROLE_USER)
-	witnessCodes, witness := enroll("NHF018 MFA witness", "NHF018 synthetic witness password", auth.AccountRole_ACCOUNT_ROLE_ADMIN)
+	factorCodes, _ := enroll("NHF018 factors", "NHF018 synthetic factors password", cfg.AccountRole_ACCOUNT_ROLE_USER)
+	witnessCodes, witness := enroll("NHF018 MFA witness", "NHF018 synthetic witness password", cfg.AccountRole_ACCOUNT_ROLE_ADMIN)
 	faultOrigin := nhf018ObservationFixture(t, f, out)
-	nativeInvitation, err := f.accounts.CreateInvitation(ctx, nha056SessionRequest(&auth.CreateInvitationRequest{LoginName: "NHF018 native invited", Role: auth.AccountRole_ACCOUNT_ROLE_USER, ExpiresAt: timestamppb.New(time.Now().Add(time.Hour))}, f.token))
+	nativeInvitation, err := f.accounts.IssueInvitation(ctx, nha056SessionRequest(&cfg.IssueInvitationRequest{Parent: nha203SessionAccount(t, f.tokens.Session).Home().String(), LoginName: "NHF018 native invited", Role: cfg.AccountRole_ACCOUNT_ROLE_USER, ExpireTime: timestamppb.New(time.Now().Add(time.Hour))}, f.token))
 	if err != nil {
 		t.Fatal("native synthetic invitation", err)
 	}
@@ -137,8 +135,8 @@ func TestNHF018AdministrationServer(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(out, "stop")); err != nil {
 				continue
 			}
-			instances, err := f.api.ListInstances(ctx, nha056SessionRequest(&integration.ListInstancesRequest{}, witness.AccessToken))
-			if err != nil || len(instances.Msg.Instances) != 1 || instances.Msg.Instances[0].TypeId != "workday" || instances.Msg.Instances[0].DesiredState != integration.DesiredState_DESIRED_STATE_DISABLED {
+			instances, err := f.api.ListIntegrationInstances(ctx, nha056SessionRequest(&cfg.ListIntegrationInstancesRequest{Parent: nha203HomeName(t, ctx, f.run)}, witness.AccessToken))
+			if err != nil || len(instances.Msg.IntegrationInstances) != 1 || instances.Msg.IntegrationInstances[0].IntegrationType != f.typeName(t, "workday") || instances.Msg.IntegrationInstances[0].DesiredState != cfg.IntegrationDesiredState_INTEGRATION_DESIRED_STATE_DISABLED {
 				t.Fatal("isolated configuration changed beyond disabled workday", err)
 			}
 			if err := f.run.join(t); err != nil {

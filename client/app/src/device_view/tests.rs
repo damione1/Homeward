@@ -1,102 +1,49 @@
 use super::*;
 use crate::dashboard::{self, LayoutState};
-use buffa_types::google::protobuf::Timestamp;
-use home_client_cache::{Filter, SnapshotCapture};
-pub(super) fn request() -> ProjectionRequest {
-    let layout = dashboard::fixture();
-    ProjectionRequest {
-        room: Some(layout.rooms[1].id.clone()),
-        dashboard: LayoutState::Ready(Arc::new(layout)),
-        ..Default::default()
-    }
+pub(super) fn request() -> fixture::Scenario {
+    fixture::Scenario::new()
 }
-pub(super) fn light(request: &ProjectionRequest) -> state::ViewEntity {
+pub(super) fn light(request: &ProjectionRequest) -> wire::EntityViewEntry {
     let layout = request.dashboard.layout().unwrap();
-    let id = layout
+    let name = layout
         .room(request.room.as_ref().unwrap())
         .unwrap()
         .entities
         .iter()
         .next()
         .unwrap();
-    state::ViewEntity {
-        entity_id: id.as_str().into(),
-        current_alias: "Synthetic controlled light".into(),
-        capabilities: vec![registry::CapabilityDescription {
-            schema_id: "core.light.v1".into(),
-            major: 1,
-            endpoint: "lamp".into(),
-            constraints: Some(registry::capability_description::Constraints::Light(
-                registry::LightConstraints {
-                    set_on: true,
-                    brightness_percent: registry::NumberBounds {
-                        minimum: 20.,
-                        maximum: 80.,
-                        step: Some(5.),
-                        ..Default::default()
-                    }
-                    .into(),
+    fixture::entry(
+        name.as_str(),
+        "Synthetic controlled light",
+        vec![fixture::capability(
+            &format!("{}/capabilities/power", name.as_str()),
+            wire::capability::Trait::LightControl(Box::new(wire::LightControlCapability {
+                supports_power: true,
+                brightness_percent: wire::NumberBounds {
+                    minimum: 20.,
+                    maximum: 80.,
+                    step: Some(5.),
                     ..Default::default()
                 }
                 .into(),
-            )),
-            ..Default::default()
-        }],
-        action_access: vec![state::CapabilityActionAccess {
-            schema_id: "core.light.v1".into(),
-            endpoint: "lamp".into(),
-            access: state::ActionAccess::Allowed.into(),
-            ..Default::default()
-        }],
-        state: state::ObservedState {
-            entity: registry::EntityRef {
-                reference: Some(registry::entity_ref::Reference::EntityId(
-                    id.as_str().into(),
-                )),
-                ..Default::default()
-            }
-            .into(),
-            revision: 1,
-            value: Some(state::observed_state::Value::Light(
-                state::LightValue {
+                observation: wire::LightControlObservation {
                     brightness_percent: Some(30.),
+                    quality: fixture::quality().into(),
                     ..Default::default()
                 }
                 .into(),
-            )),
-            ..Default::default()
-        }
-        .into(),
-        ..Default::default()
-    }
+                ..Default::default()
+            })),
+        )],
+    )
 }
-pub(super) fn view(request: &ProjectionRequest, entities: Vec<state::ViewEntity>) -> CachedView {
-    let layout = request.dashboard.layout().unwrap();
-    let filter = Filter::all();
-    let now = Timestamp::from_unix_secs(0);
-    let first = state::OpenViewResponse {
-        snapshot_token: "synthetic-capture".into(),
-        cursor: state::ViewCursor {
-            epoch: "aabbccddeeff00112233445566778899".into(),
-            global_sequence: 1,
-            config_revision: layout.config_revision,
-            authorization_revision: layout.authorization_revision,
-            config_sha256: layout.config_hash.to_vec(),
-            grant_sha256: vec![2; 32],
-            filter_sha256: filter.digest().to_vec(),
-            admission_proof: vec![3; 40],
-            ..Default::default()
-        }
-        .into(),
-        expires_at: Timestamp::from_unix_secs(60).into(),
-        entities,
-        ..Default::default()
-    };
-    SnapshotCapture::begin(filter, 256, first, &now)
-        .unwrap()
-        .finish(&now)
-        .unwrap()
+pub(super) fn view(
+    scenario: &fixture::Scenario,
+    entities: Vec<wire::EntityViewEntry>,
+) -> CachedView {
+    scenario.view(entities)
 }
+
 fn prepare(store: &DeviceStore, row: &CardRow) -> Prepared {
     store
         .prepare(row.token, row.generation, 0, DeviceIntent::Power(Power::On))
@@ -109,20 +56,30 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
     use home_client_model::dashboard::{Comparison, Predicate, Recipes};
     let mut request = request();
     let mut entity = light(&request);
-    entity.state.as_option_mut().unwrap().quality = state::Quality {
-        availability: state::Availability::Available.into(),
-        freshness: state::Freshness::Fresh.into(),
-        provenance: state::Provenance::Observed.into(),
-        ..Default::default()
-    }
-    .into();
-    let set_on = |entity: &mut state::ViewEntity, on| {
-        let Some(state::observed_state::Value::Light(value)) =
-            entity.state.as_option_mut().unwrap().value.as_mut()
+    let mut observed_power = fixture::power(
+        &format!("{}/capabilities/power-state", entity.entity.name),
+        Some(wire::PowerValue::Off),
+    );
+    observed_power.action_access = wire::ActionAccess::Denied.into();
+    entity.capabilities.push(observed_power);
+    let set_on = |entity: &mut wire::EntityViewEntry, on| {
+        let Some(wire::capability::Trait::Power(value)) = entity.capabilities[1].r#trait.as_mut()
         else {
             panic!()
         };
-        value.on = Some(on);
+        value.observation.as_option_mut().unwrap().value = Some(
+            if on {
+                wire::PowerValue::On
+            } else {
+                wire::PowerValue::Off
+            }
+            .into(),
+        );
+        fixture::light_mut(entity)
+            .observation
+            .as_option_mut()
+            .unwrap()
+            .on = Some(on);
     };
     set_on(&mut entity, true);
     let mut layout = request.dashboard.layout().unwrap().clone();
@@ -130,7 +87,9 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
         NativeLayout::try_from(&crate::dashboard_layout::tests::extended_forest()).unwrap();
     for node in native.nodes.values_mut() {
         if node.entity.is_some() {
-            node.entity = Some(entity.entity_id.parse().unwrap());
+            node.entity = Some(EntityName::try_from(entity.entity.name.as_str()).unwrap());
+            node.capability =
+                Some(CapabilityName::try_from(entity.capabilities[0].name.as_str()).unwrap());
         }
     }
     native
@@ -140,8 +99,16 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
         .recipes = Some(Recipes {
         interactions: BTreeMap::new(),
         visibility: Some(Predicate::State {
-            entity: entity.entity_id.parse().unwrap(),
-            expected: "on".into(),
+            field: home_client_model::dashboard::FieldBinding {
+                capability: CapabilityName::try_from(
+                    format!("{}/capabilities/power-state", entity.entity.name).as_str(),
+                )
+                .unwrap(),
+                field: home_client_model::dashboard::FieldKey::State,
+            },
+            expected: home_client_model::dashboard::Literal::Power(
+                home_client_model::api::Power::On,
+            ),
             comparison: Comparison::Equal,
         }),
     });
@@ -166,11 +133,15 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
     );
     assert_eq!(
         before.rows.len(),
-        1,
+        2,
         "two occurrences share one exact device target"
     );
     let prepared = prepare(&store, &before.rows[0]);
-    entity.state.as_option_mut().unwrap().revision += 1;
+    fixture::light_mut(&mut entity)
+        .observation
+        .as_option_mut()
+        .unwrap()
+        .observed_time = buffa_types::google::protobuf::Timestamp::from_unix_secs(11).into();
     let updated = store.project(
         CachePhase::Live,
         Some(&view(&request, vec![entity.clone()])),
@@ -189,7 +160,7 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
     );
     assert_eq!(
         hidden.rows.len(),
-        1,
+        2,
         "the unconditional occurrence remains visible"
     );
     assert!(
@@ -234,14 +205,14 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
         "reappearance cannot revive an old intention"
     );
     let fresh = prepare(&store, &visible.rows[0]);
-    entity
-        .state
+    fixture::light_mut(&mut entity)
+        .observation
         .as_option_mut()
         .unwrap()
         .quality
         .as_option_mut()
         .unwrap()
-        .freshness = state::Freshness::Stale.into();
+        .freshness = wire::Freshness::Stale.into();
     let stale = store.project(
         CachePhase::Live,
         Some(&view(&request, vec![entity.clone()])),
@@ -262,14 +233,14 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
         !(fresh.guard)(),
         "loss of fresh predicate evidence cancels a prepared command"
     );
-    entity
-        .state
+    fixture::light_mut(&mut entity)
+        .observation
         .as_option_mut()
         .unwrap()
         .quality
         .as_option_mut()
         .unwrap()
-        .freshness = state::Freshness::Fresh.into();
+        .freshness = wire::Freshness::Current.into();
     let cache = view(&request, vec![entity.clone()]);
     let offline = store.project(CachePhase::Offline, Some(&cache), &request);
     assert!(!offline.ready);
@@ -290,9 +261,9 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
     ));
     let mut foreign_request = request.clone();
     let mut foreign_layout = request.dashboard.layout().unwrap().clone();
-    foreign_layout.config_revision += 1;
+    foreign_layout.etag = "different-definition".into();
     foreign_request.dashboard = LayoutState::Ready(Arc::new(foreign_layout));
-    let foreign_cache = view(&foreign_request, vec![entity]);
+    let foreign_cache = fixture::capture(vec![entity]);
     let mismatched = store.project(CachePhase::Live, Some(&foreign_cache), &request);
     assert!(mismatched.rows.is_empty() && mismatched.native_nodes.is_empty());
 }
@@ -301,15 +272,10 @@ fn room_cards_follow_server_order_and_reordering_withdraws_a_captured_gesture() 
     let mut request = request();
     let first = light(&request);
     let mut second = first.clone();
-    second.entity_id = "order-entity-0002".into();
-    second.current_alias = "Second synthetic control".into();
-    second.state.as_option_mut().unwrap().entity = registry::EntityRef {
-        reference: Some(registry::entity_ref::Reference::EntityId(
-            second.entity_id.clone(),
-        )),
-        ..Default::default()
-    }
-    .into();
+    second.entity.as_option_mut().unwrap().name =
+        "homes/synthetic/entities/order-entity-0002".into();
+    second.entity.as_option_mut().unwrap().display_name = "Second synthetic control".into();
+    second.capabilities[0].name = format!("{}/capabilities/power", second.entity.name);
     let mut layout = request.dashboard.layout().unwrap().clone();
     let room = layout
         .rooms
@@ -317,18 +283,18 @@ fn room_cards_follow_server_order_and_reordering_withdraws_a_captured_gesture() 
         .find(|room| Some(&room.id) == request.room.as_ref())
         .unwrap();
     room.entities = dashboard::RoomEntities::new(vec![
-        second.entity_id.parse().unwrap(),
-        first.entity_id.parse().unwrap(),
+        EntityName::try_from(second.entity.name.as_str()).unwrap(),
+        EntityName::try_from(first.entity.name.as_str()).unwrap(),
     ])
     .unwrap();
     request.dashboard = LayoutState::Ready(Arc::new(layout.clone()));
     let mut entities = vec![first.clone(), second.clone()];
-    entities.sort_by(|a, b| a.entity_id.cmp(&b.entity_id));
+    entities.sort_by(|a, b| a.entity.name.cmp(&b.entity.name));
     let cache = view(&request, entities);
     let store = DeviceStore::default();
     let before = store.project(CachePhase::Live, Some(&cache), &request);
-    assert_eq!(before.rows[0].title.as_str(), second.current_alias);
-    assert_eq!(before.rows[1].title.as_str(), first.current_alias);
+    assert_eq!(before.rows[0].title.as_str(), second.entity.display_name);
+    assert_eq!(before.rows[1].title.as_str(), first.entity.display_name);
     let captured = prepare(&store, &before.rows[0]);
     let room = layout
         .rooms
@@ -336,23 +302,23 @@ fn room_cards_follow_server_order_and_reordering_withdraws_a_captured_gesture() 
         .find(|room| Some(&room.id) == request.room.as_ref())
         .unwrap();
     room.entities = dashboard::RoomEntities::new(vec![
-        first.entity_id.parse().unwrap(),
-        second.entity_id.parse().unwrap(),
+        EntityName::try_from(first.entity.name.as_str()).unwrap(),
+        EntityName::try_from(second.entity.name.as_str()).unwrap(),
     ])
     .unwrap();
     request.dashboard = LayoutState::Ready(Arc::new(layout));
     let after = store.project(CachePhase::Live, Some(&cache), &request);
-    assert_eq!(after.rows[0].title.as_str(), first.current_alias);
-    assert_eq!(after.rows[1].title.as_str(), second.current_alias);
+    assert_eq!(after.rows[0].title.as_str(), first.entity.display_name);
+    assert_eq!(after.rows[1].title.as_str(), second.entity.display_name);
     assert_ne!(before.rows[0].generation, after.rows[0].generation);
     assert!(!(captured.guard)());
 }
 #[test]
-fn detail_uses_the_exact_server_capability_name_and_keeps_alias_as_fallback() {
+fn detail_uses_the_server_entity_label_for_its_exact_capability() {
     let mut request = request();
     let mut entity = light(&request);
-    request.detail = Some(entity.entity_id.parse().unwrap());
-    entity.capabilities[0].display_name = "Reading light".into();
+    request.detail = Some(EntityName::try_from(entity.entity.name.as_str()).unwrap());
+    entity.entity.as_option_mut().unwrap().display_name = "Reading light".into();
     let store = DeviceStore::default();
     let named = store.project(
         CachePhase::Live,
@@ -360,14 +326,16 @@ fn detail_uses_the_exact_server_capability_name_and_keeps_alias_as_fallback() {
         &request,
     );
     assert_eq!(named.rows[0].title.as_str(), "Reading light");
-    entity.capabilities[0].display_name = "  ".into();
-    let fallback = store.project(
-        CachePhase::Live,
-        Some(&view(&request, vec![entity.clone()])),
-        &request,
+    let row = &named.rows[0];
+    let prepared = store
+        .prepare(row.token, row.generation, 0, DeviceIntent::Power(Power::On))
+        .unwrap();
+    assert_eq!(
+        prepared.request.target().as_str(),
+        entity.capabilities[0].name
     );
-    assert_eq!(fallback.rows[0].title.as_str(), entity.current_alias);
 }
+
 #[test]
 fn observations_preserve_the_gesture_but_permission_capability_or_config_changes_withdraw_it() {
     let request = request();
@@ -385,16 +353,14 @@ fn observations_preserve_the_gesture_but_permission_capability_or_config_changes
     );
     let prepared = prepare(&store, row);
     assert!((prepared.guard)());
-    assert_eq!(prepared.target.entity().as_str(), entity.entity_id);
+    assert_eq!(prepared.target.entity().as_str(), entity.entity.name);
     let mut observed = entity.clone();
-    observed.state.as_option_mut().unwrap().value = Some(state::observed_state::Value::Light(
-        state::LightValue {
-            on: Some(true),
-            brightness_percent: Some(60.),
-            ..Default::default()
-        }
-        .into(),
-    ));
+    let value = fixture::light_mut(&mut observed)
+        .observation
+        .as_option_mut()
+        .unwrap();
+    value.on = Some(true);
+    value.brightness_percent = Some(60.);
     let changed = store.project(
         CachePhase::Live,
         Some(&view(&request, vec![observed])),
@@ -423,12 +389,12 @@ fn observations_preserve_the_gesture_but_permission_capability_or_config_changes
         let mut configuration = request.clone();
         match change {
             Withdrawal::Permission => {
-                next.action_access[0].access = state::ActionAccess::Denied.into()
+                next.capabilities[0].action_access = wire::ActionAccess::Denied.into()
             }
             Withdrawal::Capability => next.capabilities.clear(),
             Withdrawal::Configuration => {
                 let mut layout = configuration.dashboard.layout().unwrap().clone();
-                layout.config_revision += 1;
+                layout.etag = "different-definition".into();
                 configuration.dashboard = LayoutState::Ready(Arc::new(layout));
             }
         }
@@ -494,12 +460,15 @@ fn slider_uses_injected_bounds_and_major_unknown_or_read_only_slots_cannot_write
         )
         .ok()
         .unwrap();
-    let Some(actions::action_args::Arguments::SetLight(args)) =
-        &prepared.request.arguments.arguments
+    let Some(wire::execute_capability_request::Command::Light(args)) =
+        home_wire_contract::api_contract::encode_command(&prepared.request).command
     else {
         panic!("typed light arguments")
     };
-    assert_eq!(args.brightness_percent, Some(65.));
+    assert_eq!(
+        args.level.target,
+        Some(wire::set_level_command::Target::Percentage(65.))
+    );
     for invalid in [f64::NAN, f64::INFINITY, 19., 81.] {
         assert!(matches!(
             store.prepare(
@@ -512,7 +481,7 @@ fn slider_uses_injected_bounds_and_major_unknown_or_read_only_slots_cannot_write
         ));
     }
     let mut future = entity.clone();
-    future.capabilities[0].major = 2;
+    future.capabilities[0].r#trait = Some(wire::capability::Trait::Opaque(Box::default()));
     let row = store
         .project(
             CachePhase::Live,
@@ -528,7 +497,7 @@ fn slider_uses_injected_bounds_and_major_unknown_or_read_only_slots_cannot_write
         Err(Refusal::Unsupported)
     ));
     let mut legacy = entity;
-    legacy.action_access.clear();
+    legacy.capabilities[0].action_access = wire::ActionAccess::Denied.into();
     let row = store
         .project(
             CachePhase::Live,
@@ -537,7 +506,7 @@ fn slider_uses_injected_bounds_and_major_unknown_or_read_only_slots_cannot_write
         )
         .rows
         .remove(0);
-    assert_eq!(row.access, ProControlAccess::Unknown);
+    assert_eq!(row.access, ProControlAccess::Denied);
     assert!(matches!(
         store.prepare(row.token, row.generation, 0, DeviceIntent::Power(Power::On)),
         Err(Refusal::ReadOnly)
@@ -547,7 +516,7 @@ fn slider_uses_injected_bounds_and_major_unknown_or_read_only_slots_cannot_write
 fn configuration_selects_cards_and_presentation_never_contains_opaque_identity() {
     let mut request = request();
     let entity = light(&request);
-    let id = entity.entity_id.clone();
+    let id = entity.entity.name.clone();
     let cache = view(&request, vec![entity]);
     let store = DeviceStore::default();
     let room = store.project(CachePhase::Live, Some(&cache), &request);
@@ -560,7 +529,7 @@ fn configuration_selects_cards_and_presentation_never_contains_opaque_identity()
             .is_empty(),
         "entity is not selected as a server favorite"
     );
-    request.detail = Some(id.parse().unwrap());
+    request.detail = Some(EntityName::try_from(id.as_str()).unwrap());
     let detail = store.project(CachePhase::Live, Some(&cache), &request);
     assert_eq!(detail.rows.len(), 1);
     assert!(
@@ -570,8 +539,7 @@ fn configuration_selects_cards_and_presentation_never_contains_opaque_identity()
 }
 
 #[test]
-fn an_unknown_layout_version_never_enables_commands_through_the_overview() {
-    use home_wire_contract::home::dashboard::v1 as dashboard_wire;
+fn an_unsupported_layout_node_never_enables_commands_through_unbound_navigation() {
     let mut request = request();
     let entity = light(&request);
     let cache = view(&request, vec![entity]);
@@ -579,22 +547,27 @@ fn an_unknown_layout_version_never_enables_commands_through_the_overview() {
     let before = store.project(CachePhase::Live, Some(&cache), &request);
     assert_eq!(before.rows[0].access, crate::ProControlAccess::Allowed);
     let mut layout = request.dashboard.layout().unwrap().clone();
+    use crate::dashboard_layout::tests::{children, node};
+    use wire::dashboard_layout_node::Content as C;
     layout.native = Some(
-        crate::dashboard_layout::NativeLayout::try_from(&dashboard_wire::NativeLayout {
-            version: 99,
+        crate::dashboard_layout::NativeLayout::try_from(&wire::DashboardLayout {
             views: vec!["source-view".into()],
-            nodes: vec![dashboard_wire::LayoutNode {
-                id: "source-view".into(),
-                kind: dashboard_wire::LayoutKind::View.into(),
-                source: dashboard_wire::LayoutSource {
-                    file: "synthetic.yaml".into(),
-                    path: "views[0]".into(),
-                    variant: "future-view".into(),
-                    ..Default::default()
-                }
-                .into(),
-                ..Default::default()
-            }],
+            nodes: vec![
+                node(
+                    "source-view",
+                    C::View(
+                        wire::DashboardViewNode {
+                            children: children(&["unsupported"]).into(),
+                            ..Default::default()
+                        }
+                        .into(),
+                    ),
+                ),
+                node(
+                    "unsupported",
+                    C::Unsupported(wire::DashboardUnsupportedNode::default().into()),
+                ),
+            ],
             ..Default::default()
         })
         .unwrap(),
@@ -629,14 +602,11 @@ fn an_unknown_layout_version_never_enables_commands_through_the_overview() {
     );
 }
 
-fn two_endpoints(request: &ProjectionRequest) -> state::ViewEntity {
+fn two_endpoints(request: &ProjectionRequest) -> wire::EntityViewEntry {
     let mut entity = light(request);
     let mut capability = entity.capabilities[0].clone();
-    capability.endpoint = "secondary".into();
+    capability.name = format!("{}/capabilities/secondary", entity.entity.name);
     entity.capabilities.push(capability);
-    let mut access = entity.action_access[0].clone();
-    access.endpoint = "secondary".into();
-    entity.action_access.push(access);
     entity
 }
 
@@ -654,8 +624,8 @@ fn an_unrelated_card_capability_change_preserves_the_other_held_command() {
     let first = prepare(&store, &before.rows[0]);
     let second = prepare(&store, &before.rows[1]);
     assert!((first.guard)() && (second.guard)());
-    let Some(registry::capability_description::Constraints::Light(constraints)) =
-        entity.capabilities[1].constraints.as_mut()
+    let Some(wire::capability::Trait::LightControl(constraints)) =
+        entity.capabilities[1].r#trait.as_mut()
     else {
         panic!("light constraints");
     };
@@ -727,22 +697,18 @@ fn reordering_ephemeral_rows_never_retargets_a_previously_prepared_command() {
 fn typed_climate_and_fan_arguments_use_the_existing_target_and_admission_guard() {
     let request = request();
     let mut entity = light(&request);
-    entity.capabilities[0].schema_id = "core.climate.v1".into();
-    entity.action_access[0].schema_id = "core.climate.v1".into();
-    entity.capabilities[0].constraints =
-        Some(registry::capability_description::Constraints::Climate(
-            registry::ClimateConstraints {
-                setpoint_celsius: registry::NumberBounds {
-                    minimum: 5.,
-                    maximum: 30.,
-                    step: Some(0.5),
-                    ..Default::default()
-                }
-                .into(),
+    entity.capabilities[0].r#trait = Some(wire::capability::Trait::TemperatureControl(Box::new(
+        wire::TemperatureControlCapability {
+            setpoint_celsius: wire::NumberBounds {
+                minimum: 16.,
+                maximum: 28.,
+                step: Some(0.5),
                 ..Default::default()
             }
             .into(),
-        ));
+            ..Default::default()
+        },
+    )));
     let store = DeviceStore::default();
     let projection = store.project(
         CachePhase::Live,
@@ -762,18 +728,20 @@ fn typed_climate_and_fan_arguments_use_the_existing_target_and_admission_guard()
         .ok()
         .unwrap();
     assert!(
-        matches!(prepared.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::SetClimate(value)) if value.setpoint_celsius==Some(20.5))
+        matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command.as_ref(),Some(wire::execute_capability_request::Command::TemperatureControl(value)) if value.setpoint==Some(wire::set_temperature_control_command::Setpoint::SetpointCelsius(20.5)))
     );
     assert!((prepared.guard)());
-    entity.capabilities[0].schema_id = "core.fan.v1".into();
-    entity.action_access[0].schema_id = "core.fan.v1".into();
-    entity.capabilities[0].constraints = Some(registry::capability_description::Constraints::Fan(
-        registry::FanConstraints {
-            speed_options: vec!["Low".into()],
+    entity.capabilities[0].etag = "fan-definition".into();
+    entity.capabilities[0].r#trait = Some(wire::capability::Trait::FanControl(Box::new(
+        wire::FanControlCapability {
+            speed: wire::SelectorDefinition {
+                options: vec!["Low".into()],
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
-        }
-        .into(),
-    ));
+        },
+    )));
     let projection = store.project(
         CachePhase::Live,
         Some(&view(&request, vec![entity])),
@@ -786,12 +754,12 @@ fn typed_climate_and_fan_arguments_use_the_existing_target_and_admission_guard()
             row.token,
             row.generation,
             0,
-            DeviceIntent::FanSpeed(state::FanSpeed::Low),
+            DeviceIntent::FanSpeed(wire::FanSpeed::Low),
         )
         .ok()
         .unwrap();
     assert!(
-        matches!(prepared.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::SetFan(value)) if value.speed.as_deref()==Some("Low"))
+        matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command.as_ref(),Some(wire::execute_capability_request::Command::Fan(value)) if value.speed.as_deref()==Some("Low"))
     );
 }
 
@@ -799,41 +767,38 @@ fn with_helper(
     request: &ProjectionRequest,
     helper_revision: u64,
     observation_revision: u64,
-) -> state::ViewEntity {
-    use home_wire_contract::home::helpers::v1 as helpers;
+) -> wire::EntityViewEntry {
     let mut entity = light(request);
-    entity.capabilities.push(registry::CapabilityDescription {
-        schema_id: "core.helper.v1".into(),
-        major: 1,
-        endpoint: "helper-value".into(),
-        constraints: Some(registry::capability_description::Constraints::Helper(
-            helpers::HelperConstraints {
-                kind: helpers::HelperKind::Boolean.into(),
-                operations: vec![helpers::HelperOperation::Set.into()],
+    entity.capabilities.push(fixture::capability(
+        &format!("{}/capabilities/helper-value", entity.entity.name),
+        wire::capability::Trait::Helper(Box::new(wire::HelperCapability {
+            definition: wire::HelperDefinition {
+                kind: wire::HelperKind::Boolean.into(),
+                operations: vec![wire::HelperOperation::Set.into()],
                 ..Default::default()
             }
             .into(),
-        )),
-        ..Default::default()
-    });
-    entity.action_access.push(state::CapabilityActionAccess {
-        schema_id: "core.helper.v1".into(),
-        endpoint: "helper-value".into(),
-        access: state::ActionAccess::Allowed.into(),
-        ..Default::default()
-    });
-    let observed = entity.state.as_option_mut().unwrap();
-    observed.revision = observation_revision;
-    observed.value = Some(state::observed_state::Value::Helper(
-        helpers::HelperValue {
-            helper_revision,
-            value: Some(helpers::helper_value::Value::Boolean(false)),
+            observation: wire::HelperObservation {
+                value: wire::HelperValue {
+                    helper_revision: i64::try_from(helper_revision).unwrap(),
+                    value: Some(wire::helper_value::Value::BooleanValue(false)),
+                    ..Default::default()
+                }
+                .into(),
+                observed_time: buffa_types::google::protobuf::Timestamp::from_unix_secs(
+                    i64::try_from(observation_revision).unwrap(),
+                )
+                .into(),
+                quality: fixture::quality().into(),
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
-        }
-        .into(),
+        })),
     ));
     entity
 }
+
 #[test]
 fn sql_helper_revision_is_independent_of_observation_revision_and_other_card_generations() {
     let request = request();
@@ -855,16 +820,16 @@ fn sql_helper_revision_is_independent_of_observation_revision_and_other_card_gen
         .ok()
         .unwrap();
     assert!(
-        helper.request.expected_revision.is_none(),
+        helper.request.definition_etag().is_some(),
         "the observation CAS must not be substituted for the SQL CAS"
     );
-    let Some(actions::action_args::Arguments::Helper(arguments)) =
-        helper.request.arguments.arguments.as_ref()
+    let Some(wire::execute_capability_request::Command::Helper(arguments)) =
+        home_wire_contract::api_contract::encode_command(&helper.request).command
     else {
         panic!("typed helper arguments");
     };
     assert_eq!(arguments.expected_helper_revision, Some(7));
-    assert_eq!(arguments.value.helper_revision, 0);
+    // HelperInputValue has no storage revision field; CAS is solely the explicit precondition.
     let refreshed = store.project(
         CachePhase::Live,
         Some(&view(&request, vec![with_helper(&request, 7, 1000)])),
@@ -903,10 +868,14 @@ fn missing_helper_state_never_invents_a_zero_sql_precondition() {
         .ok()
         .unwrap();
     assert!(
-        matches!(prepared.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::Helper(arguments)) if arguments.expected_helper_revision==Some(0))
+        matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command.as_ref(),Some(wire::execute_capability_request::Command::Helper(arguments)) if arguments.expected_helper_revision==Some(0))
     );
     let mut missing = entity;
-    missing.state.as_option_mut().unwrap().value = None;
+    fixture::helper_mut(&mut missing, 1)
+        .observation
+        .as_option_mut()
+        .unwrap()
+        .value = Default::default();
     let after = store.project(
         CachePhase::Live,
         Some(&view(&request, vec![missing])),
@@ -925,45 +894,42 @@ fn missing_helper_state_never_invents_a_zero_sql_precondition() {
     ));
 }
 
-pub(super) fn climate_entity(request: &ProjectionRequest) -> state::ViewEntity {
+pub(super) fn climate_entity(request: &ProjectionRequest) -> wire::EntityViewEntry {
     let mut entity = light(request);
-    entity.capabilities[0].schema_id = "core.climate.v1".into();
-    entity.action_access[0].schema_id = "core.climate.v1".into();
-    entity.capabilities[0].constraints =
-        Some(registry::capability_description::Constraints::Climate(
-            registry::ClimateConstraints {
-                setpoint_celsius: registry::NumberBounds {
-                    minimum: -5.,
-                    maximum: 30.,
-                    step: Some(0.5),
-                    ..Default::default()
-                }
-                .into(),
-                observed_setpoint_celsius: registry::ClimateTemperatureObservation::default()
-                    .into(),
-                mode_options: vec![
-                    registry::ClimateMode::Heat.into(),
-                    registry::ClimateMode::Cool.into(),
-                ],
-                observed_mode_options: vec![registry::ClimateMode::Cool.into()],
-                activity_options: vec![registry::ClimateActivity::Idle.into()],
-                observes_fan_activity: true,
+    entity.capabilities[0].r#trait = Some(wire::capability::Trait::TemperatureControl(Box::new(
+        wire::TemperatureControlCapability {
+            setpoint_celsius: wire::NumberBounds {
+                minimum: -5.,
+                maximum: 30.,
+                step: Some(0.5),
                 ..Default::default()
             }
             .into(),
-        ));
-    entity.state.as_option_mut().unwrap().value = Some(state::observed_state::Value::Climate(
-        state::ClimateValue {
-            setpoint: Some(state::climate_value::Setpoint::SetpointCelsius(20.)),
-            mode: Some(registry::ClimateMode::Cool.into()),
-            activity: Some(registry::ClimateActivity::Idle.into()),
-            fan_active: Some(false),
+            observed_setpoint_celsius: wire::TemperatureObservationDefinition::default().into(),
+            mode_options: vec![
+                wire::TemperatureMode::Heat.into(),
+                wire::TemperatureMode::Cool.into(),
+            ],
+            observed_mode_options: vec![wire::TemperatureMode::Cool.into()],
+            observed_activity_options: vec![wire::TemperatureActivity::Idle.into()],
+            observes_fan_activity: true,
+            observation: wire::TemperatureControlObservation {
+                setpoint: Some(
+                    wire::temperature_control_observation::Setpoint::SetpointCelsius(20.),
+                ),
+                mode: Some(wire::TemperatureMode::Cool.into()),
+                activity: Some(wire::TemperatureActivity::Idle.into()),
+                fan_active: Some(false),
+                quality: fixture::quality().into(),
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
-        }
-        .into(),
-    ));
+        },
+    )));
     entity
 }
+
 fn edit_event(event: crate::ProValueEvent, lower: &str, upper: &str) -> crate::ProValueIntent {
     crate::ProValueIntent {
         event,
@@ -1017,7 +983,7 @@ fn numeric_drafts_survive_refresh_and_invalid_text_never_becomes_an_intention() 
         .ok()
         .unwrap();
     assert!(
-        matches!(prepared.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::SetClimate(value)) if value.setpoint_celsius==Some(-0.5))
+        matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command.as_ref(),Some(wire::execute_capability_request::Command::TemperatureControl(value)) if value.setpoint==Some(wire::set_temperature_control_command::Setpoint::SetpointCelsius(-0.5)))
     );
     let refreshed = store
         .project(CachePhase::Live, Some(&capture), &request)
@@ -1096,7 +1062,7 @@ fn numeric_pointer_gesture_survives_projection_but_withdrawal_cancels_its_releas
         .ok()
         .unwrap();
     assert!(
-        matches!(prepared.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::SetClimate(value)) if value.setpoint_celsius==Some(-5.))
+        matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command.as_ref(),Some(wire::execute_capability_request::Command::TemperatureControl(value)) if value.setpoint==Some(wire::set_temperature_control_command::Setpoint::SetpointCelsius(-5.)))
     );
     store
         .edit(
@@ -1107,7 +1073,7 @@ fn numeric_pointer_gesture_survives_projection_but_withdrawal_cancels_its_releas
             edit_event(crate::ProValueEvent::Start, "", ""),
         )
         .unwrap();
-    entity.action_access[0].access = state::ActionAccess::Denied.into();
+    entity.capabilities[0].action_access = wire::ActionAccess::Denied.into();
     let current = store
         .project(
             CachePhase::Live,
@@ -1151,13 +1117,15 @@ fn choice_tokens_cannot_retarget_modes_and_absent_observations_are_removed() {
         .ok()
         .unwrap();
     assert!(
-        matches!(prepared.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::SetClimate(value)) if value.mode.and_then(|mode|mode.as_known())==Some(registry::ClimateMode::Heat) && value.fan_target.is_none())
+        matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command.as_ref(),Some(wire::execute_capability_request::Command::TemperatureControl(value)) if value.mode.and_then(|mode|mode.as_known())==Some(wire::TemperatureMode::Heat) && value.fan_target.is_none())
     );
     assert!(store.choose(row.token, row.generation, 0, -1).is_err());
     assert!(store.choose(row.token, row.generation, 0, 2).is_err());
-    entity.state.as_option_mut().unwrap().value = Some(state::observed_state::Value::Climate(
-        state::ClimateValue::default().into(),
-    ));
+    fixture::temperature_mut(&mut entity).observation = wire::TemperatureControlObservation {
+        quality: fixture::quality().into(),
+        ..Default::default()
+    }
+    .into();
     let next = store
         .project(
             CachePhase::Live,
@@ -1171,9 +1139,8 @@ fn choice_tokens_cannot_retarget_modes_and_absent_observations_are_removed() {
     assert!(!next.readings.contains("Idle"));
     assert!(!next.readings.contains("Inactive"));
     assert_eq!(next.values[0].lower, "");
-    if let Some(registry::capability_description::Constraints::Climate(value)) =
-        entity.capabilities[0].constraints.as_mut()
     {
+        let value = fixture::temperature_mut(&mut entity);
         value.mode_options.reverse();
     }
     let next = store
@@ -1191,15 +1158,14 @@ fn choice_tokens_cannot_retarget_modes_and_absent_observations_are_removed() {
 
 pub(super) fn helper_entity(
     request: &ProjectionRequest,
-    kind: home_wire_contract::home::helpers::v1::HelperKind,
-) -> state::ViewEntity {
-    use home_wire_contract::home::helpers::v1::{
+    kind: home_wire_contract::home::api::v2::HelperKind,
+) -> wire::EntityViewEntry {
+    use home_wire_contract::home::api::v2::{
         self as h, HelperOperation as O, helper_value::Value as V,
     };
     let mut entity = with_helper(request, 7, 500);
     entity.capabilities.remove(0);
-    entity.action_access.remove(0);
-    let mut constraints = h::HelperConstraints {
+    let mut constraints = h::HelperDefinition {
         kind: kind.into(),
         operations: vec![O::Set.into()],
         ..Default::default()
@@ -1207,7 +1173,7 @@ pub(super) fn helper_entity(
     let value = match kind {
         h::HelperKind::Boolean => {
             constraints.operations.push(O::Toggle.into());
-            Some(V::Boolean(false))
+            Some(V::BooleanValue(false))
         }
         h::HelperKind::Number => {
             constraints.number_minimum = Some(-5.);
@@ -1230,7 +1196,7 @@ pub(super) fn helper_entity(
             Some(V::Text(String::new()))
         }
         h::HelperKind::Date => Some(V::Date(
-            h::CivilDate {
+            home_wire_contract::google::r#type::Date {
                 year: 2028,
                 month: 2,
                 day: 29,
@@ -1238,17 +1204,19 @@ pub(super) fn helper_entity(
             }
             .into(),
         )),
-        h::HelperKind::Time => Some(V::Time(h::CivilTime::default().into())),
-        h::HelperKind::Datetime => Some(V::Datetime(
-            h::CivilDateTime {
-                date: h::CivilDate {
+        h::HelperKind::Time => Some(V::Time(
+            home_wire_contract::google::r#type::TimeOfDay::default().into(),
+        )),
+        h::HelperKind::Datetime => Some(V::LocalValue(
+            h::LocalDateTime {
+                date: home_wire_contract::google::r#type::Date {
                     year: 2028,
                     month: 2,
                     day: 29,
                     ..Default::default()
                 }
                 .into(),
-                time: h::CivilTime::default().into(),
+                time: home_wire_contract::google::r#type::TimeOfDay::default().into(),
                 ..Default::default()
             }
             .into(),
@@ -1266,23 +1234,22 @@ pub(super) fn helper_entity(
         }
         h::HelperKind::Unspecified => None,
     };
-    entity.capabilities[0].constraints = Some(
-        registry::capability_description::Constraints::Helper(constraints.into()),
-    );
-    let observed = entity.state.as_option_mut().unwrap();
-    observed.value = Some(state::observed_state::Value::Helper(
-        h::HelperValue {
-            helper_revision: 7,
-            value,
-            ..Default::default()
-        }
-        .into(),
-    ));
+    let Some(wire::capability::Trait::Helper(helper)) = entity.capabilities[0].r#trait.as_mut()
+    else {
+        panic!()
+    };
+    helper.definition = constraints.into();
+    helper.observation.as_option_mut().unwrap().value = h::HelperValue {
+        helper_revision: 7,
+        value,
+        ..Default::default()
+    }
+    .into();
     entity
 }
 #[test]
 fn helper_editors_preserve_exact_values_and_seal_sql_revision_at_command_admission() {
-    use home_wire_contract::home::helpers::v1::{HelperKind as K, helper_value::Value as V};
+    use home_wire_contract::home::api::v2::{HelperKind as K, helper_input_value::Value as V};
     let request = request();
     for (kind, input, expected) in [
         (K::Number, "-0,5", V::Number(-0.5)),
@@ -1292,7 +1259,7 @@ fn helper_editors_preserve_exact_values_and_seal_sql_revision_at_command_admissi
             K::Date,
             "2028-02-29",
             V::Date(
-                home_wire_contract::home::helpers::v1::CivilDate {
+                home_wire_contract::google::r#type::Date {
                     year: 2028,
                     month: 2,
                     day: 29,
@@ -1304,21 +1271,21 @@ fn helper_editors_preserve_exact_values_and_seal_sql_revision_at_command_admissi
         (
             K::Time,
             "00:00",
-            V::Time(home_wire_contract::home::helpers::v1::CivilTime::default().into()),
+            V::Time(home_wire_contract::google::r#type::TimeOfDay::default().into()),
         ),
         (
             K::Datetime,
             "2028-02-29T00:00",
-            V::Datetime(
-                home_wire_contract::home::helpers::v1::CivilDateTime {
-                    date: home_wire_contract::home::helpers::v1::CivilDate {
+            V::LocalValue(
+                wire::LocalDateTime {
+                    date: home_wire_contract::google::r#type::Date {
                         year: 2028,
                         month: 2,
                         day: 29,
                         ..Default::default()
                     }
                     .into(),
-                    time: home_wire_contract::home::helpers::v1::CivilTime::default().into(),
+                    time: home_wire_contract::google::r#type::TimeOfDay::default().into(),
                     ..Default::default()
                 }
                 .into(),
@@ -1351,19 +1318,19 @@ fn helper_editors_preserve_exact_values_and_seal_sql_revision_at_command_admissi
             .prepare(row.token, row.generation, 0, intent)
             .ok()
             .unwrap();
-        let Some(actions::action_args::Arguments::Helper(action)) =
-            prepared.request.arguments.arguments.as_ref()
+        let Some(wire::execute_capability_request::Command::Helper(action)) =
+            home_wire_contract::api_contract::encode_command(&prepared.request).command
         else {
             panic!("helper command");
         };
         assert_eq!(action.expected_helper_revision, Some(7));
         assert_eq!(action.value.value, Some(expected));
-        assert!(prepared.request.expected_revision.is_none());
+        assert!(prepared.request.definition_etag().is_some());
     }
 }
 #[test]
 fn invalid_helper_text_remains_editable_but_a_sql_revision_change_withdraws_it() {
-    use home_wire_contract::home::helpers::v1::HelperKind as K;
+    use home_wire_contract::home::api::v2::HelperKind as K;
     let request = request();
     for (kind, text) in [
         (K::Number, "0.1"),
@@ -1403,9 +1370,14 @@ fn invalid_helper_text_remains_editable_but_a_sql_revision_change_withdraws_it()
             .remove(0);
         assert_eq!(next.values[0].lower, text);
         assert!(!next.values[0].error.is_empty());
-        if let Some(state::observed_state::Value::Helper(value)) =
-            entity.state.as_option_mut().unwrap().value.as_mut()
         {
+            let value = fixture::helper_mut(&mut entity, 0)
+                .observation
+                .as_option_mut()
+                .unwrap()
+                .value
+                .as_option_mut()
+                .unwrap();
             value.helper_revision += 1;
         }
         let next = store
@@ -1431,8 +1403,8 @@ fn invalid_helper_text_remains_editable_but_a_sql_revision_change_withdraws_it()
 }
 #[test]
 fn helper_boolean_and_button_choices_only_offer_the_advertised_operations() {
-    use home_wire_contract::home::helpers::v1::{
-        HelperKind as K, HelperOperation as O, helper_value::Value as V,
+    use home_wire_contract::home::api::v2::{
+        HelperKind as K, HelperOperation as O, helper_input_value::Value as V,
     };
     let request = request();
     let store = DeviceStore::default();
@@ -1453,7 +1425,7 @@ fn helper_boolean_and_button_choices_only_offer_the_advertised_operations() {
         .ok()
         .unwrap();
     assert!(
-        matches!(command.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::Helper(value)) if value.value.value==Some(V::Boolean(false)))
+        matches!(home_wire_contract::api_contract::encode_command(&command.request).command.as_ref(),Some(wire::execute_capability_request::Command::Helper(value)) if value.value.value==Some(V::BooleanValue(false)))
     );
     let mut entity = helper_entity(&request, K::ButtonPress);
     let row = store
@@ -1472,14 +1444,16 @@ fn helper_boolean_and_button_choices_only_offer_the_advertised_operations() {
         .ok()
         .unwrap();
     assert!(
-        matches!(command.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::Helper(value)) if value.operation.as_known()==Some(O::Press) && value.value.as_option().is_none())
+        matches!(home_wire_contract::api_contract::encode_command(&command.request).command.as_ref(),Some(wire::execute_capability_request::Command::Helper(value)) if value.operation.as_known()==Some(O::Press) && value.value.as_option().is_none())
     );
-    if let Some(registry::capability_description::Constraints::Helper(value)) =
-        entity.capabilities[0].constraints.as_mut()
     {
+        let value = fixture::helper_mut(&mut entity, 0)
+            .definition
+            .as_option_mut()
+            .unwrap();
         value.operations.clear();
         value.unavailable_reason =
-            home_wire_contract::home::helpers::v1::HelperReason::NoAuthorizedTarget.into();
+            home_wire_contract::home::api::v2::HelperReason::NoAuthorizedTarget.into();
     }
     let row = store
         .project(
@@ -1495,7 +1469,7 @@ fn helper_boolean_and_button_choices_only_offer_the_advertised_operations() {
 }
 #[test]
 fn helper_selector_filters_with_generation_guards_and_never_optimistically_changes_observation() {
-    use home_wire_contract::home::helpers::v1::{HelperKind as K, helper_value::Value as V};
+    use home_wire_contract::home::api::v2::{HelperKind as K, helper_input_value::Value as V};
     let request = request();
     let entity = helper_entity(&request, K::Select);
     let store = DeviceStore::default();
@@ -1554,7 +1528,7 @@ fn helper_selector_filters_with_generation_guards_and_never_optimistically_chang
         .ok()
         .unwrap();
     assert!(
-        matches!(command.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::Helper(value)) if value.value.value==Some(V::SelectedOption("custom B".into())) && value.expected_helper_revision==Some(7))
+        matches!(home_wire_contract::api_contract::encode_command(&command.request).command.as_ref(),Some(wire::execute_capability_request::Command::Helper(value)) if value.value.value==Some(V::SelectedOption("custom B".into())) && value.expected_helper_revision==Some(7))
     );
     let current = store
         .project(CachePhase::Live, Some(&capture), &request)
@@ -1569,13 +1543,18 @@ fn helper_selector_filters_with_generation_guards_and_never_optimistically_chang
 }
 #[test]
 fn helper_controls_require_present_cas_and_never_coerce_a_different_observed_value_kind() {
-    use home_wire_contract::home::helpers::v1::{HelperKind as K, helper_value::Value as V};
+    use home_wire_contract::home::api::v2::{HelperKind as K, helper_value::Value as V};
     let request = request();
     let store = DeviceStore::default();
     let mut entity = helper_entity(&request, K::Counter);
-    if let Some(state::observed_state::Value::Helper(value)) =
-        entity.state.as_option_mut().unwrap().value.as_mut()
     {
+        let value = fixture::helper_mut(&mut entity, 0)
+            .observation
+            .as_option_mut()
+            .unwrap()
+            .value
+            .as_option_mut()
+            .unwrap();
         value.value = Some(V::Number(3.));
     }
     let row = store
@@ -1587,7 +1566,7 @@ fn helper_controls_require_present_cas_and_never_coerce_a_different_observed_val
         .rows
         .remove(0);
     assert_eq!(row.values[0].lower, "");
-    entity.state = Default::default();
+    fixture::helper_mut(&mut entity, 0).observation = Default::default();
     let row = store
         .project(
             CachePhase::Live,
@@ -1609,12 +1588,11 @@ fn helper_controls_require_present_cas_and_never_coerce_a_different_observed_val
     ));
 }
 
-fn color_light(request: &ProjectionRequest) -> state::ViewEntity {
+fn color_light(request: &ProjectionRequest) -> wire::EntityViewEntry {
     let mut entity = light(request);
-    if let Some(registry::capability_description::Constraints::Light(value)) =
-        entity.capabilities[0].constraints.as_mut()
     {
-        value.color_temp_mireds = registry::NumberBounds {
+        let value = fixture::light_mut(&mut entity);
+        value.color_temperature_mireds = wire::NumberBounds {
             minimum: 250.,
             maximum: 454.,
             step: Some(7.),
@@ -1622,10 +1600,12 @@ fn color_light(request: &ProjectionRequest) -> state::ViewEntity {
         }
         .into();
     }
-    if let Some(state::observed_state::Value::Light(value)) =
-        entity.state.as_option_mut().unwrap().value.as_mut()
     {
-        value.color_temp_mireds = Some(334);
+        let value = fixture::light_mut(&mut entity)
+            .observation
+            .as_option_mut()
+            .unwrap();
+        value.color_temperature_mireds = Some(334);
     }
     entity
 }
@@ -1679,7 +1659,7 @@ fn color_temperature_previews_the_converted_value_and_keeps_observation_separate
         .ok()
         .unwrap();
     assert!(
-        matches!(prepared.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::SetLight(value)) if value.color_temp_mireds==Some(369) && value.on.is_none() && value.brightness_percent.is_none() && value.transition_seconds.is_none())
+        matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command.as_ref(),Some(wire::execute_capability_request::Command::Light(value)) if value.color_temperature_mireds==Some(369) && value.power.as_option().is_none() && value.level.as_option().is_none() && value.transition_duration.as_option().is_none())
     );
     let updated = store
         .project(CachePhase::Live, Some(&capture), &request)
@@ -1737,7 +1717,7 @@ fn color_temperature_stepper_and_slider_stay_on_the_integer_server_grid_and_revo
         .ok()
         .unwrap();
     assert!(
-        matches!(prepared.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::SetLight(value)) if value.color_temp_mireds==Some(327))
+        matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command.as_ref(),Some(wire::execute_capability_request::Command::Light(value)) if value.color_temperature_mireds==Some(327))
     );
     store
         .edit(
@@ -1770,7 +1750,7 @@ fn color_temperature_stepper_and_slider_stay_on_the_integer_server_grid_and_revo
         .ok()
         .unwrap();
     assert!(
-        matches!(prepared.request.arguments.arguments.as_ref(),Some(actions::action_args::Arguments::SetLight(value)) if value.color_temp_mireds==Some(250))
+        matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command.as_ref(),Some(wire::execute_capability_request::Command::Light(value)) if value.color_temperature_mireds==Some(250))
     );
     store
         .edit(
@@ -1781,10 +1761,9 @@ fn color_temperature_stepper_and_slider_stay_on_the_integer_server_grid_and_revo
             edit_event(crate::ProValueEvent::Start, "", ""),
         )
         .unwrap();
-    if let Some(registry::capability_description::Constraints::Light(value)) =
-        entity.capabilities[0].constraints.as_mut()
     {
-        value.color_temp_mireds = Default::default();
+        let value = fixture::light_mut(&mut entity);
+        value.color_temperature_mireds = Default::default();
     }
     let updated = store
         .project(
@@ -1813,10 +1792,12 @@ fn missing_color_is_not_zero_and_invalid_positions_cannot_commit_an_earlier_valu
     let request = request();
     let store = DeviceStore::default();
     let mut entity = color_light(&request);
-    if let Some(state::observed_state::Value::Light(value)) =
-        entity.state.as_option_mut().unwrap().value.as_mut()
     {
-        value.color_temp_mireds = None;
+        let value = fixture::light_mut(&mut entity)
+            .observation
+            .as_option_mut()
+            .unwrap();
+        value.color_temperature_mireds = None;
     }
     let row = store
         .project(
@@ -1881,7 +1862,7 @@ fn missing_color_is_not_zero_and_invalid_positions_cannot_commit_an_earlier_valu
             Err(Refusal::InvalidValue)
         ));
     }
-    entity.action_access[0].access = state::ActionAccess::Denied.into();
+    entity.capabilities[0].action_access = wire::ActionAccess::Denied.into();
     let updated = store
         .project(
             CachePhase::Live,

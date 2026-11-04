@@ -1,76 +1,76 @@
 use buffa::MessageName;
 use connectrpc::{ConnectError, ErrorDetail};
-use home_client_transport::{DetailFailure, Failure};
+use home_client_transport::Failure;
 use home_wire_contract::{
+    api_errors::{DOMAIN, InvalidApiError},
     google::rpc::ErrorInfo,
-    home::{
-        api::v2::ApiErrorReason, configuration::v1::DocumentVersion,
-        integrationadmin::v1 as integration, observability::v1 as observation,
-    },
+    home::api::v2::ApiErrorReason,
 };
 
-#[test]
-fn integration_conflict_preserves_exact_version_and_rejects_ambiguous_details() {
-    let conflict = integration::IntegrationError {
-        code: integration::ErrorCode::Conflict.into(),
-        current: Some(DocumentVersion {
-            revision: 19,
-            source_sha256: vec![7; 32],
+fn detail(reason: &str) -> ErrorDetail {
+    ErrorDetail::from_message(
+        ErrorInfo::FULL_NAME,
+        &ErrorInfo {
+            reason: reason.into(),
+            domain: DOMAIN.into(),
             ..Default::default()
-        })
-        .into(),
-        ..Default::default()
-    };
-    let detail = ErrorDetail::from_message(integration::IntegrationError::FULL_NAME, &conflict);
+        },
+    )
+}
+
+#[test]
+fn integration_conflict_is_canonical_and_rejects_ambiguous_details() {
+    let detail = detail("ETAG_MISMATCH");
     let failure = Failure::from(
         ConnectError::aborted("private YAML and credential").with_detail(detail.clone()),
     );
-    assert_eq!(failure.integration_error(), Ok(Some(conflict)));
+    assert_eq!(
+        failure.api_failure().map(|v| v.map(|f| f.reason())),
+        Ok(Some(ApiErrorReason::EtagMismatch))
+    );
+    assert!(!failure.request_not_dispatched());
     assert!(!format!("{failure:?} {failure}").contains("private"));
     let duplicate = Failure::from(
         ConnectError::aborted("private")
             .with_detail(detail.clone())
             .with_detail(detail),
     );
-    assert_eq!(duplicate.integration_error(), Err(DetailFailure::Duplicate));
+    assert_eq!(duplicate.api_failure(), Err(InvalidApiError::Duplicate));
     let malformed = Failure::from(ConnectError::aborted("private").with_detail(ErrorDetail {
-        type_url: integration::IntegrationError::TYPE_URL.into(),
+        type_url: ErrorInfo::TYPE_URL.into(),
         value: Some("%%%".into()),
         debug: None,
     }));
-    assert_eq!(malformed.integration_error(), Err(DetailFailure::Malformed));
+    assert_eq!(malformed.api_failure(), Err(InvalidApiError::Malformed));
 }
 
 #[test]
 fn policy_and_factor_errors_remain_distinct_from_native_session_revocation() {
-    let policy = ErrorInfo {
-        reason: "ETAG_MISMATCH".into(),
-        domain: "homeward.damiengoehrig.ca".into(),
-        ..Default::default()
-    };
-    let failure = Failure::from(
-        ConnectError::aborted("private policy source")
-            .with_detail(ErrorDetail::from_message(ErrorInfo::FULL_NAME, &policy)),
+    let conflict = Failure::from(
+        ConnectError::aborted("private policy source").with_detail(detail("ETAG_MISMATCH")),
     );
     assert_eq!(
-        failure.api_failure().map(|v| v.map(|f| f.reason())),
+        conflict.api_failure().map(|v| v.map(|f| f.reason())),
         Ok(Some(ApiErrorReason::EtagMismatch))
     );
-    assert_eq!(failure.authorization_termination(), Ok(None));
+    let revoked = Failure::from(
+        ConnectError::unauthenticated("private session")
+            .with_detail(detail("AUTHENTICATION_REQUIRED")),
+    );
+    assert_eq!(
+        revoked.api_failure().map(|v| v.map(|f| f.reason())),
+        Ok(Some(ApiErrorReason::AuthenticationRequired))
+    );
+    assert!(!revoked.may_resume_read());
+    assert!(!revoked.may_recover_renewal());
 }
 
 #[test]
-fn future_observability_reason_is_retained_without_disclosing_remote_text() {
-    let error = observation::ObservabilityError {
-        code: 999.into(),
-        ..Default::default()
-    };
+fn future_observability_reason_is_rejected_without_disclosing_remote_text() {
     let failure = Failure::from(
-        ConnectError::unavailable("private log payload").with_detail(ErrorDetail::from_message(
-            observation::ObservabilityError::FULL_NAME,
-            &error,
-        )),
+        ConnectError::unavailable("private log payload").with_detail(detail("FUTURE_REASON")),
     );
-    assert_eq!(failure.observability_error(), Ok(Some(error)));
+    assert_eq!(failure.api_failure(), Err(InvalidApiError::Unsupported));
+    assert!(!failure.may_resume_read());
     assert!(!format!("{failure:?} {failure}").contains("private"));
 }

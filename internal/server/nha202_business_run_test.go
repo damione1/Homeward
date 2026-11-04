@@ -8,7 +8,6 @@ import (
 	"connectrpc.com/connect"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/testpg"
 )
 
@@ -24,15 +23,16 @@ func TestNHA202DefaultRunServesTaskCalendarAndEmptyMediaResourcesTLS(t *testing.
 	run := nha162StartDefaultRun(t, settings.startup)
 	client := nha162RunClient(t, roots, run.address)
 	url := "https://" + run.address.String()
-	auth := authv1connect.NewAuthServiceClient(client, url)
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, url)
+	auth := apiv2connect.NewAuthServiceClient(client, url)
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, url)
 	homes := apiv2connect.NewHomeServiceClient(client, url)
 	tasks := apiv2connect.NewTaskServiceClient(client, url)
 	calendars := apiv2connect.NewCalendarServiceClient(client, url)
 	media := apiv2connect.NewMediaServiceClient(client, url)
 	const name, password = "NHA202 Run Admin", "NHA202 synthetic isolated admin password"
-	account := nha162RunBootstrap(t, ctx, dataDir, name, password)
-	token := nha162RunLogin(t, ctx, auth, name, password).AccessToken
+	nha162RunBootstrap(t, ctx, dataDir, name, password)
+	tokens := nha162RunLogin(t, ctx, auth, name, password)
+	token := tokens.AccessToken
 	discovery, err := homes.ListHomes(ctx, nha162Bearer(&api.ListHomesRequest{PageSize: 2}, token))
 	if err != nil || len(discovery.Msg.Homes) != 1 || discovery.Msg.NextPageToken != "" {
 		t.Fatal("Run home discovery", err)
@@ -40,7 +40,7 @@ func TestNHA202DefaultRunServesTaskCalendarAndEmptyMediaResourcesTLS(t *testing.
 	home := discovery.Msg.Homes[0].Name
 	_, err = tasks.CreateTaskList(ctx, nha162Bearer(&api.CreateTaskListRequest{Parent: home, TaskList: &api.TaskList{DisplayName: "Must need list grant"}}, token))
 	nha162Code(t, err, connect.CodePermissionDenied)
-	nha162RunPolicy(t, ctx, policies, account, token, nha162All+nhf015AllCalendars+nhf016AllCameras)
+	nha162RunPolicy(t, ctx, policies, nha203SessionAccount(t, tokens.Session).String(), token, nha162All+nhf015AllCalendars+nhf016AllCameras)
 	created, err := tasks.CreateTaskList(ctx, nha162Bearer(&api.CreateTaskListRequest{Parent: home, TaskList: &api.TaskList{DisplayName: "Run task resource"}}, token))
 	if err != nil {
 		t.Fatal("Run TaskService is not active", err)

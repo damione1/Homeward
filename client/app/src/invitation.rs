@@ -57,7 +57,7 @@ pub(crate) async fn accept(
             if response.__buffa_unknown_fields.is_empty()
                 && let Some(account) = response.account.into_option()
                 && auth_contract::admit_account(&account).is_ok()
-                && account.state == auth::AccountState::Active
+                && account.access == auth::AccountAccess::Enabled
                 && account.login_name.len() <= 256
             {
                 Outcome::Accepted {

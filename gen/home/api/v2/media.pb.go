@@ -484,10 +484,9 @@ func (x *GetMediaSourceRequest) GetName() string {
 }
 
 // Request for a server-assigned data-plane session.
-// (-- api-linter: core::0133::request-id-field=disabled
 //
-//	aip.dev/not-precedent: AIP133 permits server-assigned data-plane IDs.
-//	IDs contain 256 random bits; no caller-chosen alias is accepted. --)
+//	AIP133 permits server-assigned data-plane IDs.
+//	IDs contain 256 random bits; no caller-chosen alias is accepted.
 type CreateMediaSessionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Canonical parent resource name.

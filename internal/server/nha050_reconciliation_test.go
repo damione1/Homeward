@@ -11,6 +11,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/accounts"
 	"github.com/damione1/Homeward/internal/authorization"
@@ -40,7 +41,7 @@ func TestNHA050UnpublishedCreationsReconcileBoundedlyAfterPrimaryReturns(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &accountHandler{store: store, coordinator: coordinator}
+	h := nha203AccountHandler(store, coordinator)
 	const password = "NHA050 unpublished creation synthetic password"
 	input, err := newAccountInput(ctx, "Creation Admin", "Creation Admin", password, authv1.AccountRole_ACCOUNT_ROLE_ADMIN)
 	if err != nil {
@@ -151,7 +152,7 @@ CREATE CONSTRAINT TRIGGER nha050_unknown_account_commit AFTER INSERT ON public.a
 	}
 	running = false
 	create := func(login string) error {
-		_, err := h.CreateAccount(nativeCtx, connect.NewRequest(&authv1.CreateAccountRequest{LoginName: login, DisplayName: login, InitialPassword: password, Role: authv1.AccountRole_ACCOUNT_ROLE_USER}))
+		_, err := h.CreateAccount(nativeCtx, connect.NewRequest(&api.CreateAccountRequest{Parent: "homes/auth-fixture", Account: &api.Account{LoginName: login, DisplayName: login, InitialPassword: password, Role: api.AccountRole_ACCOUNT_ROLE_USER}}))
 		return err
 	}
 	if err := create("Primary Unavailable New Account"); connect.CodeOf(err) != connect.CodeUnavailable || pendingCount() != 18 {

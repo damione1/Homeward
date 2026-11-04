@@ -5,9 +5,7 @@ use crate::administration::{Section, Stage};
 use crate::administration_host::{Administration, State};
 use crate::configuration::{SourceFamily, WorkspaceHash};
 use home_client_session::{SecureStore, StoreFailure};
-use home_wire_contract::home::{
-    configurationplan::v1 as plan, configurationsimulation::v1 as simulation,
-};
+use home_wire_contract::home::{api::v2 as plan, api::v2 as simulation};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::sync::{Arc, Mutex};
@@ -115,24 +113,9 @@ async fn close(owner: &Administration) {
 async fn read(session: &SessionCoordinator, connection: &Connection) -> Capture {
     let cancel = CancellationToken::new();
     let lease = session.access(&cancel).await.unwrap();
-    let response = connection
-        .configuration()
-        .read_document(
-            wire::ReadDocumentRequest {
-                id: wire::DocumentId {
-                    value: "operational.main".into(),
-                    ..Default::default()
-                }
-                .into(),
-                ..Default::default()
-            },
-            lease.token(),
-            Duration::from_secs(4),
-            &cancel,
-        )
+    super::super::operational_capture(session, connection, &lease, &cancel)
         .await
-        .unwrap();
-    Capture::admit(response).unwrap()
+        .unwrap()
 }
 async fn rejected_write(
     session: &SessionCoordinator,
@@ -140,15 +123,19 @@ async fn rejected_write(
     base: &Capture,
     workspace: &WorkspaceHash,
     bytes: Vec<u8>,
-    expected: wire::ErrorCode,
+    expected: wire::ApiErrorReason,
 ) {
     let cancel = CancellationToken::new();
     let lease = session.access(&cancel).await.unwrap();
     let failure = connection
         .configuration()
         .write_document(
-            wire::WriteDocumentRequest {
-                id: base.id().to_wire().into(),
+            wire::PublishConfigurationDocumentRequest {
+                name: base.id().as_str().into(),
+                request_id: home_client_actions::new_request_id()
+                    .unwrap()
+                    .as_str()
+                    .into(),
                 expected: base.sql().to_wire().into(),
                 expected_workspace_sha256: workspace.bytes().to_vec(),
                 exact_yaml_source: bytes,
@@ -161,10 +148,7 @@ async fn rejected_write(
         .await
         .err()
         .unwrap();
-    assert_eq!(
-        failure.configuration_error().unwrap().unwrap().code,
-        expected
-    );
+    assert_eq!(failure.api_failure().unwrap().unwrap().reason(), expected);
 }
 #[tokio::test]
 #[ignore = "explicit isolated configuration Go Run and verified TLS fixture"]
@@ -263,8 +247,12 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
     let stale = connection
         .configuration()
         .write_document(
-            wire::WriteDocumentRequest {
-                id: initial.id().to_wire().into(),
+            wire::PublishConfigurationDocumentRequest {
+                name: initial.id().as_str().into(),
+                request_id: home_client_actions::new_request_id()
+                    .unwrap()
+                    .as_str()
+                    .into(),
                 expected: initial.sql().to_wire().into(),
                 expected_workspace_sha256: initial
                     .workspace()
@@ -283,8 +271,8 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
         .err()
         .unwrap();
     assert_eq!(
-        stale.configuration_error().unwrap().unwrap().code,
-        wire::ErrorCode::Conflict
+        stale.api_failure().unwrap().unwrap().reason(),
+        wire::ApiErrorReason::EtagMismatch
     );
     rejected_write(
         &session,
@@ -292,7 +280,7 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
         &first_capture,
         initial.workspace().writable_hash().unwrap(),
         source.as_bytes().to_vec(),
-        wire::ErrorCode::Conflict,
+        wire::ApiErrorReason::EtagMismatch,
     )
     .await;
     rejected_write(
@@ -301,7 +289,7 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
         &first_capture,
         first_capture.workspace().writable_hash().unwrap(),
         vec![b'x'; 1_048_577],
-        wire::ErrorCode::InvalidArgument,
+        wire::ApiErrorReason::ValidationFailed,
     )
     .await;
     assert_eq!(
@@ -339,11 +327,9 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
     owner.editor_action(1, generation(&owner), ProAdminAction::Preview);
     until(&owner, "plan admitted", |state| {
         state.configuration.active.is_none()
-            && state
-                .configuration
-                .planner
-                .as_ref()
-                .is_some_and(|editor| editor.plan_state() == Some(plan::PlanState::Admitted))
+            && state.configuration.planner.as_ref().is_some_and(|editor| {
+                editor.plan_state() == Some(plan::ConfigurationPlanState::Admitted)
+            })
     })
     .await;
     assert_eq!(
@@ -354,11 +340,9 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
     owner.editor_action(1, generation(&owner), ProAdminAction::Revalidate);
     until(&owner, "plan revalidated", |state| {
         state.configuration.active.is_none()
-            && state
-                .configuration
-                .planner
-                .as_ref()
-                .is_some_and(|editor| editor.plan_state() == Some(plan::PlanState::Admitted))
+            && state.configuration.planner.as_ref().is_some_and(|editor| {
+                editor.plan_state() == Some(plan::ConfigurationPlanState::Admitted)
+            })
     })
     .await;
     owner.editor_action(1, generation(&owner), ProAdminAction::Apply);
@@ -403,12 +387,11 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
     let history = connection
         .configuration()
         .list_generations(
-            wire::ListGenerationsRequest {
-                page: wire::PageRequest {
-                    page_size: 50,
-                    ..Default::default()
-                }
-                .into(),
+            wire::ListConfigurationGenerationsRequest {
+                parent: super::super::home_name(&session, &connection, &lease, &cancel)
+                    .await
+                    .unwrap(),
+                page_size: 50,
                 ..Default::default()
             },
             lease.token(),
@@ -418,7 +401,7 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
         .await
         .unwrap();
     let index = history
-        .generations
+        .configuration_generations
         .iter()
         .position(|value| value.generation.revision == initial.active().revision())
         .unwrap();
@@ -447,7 +430,7 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
         &initial,
         initial.workspace().writable_hash().unwrap(),
         source.as_bytes().to_vec(),
-        wire::ErrorCode::Conflict,
+        wire::ApiErrorReason::EtagMismatch,
     )
     .await;
     assert_eq!(
@@ -492,10 +475,14 @@ async fn actual_configuration_owner_writes_plans_simulates_applies_and_rolls_bac
             .simulation_report()
             .unwrap();
         assert!(report.simulated && !report.hardware_validated);
-        assert_eq!(report.status, simulation::Status::Completed);
+        assert_eq!(
+            report.status,
+            simulation::ConfigurationSimulationStatus::Completed
+        );
         assert_eq!(report.intents.len(), 1);
         assert_eq!(report.intents[0].alias, "light.fixture");
-        let Some(simulation::intent::Parameters::Light(value)) = &report.intents[0].parameters
+        let Some(simulation::configuration_simulation_intent::Parameters::Light(value)) =
+            &report.intents[0].parameters
         else {
             panic!("synthetic light intent")
         };

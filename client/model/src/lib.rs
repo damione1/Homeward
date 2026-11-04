@@ -68,3 +68,5 @@ pub mod api_calendars;
 pub mod api_content;
 
 pub mod api_playback;
+
+pub mod decimal_u64;

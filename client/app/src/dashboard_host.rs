@@ -334,83 +334,53 @@ pub(crate) async fn run(
 mod tests {
     use super::*;
     #[test]
-    fn a_changed_response_at_any_batch_position_discards_the_rest_without_using_a_poisoned_capture()
-    {
-        let replies: [wire::GetDashboardResponse; 4] = std::array::from_fn(|index| {
+    fn a_foreign_checkpoint_at_any_batch_position_discards_the_rest_and_poisons_capture() {
+        let view = Arc::new(crate::dashboard::capture_fixture(vec![]));
+        let replies: [wire::QueryDashboardResponse; 4] = std::array::from_fn(|i| {
             let mut document = crate::dashboard::fixture_wire();
-            document
-                .metadata
-                .as_option_mut()
-                .unwrap()
-                .id
-                .as_option_mut()
-                .unwrap()
-                .value = format!("synthetic-{index}");
-            wire::GetDashboardResponse {
-                dashboard: document.into(),
-                resume_token: "synthetic-cohort-a".into(),
-                ..Default::default()
-            }
+            document.name = format!("homes/synthetic/dashboards/synthetic-{i}");
+            crate::dashboard::query_fixture(document, &view)
         });
         let list = wire::ListDashboardsResponse {
             dashboards: replies
                 .iter()
-                .map(|response| {
-                    response
-                        .dashboard
-                        .as_option()
-                        .unwrap()
-                        .metadata
-                        .as_option()
-                        .unwrap()
-                        .clone()
-                })
+                .map(|r| r.dashboard.as_option().unwrap().clone())
                 .collect(),
-            resume_token: "synthetic-cohort-a".into(),
+            resume_token: "catalogue-checkpoint".into(),
             ..Default::default()
         };
-        for changed in 0..replies.len() {
-            let mut capture = Capture::new(&list).unwrap();
-            let batch = std::array::from_fn(|index| {
-                let mut response = replies[index].clone();
-                if index == changed {
-                    response.resume_token = "synthetic-cohort-b".into();
+        for changed in 0..4 {
+            let mut capture = Capture::new(&list, view.clone()).unwrap();
+            let batch = std::array::from_fn(|i| {
+                let mut response = replies[i].clone();
+                if i == changed {
+                    response.resume_token = "foreign-checkpoint".into();
                 }
                 Ok(Some((
-                    DashboardId::parse(&format!("synthetic-{index}")).unwrap(),
+                    DashboardName::try_from(response.dashboard.name.as_str()).unwrap(),
                     response,
                 )))
             });
-            assert!(
-                matches!(
-                    accept_batch(&mut capture, batch),
-                    Ok(CaptureOutcome::Changed)
-                ),
-                "position {changed}"
-            );
+            assert!(matches!(
+                accept_batch(&mut capture, batch),
+                Err(ReadFailure::Contract)
+            ));
             assert!(capture.finish().is_err());
         }
     }
     #[test]
-    fn empty_and_populated_catalogues_use_the_same_strict_watch_frame_boundary() {
+    fn empty_and_populated_catalogues_use_the_same_strict_invalidation_boundary() {
+        use buffa::Message;
         assert!(changed(wire::WatchDashboardsResponse::default()).is_err());
+        let frame = wire::WatchDashboardsResponse {
+            invalidated: true,
+            ..Default::default()
+        };
+        assert!(changed(frame.clone()).is_ok());
+        let mut bytes = frame.encode_to_vec();
+        bytes.extend_from_slice(&[0x98, 0x06, 0x01]);
         assert!(
-            changed(wire::WatchDashboardsResponse {
-                result: Some(wire::watch_dashboards_response::Result::Snapshot(
-                    wire::ListDashboardsResponse::default().into()
-                )),
-                ..Default::default()
-            })
-            .is_ok()
-        );
-        assert!(
-            changed(wire::WatchDashboardsResponse {
-                result: Some(wire::watch_dashboards_response::Result::ResyncRequired(
-                    home_wire_contract::home::configuration::v1::ResyncRequired::default().into()
-                )),
-                ..Default::default()
-            })
-            .is_ok()
+            changed(wire::WatchDashboardsResponse::decode_from_slice(&bytes).unwrap()).is_err()
         );
     }
 }

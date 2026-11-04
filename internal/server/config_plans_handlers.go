@@ -94,7 +94,10 @@ func configPlanWire(value configplans.Plan, author apitypes.AccountName) *wire.C
 		out.Base.SourceSha256 = append([]byte(nil), hash[:]...)
 	}
 	for _, change := range value.Changes() {
-		out.Changes = append(out.Changes, &wire.ConfigurationPlanChange{Effect: planEffectWire(change.Effect()), Operation: planOperationWire(change.Operation()), Field: change.Field(), ReferencesAdded: change.ReferencesAdded(), ReferencesRemoved: change.ReferencesRemoved()})
+		if change.ReferencesAdded() > 4096 || change.ReferencesRemoved() > 4096 {
+			return nil
+		}
+		out.Changes = append(out.Changes, &wire.ConfigurationPlanChange{Effect: planEffectWire(change.Effect()), Operation: planOperationWire(change.Operation()), Field: change.Field(), ReferencesAdded: int32(change.ReferencesAdded()), ReferencesRemoved: int32(change.ReferencesRemoved())})
 	}
 	for _, d := range value.Diagnostics() {
 		out.Diagnostics = append(out.Diagnostics, planDiagnosticWire(d))
@@ -128,6 +131,14 @@ func (h *configPlansHandler) CreateConfigurationPlan(ctx context.Context, reques
 	home, err := apitypes.ParseHomeName(request.Msg.Parent)
 	if err != nil {
 		return nil, configPlanError(ctx, configplans.ErrInvalid)
+	}
+	var requestedID *storage.APIRequestedResourceID
+	if request.Msg.ConfigurationPlanId != "" {
+		id, err := storage.ParseAPIRequestedResourceID(request.Msg.ConfigurationPlanId)
+		if err != nil {
+			return nil, configPlanError(ctx, configplans.ErrInvalid)
+		}
+		requestedID = &id
 	}
 	ctx, err = configurationPlanMutationContext(ctx, configurationplanv1connect.ConfigurationPlanServiceCreateConfigurationPlanProcedure, request.Msg.RequestId, request.Msg)
 	if err != nil {
@@ -176,8 +187,11 @@ func (h *configPlansHandler) CreateConfigurationPlan(ctx context.Context, reques
 			return nil, err
 		}
 		metadata := configPlanWire(plan, publicAuthor)
+		if metadata == nil {
+			return nil, storage.ErrAPIResourceIntegrity
+		}
 		return h.persistPlanMutation(ctx, evidence, binding, func() (configurationPlanRecord, error) {
-			return h.catalog.prepareAddLocked(home, binding, metadata, expiry)
+			return h.catalog.prepareAddLocked(home, binding, metadata, expiry, requestedID)
 		})
 	}()
 	if err != nil {
@@ -259,6 +273,9 @@ func (h *configPlansHandler) RevalidateConfigurationPlan(ctx context.Context, re
 			return nil, err
 		}
 		metadata := configPlanWire(plan, publicAuthor)
+		if metadata == nil {
+			return nil, storage.ErrAPIResourceIntegrity
+		}
 		return h.persistPlanMutation(ctx, evidence, binding, func() (configurationPlanRecord, error) {
 			return h.catalog.prepareReplaceLocked(name, binding, current.version, metadata, expiry)
 		})

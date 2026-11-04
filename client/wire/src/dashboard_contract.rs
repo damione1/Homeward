@@ -209,8 +209,8 @@ fn source(value: Option<&wire::DashboardLayoutSource>) -> Result<Source, RecipeF
     }
     Ok(Source {
         file: value.file.clone(),
-        line: value.line,
-        column: value.column,
+        line: u32::try_from(value.line).map_err(|_| RecipeFailure::Invalid)?,
+        column: u32::try_from(value.column).map_err(|_| RecipeFailure::Invalid)?,
         path: value.path.clone(),
         variant: value.variant.clone(),
     })

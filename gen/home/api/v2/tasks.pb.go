@@ -548,10 +548,9 @@ func (x *GetTaskListRequest) GetName() string {
 }
 
 // Create task list request.
-// (-- api-linter: core::0133::request-id-field=disabled
 //
-//	aip.dev/not-precedent: AIP133 permits data-plane IDs to be server-assigned.
-//	Imported identities remain lossless; this request creates an opaque ID. --)
+//	AIP133 permits data-plane IDs to be server-assigned.
+//	Imported identities remain lossless; this request creates an opaque ID.
 type CreateTaskListRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Canonical parent resource name.

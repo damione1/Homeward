@@ -1,10 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"go.yaml.in/yaml/v3"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -14,18 +17,17 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	listsv1 "github.com/damione1/Homeward/gen/home/lists/v1"
-	"github.com/damione1/Homeward/gen/home/lists/v1/listsv1connect"
 	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
-	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/storage"
+	"github.com/damione1/Homeward/internal/tasknames"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/jackc/pgx/v5"
-	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 type nha162ObservedRun struct {
@@ -100,9 +102,9 @@ func nha162RunClient(t *testing.T, roots *x509.CertPool, address net.Addr) *http
 	return client
 }
 
-func nha162RunLogin(t *testing.T, ctx context.Context, auth authv1connect.AuthServiceClient, name, password string) *authv1.SessionTokens {
+func nha162RunLogin(t *testing.T, ctx context.Context, auth apiv2connect.AuthServiceClient, name, password string) *wire.SessionTokens {
 	t.Helper()
-	response, err := auth.StartLogin(ctx, connect.NewRequest(&authv1.StartLoginRequest{LoginName: name, Password: password}))
+	response, err := auth.StartLogin(ctx, connect.NewRequest(&wire.StartLoginRequest{LoginName: name, Password: password}))
 	if err != nil || response == nil || response.Msg.Decision.GetAuthenticated() == nil {
 		t.Fatal("Run TLS native login:", err)
 	}
@@ -123,19 +125,43 @@ func nha162RunBootstrap(t *testing.T, ctx context.Context, dataDir, name, passwo
 	return response.Msg.Account.Id
 }
 
-func nha162RunPolicy(t *testing.T, ctx context.Context, client authv1connect.AuthorizationPolicyServiceClient, account *authv1.AccountId, administrator, grants string) {
+// Source ownership remains native. The public name is never decoded into an ID.
+func nha203PolicyAccount(t *testing.T, source []byte) contracts.AccountID {
 	t.Helper()
-	current, err := client.GetPolicy(ctx, nha162Bearer(&authv1.GetPolicyRequest{AccountId: account}, administrator))
-	if err != nil || current == nil || current.Msg.GetPresent() == nil {
-		t.Fatal("Run native GetPolicy:", err)
+	var document struct {
+		Schema  string    `yaml:"schema"`
+		Account string    `yaml:"account_id"`
+		Grants  yaml.Node `yaml:"grants"`
 	}
-	source := []byte(fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n%s", account.Value, grants))
-	_, err = client.ReplacePolicy(ctx, nha162Bearer(&authv1.ReplacePolicyRequest{
-		AccountId: account, YamlSource: source,
-		Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version},
-	}, administrator))
+	decoder := yaml.NewDecoder(bytes.NewReader(source))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&document); err != nil {
+		t.Fatal(err)
+	}
+	account, err := contracts.ParseAccountID(document.Account)
 	if err != nil {
-		t.Fatal("Run native ReplacePolicy:", err)
+		t.Fatal(err)
+	}
+	if _, err := authorization.AdmitPolicySource(account, source); err != nil {
+		t.Fatal(err)
+	}
+	return account
+}
+func nha162RunPolicy(t *testing.T, ctx context.Context, client apiv2connect.AuthorizationPolicyServiceClient, account string, administrator, grants string) {
+	t.Helper()
+	current, err := client.GetAuthorizationPolicy(ctx, nha162Bearer(&wire.GetAuthorizationPolicyRequest{Name: account + "/authorizationPolicy"}, administrator))
+	if err != nil || current == nil {
+		t.Fatal("Run GetAuthorizationPolicy:", err)
+	}
+	native := nha203PolicyAccount(t, current.Msg.YamlSource)
+	id, _ := native.Value()
+	source := []byte(fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n%s", id, grants))
+	request := &wire.ReplaceAuthorizationPolicyRequest{Name: current.Msg.Name, YamlSource: source, Precondition: &wire.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: current.Msg.Etag}}
+	if current.Msg.Origin == wire.AuthorizationPolicyOrigin_AUTHORIZATION_POLICY_ORIGIN_DEFAULT {
+		request.Precondition = &wire.ReplaceAuthorizationPolicyRequest_ExpectAbsent{ExpectAbsent: &emptypb.Empty{}}
+	}
+	if _, err := client.ReplaceAuthorizationPolicy(ctx, nha162Bearer(request, administrator)); err != nil {
+		t.Fatal("Run ReplaceAuthorizationPolicy:", err)
 	}
 }
 
@@ -170,33 +196,39 @@ func TestNHA162DefaultRunTLSCRUDWatchAndRestart(t *testing.T) {
 	run := nha162StartDefaultRun(t, settings.startup)
 	client := nha162RunClient(t, roots, run.address)
 	url := "https://" + run.address.String()
-	auth := authv1connect.NewAuthServiceClient(client, url)
-	accounts := authv1connect.NewAccountServiceClient(client, url)
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, url)
-	api := listsv1connect.NewListServiceClient(client, url)
+	auth := apiv2connect.NewAuthServiceClient(client, url)
+	accounts := apiv2connect.NewAccountServiceClient(client, url)
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, url)
+	api := apiv2connect.NewTaskServiceClient(client, url)
 	const adminName, adminPassword = "NHA162 Run Admin", "NHA162 synthetic Run admin password"
 	const userName, userPassword = "NHA162 Run User", "NHA162 synthetic Run user password"
-	adminID := nha162RunBootstrap(t, ctx, dataDir, adminName, adminPassword)
-	admin := nha162RunLogin(t, ctx, auth, adminName, adminPassword).AccessToken
-	_, err := api.CreateList(ctx, nha162Bearer(&listsv1.CreateListRequest{Name: "No admin bypass"}, admin))
-	nha162Code(t, err, connect.CodePermissionDenied)
-	nha162RunPolicy(t, ctx, policies, adminID, admin, nha162All)
-	createdUser, err := accounts.CreateAccount(ctx, nha162Bearer(&authv1.CreateAccountRequest{
-		LoginName: userName, DisplayName: userName, Role: authv1.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: userPassword,
-	}, admin))
+	nha162RunBootstrap(t, ctx, dataDir, adminName, adminPassword)
+	adminTokens := nha162RunLogin(t, ctx, auth, adminName, adminPassword)
+	admin := adminTokens.AccessToken
+	homeName, err := run.observed.lists.registry.HomeName(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	nha162RunPolicy(t, ctx, policies, createdUser.Msg.Account.Id, admin, nha162All)
+	home := homeName.String()
+	_, err = api.CreateTaskList(ctx, nha162Bearer(&wire.CreateTaskListRequest{Parent: home, TaskList: &wire.TaskList{DisplayName: "No admin bypass"}}, admin))
+	nha162Code(t, err, connect.CodePermissionDenied)
+	nha162RunPolicy(t, ctx, policies, nha203SessionAccount(t, adminTokens.Session).String(), admin, nha162All)
+	createdUser, err := accounts.CreateAccount(ctx, nha162Bearer(&wire.CreateAccountRequest{Parent: home, Account: &wire.Account{
+		LoginName: userName, DisplayName: userName, Role: wire.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: userPassword,
+	}}, admin))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nha162RunPolicy(t, ctx, policies, createdUser.Msg.Name, admin, nha162All)
 	user := nha162RunLogin(t, ctx, auth, userName, userPassword).AccessToken
-	created, err := api.CreateList(ctx, nha162Bearer(&listsv1.CreateListRequest{Name: "Run durable list"}, admin))
+	created, err := api.CreateTaskList(ctx, nha162Bearer(&wire.CreateTaskListRequest{Parent: home, TaskList: &wire.TaskList{DisplayName: "Run durable list"}}, admin))
 	if err != nil {
 		t.Fatal("Run CreateList:", err)
 	}
-	id := created.Msg.Receipt.ListId
+	id := created.Msg.Name
 	watchCtx, stopWatch := context.WithCancel(ctx)
 	defer stopWatch()
-	watch, err := api.WatchLists(watchCtx, nha162Bearer(&listsv1.WatchListsRequest{Scope: &listsv1.WatchListsRequest_Catalog{Catalog: &emptypb.Empty{}}}, user))
+	watch, err := api.WatchTaskLists(watchCtx, nha162Bearer(&wire.WatchTaskListsRequest{Parent: home}, user))
 	if err != nil {
 		t.Fatal("Run WatchLists:", err)
 	}
@@ -204,32 +236,28 @@ func TestNHA162DefaultRunTLSCRUDWatchAndRestart(t *testing.T) {
 	if !watch.Receive() || watch.Msg().GetReady() == nil {
 		t.Fatal("Run Watch did not establish its subscription:", watch.Err())
 	}
-	page, err := api.ListLists(ctx, nha162Bearer(&listsv1.ListListsRequest{PageSize: 1}, user))
-	if err != nil || len(page.Msg.Lists) != 1 || page.Msg.Lists[0].Id.Value != id.Value {
+	page, err := api.ListTaskLists(ctx, nha162Bearer(&wire.ListTaskListsRequest{Parent: home, PageSize: 1}, user))
+	if err != nil || len(page.Msg.TaskLists) != 1 || page.Msg.TaskLists[0].Name != id {
 		t.Fatal("Run page after ready:", err)
 	}
-	renamed, err := api.RenameList(ctx, nha162Bearer(&listsv1.RenameListRequest{ListId: id, ExpectedRevision: created.Msg.Receipt.ListRevision, Name: "Run renamed list"}, user))
+	renamed, err := api.UpdateTaskList(ctx, nha162Bearer(&wire.UpdateTaskListRequest{TaskList: &wire.TaskList{Name: id, Etag: created.Msg.Etag, DisplayName: "Run renamed list"}}, user))
 	if err != nil {
 		t.Fatal("Run user RenameList:", err)
 	}
-	if !watch.Receive() || watch.Msg().GetChanged() == nil || watch.Msg().GetChanged().ListId.Value != id.Value || watch.Msg().GetChanged().Revision.Number != renamed.Msg.Receipt.ListRevision.Number {
+	if !watch.Receive() || watch.Msg().GetChanged() == nil || watch.Msg().GetChanged().TaskList != id || watch.Msg().GetChanged().Etag != renamed.Msg.Etag {
 		t.Fatal("Run Watch missed the post-ready mutation:", watch.Err())
 	}
-	completed := true
-	added, err := api.AddItem(ctx, nha162Bearer(&listsv1.AddItemRequest{
-		ListId: id, ExpectedListRevision: renamed.Msg.Receipt.ListRevision,
-		Item: &listsv1.ItemPayload{Summary: "Run persisted item", Completed: &completed},
-	}, user))
+	added, err := api.AppendTask(ctx, nha162Bearer(&wire.AppendTaskRequest{Name: id, Etag: renamed.Msg.Etag, Task: &wire.TaskContent{Summary: "Run persisted item", Completed: true}}, user))
 	if err != nil {
-		t.Fatal("Run AddItem:", err)
+		t.Fatal(err)
 	}
-	completed = false
-	unchecked, err := api.SetCompleted(ctx, nha162Bearer(&listsv1.SetCompletedRequest{
-		ListId: id, ItemUid: added.Msg.Receipt.ItemUid, ExpectedListRevision: added.Msg.Receipt.ListRevision,
-		ExpectedItemRevision: added.Msg.Receipt.ItemRevision, Completed: &completed,
-	}, user))
+	unchecked, err := api.UpdateTask(ctx, nha162Bearer(&wire.UpdateTaskRequest{Task: &wire.Task{Name: added.Msg.Task.Name, Etag: added.Msg.Task.Etag, Completed: false}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"completed"}}}, user))
 	if err != nil {
-		t.Fatal("Run SetCompleted(false):", err)
+		t.Fatal(err)
+	}
+	beforeShutdown, err := api.GetTaskList(ctx, nha162Bearer(&wire.GetTaskListRequest{Name: id}, user))
+	if err != nil {
+		t.Fatal(err)
 	}
 	// Leave this real stream unread while Run cancels and drains the handler.
 	if err := run.join(t); err != nil {
@@ -251,15 +279,15 @@ func TestNHA162DefaultRunTLSCRUDWatchAndRestart(t *testing.T) {
 	restarted := nha162StartDefaultRun(t, settings.startup)
 	restartedHTTP := nha162RunClient(t, roots, restarted.address)
 	restartedURL := "https://" + restarted.address.String()
-	auth = authv1connect.NewAuthServiceClient(restartedHTTP, restartedURL)
-	api = listsv1connect.NewListServiceClient(restartedHTTP, restartedURL)
+	auth = apiv2connect.NewAuthServiceClient(restartedHTTP, restartedURL)
+	api = apiv2connect.NewTaskServiceClient(restartedHTTP, restartedURL)
 	user = nha162RunLogin(t, ctx, auth, userName, userPassword).AccessToken
-	list, err := api.GetList(ctx, nha162Bearer(&listsv1.GetListRequest{ListId: id}, user))
-	if err != nil || list.Msg.List.Name != "Run renamed list" || list.Msg.List.Revision.Number != unchecked.Msg.Receipt.ListRevision.Number {
+	list, err := api.GetTaskList(ctx, nha162Bearer(&wire.GetTaskListRequest{Name: id}, user))
+	if err != nil || list.Msg.DisplayName != "Run renamed list" || list.Msg.Etag != beforeShutdown.Msg.Etag {
 		t.Fatal("Run restart lost committed list identity/content/revision:", err)
 	}
-	items, err := api.ListItems(ctx, nha162Bearer(&listsv1.ListItemsRequest{ListId: id, PageSize: 1}, user))
-	if err != nil || len(items.Msg.Items) != 1 || items.Msg.Items[0].Uid.Value != added.Msg.Receipt.ItemUid.Value || items.Msg.Items[0].Value.Summary != "Run persisted item" || items.Msg.Items[0].Value.Completed == nil || *items.Msg.Items[0].Value.Completed || items.Msg.Items[0].Revision.Number != unchecked.Msg.Receipt.ItemRevision.Number {
+	items, err := api.ListTasks(ctx, nha162Bearer(&wire.ListTasksRequest{Parent: id, PageSize: 1}, user))
+	if err != nil || len(items.Msg.Tasks) != 1 || items.Msg.Tasks[0].Name != added.Msg.Task.Name || items.Msg.Tasks[0].Summary != "Run persisted item" || items.Msg.Tasks[0].Completed || items.Msg.Tasks[0].Etag != unchecked.Msg.Etag {
 		t.Fatal("Run restart lost committed item identity/content/false/revision:", err)
 	}
 	if err := restarted.join(t); err != nil {
@@ -293,8 +321,8 @@ func TestNHA162RunCompositionFailuresCloseListOwner(t *testing.T) {
 				switch stage {
 				case "route-register":
 					err = plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {
-						return listsv1connect.NewListServiceHandler(&listHandler{}, options...)
-					}, ConnectProcedure{Path: listsv1connect.ListServiceCreateListProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired})
+						return apiv2connect.NewTaskServiceHandler(&taskHandler{}, options...)
+					}, ConnectProcedure{Path: apiv2connect.TaskServiceCreateTaskListProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired})
 				case "route-compile":
 					err = plan.RegisterConnect(func(...connect.HandlerOption) (string, http.Handler) {
 						return "invalid-service-prefix", http.NotFoundHandler()
@@ -348,14 +376,19 @@ func TestNHA162RunRetainsStoreThroughListAuthorityBarrier(t *testing.T) {
 	defer cancel()
 	client := nha162RunClient(t, roots, run.address)
 	url := "https://" + run.address.String()
-	auth := authv1connect.NewAuthServiceClient(client, url)
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, url)
-	api := listsv1connect.NewListServiceClient(client, url)
+	auth := apiv2connect.NewAuthServiceClient(client, url)
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, url)
+	api := apiv2connect.NewTaskServiceClient(client, url)
 	const name, password = "NHA162 Barrier Admin", "NHA162 synthetic barrier admin password"
 	accountID := nha162RunBootstrap(t, ctx, dataDir, name, password)
 	tokens := nha162RunLogin(t, ctx, auth, name, password)
-	nha162RunPolicy(t, ctx, policies, accountID, tokens.AccessToken, nha162All)
-	created, err := api.CreateList(ctx, nha162Bearer(&listsv1.CreateListRequest{Name: "Run authority barrier"}, tokens.AccessToken))
+	homeName, err := run.observed.lists.registry.HomeName(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := homeName.String()
+	nha162RunPolicy(t, ctx, policies, nha203SessionAccount(t, tokens.Session).String(), tokens.AccessToken, nha162All)
+	created, err := api.CreateTaskList(ctx, nha162Bearer(&wire.CreateTaskListRequest{Parent: home, TaskList: &wire.TaskList{DisplayName: "Run authority barrier"}}, tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,10 +396,7 @@ func TestNHA162RunRetainsStoreThroughListAuthorityBarrier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := contracts.ParseSessionID(tokens.Session.Id.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	session := nha203NativeSession(t, ctx, run.observed.sessions.store, tokens.Session.Name)
 	principal, err := authorization.NativePrincipal(account, session)
 	if err != nil {
 		t.Fatal(err)
@@ -375,7 +405,7 @@ func TestNHA162RunRetainsStoreThroughListAuthorityBarrier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, err := domain.ParseListID(created.Msg.Receipt.ListId.Value)
+	parsed, err := tasknames.ParseList(created.Msg.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -388,7 +418,7 @@ func TestNHA162RunRetainsStoreThroughListAuthorityBarrier(t *testing.T) {
 	callDone := make(chan error, 1)
 	// This is the actual Run-owned domain service. The preceding RPC establishes
 	// its native-session/Authority/Store wiring before testing its inherited gate.
-	go func() { _, err := run.observed.lists.service.GetList(entered, id); callDone <- err }()
+	go func() { _, err := run.observed.lists.service.GetList(entered, parsed.ID()); callDone <- err }()
 	select {
 	case <-entered.entered:
 	case <-time.After(3 * time.Second):

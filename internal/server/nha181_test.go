@@ -26,8 +26,6 @@ import (
 	"connectrpc.com/connect"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
@@ -324,7 +322,7 @@ func TestNHA181AccountGateRejectsPlaintextBeforeBody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registerAccountRoutes(plan, store, coordinator); err != nil {
+	if _, err := registerAccountRoutes(plan, store, coordinator, nha203AuthFixtureNames(store)); err != nil {
 		t.Fatal(err)
 	}
 	compiled, err := compilePublicPlan(plan, public)
@@ -332,8 +330,8 @@ func TestNHA181AccountGateRejectsPlaintextBeforeBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{
-		authv1connect.AccountServiceAcceptInvitationProcedure,
-		authv1connect.AccountServiceCreateAccountProcedure,
+		apiv2connect.AccountServiceAcceptInvitationProcedure,
+		apiv2connect.AccountServiceCreateAccountProcedure,
 	} {
 		r := httptest.NewRequest(http.MethodPost, path, nha181UnreadBody{t})
 		r.Header.Set("Forwarded", "proto=https")
@@ -376,8 +374,8 @@ func TestNHA181RunH2CRefusesInvitationWithoutBody(t *testing.T) {
 			t.Error("h2c Run did not drain")
 		}
 	}()
-	client := authv1connect.NewAccountServiceClient(&http.Client{Timeout: 3 * time.Second}, "http://"+address.String())
-	request := connect.NewRequest(&authv1.AcceptInvitationRequest{})
+	client := apiv2connect.NewAccountServiceClient(&http.Client{Timeout: 3 * time.Second}, "http://"+address.String())
+	request := connect.NewRequest(&api.AcceptInvitationRequest{})
 	request.Header().Set("Forwarded", "proto=https")
 	request.Header().Set("X-Forwarded-Proto", "https")
 	if _, err := client.AcceptInvitation(ctx, request); connect.CodeOf(err) != connect.CodePermissionDenied {

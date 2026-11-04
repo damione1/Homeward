@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -23,11 +24,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/damione1/Homeward/contracts"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	lists "github.com/damione1/Homeward/gen/home/lists/v1"
-	listconnect "github.com/damione1/Homeward/gen/home/lists/v1/listsv1connect"
-	"github.com/jackc/pgx/v5"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	listconnect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	"github.com/damione1/Homeward/internal/tasknames"
 )
 
 type nhf011ControlAction string
@@ -144,11 +143,18 @@ func TestNHF011ListsServer(t *testing.T) {
 	}
 	r := nha162NewRPCRigWithLifetime(t, 8*time.Minute)
 	defer r.server.CloseClientConnections()
-	seed, err := r.client.CreateList(r.ctx, nha162Bearer(&lists.CreateListRequest{Name: "Liste synthétique longue"}, r.adminToken))
+	seed, err := r.tasks.CreateTaskList(r.ctx, nha162Bearer(&api.CreateTaskListRequest{Parent: r.taskHome(t), TaskList: &api.TaskList{DisplayName: "Liste synthétique longue"}}, r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	seedID := seed.Msg.Receipt.ListId.Value
+	seedName, err := tasknames.ParseList(seed.Msg.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedID, err := seedName.ID().Value()
+	if err != nil {
+		t.Fatal(err)
+	}
 	// Bulk setup is deliberately distinct from the RPC mutation qualification.
 	// Only this newly allocated fixture database is written directly.
 	err = r.store.InTransaction(r.ctx, func(tx pgx.Tx) error {
@@ -165,14 +171,11 @@ func TestNHF011ListsServer(t *testing.T) {
 		t.Fatal("private bulk setup", err)
 	}
 	const readerPassword = "NHF011 synthetic reader password canary"
-	reader, err := r.accounts.CreateAccount(r.ctx, nha162Bearer(&auth.CreateAccountRequest{LoginName: "NHF011 Reader", DisplayName: "Synthetic reader", InitialPassword: readerPassword, Role: auth.AccountRole_ACCOUNT_ROLE_USER}, r.adminToken))
+	reader, err := r.accounts.CreateAccount(r.ctx, nha162Bearer(&api.CreateAccountRequest{Parent: r.taskHome(t), Account: &api.Account{LoginName: "NHF011 Reader", DisplayName: "Synthetic reader", InitialPassword: readerPassword, Role: api.AccountRole_ACCOUNT_ROLE_USER}}, r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	readerID, err := contracts.ParseAccountID(reader.Msg.Account.Id.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	readerID := nha203NativeAccount(t, r.ctx, r.store, reader.Msg.Name)
 	readPolicy := fmt.Sprintf("  - scope: {family: lists, operation: read}\n    objects: {lists: {explicit: [%q]}}\n", seedID)
 	nha162SetPolicy(t, r, readerID, readPolicy)
 	upstream, err := url.Parse(r.server.URL)
@@ -193,11 +196,11 @@ func TestNHF011ListsServer(t *testing.T) {
 			actionCalls.Add(1)
 		}
 		switch request.URL.Path {
-		case listconnect.ListServiceCreateListProcedure, listconnect.ListServiceRenameListProcedure, listconnect.ListServiceDeleteListProcedure,
-			listconnect.ListServiceAddItemProcedure, listconnect.ListServiceEditItemProcedure, listconnect.ListServiceDeleteItemProcedure,
-			listconnect.ListServiceSetCompletedProcedure, listconnect.ListServiceMoveItemProcedure:
+		case listconnect.TaskServiceCreateTaskListProcedure, listconnect.TaskServiceUpdateTaskListProcedure, listconnect.TaskServiceDeleteTaskListProcedure,
+			listconnect.TaskServiceAppendTaskProcedure, listconnect.TaskServiceUpdateTaskProcedure, listconnect.TaskServiceDeleteTaskProcedure,
+			listconnect.TaskServiceMoveTaskProcedure:
 			writes.Add(1)
-		case listconnect.ListServiceWatchListsProcedure:
+		case listconnect.TaskServiceWatchTaskListsProcedure:
 			streams.Add(1)
 			defer streams.Add(^uint64(0))
 		}
@@ -219,7 +222,7 @@ func TestNHF011ListsServer(t *testing.T) {
 	defer proxy.Close()
 	defer proxy.CloseClientConnections()
 	certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: proxy.Certificate().Raw})
-	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "origin": proxy.URL, "ca_pem": string(certificate), "seed_list_id": seedID, "seed_item_count": 10000,
+	nhf003WritePrivate(t, out, "ready.json", map[string]any{"mode": "synthetic-only", "origin": proxy.URL, "ca_pem": string(certificate), "seed_list_id": seed.Msg.Name, "seed_item_count": 10000,
 		"admin": map[string]string{"login_name": "NHA162 Admin", "password": "NHA162 synthetic admin password canary"}, "reader": map[string]string{"login_name": "NHF011 Reader", "password": readerPassword}})
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)

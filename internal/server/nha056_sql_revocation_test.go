@@ -2,14 +2,12 @@ package server
 
 import (
 	"context"
+	obsv2 "github.com/damione1/Homeward/gen/home/api/v2"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
 )
@@ -26,16 +24,17 @@ func TestNHA056ActualTLSAuditReadWithholdsSQLResultAfterAccountDisabled(t *testi
 	defer cancel()
 	const password = "NHA056 SQL revoked synthetic password"
 	nha162RunBootstrap(t, ctx, data, "NHA056 SQL owner", password)
-	authentication := authv1connect.NewAuthServiceClient(client, base)
+	authentication := apiv2connect.NewAuthServiceClient(client, base)
 	owner := nha162RunLogin(t, ctx, authentication, "NHA056 SQL owner", password).AccessToken
-	accounts := authv1connect.NewAccountServiceClient(client, base)
-	created, err := accounts.CreateAccount(ctx, nha056SessionRequest(&auth.CreateAccountRequest{LoginName: "NHA056 SQL reader", DisplayName: "NHA056 SQL reader", Role: auth.AccountRole_ACCOUNT_ROLE_ADMIN, InitialPassword: password}, owner))
+	accounts := apiv2connect.NewAccountServiceClient(client, base)
+	created, err := accounts.CreateAccount(ctx, nha056SessionRequest(&obsv2.CreateAccountRequest{Parent: nha203ObservationHome(t, ctx, client, base, owner), Account: &obsv2.Account{LoginName: "NHA056 SQL reader", DisplayName: "NHA056 SQL reader", Role: obsv2.AccountRole_ACCOUNT_ROLE_ADMIN, InitialPassword: password}}, owner))
 	if err != nil {
 		t.Fatal(err)
 	}
 	readerToken := nha162RunLogin(t, ctx, authentication, "NHA056 SQL reader", password).AccessToken
-	api := observabilityv1connect.NewObservabilityServiceClient(client, base)
-	if _, err := api.QueryAudits(ctx, nha056SessionRequest(&obs.QueryAuditsRequest{Source: obs.AuditSource_AUDIT_SOURCE_SECRET_ACCESS}, readerToken)); err != nil {
+	api := apiv2connect.NewObservabilityServiceClient(client, base)
+	home := nha203ObservationHome(t, ctx, client, base, readerToken)
+	if _, err := api.QueryAudits(ctx, nha056SessionRequest(&obsv2.QueryAuditsRequest{Parent: home, Source: obsv2.ObservationAuditSource_OBSERVATION_AUDIT_SOURCE_SECRET_ACCESS}, readerToken)); err != nil {
 		t.Fatal("active administrative reader was not admitted", err)
 	}
 	settings, err := cfg.PostgresSettings()
@@ -64,17 +63,16 @@ func TestNHA056ActualTLSAuditReadWithholdsSQLResultAfterAccountDisabled(t *testi
 		t.Fatal(err)
 	}
 	type result struct {
-		response *connect.Response[obs.QueryAuditsResponse]
+		response *connect.Response[obsv2.QueryAuditsResponse]
 		err      error
 	}
 	returned := make(chan result, 1)
 	go func() {
-		response, err := api.QueryAudits(ctx, nha056SessionRequest(&obs.QueryAuditsRequest{Source: obs.AuditSource_AUDIT_SOURCE_SECRET_ACCESS}, readerToken))
+		response, err := api.QueryAudits(ctx, nha056SessionRequest(&obsv2.QueryAuditsRequest{Parent: home, Source: obsv2.ObservationAuditSource_OBSERVATION_AUDIT_SOURCE_SECRET_ACCESS}, readerToken))
 		returned <- result{response, err}
 	}()
 	nha162WaitSQLBlockedBy(t, ctx, probe, blockerPID, "%SELECT id FROM public.secret_access_audit%")
-	disabled := auth.AccountStatus_ACCOUNT_STATUS_DISABLED
-	if _, err := accounts.UpdateAccount(ctx, nha056SessionRequest(&auth.UpdateAccountRequest{AccountId: created.Msg.Account.Id, Status: &disabled}, owner)); err != nil {
+	if _, err := accounts.UpdateAccount(ctx, nha056SessionRequest(&obsv2.UpdateAccountRequest{Account: &obsv2.Account{Name: created.Msg.Name, Etag: created.Msg.Etag, Access: obsv2.AccountAccess_ACCOUNT_ACCESS_DISABLED}}, owner)); err != nil {
 		t.Fatal("actual concurrent disable failed", err)
 	}
 	if err := tx.Rollback(ctx); err != nil {
@@ -88,7 +86,7 @@ func TestNHA056ActualTLSAuditReadWithholdsSQLResultAfterAccountDisabled(t *testi
 	case <-time.After(4 * time.Second):
 		t.Fatal("bounded SQL reader did not join")
 	}
-	if _, err := api.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, readerToken)); err == nil {
+	if _, err := api.GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, readerToken)); err == nil {
 		t.Fatal("disabled native session remained usable")
 	}
 }

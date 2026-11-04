@@ -3,10 +3,12 @@
 use buffa_types::google::protobuf::Timestamp;
 use home_client_transport::{AccessToken, Connection, FailureKind, NotificationTransport, RpcCode};
 use home_wire_contract::{
-    auth_contract::{AccountId, SessionId},
     companion_contract as companion_admit,
-    home::{auth::v1 as auth, companion::v1 as companion, notifications::v1 as wire},
+    home::{
+        api::v2 as auth, testing::companion::v1 as companion, testing::notifications::v1 as wire,
+    },
     notifications_contract as admit,
+    qualification_identity::{AccountId, SessionId},
 };
 use serde::Deserialize;
 use std::{
@@ -58,7 +60,10 @@ async fn login(
         .await
         .unwrap();
     match response.decision.outcome.as_ref() {
-        Some(auth::login_decision::Outcome::Authenticated(tokens)) => (**tokens).clone(),
+        Some(auth::login_decision::Outcome::Authenticated(tokens)) => {
+            home_wire_contract::auth_contract::admit_session_metadata(&tokens.session).unwrap();
+            (**tokens).clone()
+        }
         Some(
             auth::login_decision::Outcome::Challenge(_)
             | auth::login_decision::Outcome::EnrollmentRequired(_),
@@ -212,7 +217,7 @@ fn lose(root: &Path, reply: LostReply) {
     };
     std::fs::write(
         root.join("lose-next-reply"),
-        format!("/home.notifications.v1.NotificationService/{procedure}"),
+        format!("/home.testing.notifications.v1.NotificationService/{procedure}"),
     )
     .unwrap();
 }
@@ -317,8 +322,6 @@ async fn actual_notifications_tls_private_inbox_receipts_targets_and_revocation(
     let api = connection.notifications();
     let user = login(&connection, &fixture.user, &cancel).await;
     let token = AccessToken::parse(&user.access_token).unwrap();
-    let account = AccountId::try_from(&*user.session.account_id).unwrap();
-    let session = SessionId::try_from(&*user.session.id).unwrap();
     let description = companion_api
         .describe_companion(
             companion::DescribeCompanionRequest::default(),
@@ -345,6 +348,10 @@ async fn actual_notifications_tls_private_inbox_receipts_targets_and_revocation(
         .unwrap();
     companion_admit::admit_response(companion_admit::Response::Register(&registered)).unwrap();
     let installation = (*registered.installation).clone();
+    // Private identities come from the synthetic issuer's verified native lease.
+    let account = AccountId::try_from(&*description.synthetic_identity.account_id).unwrap();
+    let session = SessionId::try_from(&*description.synthetic_identity.session_id).unwrap();
+    companion_admit::bind_native(&installation, &account, &session).unwrap();
     let described = api
         .describe_notifications(
             wire::DescribeNotificationsRequest::default(),

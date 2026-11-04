@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"testing"
 
 	"github.com/damione1/Homeward/contracts"
@@ -17,7 +18,6 @@ import (
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/scope"
-	"github.com/jackc/pgx/v5"
 )
 
 func nha055OwnershipFixture(t *testing.T, manifest registry.Manifest, provenance string) heatingownership.Decision {

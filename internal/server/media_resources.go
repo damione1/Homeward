@@ -139,7 +139,13 @@ func withMediaSource[T any](h *mediaResourceHandler, ctx context.Context, raw st
 	if err != nil {
 		return zero, mediaResourceError(ctx, err)
 	}
-	defer admission.Release()
+	retained := false
+	defer func() {
+		if !retained {
+			admission.Release()
+		}
+	}()
+
 	if err := h.home(ctx, name.Home()); err != nil {
 		return zero, mediaResourceError(ctx, err)
 	}
@@ -156,6 +162,11 @@ func withMediaSource[T any](h *mediaResourceHandler, ctx context.Context, raw st
 	}
 	if err != nil {
 		return zero, mediaResourceError(ctx, err)
+	}
+	var transferErr error
+	retained, transferErr = retainPublicResponse(ctx, admission.Context(), admission.Ready, admission.Release)
+	if transferErr != nil {
+		return zero, apiRPCError(ctx, transferErr)
 	}
 	return out, nil
 }
@@ -180,7 +191,13 @@ func withMediaLocator[T any](h *mediaResourceHandler, ctx context.Context, raw s
 	if err != nil {
 		return zero, mediaResourceError(ctx, err)
 	}
-	defer admission.Release()
+	retained := false
+	defer func() {
+		if !retained {
+			admission.Release()
+		}
+	}()
+
 	if err := h.home(ctx, name.Home()); err != nil {
 		return zero, mediaResourceError(ctx, err)
 	}
@@ -200,6 +217,11 @@ func withMediaLocator[T any](h *mediaResourceHandler, ctx context.Context, raw s
 	}
 	if err != nil {
 		return zero, mediaResourceError(ctx, err)
+	}
+	var transferErr error
+	retained, transferErr = retainPublicResponse(ctx, admission.Context(), admission.Ready, admission.Release)
+	if transferErr != nil {
+		return zero, apiRPCError(ctx, transferErr)
 	}
 	return out, nil
 }

@@ -1,22 +1,16 @@
 package server
 
 import (
-	"crypto/sha256"
 	"path/filepath"
 	"testing"
 
 	imported "github.com/damione1/Homeward/compat/ha/dashboard"
-	dashboardv1 "github.com/damione1/Homeward/gen/home/dashboard/v1"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/authorization"
-	"github.com/damione1/Homeward/internal/view"
 )
 
-func TestNHF009CapturedCorpusOverviewAndNativeLayoutShareAllTwentyViewRoutes(t *testing.T) {
+func TestNHF009CapturedCorpusRetainsAllTwentyViewRoutes(t *testing.T) {
 	root := filepath.Join("..", "..", "compat", "ha", "dashboard", "testdata", "nhf009")
-	stamp, err := view.NewConfigStamp(1, sha256.Sum256([]byte("synthetic corpus configuration")))
-	if err != nil {
-		t.Fatal(err)
-	}
 	id, err := authorization.ParseDashboardID("synthetic-corpus")
 	if err != nil {
 		t.Fatal(err)
@@ -43,37 +37,27 @@ func TestNHF009CapturedCorpusOverviewAndNativeLayoutShareAllTwentyViewRoutes(t *
 			if !present {
 				t.Fatal("captured source definition missing")
 			}
-			overview, err := projectDashboardOverview(definition, stamp, 1, dashboardv1.ServingMode_SERVING_MODE_SYNTHETIC, nhf007Resolve)
-			if err != nil {
-				t.Fatalf("captured source cannot be served as a dashboard: %v", err)
-			}
-			layout, err := projectDashboardLayout(result, nil, nhf007Resolve)
+			layout, err := projectDashboardLayout(result, nhf007Resolve)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(overview.Rooms)+1 != tc.views || len(layout.Views) != tc.views {
-				t.Fatalf("source views lost: overview=%d layout=%d expected=%d", len(overview.Rooms), len(layout.Views), tc.views)
+			if len(layout.Views) != tc.views {
+				t.Fatal("source views lost", len(layout.Views), tc.views)
 			}
-			if overview.Title != definition.Views()[0].Title() {
-				t.Fatal("homepage title does not come from the first captured view")
+			nodes := map[string]*api.DashboardLayoutNode{}
+			for _, node := range layout.Nodes {
+				nodes[node.Id] = node
 			}
 			seen := map[string]bool{}
-			for index, room := range overview.Rooms {
-				if room.Id == "" || seen[room.Id] || room.Title != definition.Views()[index+1].Title() {
-					t.Fatal("native overview lost its distinct source view identity or title")
+			for index, id := range layout.Views {
+				node := nodes[id]
+				if node == nil || node.GetView() == nil || seen[node.GetView().Route] || node.GetView().Route != definition.Views()[index].NativeRoute() || node.DisplayName != definition.Views()[index].Title() {
+					t.Fatal("source route/title lost")
 				}
-				seen[room.Id] = true
-				found := false
-				for _, node := range layout.Nodes {
-					if node.Id == layout.Views[index+1] {
-						found = node.Route == room.Id && node.Title == room.Title
-					}
-				}
-				if !found {
-					t.Fatal("overview route does not resolve to its exact captured native view")
-				}
+				seen[node.GetView().Route] = true
 			}
-			total += len(overview.Rooms) + 1
+
+			total += len(layout.Views)
 		})
 	}
 	if total != 20 {

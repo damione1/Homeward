@@ -1,46 +1,44 @@
 use buffa::Message;
-use home_wire_contract::home::observability::v1 as obs;
+use home_wire_contract::home::api::v2 as obs;
 use home_wire_contract::observability_contract::admit_trace_response;
 
-fn trace() -> obs::ReadRunTraceResponse {
-    let mut row = obs::TraceRow {
-        run_id: 7,
+fn trace() -> obs::QueryRunTraceResponse {
+    let mut row = obs::ObservationTraceRow {
+        run: "homes/test/runtimeControllers/c-aeaqcaibaeaqcaibaeaqcaibaeaqcaibaeaqcaibaeaqcaibaeaq/runs/r-7".into(),
         ..Default::default()
     };
-    row.ordinal.get_or_insert_default().result = Some(obs::trace_ordinal::Result::Native(1));
-    row.record = Some(obs::trace_row::Record::Controller(Box::new(
-        obs::ControllerTraceRecord {
-            decision: obs::TraceDecision::Admitted.into(),
-            max_exceeded: Some(obs::controller_trace_record::MaxExceeded::NotApplicable(
-                Box::default(),
-            )),
+    row.ordinal.get_or_insert_default().result =
+        Some(obs::observation_trace_ordinal::Result::Native("1".into()));
+    row.record = Some(obs::observation_trace_row::Record::Controller(Box::new(
+        obs::ObservationControllerTraceRecord {
+            decision: obs::ObservationTraceDecision::Admitted.into(),
+            max_exceeded: Some(
+                obs::observation_controller_trace_record::MaxExceeded::NotApplicable(Box::default()),
+            ),
             ..Default::default()
         },
     )));
-    let mut page = obs::TracePage {
-        run_id: 7,
+    let mut page = obs::QueryRunTraceResponse {
+        run: "homes/test/runtimeControllers/c-aeaqcaibaeaqcaibaeaqcaibaeaqcaibaeaqcaibaeaqcaibaeaq/runs/r-7".into(),
         rows: vec![row],
         ..Default::default()
     };
-    page.controller.get_or_insert_default().value = vec![1; 32];
     let cuts = page.cuts.get_or_insert_default();
-    cuts.coherence = obs::TraceCutCoherence::SeparateOwnerCuts.into();
-    cuts.order = obs::TraceOrderState::Healthy.into();
+    cuts.controller_evicted = "0".into();
+    cuts.node_evicted = "0".into();
+    cuts.coherence = obs::ObservationTraceCutCoherence::SeparateOwnerCuts.into();
+    cuts.order = obs::ObservationTraceOrderState::Healthy.into();
     cuts.controller_captured_at.get_or_insert_default().seconds = 1_792_314_000;
     cuts.node_captured_at.get_or_insert_default().seconds = 1_792_314_001;
-    page.continuation.get_or_insert_default().result =
-        Some(obs::page_continuation::Result::End(Box::default()));
-    obs::ReadRunTraceResponse {
-        result: Some(obs::read_run_trace_response::Result::Page(Box::new(page))),
-        ..Default::default()
-    }
+    page
 }
 
-fn trace_record(value: &mut obs::ReadRunTraceResponse) -> &mut obs::ControllerTraceRecord {
-    let Some(obs::read_run_trace_response::Result::Page(page)) = &mut value.result else {
-        panic!("fixture page required");
-    };
-    let Some(obs::trace_row::Record::Controller(record)) = &mut page.rows[0].record else {
+fn trace_record(
+    value: &mut obs::QueryRunTraceResponse,
+) -> &mut obs::ObservationControllerTraceRecord {
+    let page = value;
+    let Some(obs::observation_trace_row::Record::Controller(record)) = &mut page.rows[0].record
+    else {
         panic!("fixture controller record required");
     };
     record
@@ -50,9 +48,9 @@ fn trace_record(value: &mut obs::ReadRunTraceResponse) -> &mut obs::ControllerTr
 fn nha114_trace_source_position_absence_boundary_epochs_and_copy() {
     assert!(admit_trace_response(&trace()).is_ok());
     for decision in [
-        obs::TraceDecision::Admitted,
-        obs::TraceDecision::Queued,
-        obs::TraceDecision::RestartPending,
+        obs::ObservationTraceDecision::Admitted,
+        obs::ObservationTraceDecision::Queued,
+        obs::ObservationTraceDecision::RestartPending,
     ] {
         for epoch in [1, 2] {
             for sequence in [0, 42, u64::MAX] {
@@ -61,10 +59,10 @@ fn nha114_trace_source_position_absence_boundary_epochs_and_copy() {
                 record.decision = decision.into();
                 let position = record.trigger_position.get_or_insert_default();
                 position.epoch = vec![epoch; 16];
-                position.sequence = sequence;
+                position.sequence = sequence.to_string();
                 let admitted = admit_trace_response(&value).expect("exact source boundary");
                 let encoded = admitted.wire().encode_to_vec();
-                let decoded = obs::ReadRunTraceResponse::decode_from_slice(&encoded)
+                let decoded = obs::QueryRunTraceResponse::decode_from_slice(&encoded)
                     .expect("source position codec");
                 assert_eq!(decoded, value);
                 trace_record(&mut value)
@@ -88,9 +86,9 @@ fn nha114_trace_source_position_rejects_malformed_noninitial_and_unknown() {
         assert!(admit_trace_response(&value).is_err());
     }
     for decision in [
-        obs::TraceDecision::Finished,
-        obs::TraceDecision::Cancelled,
-        obs::TraceDecision::Preparing,
+        obs::ObservationTraceDecision::Finished,
+        obs::ObservationTraceDecision::Cancelled,
+        obs::ObservationTraceDecision::Preparing,
     ] {
         let mut value = trace();
         let record = trace_record(&mut value);

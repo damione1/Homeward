@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	wire "github.com/damione1/Homeward/gen/home/configuration/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -36,7 +36,7 @@ func TestNHA149ConfigurationGoRustAdmissionParity(t *testing.T) {
 			if id == "-" {
 				id = ""
 			}
-			request := &wire.WriteDocumentRequest{Id: &wire.DocumentId{Value: id}, Expected: &wire.DocumentVersion{Revision: integer(2), SourceSha256: bytes.Repeat([]byte{byte(integer(4))}, int(integer(3)))}, ExpectedWorkspaceSha256: bytes.Repeat([]byte{byte(integer(6))}, int(integer(5))), ExactYamlSource: bytes.Repeat([]byte{'x'}, int(integer(7)))}
+			request := &wire.PublishConfigurationDocumentRequest{Name: id, Expected: &wire.DocumentVersion{Revision: integer(2), SourceSha256: bytes.Repeat([]byte{byte(integer(4))}, int(integer(3)))}, ExpectedWorkspaceSha256: bytes.Repeat([]byte{byte(integer(6))}, int(integer(5))), ExactYamlSource: bytes.Repeat([]byte{'x'}, int(integer(7)))}
 			admitted := AdmitConfigurationRequest(request) == nil
 			if admitted != (columns[8] == "true") {
 				t.Fatal("Go admission disagrees with shared parity case")
@@ -45,15 +45,15 @@ func TestNHA149ConfigurationGoRustAdmissionParity(t *testing.T) {
 	}
 }
 func TestNHA149ConfigurationRejectsNestedUnknownAndTypedNil(t *testing.T) {
-	var request *wire.ReadDocumentRequest
+	var request *wire.GetConfigurationDocumentRequest
 	if AdmitConfigurationRequest(request) == nil {
 		t.Fatal("typed nil admitted")
 	}
-	request = &wire.ReadDocumentRequest{Id: &wire.DocumentId{Value: "operational.main"}}
+	request = &wire.GetConfigurationDocumentRequest{Name: "homes/test/configurationDocuments/operational"}
 	if AdmitConfigurationRequest(request) != nil {
 		t.Fatal("valid identity rejected")
 	}
-	request.Id.ProtoReflect().SetUnknown([]byte{0x10, 0x01})
+	request.ProtoReflect().SetUnknown([]byte{0x10, 0x01})
 	if AdmitConfigurationRequest(request) == nil {
 		t.Fatal("nested future field operationally admitted")
 	}
@@ -61,7 +61,7 @@ func TestNHA149ConfigurationRejectsNestedUnknownAndTypedNil(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var decoded wire.ReadDocumentRequest
+	var decoded wire.GetConfigurationDocumentRequest
 	if err := proto.Unmarshal(encoded, &decoded); err != nil {
 		t.Fatal("wire compatibility should preserve unknown fields", err)
 	}
@@ -94,7 +94,7 @@ func TestNHA149ConfigurationActivationGoRustParity(t *testing.T) {
 			if revision := integer(3); revision != 0 {
 				activation.GenerationRevision = &revision
 			}
-			admitted := AdmitConfigurationResponse(&wire.WriteDocumentResponse{Activation: activation}) == nil
+			admitted := configurationActivation(activation)
 			if admitted != (columns[4] == "true") {
 				t.Fatal("Go activation admission disagrees with shared Rust case")
 			}

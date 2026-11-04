@@ -2413,7 +2413,7 @@
             },
             {
               "file": "internal/server/dashboard_widgets_transport_test.go",
-              "symbol": "planwire.SourceFamily_SOURCE_FAMILY_DASHBOARD"
+              "symbol": "planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD"
             }
           ]
         }
@@ -2474,7 +2474,7 @@
             },
             {
               "file": "internal/server/dashboard_widgets_transport_test.go",
-              "symbol": "planwire.SourceFamily_SOURCE_FAMILY_DASHBOARD"
+              "symbol": "planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD"
             }
           ]
         }
@@ -2591,7 +2591,7 @@
             },
             {
               "file": "internal/server/dashboard_widgets_transport_test.go",
-              "symbol": "planwire.SourceFamily_SOURCE_FAMILY_DASHBOARD"
+              "symbol": "planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD"
             }
           ]
         }

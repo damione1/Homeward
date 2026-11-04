@@ -25,13 +25,8 @@ func TestNHA201RegistryMigrationPreservesIdentityAndRights(t *testing.T) {
 	if _, err := store.pool.Exec(ctx, `INSERT INTO public.homeward_schema_window(singleton,format,schema_version,release_id,minimum_reader,minimum_writer,maximum_release,baseline_schema,baseline_plan,migration_plan) VALUES(true,1,28,$1,$1,$1,$1,28,$2,$2)`, prior28SchemaRelease, baseline[:]); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.BootstrapMFAPolicy(ctx); err != nil {
-		t.Fatal(err)
-	}
 	admin := nha049AccountInput(t, "Synthetic Registry Administrator", authv1.AccountRole_ACCOUNT_ROLE_ADMIN)
-	if _, err := store.BootstrapAdmin(ctx, admin); err != nil {
-		t.Fatal(err)
-	}
+	nha204SeedPrior28Account(t, ctx, store, admin)
 	snapshot, err := store.AuthorizationPolicy(ctx, admin.ID)
 	if err != nil {
 		t.Fatal(err)

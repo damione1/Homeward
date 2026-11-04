@@ -230,6 +230,14 @@ func (h *integrationHandler) CreateIntegrationInstance(ctx context.Context, requ
 	if err := h.native.names.parent(permit.Context(), home.String()); err != nil {
 		return nil, integrationFault(err)
 	}
+	var requestedID *storage.APIRequestedResourceID
+	if input.IntegrationInstanceId != "" {
+		parsed, err := storage.ParseAPIRequestedResourceID(input.IntegrationInstanceId)
+		if err != nil {
+			return nil, invalid("integration_instance_id", api.ValidationReason_VALIDATION_REASON_INVALID_FORMAT)
+		}
+		requestedID = &parsed
+	}
 	value := input.IntegrationInstance
 	if value == nil {
 		return nil, invalid("integration_instance", api.ValidationReason_VALIDATION_REASON_REQUIRED_VALUE)
@@ -251,7 +259,7 @@ func (h *integrationHandler) CreateIntegrationInstance(ctx context.Context, requ
 		return nil, integrationFault(err)
 	}
 	// Copy selected creation intent, excluding all observation/output fields.
-	intent := &api.CreateIntegrationInstanceRequest{Parent: home.String(), RequestId: input.RequestId, IntegrationInstance: &api.IntegrationInstance{InstanceKey: value.InstanceKey, IntegrationType: value.IntegrationType, DesiredState: value.DesiredState}}
+	intent := &api.CreateIntegrationInstanceRequest{Parent: home.String(), RequestId: input.RequestId, IntegrationInstanceId: input.IntegrationInstanceId, IntegrationInstance: &api.IntegrationInstance{InstanceKey: value.InstanceKey, IntegrationType: value.IntegrationType, DesiredState: value.DesiredState}}
 	if editable := value.GetEditable(); editable != nil {
 		intent.IntegrationInstance.Configuration = &api.IntegrationInstance_Editable{Editable: proto.Clone(editable).(*api.IntegrationConfiguration)}
 	}
@@ -261,6 +269,12 @@ func (h *integrationHandler) CreateIntegrationInstance(ctx context.Context, requ
 	}
 	if replay != nil {
 		return connect.NewResponse(replay), nil
+	}
+	if requestedID != nil {
+		mutationCtx, err = storage.WithRequestedIntegrationResourceID(mutationCtx, *requestedID)
+		if err != nil {
+			return nil, integrationFault(err)
+		}
 	}
 	if value.GetEditable() == nil {
 		return nil, invalid("integration_instance.editable", api.ValidationReason_VALIDATION_REASON_REQUIRED_VALUE)

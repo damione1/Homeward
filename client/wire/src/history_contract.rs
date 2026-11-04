@@ -1,6 +1,7 @@
 //! Bounded structural history admission. These values grant no rights; the
 //! existing server authority, trusted catalogue and leased transport admit reads.
 use crate::home::api::v2 as history;
+use crate::recorder_evidence_contract::{decimal, number};
 use buffa::{EnumValue, Message};
 use buffa_types::google::protobuf::Timestamp;
 use home_client_model::api::{EntityName, HomeName};
@@ -162,7 +163,7 @@ fn aggregate(v: &history::HistoryAggregate) -> bool {
         && v.bucket.as_option().is_some_and(|p| period(p, 1, true))
         && v.descriptor.as_option().is_some_and(descriptor)
         && v.quality.as_option().is_some_and(quality)
-        && v.duration_nanos <= 3_600_000_000_000
+        && (0..=3_600_000_000_000).contains(&v.duration_nanos)
         && v.minimum.is_some() == v.maximum.is_some()
         && v.mean.is_some() == (v.duration_nanos > 0)
         && [v.minimum, v.maximum, v.mean, v.contribution]
@@ -206,7 +207,8 @@ fn historical_state(v: &history::HistoricalState) -> bool {
                 && l.on.is_some()
                 && l.brightness_percent
                     .is_none_or(|v| v.is_finite() && (0.0..=100.0).contains(&v))
-                && l.color_temp_mireds.is_none_or(|v| v > 0)
+                && l.color_temp_mireds
+                    .is_none_or(|v| (1..=i64::from(u32::MAX)).contains(&v))
         }
         Some(Value::FanSpeed(f)) => nonzero(*f, history::FanSpeed::Unspecified),
         Some(Value::TemperatureControl(c)) => climate(c),
@@ -395,8 +397,8 @@ pub fn admit_aggregates_response(
 fn trace(value: &history::HistoryExecutionTrace, home: &HomeName) -> bool {
     use history::history_execution_trace::Outcome;
     value.__buffa_unknown_fields.is_empty()
-        && value.ordinal > 0
-        && value.ordinal <= i64::MAX as u64
+        && decimal(&value.ordinal)
+        && number(&value.ordinal) > 0
         && value.emission_time.as_option().is_some_and(timestamp)
         && [&value.run, &value.parent_run].iter().all(|reference| {
             reference.as_ref().is_none_or(|reference| {
@@ -463,6 +465,8 @@ pub fn admit_traces_response(
         value.__buffa_unknown_fields.is_empty()
             && value.compute_size(&mut Default::default()) <= 256 * 1024
             && value.execution_epoch.len() <= 512
+            && decimal(&value.checkpoint)
+            && decimal(&value.commit_high)
             && (!value.scope.retained.is_set() || !value.execution_epoch.is_empty())
             && value.previous_execution_epoch.len() <= 512
             && value.scope.as_option().is_some_and(|scope| {
@@ -483,7 +487,8 @@ pub fn admit_traces_response(
             && value.losses.iter().all(|loss| {
                 loss.__buffa_unknown_fields.is_empty()
                     && nonzero(loss.reason, history::HistoryTraceLossReason::Unspecified)
-                    && loss.known_count > 0
+                    && decimal(&loss.known_count)
+                    && number(&loss.known_count) > 0
                     && loss.from.as_option().is_some_and(timestamp)
                     && loss.through.as_option().is_some_and(timestamp)
                     && (loss.from.seconds, loss.from.nanos)

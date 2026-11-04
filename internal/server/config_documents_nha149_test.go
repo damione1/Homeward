@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"github.com/damione1/Homeward/internal/apierrors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,25 +16,28 @@ import (
 	"testing"
 	"time"
 
+	longrunningpb "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	wire "github.com/damione1/Homeward/gen/home/configuration/v1"
-	"github.com/damione1/Homeward/gen/home/configuration/v1/configurationv1connect"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/configdocuments"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 )
 
 type nha149TLSFixture struct {
+	http           connect.HTTPClient
+	origin, home   string
 	api            configurationv1connect.ConfigurationServiceClient
-	authentication authv1connect.AuthServiceClient
-	accounts       authv1connect.AccountServiceClient
-	tokens         *auth.SessionTokens
+	authentication apiv2connect.AuthServiceClient
+	accounts       apiv2connect.AccountServiceClient
+	tokens         *wire.SessionTokens
 	token, path    string
 	raw            []byte
 	run            *nha162Running
@@ -71,33 +75,33 @@ func nha149StartTLS(t *testing.T, withLegacy ...bool) nha149TLSFixture {
 	t.Cleanup(cancel)
 	const password = "NHA149 isolated synthetic password"
 	nha162RunBootstrap(t, ctx, data, "NHA149 admin", password)
-	authentication := authv1connect.NewAuthServiceClient(client, base)
+	authentication := apiv2connect.NewAuthServiceClient(client, base)
 	tokens := nha162RunLogin(t, ctx, authentication, "NHA149 admin", password)
-	return nha149TLSFixture{api: configurationv1connect.NewConfigurationServiceClient(client, base), authentication: authentication, accounts: authv1connect.NewAccountServiceClient(client, base), tokens: tokens, token: tokens.AccessToken, path: path, raw: source.Bytes(), run: run, ctx: ctx}
+	return nha149TLSFixture{http: client, origin: base, home: nha203PublicHomeName(t, ctx, client, base, tokens.AccessToken), api: configurationv1connect.NewConfigurationServiceClient(client, base), authentication: authentication, accounts: apiv2connect.NewAccountServiceClient(client, base), tokens: tokens, token: tokens.AccessToken, path: path, raw: source.Bytes(), run: run, ctx: ctx}
 }
-func (f nha149TLSFixture) read(t *testing.T) *wire.ReadDocumentResponse {
+func (f nha149TLSFixture) read(t *testing.T) *wire.ConfigurationDocument {
 	t.Helper()
-	response, err := f.api.ReadDocument(f.ctx, nha056SessionRequest(&wire.ReadDocumentRequest{Id: &wire.DocumentId{Value: "operational.main"}}, f.token))
+	response, err := f.api.GetConfigurationDocument(f.ctx, nha056SessionRequest(&wire.GetConfigurationDocumentRequest{Name: nha203PublicDocumentName(t, f.ctx, f.http, f.origin, f.token, "operational.main")}, f.token))
 	if err != nil {
 		t.Fatal("actual Run/TLS document read", err)
 	}
 	return response.Msg
 }
-func (f nha149TLSFixture) write(base *wire.ReadDocumentResponse, raw []byte) (*connect.Response[wire.WriteDocumentResponse], error) {
-	return f.api.WriteDocument(f.ctx, nha056SessionRequest(&wire.WriteDocumentRequest{Id: base.Document.Id, Expected: base.Document.Version, ExpectedWorkspaceSha256: base.Document.GetWorkspace().SourceSha256, ExactYamlSource: raw}, f.token))
+func (f nha149TLSFixture) write(base *wire.ConfigurationDocument, raw []byte) (*connect.Response[longrunningpb.Operation], error) {
+	return f.api.PublishConfigurationDocument(f.ctx, nha056SessionRequest(&wire.PublishConfigurationDocumentRequest{Name: base.Name, Expected: base.Version, ExpectedWorkspaceSha256: base.GetWorkspace().SourceSha256, ExactYamlSource: raw}, f.token))
 }
 func TestNHA149ActualRunTLSConcurrentCASAndRestoreCreatesNewRevision(t *testing.T) {
 	f := nha149StartTLS(t)
 	before := f.read(t)
-	if before.Document.Kind != wire.DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML || before.Document.SchemaVersion != "homeward.operational/1" || before.Document.Version.Revision < 1 || before.Document.UpdatedAt == nil || len(before.Document.ProtectedSourceReference) != 32 || before.Document.GetWorkspace().Dirty != wire.DirtyState_DIRTY_STATE_CLEAN {
+	if before.Kind != wire.DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML || before.SchemaVersion != "homeward.operational/1" || before.Version.Revision < 1 || before.UpdatedAt == nil || len(before.ProtectedSourceReference) != 32 || before.GetWorkspace().Dirty != wire.DirtyState_DIRTY_STATE_CLEAN {
 		t.Fatal("incomplete coherent public document identity")
 	}
-	if !bytes.Equal(before.Document.Version.SourceSha256, before.Document.GetWorkspace().SourceSha256) {
+	if !bytes.Equal(before.Version.SourceSha256, before.GetWorkspace().SourceSha256) {
 		t.Fatal("initial admitted/source observation differs")
 	}
 	start := make(chan struct{})
 	type answer struct {
-		response *connect.Response[wire.WriteDocumentResponse]
+		response *connect.Response[longrunningpb.Operation]
 		err      error
 	}
 	answers := make(chan answer, 2)
@@ -116,7 +120,7 @@ func TestNHA149ActualRunTLSConcurrentCASAndRestoreCreatesNewRevision(t *testing.
 	close(answers)
 	winners, conflicts := 0, 0
 	for answer := range answers {
-		if answer.err == nil && answer.response.Msg.Activation.Outcome == wire.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED {
+		if answer.err == nil && answer.response.Msg.Done {
 			winners++
 			continue
 		}
@@ -124,16 +128,16 @@ func TestNHA149ActualRunTLSConcurrentCASAndRestoreCreatesNewRevision(t *testing.
 			t.Fatal("concurrent CAS was neither one publication nor structured conflict", answer.err)
 		}
 		var rpc *connect.Error
-		if !errors.As(answer.err, &rpc) || len(rpc.Details()) != 1 {
+		if !errors.As(answer.err, &rpc) || len(rpc.Details()) < 1 {
 			t.Fatal("CAS conflict has no typed detail")
 		}
 		detail, err := rpc.Details()[0].Value()
 		if err != nil {
 			t.Fatal(err)
 		}
-		conflict, ok := detail.(*wire.ConfigurationError)
-		if !ok || conflict.Code != wire.ErrorCode_ERROR_CODE_CONFLICT || conflict.Current == nil {
-			t.Fatal("conflict lost current revision/hash")
+		conflict, ok := detail.(*errdetails.ErrorInfo)
+		if !ok || conflict.Reason != "ETAG_MISMATCH" || conflict.Domain != "homeward.damiengoehrig.ca" {
+			t.Fatal("conflict lost canonical CAS reason")
 		}
 		conflicts++
 	}
@@ -141,7 +145,7 @@ func TestNHA149ActualRunTLSConcurrentCASAndRestoreCreatesNewRevision(t *testing.
 		t.Fatal("concurrent documentary CAS did not have exactly one winner")
 	}
 	after := f.read(t)
-	if after.Document.Version.Revision <= before.Document.Version.Revision || after.ActiveGeneration.Revision <= before.ActiveGeneration.Revision {
+	if after.Version.Revision <= before.Version.Revision || after.ActiveGeneration.Revision <= before.ActiveGeneration.Revision {
 		t.Fatal("revision did not advance")
 	}
 	exact, err := os.ReadFile(f.path)
@@ -149,34 +153,34 @@ func TestNHA149ActualRunTLSConcurrentCASAndRestoreCreatesNewRevision(t *testing.
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256(exact)
-	if !bytes.Equal(digest[:], after.Document.Version.SourceSha256) {
+	if !bytes.Equal(digest[:], after.Version.SourceSha256) {
 		t.Fatal("API did not update the actual editable YAML")
 	}
-	restored, err := f.api.RestoreDocument(f.ctx, nha056SessionRequest(&wire.RestoreDocumentRequest{Id: after.Document.Id, Expected: after.Document.Version, ExpectedWorkspaceSha256: after.Document.GetWorkspace().SourceSha256, Historical: before.ActiveGeneration}, f.token))
-	if err != nil || restored.Msg.Activation.Outcome != wire.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED {
+	restored, err := f.api.RollbackConfigurationDocument(f.ctx, nha056SessionRequest(&wire.RollbackConfigurationDocumentRequest{Name: after.Name, Expected: after.Version, ExpectedWorkspaceSha256: after.GetWorkspace().SourceSha256, Historical: before.ActiveGeneration}, f.token))
+	if err != nil || !restored.Msg.Done {
 		t.Fatal("actual 029 historical restoration failed", err)
 	}
 	current := f.read(t)
-	if current.Document.Version.Revision <= after.Document.Version.Revision || current.ActiveGeneration.Revision <= after.ActiveGeneration.Revision || !bytes.Equal(current.Document.Version.SourceSha256, before.Document.Version.SourceSha256) {
+	if current.Version.Revision <= after.Version.Revision || current.ActiveGeneration.Revision <= after.ActiveGeneration.Revision || !bytes.Equal(current.Version.SourceSha256, before.Version.SourceSha256) {
 		t.Fatal("restore rewound the counter or failed to restore exact historical content")
 	}
 	exact, err = os.ReadFile(f.path)
 	if err != nil || !bytes.Equal(exact, f.raw) {
 		t.Fatal("restoration failed to update the same editable YAML", err)
 	}
-	versions, err := f.api.ListVersions(f.ctx, nha056SessionRequest(&wire.ListVersionsRequest{Id: before.Document.Id, Page: &wire.PageRequest{PageSize: 1}}, f.token))
-	if err != nil || len(versions.Msg.Versions) != 1 || versions.Msg.Continuation.GetNextPageToken() == "" {
+	versions, err := f.api.ListConfigurationRevisions(f.ctx, nha056SessionRequest(&wire.ListConfigurationRevisionsRequest{Parent: before.Name, PageSize: 1}, f.token))
+	if err != nil || len(versions.Msg.ConfigurationRevisions) != 1 || versions.Msg.NextPageToken == "" {
 		t.Fatal("real version keyset page failed", err)
 	}
-	schemas, err := f.api.ListSchemas(f.ctx, nha056SessionRequest(&wire.ListSchemasRequest{Page: &wire.PageRequest{PageSize: 1}}, f.token))
-	if err != nil || len(schemas.Msg.Schemas) != 1 || schemas.Msg.Continuation.GetNextPageToken() == "" {
+	schemas, err := f.api.ListConfigurationSchemas(f.ctx, nha056SessionRequest(&wire.ListConfigurationSchemasRequest{Parent: f.home, PageSize: 1}, f.token))
+	if err != nil || len(schemas.Msg.ConfigurationSchemas) != 1 || schemas.Msg.NextPageToken == "" {
 		t.Fatal("real SQL schema page failed", err)
 	}
 }
 func TestNHA149ActualRunTLSDirtyCorrectionAndReadSubscribeGapAreExplicit(t *testing.T) {
 	f := nha149StartTLS(t)
 	before := f.read(t)
-	stream, err := f.api.WatchConfiguration(f.ctx, nha056SessionRequest(&wire.WatchConfigurationRequest{ResumeToken: before.ResumeToken}, f.token))
+	stream, err := f.api.WatchConfiguration(f.ctx, nha056SessionRequest(&wire.WatchConfigurationRequest{Parent: nha203DocumentParent(before.Name), ResumeToken: before.ResumeToken}, f.token))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,24 +190,24 @@ func TestNHA149ActualRunTLSDirtyCorrectionAndReadSubscribeGapAreExplicit(t *test
 	}
 	invalid := []byte("# rejected synthetic private argument\nexternal_workers: [\n")
 	rejected, err := f.write(before, invalid)
-	if err != nil || rejected.Msg.Activation.Outcome != wire.ActivationOutcome_ACTIVATION_OUTCOME_REJECTED_BEFORE_COMMIT {
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || rejected != nil {
 		t.Fatal("invalid candidate lost its activation outcome", err)
 	}
 	if !stream.Receive() || stream.Msg().GetChanges() == nil || len(stream.Msg().GetChanges().Changes) != 1 || stream.Msg().GetChanges().Changes[0].Dirty != wire.DirtyState_DIRTY_STATE_REJECTED {
 		t.Fatal("dirty transition was not reported", stream.Err())
 	}
 	dirty := f.read(t)
-	if dirty.Document.Version.Revision != before.Document.Version.Revision || dirty.ActiveGeneration.Revision != before.ActiveGeneration.Revision || dirty.Document.GetWorkspace().Dirty != wire.DirtyState_DIRTY_STATE_REJECTED {
+	if dirty.Version.Revision != before.Version.Revision || dirty.ActiveGeneration.Revision != before.ActiveGeneration.Revision || dirty.GetWorkspace().Dirty != wire.DirtyState_DIRTY_STATE_REJECTED {
 		t.Fatal("invalid workspace became SQL authority")
 	}
 	corrected, err := f.write(dirty, append(bytes.Clone(f.raw), []byte("# corrected\n")...))
-	if err != nil || corrected.Msg.Activation.Outcome != wire.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED {
+	if err != nil || !corrected.Msg.Done {
 		t.Fatal("dirty correction failed", err)
 	}
 	if !stream.Receive() || stream.Msg().GetResyncRequired() == nil {
 		t.Fatal("coalesced activation pretended to be full documentary history", stream.Err())
 	}
-	gap, err := f.api.WatchConfiguration(f.ctx, nha056SessionRequest(&wire.WatchConfigurationRequest{ResumeToken: before.ResumeToken}, f.token))
+	gap, err := f.api.WatchConfiguration(f.ctx, nha056SessionRequest(&wire.WatchConfigurationRequest{Parent: nha203DocumentParent(before.Name), ResumeToken: before.ResumeToken}, f.token))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,16 +260,16 @@ func TestNHA149ActualTLSHumanAdminBoundaryAndStreamRevocation(t *testing.T) {
 	f := nha149StartTLS(t)
 	before := f.read(t)
 	const password = "NHA149 synthetic ordinary user password"
-	_, err := f.accounts.CreateAccount(f.ctx, nha056SessionRequest(&auth.CreateAccountRequest{LoginName: "NHA149 ordinary user", DisplayName: "NHA149 ordinary user", Role: auth.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}, f.token))
+	_, err := f.accounts.CreateAccount(f.ctx, nha056SessionRequest(&wire.CreateAccountRequest{Parent: nha203SessionAccount(t, f.tokens.Session).Home().String(), Account: &wire.Account{LoginName: "NHA149 ordinary user", DisplayName: "NHA149 ordinary user", Role: wire.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}}, f.token))
 	if err != nil {
 		t.Fatal(err)
 	}
 	user := nha162RunLogin(t, f.ctx, f.authentication, "NHA149 ordinary user", password)
-	_, err = f.api.ReadDocument(f.ctx, nha056SessionRequest(&wire.ReadDocumentRequest{Id: before.Document.Id}, user.AccessToken))
+	_, err = f.api.GetConfigurationDocument(f.ctx, nha056SessionRequest(&wire.GetConfigurationDocumentRequest{Name: before.Name}, user.AccessToken))
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatal("ordinary user read global configuration", err)
 	}
-	_, err = f.api.WriteDocument(f.ctx, nha056SessionRequest(&wire.WriteDocumentRequest{Id: before.Document.Id, Expected: before.Document.Version, ExpectedWorkspaceSha256: before.Document.GetWorkspace().SourceSha256, ExactYamlSource: []byte("external_workers: []\n")}, user.AccessToken))
+	_, err = f.api.PublishConfigurationDocument(f.ctx, nha056SessionRequest(&wire.PublishConfigurationDocumentRequest{Name: before.Name, Expected: before.Version, ExpectedWorkspaceSha256: before.GetWorkspace().SourceSha256, ExactYamlSource: []byte("external_workers: []\n")}, user.AccessToken))
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatal("ordinary user mutated global configuration", err)
 	}
@@ -274,7 +278,7 @@ func TestNHA149ActualTLSHumanAdminBoundaryAndStreamRevocation(t *testing.T) {
 		t.Fatal("denied mutation touched editable YAML", err)
 	}
 	before = f.read(t)
-	stream, err := f.api.WatchConfiguration(f.ctx, nha056SessionRequest(&wire.WatchConfigurationRequest{ResumeToken: before.ResumeToken}, f.token))
+	stream, err := f.api.WatchConfiguration(f.ctx, nha056SessionRequest(&wire.WatchConfigurationRequest{Parent: nha203DocumentParent(before.Name), ResumeToken: before.ResumeToken}, f.token))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +286,7 @@ func TestNHA149ActualTLSHumanAdminBoundaryAndStreamRevocation(t *testing.T) {
 	if !stream.Receive() || stream.Msg().GetReady() == nil {
 		t.Fatal("authorized stream not established", stream.Err())
 	}
-	if _, err := f.authentication.RevokeSession(f.ctx, nha056SessionRequest(&auth.RevokeSessionRequest{SessionId: f.tokens.Session.Id}, f.token)); err != nil {
+	if _, err := f.authentication.RevokeSession(f.ctx, nha056SessionRequest(&wire.RevokeSessionRequest{Name: f.tokens.Session.Name}, f.token)); err != nil {
 		t.Fatal(err)
 	}
 	if stream.Receive() || connect.CodeOf(stream.Err()) != connect.CodeUnauthenticated {
@@ -296,7 +300,7 @@ func TestNHA149ActualTLSHumanAdminBoundaryAndStreamRevocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := detail.(*auth.AuthorizationTermination); !ok {
+	if info, ok := detail.(*errdetails.ErrorInfo); !ok || info.Domain != apierrors.Domain() || info.Reason != "AUTHENTICATION_REQUIRED" {
 		t.Fatal("stream did not preserve the common141 termination contract")
 	}
 }
@@ -331,21 +335,19 @@ func TestNHA149RealLostCommitACKPreservesAttemptAndPublicationWireOutcomes(t *te
 			if uncertain.AttemptOutcome() != storage.TransactionIndeterminate {
 				t.Fatalf("lost ACK domain result omitted indeterminate transaction evidence: outcome=%d transaction=%d", uncertain.Outcome(), uncertain.AttemptOutcome())
 			}
-			response := &wire.WriteDocumentResponse{Activation: configActivationResult(uncertain, err)}
-			if contracts.AdmitConfigurationResponse(response) != nil || response.Activation.Outcome != wire.ActivationOutcome_ACTIVATION_OUTCOME_COMMIT_UNKNOWN || response.Activation.Transaction != wire.TransactionOutcome_TRANSACTION_OUTCOME_COMMIT_UNKNOWN {
-				t.Fatal("149 wire collapsed indeterminate COMMIT into rejection/publication")
+			if administrationFault(configactivation.ErrCommitIndeterminate).Reason() != wire.ApiErrorReason_API_ERROR_REASON_COMMIT_OUTCOME_UNKNOWN {
+				t.Fatal("uncertain native commit did not map to its canonical fault")
 			}
 			published, err := r.owner.Reconcile(context.Background())
 			if err != nil || published.Outcome() != configactivation.Published || published.Revision() != winner {
 				t.Fatal("actual owner reconciliation failed", err)
 			}
-			response = &wire.WriteDocumentResponse{Activation: configActivationResult(published, nil)}
-			attempt := wire.TransactionOutcome_TRANSACTION_OUTCOME_COMMITTED
-			if rollback {
-				attempt = wire.TransactionOutcome_TRANSACTION_OUTCOME_NOT_COMMITTED
+			own, present, err := r.store.ReadActivationAttempt(context.Background(), published.Attempt())
+			if err != nil || present == rollback {
+				t.Fatal("own transaction identity differs from native commit", err)
 			}
-			if contracts.AdmitConfigurationResponse(response) != nil || response.Activation.Outcome != wire.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED || response.Activation.Transaction != attempt {
-				t.Fatal("149 wire confused published current winner with this caller's transaction")
+			if _, proven := published.PublishedEvidence(own); proven {
+				t.Fatal("newer winner manufactured publication evidence for this caller's attempt")
 			}
 			if len(r.driver.snapshot()) != 0 {
 				t.Fatal("149 uncertainty mapping replayed a fake driver action")
@@ -357,18 +359,18 @@ func TestNHA149RealLostCommitACKPreservesAttemptAndPublicationWireOutcomes(t *te
 func TestNHA149ActualRunTLSReadsEveryDeliveredDocumentKind(t *testing.T) {
 	f := nha149StartTLS(t, true)
 	operational := f.read(t)
-	page, err := f.api.ListDocuments(f.ctx, nha056SessionRequest(&wire.ListDocumentsRequest{Page: &wire.PageRequest{PageSize: 100}}, f.token))
+	page, err := f.api.ListConfigurationDocuments(f.ctx, nha056SessionRequest(&wire.ListConfigurationDocumentsRequest{Parent: f.home, PageSize: 100}, f.token))
 	if err != nil {
 		t.Fatal("generic catalogue read through actual TLS/Run", err)
 	}
 	kinds := make(map[wire.DocumentKind]bool)
-	var yamlRead *wire.ReadDocumentResponse
-	for _, listed := range page.Msg.Documents {
-		response, err := f.api.ReadDocument(f.ctx, nha056SessionRequest(&wire.ReadDocumentRequest{Id: listed.Id}, f.token))
+	var yamlRead *wire.ConfigurationDocument
+	for _, listed := range page.Msg.ConfigurationDocuments {
+		response, err := f.api.GetConfigurationDocument(f.ctx, nha056SessionRequest(&wire.GetConfigurationDocumentRequest{Name: listed.Name}, f.token))
 		if err != nil || contracts.AdmitConfigurationResponse(response.Msg) != nil {
 			t.Fatal("delivered document kind failed generic read", listed.Kind, err)
 		}
-		document := response.Msg.Document
+		document := response.Msg
 		if document.Id.Value != listed.Id.Value || document.Kind != listed.Kind || document.Version.Revision != listed.Version.Revision || !bytes.Equal(document.Version.SourceSha256, listed.Version.SourceSha256) || !document.UpdatedAt.AsTime().Equal(listed.UpdatedAt.AsTime()) || document.Active != listed.Active {
 			t.Fatal("generic read blended metadata, revision/hash or active membership")
 		}
@@ -392,7 +394,7 @@ func TestNHA149ActualRunTLSReadsEveryDeliveredDocumentKind(t *testing.T) {
 			t.Fatal("missing positive delivered document kind", kind)
 		}
 	}
-	if yamlRead == nil || len(yamlRead.Document.ProtectedSourceReference) != 32 {
+	if yamlRead == nil || len(yamlRead.ProtectedSourceReference) != 32 {
 		t.Fatal("retained YAML-source metadata was not projected opaquely")
 	}
 	active, present, err := f.run.observed.sessions.store.ReadActiveConfig(f.ctx)
@@ -401,15 +403,15 @@ func TestNHA149ActualRunTLSReadsEveryDeliveredDocumentKind(t *testing.T) {
 	}
 	matched := false
 	for _, version := range active.Versions() {
-		if version.Ref().Document().String() == yamlRead.Document.Id.Value {
+		if version.Ref().Document().String() == yamlRead.Id.Value {
 			digest := version.SHA256()
-			matched = version.Ref().Revision().Number() == yamlRead.Document.Version.Revision && bytes.Equal(digest[:], yamlRead.Document.Version.SourceSha256)
+			matched = version.Ref().Revision().Number() == yamlRead.Version.Revision && bytes.Equal(digest[:], yamlRead.Version.SourceSha256)
 		}
 	}
 	if !matched {
 		t.Fatal("second genre did not come from the actual retained generation")
 	}
-	stream, err := f.api.WatchConfiguration(f.ctx, nha056SessionRequest(&wire.WatchConfigurationRequest{ResumeToken: yamlRead.ResumeToken}, f.token))
+	stream, err := f.api.WatchConfiguration(f.ctx, nha056SessionRequest(&wire.WatchConfigurationRequest{Parent: nha203DocumentParent(yamlRead.Name), ResumeToken: yamlRead.ResumeToken}, f.token))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -425,12 +427,12 @@ func TestNHA149ActualRunTLSTwoRejectionsThenCorrection(t *testing.T) {
 	base := admitted
 	for _, candidate := range [][]byte{[]byte("# rejected B\nexternal_workers: [\n"), []byte("# rejected C\nexternal_workers: {\n")} {
 		response, err := f.write(base, candidate)
-		if err != nil || response.Msg.Activation.Outcome != wire.ActivationOutcome_ACTIVATION_OUTCOME_REJECTED_BEFORE_COMMIT || response.Msg.Activation.Transaction != wire.TransactionOutcome_TRANSACTION_OUTCOME_NOT_COMMITTED {
+		if connect.CodeOf(err) != connect.CodeInvalidArgument || response != nil {
 			t.Fatal("known rejected dirty write lost its outcome", err)
 		}
 		base = f.read(t)
 		digest := sha256.Sum256(candidate)
-		if base.Document.Version.Revision != admitted.Document.Version.Revision || !bytes.Equal(base.Document.Version.SourceSha256, admitted.Document.Version.SourceSha256) || base.ActiveGeneration.Revision != admitted.ActiveGeneration.Revision || base.Document.GetWorkspace().Dirty != wire.DirtyState_DIRTY_STATE_REJECTED || !bytes.Equal(base.Document.GetWorkspace().SourceSha256, digest[:]) {
+		if base.Version.Revision != admitted.Version.Revision || !bytes.Equal(base.Version.SourceSha256, admitted.Version.SourceSha256) || base.ActiveGeneration.Revision != admitted.ActiveGeneration.Revision || base.GetWorkspace().Dirty != wire.DirtyState_DIRTY_STATE_REJECTED || !bytes.Equal(base.GetWorkspace().SourceSha256, digest[:]) {
 			t.Fatal("second known rejection became SQL authority or reconciliation")
 		}
 		active, present, err := f.run.observed.sessions.store.ReadActiveConfig(f.ctx)
@@ -447,12 +449,12 @@ func TestNHA149ActualRunTLSTwoRejectionsThenCorrection(t *testing.T) {
 	}
 	corrected := append(bytes.Clone(f.raw), []byte("# corrected D after two rejections\n")...)
 	response, err := f.write(base, corrected)
-	if err != nil || response.Msg.Activation.Outcome != wire.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED {
+	if err != nil || !response.Msg.Done {
 		t.Fatal("two rejections blocked actual 029 correction", err)
 	}
 	current := f.read(t)
 	digest := sha256.Sum256(corrected)
-	if current.Document.Version.Revision <= admitted.Document.Version.Revision || current.ActiveGeneration.Revision <= admitted.ActiveGeneration.Revision || current.Document.GetWorkspace().Dirty != wire.DirtyState_DIRTY_STATE_CLEAN || !bytes.Equal(current.Document.Version.SourceSha256, digest[:]) {
+	if current.Version.Revision <= admitted.Version.Revision || current.ActiveGeneration.Revision <= admitted.ActiveGeneration.Revision || current.GetWorkspace().Dirty != wire.DirtyState_DIRTY_STATE_CLEAN || !bytes.Equal(current.Version.SourceSha256, digest[:]) {
 		t.Fatal("corrected source did not publish as a new exact revision")
 	}
 }
@@ -537,16 +539,16 @@ func TestNHA149ActualOwnerPublicationDuringWatchReadRequiresResync(t *testing.T)
 	client.Timeout = 40 * time.Second
 	defer client.CloseIdleConnections()
 	api := configurationv1connect.NewConfigurationServiceClient(client, server.URL)
-	read := func() *wire.ReadDocumentResponse {
+	read := func() *wire.ConfigurationDocument {
 		t.Helper()
-		response, err := api.ReadDocument(ctx, connect.NewRequest(&wire.ReadDocumentRequest{Id: &wire.DocumentId{Value: "operational.main"}}))
+		response, err := api.GetConfigurationDocument(ctx, connect.NewRequest(&wire.GetConfigurationDocumentRequest{Name: nha203PublicDocumentName(t, ctx, client, server.URL, "", "operational.main")}))
 		if err != nil {
 			t.Fatal("actual Run-owned metadata handler", err)
 		}
 		return response.Msg
 	}
 	before := read()
-	stream, err := api.WatchConfiguration(ctx, connect.NewRequest(&wire.WatchConfigurationRequest{ResumeToken: before.ResumeToken}))
+	stream, err := api.WatchConfiguration(ctx, connect.NewRequest(&wire.WatchConfigurationRequest{Parent: nha203DocumentParent(before.Name), ResumeToken: before.ResumeToken}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -556,8 +558,8 @@ func TestNHA149ActualOwnerPublicationDuringWatchReadRequiresResync(t *testing.T)
 	}
 	lastReceived := stream.Msg().GetReady().ResumeToken
 	nha034WaitSignal(t, gate.blocked, "Watch ready writer barrier")
-	rejected, err := api.WriteDocument(ctx, connect.NewRequest(&wire.WriteDocumentRequest{Id: before.Document.Id, Expected: before.Document.Version, ExpectedWorkspaceSha256: before.Document.GetWorkspace().SourceSha256, ExactYamlSource: []byte("# old dirty event\nexternal_workers: [\n")}))
-	if err != nil || rejected.Msg.Activation.Outcome != wire.ActivationOutcome_ACTIVATION_OUTCOME_REJECTED_BEFORE_COMMIT {
+	rejected, err := api.PublishConfigurationDocument(ctx, connect.NewRequest(&wire.PublishConfigurationDocumentRequest{Name: before.Name, Expected: before.Version, ExpectedWorkspaceSha256: before.GetWorkspace().SourceSha256, ExactYamlSource: []byte("# old dirty event\nexternal_workers: [\n")}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || rejected != nil {
 		t.Fatal("failed to queue old dirty event", err)
 	}
 	ticket := proxy.arm(t, nha029C5CutAfterStatement, nha029C5SQLDocumentRead)
@@ -599,7 +601,7 @@ func TestNHA149ActualOwnerPublicationDuringWatchReadRequiresResync(t *testing.T)
 	}
 	// Reconnect with the last token actually delivered, without any Refresh149
 	// following direct029. Its prior authority must still force explicit resync.
-	resumed, err := api.WatchConfiguration(ctx, connect.NewRequest(&wire.WatchConfigurationRequest{ResumeToken: lastReceived}))
+	resumed, err := api.WatchConfiguration(ctx, connect.NewRequest(&wire.WatchConfigurationRequest{Parent: nha203DocumentParent(before.Name), ResumeToken: lastReceived}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -652,26 +654,26 @@ func TestNHA149RealAPILostRollbackACKRecoversPersistentDirtyBase(t *testing.T) {
 	client.Timeout = 40 * time.Second
 	defer client.CloseIdleConnections()
 	api := configurationv1connect.NewConfigurationServiceClient(client, server.URL)
-	read := func() *wire.ReadDocumentResponse {
+	read := func() *wire.ConfigurationDocument {
 		t.Helper()
-		response, err := api.ReadDocument(ctx, connect.NewRequest(&wire.ReadDocumentRequest{Id: &wire.DocumentId{Value: "operational.main"}}))
+		response, err := api.GetConfigurationDocument(ctx, connect.NewRequest(&wire.GetConfigurationDocumentRequest{Name: nha203PublicDocumentName(t, ctx, client, server.URL, "", "operational.main")}))
 		if err != nil {
 			t.Fatal("actual Run-owned metadata handler", err)
 		}
 		return response.Msg
 	}
-	write := func(base *wire.ReadDocumentResponse, candidate []byte) (*connect.Response[wire.WriteDocumentResponse], error) {
-		return api.WriteDocument(ctx, connect.NewRequest(&wire.WriteDocumentRequest{Id: base.Document.Id, Expected: base.Document.Version, ExpectedWorkspaceSha256: base.Document.GetWorkspace().SourceSha256, ExactYamlSource: candidate}))
+	write := func(base *wire.ConfigurationDocument, candidate []byte) (*connect.Response[longrunningpb.Operation], error) {
+		return api.PublishConfigurationDocument(ctx, connect.NewRequest(&wire.PublishConfigurationDocumentRequest{Name: base.Name, Expected: base.Version, ExpectedWorkspaceSha256: base.GetWorkspace().SourceSha256, ExactYamlSource: candidate}))
 	}
 	admitted := read()
-	if response, err := write(admitted, []byte("# rejected dirty B\nexternal_workers: [\n")); err != nil || response.Msg.Activation.Outcome != wire.ActivationOutcome_ACTIVATION_OUTCOME_REJECTED_BEFORE_COMMIT {
+	if response, err := write(admitted, []byte("# rejected dirty B\nexternal_workers: [\n")); connect.CodeOf(err) != connect.CodeInvalidArgument || response != nil {
 		t.Fatal("initial dirty rejection failed", err)
 	}
 	dirty := read()
 	candidate := append(bytes.Clone(r.raw), []byte("# uncertain candidate C\n")...)
 	proxy.armed.Store(true)
 	type answer struct {
-		response *connect.Response[wire.WriteDocumentResponse]
+		response *connect.Response[longrunningpb.Operation]
 		err      error
 	}
 	completed := make(chan answer, 1)
@@ -685,7 +687,7 @@ func TestNHA149RealAPILostRollbackACKRecoversPersistentDirtyBase(t *testing.T) {
 	 FROM public.config_active a JOIN public.config_generation_entries e ON e.generation_revision=a.generation_revision
 	 JOIN public.config_versions v ON v.document_id=e.document_id AND v.revision=e.version_revision
 	 WHERE a.singleton AND e.document_id='operational.main'`).Scan(&sqlRaw, &generation)
-	if err != nil || generation != admitted.ActiveGeneration.Revision || !bytes.Equal(sqlRaw, admitted.Document.Version.SourceSha256) {
+	if err != nil || generation != admitted.ActiveGeneration.Revision || !bytes.Equal(sqlRaw, admitted.Version.SourceSha256) {
 		t.Fatal("lost rollback ACK changed admitted SQL A", err)
 	}
 	proxy.allowDrop()
@@ -695,14 +697,14 @@ func TestNHA149RealAPILostRollbackACKRecoversPersistentDirtyBase(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("149 lost-ACK request did not return", ctx.Err())
 	}
-	if result.err != nil || result.response.Msg.Activation.Outcome != wire.ActivationOutcome_ACTIVATION_OUTCOME_COMMIT_UNKNOWN || result.response.Msg.Activation.Transaction != wire.TransactionOutcome_TRANSACTION_OUTCOME_COMMIT_UNKNOWN {
+	if connect.CodeOf(result.err) != connect.CodeUnknown || result.response != nil {
 		t.Fatal("149 collapsed real unknown COMMIT into known rejection", result.err)
 	}
 	resolved, err := r.owner.Reconcile(ctx)
 	if err != nil || resolved.Outcome() != configactivation.NotCommitted || resolved.AttemptOutcome() != storage.TransactionNotCommitted {
 		t.Fatal("029 did not resolve the actual rollback", err)
 	}
-	if current := read(); current.Document.GetWorkspace().Dirty != wire.DirtyState_DIRTY_STATE_RECONCILING {
+	if current := read(); current.GetWorkspace().Dirty != wire.DirtyState_DIRTY_STATE_RECONCILING {
 		t.Fatal("unknown edit retired its persistent intent before recovery")
 	}
 	// Close the actual Run owner before reopening its workspace: this is a

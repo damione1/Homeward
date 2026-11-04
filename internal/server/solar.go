@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"github.com/damione1/Homeward/contracts"
 	"github.com/damione1/Homeward/internal/automationtriggers"
 	"github.com/damione1/Homeward/internal/configdocuments"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -16,6 +17,9 @@ import (
 // Internal dependency injection preserves the configured production Run path.
 // It injects clocks and a consumer without replacing configured pilots.
 type runDependencies struct {
+	// Private composition seams; nil preserves the ordinary native providers.
+	configureCapabilityCatalog       func(*contracts.CapabilityCatalog) error
+	mediaProjector                   mediaCapabilityProjector
 	configurationWatcherClock        configdocuments.WatcherClock
 	remoteCalendarClock              automationtriggers.Clock
 	observeRemoteCalendar            func(*remoteCalendarRuntime)

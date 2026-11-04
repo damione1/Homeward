@@ -365,5 +365,7 @@ fn fragment(value: &str) -> Result<(), &'static str> {
     }
 }
 pub(super) fn operation(value: &longrunning::Operation) -> Completion {
-    Completion::state(MutationState::integration_operation(value).unwrap_or(MutationState::Uncertain))
+    Completion::state(
+        MutationState::integration_operation(value).unwrap_or(MutationState::Uncertain),
+    )
 }

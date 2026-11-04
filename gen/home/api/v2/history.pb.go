@@ -23,12 +23,16 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Defines the closed vocabulary for history resolution.
 type HistoryResolution int32
 
 const (
+	// No explicit history resolution. Does not select an action.
 	HistoryResolution_HISTORY_RESOLUTION_UNSPECIFIED HistoryResolution = 0
-	HistoryResolution_HISTORY_RESOLUTION_RAW         HistoryResolution = 1
-	HistoryResolution_HISTORY_RESOLUTION_HOUR        HistoryResolution = 2
+	// Selects raw for history resolution.
+	HistoryResolution_HISTORY_RESOLUTION_RAW HistoryResolution = 1
+	// Selects hour for history resolution.
+	HistoryResolution_HISTORY_RESOLUTION_HOUR HistoryResolution = 2
 )
 
 // Enum value maps for HistoryResolution.
@@ -72,14 +76,19 @@ func (HistoryResolution) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{0}
 }
 
+// A next token may accompany zero points after a bounded candidate scan. That
+// page is progress, not a complete empty history; only end terminates the scan.
+//
 // Historical entity reads never disclose global Recorder positions, queue
 // sizes, policy-excluded counts or loss envelopes. The diagnostic service owns
 // those separately authorized facts.
 type HistoryCoverageVerdict int32
 
 const (
+	// No explicit history coverage verdict. Does not select an action.
 	HistoryCoverageVerdict_HISTORY_COVERAGE_VERDICT_UNSPECIFIED HistoryCoverageVerdict = 0
-	HistoryCoverageVerdict_HISTORY_COVERAGE_VERDICT_NOT_PROVEN  HistoryCoverageVerdict = 1
+	// Selects not proven for history coverage verdict.
+	HistoryCoverageVerdict_HISTORY_COVERAGE_VERDICT_NOT_PROVEN HistoryCoverageVerdict = 1
 )
 
 // Enum value maps for HistoryCoverageVerdict.
@@ -121,16 +130,24 @@ func (HistoryCoverageVerdict) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{1}
 }
 
+// Defines the closed vocabulary for history dimension.
 type HistoryDimension int32
 
 const (
+	// No explicit history dimension. Does not select an action.
 	HistoryDimension_HISTORY_DIMENSION_UNSPECIFIED HistoryDimension = 0
-	HistoryDimension_HISTORY_DIMENSION_POWER       HistoryDimension = 1
-	HistoryDimension_HISTORY_DIMENSION_ENERGY      HistoryDimension = 2
+	// Selects power for history dimension.
+	HistoryDimension_HISTORY_DIMENSION_POWER HistoryDimension = 1
+	// Selects energy for history dimension.
+	HistoryDimension_HISTORY_DIMENSION_ENERGY HistoryDimension = 2
+	// Selects temperature for history dimension.
 	HistoryDimension_HISTORY_DIMENSION_TEMPERATURE HistoryDimension = 3
-	HistoryDimension_HISTORY_DIMENSION_RATIO       HistoryDimension = 4
+	// Selects ratio for history dimension.
+	HistoryDimension_HISTORY_DIMENSION_RATIO HistoryDimension = 4
+	// Selects illuminance for history dimension.
 	HistoryDimension_HISTORY_DIMENSION_ILLUMINANCE HistoryDimension = 5
-	HistoryDimension_HISTORY_DIMENSION_COUNT       HistoryDimension = 6
+	// Selects count for history dimension.
+	HistoryDimension_HISTORY_DIMENSION_COUNT HistoryDimension = 6
 )
 
 // Enum value maps for HistoryDimension.
@@ -182,14 +199,20 @@ func (HistoryDimension) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{2}
 }
 
+// Defines the closed vocabulary for history reset.
 type HistoryReset int32
 
 const (
-	HistoryReset_HISTORY_RESET_UNSPECIFIED    HistoryReset = 0
+	// No explicit history reset. Does not select an action.
+	HistoryReset_HISTORY_RESET_UNSPECIFIED HistoryReset = 0
+	// Selects not applicable for history reset.
 	HistoryReset_HISTORY_RESET_NOT_APPLICABLE HistoryReset = 1
-	HistoryReset_HISTORY_RESET_UNKNOWN        HistoryReset = 2
-	HistoryReset_HISTORY_RESET_NOT_DETECTED   HistoryReset = 3
-	HistoryReset_HISTORY_RESET_INFERRED       HistoryReset = 4
+	// Selects unknown for history reset.
+	HistoryReset_HISTORY_RESET_UNKNOWN HistoryReset = 2
+	// Selects not detected for history reset.
+	HistoryReset_HISTORY_RESET_NOT_DETECTED HistoryReset = 3
+	// Selects inferred for history reset.
+	HistoryReset_HISTORY_RESET_INFERRED HistoryReset = 4
 )
 
 // Enum value maps for HistoryReset.
@@ -237,21 +260,35 @@ func (HistoryReset) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{3}
 }
 
+// Defines the closed vocabulary for history aggregate reason.
 type HistoryAggregateReason int32
 
 const (
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_UNSPECIFIED         HistoryAggregateReason = 0
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_GAP                 HistoryAggregateReason = 1
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_EPOCH_BOUNDARY      HistoryAggregateReason = 2
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_RETENTION_PRUNED    HistoryAggregateReason = 3
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_QUALITY_BREAK       HistoryAggregateReason = 4
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_UNIT_BREAK          HistoryAggregateReason = 5
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_CLOCK_REGRESSION    HistoryAggregateReason = 6
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_COUNTER_DIP         HistoryAggregateReason = 7
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_UNKNOWN_BASELINE    HistoryAggregateReason = 8
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_BUDGET_LIMIT        HistoryAggregateReason = 9
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_UNPROVEN_TAIL       HistoryAggregateReason = 10
-	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_NON_NUMERIC         HistoryAggregateReason = 11
+	// No explicit history aggregate reason. Does not select an action.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_UNSPECIFIED HistoryAggregateReason = 0
+	// Selects gap for history aggregate reason.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_GAP HistoryAggregateReason = 1
+	// Selects epoch boundary for history aggregate reason.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_EPOCH_BOUNDARY HistoryAggregateReason = 2
+	// Selects retention pruned for history aggregate reason.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_RETENTION_PRUNED HistoryAggregateReason = 3
+	// Selects quality break for history aggregate reason.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_QUALITY_BREAK HistoryAggregateReason = 4
+	// Selects unit break for history aggregate reason.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_UNIT_BREAK HistoryAggregateReason = 5
+	// Selects clock regression for history aggregate reason.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_CLOCK_REGRESSION HistoryAggregateReason = 6
+	// Selects counter dip for history aggregate reason.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_COUNTER_DIP HistoryAggregateReason = 7
+	// Selects unknown baseline for history aggregate reason.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_UNKNOWN_BASELINE HistoryAggregateReason = 8
+	// Selects budget limit for history aggregate reason.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_BUDGET_LIMIT HistoryAggregateReason = 9
+	// Selects unproven tail for history aggregate reason.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_UNPROVEN_TAIL HistoryAggregateReason = 10
+	// Selects non numeric for history aggregate reason.
+	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_NON_NUMERIC HistoryAggregateReason = 11
+	// Selects unsupported numeric for history aggregate reason.
 	HistoryAggregateReason_HISTORY_AGGREGATE_REASON_UNSUPPORTED_NUMERIC HistoryAggregateReason = 12
 )
 
@@ -321,15 +358,24 @@ func (HistoryAggregateReason) EnumDescriptor() ([]byte, []int) {
 type HistorySceneMemberOutcome int32
 
 const (
-	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_UNSPECIFIED       HistorySceneMemberOutcome = 0
-	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_PREPARED          HistorySceneMemberOutcome = 1
+	// No explicit history scene member outcome. Does not select an action.
+	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_UNSPECIFIED HistorySceneMemberOutcome = 0
+	// Selects prepared for history scene member outcome.
+	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_PREPARED HistorySceneMemberOutcome = 1
+	// Selects already satisfied for history scene member outcome.
 	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_ALREADY_SATISFIED HistorySceneMemberOutcome = 2
-	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_REFUSED           HistorySceneMemberOutcome = 3
-	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_ACCEPTED          HistorySceneMemberOutcome = 4
-	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_DISPATCHED        HistorySceneMemberOutcome = 5
-	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_ACKNOWLEDGED      HistorySceneMemberOutcome = 6
-	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_CONFIRMED         HistorySceneMemberOutcome = 7
-	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_INDETERMINATE     HistorySceneMemberOutcome = 8
+	// Selects refused for history scene member outcome.
+	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_REFUSED HistorySceneMemberOutcome = 3
+	// Selects accepted for history scene member outcome.
+	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_ACCEPTED HistorySceneMemberOutcome = 4
+	// Selects dispatched for history scene member outcome.
+	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_DISPATCHED HistorySceneMemberOutcome = 5
+	// Selects acknowledged for history scene member outcome.
+	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_ACKNOWLEDGED HistorySceneMemberOutcome = 6
+	// Selects confirmed for history scene member outcome.
+	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_CONFIRMED HistorySceneMemberOutcome = 7
+	// Selects indeterminate for history scene member outcome.
+	HistorySceneMemberOutcome_HISTORY_SCENE_MEMBER_OUTCOME_INDETERMINATE HistorySceneMemberOutcome = 8
 )
 
 // Enum value maps for HistorySceneMemberOutcome.
@@ -385,14 +431,21 @@ func (HistorySceneMemberOutcome) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{5}
 }
 
+// Defines the closed vocabulary for history scene outcome.
 type HistorySceneOutcome int32
 
 const (
-	HistorySceneOutcome_HISTORY_SCENE_OUTCOME_UNSPECIFIED   HistorySceneOutcome = 0
-	HistorySceneOutcome_HISTORY_SCENE_OUTCOME_COMPLETE      HistorySceneOutcome = 1
-	HistorySceneOutcome_HISTORY_SCENE_OUTCOME_PARTIAL       HistorySceneOutcome = 2
-	HistorySceneOutcome_HISTORY_SCENE_OUTCOME_NONE          HistorySceneOutcome = 3
+	// No explicit history scene outcome. Does not select an action.
+	HistorySceneOutcome_HISTORY_SCENE_OUTCOME_UNSPECIFIED HistorySceneOutcome = 0
+	// Selects complete for history scene outcome.
+	HistorySceneOutcome_HISTORY_SCENE_OUTCOME_COMPLETE HistorySceneOutcome = 1
+	// Selects partial for history scene outcome.
+	HistorySceneOutcome_HISTORY_SCENE_OUTCOME_PARTIAL HistorySceneOutcome = 2
+	// Selects none for history scene outcome.
+	HistorySceneOutcome_HISTORY_SCENE_OUTCOME_NONE HistorySceneOutcome = 3
+	// Selects indeterminate for history scene outcome.
 	HistorySceneOutcome_HISTORY_SCENE_OUTCOME_INDETERMINATE HistorySceneOutcome = 4
+	// Selects not attempted for history scene outcome.
 	HistorySceneOutcome_HISTORY_SCENE_OUTCOME_NOT_ATTEMPTED HistorySceneOutcome = 5
 )
 
@@ -443,12 +496,16 @@ func (HistorySceneOutcome) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{6}
 }
 
+// Defines the closed vocabulary for history script mode.
 type HistoryScriptMode int32
 
 const (
+	// No explicit history script mode. Does not select an action.
 	HistoryScriptMode_HISTORY_SCRIPT_MODE_UNSPECIFIED HistoryScriptMode = 0
-	HistoryScriptMode_HISTORY_SCRIPT_MODE_WAIT        HistoryScriptMode = 1
-	HistoryScriptMode_HISTORY_SCRIPT_MODE_DETACHED    HistoryScriptMode = 2
+	// Selects wait for history script mode.
+	HistoryScriptMode_HISTORY_SCRIPT_MODE_WAIT HistoryScriptMode = 1
+	// Selects detached for history script mode.
+	HistoryScriptMode_HISTORY_SCRIPT_MODE_DETACHED HistoryScriptMode = 2
 )
 
 // Enum value maps for HistoryScriptMode.
@@ -492,16 +549,25 @@ func (HistoryScriptMode) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{7}
 }
 
+// Defines the closed vocabulary for history command outcome.
 type HistoryCommandOutcome int32
 
 const (
-	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_UNSPECIFIED   HistoryCommandOutcome = 0
-	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_ACCEPTED      HistoryCommandOutcome = 1
-	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_DISPATCHED    HistoryCommandOutcome = 2
-	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_ACKNOWLEDGED  HistoryCommandOutcome = 3
-	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_CONFIRMED     HistoryCommandOutcome = 4
+	// No explicit history command outcome. Does not select an action.
+	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_UNSPECIFIED HistoryCommandOutcome = 0
+	// Selects accepted for history command outcome.
+	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_ACCEPTED HistoryCommandOutcome = 1
+	// Selects dispatched for history command outcome.
+	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_DISPATCHED HistoryCommandOutcome = 2
+	// Selects acknowledged for history command outcome.
+	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_ACKNOWLEDGED HistoryCommandOutcome = 3
+	// Selects confirmed for history command outcome.
+	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_CONFIRMED HistoryCommandOutcome = 4
+	// Selects indeterminate for history command outcome.
 	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_INDETERMINATE HistoryCommandOutcome = 5
-	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_REFUSED       HistoryCommandOutcome = 6
+	// Selects refused for history command outcome.
+	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_REFUSED HistoryCommandOutcome = 6
+	// Selects not attempted for history command outcome.
 	HistoryCommandOutcome_HISTORY_COMMAND_OUTCOME_NOT_ATTEMPTED HistoryCommandOutcome = 7
 )
 
@@ -556,13 +622,19 @@ func (HistoryCommandOutcome) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{8}
 }
 
+// Defines the closed vocabulary for history trace loss reason.
 type HistoryTraceLossReason int32
 
 const (
-	HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_UNSPECIFIED      HistoryTraceLossReason = 0
-	HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_QUEUE_FULL       HistoryTraceLossReason = 1
-	HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_TOO_LARGE        HistoryTraceLossReason = 2
-	HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_CONTENTION       HistoryTraceLossReason = 3
+	// No explicit history trace loss reason. Does not select an action.
+	HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_UNSPECIFIED HistoryTraceLossReason = 0
+	// Selects queue full for history trace loss reason.
+	HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_QUEUE_FULL HistoryTraceLossReason = 1
+	// Selects too large for history trace loss reason.
+	HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_TOO_LARGE HistoryTraceLossReason = 2
+	// Selects contention for history trace loss reason.
+	HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_CONTENTION HistoryTraceLossReason = 3
+	// Selects invalid metadata for history trace loss reason.
 	HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_INVALID_METADATA HistoryTraceLossReason = 4
 )
 
@@ -611,10 +683,12 @@ func (HistoryTraceLossReason) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{9}
 }
 
+// Request for query observations.
 type QueryObservationsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Canonical entity name; aliases and native entity IDs are not accepted.
-	Parent string         `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// The period represented by HistoryPeriod.
 	Period *HistoryPeriod `protobuf:"bytes,2,opt,name=period,proto3" json:"period,omitempty"`
 	// Zero uses the native default; positive values are capped to its page bound.
 	PageSize int32 `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -682,12 +756,17 @@ func (x *QueryObservationsRequest) GetPageToken() string {
 	return ""
 }
 
+// Request for query aggregates.
 type QueryAggregatesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parent        string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	Period        *HistoryPeriod         `protobuf:"bytes,2,opt,name=period,proto3" json:"period,omitempty"`
-	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// The period represented by HistoryPeriod.
+	Period *HistoryPeriod `protobuf:"bytes,2,opt,name=period,proto3" json:"period,omitempty"`
+	// Requested page size. Zero selects the documented default; negative values are invalid.
+	PageSize int32 `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+	PageToken     string `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -750,17 +829,22 @@ func (x *QueryAggregatesRequest) GetPageToken() string {
 	return ""
 }
 
+// Request for query execution traces.
 type QueryExecutionTracesRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Parent string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	Period *HistoryPeriod         `protobuf:"bytes,2,opt,name=period,proto3" json:"period,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// The period represented by HistoryPeriod.
+	Period *HistoryPeriod `protobuf:"bytes,2,opt,name=period,proto3" json:"period,omitempty"`
 	// Empty selects the currently persisted epoch. Otherwise a returned opaque
 	// epoch token selects retained history; it conveys no authority.
 	ExecutionEpoch string `protobuf:"bytes,3,opt,name=execution_epoch,json=executionEpoch,proto3" json:"execution_epoch,omitempty"`
-	PageSize       int32  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken      string `protobuf:"bytes,5,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Requested page size. Zero selects the documented default; negative values are invalid.
+	PageSize int32 `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+	PageToken     string `protobuf:"bytes,5,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *QueryExecutionTracesRequest) Reset() {
@@ -828,13 +912,17 @@ func (x *QueryExecutionTracesRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of query observations.
 type QueryObservationsResponse struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	Observations []*HistoryObservation  `protobuf:"bytes,1,rep,name=observations,proto3" json:"observations,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of observations for this message.
+	Observations []*HistoryObservation `protobuf:"bytes,1,rep,name=observations,proto3" json:"observations,omitempty"`
 	// A nonempty token can accompany an empty bounded scan page.
-	NextPageToken string            `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	Scope         *HistoryReadScope `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
-	Coverage      *HistoryCoverage  `protobuf:"bytes,4,opt,name=coverage,proto3" json:"coverage,omitempty"`
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	// The scope represented by HistoryReadScope.
+	Scope *HistoryReadScope `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
+	// Evidence of observed, retained and missing data within the admitted scope.
+	Coverage      *HistoryCoverage `protobuf:"bytes,4,opt,name=coverage,proto3" json:"coverage,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -897,12 +985,17 @@ func (x *QueryObservationsResponse) GetCoverage() *HistoryCoverage {
 	return nil
 }
 
+// Successful result of query aggregates.
 type QueryAggregatesResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Aggregates    []*HistoryAggregate    `protobuf:"bytes,1,rep,name=aggregates,proto3" json:"aggregates,omitempty"`
-	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	Scope         *HistoryReadScope      `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
-	Coverage      *HistoryCoverage       `protobuf:"bytes,4,opt,name=coverage,proto3" json:"coverage,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of aggregates for this message.
+	Aggregates []*HistoryAggregate `protobuf:"bytes,1,rep,name=aggregates,proto3" json:"aggregates,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	// The scope represented by HistoryReadScope.
+	Scope *HistoryReadScope `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
+	// Evidence of observed, retained and missing data within the admitted scope.
+	Coverage      *HistoryCoverage `protobuf:"bytes,4,opt,name=coverage,proto3" json:"coverage,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -965,21 +1058,35 @@ func (x *QueryAggregatesResponse) GetCoverage() *HistoryCoverage {
 	return nil
 }
 
+// Successful result of query execution traces.
 type QueryExecutionTracesResponse struct {
-	state                  protoimpl.MessageState   `protogen:"open.v1"`
-	ExecutionTraces        []*HistoryExecutionTrace `protobuf:"bytes,1,rep,name=execution_traces,json=executionTraces,proto3" json:"execution_traces,omitempty"`
-	NextPageToken          string                   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	Scope                  *HistoryReadScope        `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
-	ExecutionEpoch         string                   `protobuf:"bytes,4,opt,name=execution_epoch,json=executionEpoch,proto3" json:"execution_epoch,omitempty"`
-	PreviousExecutionEpoch string                   `protobuf:"bytes,5,opt,name=previous_execution_epoch,json=previousExecutionEpoch,proto3" json:"previous_execution_epoch,omitempty"`
-	InterruptedPredecessor bool                     `protobuf:"varint,6,opt,name=interrupted_predecessor,json=interruptedPredecessor,proto3" json:"interrupted_predecessor,omitempty"`
-	EpochInterrupted       bool                     `protobuf:"varint,7,opt,name=epoch_interrupted,json=epochInterrupted,proto3" json:"epoch_interrupted,omitempty"`
-	ScopeReduced           bool                     `protobuf:"varint,8,opt,name=scope_reduced,json=scopeReduced,proto3" json:"scope_reduced,omitempty"`
-	Checkpoint             uint64                   `protobuf:"varint,9,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
-	CommitHigh             uint64                   `protobuf:"varint,10,opt,name=commit_high,json=commitHigh,proto3" json:"commit_high,omitempty"`
-	Losses                 []*HistoryTraceLoss      `protobuf:"bytes,11,rep,name=losses,proto3" json:"losses,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of execution traces for this message.
+	ExecutionTraces []*HistoryExecutionTrace `protobuf:"bytes,1,rep,name=execution_traces,json=executionTraces,proto3" json:"execution_traces,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	// The scope represented by HistoryReadScope.
+	Scope *HistoryReadScope `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
+	// The execution epoch associated with this message.
+	ExecutionEpoch string `protobuf:"bytes,4,opt,name=execution_epoch,json=executionEpoch,proto3" json:"execution_epoch,omitempty"`
+	// The previous execution epoch associated with this message.
+	PreviousExecutionEpoch string `protobuf:"bytes,5,opt,name=previous_execution_epoch,json=previousExecutionEpoch,proto3" json:"previous_execution_epoch,omitempty"`
+	// Indicates whether interrupted predecessor.
+	InterruptedPredecessor bool `protobuf:"varint,6,opt,name=interrupted_predecessor,json=interruptedPredecessor,proto3" json:"interrupted_predecessor,omitempty"`
+	// Indicates whether epoch interrupted.
+	EpochInterrupted bool `protobuf:"varint,7,opt,name=epoch_interrupted,json=epochInterrupted,proto3" json:"epoch_interrupted,omitempty"`
+	// Indicates whether scope reduced.
+	ScopeReduced bool `protobuf:"varint,8,opt,name=scope_reduced,json=scopeReduced,proto3" json:"scope_reduced,omitempty"`
+	// Checkpoint within the admitted capture; does not authorize another capture.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	Checkpoint string `protobuf:"bytes,9,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
+	// The commit high represented as an exact native quantity.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	CommitHigh string `protobuf:"bytes,10,opt,name=commit_high,json=commitHigh,proto3" json:"commit_high,omitempty"`
+	// Collection of losses for this message.
+	Losses        []*HistoryTraceLoss `protobuf:"bytes,11,rep,name=losses,proto3" json:"losses,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *QueryExecutionTracesResponse) Reset() {
@@ -1068,18 +1175,18 @@ func (x *QueryExecutionTracesResponse) GetScopeReduced() bool {
 	return false
 }
 
-func (x *QueryExecutionTracesResponse) GetCheckpoint() uint64 {
+func (x *QueryExecutionTracesResponse) GetCheckpoint() string {
 	if x != nil {
 		return x.Checkpoint
 	}
-	return 0
+	return ""
 }
 
-func (x *QueryExecutionTracesResponse) GetCommitHigh() uint64 {
+func (x *QueryExecutionTracesResponse) GetCommitHigh() string {
 	if x != nil {
 		return x.CommitHigh
 	}
-	return 0
+	return ""
 }
 
 func (x *QueryExecutionTracesResponse) GetLosses() []*HistoryTraceLoss {
@@ -1092,12 +1199,18 @@ func (x *QueryExecutionTracesResponse) GetLosses() []*HistoryTraceLoss {
 // A recorded value is independent of today's capability definitions. The
 // enclosing query identifies the entity; no native source/session ID escapes.
 type HistoricalState struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Quality        *ObservationQuality    `protobuf:"bytes,1,opt,name=quality,proto3" json:"quality,omitempty"`
-	ObservedTime   *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=observed_time,json=observedTime,proto3" json:"observed_time,omitempty"`
-	ReceiveTime    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=receive_time,json=receiveTime,proto3" json:"receive_time,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Typed provenance, freshness and validity of the observation.
+	Quality *ObservationQuality `protobuf:"bytes,1,opt,name=quality,proto3" json:"quality,omitempty"`
+	// Recorded time for observed time. Absence means no timestamp was supplied or recorded.
+	ObservedTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=observed_time,json=observedTime,proto3" json:"observed_time,omitempty"`
+	// Recorded time for receive time. Absence means no timestamp was supplied or recorded.
+	ReceiveTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=receive_time,json=receiveTime,proto3" json:"receive_time,omitempty"`
+	// Recorded time for last change time. Absence means no timestamp was supplied or recorded.
 	LastChangeTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=last_change_time,json=lastChangeTime,proto3" json:"last_change_time,omitempty"`
+	// Recorded time for last update time. Absence means no timestamp was supplied or recorded.
 	LastUpdateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_update_time,json=lastUpdateTime,proto3" json:"last_update_time,omitempty"`
+	// Recorded time for last report time. Absence means no timestamp was supplied or recorded.
 	LastReportTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_report_time,json=lastReportTime,proto3" json:"last_report_time,omitempty"`
 	// Types that are valid to be assigned to Value:
 	//
@@ -1330,58 +1443,72 @@ type isHistoricalState_Value interface {
 }
 
 type HistoricalState_SwitchOn struct {
+	// Indicates whether switch on.
 	SwitchOn bool `protobuf:"varint,11,opt,name=switch_on,json=switchOn,proto3,oneof"`
 }
 
 type HistoricalState_Measurement struct {
+	// The measurement represented by HistoricalMeasurement.
 	Measurement *HistoricalMeasurement `protobuf:"bytes,12,opt,name=measurement,proto3,oneof"`
 }
 
 type HistoricalState_Light struct {
+	// The light represented by HistoricalLight.
 	Light *HistoricalLight `protobuf:"bytes,13,opt,name=light,proto3,oneof"`
 }
 
 type HistoricalState_FanSpeed struct {
+	// The fan speed represented by FanSpeed.
 	FanSpeed FanSpeed `protobuf:"varint,14,opt,name=fan_speed,json=fanSpeed,proto3,enum=home.api.v2.FanSpeed,oneof"`
 }
 
 type HistoricalState_TemperatureControl struct {
+	// The temperature control represented by HistoricalTemperatureControl.
 	TemperatureControl *HistoricalTemperatureControl `protobuf:"bytes,15,opt,name=temperature_control,json=temperatureControl,proto3,oneof"`
 }
 
 type HistoricalState_Helper struct {
+	// The helper represented by HelperValue.
 	Helper *HelperValue `protobuf:"bytes,16,opt,name=helper,proto3,oneof"`
 }
 
 type HistoricalState_Solar struct {
+	// The solar represented by SolarValue.
 	Solar *SolarValue `protobuf:"bytes,17,opt,name=solar,proto3,oneof"`
 }
 
 type HistoricalState_SolarEvent struct {
+	// The solar event represented by SolarEventValue.
 	SolarEvent *SolarEventValue `protobuf:"bytes,18,opt,name=solar_event,json=solarEvent,proto3,oneof"`
 }
 
 type HistoricalState_Cover struct {
+	// The cover represented by CoverValue.
 	Cover *CoverValue `protobuf:"bytes,19,opt,name=cover,proto3,oneof"`
 }
 
 type HistoricalState_Lock struct {
+	// The lock represented by LockValue.
 	Lock *LockValue `protobuf:"bytes,20,opt,name=lock,proto3,oneof"`
 }
 
 type HistoricalState_Alarm struct {
+	// The alarm represented by AlarmValue.
 	Alarm *AlarmValue `protobuf:"bytes,21,opt,name=alarm,proto3,oneof"`
 }
 
 type HistoricalState_Weather struct {
+	// The weather represented by WeatherValue.
 	Weather *WeatherValue `protobuf:"bytes,22,opt,name=weather,proto3,oneof"`
 }
 
 type HistoricalState_Presence struct {
+	// The presence represented by PresenceValue.
 	Presence *PresenceValue `protobuf:"bytes,23,opt,name=presence,proto3,oneof"`
 }
 
 type HistoricalState_PresenceDetails struct {
+	// The presence details represented by PresenceDetailsValue.
 	PresenceDetails *PresenceDetailsValue `protobuf:"bytes,24,opt,name=presence_details,json=presenceDetails,proto3,oneof"`
 }
 
@@ -1413,10 +1540,13 @@ func (*HistoricalState_Presence) isHistoricalState_Value() {}
 
 func (*HistoricalState_PresenceDetails) isHistoricalState_Value() {}
 
+// Represents historical measurement.
 type HistoricalMeasurement struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Value float64                `protobuf:"fixed64,1,opt,name=value,proto3" json:"value,omitempty"`
-	Unit  string                 `protobuf:"bytes,2,opt,name=unit,proto3" json:"unit,omitempty"`
+	// The value represented by double.
+	Value float64 `protobuf:"fixed64,1,opt,name=value,proto3" json:"value,omitempty"`
+	// Declared measurement unit; does not authorize an implicit unit conversion.
+	Unit string `protobuf:"bytes,2,opt,name=unit,proto3" json:"unit,omitempty"`
 	// Preserves decimal cost precision; never interpreted as float currency.
 	DecimalValue  *string `protobuf:"bytes,3,opt,name=decimal_value,json=decimalValue,proto3,oneof" json:"decimal_value,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1474,13 +1604,17 @@ func (x *HistoricalMeasurement) GetDecimalValue() string {
 	return ""
 }
 
+// Represents historical light.
 type HistoricalLight struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	On                *bool                  `protobuf:"varint,1,opt,name=on,proto3,oneof" json:"on,omitempty"`
-	BrightnessPercent *float64               `protobuf:"fixed64,2,opt,name=brightness_percent,json=brightnessPercent,proto3,oneof" json:"brightness_percent,omitempty"`
-	ColorTempMireds   *uint32                `protobuf:"varint,3,opt,name=color_temp_mireds,json=colorTempMireds,proto3,oneof" json:"color_temp_mireds,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Indicates whether on.
+	On *bool `protobuf:"varint,1,opt,name=on,proto3,oneof" json:"on,omitempty"`
+	// Value of brightness in percent.
+	BrightnessPercent *float64 `protobuf:"fixed64,2,opt,name=brightness_percent,json=brightnessPercent,proto3,oneof" json:"brightness_percent,omitempty"`
+	// The color temp mireds represented as a bounded nonnegative integer.
+	ColorTempMireds *int64 `protobuf:"varint,3,opt,name=color_temp_mireds,json=colorTempMireds,proto3,oneof" json:"color_temp_mireds,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *HistoricalLight) Reset() {
@@ -1527,28 +1661,35 @@ func (x *HistoricalLight) GetBrightnessPercent() float64 {
 	return 0
 }
 
-func (x *HistoricalLight) GetColorTempMireds() uint32 {
+func (x *HistoricalLight) GetColorTempMireds() int64 {
 	if x != nil && x.ColorTempMireds != nil {
 		return *x.ColorTempMireds
 	}
 	return 0
 }
 
+// Represents historical temperature control.
 type HistoricalTemperatureControl struct {
-	state                     protoimpl.MessageState `protogen:"open.v1"`
-	CurrentTemperatureCelsius *float64               `protobuf:"fixed64,1,opt,name=current_temperature_celsius,json=currentTemperatureCelsius,proto3,oneof" json:"current_temperature_celsius,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Value of current temperature in degrees Celsius.
+	CurrentTemperatureCelsius *float64 `protobuf:"fixed64,1,opt,name=current_temperature_celsius,json=currentTemperatureCelsius,proto3,oneof" json:"current_temperature_celsius,omitempty"`
 	// Types that are valid to be assigned to Setpoint:
 	//
 	//	*HistoricalTemperatureControl_SetpointCelsius
 	//	*HistoricalTemperatureControl_SetpointRangeCelsius
-	Setpoint        isHistoricalTemperatureControl_Setpoint `protobuf_oneof:"setpoint"`
-	Mode            *TemperatureMode                        `protobuf:"varint,4,opt,name=mode,proto3,enum=home.api.v2.TemperatureMode,oneof" json:"mode,omitempty"`
-	Activity        *TemperatureActivity                    `protobuf:"varint,5,opt,name=activity,proto3,enum=home.api.v2.TemperatureActivity,oneof" json:"activity,omitempty"`
-	FanActive       *bool                                   `protobuf:"varint,6,opt,name=fan_active,json=fanActive,proto3,oneof" json:"fan_active,omitempty"`
-	HumidityPercent *float64                                `protobuf:"fixed64,7,opt,name=humidity_percent,json=humidityPercent,proto3,oneof" json:"humidity_percent,omitempty"`
-	FanTarget       *TemperatureFanTarget                   `protobuf:"varint,8,opt,name=fan_target,json=fanTarget,proto3,enum=home.api.v2.TemperatureFanTarget,oneof" json:"fan_target,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	Setpoint isHistoricalTemperatureControl_Setpoint `protobuf_oneof:"setpoint"`
+	// The mode represented by TemperatureMode.
+	Mode *TemperatureMode `protobuf:"varint,4,opt,name=mode,proto3,enum=home.api.v2.TemperatureMode,oneof" json:"mode,omitempty"`
+	// The activity represented by TemperatureActivity.
+	Activity *TemperatureActivity `protobuf:"varint,5,opt,name=activity,proto3,enum=home.api.v2.TemperatureActivity,oneof" json:"activity,omitempty"`
+	// Indicates whether fan active.
+	FanActive *bool `protobuf:"varint,6,opt,name=fan_active,json=fanActive,proto3,oneof" json:"fan_active,omitempty"`
+	// Value of humidity in percent.
+	HumidityPercent *float64 `protobuf:"fixed64,7,opt,name=humidity_percent,json=humidityPercent,proto3,oneof" json:"humidity_percent,omitempty"`
+	// The fan target represented by TemperatureFanTarget.
+	FanTarget     *TemperatureFanTarget `protobuf:"varint,8,opt,name=fan_target,json=fanTarget,proto3,enum=home.api.v2.TemperatureFanTarget,oneof" json:"fan_target,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *HistoricalTemperatureControl) Reset() {
@@ -1653,10 +1794,12 @@ type isHistoricalTemperatureControl_Setpoint interface {
 }
 
 type HistoricalTemperatureControl_SetpointCelsius struct {
+	// Value of setpoint in degrees Celsius.
 	SetpointCelsius float64 `protobuf:"fixed64,2,opt,name=setpoint_celsius,json=setpointCelsius,proto3,oneof"`
 }
 
 type HistoricalTemperatureControl_SetpointRangeCelsius struct {
+	// Value of setpoint range in degrees Celsius.
 	SetpointRangeCelsius *TemperatureRange `protobuf:"bytes,3,opt,name=setpoint_range_celsius,json=setpointRangeCelsius,proto3,oneof"`
 }
 
@@ -1668,8 +1811,10 @@ func (*HistoricalTemperatureControl_SetpointRangeCelsius) isHistoricalTemperatur
 // admission buckets, execution traces emission_time. Source observed_at remains
 // optional and is never substituted for received_at or used for retention.
 type HistoryPeriod struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Start         *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start,proto3" json:"start,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Inclusive beginning of the time interval.
+	Start *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start,proto3" json:"start,omitempty"`
+	// Exclusive end of the time interval.
 	End           *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end,proto3" json:"end,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1719,16 +1864,23 @@ func (x *HistoryPeriod) GetEnd() *timestamppb.Timestamp {
 	return nil
 }
 
+// Represents history limits.
 type HistoryLimits struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	MaxPoints          uint32                 `protobuf:"varint,1,opt,name=max_points,json=maxPoints,proto3" json:"max_points,omitempty"`
-	MaxResponseBytes   uint32                 `protobuf:"varint,2,opt,name=max_response_bytes,json=maxResponseBytes,proto3" json:"max_response_bytes,omitempty"`
-	MaxTokenBytes      uint32                 `protobuf:"varint,3,opt,name=max_token_bytes,json=maxTokenBytes,proto3" json:"max_token_bytes,omitempty"`
-	QueryTimeoutMillis uint32                 `protobuf:"varint,4,opt,name=query_timeout_millis,json=queryTimeoutMillis,proto3" json:"query_timeout_millis,omitempty"`
-	MaxReaders         uint32                 `protobuf:"varint,5,opt,name=max_readers,json=maxReaders,proto3" json:"max_readers,omitempty"`
-	MaxPeriodHours     uint32                 `protobuf:"varint,6,opt,name=max_period_hours,json=maxPeriodHours,proto3" json:"max_period_hours,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The max points represented as a bounded nonnegative integer.
+	MaxPoints int32 `protobuf:"varint,1,opt,name=max_points,json=maxPoints,proto3" json:"max_points,omitempty"`
+	// Maximum encoded response size in bytes for this query profile.
+	MaxResponseBytes int32 `protobuf:"varint,2,opt,name=max_response_bytes,json=maxResponseBytes,proto3" json:"max_response_bytes,omitempty"`
+	// Maximum continuation-token size in bytes for this query profile.
+	MaxTokenBytes int32 `protobuf:"varint,3,opt,name=max_token_bytes,json=maxTokenBytes,proto3" json:"max_token_bytes,omitempty"`
+	// Query time budget in milliseconds.
+	QueryTimeoutMillis int32 `protobuf:"varint,4,opt,name=query_timeout_millis,json=queryTimeoutMillis,proto3" json:"query_timeout_millis,omitempty"`
+	// The max readers represented as a bounded nonnegative integer.
+	MaxReaders int32 `protobuf:"varint,5,opt,name=max_readers,json=maxReaders,proto3" json:"max_readers,omitempty"`
+	// The max period hours represented as a bounded nonnegative integer.
+	MaxPeriodHours int32 `protobuf:"varint,6,opt,name=max_period_hours,json=maxPeriodHours,proto3" json:"max_period_hours,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *HistoryLimits) Reset() {
@@ -1761,56 +1913,63 @@ func (*HistoryLimits) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *HistoryLimits) GetMaxPoints() uint32 {
+func (x *HistoryLimits) GetMaxPoints() int32 {
 	if x != nil {
 		return x.MaxPoints
 	}
 	return 0
 }
 
-func (x *HistoryLimits) GetMaxResponseBytes() uint32 {
+func (x *HistoryLimits) GetMaxResponseBytes() int32 {
 	if x != nil {
 		return x.MaxResponseBytes
 	}
 	return 0
 }
 
-func (x *HistoryLimits) GetMaxTokenBytes() uint32 {
+func (x *HistoryLimits) GetMaxTokenBytes() int32 {
 	if x != nil {
 		return x.MaxTokenBytes
 	}
 	return 0
 }
 
-func (x *HistoryLimits) GetQueryTimeoutMillis() uint32 {
+func (x *HistoryLimits) GetQueryTimeoutMillis() int32 {
 	if x != nil {
 		return x.QueryTimeoutMillis
 	}
 	return 0
 }
 
-func (x *HistoryLimits) GetMaxReaders() uint32 {
+func (x *HistoryLimits) GetMaxReaders() int32 {
 	if x != nil {
 		return x.MaxReaders
 	}
 	return 0
 }
 
-func (x *HistoryLimits) GetMaxPeriodHours() uint32 {
+func (x *HistoryLimits) GetMaxPeriodHours() int32 {
 	if x != nil {
 		return x.MaxPeriodHours
 	}
 	return 0
 }
 
+// Describes the authorized historical scope and the retained time interval.
 type HistoryReadScope struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Requested       *HistoryPeriod         `protobuf:"bytes,1,opt,name=requested,proto3" json:"requested,omitempty"`
-	Retained        *HistoryPeriod         `protobuf:"bytes,2,opt,name=retained,proto3" json:"retained,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The requested represented by HistoryPeriod.
+	Requested *HistoryPeriod `protobuf:"bytes,1,opt,name=requested,proto3" json:"requested,omitempty"`
+	// The retained represented by HistoryPeriod.
+	Retained *HistoryPeriod `protobuf:"bytes,2,opt,name=retained,proto3" json:"retained,omitempty"`
+	// Earliest retained point known to the native owner.
 	RetentionCutoff *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=retention_cutoff,json=retentionCutoff,proto3" json:"retention_cutoff,omitempty"`
-	AsOf            *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=as_of,json=asOf,proto3" json:"as_of,omitempty"`
-	Resolution      HistoryResolution      `protobuf:"varint,5,opt,name=resolution,proto3,enum=home.api.v2.HistoryResolution" json:"resolution,omitempty"`
-	Limits          *HistoryLimits         `protobuf:"bytes,6,opt,name=limits,proto3" json:"limits,omitempty"`
+	// Read cutoff used to produce this bounded result.
+	AsOf *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=as_of,json=asOf,proto3" json:"as_of,omitempty"`
+	// The resolution represented by HistoryResolution.
+	Resolution HistoryResolution `protobuf:"varint,5,opt,name=resolution,proto3,enum=home.api.v2.HistoryResolution" json:"resolution,omitempty"`
+	// The limits represented by HistoryLimits.
+	Limits *HistoryLimits `protobuf:"bytes,6,opt,name=limits,proto3" json:"limits,omitempty"`
 	// A clipped prefix is absent due to retention; never synthesized as zero.
 	NotRetainedPrefix *HistoryPeriod `protobuf:"bytes,7,opt,name=not_retained_prefix,json=notRetainedPrefix,proto3,oneof" json:"not_retained_prefix,omitempty"`
 	unknownFields     protoimpl.UnknownFields
@@ -1896,6 +2055,7 @@ func (x *HistoryReadScope) GetNotRetainedPrefix() *HistoryPeriod {
 	return nil
 }
 
+// Describes retained, missing and excluded historical evidence within the admitted query scope.
 type HistoryCoverage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Filtering by the recorded authorization scope cannot prove completeness.
@@ -1952,13 +2112,15 @@ func (x *HistoryCoverage) GetProvenanceStartedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// Represents history observation.
 type HistoryObservation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Opaque identity stable within the server incarnation for duplicate detection, never an ordinal or a
 	// cursor. The returned list preserves native admission order; do not sort
 	// observations by receive_time when clocks regress.
-	ObservationId string           `protobuf:"bytes,1,opt,name=observation_id,json=observationId,proto3" json:"observation_id,omitempty"`
-	State         *HistoricalState `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	ObservationId string `protobuf:"bytes,1,opt,name=observation_id,json=observationId,proto3" json:"observation_id,omitempty"`
+	// The state represented by HistoricalState.
+	State *HistoricalState `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
 	// Historical interpretation is carried separately from current capabilities.
 	Descriptor_   *HistoryNumericDescriptor `protobuf:"bytes,3,opt,name=descriptor,proto3,oneof" json:"descriptor,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2016,15 +2178,24 @@ func (x *HistoryObservation) GetDescriptor_() *HistoryNumericDescriptor {
 	return nil
 }
 
+// Represents history numeric descriptor.
 type HistoryNumericDescriptor struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Unit          string                 `protobuf:"bytes,1,opt,name=unit,proto3" json:"unit,omitempty"`
-	CanonicalUnit string                 `protobuf:"bytes,2,opt,name=canonical_unit,json=canonicalUnit,proto3" json:"canonical_unit,omitempty"`
-	Scale         float64                `protobuf:"fixed64,3,opt,name=scale,proto3" json:"scale,omitempty"`
-	Offset        float64                `protobuf:"fixed64,4,opt,name=offset,proto3" json:"offset,omitempty"`
-	Dimension     HistoryDimension       `protobuf:"varint,5,opt,name=dimension,proto3,enum=home.api.v2.HistoryDimension" json:"dimension,omitempty"`
-	Precision     int32                  `protobuf:"zigzag32,6,opt,name=precision,proto3" json:"precision,omitempty"`
-	Semantic      MeasurementSemantic    `protobuf:"varint,7,opt,name=semantic,proto3,enum=home.api.v2.MeasurementSemantic" json:"semantic,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Declared measurement unit; does not authorize an implicit unit conversion.
+	Unit string `protobuf:"bytes,1,opt,name=unit,proto3" json:"unit,omitempty"`
+	// Canonical unit used for the admitted numeric series.
+	CanonicalUnit string `protobuf:"bytes,2,opt,name=canonical_unit,json=canonicalUnit,proto3" json:"canonical_unit,omitempty"`
+	// Scale used by the declared numeric conversion.
+	Scale float64 `protobuf:"fixed64,3,opt,name=scale,proto3" json:"scale,omitempty"`
+	// Offset used by the declared numeric conversion.
+	Offset float64 `protobuf:"fixed64,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	// Physical dimension of the declared measurement.
+	Dimension HistoryDimension `protobuf:"varint,5,opt,name=dimension,proto3,enum=home.api.v2.HistoryDimension" json:"dimension,omitempty"`
+	// Precision declared by the native measurement descriptor.
+	Precision int32 `protobuf:"zigzag32,6,opt,name=precision,proto3" json:"precision,omitempty"`
+	// The semantic represented by MeasurementSemantic.
+	Semantic MeasurementSemantic `protobuf:"varint,7,opt,name=semantic,proto3,enum=home.api.v2.MeasurementSemantic" json:"semantic,omitempty"`
+	// Aggregation semantic applicable to this series; never inferred from a display label.
 	Aggregation   MeasurementAggregation `protobuf:"varint,8,opt,name=aggregation,proto3,enum=home.api.v2.MeasurementAggregation" json:"aggregation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2116,18 +2287,30 @@ func (x *HistoryNumericDescriptor) GetAggregation() MeasurementAggregation {
 	return MeasurementAggregation_MEASUREMENT_AGGREGATION_UNSPECIFIED
 }
 
+// Represents history aggregate.
 type HistoryAggregate struct {
-	state         protoimpl.MessageState    `protogen:"open.v1"`
-	Bucket        *HistoryPeriod            `protobuf:"bytes,1,opt,name=bucket,proto3" json:"bucket,omitempty"`
-	Descriptor_   *HistoryNumericDescriptor `protobuf:"bytes,2,opt,name=descriptor,proto3" json:"descriptor,omitempty"`
-	Quality       *ObservationQuality       `protobuf:"bytes,3,opt,name=quality,proto3" json:"quality,omitempty"`
-	DurationNanos uint64                    `protobuf:"varint,4,opt,name=duration_nanos,json=durationNanos,proto3" json:"duration_nanos,omitempty"`
-	Minimum       *float64                  `protobuf:"fixed64,5,opt,name=minimum,proto3,oneof" json:"minimum,omitempty"`
-	Maximum       *float64                  `protobuf:"fixed64,6,opt,name=maximum,proto3,oneof" json:"maximum,omitempty"`
-	Mean          *float64                  `protobuf:"fixed64,7,opt,name=mean,proto3,oneof" json:"mean,omitempty"`
-	Contribution  *float64                  `protobuf:"fixed64,8,opt,name=contribution,proto3,oneof" json:"contribution,omitempty"`
-	Reset_        HistoryReset              `protobuf:"varint,9,opt,name=reset,proto3,enum=home.api.v2.HistoryReset" json:"reset,omitempty"`
-	Reasons       []HistoryAggregateReason  `protobuf:"varint,10,rep,packed,name=reasons,proto3,enum=home.api.v2.HistoryAggregateReason" json:"reasons,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The bucket represented by HistoryPeriod.
+	Bucket *HistoryPeriod `protobuf:"bytes,1,opt,name=bucket,proto3" json:"bucket,omitempty"`
+	// The descriptor represented by HistoryNumericDescriptor.
+	Descriptor_ *HistoryNumericDescriptor `protobuf:"bytes,2,opt,name=descriptor,proto3" json:"descriptor,omitempty"`
+	// Typed provenance, freshness and validity of the observation.
+	Quality *ObservationQuality `protobuf:"bytes,3,opt,name=quality,proto3" json:"quality,omitempty"`
+	// Duration in nanoseconds.
+	// Inclusive range 0..3600000000000 nanoseconds.
+	DurationNanos int64 `protobuf:"varint,4,opt,name=duration_nanos,json=durationNanos,proto3" json:"duration_nanos,omitempty"`
+	// The minimum represented by double.
+	Minimum *float64 `protobuf:"fixed64,5,opt,name=minimum,proto3,oneof" json:"minimum,omitempty"`
+	// The maximum represented by double.
+	Maximum *float64 `protobuf:"fixed64,6,opt,name=maximum,proto3,oneof" json:"maximum,omitempty"`
+	// The mean represented by double.
+	Mean *float64 `protobuf:"fixed64,7,opt,name=mean,proto3,oneof" json:"mean,omitempty"`
+	// The contribution represented by double.
+	Contribution *float64 `protobuf:"fixed64,8,opt,name=contribution,proto3,oneof" json:"contribution,omitempty"`
+	// The reset represented by HistoryReset.
+	Reset_ HistoryReset `protobuf:"varint,9,opt,name=reset,proto3,enum=home.api.v2.HistoryReset" json:"reset,omitempty"`
+	// Collection of reasons for this message.
+	Reasons []HistoryAggregateReason `protobuf:"varint,10,rep,packed,name=reasons,proto3,enum=home.api.v2.HistoryAggregateReason" json:"reasons,omitempty"`
 	// Opaque bucket/group identity; distinct admission scopes are never merged.
 	AggregateId   string `protobuf:"bytes,11,opt,name=aggregate_id,json=aggregateId,proto3" json:"aggregate_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2185,7 +2368,7 @@ func (x *HistoryAggregate) GetQuality() *ObservationQuality {
 	return nil
 }
 
-func (x *HistoryAggregate) GetDurationNanos() uint64 {
+func (x *HistoryAggregate) GetDurationNanos() int64 {
 	if x != nil {
 		return x.DurationNanos
 	}
@@ -2241,9 +2424,13 @@ func (x *HistoryAggregate) GetAggregateId() string {
 	return ""
 }
 
+// Represents history execution trace.
 type HistoryExecutionTrace struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	Ordinal      uint64                 `protobuf:"varint,1,opt,name=ordinal,proto3" json:"ordinal,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The ordinal represented as an exact native quantity.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	Ordinal string `protobuf:"bytes,1,opt,name=ordinal,proto3" json:"ordinal,omitempty"`
+	// Recorded time for emission time. Absence means no timestamp was supplied or recorded.
 	EmissionTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=emission_time,json=emissionTime,proto3" json:"emission_time,omitempty"`
 	// Types that are valid to be assigned to Outcome:
 	//
@@ -2259,13 +2446,17 @@ type HistoryExecutionTrace struct {
 	// A causal link, possibly outside the retained/time-filtered rows.
 	ParentRun *string `protobuf:"bytes,10,opt,name=parent_run,json=parentRun,proto3,oneof" json:"parent_run,omitempty"`
 	// Identifies the native controller generation within the same persisted epoch.
-	Controller              *string                          `protobuf:"bytes,11,opt,name=controller,proto3,oneof" json:"controller,omitempty"`
-	ConfigurationGeneration *string                          `protobuf:"bytes,12,opt,name=configuration_generation,json=configurationGeneration,proto3,oneof" json:"configuration_generation,omitempty"`
-	ManifestSha256          []byte                           `protobuf:"bytes,13,opt,name=manifest_sha256,json=manifestSha256,proto3,oneof" json:"manifest_sha256,omitempty"`
-	ActionKind              *RecorderTraceActionKind         `protobuf:"varint,14,opt,name=action_kind,json=actionKind,proto3,enum=home.api.v2.RecorderTraceActionKind,oneof" json:"action_kind,omitempty"`
-	FailureKind             *RecorderTraceExecutionErrorKind `protobuf:"varint,15,opt,name=failure_kind,json=failureKind,proto3,enum=home.api.v2.RecorderTraceExecutionErrorKind,oneof" json:"failure_kind,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	Controller *string `protobuf:"bytes,11,opt,name=controller,proto3,oneof" json:"controller,omitempty"`
+	// Configuration generation selected by this trace, independent of SQL schema.
+	ConfigurationGeneration *string `protobuf:"bytes,12,opt,name=configuration_generation,json=configurationGeneration,proto3,oneof" json:"configuration_generation,omitempty"`
+	// SHA-256 digest identifying the complete configuration manifest.
+	ManifestSha256 []byte `protobuf:"bytes,13,opt,name=manifest_sha256,json=manifestSha256,proto3,oneof" json:"manifest_sha256,omitempty"`
+	// The action kind represented by RecorderTraceActionKind.
+	ActionKind *RecorderTraceActionKind `protobuf:"varint,14,opt,name=action_kind,json=actionKind,proto3,enum=home.api.v2.RecorderTraceActionKind,oneof" json:"action_kind,omitempty"`
+	// The failure kind represented by RecorderTraceExecutionErrorKind.
+	FailureKind   *RecorderTraceExecutionErrorKind `protobuf:"varint,15,opt,name=failure_kind,json=failureKind,proto3,enum=home.api.v2.RecorderTraceExecutionErrorKind,oneof" json:"failure_kind,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *HistoryExecutionTrace) Reset() {
@@ -2298,11 +2489,11 @@ func (*HistoryExecutionTrace) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_history_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *HistoryExecutionTrace) GetOrdinal() uint64 {
+func (x *HistoryExecutionTrace) GetOrdinal() string {
 	if x != nil {
 		return x.Ordinal
 	}
-	return 0
+	return ""
 }
 
 func (x *HistoryExecutionTrace) GetEmissionTime() *timestamppb.Timestamp {
@@ -2427,26 +2618,32 @@ type isHistoryExecutionTrace_Outcome interface {
 }
 
 type HistoryExecutionTrace_Decision struct {
+	// The decision represented by RecorderTraceDecision.
 	Decision RecorderTraceDecision `protobuf:"varint,3,opt,name=decision,proto3,enum=home.api.v2.RecorderTraceDecision,oneof"`
 }
 
 type HistoryExecutionTrace_NodeStage struct {
+	// The node stage represented by RecorderTraceNodeStage.
 	NodeStage RecorderTraceNodeStage `protobuf:"varint,4,opt,name=node_stage,json=nodeStage,proto3,enum=home.api.v2.RecorderTraceNodeStage,oneof"`
 }
 
 type HistoryExecutionTrace_CommandOutcome struct {
+	// Native command outcome. An acknowledgment alone is not physical confirmation.
 	CommandOutcome HistoryCommandOutcome `protobuf:"varint,5,opt,name=command_outcome,json=commandOutcome,proto3,enum=home.api.v2.HistoryCommandOutcome,oneof"`
 }
 
 type HistoryExecutionTrace_SceneMemberOutcome struct {
+	// The scene member outcome represented by HistorySceneMemberOutcome.
 	SceneMemberOutcome HistorySceneMemberOutcome `protobuf:"varint,6,opt,name=scene_member_outcome,json=sceneMemberOutcome,proto3,enum=home.api.v2.HistorySceneMemberOutcome,oneof"`
 }
 
 type HistoryExecutionTrace_SceneOutcome struct {
+	// The scene outcome represented by HistorySceneOutcome.
 	SceneOutcome HistorySceneOutcome `protobuf:"varint,7,opt,name=scene_outcome,json=sceneOutcome,proto3,enum=home.api.v2.HistorySceneOutcome,oneof"`
 }
 
 type HistoryExecutionTrace_ScriptMode struct {
+	// The script mode represented by HistoryScriptMode.
 	ScriptMode HistoryScriptMode `protobuf:"varint,8,opt,name=script_mode,json=scriptMode,proto3,enum=home.api.v2.HistoryScriptMode,oneof"`
 }
 
@@ -2462,13 +2659,20 @@ func (*HistoryExecutionTrace_SceneOutcome) isHistoryExecutionTrace_Outcome() {}
 
 func (*HistoryExecutionTrace_ScriptMode) isHistoryExecutionTrace_Outcome() {}
 
+// Represents history trace loss.
 type HistoryTraceLoss struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Reason            HistoryTraceLossReason `protobuf:"varint,1,opt,name=reason,proto3,enum=home.api.v2.HistoryTraceLossReason" json:"reason,omitempty"`
-	KnownCount        uint64                 `protobuf:"varint,2,opt,name=known_count,json=knownCount,proto3" json:"known_count,omitempty"`
-	From              *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=from,proto3" json:"from,omitempty"`
-	Through           *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=through,proto3" json:"through,omitempty"`
-	UncertainEnvelope bool                   `protobuf:"varint,5,opt,name=uncertain_envelope,json=uncertainEnvelope,proto3" json:"uncertain_envelope,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
+	Reason HistoryTraceLossReason `protobuf:"varint,1,opt,name=reason,proto3,enum=home.api.v2.HistoryTraceLossReason" json:"reason,omitempty"`
+	// The known count represented as an exact native quantity.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	KnownCount string `protobuf:"bytes,2,opt,name=known_count,json=knownCount,proto3" json:"known_count,omitempty"`
+	// Inclusive lower bound within the declared scope.
+	From *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=from,proto3" json:"from,omitempty"`
+	// Upper bound within the declared scope; follow the enclosing interval contract.
+	Through *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=through,proto3" json:"through,omitempty"`
+	// Indicates whether uncertain envelope.
+	UncertainEnvelope bool `protobuf:"varint,5,opt,name=uncertain_envelope,json=uncertainEnvelope,proto3" json:"uncertain_envelope,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -2510,11 +2714,11 @@ func (x *HistoryTraceLoss) GetReason() HistoryTraceLossReason {
 	return HistoryTraceLossReason_HISTORY_TRACE_LOSS_REASON_UNSPECIFIED
 }
 
-func (x *HistoryTraceLoss) GetKnownCount() uint64 {
+func (x *HistoryTraceLoss) GetKnownCount() string {
 	if x != nil {
 		return x.KnownCount
 	}
-	return 0
+	return ""
 }
 
 func (x *HistoryTraceLoss) GetFrom() *timestamppb.Timestamp {
@@ -2587,10 +2791,10 @@ const file_home_api_v2_history_proto_rawDesc = "" +
 	"\x11epoch_interrupted\x18\a \x01(\bR\x10epochInterrupted\x12#\n" +
 	"\rscope_reduced\x18\b \x01(\bR\fscopeReduced\x12\x1e\n" +
 	"\n" +
-	"checkpoint\x18\t \x01(\x04R\n" +
+	"checkpoint\x18\t \x01(\tR\n" +
 	"checkpoint\x12\x1f\n" +
 	"\vcommit_high\x18\n" +
-	" \x01(\x04R\n" +
+	" \x01(\tR\n" +
 	"commitHigh\x125\n" +
 	"\x06losses\x18\v \x03(\v2\x1d.home.api.v2.HistoryTraceLossR\x06losses\"\xcf\t\n" +
 	"\x0fHistoricalState\x129\n" +
@@ -2624,7 +2828,7 @@ const file_home_api_v2_history_proto_rawDesc = "" +
 	"\x0fHistoricalLight\x12\x13\n" +
 	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x122\n" +
 	"\x12brightness_percent\x18\x02 \x01(\x01H\x01R\x11brightnessPercent\x88\x01\x01\x12/\n" +
-	"\x11color_temp_mireds\x18\x03 \x01(\rH\x02R\x0fcolorTempMireds\x88\x01\x01B\x05\n" +
+	"\x11color_temp_mireds\x18\x03 \x01(\x03H\x02R\x0fcolorTempMireds\x88\x01\x01B\x05\n" +
 	"\x03_onB\x15\n" +
 	"\x13_brightness_percentB\x14\n" +
 	"\x12_color_temp_mireds\"\xf1\x04\n" +
@@ -2646,19 +2850,19 @@ const file_home_api_v2_history_proto_rawDesc = "" +
 	"\t_activityB\r\n" +
 	"\v_fan_activeB\x13\n" +
 	"\x11_humidity_percentB\r\n" +
-	"\v_fan_target\"o\n" +
-	"\rHistoryPeriod\x120\n" +
-	"\x05start\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05start\x12,\n" +
-	"\x03end\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x03end\"\x81\x02\n" +
+	"\v_fan_target\"{\n" +
+	"\rHistoryPeriod\x126\n" +
+	"\x05start\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x02R\x05start\x122\n" +
+	"\x03end\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x02R\x03end\"\x81\x02\n" +
 	"\rHistoryLimits\x12\x1d\n" +
 	"\n" +
-	"max_points\x18\x01 \x01(\rR\tmaxPoints\x12,\n" +
-	"\x12max_response_bytes\x18\x02 \x01(\rR\x10maxResponseBytes\x12&\n" +
-	"\x0fmax_token_bytes\x18\x03 \x01(\rR\rmaxTokenBytes\x120\n" +
-	"\x14query_timeout_millis\x18\x04 \x01(\rR\x12queryTimeoutMillis\x12\x1f\n" +
-	"\vmax_readers\x18\x05 \x01(\rR\n" +
+	"max_points\x18\x01 \x01(\x05R\tmaxPoints\x12,\n" +
+	"\x12max_response_bytes\x18\x02 \x01(\x05R\x10maxResponseBytes\x12&\n" +
+	"\x0fmax_token_bytes\x18\x03 \x01(\x05R\rmaxTokenBytes\x120\n" +
+	"\x14query_timeout_millis\x18\x04 \x01(\x05R\x12queryTimeoutMillis\x12\x1f\n" +
+	"\vmax_readers\x18\x05 \x01(\x05R\n" +
 	"maxReaders\x12(\n" +
-	"\x10max_period_hours\x18\x06 \x01(\rR\x0emaxPeriodHours\"\xd9\x03\n" +
+	"\x10max_period_hours\x18\x06 \x01(\x05R\x0emaxPeriodHours\"\xd9\x03\n" +
 	"\x10HistoryReadScope\x128\n" +
 	"\trequested\x18\x01 \x01(\v2\x1a.home.api.v2.HistoryPeriodR\trequested\x126\n" +
 	"\bretained\x18\x02 \x01(\v2\x1a.home.api.v2.HistoryPeriodR\bretained\x12E\n" +
@@ -2696,7 +2900,7 @@ const file_home_api_v2_history_proto_rawDesc = "" +
 	"descriptor\x18\x02 \x01(\v2%.home.api.v2.HistoryNumericDescriptorR\n" +
 	"descriptor\x129\n" +
 	"\aquality\x18\x03 \x01(\v2\x1f.home.api.v2.ObservationQualityR\aquality\x12%\n" +
-	"\x0eduration_nanos\x18\x04 \x01(\x04R\rdurationNanos\x12\x1d\n" +
+	"\x0eduration_nanos\x18\x04 \x01(\x03R\rdurationNanos\x12\x1d\n" +
 	"\aminimum\x18\x05 \x01(\x01H\x00R\aminimum\x88\x01\x01\x12\x1d\n" +
 	"\amaximum\x18\x06 \x01(\x01H\x01R\amaximum\x88\x01\x01\x12\x17\n" +
 	"\x04mean\x18\a \x01(\x01H\x02R\x04mean\x88\x01\x01\x12'\n" +
@@ -2712,7 +2916,7 @@ const file_home_api_v2_history_proto_rawDesc = "" +
 	"\x05_meanB\x0f\n" +
 	"\r_contribution\"\xd0\t\n" +
 	"\x15HistoryExecutionTrace\x12\x18\n" +
-	"\aordinal\x18\x01 \x01(\x04R\aordinal\x12?\n" +
+	"\aordinal\x18\x01 \x01(\tR\aordinal\x12?\n" +
 	"\remission_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\femissionTime\x12@\n" +
 	"\bdecision\x18\x03 \x01(\x0e2\".home.api.v2.RecorderTraceDecisionH\x00R\bdecision\x12D\n" +
 	"\n" +
@@ -2747,7 +2951,7 @@ const file_home_api_v2_history_proto_rawDesc = "" +
 	"\r_failure_kind\"\x85\x02\n" +
 	"\x10HistoryTraceLoss\x12;\n" +
 	"\x06reason\x18\x01 \x01(\x0e2#.home.api.v2.HistoryTraceLossReasonR\x06reason\x12\x1f\n" +
-	"\vknown_count\x18\x02 \x01(\x04R\n" +
+	"\vknown_count\x18\x02 \x01(\tR\n" +
 	"knownCount\x12.\n" +
 	"\x04from\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x04from\x124\n" +
 	"\athrough\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\athrough\x12-\n" +

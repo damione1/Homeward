@@ -5,9 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"github.com/damione1/Homeward/contracts"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/mediacontent"
 	"github.com/damione1/Homeward/internal/mediasessions"
 	"google.golang.org/protobuf/proto"
@@ -72,14 +70,11 @@ func TestNHF016ResourceTLSExactSourcesAndCredentialBinding(t *testing.T) {
 func TestNHF016ResourceTLSAccountsCannotShareSession(t *testing.T) {
 	r := nhf016NewResourceRig(t, 60*time.Second)
 	const login, password = "NHF016 Other Account", "NHF016 synthetic account password"
-	created, err := r.accounts.CreateAccount(r.ctx, nha162Bearer(&auth.CreateAccountRequest{LoginName: login, DisplayName: login, InitialPassword: password, Role: auth.AccountRole_ACCOUNT_ROLE_USER}, r.adminToken))
+	created, err := r.accounts.CreateAccount(r.ctx, nha162Bearer(&api.CreateAccountRequest{Parent: r.taskHome(t), Account: &api.Account{LoginName: login, DisplayName: login, InitialPassword: password, Role: api.AccountRole_ACCOUNT_ROLE_USER}}, r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	account, err := contracts.ParseAccountID(created.Msg.Account.Id.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	account := nha203NativeAccount(t, r.ctx, r.store, created.Msg.Name)
 	nha162SetPolicy(t, r.nha162RPCRig, account, nhf016AllCameras)
 	token := r.login(t, login, password)
 	session := r.open(t, r.catalog(t)[0].Name)

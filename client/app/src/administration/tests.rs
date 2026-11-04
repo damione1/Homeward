@@ -1,6 +1,5 @@
 use super::*;
 use buffa_types::google::protobuf::Timestamp;
-use home_wire_contract::home::observability::v1 as observation;
 
 fn account(name: &str, role: auth::AccountRole) -> auth::Account {
     auth::Account {
@@ -9,7 +8,7 @@ fn account(name: &str, role: auth::AccountRole) -> auth::Account {
         login_name: name.into(),
         display_name: name.into(),
         role: role.into(),
-        state: auth::AccountState::Active.into(),
+        access: auth::AccountAccess::Enabled.into(),
         create_time: Timestamp {
             seconds: 1_700_000_000,
             ..Default::default()
@@ -36,87 +35,33 @@ fn authority(name: &str, role: auth::AccountRole) -> Authority {
     )
     .unwrap()
 }
-fn document() -> config::ReadDocumentResponse {
-    config::ReadDocumentResponse {
-        document: config::Document {
-            id: config::DocumentId {
-                value: "operational.main".into(),
-                ..Default::default()
-            }
-            .into(),
-            kind: config::DocumentKind::OperationalYaml.into(),
-            schema_version: "homeward.operational/1".into(),
-            syntax_profile: "homeward.operational-yaml/1".into(),
-            version: config::DocumentVersion {
-                revision: 7,
-                source_sha256: vec![1; 32],
-                ..Default::default()
-            }
-            .into(),
-            updated_at: Timestamp {
-                seconds: 1_700_000_000,
-                ..Default::default()
-            }
-            .into(),
-            active: true,
-            protected_source_reference: vec![3; 32],
-            workspace_state: Some(config::document::WorkspaceState::Workspace(Box::new(
-                config::WorkspaceObservation {
-                    source_sha256: vec![2; 32],
-                    updated_at: Timestamp {
-                        seconds: 1_700_000_001,
-                        ..Default::default()
-                    }
-                    .into(),
-                    dirty: config::DirtyState::Unvalidated.into(),
-                    ..Default::default()
-                },
-            ))),
-            ..Default::default()
-        }
-        .into(),
-        active_generation: config::ActiveGeneration {
-            revision: 6,
-            manifest_sha256: vec![4; 32],
-            ..Default::default()
-        }
-        .into(),
-        resume_token: "x".repeat(118),
-        ..Default::default()
-    }
-}
-fn instance() -> integration::IntegrationInstance {
-    integration::IntegrationInstance {
-        type_id: "mqtt".into(),
-        integration_instance_id: "synthetic-broker".into(),
-        desired_state: integration::DesiredState::Disabled.into(),
-        configuration: Some(integration::integration_instance::Configuration::Editable(
-            Box::new(integration::PublicConfiguration {
+fn instance() -> config::IntegrationInstance {
+    config::IntegrationInstance {
+        name: "homes/test/integrationInstances/synthetic-broker".into(),
+        instance_key: "synthetic-broker".into(),
+        integration_type: "homes/test/integrationTypes/mqtt".into(),
+        configuration_document: "homes/test/configurationDocuments/integrations".into(),
+        etag: "W/\"revision-seven\"".into(),
+        desired_state: config::IntegrationDesiredState::Disabled.into(),
+        configuration: Some(config::integration_instance::Configuration::Editable(
+            Box::new(config::IntegrationConfiguration {
                 schema_version: "homeward.integration/mqtt/1".into(),
                 yaml_source: b"host: localhost\n".to_vec(),
-                secrets: vec![integration::SecretReference {
+                secrets: vec![config::IntegrationSecretReference {
                     field: "password_secret".into(),
-                    integration_instance_id: "synthetic-broker".into(),
-                    name: "synthetic-credential-reference".into(),
+                    instance_key: "synthetic-broker".into(),
+                    secret_key: "synthetic-credential-reference".into(),
                     ..Default::default()
                 }],
                 ..Default::default()
             }),
         )),
-        report: observation::IntegrationReportPresence {
-            result: Some(observation::integration_report_presence::Result::NoReport(
-                Box::default(),
-            )),
-            ..Default::default()
-        }
-        .into(),
-        supervision: observation::IntegrationSupervision {
-            result: Some(observation::integration_supervision::Result::NotSupervised(
-                Box::default(),
-            )),
-            ..Default::default()
-        }
-        .into(),
+        observed_health: Some(
+            config::integration_instance::ObservedHealth::NoHealthReport(Box::default()),
+        ),
+        observed_supervision: Some(
+            config::integration_instance::ObservedSupervision::NotSupervised(Box::default()),
+        ),
         ..Default::default()
     }
 }
@@ -237,97 +182,76 @@ fn a_failed_subservice_leaves_other_panes_usable_and_retirement_rejects_all_old_
 }
 
 #[test]
-fn integration_edit_preserves_exact_secret_references_and_both_independent_preconditions() {
-    let source = instance();
-    let mut metadata = document();
-    let mut draft = IntegrationDraft::open(&source, &metadata).unwrap();
+fn integration_edit_preserves_exact_secret_references_and_resource_cas() {
+    let mut source = instance();
+    let mut draft = IntegrationDraft::open(&source).unwrap();
     let references = draft.secret_references().to_vec();
     draft.edit_yaml("host: synthetic.local\n").unwrap();
-    metadata
-        .document
-        .as_option_mut()
-        .unwrap()
-        .version
-        .as_option_mut()
-        .unwrap()
-        .revision = 8;
-    let Some(config::document::WorkspaceState::Workspace(workspace)) = metadata
-        .document
-        .as_option_mut()
-        .unwrap()
-        .workspace_state
-        .as_mut()
-    else {
-        panic!("workspace")
-    };
-    workspace.source_sha256 = vec![9; 32];
+    source.etag = "W/\"revision-eight\"".into();
     let prepared = draft.prepare_update().unwrap();
-    assert_eq!(prepared.configuration.secrets, references);
-    assert_eq!(
-        prepared.configuration.yaml_source,
-        b"host: synthetic.local\n"
-    );
-    assert_eq!(prepared.precondition.expected.revision, 7);
-    assert_eq!(prepared.precondition.expected.source_sha256, vec![1; 32]);
-    assert_eq!(prepared.precondition.expected_workspace_sha256, vec![2; 32]);
+    let Some(config::integration_instance::Configuration::Editable(configuration)) =
+        &prepared.integration_instance.configuration
+    else {
+        panic!("editable")
+    };
+    assert_eq!(configuration.secrets, references);
+    assert_eq!(configuration.yaml_source, b"host: synthetic.local\n");
+    assert_eq!(prepared.integration_instance.etag, "W/\"revision-seven\"");
+    assert_eq!(prepared.integration_instance.name, source.name);
     assert!(!draft.yaml().contains("password"));
-    let new = IntegrationDraft::open(&source, &metadata)
+    let new = IntegrationDraft::open(&source)
         .unwrap()
         .prepare_update()
         .unwrap();
-    assert_eq!(new.precondition.expected.revision, 8);
-    assert_eq!(new.precondition.expected_workspace_sha256, vec![9; 32]);
+    assert_eq!(new.integration_instance.etag, "W/\"revision-eight\"");
 }
 
 #[test]
 fn opaque_configuration_is_not_reconstructed_but_explicit_enable_remains_available() {
     let mut source = instance();
-    source.configuration = Some(integration::integration_instance::Configuration::Opaque(
+    source.integration_type.clear();
+    source.configuration = Some(config::integration_instance::Configuration::Opaque(
         Box::default(),
     ));
     assert!(matches!(
-        IntegrationDraft::open(&source, &document()),
+        IntegrationDraft::open(&source),
         Err(Refusal::ReadOnly)
     ));
-    let enabled =
-        prepare_enabled(&source, &document(), integration::DesiredState::Enabled).unwrap();
-    assert_eq!(enabled.integration_instance_id, "synthetic-broker");
-    assert_eq!(enabled.precondition.expected.revision, 7);
-    assert!(prepare_enabled(&source, &document(), integration::DesiredState::Unspecified).is_err());
+    let enabled = prepare_enabled(&source, config::IntegrationDesiredState::Enabled).unwrap();
+    assert_eq!(enabled.integration_instance.name, source.name);
+    assert_eq!(enabled.integration_instance.etag, source.etag);
+    assert!(prepare_enabled(&source, config::IntegrationDesiredState::Unspecified).is_err());
 }
 
 #[test]
-fn unsupported_or_foreign_configuration_and_missing_workspace_refuse_mutation() {
+fn unsupported_or_foreign_configuration_and_missing_cas_refuse_mutation() {
     let mut source = instance();
-    let Some(integration::integration_instance::Configuration::Editable(configuration)) =
+    let Some(config::integration_instance::Configuration::Editable(configuration)) =
         source.configuration.as_mut()
     else {
         panic!("editable")
     };
-    configuration.secrets[0].integration_instance_id = "another-instance".into();
+    configuration.secrets[0].instance_key = "another-instance".into();
     assert!(matches!(
-        IntegrationDraft::open(&source, &document()),
+        IntegrationDraft::open(&source),
         Err(Refusal::Invalid)
     ));
     source = instance();
     source.desired_state = 999.into();
     assert!(matches!(
-        IntegrationDraft::open(&source, &document()),
+        IntegrationDraft::open(&source),
         Err(Refusal::Unsupported)
     ));
-    let mut metadata = document();
-    metadata.document.as_option_mut().unwrap().workspace_state =
-        Some(config::document::WorkspaceState::WorkspaceUnobserved(
-            Box::new(config::WorkspaceUnobserved {
-                reason: config::WorkspaceUnobservedReason::SourceUnavailable.into(),
-                ..Default::default()
-            }),
-        ));
+    source = instance();
+    source.etag.clear();
     assert!(matches!(
-        IntegrationDraft::open(&instance(), &metadata),
-        Err(Refusal::ReadOnly)
+        IntegrationDraft::open(&source),
+        Err(Refusal::Invalid)
     ));
-    assert!(prepare_enabled(&instance(), &metadata, integration::DesiredState::Enabled).is_err());
+    assert!(prepare_enabled(&source, config::IntegrationDesiredState::Enabled).is_err());
+    source = instance();
+    source.configuration_document = "homes/foreign/configurationDocuments/integrations".into();
+    assert!(IntegrationDraft::open(&source).is_err());
 }
 
 #[test]
@@ -337,7 +261,7 @@ fn uncertain_or_inflight_mutation_cannot_be_prepared_again() {
         transaction: config::TransactionOutcome::CommitUnknown.into(),
         ..Default::default()
     };
-    let mut draft = IntegrationDraft::open(&instance(), &document()).unwrap();
+    let mut draft = IntegrationDraft::open(&instance()).unwrap();
     draft.begin_update().unwrap();
     assert!(draft.begin_update().is_err());
     draft
@@ -350,7 +274,7 @@ fn uncertain_or_inflight_mutation_cannot_be_prepared_again() {
     draft.state = MutationState::InFlight;
     assert!(
         draft
-            .set_enabled(integration::DesiredState::Enabled)
+            .set_enabled(config::IntegrationDesiredState::Enabled)
             .is_err()
     );
 }

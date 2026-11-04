@@ -213,12 +213,18 @@ func AdmitConfigurationResponse(message proto.Message) error {
 	}
 	valid := false
 	switch value := message.(type) {
+	case *wire.ConfigurationRevision:
+		valid = configurationRevisionResource(value)
+	case *wire.ConfigurationGeneration:
+		valid = configurationGenerationResource(value)
+	case *wire.ConfigurationSchema:
+		valid = configurationSchemaResource(value)
 	case *wire.ConfigurationDocument:
 		valid = configurationRead(value)
 	case *wire.ListConfigurationDocumentsResponse:
-		valid = value != nil && len(value.Documents) <= 100 && len(value.NextPageToken) <= 1200
+		valid = value != nil && len(value.ConfigurationDocuments) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
-			for _, document := range value.Documents {
+			for _, document := range value.ConfigurationDocuments {
 				if !configurationDocument(document) {
 					valid = false
 					break
@@ -226,53 +232,30 @@ func AdmitConfigurationResponse(message proto.Message) error {
 			}
 		}
 	case *wire.ListConfigurationRevisionsResponse:
-		valid = value != nil && len(value.Versions) <= 100 && len(value.NextPageToken) <= 1200
+		valid = value != nil && len(value.ConfigurationRevisions) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
-			for _, version := range value.Versions {
-				if version == nil || !configurationID(version.Id) || !configurationVersion(version.Version) {
+			for _, entry := range value.ConfigurationRevisions {
+				if !configurationRevisionResource(entry) {
 					valid = false
-					break
-				}
-				switch version.Availability {
-				case wire.VersionAvailability_VERSION_AVAILABILITY_RETAINED:
-					valid = configurationTime(version.UpdatedAt) && len(version.SchemaVersion) > 0 && len(version.SchemaVersion) <= 128
-				case wire.VersionAvailability_VERSION_AVAILABILITY_PURGED:
-					valid = version.UpdatedAt == nil && version.SchemaVersion == ""
-				case wire.VersionAvailability_VERSION_AVAILABILITY_UNSPECIFIED:
-					valid = false
-				default:
-					valid = false
-				}
-				if !valid {
 					break
 				}
 			}
 		}
 	case *wire.ListConfigurationGenerationsResponse:
-		valid = value != nil && len(value.Generations) <= 100 && len(value.NextPageToken) <= 1200
+		valid = value != nil && len(value.ConfigurationGenerations) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
-			for _, generation := range value.Generations {
-				if generation == nil || !configurationResourceName(generation.Name, "configurationGenerations") || !configurationGeneration(generation.Generation) || !configurationTime(generation.CreatedAt) {
+			for _, entry := range value.ConfigurationGenerations {
+				if !configurationGenerationResource(entry) {
 					valid = false
-					break
-				}
-				switch generation.Availability {
-				case wire.GenerationAvailability_GENERATION_AVAILABILITY_COMPLETE, wire.GenerationAvailability_GENERATION_AVAILABILITY_PARTIALLY_PURGED:
-				case wire.GenerationAvailability_GENERATION_AVAILABILITY_UNSPECIFIED:
-					valid = false
-				default:
-					valid = false
-				}
-				if !valid {
 					break
 				}
 			}
 		}
 	case *wire.ListConfigurationSchemasResponse:
-		valid = value != nil && len(value.Schemas) <= 100 && len(value.NextPageToken) <= 1200
+		valid = value != nil && len(value.ConfigurationSchemas) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
-			for _, schema := range value.Schemas {
-				if schema == nil || !configurationResourceName(schema.Name, "configurationSchemas") || !configurationSchema(schema.Kind, schema.SchemaVersion, schema.SyntaxProfile) || schema.EditableOperationalWorkspace != (schema.Kind == wire.DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML) {
+			for _, entry := range value.ConfigurationSchemas {
+				if !configurationSchemaResource(entry) {
 					valid = false
 					break
 				}
