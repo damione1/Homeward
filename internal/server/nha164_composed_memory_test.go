@@ -18,10 +18,11 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	history "github.com/damione1/Homeward/gen/home/api/v2"
+	apiv2connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	history "github.com/damione1/Homeward/gen/home/history/v1"
-	"github.com/damione1/Homeward/gen/home/history/v1/historyv1connect"
 	registry "github.com/damione1/Homeward/gen/home/registry/v1"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
@@ -31,6 +32,7 @@ import (
 	"github.com/damione1/Homeward/internal/sequencer"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/view"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -79,8 +81,9 @@ func (*nha164ComposedCodec) Unmarshal(encoded []byte, value any) error {
 }
 
 type nha164ComposedFixture struct {
-	api                historyv1connect.HistoryServiceClient
-	jsonAPI            historyv1connect.HistoryServiceClient
+	api                apiv2connect.HistoryServiceClient
+	jsonAPI            apiv2connect.HistoryServiceClient
+	home               apitypes.HomeName
 	request            *history.QueryObservationsRequest
 	codec              *nha164ComposedCodec
 	configCalls        atomic.Int64
@@ -99,7 +102,7 @@ func nha164ComposedHistoryFixture(t *testing.T, points int, escaped ...bool) *nh
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = h.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_ADMIN, 2)); err != nil {
+	if err = h.native.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_ADMIN, 2)); err != nil {
 		t.Fatal(err)
 	}
 	host, fixture, err := fake.NewCommandFixture()
@@ -239,6 +242,7 @@ func nha164ComposedHistoryFixture(t *testing.T, points int, escaped ...bool) *nh
 		t.Fatal(err)
 	}
 	at := now.Add(-time.Hour)
+	evidenceBytes := 0
 	makeRow := func(seq uint64, sourceLength, instanceLength int) storage.RecorderRecord {
 		sourceText := strings.Repeat("s", sourceLength)
 		if len(escaped) > 0 && escaped[0] {
@@ -257,6 +261,19 @@ func nha164ComposedHistoryFixture(t *testing.T, points int, escaped ...bool) *nh
 			t.Fatal(err)
 		}
 		row, err := storage.NewRecorderRecord(seq, historicalInstance, state, domain.Causality{}, at, 4<<20)
+		if err != nil {
+			t.Fatal(err)
+		}
+		proofRecord, err := integrations.NewRegistryRecord(device, entity, historicalInstance, key, alias, alias, []domain.HAAlias{alias}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		proof, err := integrations.NewRecorderEvidence(proofRecord, capture.Descriptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+		evidenceBytes = len(proof.Bytes())
+		row, err = row.WithEvidence(proof)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -282,7 +299,7 @@ func nha164ComposedHistoryFixture(t *testing.T, points int, escaped ...bool) *nh
 	if pointCharge > historyquery.MaxPointBytes || pointCharge < historyquery.MaxPointBytes*99/100 {
 		t.Fatalf("point charge is not near the unchanged page bound: %d", pointCharge)
 	}
-	instanceLength := (4<<20)/points - row.EncodedBytes() - sourceLength - 8192/points
+	instanceLength := (((4<<20)-8192)/points - row.EncodedBytes() - sourceLength - 4*(evidenceBytes-1)) / 5
 	if instanceLength < 1 {
 		t.Fatal("fixture hidden metadata budget invalid")
 	}
@@ -296,7 +313,7 @@ func nha164ComposedHistoryFixture(t *testing.T, points int, escaped ...bool) *nh
 			t.Fatalf("seed point: %v %v", outcome, err)
 		}
 	}
-	selectedInput := points * (row.EncodedBytes() + sourceLength + instanceLength)
+	selectedInput := points * (row.EncodedBytes() + sourceLength + instanceLength + 4*evidenceBytes)
 	if selectedInput > 4<<20 || selectedInput < (4<<20)*99/100 {
 		t.Fatalf("hidden SQL input is not near unchanged4MiB bound: %d", selectedInput)
 	}
@@ -323,9 +340,18 @@ func nha164ComposedHistoryFixture(t *testing.T, points int, escaped ...bool) *nh
 	if err != nil {
 		t.Fatal(err)
 	}
-	h.runtime.sequence = fixture.Sequencer()
-	h.runtime.reader = store
-	h.runtime.currentConfig = func(ctx context.Context) (view.ConfigStamp, error) {
+	h.native.runtime.sequence = fixture.Sequencer()
+	h.native.runtime.reader = store
+	f.home, err = h.native.runtime.names.HomeName(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.native.runtime.names = nha203HistoryNames{home: f.home, entities: []domain.EntityID{entity}}
+	publicEntity, err := apitypes.EntityNameForIdentity(f.home, entity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.native.runtime.currentConfig = func(ctx context.Context) (view.ConfigStamp, error) {
 		f.configCalls.Add(1)
 		if err := ctx.Err(); err != nil {
 			return view.ConfigStamp{}, err
@@ -345,12 +371,12 @@ func nha164ComposedHistoryFixture(t *testing.T, points int, escaped ...bool) *nh
 	if err != nil {
 		t.Fatal(err)
 	}
-	provider := nha164TLSCredential{principal: principal, authority: h.runtime.authority}
+	provider := nha164TLSCredential{principal: principal, authority: h.native.runtime.authority}
 	plan, err := NewPublicPlan(provider, provider, &nha139Auditor{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = registerHistoryRoutes(plan, h.runtime); err != nil {
+	if err = registerHistoryRoutes(plan, h.native.runtime); err != nil {
 		t.Fatal(err)
 	}
 	// Test-only codec injection through the existing generated handler build.
@@ -370,18 +396,18 @@ func nha164ComposedHistoryFixture(t *testing.T, points int, escaped ...bool) *nh
 	tls.EnableHTTP2 = true
 	tls.StartTLS()
 	t.Cleanup(tls.Close)
-	f.api = historyv1connect.NewHistoryServiceClient(tls.Client(), tls.URL)
-	f.jsonAPI = historyv1connect.NewHistoryServiceClient(tls.Client(), tls.URL, connect.WithProtoJSON())
-	f.request = &history.QueryObservationsRequest{EntityId: name, Period: &history.Period{Start: timestamppb.New(now.Add(-6 * 24 * time.Hour)), End: timestamppb.New(now.Add(24 * time.Hour))}, Resolution: history.Resolution_RESOLUTION_RAW, PageSize: proto.Uint32(historyquery.MaxPoints)}
+	f.api = apiv2connect.NewHistoryServiceClient(tls.Client(), tls.URL)
+	f.jsonAPI = apiv2connect.NewHistoryServiceClient(tls.Client(), tls.URL, connect.WithProtoJSON())
+	f.request = &history.QueryObservationsRequest{Parent: publicEntity.String(), Period: &history.HistoryPeriod{Start: timestamppb.New(now.Add(-6 * 24 * time.Hour)), End: timestamppb.New(now.Add(24 * time.Hour))}, PageSize: int32(historyquery.MaxPoints)}
 	// Warm TLS and pgx statement caches before the controlled interval.
 	response, err := f.api.QueryObservations(context.Background(), nha164TLSRequest(proto.Clone(f.request).(*history.QueryObservationsRequest)))
 	if err != nil {
-		code := history.ErrorCode_ERROR_CODE_UNSPECIFIED
+		code := ""
 		if failure, ok := err.(*connect.Error); ok {
 			for _, detail := range failure.Details() {
 				value, detailErr := detail.Value()
-				if typed, ok := value.(*history.HistoryError); detailErr == nil && ok {
-					code = typed.Code
+				if typed, ok := value.(*errdetails.ErrorInfo); detailErr == nil && ok {
+					code = typed.Reason
 				}
 			}
 		}
@@ -393,14 +419,14 @@ func nha164ComposedHistoryFixture(t *testing.T, points int, escaped ...bool) *nh
 
 func (f *nha164ComposedFixture) check(t *testing.T, response *history.QueryObservationsResponse) {
 	t.Helper()
-	if contracts.AdmitHistoryResponse(response) != nil {
+	if contracts.AdmitHistoryV2Response(response, f.home) != nil {
 		t.Fatal("composed wire response failed admission")
 	}
-	page := response.GetPage()
-	if page == nil || len(page.Points) != f.selectedPoints || page.Continuation.GetNextPageToken() == "" || len(page.Coverage.Logical.Gaps) != storage.RecorderCoverageMaxGaps {
-		t.Fatalf("stress charge/continuation/evidence was silently reduced: points=%d", len(page.GetPoints()))
+	page := response
+	if page == nil || len(page.Observations) != f.selectedPoints || page.NextPageToken == "" || page.Coverage.Verdict != history.HistoryCoverageVerdict_HISTORY_COVERAGE_VERDICT_NOT_PROVEN {
+		t.Fatalf("stress charge/continuation/evidence was silently reduced: points=%d", len(page.GetObservations()))
 	}
-	for _, point := range page.Points {
+	for _, point := range page.Observations {
 		if point.State.GetMeasurement() == nil || point.State.GetMeasurement().Value != 0 || point.Descriptor_ == nil || len(point.Descriptor_.Unit) != 300 || point.Descriptor_.CanonicalUnit != point.Descriptor_.Unit || point.Descriptor_.Precision != -2 {
 			t.Fatal("historical zero/descriptor was rewritten")
 		}
@@ -550,9 +576,9 @@ func TestNHA164JSONEncodingKeepsNominalAndBoundsEscapedResponses(t *testing.T) {
 	f := nha164ComposedHistoryFixture(t, 1, true)
 	nominal := proto.Clone(f.request).(*history.QueryObservationsRequest)
 	end := time.Now().UTC().Add(-8 * 24 * time.Hour)
-	nominal.Period = &history.Period{Start: timestamppb.New(end.Add(-24 * time.Hour)), End: timestamppb.New(end)}
+	nominal.Period = &history.HistoryPeriod{Start: timestamppb.New(end.Add(-24 * time.Hour)), End: timestamppb.New(end)}
 	response, err := f.jsonAPI.QueryObservations(context.Background(), nha164TLSRequest(nominal))
-	if err != nil || response.Msg.GetNotRetained() == nil || contracts.AdmitHistoryResponse(response.Msg) != nil {
+	if err != nil || response.Msg.Scope == nil || response.Msg.Scope.Retained != nil || contracts.AdmitHistoryV2Response(response.Msg, f.home) != nil {
 		t.Fatalf("nominal JSON route changed: %v", err)
 	}
 	// Full Store/capture/conversion plus real protojson escaping. GC suppression
@@ -572,18 +598,27 @@ func TestNHA164JSONEncodingKeepsNominalAndBoundsEscapedResponses(t *testing.T) {
 			done <- nha164ComposedResult{response: response, err: err}
 		}()
 	}
-	results := make([]*history.QueryObservationsResponse, 0, 2)
+	results := make([]error, 0, 2)
 	for range historyquery.MaxReaderReservations {
 		select {
 		case result := <-done:
-			if result.err != nil {
+			if result.response != nil || connect.CodeOf(result.err) != connect.CodeResourceExhausted {
 				t.Fatalf("JSON budget was misclassified by Connect: %v", result.err)
 			}
-			budget := result.response.Msg.GetBudget()
-			if budget == nil || budget.Reason != history.BudgetReason_BUDGET_REASON_CAPACITY || contracts.AdmitHistoryResponse(result.response.Msg) != nil {
-				t.Fatal("escaped oversized JSON was emitted or lost explicit Budget")
+			failure, ok := result.err.(*connect.Error)
+			classified := false
+			if ok {
+				for _, detail := range failure.Details() {
+					value, decodeErr := detail.Value()
+					if info, valid := value.(*errdetails.ErrorInfo); decodeErr == nil && valid && info.Reason == "QUERY_BUDGET_EXCEEDED" {
+						classified = true
+					}
+				}
 			}
-			results = append(results, result.response.Msg)
+			if !classified {
+				t.Fatal("oversized JSON lost canonical budget classification")
+			}
+			results = append(results, result.err)
 		case <-ctx.Done():
 			t.Fatal(ctx.Err())
 		}

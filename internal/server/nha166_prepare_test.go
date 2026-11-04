@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	obsv2 "github.com/damione1/Homeward/gen/home/api/v2"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,9 +17,6 @@ import (
 
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
 	"github.com/damione1/Homeward/internal/accounts"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
@@ -449,8 +447,9 @@ func TestNHA166PreparationRealGuardedTLSLoginAndCanaryState(t *testing.T) {
 	running := nha162StartDefaultRun(t, startup)
 	client := nha162RunClient(t, roots, running.address)
 	base := "https://" + running.address.String()
-	tokens := nha162RunLogin(t, ctx, authv1connect.NewAuthServiceClient(client, base), nha166PreparationLogin, nha166PreparationPassword)
-	health, err := observabilityv1connect.NewObservabilityServiceClient(client, base).GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, tokens.AccessToken))
+	tokens := nha162RunLogin(t, ctx, apiv2connect.NewAuthServiceClient(client, base), nha166PreparationLogin, nha166PreparationPassword)
+	home := nha203ObservationHome(t, ctx, client, base, tokens.AccessToken)
+	health, err := apiv2connect.NewObservabilityServiceClient(client, base).GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, tokens.AccessToken))
 	if err != nil || health.Header().Get("Homeward-Observation-Profile") != "mqtt-passive-readonly-v1" || health.Header().Get("Homeward-Command-Driver-Entries") != "0" {
 		t.Fatal("prepared login/guard attestation failed", err)
 	}
@@ -480,7 +479,7 @@ func TestNHA166PreparationRealGuardedTLSLoginAndCanaryState(t *testing.T) {
 					if err := PrepareMQTTReadOnlyObservation(ctx, startup, input); !errors.Is(err, ErrMQTTObservationPreparationConflict) {
 						t.Fatal("preparation admitted alongside serving runtime", err)
 					}
-					final, err := observabilityv1connect.NewObservabilityServiceClient(client, base).GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, tokens.AccessToken))
+					final, err := apiv2connect.NewObservabilityServiceClient(client, base).GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, tokens.AccessToken))
 					if err != nil || final.Header().Get("Homeward-Command-Driver-Entries") != "0" {
 						t.Fatal("prepared run entered a command driver", err)
 					}

@@ -5,6 +5,7 @@ import (
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/apierrors"
 	"github.com/damione1/Homeward/internal/integrationadmin"
+	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -17,6 +18,9 @@ func integrationInvalidField(message proto.Message, field string, reason api.Val
 }
 
 func integrationFault(err error) apierrors.Fault {
+	if errors.Is(err, storage.ErrAPIResourceAlreadyExists) {
+		return apierrors.New(api.ApiErrorReason_API_ERROR_REASON_RESOURCE_ALREADY_EXISTS)
+	}
 	switch {
 	case errors.Is(err, integrationadmin.ErrInvalid):
 		return apierrors.New(api.ApiErrorReason_API_ERROR_REASON_VALIDATION_FAILED)

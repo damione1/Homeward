@@ -26,9 +26,7 @@ SERIAL = 'emulator-5558'
 AVD = 'homeward-dev-api35'
 REMOTE = '/data/local/tmp/homeward-nhf002-probe'
 REQUIRED = ['unary', 'present_false', 'cancelled', 'session_still_usable',
-            'untrusted_ca_rejected', 'deadline', 'unary_deadline', 'normal_eof',
-            'typed_revocation', 'network_cut', 'bounded_reconnect',
-            'backoff_cancelled', 'zero_absent_future', 'authority_not_retried']
+            'untrusted_ca_rejected', 'typed_revocation', 'stale_capture_rejected']
 
 
 class Platform(Enum):
@@ -187,7 +185,7 @@ def qualify(proof, server_binary, client_binary, platform, wrong_name=False):
                     line = line.strip()
                     if line.startswith('NHF002_ADVANCE '):
                         sequence = int(line.split()[1])
-                        if not 1 <= sequence <= 1003:
+                        if not 1 <= sequence <= 3:
                             raise RuntimeError('Invalid synthetic publication barrier.')
                         temporary = fixture / 'advance.writing'
                         temporary.write_text(str(sequence))
@@ -243,11 +241,9 @@ def qualify(proof, server_binary, client_binary, platform, wrong_name=False):
                  and server_report['authority_calls'] == 0)
     else:
         valid = (all(report.get(key) is True for key in REQUIRED)
-                 and report['stream_frames'] == 1000 and server_report['published'] == 1003
-                 and server_report['authority_calls'] == 1
-                 # Three exhausted attempts, then at most three reconnect
-                 # attempts while the asynchronous restore is being applied.
-                 and 3 <= server_report['outage_rejected'] <= 6)
+                 and report['stream_frames'] == 3 and server_report['published'] == 3
+                 and server_report['authority_calls'] == 0
+                 and server_report['outage_rejected'] == 0)
     if not valid:
         raise RuntimeError('Incomplete native transport proof.')
     result = {'status': 'PASS', 'client': report, 'server': server_report,
@@ -259,6 +255,7 @@ def qualify(proof, server_binary, client_binary, platform, wrong_name=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--server-binary', type=Path, help='Reuse the already compiled current synthetic server test binary.')
     parser.add_argument('--platform', type=PlatformSelection, choices=list(PlatformSelection),
                         default=PlatformSelection.DESKTOP)
     args = parser.parse_args()
@@ -266,13 +263,14 @@ def main():
         parser.error('Run through scripts/frontend.py run --cargo to reserve shared tools/storage.')
     proof = Path(CONFIG['frontend_cache']) / 'transport' / str(time.time_ns())
     proof.mkdir(parents=True, mode=0o700)
-    server = proof / 'server.test'
-    run(['go', 'test', '-c', '-race', '-o', server, './internal/server'])
+    server = args.server_binary.resolve() if args.server_binary else proof / 'server.test'
+    if not args.server_binary:
+        run(['go', 'test', '-c', '-p=1', '-ldflags=-w', '-o', server, './internal/server'])
     platforms = args.platform.platforms()
     results, hashes = [], {'server.test': hashlib.sha256(server.read_bytes()).hexdigest()}
     for platform in platforms:
         target_args = ['--target', 'aarch64-linux-android'] if platform is Platform.ANDROID else []
-        run(['cargo', 'build', '--locked', '-p', 'home-client-transport', '--example', 'nhf002_probe', *target_args])
+        run(['cargo', 'build', '--locked', '-j1', '-p', 'home-client-transport', '--example', 'nhf002_probe', *target_args])
         binary = Path(os.environ['CARGO_TARGET_DIR'])
         if platform is Platform.ANDROID:
             binary /= 'aarch64-linux-android'

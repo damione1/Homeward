@@ -352,7 +352,7 @@ impl Simulation {
         fields
     }
 }
-fn indexes(values: &[u32]) -> String {
+fn indexes(values: &[i32]) -> String {
     if values.is_empty() {
         "not provided".into()
     } else {

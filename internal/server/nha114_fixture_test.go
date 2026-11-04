@@ -23,11 +23,10 @@ import (
 	"github.com/damione1/Homeward/contracts"
 	"github.com/damione1/Homeward/gen/google/longrunning/longrunningpbconnect"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
+	applywire "github.com/damione1/Homeward/gen/home/api/v2"
+	configuration "github.com/damione1/Homeward/gen/home/api/v2"
+	planwire "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
-	applywire "github.com/damione1/Homeward/gen/home/configurationapply/v1"
-	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
 	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/cli"
 	"github.com/damione1/Homeward/internal/config"
@@ -86,7 +85,7 @@ type nha114Fixture struct {
 	operations     longrunningpbconnect.OperationsClient
 	home           string
 	operationNames map[string]string
-	observation    observabilityv1connect.ObservabilityServiceClient
+	observation    apiv2connect.ObservabilityServiceClient
 	data, clientID string
 	ids            []string
 	mqttWire       *nha114TCPFault
@@ -199,8 +198,8 @@ func nha114Start(t *testing.T) *nha114Fixture {
 	for _, permission := range []string{"state_registry, operation: read", "actions, operation: read", "actions, operation: write"} {
 		grants += "  - scope: {family: " + permission + "}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n"
 	}
-	nha162RunPolicy(t, ctx, f.policies, f.tokens.Session.AccountId, f.token, grants)
-	f.policySource = []byte(fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n%s", f.tokens.Session.AccountId.Value, grants))
+	nha162RunPolicy(t, ctx, f.policies, nha203SessionAccount(t, f.tokens.Session).String(), f.token, grants)
+	f.policySource = []byte(fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n%s", nha203AccountText(t, nha203NativeAccount(t, ctx, f.run.observed.sessions.store, nha203SessionAccount(t, f.tokens.Session).String())), grants))
 	f.producer = b.Connect(t, testbroker.ProducerUser, testbroker.ProducerPassword, "nha114-producer", true, 0, nil)
 	digest := sha256.Sum256([]byte(nha114Instance))
 	f.clientID = "homeward-" + hex.EncodeToString(digest[:12])
@@ -239,7 +238,7 @@ func (f *nha114Fixture) refreshClients(t *testing.T) {
 		t.Fatal("authenticated installation discovery", err)
 	}
 	f.home = homes.Msg.Homes[0].Name
-	f.observation = observabilityv1connect.NewObservabilityServiceClient(f.client, base)
+	f.observation = apiv2connect.NewObservabilityServiceClient(f.client, base)
 	f.refreshPublicView(t)
 }
 func nha114Eventually(t *testing.T, reason string, predicate func() bool) {
@@ -623,30 +622,30 @@ func (f *nha114Fixture) publish(t *testing.T, topic string, payload []byte, corr
 		t.Fatal("synthetic endpoint publish", err)
 	}
 }
-func (f *nha114Fixture) applySource(t *testing.T, family planwire.SourceFamily, identity, id, entry string, raw []byte) {
+func (f *nha114Fixture) applySource(t *testing.T, family planwire.ConfigurationPlanSourceFamily, identity, id, entry string, raw []byte) {
 	t.Helper()
 	before := f.read(t)
-	candidate := &planwire.Candidate{Family: family, Identity: identity, Entry: entry, Files: []*planwire.SourceFile{{LogicalPath: entry, ExactSource: raw}}}
+	candidate := &planwire.ConfigurationPlanCandidate{Family: family, Identity: identity, Entry: entry, Files: []*planwire.ConfigurationPlanSourceFile{{LogicalPath: entry, ExactSource: raw}}}
 	plan := f.build(t, candidate)
-	if plan.State != planwire.PlanState_PLAN_STATE_ADMITTED || plan.Receipt == "" {
+	if plan.State != planwire.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_ADMITTED || plan.Receipt == "" {
 		t.Fatalf("source plan was not admitted: family=%s state=%s diagnostics=%v", family, plan.State, plan.Diagnostics)
 	}
-	request := nha055Request(before, candidate, &plan.Receipt)
+	request := nha055Request(before, candidate, plan)
 	request.Sources = []*applywire.SourcePrecondition{nha055PublicationExpected(id, entry, nil, nil)}
 	if err := contracts.AdmitConfigurationApplyRequest(request); err != nil {
 		t.Fatal("fixture produced an invalid Apply request", family, err)
 	}
-	r, err := f.apply.Apply(f.ctx, nha056SessionRequest(request, f.token))
-	if err != nil || r.Msg.Activation.Outcome != configuration.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED {
+	r, err := f.apply.ApplyConfigurationPlan(f.ctx, nha056SessionRequest(request, f.token))
+	if err != nil || !r.Msg.Done || r.Msg.GetError() != nil || f.read(t).ActiveGeneration.Revision != before.ActiveGeneration.Revision+1 {
 		t.Fatal("actual source publication", err)
 	}
 	f.refreshPublicView(t)
 }
 func (f *nha114Fixture) installAutomation(t *testing.T) {
 	t.Helper()
-	f.applySource(t, planwire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V2, "nha114.definitions", "nha114.definitions", "definitions.yaml", []byte("input_boolean:\n  away_mode: {name: NHA114 synthetic helper, initial: false}\ninput_button:\n  trash_out: {name: NHA114 synthetic button}\n"))
+	f.applySource(t, planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V2, "nha114.definitions", "nha114.definitions", "definitions.yaml", []byte("input_boolean:\n  away_mode: {name: NHA114 synthetic helper, initial: false}\ninput_button:\n  trash_out: {name: NHA114 synthetic button}\n"))
 	raw := fmt.Sprintf("id: nha114_vertical\ntriggers:\n - trigger: state\n   entity_id: %s\n   from: 'off'\n   to: 'on'\nactions:\n - stop: complete\n", nha114Aliases[0])
-	f.applySource(t, planwire.SourceFamily_SOURCE_FAMILY_AUTOMATION, "automation.turn_on_lights_at_sunset", "nha114.automation", "automation.yaml", []byte(raw))
+	f.applySource(t, planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION, "automation.turn_on_lights_at_sunset", "nha114.automation", "automation.yaml", []byte(raw))
 	f.waitBindings(t)
 }
 

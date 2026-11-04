@@ -24,20 +24,32 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Defines the closed vocabulary for document kind.
 type DocumentKind int32
 
 const (
-	DocumentKind_DOCUMENT_KIND_UNSPECIFIED          DocumentKind = 0
-	DocumentKind_DOCUMENT_KIND_YAML_SOURCE          DocumentKind = 1
+	// No explicit document kind. Does not select an action.
+	DocumentKind_DOCUMENT_KIND_UNSPECIFIED DocumentKind = 0
+	// Selects yaml source for document kind.
+	DocumentKind_DOCUMENT_KIND_YAML_SOURCE DocumentKind = 1
+	// Selects authorization policy for document kind.
 	DocumentKind_DOCUMENT_KIND_AUTHORIZATION_POLICY DocumentKind = 2
-	DocumentKind_DOCUMENT_KIND_MFA_POLICY           DocumentKind = 3
-	DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML     DocumentKind = 4
-	DocumentKind_DOCUMENT_KIND_BOOTSTRAP_LAUNCH     DocumentKind = 5
-	DocumentKind_DOCUMENT_KIND_DASHBOARD_SOURCE     DocumentKind = 6
-	DocumentKind_DOCUMENT_KIND_AUTOMATION_SOURCE    DocumentKind = 7
-	DocumentKind_DOCUMENT_KIND_SCRIPT_SOURCE        DocumentKind = 8
-	DocumentKind_DOCUMENT_KIND_SCENE_SOURCE         DocumentKind = 9
-	DocumentKind_DOCUMENT_KIND_OWNERSHIP_SOURCE     DocumentKind = 10
+	// Selects mfa policy for document kind.
+	DocumentKind_DOCUMENT_KIND_MFA_POLICY DocumentKind = 3
+	// Selects operational yaml for document kind.
+	DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML DocumentKind = 4
+	// Selects bootstrap launch for document kind.
+	DocumentKind_DOCUMENT_KIND_BOOTSTRAP_LAUNCH DocumentKind = 5
+	// Selects dashboard source for document kind.
+	DocumentKind_DOCUMENT_KIND_DASHBOARD_SOURCE DocumentKind = 6
+	// Selects automation source for document kind.
+	DocumentKind_DOCUMENT_KIND_AUTOMATION_SOURCE DocumentKind = 7
+	// Selects script source for document kind.
+	DocumentKind_DOCUMENT_KIND_SCRIPT_SOURCE DocumentKind = 8
+	// Selects scene source for document kind.
+	DocumentKind_DOCUMENT_KIND_SCENE_SOURCE DocumentKind = 9
+	// Selects ownership source for document kind.
+	DocumentKind_DOCUMENT_KIND_OWNERSHIP_SOURCE DocumentKind = 10
 )
 
 // Enum value maps for DocumentKind.
@@ -97,14 +109,21 @@ func (DocumentKind) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{0}
 }
 
+// Defines the closed vocabulary for dirty state.
 type DirtyState int32
 
 const (
+	// No explicit dirty state. Does not select an action.
 	DirtyState_DIRTY_STATE_UNSPECIFIED DirtyState = 0
-	DirtyState_DIRTY_STATE_CLEAN       DirtyState = 1
+	// Selects clean for dirty state.
+	DirtyState_DIRTY_STATE_CLEAN DirtyState = 1
+	// Selects unvalidated for dirty state.
 	DirtyState_DIRTY_STATE_UNVALIDATED DirtyState = 2
-	DirtyState_DIRTY_STATE_REJECTED    DirtyState = 3
+	// Selects rejected for dirty state.
+	DirtyState_DIRTY_STATE_REJECTED DirtyState = 3
+	// Selects reconciling for dirty state.
 	DirtyState_DIRTY_STATE_RECONCILING DirtyState = 4
+	// Selects unavailable for dirty state.
 	DirtyState_DIRTY_STATE_UNAVAILABLE DirtyState = 5
 )
 
@@ -155,14 +174,17 @@ func (DirtyState) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{1}
 }
 
+// Defines the closed vocabulary for workspace unobserved reason.
 type WorkspaceUnobservedReason int32
 
 const (
+	// No explicit workspace unobserved reason. Does not select an action.
 	WorkspaceUnobservedReason_WORKSPACE_UNOBSERVED_REASON_UNSPECIFIED WorkspaceUnobservedReason = 0
 	// SQL metadata is readable, but this owner has no physical locator for this
 	// document. Absence of an observation is never a claim that YAML is clean.
 	WorkspaceUnobservedReason_WORKSPACE_UNOBSERVED_REASON_NO_PHYSICAL_LOCATOR WorkspaceUnobservedReason = 1
-	WorkspaceUnobservedReason_WORKSPACE_UNOBSERVED_REASON_SOURCE_UNAVAILABLE  WorkspaceUnobservedReason = 2
+	// Selects source unavailable for workspace unobserved reason.
+	WorkspaceUnobservedReason_WORKSPACE_UNOBSERVED_REASON_SOURCE_UNAVAILABLE WorkspaceUnobservedReason = 2
 )
 
 // Enum value maps for WorkspaceUnobservedReason.
@@ -206,16 +228,24 @@ func (WorkspaceUnobservedReason) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{2}
 }
 
+// Defines the closed vocabulary for activation outcome.
 type ActivationOutcome int32
 
 const (
-	ActivationOutcome_ACTIVATION_OUTCOME_UNSPECIFIED            ActivationOutcome = 0
+	// No explicit activation outcome. Does not select an action.
+	ActivationOutcome_ACTIVATION_OUTCOME_UNSPECIFIED ActivationOutcome = 0
+	// Selects rejected before commit for activation outcome.
 	ActivationOutcome_ACTIVATION_OUTCOME_REJECTED_BEFORE_COMMIT ActivationOutcome = 1
-	ActivationOutcome_ACTIVATION_OUTCOME_NOT_COMMITTED          ActivationOutcome = 2
-	ActivationOutcome_ACTIVATION_OUTCOME_COMMIT_UNKNOWN         ActivationOutcome = 3
-	ActivationOutcome_ACTIVATION_OUTCOME_COMMITTED_RECONCILING  ActivationOutcome = 4
-	ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED              ActivationOutcome = 5
-	ActivationOutcome_ACTIVATION_OUTCOME_RESTART_REQUIRED       ActivationOutcome = 6
+	// Selects not committed for activation outcome.
+	ActivationOutcome_ACTIVATION_OUTCOME_NOT_COMMITTED ActivationOutcome = 2
+	// Selects commit unknown for activation outcome.
+	ActivationOutcome_ACTIVATION_OUTCOME_COMMIT_UNKNOWN ActivationOutcome = 3
+	// Selects committed reconciling for activation outcome.
+	ActivationOutcome_ACTIVATION_OUTCOME_COMMITTED_RECONCILING ActivationOutcome = 4
+	// Selects published for activation outcome.
+	ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED ActivationOutcome = 5
+	// Selects restart required for activation outcome.
+	ActivationOutcome_ACTIVATION_OUTCOME_RESTART_REQUIRED ActivationOutcome = 6
 )
 
 // Enum value maps for ActivationOutcome.
@@ -267,13 +297,19 @@ func (ActivationOutcome) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{3}
 }
 
+// Defines the closed vocabulary for transaction outcome.
 type TransactionOutcome int32
 
 const (
-	TransactionOutcome_TRANSACTION_OUTCOME_UNSPECIFIED    TransactionOutcome = 0
-	TransactionOutcome_TRANSACTION_OUTCOME_NOT_COMMITTED  TransactionOutcome = 1
+	// No explicit transaction outcome. Does not select an action.
+	TransactionOutcome_TRANSACTION_OUTCOME_UNSPECIFIED TransactionOutcome = 0
+	// Selects not committed for transaction outcome.
+	TransactionOutcome_TRANSACTION_OUTCOME_NOT_COMMITTED TransactionOutcome = 1
+	// Selects commit unknown for transaction outcome.
 	TransactionOutcome_TRANSACTION_OUTCOME_COMMIT_UNKNOWN TransactionOutcome = 2
-	TransactionOutcome_TRANSACTION_OUTCOME_COMMITTED      TransactionOutcome = 3
+	// Selects committed for transaction outcome.
+	TransactionOutcome_TRANSACTION_OUTCOME_COMMITTED TransactionOutcome = 3
+	// Selects no transaction for transaction outcome.
 	TransactionOutcome_TRANSACTION_OUTCOME_NO_TRANSACTION TransactionOutcome = 4
 )
 
@@ -322,14 +358,20 @@ func (TransactionOutcome) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{4}
 }
 
+// Defines the closed vocabulary for configuration diagnostic code.
 type ConfigurationDiagnosticCode int32
 
 const (
-	ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_UNSPECIFIED             ConfigurationDiagnosticCode = 0
-	ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_CANDIDATE_REJECTED      ConfigurationDiagnosticCode = 1
-	ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_WORKSPACE_CHANGED       ConfigurationDiagnosticCode = 2
+	// No explicit configuration diagnostic code. Does not select an action.
+	ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_UNSPECIFIED ConfigurationDiagnosticCode = 0
+	// Selects candidate rejected for configuration diagnostic code.
+	ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_CANDIDATE_REJECTED ConfigurationDiagnosticCode = 1
+	// Selects workspace changed for configuration diagnostic code.
+	ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_WORKSPACE_CHANGED ConfigurationDiagnosticCode = 2
+	// Selects reconciliation required for configuration diagnostic code.
 	ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_RECONCILIATION_REQUIRED ConfigurationDiagnosticCode = 3
-	ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_ACTIVATION_UNAVAILABLE  ConfigurationDiagnosticCode = 4
+	// Selects activation unavailable for configuration diagnostic code.
+	ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_ACTIVATION_UNAVAILABLE ConfigurationDiagnosticCode = 4
 )
 
 // Enum value maps for ConfigurationDiagnosticCode.
@@ -377,12 +419,16 @@ func (ConfigurationDiagnosticCode) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{5}
 }
 
+// Defines the closed vocabulary for version availability.
 type VersionAvailability int32
 
 const (
+	// No explicit version availability. Does not select an action.
 	VersionAvailability_VERSION_AVAILABILITY_UNSPECIFIED VersionAvailability = 0
-	VersionAvailability_VERSION_AVAILABILITY_RETAINED    VersionAvailability = 1
-	VersionAvailability_VERSION_AVAILABILITY_PURGED      VersionAvailability = 2
+	// Selects retained for version availability.
+	VersionAvailability_VERSION_AVAILABILITY_RETAINED VersionAvailability = 1
+	// Selects purged for version availability.
+	VersionAvailability_VERSION_AVAILABILITY_PURGED VersionAvailability = 2
 )
 
 // Enum value maps for VersionAvailability.
@@ -426,11 +472,15 @@ func (VersionAvailability) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{6}
 }
 
+// Defines the closed vocabulary for generation availability.
 type GenerationAvailability int32
 
 const (
-	GenerationAvailability_GENERATION_AVAILABILITY_UNSPECIFIED      GenerationAvailability = 0
-	GenerationAvailability_GENERATION_AVAILABILITY_COMPLETE         GenerationAvailability = 1
+	// No explicit generation availability. Does not select an action.
+	GenerationAvailability_GENERATION_AVAILABILITY_UNSPECIFIED GenerationAvailability = 0
+	// Selects complete for generation availability.
+	GenerationAvailability_GENERATION_AVAILABILITY_COMPLETE GenerationAvailability = 1
+	// Selects partially purged for generation availability.
 	GenerationAvailability_GENERATION_AVAILABILITY_PARTIALLY_PURGED GenerationAvailability = 2
 )
 
@@ -475,16 +525,24 @@ func (GenerationAvailability) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{7}
 }
 
+// Defines the closed vocabulary for resync reason.
 type ResyncReason int32
 
 const (
-	ResyncReason_RESYNC_REASON_UNSPECIFIED       ResyncReason = 0
-	ResyncReason_RESYNC_REASON_EPOCH_CHANGED     ResyncReason = 1
-	ResyncReason_RESYNC_REASON_TOKEN_INVALID     ResyncReason = 2
-	ResyncReason_RESYNC_REASON_HISTORY_LOST      ResyncReason = 3
+	// No explicit resync reason. Does not select an action.
+	ResyncReason_RESYNC_REASON_UNSPECIFIED ResyncReason = 0
+	// Selects epoch changed for resync reason.
+	ResyncReason_RESYNC_REASON_EPOCH_CHANGED ResyncReason = 1
+	// Selects token invalid for resync reason.
+	ResyncReason_RESYNC_REASON_TOKEN_INVALID ResyncReason = 2
+	// Selects history lost for resync reason.
+	ResyncReason_RESYNC_REASON_HISTORY_LOST ResyncReason = 3
+	// Selects authority changed for resync reason.
 	ResyncReason_RESYNC_REASON_AUTHORITY_CHANGED ResyncReason = 4
+	// Selects activation signal for resync reason.
 	ResyncReason_RESYNC_REASON_ACTIVATION_SIGNAL ResyncReason = 5
-	ResyncReason_RESYNC_REASON_CLOSED            ResyncReason = 6
+	// Selects closed for resync reason.
+	ResyncReason_RESYNC_REASON_CLOSED ResyncReason = 6
 )
 
 // Enum value maps for ResyncReason.
@@ -540,6 +598,7 @@ func (ResyncReason) EnumDescriptor() ([]byte, []int) {
 type ConfigurationOperationPhase int32
 
 const (
+	// No explicit configuration operation phase. Does not select an action.
 	ConfigurationOperationPhase_CONFIGURATION_OPERATION_PHASE_UNSPECIFIED ConfigurationOperationPhase = 0
 	// SQL committed. Runtime publication is not established by this read.
 	ConfigurationOperationPhase_CONFIGURATION_OPERATION_PHASE_COMMITTED ConfigurationOperationPhase = 1
@@ -597,9 +656,11 @@ func (ConfigurationOperationPhase) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{9}
 }
 
+// Represents document id.
 type DocumentId struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Value         string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The value associated with this message.
+	Value         string `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -641,9 +702,11 @@ func (x *DocumentId) GetValue() string {
 	return ""
 }
 
+// Represents document version.
 type DocumentVersion struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Revision int64                  `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The revision represented by int64.
+	Revision int64 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
 	// Exact source bytes, never a manifest or semantic digest.
 	SourceSha256  []byte `protobuf:"bytes,2,opt,name=source_sha256,json=sourceSha256,proto3" json:"source_sha256,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -694,10 +757,13 @@ func (x *DocumentVersion) GetSourceSha256() []byte {
 	return nil
 }
 
+// Represents active generation.
 type ActiveGeneration struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Revision       int64                  `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
-	ManifestSha256 []byte                 `protobuf:"bytes,2,opt,name=manifest_sha256,json=manifestSha256,proto3" json:"manifest_sha256,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The revision represented by int64.
+	Revision int64 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	// SHA-256 digest identifying the complete configuration manifest.
+	ManifestSha256 []byte `protobuf:"bytes,2,opt,name=manifest_sha256,json=manifestSha256,proto3" json:"manifest_sha256,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -746,11 +812,15 @@ func (x *ActiveGeneration) GetManifestSha256() []byte {
 	return nil
 }
 
+// Represents workspace observation.
 type WorkspaceObservation struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	SourceSha256 []byte                 `protobuf:"bytes,1,opt,name=source_sha256,json=sourceSha256,proto3" json:"source_sha256,omitempty"`
-	UpdatedAt    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	Dirty        DirtyState             `protobuf:"varint,3,opt,name=dirty,proto3,enum=home.api.v2.DirtyState" json:"dirty,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// SHA-256 digest of the exact source bytes, without reserialization.
+	SourceSha256 []byte `protobuf:"bytes,1,opt,name=source_sha256,json=sourceSha256,proto3" json:"source_sha256,omitempty"`
+	// Recorded time for updated at. Absence means no timestamp was supplied or recorded.
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// Relationship between workspace source and durable configuration; not a SQL version.
+	Dirty DirtyState `protobuf:"varint,3,opt,name=dirty,proto3,enum=home.api.v2.DirtyState" json:"dirty,omitempty"`
 	// Diagnostic binds the exact observed source, independently of the SQL active
 	// version. It is absent on clean or replaced candidates; never parser text.
 	Diagnostic    *WorkspaceDiagnostic `protobuf:"bytes,4,opt,name=diagnostic,proto3" json:"diagnostic,omitempty"`
@@ -816,14 +886,19 @@ func (x *WorkspaceObservation) GetDiagnostic() *WorkspaceDiagnostic {
 	return nil
 }
 
+// Represents workspace diagnostic.
 type WorkspaceDiagnostic struct {
-	state                protoimpl.MessageState      `protogen:"open.v1"`
-	Document             *DocumentId                 `protobuf:"bytes,1,opt,name=document,proto3" json:"document,omitempty"`
-	ObservedSourceSha256 []byte                      `protobuf:"bytes,2,opt,name=observed_source_sha256,json=observedSourceSha256,proto3" json:"observed_source_sha256,omitempty"`
-	ObservedAt           *timestamppb.Timestamp      `protobuf:"bytes,3,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
-	Code                 ConfigurationDiagnosticCode `protobuf:"varint,4,opt,name=code,proto3,enum=home.api.v2.ConfigurationDiagnosticCode" json:"code,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The document represented by DocumentId.
+	Document *DocumentId `protobuf:"bytes,1,opt,name=document,proto3" json:"document,omitempty"`
+	// Exact bytes representing observed source sha256. Not interpreted as a display string.
+	ObservedSourceSha256 []byte `protobuf:"bytes,2,opt,name=observed_source_sha256,json=observedSourceSha256,proto3" json:"observed_source_sha256,omitempty"`
+	// Time recorded for this observation; does not prove a physical command was confirmed.
+	ObservedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	// Closed diagnostic code; contains no raw parser, provider, or SQL message.
+	Code          ConfigurationDiagnosticCode `protobuf:"varint,4,opt,name=code,proto3,enum=home.api.v2.ConfigurationDiagnosticCode" json:"code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *WorkspaceDiagnostic) Reset() {
@@ -884,8 +959,10 @@ func (x *WorkspaceDiagnostic) GetCode() ConfigurationDiagnosticCode {
 	return ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_UNSPECIFIED
 }
 
+// Represents workspace unobserved.
 type WorkspaceUnobserved struct {
-	state         protoimpl.MessageState    `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
 	Reason        WorkspaceUnobservedReason `protobuf:"varint,1,opt,name=reason,proto3,enum=home.api.v2.WorkspaceUnobservedReason" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -928,15 +1005,23 @@ func (x *WorkspaceUnobserved) GetReason() WorkspaceUnobservedReason {
 	return WorkspaceUnobservedReason_WORKSPACE_UNOBSERVED_REASON_UNSPECIFIED
 }
 
+// Represents configuration document.
 type ConfigurationDocument struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            *DocumentId            `protobuf:"bytes,13,opt,name=id,proto3" json:"id,omitempty"`
-	Kind          DocumentKind           `protobuf:"varint,2,opt,name=kind,proto3,enum=home.api.v2.DocumentKind" json:"kind,omitempty"`
-	SchemaVersion string                 `protobuf:"bytes,3,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
-	SyntaxProfile string                 `protobuf:"bytes,4,opt,name=syntax_profile,json=syntaxProfile,proto3" json:"syntax_profile,omitempty"`
-	Version       *DocumentVersion       `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	Active        bool                   `protobuf:"varint,7,opt,name=active,proto3" json:"active,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The id represented by DocumentId.
+	Id *DocumentId `protobuf:"bytes,13,opt,name=id,proto3" json:"id,omitempty"`
+	// The kind represented by DocumentKind.
+	Kind DocumentKind `protobuf:"varint,2,opt,name=kind,proto3,enum=home.api.v2.DocumentKind" json:"kind,omitempty"`
+	// Version of the selected source schema; distinct from SQL schema and active generation.
+	SchemaVersion string `protobuf:"bytes,3,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	// Closed source syntax profile understood by the native compiler.
+	SyntaxProfile string `protobuf:"bytes,4,opt,name=syntax_profile,json=syntaxProfile,proto3" json:"syntax_profile,omitempty"`
+	// The version represented by DocumentVersion.
+	Version *DocumentVersion `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
+	// Recorded time for updated at. Absence means no timestamp was supplied or recorded.
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// Indicates whether active.
+	Active bool `protobuf:"varint,7,opt,name=active,proto3" json:"active,omitempty"`
 	// Types that are valid to be assigned to WorkspaceState:
 	//
 	//	*ConfigurationDocument_Workspace
@@ -1106,6 +1191,7 @@ type ConfigurationDocument_Workspace struct {
 }
 
 type ConfigurationDocument_WorkspaceUnobserved struct {
+	// The workspace unobserved represented by WorkspaceUnobserved.
 	WorkspaceUnobserved *WorkspaceUnobserved `protobuf:"bytes,10,opt,name=workspace_unobserved,json=workspaceUnobserved,proto3,oneof"`
 }
 
@@ -1113,15 +1199,19 @@ func (*ConfigurationDocument_Workspace) isConfigurationDocument_WorkspaceState()
 
 func (*ConfigurationDocument_WorkspaceUnobserved) isConfigurationDocument_WorkspaceState() {}
 
+// Represents activation result.
 type ActivationResult struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	Outcome     ActivationOutcome      `protobuf:"varint,1,opt,name=outcome,proto3,enum=home.api.v2.ActivationOutcome" json:"outcome,omitempty"`
-	Transaction TransactionOutcome     `protobuf:"varint,2,opt,name=transaction,proto3,enum=home.api.v2.TransactionOutcome" json:"transaction,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Closed outcome recorded by the native owner; distinguish acknowledgment from confirmed effect.
+	Outcome ActivationOutcome `protobuf:"varint,1,opt,name=outcome,proto3,enum=home.api.v2.ActivationOutcome" json:"outcome,omitempty"`
+	// The transaction represented by TransactionOutcome.
+	Transaction TransactionOutcome `protobuf:"varint,2,opt,name=transaction,proto3,enum=home.api.v2.TransactionOutcome" json:"transaction,omitempty"`
 	// Absent when no target generation exists yet.
-	GenerationRevision *int64                        `protobuf:"varint,3,opt,name=generation_revision,json=generationRevision,proto3,oneof" json:"generation_revision,omitempty"`
-	Diagnostics        []ConfigurationDiagnosticCode `protobuf:"varint,4,rep,packed,name=diagnostics,proto3,enum=home.api.v2.ConfigurationDiagnosticCode" json:"diagnostics,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	GenerationRevision *int64 `protobuf:"varint,3,opt,name=generation_revision,json=generationRevision,proto3,oneof" json:"generation_revision,omitempty"`
+	// Collection of diagnostics for this message.
+	Diagnostics   []ConfigurationDiagnosticCode `protobuf:"varint,4,rep,packed,name=diagnostics,proto3,enum=home.api.v2.ConfigurationDiagnosticCode" json:"diagnostics,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ActivationResult) Reset() {
@@ -1182,9 +1272,11 @@ func (x *ActivationResult) GetDiagnostics() []ConfigurationDiagnosticCode {
 	return nil
 }
 
+// Request for get configuration document.
 type GetConfigurationDocumentRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1226,11 +1318,15 @@ func (x *GetConfigurationDocumentRequest) GetName() string {
 	return ""
 }
 
+// Request for list configuration documents.
 type ListConfigurationDocumentsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parent        string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Requested page size. Zero selects the documented default; negative values are invalid.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1286,10 +1382,13 @@ func (x *ListConfigurationDocumentsRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list configuration documents.
 type ListConfigurationDocumentsResponse struct {
-	state         protoimpl.MessageState   `protogen:"open.v1"`
-	Documents     []*ConfigurationDocument `protobuf:"bytes,1,rep,name=documents,proto3" json:"documents,omitempty"`
-	NextPageToken string                   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of documents for this message.
+	Documents []*ConfigurationDocument `protobuf:"bytes,1,rep,name=documents,proto3" json:"documents,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1338,16 +1437,21 @@ func (x *ListConfigurationDocumentsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Represents configuration revision.
 type ConfigurationRevision struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Immutable SQL source revision under its canonical document.
-	Name         string              `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Id           *DocumentId         `protobuf:"bytes,6,opt,name=id,proto3" json:"id,omitempty"`
-	Version      *DocumentVersion    `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The id represented by DocumentId.
+	Id *DocumentId `protobuf:"bytes,6,opt,name=id,proto3" json:"id,omitempty"`
+	// The version represented by DocumentVersion.
+	Version *DocumentVersion `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	// The availability represented by VersionAvailability.
 	Availability VersionAvailability `protobuf:"varint,3,opt,name=availability,proto3,enum=home.api.v2.VersionAvailability" json:"availability,omitempty"`
 	// Absent when the source row was purged. No invented timestamp/schema.
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	SchemaVersion string                 `protobuf:"bytes,5,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	// Version of the selected source schema; distinct from SQL schema and active generation.
+	SchemaVersion string `protobuf:"bytes,5,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1410,9 +1514,9 @@ func (x *ConfigurationRevision) GetAvailability() VersionAvailability {
 	return VersionAvailability_VERSION_AVAILABILITY_UNSPECIFIED
 }
 
-func (x *ConfigurationRevision) GetUpdatedAt() *timestamppb.Timestamp {
+func (x *ConfigurationRevision) GetUpdateTime() *timestamppb.Timestamp {
 	if x != nil {
-		return x.UpdatedAt
+		return x.UpdateTime
 	}
 	return nil
 }
@@ -1424,13 +1528,17 @@ func (x *ConfigurationRevision) GetSchemaVersion() string {
 	return ""
 }
 
+// Represents configuration generation.
 type ConfigurationGeneration struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Immutable activation generation; independent from each source revision.
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Generation    *ActiveGeneration      `protobuf:"bytes,4,opt,name=generation,proto3" json:"generation,omitempty"`
-	Availability  GenerationAvailability `protobuf:"varint,2,opt,name=availability,proto3,enum=home.api.v2.GenerationAvailability" json:"availability,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The generation represented by ActiveGeneration.
+	Generation *ActiveGeneration `protobuf:"bytes,4,opt,name=generation,proto3" json:"generation,omitempty"`
+	// The availability represented by GenerationAvailability.
+	Availability GenerationAvailability `protobuf:"varint,2,opt,name=availability,proto3,enum=home.api.v2.GenerationAvailability" json:"availability,omitempty"`
+	// Recorded time for created at. Absence means no timestamp was supplied or recorded.
+	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1486,18 +1594,22 @@ func (x *ConfigurationGeneration) GetAvailability() GenerationAvailability {
 	return GenerationAvailability_GENERATION_AVAILABILITY_UNSPECIFIED
 }
 
-func (x *ConfigurationGeneration) GetCreatedAt() *timestamppb.Timestamp {
+func (x *ConfigurationGeneration) GetCreateTime() *timestamppb.Timestamp {
 	if x != nil {
-		return x.CreatedAt
+		return x.CreateTime
 	}
 	return nil
 }
 
+// Request for list configuration revisions.
 type ListConfigurationRevisionsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parent        string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Requested page size. Zero selects the documented default; negative values are invalid.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1553,10 +1665,13 @@ func (x *ListConfigurationRevisionsRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list configuration revisions.
 type ListConfigurationRevisionsResponse struct {
-	state         protoimpl.MessageState   `protogen:"open.v1"`
-	Versions      []*ConfigurationRevision `protobuf:"bytes,1,rep,name=versions,proto3" json:"versions,omitempty"`
-	NextPageToken string                   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of versions for this message.
+	Versions []*ConfigurationRevision `protobuf:"bytes,1,rep,name=versions,proto3" json:"versions,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1605,11 +1720,15 @@ func (x *ListConfigurationRevisionsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Request for list configuration generations.
 type ListConfigurationGenerationsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parent        string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Requested page size. Zero selects the documented default; negative values are invalid.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1665,10 +1784,13 @@ func (x *ListConfigurationGenerationsRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list configuration generations.
 type ListConfigurationGenerationsResponse struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
-	Generations   []*ConfigurationGeneration `protobuf:"bytes,1,rep,name=generations,proto3" json:"generations,omitempty"`
-	NextPageToken string                     `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of generations for this message.
+	Generations []*ConfigurationGeneration `protobuf:"bytes,1,rep,name=generations,proto3" json:"generations,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1717,13 +1839,17 @@ func (x *ListConfigurationGenerationsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Represents configuration schema.
 type ConfigurationSchema struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Stable lossless identity of the immutable SQL schema key and document kind.
-	Name          string       `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Kind          DocumentKind `protobuf:"varint,5,opt,name=kind,proto3,enum=home.api.v2.DocumentKind" json:"kind,omitempty"`
-	SchemaVersion string       `protobuf:"bytes,2,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
-	SyntaxProfile string       `protobuf:"bytes,3,opt,name=syntax_profile,json=syntaxProfile,proto3" json:"syntax_profile,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The kind represented by DocumentKind.
+	Kind DocumentKind `protobuf:"varint,5,opt,name=kind,proto3,enum=home.api.v2.DocumentKind" json:"kind,omitempty"`
+	// Version of the selected source schema; distinct from SQL schema and active generation.
+	SchemaVersion string `protobuf:"bytes,2,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	// Closed source syntax profile understood by the native compiler.
+	SyntaxProfile string `protobuf:"bytes,3,opt,name=syntax_profile,json=syntaxProfile,proto3" json:"syntax_profile,omitempty"`
 	// Global Config API writes only the selected operational workspace. Launch,
 	// human policies and domain-specific logic retain their existing authorities.
 	EditableOperationalWorkspace bool `protobuf:"varint,4,opt,name=editable_operational_workspace,json=editableOperationalWorkspace,proto3" json:"editable_operational_workspace,omitempty"`
@@ -1796,11 +1922,15 @@ func (x *ConfigurationSchema) GetEditableOperationalWorkspace() bool {
 	return false
 }
 
+// Request for list configuration schemas.
 type ListConfigurationSchemasRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parent        string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Requested page size. Zero selects the documented default; negative values are invalid.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1856,10 +1986,13 @@ func (x *ListConfigurationSchemasRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list configuration schemas.
 type ListConfigurationSchemasResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Schemas       []*ConfigurationSchema `protobuf:"bytes,1,rep,name=schemas,proto3" json:"schemas,omitempty"`
-	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of schemas for this message.
+	Schemas []*ConfigurationSchema `protobuf:"bytes,1,rep,name=schemas,proto3" json:"schemas,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1908,10 +2041,13 @@ func (x *ListConfigurationSchemasResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Request for publish configuration document.
 type PublishConfigurationDocumentRequest struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Name     string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Expected *DocumentVersion       `protobuf:"bytes,2,opt,name=expected,proto3" json:"expected,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Typed precondition checked against the native owner before mutation.
+	Expected *DocumentVersion `protobuf:"bytes,2,opt,name=expected,proto3" json:"expected,omitempty"`
 	// Required independently of admitted source: permits correcting dirty YAML
 	// without silently replacing an external edit since the last observation.
 	ExpectedWorkspaceSha256 []byte `protobuf:"bytes,3,opt,name=expected_workspace_sha256,json=expectedWorkspaceSha256,proto3" json:"expected_workspace_sha256,omitempty"`
@@ -1989,12 +2125,17 @@ func (x *PublishConfigurationDocumentRequest) GetRequestId() string {
 	return ""
 }
 
+// Request for rollback configuration document.
 type RollbackConfigurationDocumentRequest struct {
-	state                   protoimpl.MessageState `protogen:"open.v1"`
-	Name                    string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Expected                *DocumentVersion       `protobuf:"bytes,2,opt,name=expected,proto3" json:"expected,omitempty"`
-	ExpectedWorkspaceSha256 []byte                 `protobuf:"bytes,3,opt,name=expected_workspace_sha256,json=expectedWorkspaceSha256,proto3" json:"expected_workspace_sha256,omitempty"`
-	Historical              *ActiveGeneration      `protobuf:"bytes,4,opt,name=historical,proto3" json:"historical,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Typed precondition checked against the native owner before mutation.
+	Expected *DocumentVersion `protobuf:"bytes,2,opt,name=expected,proto3" json:"expected,omitempty"`
+	// Expected digest of the workspace source; distinct from the SQL revision.
+	ExpectedWorkspaceSha256 []byte `protobuf:"bytes,3,opt,name=expected_workspace_sha256,json=expectedWorkspaceSha256,proto3" json:"expected_workspace_sha256,omitempty"`
+	// The historical represented by ActiveGeneration.
+	Historical *ActiveGeneration `protobuf:"bytes,4,opt,name=historical,proto3" json:"historical,omitempty"`
 	// UUID identifying this intent for 24-hour durable result lookup.
 	RequestId     string `protobuf:"bytes,5,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2066,12 +2207,15 @@ func (x *RollbackConfigurationDocumentRequest) GetRequestId() string {
 	return ""
 }
 
+// Represents document change.
 type DocumentChange struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Canonical changed resource; never an executable source binding key.
-	Name    string           `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The version represented by DocumentVersion.
 	Version *DocumentVersion `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	Dirty   DirtyState       `protobuf:"varint,3,opt,name=dirty,proto3,enum=home.api.v2.DirtyState" json:"dirty,omitempty"`
+	// Relationship between workspace source and durable configuration; not a SQL version.
+	Dirty DirtyState `protobuf:"varint,3,opt,name=dirty,proto3,enum=home.api.v2.DirtyState" json:"dirty,omitempty"`
 	// Separate from the admitted source hash. Absent while reconciliation cannot
 	// establish which filesystem bytes are current.
 	ObservedWorkspaceSha256 []byte `protobuf:"bytes,4,opt,name=observed_workspace_sha256,json=observedWorkspaceSha256,proto3,oneof" json:"observed_workspace_sha256,omitempty"`
@@ -2137,10 +2281,13 @@ func (x *DocumentChange) GetObservedWorkspaceSha256() []byte {
 	return nil
 }
 
+// Represents change batch.
 type ChangeBatch struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Changes       []*DocumentChange      `protobuf:"bytes,1,rep,name=changes,proto3" json:"changes,omitempty"`
-	ResumeToken   string                 `protobuf:"bytes,2,opt,name=resume_token,json=resumeToken,proto3" json:"resume_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of changes for this message.
+	Changes []*DocumentChange `protobuf:"bytes,1,rep,name=changes,proto3" json:"changes,omitempty"`
+	// Opaque cursor for this stream and its admitted capture. Does not grant access.
+	ResumeToken   string `protobuf:"bytes,2,opt,name=resume_token,json=resumeToken,proto3" json:"resume_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2189,9 +2336,11 @@ func (x *ChangeBatch) GetResumeToken() string {
 	return ""
 }
 
+// Represents resync required.
 type ResyncRequired struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Reason        ResyncReason           `protobuf:"varint,1,opt,name=reason,proto3,enum=home.api.v2.ResyncReason" json:"reason,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
+	Reason        ResyncReason `protobuf:"varint,1,opt,name=reason,proto3,enum=home.api.v2.ResyncReason" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2233,9 +2382,11 @@ func (x *ResyncRequired) GetReason() ResyncReason {
 	return ResyncReason_RESYNC_REASON_UNSPECIFIED
 }
 
+// Represents watch ready.
 type WatchReady struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ResumeToken   string                 `protobuf:"bytes,1,opt,name=resume_token,json=resumeToken,proto3" json:"resume_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Opaque cursor for this stream and its admitted capture. Does not grant access.
+	ResumeToken   string `protobuf:"bytes,1,opt,name=resume_token,json=resumeToken,proto3" json:"resume_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2277,10 +2428,13 @@ func (x *WatchReady) GetResumeToken() string {
 	return ""
 }
 
+// Request for watch configuration.
 type WatchConfigurationRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parent        string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	ResumeToken   string                 `protobuf:"bytes,2,opt,name=resume_token,json=resumeToken,proto3" json:"resume_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Opaque cursor for this stream and its admitted capture. Does not grant access.
+	ResumeToken   string `protobuf:"bytes,2,opt,name=resume_token,json=resumeToken,proto3" json:"resume_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2329,6 +2483,7 @@ func (x *WatchConfigurationRequest) GetResumeToken() string {
 	return ""
 }
 
+// Successful result of watch configuration.
 type WatchConfigurationResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -2410,10 +2565,12 @@ type isWatchConfigurationResponse_Result interface {
 }
 
 type WatchConfigurationResponse_Changes struct {
+	// The changes represented by ChangeBatch.
 	Changes *ChangeBatch `protobuf:"bytes,1,opt,name=changes,proto3,oneof"`
 }
 
 type WatchConfigurationResponse_ResyncRequired struct {
+	// The resync required represented by ResyncRequired.
 	ResyncRequired *ResyncRequired `protobuf:"bytes,2,opt,name=resync_required,json=resyncRequired,proto3,oneof"`
 }
 
@@ -2429,6 +2586,144 @@ func (*WatchConfigurationResponse_ResyncRequired) isWatchConfigurationResponse_R
 
 func (*WatchConfigurationResponse_Ready) isWatchConfigurationResponse_Result() {}
 
+// Reads one authorized ConfigurationRevision by its canonical name.
+type GetConfigurationRevisionRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name; no source identity or revision alias is accepted.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetConfigurationRevisionRequest) Reset() {
+	*x = GetConfigurationRevisionRequest{}
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetConfigurationRevisionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetConfigurationRevisionRequest) ProtoMessage() {}
+
+func (x *GetConfigurationRevisionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetConfigurationRevisionRequest.ProtoReflect.Descriptor instead.
+func (*GetConfigurationRevisionRequest) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *GetConfigurationRevisionRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Reads one authorized ConfigurationGeneration by its canonical name.
+type GetConfigurationGenerationRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name; no source identity or revision alias is accepted.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetConfigurationGenerationRequest) Reset() {
+	*x = GetConfigurationGenerationRequest{}
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetConfigurationGenerationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetConfigurationGenerationRequest) ProtoMessage() {}
+
+func (x *GetConfigurationGenerationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetConfigurationGenerationRequest.ProtoReflect.Descriptor instead.
+func (*GetConfigurationGenerationRequest) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *GetConfigurationGenerationRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Reads one authorized ConfigurationSchema by its canonical name.
+type GetConfigurationSchemaRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name; no source identity or revision alias is accepted.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetConfigurationSchemaRequest) Reset() {
+	*x = GetConfigurationSchemaRequest{}
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetConfigurationSchemaRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetConfigurationSchemaRequest) ProtoMessage() {}
+
+func (x *GetConfigurationSchemaRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetConfigurationSchemaRequest.ProtoReflect.Descriptor instead.
+func (*GetConfigurationSchemaRequest) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *GetConfigurationSchemaRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 // Allowed metadata type for google.longrunning configuration operations. No
 // source, candidate, credential or parser/provider diagnostic may be included.
 type ConfigurationOperationMetadata struct {
@@ -2436,21 +2731,25 @@ type ConfigurationOperationMetadata struct {
 	// Immutable first durable creation time. A request_id reservation precedes
 	// effects; an operation without request_id is created by its native commit.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
-	Generation string                 `protobuf:"bytes,2,opt,name=generation,proto3" json:"generation,omitempty"`
+	// The generation associated with this message.
+	Generation string `protobuf:"bytes,2,opt,name=generation,proto3" json:"generation,omitempty"`
 	// SQL activation generation, independent from every document revision.
-	GenerationRevision int64                       `protobuf:"varint,3,opt,name=generation_revision,json=generationRevision,proto3" json:"generation_revision,omitempty"`
-	ManifestSha256     []byte                      `protobuf:"bytes,4,opt,name=manifest_sha256,json=manifestSha256,proto3" json:"manifest_sha256,omitempty"`
-	Phase              ConfigurationOperationPhase `protobuf:"varint,5,opt,name=phase,proto3,enum=home.api.v2.ConfigurationOperationPhase" json:"phase,omitempty"`
+	GenerationRevision int64 `protobuf:"varint,3,opt,name=generation_revision,json=generationRevision,proto3" json:"generation_revision,omitempty"`
+	// SHA-256 digest identifying the complete configuration manifest.
+	ManifestSha256 []byte `protobuf:"bytes,4,opt,name=manifest_sha256,json=manifestSha256,proto3" json:"manifest_sha256,omitempty"`
+	// The phase represented by ConfigurationOperationPhase.
+	Phase ConfigurationOperationPhase `protobuf:"varint,5,opt,name=phase,proto3,enum=home.api.v2.ConfigurationOperationPhase" json:"phase,omitempty"`
 	// Present only after the native configuration transaction is proven committed.
-	CommitTime    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=commit_time,json=commitTime,proto3" json:"commit_time,omitempty"`
-	RequestId     string                 `protobuf:"bytes,7,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	CommitTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=commit_time,json=commitTime,proto3" json:"commit_time,omitempty"`
+	// Optional UUID v4 identifying the normalized request for bounded deduplication.
+	RequestId     string `protobuf:"bytes,7,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ConfigurationOperationMetadata) Reset() {
 	*x = ConfigurationOperationMetadata{}
-	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[28]
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2462,7 +2761,7 @@ func (x *ConfigurationOperationMetadata) String() string {
 func (*ConfigurationOperationMetadata) ProtoMessage() {}
 
 func (x *ConfigurationOperationMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[28]
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2475,7 +2774,7 @@ func (x *ConfigurationOperationMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationOperationMetadata.ProtoReflect.Descriptor instead.
 func (*ConfigurationOperationMetadata) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{28}
+	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ConfigurationOperationMetadata) GetCreateTime() *timestamppb.Timestamp {
@@ -2527,20 +2826,23 @@ func (x *ConfigurationOperationMetadata) GetRequestId() string {
 	return ""
 }
 
-// The sole successful response type of a configuration LRO. This exact target
+// Shared immutable successful activation value. This exact target
 // was published; a later current document belongs to a separate fresh Get.
 type ConfigurationActivationResult struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Generation         string                 `protobuf:"bytes,1,opt,name=generation,proto3" json:"generation,omitempty"`
-	GenerationRevision int64                  `protobuf:"varint,2,opt,name=generation_revision,json=generationRevision,proto3" json:"generation_revision,omitempty"`
-	ManifestSha256     []byte                 `protobuf:"bytes,3,opt,name=manifest_sha256,json=manifestSha256,proto3" json:"manifest_sha256,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The generation associated with this message.
+	Generation string `protobuf:"bytes,1,opt,name=generation,proto3" json:"generation,omitempty"`
+	// Native configuration generation revision, independent of document version.
+	GenerationRevision int64 `protobuf:"varint,2,opt,name=generation_revision,json=generationRevision,proto3" json:"generation_revision,omitempty"`
+	// SHA-256 digest identifying the complete configuration manifest.
+	ManifestSha256 []byte `protobuf:"bytes,3,opt,name=manifest_sha256,json=manifestSha256,proto3" json:"manifest_sha256,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ConfigurationActivationResult) Reset() {
 	*x = ConfigurationActivationResult{}
-	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[29]
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2552,7 +2854,7 @@ func (x *ConfigurationActivationResult) String() string {
 func (*ConfigurationActivationResult) ProtoMessage() {}
 
 func (x *ConfigurationActivationResult) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[29]
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2565,7 +2867,7 @@ func (x *ConfigurationActivationResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigurationActivationResult.ProtoReflect.Descriptor instead.
 func (*ConfigurationActivationResult) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{29}
+	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ConfigurationActivationResult) GetGeneration() string {
@@ -2589,20 +2891,112 @@ func (x *ConfigurationActivationResult) GetManifestSha256() []byte {
 	return nil
 }
 
+// Successful native publication result for PublishConfigurationDocument.
+type PublishConfigurationDocumentResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Exact original published activation; no current-generation substitution.
+	Result        *ConfigurationActivationResult `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishConfigurationDocumentResponse) Reset() {
+	*x = PublishConfigurationDocumentResponse{}
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishConfigurationDocumentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishConfigurationDocumentResponse) ProtoMessage() {}
+
+func (x *PublishConfigurationDocumentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishConfigurationDocumentResponse.ProtoReflect.Descriptor instead.
+func (*PublishConfigurationDocumentResponse) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *PublishConfigurationDocumentResponse) GetResult() *ConfigurationActivationResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+// Successful native publication result for RollbackConfigurationDocument.
+type RollbackConfigurationDocumentResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Exact original published activation; no current-generation substitution.
+	Result        *ConfigurationActivationResult `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RollbackConfigurationDocumentResponse) Reset() {
+	*x = RollbackConfigurationDocumentResponse{}
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollbackConfigurationDocumentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollbackConfigurationDocumentResponse) ProtoMessage() {}
+
+func (x *RollbackConfigurationDocumentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_configuration_documents_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollbackConfigurationDocumentResponse.ProtoReflect.Descriptor instead.
+func (*RollbackConfigurationDocumentResponse) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_configuration_documents_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *RollbackConfigurationDocumentResponse) GetResult() *ConfigurationActivationResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
 var File_home_api_v2_configuration_documents_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_configuration_documents_proto_rawDesc = "" +
 	"\n" +
-	")home/api/v2/configuration_documents.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a#google/longrunning/operations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\"\n" +
+	")home/api/v2/configuration_documents.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a#google/longrunning/operations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"(\n" +
 	"\n" +
-	"DocumentId\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\tR\x05value\"R\n" +
-	"\x0fDocumentVersion\x12\x1a\n" +
-	"\brevision\x18\x01 \x01(\x03R\brevision\x12#\n" +
-	"\rsource_sha256\x18\x02 \x01(\fR\fsourceSha256\"W\n" +
-	"\x10ActiveGeneration\x12\x1a\n" +
-	"\brevision\x18\x01 \x01(\x03R\brevision\x12'\n" +
-	"\x0fmanifest_sha256\x18\x02 \x01(\fR\x0emanifestSha256\"\xe7\x01\n" +
+	"DocumentId\x12\x1a\n" +
+	"\x05value\x18\x01 \x01(\tB\x04\xe2A\x01\x02R\x05value\"^\n" +
+	"\x0fDocumentVersion\x12 \n" +
+	"\brevision\x18\x01 \x01(\x03B\x04\xe2A\x01\x02R\brevision\x12)\n" +
+	"\rsource_sha256\x18\x02 \x01(\fB\x04\xe2A\x01\x02R\fsourceSha256\"c\n" +
+	"\x10ActiveGeneration\x12 \n" +
+	"\brevision\x18\x01 \x01(\x03B\x04\xe2A\x01\x02R\brevision\x12-\n" +
+	"\x0fmanifest_sha256\x18\x02 \x01(\fB\x04\xe2A\x01\x02R\x0emanifestSha256\"\xe7\x01\n" +
 	"\x14WorkspaceObservation\x12#\n" +
 	"\rsource_sha256\x18\x01 \x01(\fR\fsourceSha256\x129\n" +
 	"\n" +
@@ -2654,24 +3048,24 @@ const file_home_api_v2_configuration_documents_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\x8e\x01\n" +
 	"\"ListConfigurationDocumentsResponse\x12@\n" +
 	"\tdocuments\x18\x01 \x03(\v2\".home.api.v2.ConfigurationDocumentR\tdocuments\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xda\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xdc\x03\n" +
 	"\x15ConfigurationRevision\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12'\n" +
 	"\x02id\x18\x06 \x01(\v2\x17.home.api.v2.DocumentIdR\x02id\x126\n" +
 	"\aversion\x18\x02 \x01(\v2\x1c.home.api.v2.DocumentVersionR\aversion\x12D\n" +
-	"\favailability\x18\x03 \x01(\x0e2 .home.api.v2.VersionAvailabilityR\favailability\x129\n" +
-	"\n" +
-	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12%\n" +
+	"\favailability\x18\x03 \x01(\x0e2 .home.api.v2.VersionAvailabilityR\favailability\x12;\n" +
+	"\vupdate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"updateTime\x12%\n" +
 	"\x0eschema_version\x18\x05 \x01(\tR\rschemaVersion:\x9d\x01\xeaA\x99\x01\n" +
-	"/homeward.damiengoehrig.ca/ConfigurationRevision\x12Qhomes/{home}/configurationDocuments/{configuration_document}/revisions/{revision}*\trevisions2\brevision\"\xa5\x03\n" +
+	"/homeward.damiengoehrig.ca/ConfigurationRevision\x12Qhomes/{home}/configurationDocuments/{configuration_document}/revisions/{revision}*\trevisions2\brevision\"\xa7\x03\n" +
 	"\x17ConfigurationGeneration\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12=\n" +
 	"\n" +
 	"generation\x18\x04 \x01(\v2\x1d.home.api.v2.ActiveGenerationR\n" +
 	"generation\x12G\n" +
-	"\favailability\x18\x02 \x01(\x0e2#.home.api.v2.GenerationAvailabilityR\favailability\x129\n" +
-	"\n" +
-	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt:\xac\x01\xeaA\xa8\x01\n" +
+	"\favailability\x18\x02 \x01(\x0e2#.home.api.v2.GenerationAvailabilityR\favailability\x12;\n" +
+	"\vcreate_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"createTime:\xac\x01\xeaA\xa8\x01\n" +
 	"1homeward.damiengoehrig.ca/ConfigurationGeneration\x12@homes/{home}/configurationGenerations/{configuration_generation}*\x18configurationGenerations2\x17configurationGeneration\"\xbd\x01\n" +
 	"!ListConfigurationRevisionsRequest\x12P\n" +
 	"\x06parent\x18\x01 \x01(\tB8\xe2A\x01\x02\xfaA1\n" +
@@ -2704,22 +3098,22 @@ const file_home_api_v2_configuration_documents_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\x86\x01\n" +
 	" ListConfigurationSchemasResponse\x12:\n" +
 	"\aschemas\x18\x01 \x03(\v2 .home.api.v2.ConfigurationSchemaR\aschemas\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xc2\x02\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xd4\x02\n" +
 	"#PublishConfigurationDocumentRequest\x12L\n" +
 	"\x04name\x18\x01 \x01(\tB8\xe2A\x01\x02\xfaA1\n" +
-	"/homeward.damiengoehrig.ca/ConfigurationDocumentR\x04name\x128\n" +
-	"\bexpected\x18\x02 \x01(\v2\x1c.home.api.v2.DocumentVersionR\bexpected\x12:\n" +
-	"\x19expected_workspace_sha256\x18\x03 \x01(\fR\x17expectedWorkspaceSha256\x12*\n" +
-	"\x11exact_yaml_source\x18\x04 \x01(\fR\x0fexactYamlSource\x12+\n" +
+	"/homeward.damiengoehrig.ca/ConfigurationDocumentR\x04name\x12>\n" +
+	"\bexpected\x18\x02 \x01(\v2\x1c.home.api.v2.DocumentVersionB\x04\xe2A\x01\x02R\bexpected\x12@\n" +
+	"\x19expected_workspace_sha256\x18\x03 \x01(\fB\x04\xe2A\x01\x02R\x17expectedWorkspaceSha256\x120\n" +
+	"\x11exact_yaml_source\x18\x04 \x01(\fB\x04\xe2A\x01\x02R\x0fexactYamlSource\x12+\n" +
 	"\n" +
-	"request_id\x18\x05 \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId\"\xd6\x02\n" +
+	"request_id\x18\x05 \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId\"\xe8\x02\n" +
 	"$RollbackConfigurationDocumentRequest\x12L\n" +
 	"\x04name\x18\x01 \x01(\tB8\xe2A\x01\x02\xfaA1\n" +
-	"/homeward.damiengoehrig.ca/ConfigurationDocumentR\x04name\x128\n" +
-	"\bexpected\x18\x02 \x01(\v2\x1c.home.api.v2.DocumentVersionR\bexpected\x12:\n" +
-	"\x19expected_workspace_sha256\x18\x03 \x01(\fR\x17expectedWorkspaceSha256\x12=\n" +
+	"/homeward.damiengoehrig.ca/ConfigurationDocumentR\x04name\x12>\n" +
+	"\bexpected\x18\x02 \x01(\v2\x1c.home.api.v2.DocumentVersionB\x04\xe2A\x01\x02R\bexpected\x12@\n" +
+	"\x19expected_workspace_sha256\x18\x03 \x01(\fB\x04\xe2A\x01\x02R\x17expectedWorkspaceSha256\x12C\n" +
 	"\n" +
-	"historical\x18\x04 \x01(\v2\x1d.home.api.v2.ActiveGenerationR\n" +
+	"historical\x18\x04 \x01(\v2\x1d.home.api.v2.ActiveGenerationB\x04\xe2A\x01\x02R\n" +
 	"historical\x12+\n" +
 	"\n" +
 	"request_id\x18\x05 \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId\"\xa4\x02\n" +
@@ -2746,7 +3140,16 @@ const file_home_api_v2_configuration_documents_proto_rawDesc = "" +
 	"\achanges\x18\x01 \x01(\v2\x18.home.api.v2.ChangeBatchH\x00R\achanges\x12F\n" +
 	"\x0fresync_required\x18\x02 \x01(\v2\x1b.home.api.v2.ResyncRequiredH\x00R\x0eresyncRequired\x12/\n" +
 	"\x05ready\x18\x03 \x01(\v2\x17.home.api.v2.WatchReadyH\x00R\x05readyB\b\n" +
-	"\x06result\"\xdb\x03\n" +
+	"\x06result\"o\n" +
+	"\x1fGetConfigurationRevisionRequest\x12L\n" +
+	"\x04name\x18\x01 \x01(\tB8\xe2A\x01\x02\xfaA1\n" +
+	"/homeward.damiengoehrig.ca/ConfigurationRevisionR\x04name\"s\n" +
+	"!GetConfigurationGenerationRequest\x12N\n" +
+	"\x04name\x18\x01 \x01(\tB:\xe2A\x01\x02\xfaA3\n" +
+	"1homeward.damiengoehrig.ca/ConfigurationGenerationR\x04name\"k\n" +
+	"\x1dGetConfigurationSchemaRequest\x12J\n" +
+	"\x04name\x18\x01 \x01(\tB6\xe2A\x01\x02\xfaA/\n" +
+	"-homeward.damiengoehrig.ca/ConfigurationSchemaR\x04name\"\xdb\x03\n" +
 	"\x1eConfigurationOperationMetadata\x12A\n" +
 	"\vcreate_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
 	"createTime\x12Z\n" +
@@ -2767,7 +3170,11 @@ const file_home_api_v2_configuration_documents_proto_rawDesc = "" +
 	"1homeward.damiengoehrig.ca/ConfigurationGenerationR\n" +
 	"generation\x125\n" +
 	"\x13generation_revision\x18\x02 \x01(\x03B\x04\xe2A\x01\x03R\x12generationRevision\x12-\n" +
-	"\x0fmanifest_sha256\x18\x03 \x01(\fB\x04\xe2A\x01\x03R\x0emanifestSha256*\x88\x03\n" +
+	"\x0fmanifest_sha256\x18\x03 \x01(\fB\x04\xe2A\x01\x03R\x0emanifestSha256\"j\n" +
+	"$PublishConfigurationDocumentResponse\x12B\n" +
+	"\x06result\x18\x01 \x01(\v2*.home.api.v2.ConfigurationActivationResultR\x06result\"k\n" +
+	"%RollbackConfigurationDocumentResponse\x12B\n" +
+	"\x06result\x18\x01 \x01(\v2*.home.api.v2.ConfigurationActivationResultR\x06result*\x88\x03\n" +
 	"\fDocumentKind\x12\x1d\n" +
 	"\x19DOCUMENT_KIND_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19DOCUMENT_KIND_YAML_SOURCE\x10\x01\x12&\n" +
@@ -2834,17 +3241,20 @@ const file_home_api_v2_configuration_documents_proto_rawDesc = "" +
 	"'CONFIGURATION_OPERATION_PHASE_COMMITTED\x10\x01\x12+\n" +
 	"'CONFIGURATION_OPERATION_PHASE_PUBLISHED\x10\x02\x12*\n" +
 	"&CONFIGURATION_OPERATION_PHASE_ACCEPTED\x10\x03\x12(\n" +
-	"$CONFIGURATION_OPERATION_PHASE_FAILED\x10\x042\x85\r\n" +
-	"\x14ConfigurationService\x12\xa8\x01\n" +
+	"$CONFIGURATION_OPERATION_PHASE_FAILED\x10\x042\xa1\x11\n" +
+	"\x14ConfigurationService\x12\xb4\x01\n" +
+	"\x18GetConfigurationRevision\x12,.home.api.v2.GetConfigurationRevisionRequest\x1a\".home.api.v2.ConfigurationRevision\"F\xdaA\x04name\x82\xd3\xe4\x93\x029\x127/v2/{name=homes/*/configurationDocuments/*/revisions/*}\x12\xb0\x01\n" +
+	"\x1aGetConfigurationGeneration\x12..home.api.v2.GetConfigurationGenerationRequest\x1a$.home.api.v2.ConfigurationGeneration\"<\xdaA\x04name\x82\xd3\xe4\x93\x02/\x12-/v2/{name=homes/*/configurationGenerations/*}\x12\xa0\x01\n" +
+	"\x16GetConfigurationSchema\x12*.home.api.v2.GetConfigurationSchemaRequest\x1a .home.api.v2.ConfigurationSchema\"8\xdaA\x04name\x82\xd3\xe4\x93\x02+\x12)/v2/{name=homes/*/configurationSchemas/*}\x12\xa8\x01\n" +
 	"\x18GetConfigurationDocument\x12,.home.api.v2.GetConfigurationDocumentRequest\x1a\".home.api.v2.ConfigurationDocument\":\xdaA\x04name\x82\xd3\xe4\x93\x02-\x12+/v2/{name=homes/*/configurationDocuments/*}\x12\xbb\x01\n" +
 	"\x1aListConfigurationDocuments\x12..home.api.v2.ListConfigurationDocumentsRequest\x1a/.home.api.v2.ListConfigurationDocumentsResponse\"<\xdaA\x06parent\x82\xd3\xe4\x93\x02-\x12+/v2/{parent=homes/*}/configurationDocuments\x12\xc7\x01\n" +
 	"\x1aListConfigurationRevisions\x12..home.api.v2.ListConfigurationRevisionsRequest\x1a/.home.api.v2.ListConfigurationRevisionsResponse\"H\xdaA\x06parent\x82\xd3\xe4\x93\x029\x127/v2/{parent=homes/*/configurationDocuments/*}/revisions\x12\xc3\x01\n" +
 	"\x1cListConfigurationGenerations\x120.home.api.v2.ListConfigurationGenerationsRequest\x1a1.home.api.v2.ListConfigurationGenerationsResponse\">\xdaA\x06parent\x82\xd3\xe4\x93\x02/\x12-/v2/{parent=homes/*}/configurationGenerations\x12\xb3\x01\n" +
-	"\x18ListConfigurationSchemas\x12,.home.api.v2.ListConfigurationSchemasRequest\x1a-.home.api.v2.ListConfigurationSchemasResponse\":\xdaA\x06parent\x82\xd3\xe4\x93\x02+\x12)/v2/{parent=homes/*}/configurationSchemas\x12\xf9\x01\n" +
-	"\x1cPublishConfigurationDocument\x120.home.api.v2.PublishConfigurationDocumentRequest\x1a\x1d.google.longrunning.Operation\"\x87\x01\xcaA?\n" +
-	"\x1dConfigurationActivationResult\x12\x1eConfigurationOperationMetadata\xdaA\x04name\x82\xd3\xe4\x93\x028:\x01*\"3/v2/{name=homes/*/configurationDocuments/*}:publish\x12\xfc\x01\n" +
-	"\x1dRollbackConfigurationDocument\x121.home.api.v2.RollbackConfigurationDocumentRequest\x1a\x1d.google.longrunning.Operation\"\x88\x01\xcaA?\n" +
-	"\x1dConfigurationActivationResult\x12\x1eConfigurationOperationMetadata\xdaA\x04name\x82\xd3\xe4\x93\x029:\x01*\"4/v2/{name=homes/*/configurationDocuments/*}:rollback\x12\xa4\x01\n" +
+	"\x18ListConfigurationSchemas\x12,.home.api.v2.ListConfigurationSchemasRequest\x1a-.home.api.v2.ListConfigurationSchemasResponse\":\xdaA\x06parent\x82\xd3\xe4\x93\x02+\x12)/v2/{parent=homes/*}/configurationSchemas\x12\x80\x02\n" +
+	"\x1cPublishConfigurationDocument\x120.home.api.v2.PublishConfigurationDocumentRequest\x1a\x1d.google.longrunning.Operation\"\x8e\x01\xcaAF\n" +
+	"$PublishConfigurationDocumentResponse\x12\x1eConfigurationOperationMetadata\xdaA\x04name\x82\xd3\xe4\x93\x028:\x01*\"3/v2/{name=homes/*/configurationDocuments/*}:publish\x12\x84\x02\n" +
+	"\x1dRollbackConfigurationDocument\x121.home.api.v2.RollbackConfigurationDocumentRequest\x1a\x1d.google.longrunning.Operation\"\x90\x01\xcaAG\n" +
+	"%RollbackConfigurationDocumentResponse\x12\x1eConfigurationOperationMetadata\xdaA\x04name\x82\xd3\xe4\x93\x029:\x01*\"4/v2/{name=homes/*/configurationDocuments/*}:rollback\x12\xa4\x01\n" +
 	"\x12WatchConfiguration\x12&.home.api.v2.WatchConfigurationRequest\x1a'.home.api.v2.WatchConfigurationResponse\";\xdaA\x06parent\x82\xd3\xe4\x93\x02,:\x01*\"'/v2/{parent=homes/*}:watchConfiguration0\x01\x1a\x1c\xcaA\x19homeward.damiengoehrig.caBd\n" +
 	"\x0fcom.home.api.v2B\x1bConfigurationDocumentsProtoP\x01Z2github.com/damione1/Homeward/gen/home/api/v2;apiv2b\x06proto3"
 
@@ -2861,63 +3271,68 @@ func file_home_api_v2_configuration_documents_proto_rawDescGZIP() []byte {
 }
 
 var file_home_api_v2_configuration_documents_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_home_api_v2_configuration_documents_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_home_api_v2_configuration_documents_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_home_api_v2_configuration_documents_proto_goTypes = []any{
-	(DocumentKind)(0),                            // 0: home.api.v2.DocumentKind
-	(DirtyState)(0),                              // 1: home.api.v2.DirtyState
-	(WorkspaceUnobservedReason)(0),               // 2: home.api.v2.WorkspaceUnobservedReason
-	(ActivationOutcome)(0),                       // 3: home.api.v2.ActivationOutcome
-	(TransactionOutcome)(0),                      // 4: home.api.v2.TransactionOutcome
-	(ConfigurationDiagnosticCode)(0),             // 5: home.api.v2.ConfigurationDiagnosticCode
-	(VersionAvailability)(0),                     // 6: home.api.v2.VersionAvailability
-	(GenerationAvailability)(0),                  // 7: home.api.v2.GenerationAvailability
-	(ResyncReason)(0),                            // 8: home.api.v2.ResyncReason
-	(ConfigurationOperationPhase)(0),             // 9: home.api.v2.ConfigurationOperationPhase
-	(*DocumentId)(nil),                           // 10: home.api.v2.DocumentId
-	(*DocumentVersion)(nil),                      // 11: home.api.v2.DocumentVersion
-	(*ActiveGeneration)(nil),                     // 12: home.api.v2.ActiveGeneration
-	(*WorkspaceObservation)(nil),                 // 13: home.api.v2.WorkspaceObservation
-	(*WorkspaceDiagnostic)(nil),                  // 14: home.api.v2.WorkspaceDiagnostic
-	(*WorkspaceUnobserved)(nil),                  // 15: home.api.v2.WorkspaceUnobserved
-	(*ConfigurationDocument)(nil),                // 16: home.api.v2.ConfigurationDocument
-	(*ActivationResult)(nil),                     // 17: home.api.v2.ActivationResult
-	(*GetConfigurationDocumentRequest)(nil),      // 18: home.api.v2.GetConfigurationDocumentRequest
-	(*ListConfigurationDocumentsRequest)(nil),    // 19: home.api.v2.ListConfigurationDocumentsRequest
-	(*ListConfigurationDocumentsResponse)(nil),   // 20: home.api.v2.ListConfigurationDocumentsResponse
-	(*ConfigurationRevision)(nil),                // 21: home.api.v2.ConfigurationRevision
-	(*ConfigurationGeneration)(nil),              // 22: home.api.v2.ConfigurationGeneration
-	(*ListConfigurationRevisionsRequest)(nil),    // 23: home.api.v2.ListConfigurationRevisionsRequest
-	(*ListConfigurationRevisionsResponse)(nil),   // 24: home.api.v2.ListConfigurationRevisionsResponse
-	(*ListConfigurationGenerationsRequest)(nil),  // 25: home.api.v2.ListConfigurationGenerationsRequest
-	(*ListConfigurationGenerationsResponse)(nil), // 26: home.api.v2.ListConfigurationGenerationsResponse
-	(*ConfigurationSchema)(nil),                  // 27: home.api.v2.ConfigurationSchema
-	(*ListConfigurationSchemasRequest)(nil),      // 28: home.api.v2.ListConfigurationSchemasRequest
-	(*ListConfigurationSchemasResponse)(nil),     // 29: home.api.v2.ListConfigurationSchemasResponse
-	(*PublishConfigurationDocumentRequest)(nil),  // 30: home.api.v2.PublishConfigurationDocumentRequest
-	(*RollbackConfigurationDocumentRequest)(nil), // 31: home.api.v2.RollbackConfigurationDocumentRequest
-	(*DocumentChange)(nil),                       // 32: home.api.v2.DocumentChange
-	(*ChangeBatch)(nil),                          // 33: home.api.v2.ChangeBatch
-	(*ResyncRequired)(nil),                       // 34: home.api.v2.ResyncRequired
-	(*WatchReady)(nil),                           // 35: home.api.v2.WatchReady
-	(*WatchConfigurationRequest)(nil),            // 36: home.api.v2.WatchConfigurationRequest
-	(*WatchConfigurationResponse)(nil),           // 37: home.api.v2.WatchConfigurationResponse
-	(*ConfigurationOperationMetadata)(nil),       // 38: home.api.v2.ConfigurationOperationMetadata
-	(*ConfigurationActivationResult)(nil),        // 39: home.api.v2.ConfigurationActivationResult
-	(*timestamppb.Timestamp)(nil),                // 40: google.protobuf.Timestamp
-	(*longrunningpb.Operation)(nil),              // 41: google.longrunning.Operation
+	(DocumentKind)(0),                             // 0: home.api.v2.DocumentKind
+	(DirtyState)(0),                               // 1: home.api.v2.DirtyState
+	(WorkspaceUnobservedReason)(0),                // 2: home.api.v2.WorkspaceUnobservedReason
+	(ActivationOutcome)(0),                        // 3: home.api.v2.ActivationOutcome
+	(TransactionOutcome)(0),                       // 4: home.api.v2.TransactionOutcome
+	(ConfigurationDiagnosticCode)(0),              // 5: home.api.v2.ConfigurationDiagnosticCode
+	(VersionAvailability)(0),                      // 6: home.api.v2.VersionAvailability
+	(GenerationAvailability)(0),                   // 7: home.api.v2.GenerationAvailability
+	(ResyncReason)(0),                             // 8: home.api.v2.ResyncReason
+	(ConfigurationOperationPhase)(0),              // 9: home.api.v2.ConfigurationOperationPhase
+	(*DocumentId)(nil),                            // 10: home.api.v2.DocumentId
+	(*DocumentVersion)(nil),                       // 11: home.api.v2.DocumentVersion
+	(*ActiveGeneration)(nil),                      // 12: home.api.v2.ActiveGeneration
+	(*WorkspaceObservation)(nil),                  // 13: home.api.v2.WorkspaceObservation
+	(*WorkspaceDiagnostic)(nil),                   // 14: home.api.v2.WorkspaceDiagnostic
+	(*WorkspaceUnobserved)(nil),                   // 15: home.api.v2.WorkspaceUnobserved
+	(*ConfigurationDocument)(nil),                 // 16: home.api.v2.ConfigurationDocument
+	(*ActivationResult)(nil),                      // 17: home.api.v2.ActivationResult
+	(*GetConfigurationDocumentRequest)(nil),       // 18: home.api.v2.GetConfigurationDocumentRequest
+	(*ListConfigurationDocumentsRequest)(nil),     // 19: home.api.v2.ListConfigurationDocumentsRequest
+	(*ListConfigurationDocumentsResponse)(nil),    // 20: home.api.v2.ListConfigurationDocumentsResponse
+	(*ConfigurationRevision)(nil),                 // 21: home.api.v2.ConfigurationRevision
+	(*ConfigurationGeneration)(nil),               // 22: home.api.v2.ConfigurationGeneration
+	(*ListConfigurationRevisionsRequest)(nil),     // 23: home.api.v2.ListConfigurationRevisionsRequest
+	(*ListConfigurationRevisionsResponse)(nil),    // 24: home.api.v2.ListConfigurationRevisionsResponse
+	(*ListConfigurationGenerationsRequest)(nil),   // 25: home.api.v2.ListConfigurationGenerationsRequest
+	(*ListConfigurationGenerationsResponse)(nil),  // 26: home.api.v2.ListConfigurationGenerationsResponse
+	(*ConfigurationSchema)(nil),                   // 27: home.api.v2.ConfigurationSchema
+	(*ListConfigurationSchemasRequest)(nil),       // 28: home.api.v2.ListConfigurationSchemasRequest
+	(*ListConfigurationSchemasResponse)(nil),      // 29: home.api.v2.ListConfigurationSchemasResponse
+	(*PublishConfigurationDocumentRequest)(nil),   // 30: home.api.v2.PublishConfigurationDocumentRequest
+	(*RollbackConfigurationDocumentRequest)(nil),  // 31: home.api.v2.RollbackConfigurationDocumentRequest
+	(*DocumentChange)(nil),                        // 32: home.api.v2.DocumentChange
+	(*ChangeBatch)(nil),                           // 33: home.api.v2.ChangeBatch
+	(*ResyncRequired)(nil),                        // 34: home.api.v2.ResyncRequired
+	(*WatchReady)(nil),                            // 35: home.api.v2.WatchReady
+	(*WatchConfigurationRequest)(nil),             // 36: home.api.v2.WatchConfigurationRequest
+	(*WatchConfigurationResponse)(nil),            // 37: home.api.v2.WatchConfigurationResponse
+	(*GetConfigurationRevisionRequest)(nil),       // 38: home.api.v2.GetConfigurationRevisionRequest
+	(*GetConfigurationGenerationRequest)(nil),     // 39: home.api.v2.GetConfigurationGenerationRequest
+	(*GetConfigurationSchemaRequest)(nil),         // 40: home.api.v2.GetConfigurationSchemaRequest
+	(*ConfigurationOperationMetadata)(nil),        // 41: home.api.v2.ConfigurationOperationMetadata
+	(*ConfigurationActivationResult)(nil),         // 42: home.api.v2.ConfigurationActivationResult
+	(*PublishConfigurationDocumentResponse)(nil),  // 43: home.api.v2.PublishConfigurationDocumentResponse
+	(*RollbackConfigurationDocumentResponse)(nil), // 44: home.api.v2.RollbackConfigurationDocumentResponse
+	(*timestamppb.Timestamp)(nil),                 // 45: google.protobuf.Timestamp
+	(*longrunningpb.Operation)(nil),               // 46: google.longrunning.Operation
 }
 var file_home_api_v2_configuration_documents_proto_depIdxs = []int32{
-	40, // 0: home.api.v2.WorkspaceObservation.updated_at:type_name -> google.protobuf.Timestamp
+	45, // 0: home.api.v2.WorkspaceObservation.updated_at:type_name -> google.protobuf.Timestamp
 	1,  // 1: home.api.v2.WorkspaceObservation.dirty:type_name -> home.api.v2.DirtyState
 	14, // 2: home.api.v2.WorkspaceObservation.diagnostic:type_name -> home.api.v2.WorkspaceDiagnostic
 	10, // 3: home.api.v2.WorkspaceDiagnostic.document:type_name -> home.api.v2.DocumentId
-	40, // 4: home.api.v2.WorkspaceDiagnostic.observed_at:type_name -> google.protobuf.Timestamp
+	45, // 4: home.api.v2.WorkspaceDiagnostic.observed_at:type_name -> google.protobuf.Timestamp
 	5,  // 5: home.api.v2.WorkspaceDiagnostic.code:type_name -> home.api.v2.ConfigurationDiagnosticCode
 	2,  // 6: home.api.v2.WorkspaceUnobserved.reason:type_name -> home.api.v2.WorkspaceUnobservedReason
 	10, // 7: home.api.v2.ConfigurationDocument.id:type_name -> home.api.v2.DocumentId
 	0,  // 8: home.api.v2.ConfigurationDocument.kind:type_name -> home.api.v2.DocumentKind
 	11, // 9: home.api.v2.ConfigurationDocument.version:type_name -> home.api.v2.DocumentVersion
-	40, // 10: home.api.v2.ConfigurationDocument.updated_at:type_name -> google.protobuf.Timestamp
+	45, // 10: home.api.v2.ConfigurationDocument.updated_at:type_name -> google.protobuf.Timestamp
 	13, // 11: home.api.v2.ConfigurationDocument.workspace:type_name -> home.api.v2.WorkspaceObservation
 	15, // 12: home.api.v2.ConfigurationDocument.workspace_unobserved:type_name -> home.api.v2.WorkspaceUnobserved
 	12, // 13: home.api.v2.ConfigurationDocument.active_generation:type_name -> home.api.v2.ActiveGeneration
@@ -2928,10 +3343,10 @@ var file_home_api_v2_configuration_documents_proto_depIdxs = []int32{
 	10, // 18: home.api.v2.ConfigurationRevision.id:type_name -> home.api.v2.DocumentId
 	11, // 19: home.api.v2.ConfigurationRevision.version:type_name -> home.api.v2.DocumentVersion
 	6,  // 20: home.api.v2.ConfigurationRevision.availability:type_name -> home.api.v2.VersionAvailability
-	40, // 21: home.api.v2.ConfigurationRevision.updated_at:type_name -> google.protobuf.Timestamp
+	45, // 21: home.api.v2.ConfigurationRevision.update_time:type_name -> google.protobuf.Timestamp
 	12, // 22: home.api.v2.ConfigurationGeneration.generation:type_name -> home.api.v2.ActiveGeneration
 	7,  // 23: home.api.v2.ConfigurationGeneration.availability:type_name -> home.api.v2.GenerationAvailability
-	40, // 24: home.api.v2.ConfigurationGeneration.created_at:type_name -> google.protobuf.Timestamp
+	45, // 24: home.api.v2.ConfigurationGeneration.create_time:type_name -> google.protobuf.Timestamp
 	21, // 25: home.api.v2.ListConfigurationRevisionsResponse.versions:type_name -> home.api.v2.ConfigurationRevision
 	22, // 26: home.api.v2.ListConfigurationGenerationsResponse.generations:type_name -> home.api.v2.ConfigurationGeneration
 	0,  // 27: home.api.v2.ConfigurationSchema.kind:type_name -> home.api.v2.DocumentKind
@@ -2946,30 +3361,38 @@ var file_home_api_v2_configuration_documents_proto_depIdxs = []int32{
 	33, // 36: home.api.v2.WatchConfigurationResponse.changes:type_name -> home.api.v2.ChangeBatch
 	34, // 37: home.api.v2.WatchConfigurationResponse.resync_required:type_name -> home.api.v2.ResyncRequired
 	35, // 38: home.api.v2.WatchConfigurationResponse.ready:type_name -> home.api.v2.WatchReady
-	40, // 39: home.api.v2.ConfigurationOperationMetadata.create_time:type_name -> google.protobuf.Timestamp
+	45, // 39: home.api.v2.ConfigurationOperationMetadata.create_time:type_name -> google.protobuf.Timestamp
 	9,  // 40: home.api.v2.ConfigurationOperationMetadata.phase:type_name -> home.api.v2.ConfigurationOperationPhase
-	40, // 41: home.api.v2.ConfigurationOperationMetadata.commit_time:type_name -> google.protobuf.Timestamp
-	18, // 42: home.api.v2.ConfigurationService.GetConfigurationDocument:input_type -> home.api.v2.GetConfigurationDocumentRequest
-	19, // 43: home.api.v2.ConfigurationService.ListConfigurationDocuments:input_type -> home.api.v2.ListConfigurationDocumentsRequest
-	23, // 44: home.api.v2.ConfigurationService.ListConfigurationRevisions:input_type -> home.api.v2.ListConfigurationRevisionsRequest
-	25, // 45: home.api.v2.ConfigurationService.ListConfigurationGenerations:input_type -> home.api.v2.ListConfigurationGenerationsRequest
-	28, // 46: home.api.v2.ConfigurationService.ListConfigurationSchemas:input_type -> home.api.v2.ListConfigurationSchemasRequest
-	30, // 47: home.api.v2.ConfigurationService.PublishConfigurationDocument:input_type -> home.api.v2.PublishConfigurationDocumentRequest
-	31, // 48: home.api.v2.ConfigurationService.RollbackConfigurationDocument:input_type -> home.api.v2.RollbackConfigurationDocumentRequest
-	36, // 49: home.api.v2.ConfigurationService.WatchConfiguration:input_type -> home.api.v2.WatchConfigurationRequest
-	16, // 50: home.api.v2.ConfigurationService.GetConfigurationDocument:output_type -> home.api.v2.ConfigurationDocument
-	20, // 51: home.api.v2.ConfigurationService.ListConfigurationDocuments:output_type -> home.api.v2.ListConfigurationDocumentsResponse
-	24, // 52: home.api.v2.ConfigurationService.ListConfigurationRevisions:output_type -> home.api.v2.ListConfigurationRevisionsResponse
-	26, // 53: home.api.v2.ConfigurationService.ListConfigurationGenerations:output_type -> home.api.v2.ListConfigurationGenerationsResponse
-	29, // 54: home.api.v2.ConfigurationService.ListConfigurationSchemas:output_type -> home.api.v2.ListConfigurationSchemasResponse
-	41, // 55: home.api.v2.ConfigurationService.PublishConfigurationDocument:output_type -> google.longrunning.Operation
-	41, // 56: home.api.v2.ConfigurationService.RollbackConfigurationDocument:output_type -> google.longrunning.Operation
-	37, // 57: home.api.v2.ConfigurationService.WatchConfiguration:output_type -> home.api.v2.WatchConfigurationResponse
-	50, // [50:58] is the sub-list for method output_type
-	42, // [42:50] is the sub-list for method input_type
-	42, // [42:42] is the sub-list for extension type_name
-	42, // [42:42] is the sub-list for extension extendee
-	0,  // [0:42] is the sub-list for field type_name
+	45, // 41: home.api.v2.ConfigurationOperationMetadata.commit_time:type_name -> google.protobuf.Timestamp
+	42, // 42: home.api.v2.PublishConfigurationDocumentResponse.result:type_name -> home.api.v2.ConfigurationActivationResult
+	42, // 43: home.api.v2.RollbackConfigurationDocumentResponse.result:type_name -> home.api.v2.ConfigurationActivationResult
+	38, // 44: home.api.v2.ConfigurationService.GetConfigurationRevision:input_type -> home.api.v2.GetConfigurationRevisionRequest
+	39, // 45: home.api.v2.ConfigurationService.GetConfigurationGeneration:input_type -> home.api.v2.GetConfigurationGenerationRequest
+	40, // 46: home.api.v2.ConfigurationService.GetConfigurationSchema:input_type -> home.api.v2.GetConfigurationSchemaRequest
+	18, // 47: home.api.v2.ConfigurationService.GetConfigurationDocument:input_type -> home.api.v2.GetConfigurationDocumentRequest
+	19, // 48: home.api.v2.ConfigurationService.ListConfigurationDocuments:input_type -> home.api.v2.ListConfigurationDocumentsRequest
+	23, // 49: home.api.v2.ConfigurationService.ListConfigurationRevisions:input_type -> home.api.v2.ListConfigurationRevisionsRequest
+	25, // 50: home.api.v2.ConfigurationService.ListConfigurationGenerations:input_type -> home.api.v2.ListConfigurationGenerationsRequest
+	28, // 51: home.api.v2.ConfigurationService.ListConfigurationSchemas:input_type -> home.api.v2.ListConfigurationSchemasRequest
+	30, // 52: home.api.v2.ConfigurationService.PublishConfigurationDocument:input_type -> home.api.v2.PublishConfigurationDocumentRequest
+	31, // 53: home.api.v2.ConfigurationService.RollbackConfigurationDocument:input_type -> home.api.v2.RollbackConfigurationDocumentRequest
+	36, // 54: home.api.v2.ConfigurationService.WatchConfiguration:input_type -> home.api.v2.WatchConfigurationRequest
+	21, // 55: home.api.v2.ConfigurationService.GetConfigurationRevision:output_type -> home.api.v2.ConfigurationRevision
+	22, // 56: home.api.v2.ConfigurationService.GetConfigurationGeneration:output_type -> home.api.v2.ConfigurationGeneration
+	27, // 57: home.api.v2.ConfigurationService.GetConfigurationSchema:output_type -> home.api.v2.ConfigurationSchema
+	16, // 58: home.api.v2.ConfigurationService.GetConfigurationDocument:output_type -> home.api.v2.ConfigurationDocument
+	20, // 59: home.api.v2.ConfigurationService.ListConfigurationDocuments:output_type -> home.api.v2.ListConfigurationDocumentsResponse
+	24, // 60: home.api.v2.ConfigurationService.ListConfigurationRevisions:output_type -> home.api.v2.ListConfigurationRevisionsResponse
+	26, // 61: home.api.v2.ConfigurationService.ListConfigurationGenerations:output_type -> home.api.v2.ListConfigurationGenerationsResponse
+	29, // 62: home.api.v2.ConfigurationService.ListConfigurationSchemas:output_type -> home.api.v2.ListConfigurationSchemasResponse
+	46, // 63: home.api.v2.ConfigurationService.PublishConfigurationDocument:output_type -> google.longrunning.Operation
+	46, // 64: home.api.v2.ConfigurationService.RollbackConfigurationDocument:output_type -> google.longrunning.Operation
+	37, // 65: home.api.v2.ConfigurationService.WatchConfiguration:output_type -> home.api.v2.WatchConfigurationResponse
+	55, // [55:66] is the sub-list for method output_type
+	44, // [44:55] is the sub-list for method input_type
+	44, // [44:44] is the sub-list for extension type_name
+	44, // [44:44] is the sub-list for extension extendee
+	0,  // [0:44] is the sub-list for field type_name
 }
 
 func init() { file_home_api_v2_configuration_documents_proto_init() }
@@ -2994,7 +3417,7 @@ func file_home_api_v2_configuration_documents_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_api_v2_configuration_documents_proto_rawDesc), len(file_home_api_v2_configuration_documents_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   30,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

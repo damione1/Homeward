@@ -3,6 +3,7 @@ package contracts
 import (
 	"errors"
 	"math"
+	"slices"
 	"unicode/utf8"
 
 	plan "github.com/damione1/Homeward/gen/home/api/v2"
@@ -44,7 +45,7 @@ func simulationAttribute(value *wire.ConfigurationSimulationAttribute) bool {
 	}
 }
 func AdmitConfigurationSimulationRequest(message *wire.SimulateConfigurationPlanRequest) error {
-	if message == nil || !configurationKnown(message.ProtoReflect()) || !configurationHomeName(message.Name) || !planCandidate(message.Candidate) || proto.Size(message) > 2<<20 || !configurationTime(message.Now) || message.Now.AsTime().Year() < 1900 || message.Now.AsTime().Year() > 2100 || !planLabel(message.TimeZone, 256) || message.VirtualLimitMillis == 0 || message.VirtualLimitMillis > 3600000 || len(message.Fixtures) > 128 || len(message.EventTypes) > 128 {
+	if message == nil || !configurationKnown(message.ProtoReflect()) || !configurationHomeName(message.Name) || !planCandidate(message.Candidate) || proto.Size(message) > 2<<20 || !configurationTime(message.Now) || message.Now.AsTime().Year() < 1900 || message.Now.AsTime().Year() > 2100 || !planLabel(message.TimeZone, 256) || message.VirtualLimitMillis <= 0 || message.VirtualLimitMillis > 3600000 || len(message.Fixtures) > 128 || len(message.EventTypes) > 128 {
 		return ErrInvalidConfigurationSimulationContract
 	}
 	switch message.Candidate.Family {
@@ -141,7 +142,7 @@ func simulationIntent(value *wire.ConfigurationSimulationIntent) bool {
 		if light.Brightness_255 != nil {
 			present++
 		}
-		return present <= 1 && (light.On != nil || present > 0 || light.ColorTempMireds != nil) && simulationFinite(light.BrightnessPercent, 0, 100) && simulationFinite(light.BrightnessStepPercent, -100, 100) && simulationFinite(light.TransitionSeconds, 0, 86400) && (light.Brightness_255 == nil || *light.Brightness_255 <= 255) && (light.ColorTempMireds == nil || *light.ColorTempMireds > 0)
+		return present <= 1 && (light.On != nil || present > 0 || light.ColorTempMireds != nil) && simulationFinite(light.BrightnessPercent, 0, 100) && simulationFinite(light.BrightnessStepPercent, -100, 100) && simulationFinite(light.TransitionSeconds, 0, 86400) && (light.Brightness_255 == nil || *light.Brightness_255 >= 0 && *light.Brightness_255 <= 255) && (light.ColorTempMireds == nil || *light.ColorTempMireds > 0 && *light.ColorTempMireds <= math.MaxUint32)
 	case *wire.ConfigurationSimulationIntent_Climate:
 		if item == nil || item.Climate == nil {
 			return false
@@ -154,7 +155,7 @@ func simulationIntent(value *wire.ConfigurationSimulationIntent) bool {
 		}
 		return (climate.TemperatureCelsius != nil || climate.Mode != nil || climate.HumidityPercent != nil || climate.FanMode != nil || climate.PresetMode != nil) && simulationFinite(climate.TemperatureCelsius, -273.15, 1000) && simulationFinite(climate.HumidityPercent, 0, 100) && (climate.FanMode == nil || planLabel(*climate.FanMode, 128)) && (climate.PresetMode == nil || planLabel(*climate.PresetMode, 128))
 	case *wire.ConfigurationSimulationIntent_Fan:
-		return item != nil && item.Fan != nil && item.Fan.Percentage <= 100
+		return item != nil && item.Fan != nil && item.Fan.Percentage >= 0 && item.Fan.Percentage <= 100
 	case nil:
 		return value.Outcome == wire.IntentOutcome_INTENT_OUTCOME_REFUSED
 	default:
@@ -186,7 +187,7 @@ func AdmitConfigurationSimulationResponse(message *wire.SimulateConfigurationPla
 		return ErrInvalidConfigurationSimulationContract
 	}
 	r := message.Report
-	if !r.Simulated || r.HardwareValidated || r.ElapsedMillis > 3600000 || len(r.Intents) > 256 || len(r.Nodes) > 1024 || len(r.Diagnostics) > 512 || len(r.Limitations) < 1 || len(r.Limitations) > 8 {
+	if !r.Simulated || r.HardwareValidated || r.ElapsedMillis < 0 || r.ElapsedMillis > 3600000 || len(r.Intents) > 256 || len(r.Nodes) > 1024 || len(r.Diagnostics) > 512 || len(r.Limitations) < 1 || len(r.Limitations) > 8 {
 		return ErrInvalidConfigurationSimulationContract
 	}
 	switch r.Status {
@@ -219,7 +220,7 @@ func AdmitConfigurationSimulationResponse(message *wire.SimulateConfigurationPla
 		}
 	}
 	for _, node := range r.Nodes {
-		if node == nil || !simulationPosition(node.Position) || node.Position.File == "" || !simulationAction(node.Action) || !simulationStage(node.Stage) || !configurationTime(node.At) || len(node.Branches) > 8 || len(node.Iterations) > 8 {
+		if node == nil || slices.ContainsFunc(node.Branches, func(v int32) bool { return v < 0 }) || slices.ContainsFunc(node.Iterations, func(v int32) bool { return v < 0 }) || !simulationPosition(node.Position) || node.Position.File == "" || !simulationAction(node.Action) || !simulationStage(node.Stage) || !configurationTime(node.At) || len(node.Branches) > 8 || len(node.Iterations) > 8 {
 			return ErrInvalidConfigurationSimulationContract
 		}
 	}

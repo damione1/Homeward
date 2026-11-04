@@ -47,12 +47,12 @@ func (n authResourceNames) accountResource(ctx context.Context, record storage.A
 	if err != nil {
 		return nil, err
 	}
-	var state api.AccountState
+	var state api.AccountAccess
 	switch status {
 	case native.AccountStatus_ACCOUNT_STATUS_ACTIVE:
-		state = api.AccountState_ACCOUNT_STATE_ACTIVE
+		state = api.AccountAccess_ACCOUNT_ACCESS_ENABLED
 	case native.AccountStatus_ACCOUNT_STATUS_DISABLED:
-		state = api.AccountState_ACCOUNT_STATE_DISABLED
+		state = api.AccountAccess_ACCOUNT_ACCESS_DISABLED
 	default:
 		return nil, storage.ErrAPIResourceIntegrity
 	}
@@ -76,7 +76,7 @@ func (n authResourceNames) accountResource(ctx context.Context, record storage.A
 	if err != nil {
 		return nil, err
 	}
-	return &api.Account{Name: name.String(), LoginName: loginText, DisplayName: displayText, Role: publicRole, State: state, SecondFactorEnabled: factor, CreateTime: timestamppb.New(created), UpdateTime: timestamppb.New(updated), Etag: etag}, nil
+	return &api.Account{Name: name.String(), LoginName: loginText, DisplayName: displayText, Role: publicRole, Access: state, SecondFactorEnabled: factor, CreateTime: timestamppb.New(created), UpdateTime: timestamppb.New(updated), Etag: etag}, nil
 }
 
 func (n authResourceNames) invitationResource(ctx context.Context, record storage.InvitationRecord) (*api.Invitation, error) {

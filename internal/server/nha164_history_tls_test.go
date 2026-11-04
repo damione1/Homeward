@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,9 +14,11 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	history "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	history "github.com/damione1/Homeward/gen/home/history/v1"
-	"github.com/damione1/Homeward/gen/home/history/v1/historyv1connect"
+	registry "github.com/damione1/Homeward/gen/home/registry/v1"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
@@ -24,7 +27,7 @@ import (
 	"github.com/damione1/Homeward/internal/integrations/fake"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -88,7 +91,7 @@ func TestNHA164GeneratedTLSRoutesAndActualSQLRevocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = h.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_ADMIN, 2)); err != nil {
+	if err = h.native.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_ADMIN, 2)); err != nil {
 		t.Fatal(err)
 	}
 	permissions := make([]authorization.Permission, 0, 2)
@@ -145,8 +148,23 @@ func TestNHA164GeneratedTLSRoutesAndActualSQLRevocation(t *testing.T) {
 	if err = fixture.PublishRegistry(context.Background(), []integrations.RegistryRecord{record}); err != nil {
 		t.Fatal(err)
 	}
-	h.runtime.sequence = fixture.Sequencer()
-	h.runtime.reader = store
+	h.native.runtime.sequence = fixture.Sequencer()
+	h.native.runtime.reader = store
+	home, err := h.native.runtime.names.HomeName(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.native.runtime.names = nha203HistoryNames{home: home, entities: []domain.EntityID{entity}}
+	composite, err := integrations.NewCandidate(sourceKey, []*registry.CapabilityDescription{
+		{SchemaId: contracts.SwitchSchema, Major: 1, DisplayName: "Synthetic witness A", Endpoint: "relay", Constraints: &registry.CapabilityDescription_Switch{Switch: &registry.SwitchConstraints{}}},
+		{SchemaId: contracts.MeasurementSchema, Major: 1, DisplayName: "Synthetic contributing B", Endpoint: "power", Constraints: &registry.CapabilityDescription_Measurement{Measurement: &registry.MeasurementConstraints{Unit: "W", Precision: 1, Semantic: registry.MeasurementSemantic_MEASUREMENT_SEMANTIC_MEASUREMENT, Aggregation: registry.MeasurementAggregation_MEASUREMENT_AGGREGATION_CURRENT}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = session.Discover(context.Background(), []integrations.Candidate{composite}); err != nil {
+		t.Fatal(err)
+	}
 	catalogueCapture, err := fixture.Sequencer().CaptureEntityCatalogue(entity, 1<<20)
 	if err != nil {
 		t.Fatal(err)
@@ -172,6 +190,14 @@ func TestNHA164GeneratedTLSRoutesAndActualSQLRevocation(t *testing.T) {
 			t.Fatal(err)
 		}
 		row, err := storage.NewRecorderRecord(sequence, instance, observed, domain.Causality{}, now, 4<<20)
+		if err != nil {
+			t.Fatal(err)
+		}
+		proof, err := integrations.NewRecorderEvidence(catalogueCapture.Record(), catalogueCapture.Descriptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+		row, err = row.WithEvidence(proof)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -206,12 +232,12 @@ func TestNHA164GeneratedTLSRoutesAndActualSQLRevocation(t *testing.T) {
 	if _, err = store.CommitExecutionHistoryBatch(context.Background(), traceBatch); err != nil {
 		t.Fatal(err)
 	}
-	provider := nha164TLSCredential{principal: principal, authority: h.runtime.authority}
+	provider := nha164TLSCredential{principal: principal, authority: h.native.runtime.authority}
 	plan, err := NewPublicPlan(provider, provider, &nha139Auditor{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = registerHistoryRoutes(plan, h.runtime); err != nil {
+	if err = registerHistoryRoutes(plan, h.native.runtime); err != nil {
 		t.Fatal(err)
 	}
 	public := config.DefaultPublicSettings()
@@ -223,13 +249,13 @@ func TestNHA164GeneratedTLSRoutesAndActualSQLRevocation(t *testing.T) {
 	tlsServer.EnableHTTP2 = true
 	tlsServer.StartTLS()
 	defer tlsServer.Close()
-	api := historyv1connect.NewHistoryServiceClient(tlsServer.Client(), tlsServer.URL)
+	api := apiv2connect.NewHistoryServiceClient(tlsServer.Client(), tlsServer.URL)
 	t.Run("malformed-JSON-errors-are-bounded-and-redacted", func(t *testing.T) {
 		const canary = "NHA164_UNTRUSTED_JSON_KEY_CANARY"
 		key := canary + strings.Repeat("k", 300<<10)
 		for _, body := range []string{"{\"" + key + "\":true}", "{\"entityId\": [}"} {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			request, err := http.NewRequestWithContext(ctx, http.MethodPost, tlsServer.URL+historyv1connect.HistoryServiceQueryObservationsProcedure, strings.NewReader(body))
+			request, err := http.NewRequestWithContext(ctx, http.MethodPost, tlsServer.URL+apiv2connect.HistoryServiceQueryObservationsProcedure, strings.NewReader(body))
 			if err != nil {
 				cancel()
 				t.Fatal(err)
@@ -256,32 +282,71 @@ func TestNHA164GeneratedTLSRoutesAndActualSQLRevocation(t *testing.T) {
 			}
 		}
 	})
-	period := &history.Period{Start: timestamppb.New(now.Add(-time.Hour)), End: timestamppb.New(now.Add(time.Hour))}
-	name, _ := entity.Value()
-	first, err := api.QueryObservations(context.Background(), nha164TLSRequest(&history.QueryObservationsRequest{EntityId: name, Period: period, Resolution: history.Resolution_RESOLUTION_RAW, PageSize: proto.Uint32(1)}))
+	period := &history.HistoryPeriod{Start: timestamppb.New(now.Add(-time.Hour)), End: timestamppb.New(now.Add(time.Hour))}
+	publicName, err := apitypes.EntityNameForIdentity(home, entity)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if contracts.AdmitHistoryResponse(first.Msg) != nil || first.Msg.GetPage() == nil || len(first.Msg.GetPage().Points) != 1 || first.Msg.GetPage().Points[0].State.GetSwitchOn() {
+	name := publicName.String()
+	first, err := api.QueryObservations(context.Background(), nha164TLSRequest(&history.QueryObservationsRequest{Parent: name, Period: period, PageSize: 1}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contracts.AdmitHistoryV2Response(first.Msg, home) != nil || first.Msg.Scope == nil || len(first.Msg.Observations) != 1 || first.Msg.Observations[0].State.GetSwitchOn() {
 		t.Fatal("actual TLS lost false or page coverage")
 	}
-	token := first.Msg.GetPage().Continuation.GetNextPageToken()
+	token := first.Msg.NextPageToken
 	if token == "" {
 		t.Fatal("actual TLS did not return keyset token")
 	}
-	second, err := api.QueryObservations(context.Background(), nha164TLSRequest(&history.QueryObservationsRequest{EntityId: name, Period: period, Resolution: history.Resolution_RESOLUTION_RAW, PageSize: proto.Uint32(1), PageToken: token}))
-	if err != nil || second.Msg.GetPage() == nil || len(second.Msg.GetPage().Points) != 1 || !second.Msg.GetPage().Points[0].State.GetSwitchOn() {
+	second, err := api.QueryObservations(context.Background(), nha164TLSRequest(&history.QueryObservationsRequest{Parent: name, Period: period, PageSize: 2, PageToken: token}))
+	if err != nil || second.Msg.Scope == nil || len(second.Msg.Observations) != 1 || !second.Msg.Observations[0].State.GetSwitchOn() {
 		t.Fatalf("actual TLS continuation failed: %v", err)
 	}
 	hour := now.Truncate(time.Hour)
-	aggregate, err := api.QueryAggregates(context.Background(), nha164TLSRequest(&history.QueryAggregatesRequest{EntityId: name, Period: &history.Period{Start: timestamppb.New(hour), End: timestamppb.New(hour.Add(time.Hour))}, Resolution: history.Resolution_RESOLUTION_HOUR}))
-	if err != nil || aggregate.Msg.GetPage() == nil || contracts.AdmitHistoryResponse(aggregate.Msg) != nil {
+	aggregate, err := api.QueryAggregates(context.Background(), nha164TLSRequest(&history.QueryAggregatesRequest{Parent: name, Period: &history.HistoryPeriod{Start: timestamppb.New(hour), End: timestamppb.New(hour.Add(time.Hour))}}))
+	if err != nil || aggregate.Msg.Scope == nil || contracts.AdmitHistoryV2Response(aggregate.Msg, home) != nil {
 		t.Fatalf("actual aggregate route not admitted: %v", err)
 	}
-	traces, err := api.QueryExecutionTraces(context.Background(), nha164TLSRequest(&history.QueryExecutionTracesRequest{Period: period}))
-	if err != nil || traces.Msg.GetPage() == nil || len(traces.Msg.GetPage().Points) != 1 || contracts.AdmitHistoryResponse(traces.Msg) != nil {
+	traces, err := api.QueryExecutionTraces(context.Background(), nha164TLSRequest(&history.QueryExecutionTracesRequest{Parent: home.String(), Period: period}))
+	if err != nil || traces.Msg.Scope == nil || len(traces.Msg.ExecutionTraces) != 1 || contracts.AdmitHistoryV2Response(traces.Msg, home) != nil {
 		t.Fatalf("actual persisted trace route failed: %v", err)
 	}
+	t.Run("recorded-B-revoked-during-H2-send-with-witness-A-maintained", func(t *testing.T) {
+		roots := x509.NewCertPool()
+		roots.AddCert(tlsServer.Certificate())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		started := time.Now()
+		blocked := nha203UnreadHistoryH2(t, ctx, tlsServer.URL, roots, apiv2connect.HistoryServiceQueryObservationsProcedure, &history.QueryObservationsRequest{Parent: name, Period: period, PageSize: 1})
+		if time.Since(started) > time.Second {
+			t.Fatal("fixture reached send too late to distinguish revocation from 2s deadline")
+		}
+		independent, err := api.QueryObservations(ctx, nha164TLSRequest(&history.QueryObservationsRequest{Parent: name, Period: period, PageSize: 1}))
+		if err != nil || independent == nil {
+			t.Fatal("blocked send stalled independent reader", err)
+		}
+		denied, err := authorization.AdmitPolicySource(account, []byte("schema: homeward.authorization/1\naccount_id: nha164-account\ngrants:\n  - scope: {family: history, operation: read}\n    objects:\n      entities:\n        all:\n          capabilities:\n            explicit:\n              - {schema_id: core.switch.v1, endpoint: relay}\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = h.native.runtime.authority.Publish(nha164AuthorityState(t, denied, auth.AccountRole_ACCOUNT_ROLE_ADMIN, 3)); err != nil {
+			t.Fatal(err)
+		}
+		until := time.Now().Add(500 * time.Millisecond)
+		for blocked.State().StreamsActive != 0 {
+			if time.Now().After(until) {
+				t.Fatal("withdrawal failed to interrupt unread History send")
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		if time.Since(started) >= historyquery.QueryTimeout {
+			t.Fatal("deadline cannot stand in for revocation proof")
+		}
+		if err = h.native.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_ADMIN, 4)); err != nil {
+			t.Fatal(err)
+		}
+	})
 	blocker := nha030ServerObserver(t, cluster.Port)
 	tx, err := blocker.Begin(context.Background())
 	if err != nil {
@@ -297,7 +362,7 @@ func TestNHA164GeneratedTLSRoutesAndActualSQLRevocation(t *testing.T) {
 	}
 	// Let the server's own two-second budget expire while real SQL waits.
 	// The typed detail distinguishes this from a client-side cancellation.
-	timeoutResponse, timeoutErr := api.QueryExecutionTraces(context.Background(), nha164TLSRequest(&history.QueryExecutionTracesRequest{Period: period}))
+	timeoutResponse, timeoutErr := api.QueryExecutionTraces(context.Background(), nha164TLSRequest(&history.QueryExecutionTracesRequest{Parent: home.String(), Period: period}))
 	if timeoutResponse != nil || connect.CodeOf(timeoutErr) != connect.CodeDeadlineExceeded {
 		t.Fatalf("actual blocked SQL deadline became denial: %v", timeoutErr)
 	}
@@ -311,23 +376,23 @@ func TestNHA164GeneratedTLSRoutesAndActualSQLRevocation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rejected, ok := value.(*history.HistoryError); ok && rejected.Code == history.ErrorCode_ERROR_CODE_DEADLINE {
+		if rejected, ok := value.(*errdetails.ErrorInfo); ok && rejected.Reason == "REQUEST_DEADLINE_EXCEEDED" {
 			deadlineDetail = true
 		}
 	}
 	if !deadlineDetail {
-		t.Fatal("server deadline lost its history error code")
+		t.Fatal("server deadline lost its canonical error reason")
 	}
 	returned := make(chan error, 1)
 	go func() {
-		response, err := api.QueryExecutionTraces(context.Background(), nha164TLSRequest(&history.QueryExecutionTracesRequest{Period: period}))
+		response, err := api.QueryExecutionTraces(context.Background(), nha164TLSRequest(&history.QueryExecutionTracesRequest{Parent: home.String(), Period: period}))
 		if response != nil {
 			err = errors.New("revoked SQL data escaped TLS")
 		}
 		returned <- err
 	}()
 	nha162WaitSQLBlockedBy(t, context.Background(), store, blockerPID, "%FROM public.execution_history_records%")
-	if err = h.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_USER, 3)); err != nil {
+	if err = h.native.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_USER, 5)); err != nil {
 		t.Fatal(err)
 	}
 	if err = tx.Rollback(context.Background()); err != nil {

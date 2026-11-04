@@ -461,9 +461,7 @@ fn confirm(expected: Expected, reply: Reply) -> Option<ConfirmedMutation> {
     }
 }
 fn classify(failure: &Failure) -> ListWriteOutcome {
-    if failure.kind() == FailureKind::Rpc(RpcCode::Unauthenticated)
-        || !matches!(failure.authorization_termination(), Ok(None))
-    {
+    if failure.kind() == FailureKind::Rpc(RpcCode::Unauthenticated) {
         return ListWriteOutcome::AuthorityTerminated;
     }
     let detail = match failure.api_failure() {
@@ -473,7 +471,9 @@ fn classify(failure: &Failure) -> ListWriteOutcome {
     };
     use home_wire_contract::home::api::v2::ApiErrorReason as R;
     match detail.reason() {
-        R::AuthenticationRequired | R::AccessDenied => ListWriteOutcome::AuthorityTerminated,
+        R::AuthenticationRequired | R::AccessDenied | R::AuthorityUnavailable => {
+            ListWriteOutcome::AuthorityTerminated
+        }
         R::EtagMismatch => ListWriteOutcome::Conflict,
         R::ValidationFailed => ListWriteOutcome::Rejected(Rejection::Invalid),
         R::ResourceNotFound => ListWriteOutcome::Rejected(Rejection::NotFound),

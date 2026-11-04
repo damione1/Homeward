@@ -34,11 +34,12 @@ func (h *nha077CountingHost) Publish(ctx context.Context, binding integrations.B
 	return h.SessionHost.Publish(ctx, binding, observation)
 }
 
-func TestNHA077LegacyProfileRejectsFanDiscoverAndPublishBeforeHost(t *testing.T) {
+func TestNHA077UnhandshakenWorkerRejectsFanBeforeHost(t *testing.T) {
 	rig := startWorkerRigWithCapture(t, "hold", true)
 	waitMarker(t, rig.marker, "second_stream_rejected", 5*time.Second)
 	rig.pilot.mu.Lock()
 	token := rig.pilot.token
+	rig.pilot.handshaken = false
 	before := len(rig.pilot.bindings)
 	var handle []byte
 	for key := range rig.pilot.bindings {
@@ -49,7 +50,7 @@ func TestNHA077LegacyProfileRejectsFanDiscoverAndPublishBeforeHost(t *testing.T)
 	rig.pilot.host = counted
 	rig.pilot.mu.Unlock()
 	if len(handle) != 32 {
-		t.Fatal("legacy binding missing")
+		t.Fatal("existing binding missing")
 	}
 	description := &registry.CapabilityDescription{SchemaId: contracts.FanSchema,
 		Major: 1, Endpoint: "speed", DisplayName: "Synthetic fan",
@@ -66,8 +67,8 @@ func TestNHA077LegacyProfileRejectsFanDiscoverAndPublishBeforeHost(t *testing.T)
 		Source:       &wire.SourceKey{Device: "valid-fan-device", Entity: "valid-fan-zone"},
 		Descriptions: []*registry.CapabilityDescription{description}}}})
 	discover.Header().Set("Authorization", "Bearer "+token)
-	if _, err := rig.pilot.Discover(context.Background(), discover); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("Host 1.0 admitted fan Discover: %v", err)
+	if _, err := rig.pilot.Discover(context.Background(), discover); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("Unhandshaken worker admitted fan Discover: %v", err)
 	}
 	publish := connect.NewRequest(&wire.PublishRequest{Observation: &wire.Observation{
 		BindingHandle: handle, Endpoint: "speed", Quality: &state.Quality{
@@ -77,14 +78,14 @@ func TestNHA077LegacyProfileRejectsFanDiscoverAndPublishBeforeHost(t *testing.T)
 		Value: &wire.Observation_Fan{Fan: &state.FanValue{Speed: state.FanSpeed_FAN_SPEED_OFF}},
 	}})
 	publish.Header().Set("Authorization", "Bearer "+token)
-	if _, err := rig.pilot.Publish(context.Background(), publish); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("Host 1.0 admitted fan Publish: %v", err)
+	if _, err := rig.pilot.Publish(context.Background(), publish); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("Unhandshaken worker admitted fan Publish: %v", err)
 	}
 	rig.pilot.mu.Lock()
 	after := len(rig.pilot.bindings)
 	rig.pilot.mu.Unlock()
 	if before != after || counted.discoverCalls.Load() != 0 || counted.publishCalls.Load() != 0 {
-		t.Fatalf("legacy fan crossed Host: bindings %d→%d, discover=%d publish=%d",
+		t.Fatalf("existing fan crossed Host: bindings %d→%d, discover=%d publish=%d",
 			before, after, counted.discoverCalls.Load(), counted.publishCalls.Load())
 	}
 }
@@ -96,13 +97,13 @@ func (d *nha077CaptureDriver) Dispatch(_ context.Context, command integrations.A
 	return nil
 }
 
-func TestNHA077LegacyCommandDriverRejectsRealAdmittedFan(t *testing.T) {
+func TestNHA077UnhandshakenDriverRejectsRealAdmittedFan(t *testing.T) {
 	ctx := context.Background()
 	host, fixture, err := fake.NewCommandFixture()
 	if err != nil {
 		t.Fatal(err)
 	}
-	instance, err := domain.ParseIntegrationInstanceID("nha077-legacy-fan-route")
+	instance, err := domain.ParseIntegrationInstanceID("nha077-unhandshaken-fan-route")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +159,7 @@ func TestNHA077LegacyCommandDriverRejectsRealAdmittedFan(t *testing.T) {
 		t.Fatal(err)
 	}
 	speed := "High"
-	request := &actions.CommandRequest{CommandId: "nha077-fan-legacy-route", AdmissionEpoch: epoch,
+	request := &actions.CommandRequest{CommandId: "nha077-fan-unhandshaken-route", AdmissionEpoch: epoch,
 		ConfigRevision: 7, Target: &registry.EntityRef{Reference: &registry.EntityRef_EntityId{EntityId: entity}},
 		CapabilitySchemaId: contracts.FanSchema, Endpoint: "speed",
 		Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{Speed: &speed}}},
@@ -175,17 +176,17 @@ func TestNHA077LegacyCommandDriverRejectsRealAdmittedFan(t *testing.T) {
 		t.Fatalf("captured fan command is not live: %v", err)
 	}
 	p := newPilot(Config{})
-	p.active, p.handshaken, p.streaming, p.hostMinor = true, true, true, 0
+	p.active, p.handshaken, p.streaming = true, false, true
 	p.ctx, p.lastHeartbeat, p.frameLimit = context.Background(), time.Now(), 65536
 	p.capabilities = map[wire.Capability]bool{wire.Capability_CAPABILITY_COMMAND: true}
 	p.entityHandles[entity] = make([]byte, 32)
 	guardCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
 	defer cancel()
 	if err := p.Dispatch(guardCtx, driver.command); !errors.Is(err, ErrUnavailable) {
-		t.Fatalf("legacy CommandDriver admitted fan: %v", err)
+		t.Fatalf("unhandshaken CommandDriver admitted fan: %v", err)
 	}
 	if len(p.queue) != 0 || len(p.pending) != 0 {
-		t.Fatal("legacy fan command reached Host queue or waited for transport")
+		t.Fatal("unhandshaken fan command reached Host queue or waited for transport")
 	}
 }
 
@@ -222,7 +223,7 @@ func TestNHA077AcknowledgementRejectsExpiredAndOldSession(t *testing.T) {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("Host 1.1 command did not enter transport")
+			t.Fatal("Current Host command did not enter transport")
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -260,14 +261,14 @@ func TestNHA077AcknowledgementRejectsExpiredAndOldSession(t *testing.T) {
 	}
 }
 
-func TestNHA077LegacyProfileRejectsNewACKOnDeliveredCommand(t *testing.T) {
+func TestNHA077UnknownResultDoesNotConsumeDeliveredCommand(t *testing.T) {
 	rig := startWorkerRigWithCapture(t, "hold", true)
 	waitMarker(t, rig.marker, "second_stream_rejected", 5*time.Second)
 	actor, err := domain.ParseActorID("trusted-actor")
 	if err != nil {
 		t.Fatal(err)
 	}
-	const id = "nha077-legacy-pending"
+	const id = "nha077-current-pending"
 	type outcome struct {
 		response *actions.CommandResponse
 		err      error
@@ -290,21 +291,21 @@ func TestNHA077LegacyProfileRejectsNewACKOnDeliveredCommand(t *testing.T) {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("legacy command did not reach real Commands stream")
+			t.Fatal("current command did not reach real Commands stream")
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	ack := connect.NewRequest(&wire.CompleteCommandRequest{
-		CommandId: id, Kind: wire.CommandResultKind_COMMAND_RESULT_KIND_ACKNOWLEDGED})
+		CommandId: id, Kind: wire.CommandResultKind(999)})
 	ack.Header().Set("Authorization", "Bearer "+token)
 	if _, err := rig.pilot.CompleteCommand(context.Background(), ack); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("Host 1.0 admitted 1.1 ACK on delivered command: %v", err)
+		t.Fatalf("unknown result admitted on delivered command: %v", err)
 	}
 	rig.pilot.mu.Lock()
 	_, pending := rig.pilot.pending[id]
 	rig.pilot.mu.Unlock()
 	if !pending {
-		t.Fatal("rejected Host 1.1 ACK consumed legacy pending command")
+		t.Fatal("rejected result consumed pending command")
 	}
 	commandID, err := domain.ParseCommandID(id)
 	if err != nil {
@@ -318,18 +319,18 @@ func TestNHA077LegacyProfileRejectsNewACKOnDeliveredCommand(t *testing.T) {
 		CommandId: id, Kind: wire.CommandResultKind_COMMAND_RESULT_KIND_ACCEPTED})
 	accepted.Header().Set("Authorization", "Bearer "+token)
 	if _, err := rig.pilot.CompleteCommand(context.Background(), accepted); err != nil {
-		t.Fatalf("legacy ACCEPTED regression: %v", err)
+		t.Fatalf("current ACCEPTED regression: %v", err)
 	}
 	select {
 	case got := <-done:
 		if got.err != nil || got.response == nil || got.response.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
-			t.Fatalf("legacy transport completion: %v %v", got.response, got.err)
+			t.Fatalf("current transport completion: %v %v", got.response, got.err)
 		}
 	case <-time.After(3 * time.Second):
-		t.Fatal("legacy dispatch did not join after ACCEPTED")
+		t.Fatal("current dispatch did not join after ACCEPTED")
 	}
 	status, err = rig.host.ActionStatus(commandID)
 	if err != nil || status.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
-		t.Fatalf("legacy ACCEPTED invented physical proof: %v %v", status, err)
+		t.Fatalf("current ACCEPTED invented physical proof: %v %v", status, err)
 	}
 }

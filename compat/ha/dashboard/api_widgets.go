@@ -111,6 +111,9 @@ func (p *apiProjector) widget(card Card, view Location) (*api.DashboardWidget, e
 		}
 		result.Content = &api.DashboardWidget_Thermostat{Thermostat: &api.DashboardThermostatWidget{Entity: entity, CurrentTemperature: current, TargetTemperature: target, Presentation: presentation}}
 	case *sourceAgenda:
+		if value.Limit < 1 || value.Limit > 1000 {
+			return nil, ErrUnprojectableRecipe
+		}
 		if p.options.Calendar == nil {
 			return nil, ErrUnprojectableRecipe
 		}
@@ -122,8 +125,11 @@ func (p *apiProjector) widget(card Card, view Location) (*api.DashboardWidget, e
 		if !ok || name.Home() != p.options.Home || name.String() == "" {
 			return nil, ErrUnprojectableRecipe
 		}
-		result.Content = &api.DashboardWidget_Agenda{Agenda: &api.DashboardAgendaWidget{Calendar: name.String(), TimeZone: value.Timezone, TimeWindow: durationpb.New(time.Duration(value.WindowSeconds) * time.Second), Limit: value.Limit}}
+		result.Content = &api.DashboardWidget_Agenda{Agenda: &api.DashboardAgendaWidget{Calendar: name.String(), TimeZone: value.Timezone, TimeWindow: durationpb.New(time.Duration(value.WindowSeconds) * time.Second), Limit: int32(value.Limit)}}
 	case *sourceTasks:
+		if value.Limit < 1 || value.Limit > 1000 {
+			return nil, ErrUnprojectableRecipe
+		}
 		if p.options.TaskList == nil {
 			return nil, ErrUnprojectableRecipe
 		}
@@ -139,7 +145,7 @@ func (p *apiProjector) widget(card Card, view Location) (*api.DashboardWidget, e
 		if value.Presentation == tasksShopping {
 			presentation = api.DashboardTasksPresentation_DASHBOARD_TASKS_PRESENTATION_SHOPPING
 		}
-		result.Content = &api.DashboardWidget_Tasks{Tasks: &api.DashboardTasksWidget{TaskList: name.String(), Limit: value.Limit, Presentation: presentation}}
+		result.Content = &api.DashboardWidget_Tasks{Tasks: &api.DashboardTasksWidget{TaskList: name.String(), Limit: int32(value.Limit), Presentation: presentation}}
 	case *sourceSecurity:
 		widget := &api.DashboardSecurityWidget{}
 		for _, raw := range value.EntityIds {

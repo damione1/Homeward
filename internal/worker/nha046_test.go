@@ -50,8 +50,7 @@ func TestNHA046CasetaFanBindingRequiresExactNegotiatedHost(t *testing.T) {
 		digest   string
 		admitted bool
 	}{
-		{0, schemaDigestV10Hex, false}, {1, schemaDigestV11Hex, true},
-		{2, schemaDigestV12Hex, false}, {3, schemaDigestV13Hex, true},
+		{0, schemaDigestHex, false}, {1, schemaDigestHex, false}, {2, schemaDigestHex, false}, {3, schemaDigestHex, false}, {4, schemaDigestHex, true},
 	} {
 		t.Run(fixture.digest[:8], func(t *testing.T) {
 			p := newPilot(config)
@@ -64,10 +63,10 @@ func TestNHA046CasetaFanBindingRequiresExactNegotiatedHost(t *testing.T) {
 				SchemaSha256: digest, MaxFrameBytes: 65536, Capabilities: []wire.Capability{wire.Capability_CAPABILITY_DISCOVER, wire.Capability_CAPABILITY_COMMAND}})
 			response, err := p.Handshake(context.Background(), request)
 			if fixture.admitted {
-				if err != nil || response == nil || !p.handshaken || p.hostMinor != fixture.minor {
+				if err != nil || response == nil || !p.handshaken {
 					t.Fatalf("qualified Host refused: %v", err)
 				}
-			} else if response != nil || connect.CodeOf(err) != connect.CodeFailedPrecondition || !errors.Is(err, ErrCasetaHAFanProfileUnavailable) || p.handshaken {
+			} else if response != nil || connect.CodeOf(err) != connect.CodeFailedPrecondition || !errors.Is(err, ErrInvalidConfig) || p.handshaken {
 				t.Fatalf("unqualified Host admitted: %v response=%v", err, response)
 			}
 		})
@@ -78,7 +77,7 @@ func TestNHA046WorkerDiscoveryJoinsOnlyConfiguredFanSource(t *testing.T) {
 	for _, fixture := range []struct {
 		minor  uint32
 		digest string
-	}{{1, schemaDigestV11Hex}, {3, schemaDigestV13Hex}} {
+	}{{hostProtocolMinor, schemaDigestHex}} {
 		t.Run(fixture.digest[:8], func(t *testing.T) {
 			ctx := context.Background()
 			host, projection, err := fake.NewCommandFixture()

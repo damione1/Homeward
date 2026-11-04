@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
+	auth "github.com/damione1/Homeward/gen/home/api/v2"
 	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
 	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
@@ -60,8 +60,8 @@ func TestNHA114LifecycleAndUnboundManifestTargetProduceNoCommands(t *testing.T) 
 	if _, err := f.actual.sequence.ResolveCommandAlias(alias); !errors.Is(err, integrations.ErrCommandRouteUnavailable) {
 		t.Fatal("negative target unexpectedly has a route", err)
 	}
-	policy, err := f.policies.GetPolicy(f.ctx, nha056SessionRequest(&auth.GetPolicyRequest{AccountId: f.tokens.Session.AccountId}, f.token))
-	if err != nil || policy.Msg.GetPresent() == nil || !bytes.Equal(policy.Msg.GetPresent().YamlSource, f.policySource) {
+	policy, err := f.policies.GetAuthorizationPolicy(f.ctx, nha056SessionRequest(&auth.GetAuthorizationPolicyRequest{Name: nha203SessionAccount(t, f.tokens.Session).String() + "/authorizationPolicy"}, f.token))
+	if err != nil || policy.Msg == nil || !bytes.Equal(policy.Msg.YamlSource, f.policySource) {
 		t.Fatal("public policy no longer proves actions-all permission", err)
 	}
 	// Aliases no longer form public command targets. Exercise the same denied

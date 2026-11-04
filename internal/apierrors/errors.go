@@ -61,6 +61,7 @@ var specifications = map[wire.ApiErrorReason]specification{
 	wire.ApiErrorReason_API_ERROR_REASON_METHOD_NOT_SUPPORTED:      {code.Code_UNIMPLEMENTED, "This implementation does not support the requested method."},
 	wire.ApiErrorReason_API_ERROR_REASON_STATE_PRECONDITION_FAILED: {code.Code_FAILED_PRECONDITION, "The current resource state prevents this transition; resolve the documented precondition."},
 	wire.ApiErrorReason_API_ERROR_REASON_CONFIG_RESTART_REQUIRED:   {code.Code_FAILED_PRECONDITION, "The server must restart before this configuration change can be applied."},
+	wire.ApiErrorReason_API_ERROR_REASON_AUTHORITY_UNAVAILABLE:     {code.Code_UNAVAILABLE, "Authorization is unavailable; discard the capture without resuming it."},
 }
 
 // Domain is derived from the actual resource annotation, not a second namespace.

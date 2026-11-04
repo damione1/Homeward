@@ -41,6 +41,7 @@ message Device {
   // Immutable public identity; Entity.device references this exact resource.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 }
+
 // Reads one discovered device through its currently authorized entity association.
 message GetDeviceRequest {
   // Device name; absent and unauthorized resources have the same denial.
@@ -49,6 +50,7 @@ message GetDeviceRequest {
     (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Device"
   ];
 }
+
 // Selects a bounded page of authorized device identities from one native capture.
 message ListDevicesRequest {
   // Persistent installation containing the authorized devices.
@@ -61,6 +63,7 @@ message ListDevicesRequest {
   // Opaque bounded continuation bound to caller, rights and capture; not authority.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
 // One page of distinct authorized device identities, without hardware I/O.
 message ListDevicesResponse {
   // Authorized identities on this page, with no hidden resource count.

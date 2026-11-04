@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -66,6 +67,21 @@ func AdmitConfigurationRequest(message proto.Message) error {
 	}
 	valid := false
 	switch value := message.(type) {
+	case *wire.GetConfigurationRevisionRequest:
+		if value != nil {
+			_, err := apitypes.ParseConfigurationRevisionName(value.Name)
+			valid = err == nil
+		}
+	case *wire.GetConfigurationGenerationRequest:
+		if value != nil {
+			_, err := apitypes.ParseConfigurationGenerationName(value.Name)
+			valid = err == nil
+		}
+	case *wire.GetConfigurationSchemaRequest:
+		if value != nil {
+			_, err := apitypes.ParseConfigurationSchemaName(value.Name)
+			valid = err == nil
+		}
 	case *wire.GetConfigurationDocumentRequest:
 		_, err := ParseGetConfigurationDocument(value)
 		valid = err == nil

@@ -50,7 +50,7 @@ func AdmitConfigurationPlanRequest(message proto.Message) error {
 	valid := false
 	switch v := message.(type) {
 	case *wire.CreateConfigurationPlanRequest:
-		valid = v != nil && configurationHomeName(v.Parent) && v.ConfigurationPlan != nil && planCandidate(v.ConfigurationPlan.Candidate)
+		valid = v != nil && requestedPublicResourceID(v.ConfigurationPlanId) && configurationHomeName(v.Parent) && v.ConfigurationPlan != nil && planCandidate(v.ConfigurationPlan.Candidate)
 	case *wire.GetConfigurationPlanRequest:
 		valid = v != nil && configurationResourceName(v.Name, "configurationPlans")
 	case *wire.ListConfigurationPlansRequest:
@@ -153,7 +153,7 @@ func planMetadata(v *wire.ConfigurationPlan) bool {
 	maximum := wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE
 	previous := ""
 	for _, change := range v.Changes {
-		if change == nil || !planField(change.Field) || ((change.Field == "android_tv" || change.Field == "sonos" || change.Field == "ecobee" || change.Field == "remote_calendar" || change.Field == "disabled_integrations") && v.Family != wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL) || change.Field <= previous || !planEffect(v.Family, change.Effect) || change.Effect == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE || change.Effect > v.Effect || change.ReferencesAdded > 4096 || change.ReferencesRemoved > 4096 {
+		if change == nil || !planField(change.Field) || ((change.Field == "android_tv" || change.Field == "sonos" || change.Field == "ecobee" || change.Field == "remote_calendar" || change.Field == "disabled_integrations") && v.Family != wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL) || change.Field <= previous || !planEffect(v.Family, change.Effect) || change.Effect == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE || change.Effect > v.Effect || change.ReferencesAdded < 0 || change.ReferencesAdded > 4096 || change.ReferencesRemoved < 0 || change.ReferencesRemoved > 4096 {
 			return false
 		}
 		previous = change.Field

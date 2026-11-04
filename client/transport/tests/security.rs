@@ -7,9 +7,11 @@ use std::{
 
 use buffa::MessageName;
 use connectrpc::{ConnectError, ErrorDetail};
-use home_client_transport::{AccessToken, DetailFailure, Failure, FailureKind, ReconnectPolicy};
-use home_wire_contract::home::auth::v1::{
-    AuthorizationTermination, AuthorizationTerminationReason,
+use home_client_transport::{AccessToken, Failure, FailureKind, ReconnectPolicy};
+use home_wire_contract::{
+    api_errors::{DOMAIN, InvalidApiError},
+    google::rpc::ErrorInfo,
+    home::api::v2::ApiErrorReason,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -23,54 +25,47 @@ fn device_trust_requires_https_and_never_falls_back_from_invalid_private_materia
 }
 
 #[test]
-fn typed_details_keep_future_reasons_and_reject_ambiguous_or_corrupt_known_details() {
-    let known = AuthorizationTermination {
-        reason: AuthorizationTerminationReason::CredentialRevoked.into(),
+fn canonical_details_reject_ambiguous_corrupt_and_future_reasons() {
+    let known = ErrorInfo {
+        reason: "AUTHENTICATION_REQUIRED".into(),
+        domain: DOMAIN.into(),
         ..Default::default()
     };
-    let detail = ErrorDetail::from_message(AuthorizationTermination::FULL_NAME, &known);
-    let unknown = ErrorDetail {
-        type_url: "future.Detail".into(),
-        value: Some("AA".into()),
-        debug: None,
-    };
+    let detail = ErrorDetail::from_message(ErrorInfo::FULL_NAME, &known);
     let failure = Failure::from(
-        ConnectError::unauthenticated("secret credential")
-            .with_detail(unknown)
-            .with_detail(detail.clone()),
+        ConnectError::unauthenticated("secret credential").with_detail(detail.clone()),
     );
-    assert_eq!(failure.authorization_termination().unwrap(), Some(known));
-    assert_eq!(failure.rpc().unwrap().details.len(), 2);
+    assert_eq!(
+        failure.api_failure().unwrap().unwrap().reason(),
+        ApiErrorReason::AuthenticationRequired
+    );
     assert!(!format!("{failure:?} {failure}").contains("secret"));
     assert!(failure.source().is_none());
+    assert!(!failure.may_resume_read());
     let duplicate = Failure::from(
         ConnectError::unauthenticated("private")
             .with_detail(detail.clone())
             .with_detail(detail),
     );
-    assert_eq!(
-        duplicate.authorization_termination(),
-        Err(DetailFailure::Duplicate)
-    );
+    assert_eq!(duplicate.api_failure(), Err(InvalidApiError::Duplicate));
     let invalid = Failure::from(ConnectError::unauthenticated("private").with_detail(
         ErrorDetail {
-            type_url: AuthorizationTermination::TYPE_URL.into(),
+            type_url: ErrorInfo::TYPE_URL.into(),
             value: Some("%%%".into()),
             debug: None,
         },
     ));
-    assert_eq!(
-        invalid.authorization_termination(),
-        Err(DetailFailure::Malformed)
-    );
-    let future = AuthorizationTermination {
-        reason: 999.into(),
-        ..Default::default()
+    assert_eq!(invalid.api_failure(), Err(InvalidApiError::Malformed));
+    let future = ErrorInfo {
+        reason: "API_ERROR_REASON_FUTURE".into(),
+        ..known
     };
-    let failure = Failure::from(ConnectError::unauthenticated("private").with_detail(
-        ErrorDetail::from_message(AuthorizationTermination::FULL_NAME, &future),
-    ));
-    assert_eq!(failure.authorization_termination().unwrap(), Some(future));
+    let failure = Failure::from(
+        ConnectError::unauthenticated("private")
+            .with_detail(ErrorDetail::from_message(ErrorInfo::FULL_NAME, &future)),
+    );
+    assert!(failure.api_failure().is_err());
+    assert!(!failure.may_resume_read());
 }
 
 #[test]
@@ -120,18 +115,24 @@ fn local_body_read_provenance_cannot_be_forged_by_a_server_internal_message() {
     assert_eq!(local.rpc().unwrap().code, connectrpc::ErrorCode::Internal);
     assert!(!format!("{local:?} {local}").contains("private"));
     let detail = ErrorDetail::from_message(
-        AuthorizationTermination::FULL_NAME,
-        &AuthorizationTermination {
-            reason: AuthorizationTerminationReason::AuthorityUnavailable.into(),
+        ErrorInfo::FULL_NAME,
+        &ErrorInfo {
+            domain: DOMAIN.into(),
+            reason: "AUTHORITY_UNAVAILABLE".into(),
             ..Default::default()
         },
     );
     let terminated = Failure::from(
-        ConnectError::internal("private")
+        ConnectError::unavailable("private")
             .with_source(connectrpc::client::ResponseBodyReadError)
             .with_detail(detail),
     );
-    assert!(terminated.authorization_termination().unwrap().is_some());
+    assert_eq!(
+        terminated.api_failure().unwrap().unwrap().reason(),
+        ApiErrorReason::AuthorityUnavailable
+    );
+    assert!(!terminated.may_resume_read());
+    assert!(!terminated.may_recover_renewal());
 }
 
 #[test]
@@ -144,7 +145,7 @@ fn remote_cancellation_can_resume_a_read_but_authority_cancellation_cannot() {
     assert!(remote.may_resume_read());
     let malformed_authority = Failure::from(ConnectError::canceled("server shutdown").with_detail(
         ErrorDetail {
-            type_url: AuthorizationTermination::TYPE_URL.into(),
+            type_url: ErrorInfo::TYPE_URL.into(),
             value: None,
             debug: None,
         },

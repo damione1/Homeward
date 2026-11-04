@@ -10,9 +10,9 @@ import (
 
 	"github.com/damione1/Homeward/compat/ha/ir"
 	"github.com/damione1/Homeward/contracts"
-	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
-	wire "github.com/damione1/Homeward/gen/home/configurationapply/v1"
-	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
+	configuration "github.com/damione1/Homeward/gen/home/api/v2"
+	planwire "github.com/damione1/Homeward/gen/home/api/v2"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -157,32 +157,33 @@ func TestNHA197ActualRunTLSAppliesDashboardWithNativeSonosCodecAndRestarts(t *te
 	}
 	before := f.read(t)
 	raw := []byte("views: []\n")
-	dashboard := &planwire.Candidate{Family: planwire.SourceFamily_SOURCE_FAMILY_DASHBOARD, Identity: "dashboard.nha197_native", Entry: "dashboard.yaml", Files: []*planwire.SourceFile{{LogicalPath: "dashboard.yaml", ExactSource: raw}}}
+	dashboard := &planwire.ConfigurationPlanCandidate{Family: planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD, Identity: "dashboard.nha197_native", Entry: "dashboard.yaml", Files: []*planwire.ConfigurationPlanSourceFile{{LogicalPath: "dashboard.yaml", ExactSource: raw}}}
 	plan := f.build(t, dashboard)
-	if plan.State != planwire.PlanState_PLAN_STATE_ADMITTED {
+	if plan.State != planwire.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_ADMITTED {
 		t.Fatal("dashboard preview rejected")
 	}
-	request := nha055Request(before, dashboard, &plan.Receipt)
+	request := nha055Request(before, dashboard, plan)
 	request.Sources = []*wire.SourcePrecondition{nha055PublicationExpected("nha197.dashboard", "dashboard.yaml", nil, nil)}
-	applied, err := f.apply.Apply(f.ctx, nha056SessionRequest(request, f.token))
-	if err != nil || applied.Msg.Activation.Outcome != configuration.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED {
+	applied, err := f.apply.ApplyConfigurationPlan(f.ctx, nha056SessionRequest(request, f.token))
+	if err != nil || !applied.Msg.Done {
 		t.Fatalf("dashboard Apply lost the already-admitted native codec: %v", err)
 	}
-	if applied.Msg.Current.ActiveGeneration.Revision != before.ActiveGeneration.Revision+1 || host.CommandDriverEntries() != 0 {
+	appliedMetadata := nha203PublishedMetadata(t, applied.Msg)
+	if appliedMetadata.GenerationRevision != before.ActiveGeneration.Revision+1 || host.CommandDriverEntries() != 0 {
 		t.Fatal("dashboard did not publish exactly one generation without commands")
 	}
-	read, err := f.api.ReadDocument(f.ctx, nha056SessionRequest(&configuration.ReadDocumentRequest{Id: &configuration.DocumentId{Value: "nha197.dashboard"}}, f.token))
-	if err != nil || read.Msg.Document.Version.Revision != 1 {
+	read, err := f.api.GetConfigurationDocument(f.ctx, nha056SessionRequest(&configuration.GetConfigurationDocumentRequest{Name: nha203DocumentName(t, f.ctx, f.run, "nha197.dashboard")}, f.token))
+	if err != nil || read.Msg.Version.Revision != 1 {
 		t.Fatalf("published source missing: %v", err)
 	}
-	version := proto.Clone(read.Msg.Document.Version).(*configuration.DocumentVersion)
+	version := proto.Clone(read.Msg.Version).(*configuration.DocumentVersion)
 	if err := f.run.join(t); err != nil && !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	f.startRun(t)
 	f.login(t)
-	read, err = f.api.ReadDocument(f.ctx, nha056SessionRequest(&configuration.ReadDocumentRequest{Id: &configuration.DocumentId{Value: "nha197.dashboard"}}, f.token))
-	if err != nil || !proto.Equal(version, read.Msg.Document.Version) || read.Msg.ActiveGeneration.Revision != applied.Msg.Current.ActiveGeneration.Revision {
+	read, err = f.api.GetConfigurationDocument(f.ctx, nha056SessionRequest(&configuration.GetConfigurationDocumentRequest{Name: nha203DocumentName(t, f.ctx, f.run, "nha197.dashboard")}, f.token))
+	if err != nil || !proto.Equal(version, read.Msg.Version) || read.Msg.ActiveGeneration.Revision != appliedMetadata.GenerationRevision {
 		t.Fatalf("cold replay lost the native codec or rewrote source history: %v", err)
 	}
 	if declarations, err := f.actual.host.Capabilities(identity.Entity); err != nil || len(declarations) != 0 || f.actual.host.CommandDriverEntries() != 0 {

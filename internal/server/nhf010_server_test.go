@@ -18,8 +18,6 @@ import (
 	"github.com/damione1/Homeward/contracts"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
@@ -84,9 +82,6 @@ func TestNHF010EnvironmentServer(t *testing.T) {
 		if err != nil {
 			return RuntimePlan{}, err
 		}
-		if err := dashboard.register(public); err != nil {
-			return RuntimePlan{}, err
-		}
 		return RuntimePlan{Identity: identities, Public: public, DisplayProfiles: profiles,
 			ConfigureAuthorization: func(_ context.Context, composition AuthorizationComposition) error {
 				dashboard.authority = composition.ViewAuthorizer().(*policyViewAuthorizer).authority
@@ -138,7 +133,7 @@ func TestNHF010EnvironmentServer(t *testing.T) {
 		}
 		calls.mu.Lock()
 		defer calls.mu.Unlock()
-		nhf003WritePrivate(t, out, "result.json", map[string]any{"server_joined": joined, "command_driver_entries": entries, "fake_driver_calls": 0, "real_device_writes": 0, "entity_count": len(devices), "submit_ids": calls.submit, "native_login_calls": calls.logins.Load(), "native_revokes": calls.revokes.Load(), "dashboard_get_calls": dashboard.gets.Load(), "dashboard_watch_calls": dashboard.watches.Load()})
+		nhf003WritePrivate(t, out, "result.json", map[string]any{"server_joined": joined, "command_driver_entries": entries, "fake_driver_calls": 0, "real_device_writes": 0, "entity_count": len(devices), "execute_request_ids": calls.execute, "native_login_calls": calls.logins.Load(), "native_revokes": calls.revokes.Load()})
 		if entries != 0 {
 			t.Error("read-only environment fixture entered a command driver", entries)
 		}
@@ -190,36 +185,41 @@ func TestNHF010EnvironmentServer(t *testing.T) {
 	client := nha181Client(roots)
 	defer client.CloseIdleConnections()
 	base := "https://" + address.String()
-	authAPI := authv1connect.NewAuthServiceClient(client, base)
+	authAPI := apiv2connect.NewAuthServiceClient(client, base)
 	admin := nha162RunLogin(t, ctx, authAPI, adminName, adminPassword)
-	accounts := authv1connect.NewAccountServiceClient(client, base)
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
+	accounts := apiv2connect.NewAccountServiceClient(client, base)
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
 	type reader struct {
-		id                    *auth.AccountId
+		id                    contracts.AccountID
+		publicName            string
 		actor                 domain.ActorID
 		name, password, token string
 	}
 	create := func(name string) reader {
 		t.Helper()
 		password := "NHF010 synthetic local password"
-		created, err := accounts.CreateAccount(ctx, nha141BearerRequest(&auth.CreateAccountRequest{LoginName: name, DisplayName: name, Role: auth.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}, admin.AccessToken))
+		created, err := accounts.CreateAccount(ctx, nha141BearerRequest(&api.CreateAccountRequest{Parent: nha203SessionAccount(t, admin.Session).Home().String(), Account: &api.Account{LoginName: name, DisplayName: name, Role: api.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}}, admin.AccessToken))
 		if err != nil {
 			t.Fatal(err)
 		}
-		id := created.Msg.Account.Id
-		actor, err := domain.ParseActorID(id.Value)
+		policy, err := policies.GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: created.Msg.Name + "/authorizationPolicy"}, admin.AccessToken))
+		if err != nil {
+			t.Fatal(err)
+		}
+		id := nha203PolicyAccount(t, policy.Msg.YamlSource)
+		actor, err := domain.ParseActorID(nha203AccountText(t, id))
 		if err != nil {
 			t.Fatal(err)
 		}
 		profiles.set(actor, "America/Toronto")
 		tokens := nha162RunLogin(t, ctx, authAPI, name, password)
-		return reader{id, actor, name, password, tokens.AccessToken}
+		return reader{id, created.Msg.Name, actor, name, password, tokens.AccessToken}
 	}
 	member, guest := create("NHF010 Member"), create("NHF010 Guest")
 	dashboard.mu.Lock()
 	dashboard.owners = make(map[contracts.AccountID]contracts.AccountID)
 	for _, user := range []reader{member, guest} {
-		account, err := contracts.ParseAccountID(user.id.Value)
+		account, err := contracts.ParseAccountID(nha203AccountText(t, user.id))
 		if err != nil {
 			dashboard.mu.Unlock()
 			t.Fatal(err)
@@ -227,13 +227,14 @@ func TestNHF010EnvironmentServer(t *testing.T) {
 		dashboard.owners[account] = account
 	}
 	dashboard.mu.Unlock()
+	dashboard.start(t, ctx, client, base, admin.AccessToken)
 	setPolicy := func(user reader, private bool) {
 		t.Helper()
-		current, err := policies.GetPolicy(ctx, nha141BearerRequest(&auth.GetPolicyRequest{AccountId: user.id}, admin.AccessToken))
-		if err != nil || current.Msg.GetPresent() == nil {
+		current, err := policies.GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: user.publicName + "/authorizationPolicy"}, admin.AccessToken))
+		if err != nil || current.Msg == nil {
 			t.Fatal("read policy", err)
 		}
-		yaml := fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n  - scope: {family: state_registry, operation: read}\n    objects:\n      entities:\n        explicit:\n", user.id.Value)
+		yaml := fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n  - scope: {family: state_registry, operation: read}\n    objects:\n      entities:\n        explicit:\n", nha203AccountText(t, user.id))
 		for _, device := range devices {
 			if device.kind == nhf010Details && !private {
 				continue
@@ -243,7 +244,7 @@ func TestNHF010EnvironmentServer(t *testing.T) {
 			yaml += fmt.Sprintf("          - entity_id: %q\n            capabilities: {all: {}}\n", id)
 		}
 		yaml += "  - scope: {family: dashboards, operation: read}\n    objects: {dashboards: {all: {}}}\n"
-		_, err = policies.ReplacePolicy(ctx, nha141BearerRequest(&auth.ReplacePolicyRequest{AccountId: user.id, YamlSource: []byte(yaml), Precondition: &auth.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, admin.AccessToken))
+		_, err = policies.ReplaceAuthorizationPolicy(ctx, nha141BearerRequest(&api.ReplaceAuthorizationPolicyRequest{Name: user.publicName + "/authorizationPolicy", YamlSource: []byte(yaml), Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: current.Msg.Etag}}, admin.AccessToken))
 		if err != nil {
 			t.Fatal("replace isolated policy", err)
 		}

@@ -30,9 +30,12 @@ const (
 type AccountRole int32
 
 const (
+	// No explicit account role. Does not select an action.
 	AccountRole_ACCOUNT_ROLE_UNSPECIFIED AccountRole = 0
-	AccountRole_ACCOUNT_ROLE_ADMIN       AccountRole = 1
-	AccountRole_ACCOUNT_ROLE_USER        AccountRole = 2
+	// Selects admin for account role.
+	AccountRole_ACCOUNT_ROLE_ADMIN AccountRole = 1
+	// Selects user for account role.
+	AccountRole_ACCOUNT_ROLE_USER AccountRole = 2
 )
 
 // Enum value maps for AccountRole.
@@ -76,53 +79,56 @@ func (AccountRole) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{0}
 }
 
-// Account lifecycle, independent from enrollment and session satisfaction.
-type AccountState int32
+// Account access, independent from enrollment and session satisfaction.
+type AccountAccess int32
 
 const (
-	AccountState_ACCOUNT_STATE_UNSPECIFIED AccountState = 0
-	AccountState_ACCOUNT_STATE_ACTIVE      AccountState = 1
-	AccountState_ACCOUNT_STATE_DISABLED    AccountState = 2
+	// No explicit account access. Does not select an action.
+	AccountAccess_ACCOUNT_ACCESS_UNSPECIFIED AccountAccess = 0
+	// Selects enabled for account access.
+	AccountAccess_ACCOUNT_ACCESS_ENABLED AccountAccess = 1
+	// Selects disabled for account access.
+	AccountAccess_ACCOUNT_ACCESS_DISABLED AccountAccess = 2
 )
 
-// Enum value maps for AccountState.
+// Enum value maps for AccountAccess.
 var (
-	AccountState_name = map[int32]string{
-		0: "ACCOUNT_STATE_UNSPECIFIED",
-		1: "ACCOUNT_STATE_ACTIVE",
-		2: "ACCOUNT_STATE_DISABLED",
+	AccountAccess_name = map[int32]string{
+		0: "ACCOUNT_ACCESS_UNSPECIFIED",
+		1: "ACCOUNT_ACCESS_ENABLED",
+		2: "ACCOUNT_ACCESS_DISABLED",
 	}
-	AccountState_value = map[string]int32{
-		"ACCOUNT_STATE_UNSPECIFIED": 0,
-		"ACCOUNT_STATE_ACTIVE":      1,
-		"ACCOUNT_STATE_DISABLED":    2,
+	AccountAccess_value = map[string]int32{
+		"ACCOUNT_ACCESS_UNSPECIFIED": 0,
+		"ACCOUNT_ACCESS_ENABLED":     1,
+		"ACCOUNT_ACCESS_DISABLED":    2,
 	}
 )
 
-func (x AccountState) Enum() *AccountState {
-	p := new(AccountState)
+func (x AccountAccess) Enum() *AccountAccess {
+	p := new(AccountAccess)
 	*p = x
 	return p
 }
 
-func (x AccountState) String() string {
+func (x AccountAccess) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (AccountState) Descriptor() protoreflect.EnumDescriptor {
+func (AccountAccess) Descriptor() protoreflect.EnumDescriptor {
 	return file_home_api_v2_authentication_proto_enumTypes[1].Descriptor()
 }
 
-func (AccountState) Type() protoreflect.EnumType {
+func (AccountAccess) Type() protoreflect.EnumType {
 	return &file_home_api_v2_authentication_proto_enumTypes[1]
 }
 
-func (x AccountState) Number() protoreflect.EnumNumber {
+func (x AccountAccess) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AccountState.Descriptor instead.
-func (AccountState) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use AccountAccess.Descriptor instead.
+func (AccountAccess) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{1}
 }
 
@@ -130,8 +136,11 @@ func (AccountState) EnumDescriptor() ([]byte, []int) {
 type SecondFactorSessionContinuation int32
 
 const (
-	SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED               SecondFactorSessionContinuation = 0
-	SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES                 SecondFactorSessionContinuation = 1
+	// No explicit second factor session continuation. Does not select an action.
+	SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED SecondFactorSessionContinuation = 0
+	// Selects continues for second factor session continuation.
+	SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES SecondFactorSessionContinuation = 1
+	// Selects reauthentication required for second factor session continuation.
 	SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED SecondFactorSessionContinuation = 2
 )
 
@@ -180,8 +189,10 @@ func (SecondFactorSessionContinuation) EnumDescriptor() ([]byte, []int) {
 type FactorKind int32
 
 const (
+	// No explicit factor kind. Does not select an action.
 	FactorKind_FACTOR_KIND_UNSPECIFIED FactorKind = 0
-	FactorKind_FACTOR_KIND_FIDO2       FactorKind = 1
+	// Selects fido2 for factor kind.
+	FactorKind_FACTOR_KIND_FIDO2 FactorKind = 1
 )
 
 // Enum value maps for FactorKind.
@@ -223,12 +234,16 @@ func (FactorKind) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{3}
 }
 
+// Defines the closed vocabulary for credential audience.
 type CredentialAudience int32
 
 const (
+	// No explicit credential audience. Does not select an action.
 	CredentialAudience_CREDENTIAL_AUDIENCE_UNSPECIFIED CredentialAudience = 0
+	// Selects interactive for credential audience.
 	CredentialAudience_CREDENTIAL_AUDIENCE_INTERACTIVE CredentialAudience = 1
-	CredentialAudience_CREDENTIAL_AUDIENCE_MCP         CredentialAudience = 2
+	// Selects mcp for credential audience.
+	CredentialAudience_CREDENTIAL_AUDIENCE_MCP CredentialAudience = 2
 )
 
 // Enum value maps for CredentialAudience.
@@ -276,9 +291,13 @@ func (CredentialAudience) EnumDescriptor() ([]byte, []int) {
 type AuthenticationSatisfaction int32
 
 const (
-	AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_UNSPECIFIED            AuthenticationSatisfaction = 0
-	AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY          AuthenticationSatisfaction = 1
-	AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2         AuthenticationSatisfaction = 2
+	// No explicit authentication satisfaction. Does not select an action.
+	AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_UNSPECIFIED AuthenticationSatisfaction = 0
+	// Selects password only for authentication satisfaction.
+	AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY AuthenticationSatisfaction = 1
+	// Selects password fido2 for authentication satisfaction.
+	AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 AuthenticationSatisfaction = 2
+	// Selects password recovery code for authentication satisfaction.
 	AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE AuthenticationSatisfaction = 3
 	// The native session predates recorded authentication evidence. Refresh must
 	// not invent evidence or a timestamp; current MFA policy still governs access.
@@ -335,20 +354,34 @@ func (AuthenticationSatisfaction) EnumDescriptor() ([]byte, []int) {
 type ScopeFamily int32
 
 const (
-	ScopeFamily_SCOPE_FAMILY_UNSPECIFIED          ScopeFamily = 0
-	ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY       ScopeFamily = 1
-	ScopeFamily_SCOPE_FAMILY_HISTORY              ScopeFamily = 2
-	ScopeFamily_SCOPE_FAMILY_MEDIA                ScopeFamily = 3
-	ScopeFamily_SCOPE_FAMILY_LOCATION             ScopeFamily = 4
-	ScopeFamily_SCOPE_FAMILY_ACTIONS              ScopeFamily = 5
-	ScopeFamily_SCOPE_FAMILY_DASHBOARDS           ScopeFamily = 6
-	ScopeFamily_SCOPE_FAMILY_CALENDARS            ScopeFamily = 7
-	ScopeFamily_SCOPE_FAMILY_LISTS                ScopeFamily = 8
-	ScopeFamily_SCOPE_FAMILY_LOGIC                ScopeFamily = 9
-	ScopeFamily_SCOPE_FAMILY_INTEGRATIONS         ScopeFamily = 10
+	// No explicit scope family. Does not select an action.
+	ScopeFamily_SCOPE_FAMILY_UNSPECIFIED ScopeFamily = 0
+	// Selects state registry for scope family.
+	ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY ScopeFamily = 1
+	// Selects history for scope family.
+	ScopeFamily_SCOPE_FAMILY_HISTORY ScopeFamily = 2
+	// Selects media for scope family.
+	ScopeFamily_SCOPE_FAMILY_MEDIA ScopeFamily = 3
+	// Selects location for scope family.
+	ScopeFamily_SCOPE_FAMILY_LOCATION ScopeFamily = 4
+	// Selects actions for scope family.
+	ScopeFamily_SCOPE_FAMILY_ACTIONS ScopeFamily = 5
+	// Selects dashboards for scope family.
+	ScopeFamily_SCOPE_FAMILY_DASHBOARDS ScopeFamily = 6
+	// Selects calendars for scope family.
+	ScopeFamily_SCOPE_FAMILY_CALENDARS ScopeFamily = 7
+	// Selects lists for scope family.
+	ScopeFamily_SCOPE_FAMILY_LISTS ScopeFamily = 8
+	// Selects logic for scope family.
+	ScopeFamily_SCOPE_FAMILY_LOGIC ScopeFamily = 9
+	// Selects integrations for scope family.
+	ScopeFamily_SCOPE_FAMILY_INTEGRATIONS ScopeFamily = 10
+	// Selects global configuration for scope family.
 	ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION ScopeFamily = 11
-	ScopeFamily_SCOPE_FAMILY_ACCOUNTS             ScopeFamily = 12
-	ScopeFamily_SCOPE_FAMILY_BACKUPS              ScopeFamily = 13
+	// Selects accounts for scope family.
+	ScopeFamily_SCOPE_FAMILY_ACCOUNTS ScopeFamily = 12
+	// Selects backups for scope family.
+	ScopeFamily_SCOPE_FAMILY_BACKUPS ScopeFamily = 13
 )
 
 // Enum value maps for ScopeFamily.
@@ -414,13 +447,18 @@ func (ScopeFamily) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{6}
 }
 
+// Defines the closed vocabulary for scope operation.
 type ScopeOperation int32
 
 const (
+	// No explicit scope operation. Does not select an action.
 	ScopeOperation_SCOPE_OPERATION_UNSPECIFIED ScopeOperation = 0
-	ScopeOperation_SCOPE_OPERATION_READ        ScopeOperation = 1
-	ScopeOperation_SCOPE_OPERATION_WRITE       ScopeOperation = 2
-	ScopeOperation_SCOPE_OPERATION_ADMINISTER  ScopeOperation = 3
+	// Selects read for scope operation.
+	ScopeOperation_SCOPE_OPERATION_READ ScopeOperation = 1
+	// Selects write for scope operation.
+	ScopeOperation_SCOPE_OPERATION_WRITE ScopeOperation = 2
+	// Selects administer for scope operation.
+	ScopeOperation_SCOPE_OPERATION_ADMINISTER ScopeOperation = 3
 )
 
 // Enum value maps for ScopeOperation.
@@ -473,9 +511,12 @@ func (ScopeOperation) EnumDescriptor() ([]byte, []int) {
 type AuthorizationPolicyOrigin int32
 
 const (
+	// No explicit authorization policy origin. Does not select an action.
 	AuthorizationPolicyOrigin_AUTHORIZATION_POLICY_ORIGIN_UNSPECIFIED AuthorizationPolicyOrigin = 0
-	AuthorizationPolicyOrigin_AUTHORIZATION_POLICY_ORIGIN_DEFAULT     AuthorizationPolicyOrigin = 1
-	AuthorizationPolicyOrigin_AUTHORIZATION_POLICY_ORIGIN_STORED      AuthorizationPolicyOrigin = 2
+	// Selects default for authorization policy origin.
+	AuthorizationPolicyOrigin_AUTHORIZATION_POLICY_ORIGIN_DEFAULT AuthorizationPolicyOrigin = 1
+	// Selects stored for authorization policy origin.
+	AuthorizationPolicyOrigin_AUTHORIZATION_POLICY_ORIGIN_STORED AuthorizationPolicyOrigin = 2
 )
 
 // Enum value maps for AuthorizationPolicyOrigin.
@@ -519,12 +560,16 @@ func (AuthorizationPolicyOrigin) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{8}
 }
 
+// Defines the closed vocabulary for policy rights change.
 type PolicyRightsChange int32
 
 const (
+	// No explicit policy rights change. Does not select an action.
 	PolicyRightsChange_POLICY_RIGHTS_CHANGE_UNSPECIFIED PolicyRightsChange = 0
-	PolicyRightsChange_POLICY_RIGHTS_CHANGE_CHANGED     PolicyRightsChange = 1
-	PolicyRightsChange_POLICY_RIGHTS_CHANGE_UNCHANGED   PolicyRightsChange = 2
+	// Selects changed for policy rights change.
+	PolicyRightsChange_POLICY_RIGHTS_CHANGE_CHANGED PolicyRightsChange = 1
+	// Selects unchanged for policy rights change.
+	PolicyRightsChange_POLICY_RIGHTS_CHANGE_UNCHANGED PolicyRightsChange = 2
 )
 
 // Enum value maps for PolicyRightsChange.
@@ -569,20 +614,26 @@ func (PolicyRightsChange) EnumDescriptor() ([]byte, []int) {
 }
 
 // An account's mutable metadata. Passwords are accepted only on creation and
-// are never returned. Updating role/state preserves the native last-admin rule
+// are never returned. Updating role/access preserves the native last-admin rule
 // and invalidates affected credentials under the same native transaction.
 type Account struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Unique native login; immutable after creation, never used as resource ID.
-	LoginName   string       `protobuf:"bytes,2,opt,name=login_name,json=loginName,proto3" json:"login_name,omitempty"`
-	DisplayName string       `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Role        AccountRole  `protobuf:"varint,4,opt,name=role,proto3,enum=home.api.v2.AccountRole" json:"role,omitempty"`
-	State       AccountState `protobuf:"varint,5,opt,name=state,proto3,enum=home.api.v2.AccountState" json:"state,omitempty"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Required on creation; ignored when omitted in UpdateAccount. Immutable native login, never used as resource ID.
+	LoginName string `protobuf:"bytes,2,opt,name=login_name,json=loginName,proto3" json:"login_name,omitempty"`
+	// Required on creation; optional on update. Human-readable label, not identity or authority.
+	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// Required on creation; optional on update. Internal routines do not acquire a human role.
+	Role AccountRole `protobuf:"varint,4,opt,name=role,proto3,enum=home.api.v2.AccountRole" json:"role,omitempty"`
+	// Optional. Creation defaults to ENABLED; UpdateAccount changes access only when selected by the update mask.
+	Access AccountAccess `protobuf:"varint,5,opt,name=access,proto3,enum=home.api.v2.AccountAccess" json:"access,omitempty"`
 	// Verified active enrollment only; does not imply a session satisfied MFA.
-	SecondFactorEnabled bool                   `protobuf:"varint,6,opt,name=second_factor_enabled,json=secondFactorEnabled,proto3" json:"second_factor_enabled,omitempty"`
-	CreateTime          *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
-	UpdateTime          *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	SecondFactorEnabled bool `protobuf:"varint,6,opt,name=second_factor_enabled,json=secondFactorEnabled,proto3" json:"second_factor_enabled,omitempty"`
+	// Time when this resource was created; absent when no historical creation time was recorded.
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// Time of the latest recorded resource update.
+	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
 	// Opaque native metadata CAS, required for update/delete. Not a credential.
 	Etag string `protobuf:"bytes,9,opt,name=etag,proto3" json:"etag,omitempty"`
 	// Required on CreateAccount only; ignored as output and forbidden in updates.
@@ -649,11 +700,11 @@ func (x *Account) GetRole() AccountRole {
 	return AccountRole_ACCOUNT_ROLE_UNSPECIFIED
 }
 
-func (x *Account) GetState() AccountState {
+func (x *Account) GetAccess() AccountAccess {
 	if x != nil {
-		return x.State
+		return x.Access
 	}
-	return AccountState_ACCOUNT_STATE_UNSPECIFIED
+	return AccountAccess_ACCOUNT_ACCESS_UNSPECIFIED
 }
 
 func (x *Account) GetSecondFactorEnabled() bool {
@@ -694,13 +745,20 @@ func (x *Account) GetInitialPassword() string {
 // Invitation metadata contains no bearer secret. IssueInvitation emits its
 // separate token exactly once; list pages cannot recover it.
 type Invitation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	LoginName     string                 `protobuf:"bytes,2,opt,name=login_name,json=loginName,proto3" json:"login_name,omitempty"`
-	Role          AccountRole            `protobuf:"varint,3,opt,name=role,proto3,enum=home.api.v2.AccountRole" json:"role,omitempty"`
-	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
-	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
-	AcceptTime    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=accept_time,json=acceptTime,proto3" json:"accept_time,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Native account login. Distinct from the canonical account resource name.
+	LoginName string `protobuf:"bytes,2,opt,name=login_name,json=loginName,proto3" json:"login_name,omitempty"`
+	// Human account role. Internal routines do not acquire a human role.
+	Role AccountRole `protobuf:"varint,3,opt,name=role,proto3,enum=home.api.v2.AccountRole" json:"role,omitempty"`
+	// Time when this resource or credential expires.
+	ExpireTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	// Time when this resource was created; absent when no historical creation time was recorded.
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// Time when the invitation was accepted, if acceptance was recorded.
+	AcceptTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=accept_time,json=acceptTime,proto3" json:"accept_time,omitempty"`
+	// Time when revocation was recorded; absent when no revocation was recorded.
 	RevokeTime    *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=revoke_time,json=revokeTime,proto3" json:"revoke_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -788,10 +846,13 @@ func (x *Invitation) GetRevokeTime() *timestamppb.Timestamp {
 // Instance MFA policy. Absent configuration is the native false policy, never
 // an inferred authenticated/enrolled state.
 type SecondFactorPolicy struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Name               string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	RequireAdminFactor bool                   `protobuf:"varint,2,opt,name=require_admin_factor,json=requireAdminFactor,proto3" json:"require_admin_factor,omitempty"`
-	UpdateTime         *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Whether the native policy requires a second factor for administrators.
+	RequireAdminFactor bool `protobuf:"varint,2,opt,name=require_admin_factor,json=requireAdminFactor,proto3" json:"require_admin_factor,omitempty"`
+	// Time of the latest recorded resource update.
+	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
 	// Native policy revision and exact source hash; never the account revision.
 	Etag          string `protobuf:"bytes,4,opt,name=etag,proto3" json:"etag,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -856,10 +917,15 @@ func (x *SecondFactorPolicy) GetEtag() string {
 	return ""
 }
 
+// Request for create account.
 type CreateAccountRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parent        string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	Account       *Account               `protobuf:"bytes,2,opt,name=account,proto3" json:"account,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// The account represented by Account.
+	Account *Account `protobuf:"bytes,2,opt,name=account,proto3" json:"account,omitempty"`
+	// Optional public ID, lowercase letter followed by lowercase letters, digits or hyphens, at most 63 characters, without a trailing hyphen. Omission allocates an ID. Native identity remains independent.
+	AccountId     string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -908,9 +974,18 @@ func (x *CreateAccountRequest) GetAccount() *Account {
 	return nil
 }
 
+func (x *CreateAccountRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+// Request for get account.
 type GetAccountRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -952,9 +1027,11 @@ func (x *GetAccountRequest) GetName() string {
 	return ""
 }
 
+// Request for list accounts.
 type ListAccountsRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Parent string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
 	// Default 50, maximum 100. Negative is invalid; larger values clamp to 100.
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// Opaque, bounded, bound to the caller/credential/current rights and parent.
@@ -1014,10 +1091,13 @@ func (x *ListAccountsRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list accounts.
 type ListAccountsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Accounts      []*Account             `protobuf:"bytes,1,rep,name=accounts,proto3" json:"accounts,omitempty"`
-	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of accounts for this message.
+	Accounts []*Account `protobuf:"bytes,1,rep,name=accounts,proto3" json:"accounts,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1066,10 +1146,12 @@ func (x *ListAccountsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Request for update account.
 type UpdateAccountRequest struct {
-	state   protoimpl.MessageState `protogen:"open.v1"`
-	Account *Account               `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
-	// Mutable paths: display_name, role, state. Absent means populated fields;
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The account represented by Account.
+	Account *Account `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	// Mutable paths: display_name, role, access. Absent means populated fields;
 	// present empty means no-op; * selects all three. CAS is checked even on no-op.
 	UpdateMask    *fieldmaskpb.FieldMask `protobuf:"bytes,2,opt,name=update_mask,json=updateMask,proto3" json:"update_mask,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1120,10 +1202,15 @@ func (x *UpdateAccountRequest) GetUpdateMask() *fieldmaskpb.FieldMask {
 	return nil
 }
 
+// Request for delete account.
 type DeleteAccountRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Etag          string                 `protobuf:"bytes,2,opt,name=etag,proto3" json:"etag,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Opaque revision token for optimistic concurrency. Compare it without interpretation.
+	Etag string `protobuf:"bytes,2,opt,name=etag,proto3" json:"etag,omitempty"`
+	// Explicitly permits deleting existing sessions, factors and MCP keys. Otherwise child resources prevent deletion.
+	Force         bool `protobuf:"varint,3,opt,name=force,proto3" json:"force,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1172,11 +1259,23 @@ func (x *DeleteAccountRequest) GetEtag() string {
 	return ""
 }
 
+func (x *DeleteAccountRequest) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
+}
+
+// Request for issue invitation.
 type IssueInvitationRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parent        string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	LoginName     string                 `protobuf:"bytes,2,opt,name=login_name,json=loginName,proto3" json:"login_name,omitempty"`
-	Role          AccountRole            `protobuf:"varint,3,opt,name=role,proto3,enum=home.api.v2.AccountRole" json:"role,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Native account login. Distinct from the canonical account resource name.
+	LoginName string `protobuf:"bytes,2,opt,name=login_name,json=loginName,proto3" json:"login_name,omitempty"`
+	// Human account role. Internal routines do not acquire a human role.
+	Role AccountRole `protobuf:"varint,3,opt,name=role,proto3,enum=home.api.v2.AccountRole" json:"role,omitempty"`
+	// Time when this resource or credential expires.
 	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1240,9 +1339,11 @@ func (x *IssueInvitationRequest) GetExpireTime() *timestamppb.Timestamp {
 	return nil
 }
 
+// Successful result of issue invitation.
 type IssueInvitationResponse struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	Invitation *Invitation            `protobuf:"bytes,1,opt,name=invitation,proto3" json:"invitation,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The invitation represented by Invitation.
+	Invitation *Invitation `protobuf:"bytes,1,opt,name=invitation,proto3" json:"invitation,omitempty"`
 	// Returned once. Never persist in an idempotency result, audit, or log.
 	InvitationToken string `protobuf:"bytes,2,opt,name=invitation_token,json=invitationToken,proto3" json:"invitation_token,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -1293,13 +1394,17 @@ func (x *IssueInvitationResponse) GetInvitationToken() string {
 	return ""
 }
 
+// Request for accept invitation.
 type AcceptInvitationRequest struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	InvitationToken string                 `protobuf:"bytes,1,opt,name=invitation_token,json=invitationToken,proto3" json:"invitation_token,omitempty"`
-	Password        string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
-	DisplayName     string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// One-time invitation secret. Cannot be recovered by listing invitation metadata.
+	InvitationToken string `protobuf:"bytes,1,opt,name=invitation_token,json=invitationToken,proto3" json:"invitation_token,omitempty"`
+	// Password supplied for this authentication attempt. Never returned or included in diagnostics.
+	Password string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	// Human-readable label. Does not identify the resource or grant permission.
+	DisplayName   string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AcceptInvitationRequest) Reset() {
@@ -1353,9 +1458,11 @@ func (x *AcceptInvitationRequest) GetDisplayName() string {
 	return ""
 }
 
+// Successful result of accept invitation.
 type AcceptInvitationResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Account       *Account               `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The account represented by Account.
+	Account       *Account `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1397,11 +1504,14 @@ func (x *AcceptInvitationResponse) GetAccount() *Account {
 	return nil
 }
 
+// Request for list invitations.
 type ListInvitationsRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Parent string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
 	// Default 50; maximum 100; negative is invalid.
-	PageSize      int32  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
 	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1458,10 +1568,13 @@ func (x *ListInvitationsRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list invitations.
 type ListInvitationsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Invitations   []*Invitation          `protobuf:"bytes,1,rep,name=invitations,proto3" json:"invitations,omitempty"`
-	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of invitations for this message.
+	Invitations []*Invitation `protobuf:"bytes,1,rep,name=invitations,proto3" json:"invitations,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1510,9 +1623,11 @@ func (x *ListInvitationsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Request for revoke invitation.
 type RevokeInvitationRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1554,6 +1669,7 @@ func (x *RevokeInvitationRequest) GetName() string {
 	return ""
 }
 
+// Successful result of revoke invitation.
 type RevokeInvitationResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1590,9 +1706,11 @@ func (*RevokeInvitationResponse) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{16}
 }
 
+// Request for get second factor policy.
 type GetSecondFactorPolicyRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1634,13 +1752,17 @@ func (x *GetSecondFactorPolicyRequest) GetName() string {
 	return ""
 }
 
+// Request for change second factor policy.
 type ChangeSecondFactorPolicyRequest struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Name               string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	RequireAdminFactor bool                   `protobuf:"varint,2,opt,name=require_admin_factor,json=requireAdminFactor,proto3" json:"require_admin_factor,omitempty"`
-	Etag               string                 `protobuf:"bytes,3,opt,name=etag,proto3" json:"etag,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Whether the native policy requires a second factor for administrators.
+	RequireAdminFactor bool `protobuf:"varint,2,opt,name=require_admin_factor,json=requireAdminFactor,proto3" json:"require_admin_factor,omitempty"`
+	// Opaque revision token for optimistic concurrency. Compare it without interpretation.
+	Etag          string `protobuf:"bytes,3,opt,name=etag,proto3" json:"etag,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ChangeSecondFactorPolicyRequest) Reset() {
@@ -1694,9 +1816,12 @@ func (x *ChangeSecondFactorPolicyRequest) GetEtag() string {
 	return ""
 }
 
+// Successful result of change second factor policy.
 type ChangeSecondFactorPolicyResponse struct {
-	state         protoimpl.MessageState          `protogen:"open.v1"`
-	Policy        *SecondFactorPolicy             `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The policy represented by SecondFactorPolicy.
+	Policy *SecondFactorPolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
+	// The continuation represented by SecondFactorSessionContinuation.
 	Continuation  SecondFactorSessionContinuation `protobuf:"varint,2,opt,name=continuation,proto3,enum=home.api.v2.SecondFactorSessionContinuation" json:"continuation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1746,18 +1871,25 @@ func (x *ChangeSecondFactorPolicyResponse) GetContinuation() SecondFactorSession
 	return SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED
 }
 
+// Represents session.
 type Session struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	Name       string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Time when this resource was created; absent when no historical creation time was recorded.
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// Sliding session/refresh-family expiry, distinct from access-token expiry.
-	ExpireTime                 *timestamppb.Timestamp     `protobuf:"bytes,3,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
-	RevokeTime                 *timestamppb.Timestamp     `protobuf:"bytes,4,opt,name=revoke_time,json=revokeTime,proto3" json:"revoke_time,omitempty"`
-	LastUseTime                *timestamppb.Timestamp     `protobuf:"bytes,5,opt,name=last_use_time,json=lastUseTime,proto3" json:"last_use_time,omitempty"`
+	ExpireTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	// Time when revocation was recorded; absent when no revocation was recorded.
+	RevokeTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=revoke_time,json=revokeTime,proto3" json:"revoke_time,omitempty"`
+	// Time of the last recorded use; absence does not mean a use occurred.
+	LastUseTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_use_time,json=lastUseTime,proto3" json:"last_use_time,omitempty"`
+	// Recorded authentication proof category, independent of account enrollment.
 	AuthenticationSatisfaction AuthenticationSatisfaction `protobuf:"varint,6,opt,name=authentication_satisfaction,json=authenticationSatisfaction,proto3,enum=home.api.v2.AuthenticationSatisfaction" json:"authentication_satisfaction,omitempty"`
-	AuthenticationTime         *timestamppb.Timestamp     `protobuf:"bytes,7,opt,name=authentication_time,json=authenticationTime,proto3" json:"authentication_time,omitempty"`
-	unknownFields              protoimpl.UnknownFields
-	sizeCache                  protoimpl.SizeCache
+	// Time of the recorded authentication proof; absent for unrecorded historical evidence.
+	AuthenticationTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=authentication_time,json=authenticationTime,proto3" json:"authentication_time,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Session) Reset() {
@@ -1839,11 +1971,16 @@ func (x *Session) GetAuthenticationTime() *timestamppb.Timestamp {
 	return nil
 }
 
+// Represents factor credential.
 type FactorCredential struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Kind          FactorKind             `protobuf:"varint,2,opt,name=kind,proto3,enum=home.api.v2.FactorKind" json:"kind,omitempty"`
-	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The kind represented by FactorKind.
+	Kind FactorKind `protobuf:"varint,2,opt,name=kind,proto3,enum=home.api.v2.FactorKind" json:"kind,omitempty"`
+	// Time when this resource was created; absent when no historical creation time was recorded.
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// Time of the last recorded use; absence does not mean a use occurred.
 	LastUseTime   *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=last_use_time,json=lastUseTime,proto3" json:"last_use_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1909,14 +2046,19 @@ func (x *FactorCredential) GetLastUseTime() *timestamppb.Timestamp {
 
 // Bearer values occur only in successful login/refresh responses, never Session.
 type SessionTokens struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Session          *Session               `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
-	Audience         CredentialAudience     `protobuf:"varint,2,opt,name=audience,proto3,enum=home.api.v2.CredentialAudience" json:"audience,omitempty"`
-	AccessToken      string                 `protobuf:"bytes,3,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The session represented by Session.
+	Session *Session `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	// The audience represented by CredentialAudience.
+	Audience CredentialAudience `protobuf:"varint,2,opt,name=audience,proto3,enum=home.api.v2.CredentialAudience" json:"audience,omitempty"`
+	// Secret bearer access credential. Never log it or use it as a resource identity.
+	AccessToken string `protobuf:"bytes,3,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	// Time when the access token expires, independently of the refresh credential.
 	AccessExpireTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=access_expire_time,json=accessExpireTime,proto3" json:"access_expire_time,omitempty"`
-	RefreshToken     string                 `protobuf:"bytes,5,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Secret refresh credential. Recover only the same durably saved renewal operation after an uncertain response.
+	RefreshToken  string `protobuf:"bytes,5,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SessionTokens) Reset() {
@@ -1984,15 +2126,21 @@ func (x *SessionTokens) GetRefreshToken() string {
 	return ""
 }
 
+// Represents fido2 assertion challenge.
 type Fido2AssertionChallenge struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	Challenge            []byte                 `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
-	RpId                 string                 `protobuf:"bytes,2,opt,name=rp_id,json=rpId,proto3" json:"rp_id,omitempty"`
-	AllowedCredentialIds [][]byte               `protobuf:"bytes,3,rep,name=allowed_credential_ids,json=allowedCredentialIds,proto3" json:"allowed_credential_ids,omitempty"`
-	InstanceId           string                 `protobuf:"bytes,4,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
-	Origin               string                 `protobuf:"bytes,5,opt,name=origin,proto3" json:"origin,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Typed challenge offered for this flow. Its expiry and proof alternatives remain authoritative.
+	Challenge []byte `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	// WebAuthn relying-party identifier bound to the configured public origin.
+	RpId string `protobuf:"bytes,2,opt,name=rp_id,json=rpId,proto3" json:"rp_id,omitempty"`
+	// Credential identifiers admitted for this challenge.
+	AllowedCredentialIds [][]byte `protobuf:"bytes,3,rep,name=allowed_credential_ids,json=allowedCredentialIds,proto3" json:"allowed_credential_ids,omitempty"`
+	// The instance id associated with this message.
+	InstanceId string `protobuf:"bytes,4,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	// The origin associated with this message.
+	Origin        string `protobuf:"bytes,5,opt,name=origin,proto3" json:"origin,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Fido2AssertionChallenge) Reset() {
@@ -2060,14 +2208,21 @@ func (x *Fido2AssertionChallenge) GetOrigin() string {
 	return ""
 }
 
+// Represents fido2 enrollment challenge.
 type Fido2EnrollmentChallenge struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Challenge     []byte                 `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
-	RpId          string                 `protobuf:"bytes,2,opt,name=rp_id,json=rpId,proto3" json:"rp_id,omitempty"`
-	UserId        []byte                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	UserName      string                 `protobuf:"bytes,4,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
-	InstanceId    string                 `protobuf:"bytes,5,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
-	Origin        string                 `protobuf:"bytes,6,opt,name=origin,proto3" json:"origin,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Typed challenge offered for this flow. Its expiry and proof alternatives remain authoritative.
+	Challenge []byte `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	// WebAuthn relying-party identifier bound to the configured public origin.
+	RpId string `protobuf:"bytes,2,opt,name=rp_id,json=rpId,proto3" json:"rp_id,omitempty"`
+	// Exact bytes representing user id. Not interpreted as a display string.
+	UserId []byte `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// The user name associated with this message.
+	UserName string `protobuf:"bytes,4,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	// The instance id associated with this message.
+	InstanceId string `protobuf:"bytes,5,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	// The origin associated with this message.
+	Origin        string `protobuf:"bytes,6,opt,name=origin,proto3" json:"origin,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2144,6 +2299,7 @@ func (x *Fido2EnrollmentChallenge) GetOrigin() string {
 	return ""
 }
 
+// Represents recovery code challenge.
 type RecoveryCodeChallenge struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -2180,6 +2336,7 @@ func (*RecoveryCodeChallenge) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{25}
 }
 
+// Describes one proof alternative actually offered by the native authentication owner.
 type FactorOption struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Method:
@@ -2251,10 +2408,12 @@ type isFactorOption_Method interface {
 }
 
 type FactorOption_Fido2 struct {
+	// The fido2 represented by Fido2AssertionChallenge.
 	Fido2 *Fido2AssertionChallenge `protobuf:"bytes,1,opt,name=fido2,proto3,oneof"`
 }
 
 type FactorOption_RecoveryCode struct {
+	// One-time recovery proof. Never log it or reuse it after successful consumption.
 	RecoveryCode *RecoveryCodeChallenge `protobuf:"bytes,2,opt,name=recovery_code,json=recoveryCode,proto3,oneof"`
 }
 
@@ -2265,10 +2424,13 @@ func (*FactorOption_RecoveryCode) isFactorOption_Method() {}
 // Ephemeral ceremony, not a readable resource. Completion must match one of
 // these distinct options; recovery code is never a silent FIDO2 downgrade.
 type FactorChallenge struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ChallengeId   string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
-	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
-	Options       []*FactorOption        `protobuf:"bytes,3,rep,name=options,proto3" json:"options,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Opaque identifier of the exact offered challenge.
+	ChallengeId string `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
+	// Time when this resource or credential expires.
+	ExpireTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	// Collection of options for this message.
+	Options       []*FactorOption `protobuf:"bytes,3,rep,name=options,proto3" json:"options,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2324,10 +2486,14 @@ func (x *FactorChallenge) GetOptions() []*FactorOption {
 	return nil
 }
 
+// Represents enrollment challenge.
 type EnrollmentChallenge struct {
-	state         protoimpl.MessageState    `protogen:"open.v1"`
-	ChallengeId   string                    `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
-	ExpireTime    *timestamppb.Timestamp    `protobuf:"bytes,2,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Opaque identifier of the exact offered challenge.
+	ChallengeId string `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
+	// Time when this resource or credential expires.
+	ExpireTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	// The fido2 represented by Fido2EnrollmentChallenge.
 	Fido2         *Fido2EnrollmentChallenge `protobuf:"bytes,3,opt,name=fido2,proto3" json:"fido2,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2384,13 +2550,19 @@ func (x *EnrollmentChallenge) GetFido2() *Fido2EnrollmentChallenge {
 	return nil
 }
 
+// Carries an exact WebAuthn assertion for native challenge verification.
 type Fido2Assertion struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	CredentialId      []byte                 `protobuf:"bytes,1,opt,name=credential_id,json=credentialId,proto3" json:"credential_id,omitempty"`
-	AuthenticatorData []byte                 `protobuf:"bytes,2,opt,name=authenticator_data,json=authenticatorData,proto3" json:"authenticator_data,omitempty"`
-	ClientDataJson    []byte                 `protobuf:"bytes,3,opt,name=client_data_json,json=clientDataJson,proto3" json:"client_data_json,omitempty"`
-	Signature         []byte                 `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"`
-	UserHandle        []byte                 `protobuf:"bytes,5,opt,name=user_handle,json=userHandle,proto3,oneof" json:"user_handle,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Opaque native credential identifier scoped to the account.
+	CredentialId []byte `protobuf:"bytes,1,opt,name=credential_id,json=credentialId,proto3" json:"credential_id,omitempty"`
+	// Exact WebAuthn authenticator-data bytes to verify.
+	AuthenticatorData []byte `protobuf:"bytes,2,opt,name=authenticator_data,json=authenticatorData,proto3" json:"authenticator_data,omitempty"`
+	// Exact WebAuthn client-data bytes. Verified against the offered challenge and origin.
+	ClientDataJson []byte `protobuf:"bytes,3,opt,name=client_data_json,json=clientDataJson,proto3" json:"client_data_json,omitempty"`
+	// Cryptographic assertion signature, not a display value.
+	Signature []byte `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"`
+	// Optional opaque WebAuthn user handle returned by the authenticator.
+	UserHandle []byte `protobuf:"bytes,5,opt,name=user_handle,json=userHandle,proto3,oneof" json:"user_handle,omitempty"`
 	// Server recomputes it from client_data_json; client bytes are untrusted.
 	ClientDataHash []byte `protobuf:"bytes,6,opt,name=client_data_hash,json=clientDataHash,proto3" json:"client_data_hash,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -2469,14 +2641,19 @@ func (x *Fido2Assertion) GetClientDataHash() []byte {
 	return nil
 }
 
+// Carries an exact WebAuthn enrollment attestation for native verification.
 type Fido2Attestation struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	CredentialId      []byte                 `protobuf:"bytes,1,opt,name=credential_id,json=credentialId,proto3" json:"credential_id,omitempty"`
-	ClientDataJson    []byte                 `protobuf:"bytes,2,opt,name=client_data_json,json=clientDataJson,proto3" json:"client_data_json,omitempty"`
-	AttestationObject []byte                 `protobuf:"bytes,3,opt,name=attestation_object,json=attestationObject,proto3" json:"attestation_object,omitempty"`
-	ClientDataHash    []byte                 `protobuf:"bytes,4,opt,name=client_data_hash,json=clientDataHash,proto3" json:"client_data_hash,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Opaque native credential identifier scoped to the account.
+	CredentialId []byte `protobuf:"bytes,1,opt,name=credential_id,json=credentialId,proto3" json:"credential_id,omitempty"`
+	// Exact WebAuthn client-data bytes. Verified against the offered challenge and origin.
+	ClientDataJson []byte `protobuf:"bytes,2,opt,name=client_data_json,json=clientDataJson,proto3" json:"client_data_json,omitempty"`
+	// Exact WebAuthn attestation object for enrollment verification.
+	AttestationObject []byte `protobuf:"bytes,3,opt,name=attestation_object,json=attestationObject,proto3" json:"attestation_object,omitempty"`
+	// SHA-256 hash of the exact client-data bytes.
+	ClientDataHash []byte `protobuf:"bytes,4,opt,name=client_data_hash,json=clientDataHash,proto3" json:"client_data_hash,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Fido2Attestation) Reset() {
@@ -2537,6 +2714,8 @@ func (x *Fido2Attestation) GetClientDataHash() []byte {
 	return nil
 }
 
+// Selects one proof matching the offered authentication challenge.
+// Exactly one offered proof must be selected; fields in the selected proof are required as annotated.
 type FactorProof struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Proof:
@@ -2608,10 +2787,12 @@ type isFactorProof_Proof interface {
 }
 
 type FactorProof_Fido2 struct {
+	// The fido2 represented by Fido2Assertion.
 	Fido2 *Fido2Assertion `protobuf:"bytes,1,opt,name=fido2,proto3,oneof"`
 }
 
 type FactorProof_RecoveryCode struct {
+	// One-time recovery proof. Never log it or reuse it after successful consumption.
 	RecoveryCode string `protobuf:"bytes,2,opt,name=recovery_code,json=recoveryCode,proto3,oneof"`
 }
 
@@ -2621,12 +2802,15 @@ func (*FactorProof_RecoveryCode) isFactorProof_Proof() {}
 
 // This grant is accepted only for enrollment, never for a business/API session.
 type EnrollmentRequired struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Account         string                 `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
-	EnrollmentToken string                 `protobuf:"bytes,2,opt,name=enrollment_token,json=enrollmentToken,proto3" json:"enrollment_token,omitempty"`
-	ExpireTime      *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The account associated with this message.
+	Account string `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	// Short-lived secret authorizing the offered enrollment flow.
+	EnrollmentToken string `protobuf:"bytes,2,opt,name=enrollment_token,json=enrollmentToken,proto3" json:"enrollment_token,omitempty"`
+	// Time when this resource or credential expires.
+	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *EnrollmentRequired) Reset() {
@@ -2680,6 +2864,7 @@ func (x *EnrollmentRequired) GetExpireTime() *timestamppb.Timestamp {
 	return nil
 }
 
+// Selects exactly one authenticated, challenge or enrollment outcome.
 type LoginDecision struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Outcome:
@@ -2761,14 +2946,17 @@ type isLoginDecision_Outcome interface {
 }
 
 type LoginDecision_Authenticated struct {
+	// The authenticated represented by SessionTokens.
 	Authenticated *SessionTokens `protobuf:"bytes,1,opt,name=authenticated,proto3,oneof"`
 }
 
 type LoginDecision_Challenge struct {
+	// Typed challenge offered for this flow. Its expiry and proof alternatives remain authoritative.
 	Challenge *FactorChallenge `protobuf:"bytes,2,opt,name=challenge,proto3,oneof"`
 }
 
 type LoginDecision_EnrollmentRequired struct {
+	// The enrollment required represented by EnrollmentRequired.
 	EnrollmentRequired *EnrollmentRequired `protobuf:"bytes,3,opt,name=enrollment_required,json=enrollmentRequired,proto3,oneof"`
 }
 
@@ -2778,10 +2966,13 @@ func (*LoginDecision_Challenge) isLoginDecision_Outcome() {}
 
 func (*LoginDecision_EnrollmentRequired) isLoginDecision_Outcome() {}
 
+// Request for start login.
 type StartLoginRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	LoginName     string                 `protobuf:"bytes,1,opt,name=login_name,json=loginName,proto3" json:"login_name,omitempty"`
-	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Native account login. Distinct from the canonical account resource name.
+	LoginName string `protobuf:"bytes,1,opt,name=login_name,json=loginName,proto3" json:"login_name,omitempty"`
+	// Password supplied for this authentication attempt. Never returned or included in diagnostics.
+	Password      string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2830,9 +3021,11 @@ func (x *StartLoginRequest) GetPassword() string {
 	return ""
 }
 
+// Successful result of start login.
 type StartLoginResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Decision      *LoginDecision         `protobuf:"bytes,1,opt,name=decision,proto3" json:"decision,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The decision represented by LoginDecision.
+	Decision      *LoginDecision `protobuf:"bytes,1,opt,name=decision,proto3" json:"decision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2874,10 +3067,13 @@ func (x *StartLoginResponse) GetDecision() *LoginDecision {
 	return nil
 }
 
+// Request for complete login.
 type CompleteLoginRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ChallengeId   string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
-	Proof         *FactorProof           `protobuf:"bytes,2,opt,name=proof,proto3" json:"proof,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Opaque identifier of the exact offered challenge.
+	ChallengeId string `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
+	// Exactly one proof matching the offered challenge; unknown alternatives are rejected.
+	Proof         *FactorProof `protobuf:"bytes,2,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2926,9 +3122,11 @@ func (x *CompleteLoginRequest) GetProof() *FactorProof {
 	return nil
 }
 
+// Successful result of complete login.
 type CompleteLoginResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Decision      *LoginDecision         `protobuf:"bytes,1,opt,name=decision,proto3" json:"decision,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The decision represented by LoginDecision.
+	Decision      *LoginDecision `protobuf:"bytes,1,opt,name=decision,proto3" json:"decision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2970,9 +3168,11 @@ func (x *CompleteLoginResponse) GetDecision() *LoginDecision {
 	return nil
 }
 
+// Request for refresh session.
 type RefreshSessionRequest struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	RefreshToken string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Secret refresh credential. Recover only the same durably saved renewal operation after an uncertain response.
+	RefreshToken string `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
 	// Exactly 32 random bytes, saved durably before dispatch. Retry only this same
 	// token/key; native NHA-198 can recover only its still-current successor.
 	RenewalKey    []byte `protobuf:"bytes,2,opt,name=renewal_key,json=renewalKey,proto3" json:"renewal_key,omitempty"`
@@ -3024,9 +3224,11 @@ func (x *RefreshSessionRequest) GetRenewalKey() []byte {
 	return nil
 }
 
+// Successful result of refresh session.
 type RefreshSessionResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Tokens        *SessionTokens         `protobuf:"bytes,1,opt,name=tokens,proto3" json:"tokens,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The tokens represented by SessionTokens.
+	Tokens        *SessionTokens `protobuf:"bytes,1,opt,name=tokens,proto3" json:"tokens,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3068,11 +3270,14 @@ func (x *RefreshSessionResponse) GetTokens() *SessionTokens {
 	return nil
 }
 
+// Request for list sessions.
 type ListSessionsRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Parent string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
 	// Default 50; maximum 100; negative is invalid.
-	PageSize      int32  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
 	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3129,10 +3334,13 @@ func (x *ListSessionsRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list sessions.
 type ListSessionsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Sessions      []*Session             `protobuf:"bytes,1,rep,name=sessions,proto3" json:"sessions,omitempty"`
-	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of sessions for this message.
+	Sessions []*Session `protobuf:"bytes,1,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3181,9 +3389,11 @@ func (x *ListSessionsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Request for revoke session.
 type RevokeSessionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3225,6 +3435,7 @@ func (x *RevokeSessionRequest) GetName() string {
 	return ""
 }
 
+// Successful result of revoke session.
 type RevokeSessionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -3261,10 +3472,13 @@ func (*RevokeSessionResponse) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{43}
 }
 
+// Request for begin factor enrollment.
 type BeginFactorEnrollmentRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Parent string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	Kind   FactorKind             `protobuf:"varint,2,opt,name=kind,proto3,enum=home.api.v2.FactorKind" json:"kind,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// The kind represented by FactorKind.
+	Kind FactorKind `protobuf:"varint,2,opt,name=kind,proto3,enum=home.api.v2.FactorKind" json:"kind,omitempty"`
 	// Required only for the restricted enrollment flow. Must not coexist with an
 	// Authorization header; the interactive-session flow leaves it empty.
 	EnrollmentToken string `protobuf:"bytes,3,opt,name=enrollment_token,json=enrollmentToken,proto3" json:"enrollment_token,omitempty"`
@@ -3323,9 +3537,11 @@ func (x *BeginFactorEnrollmentRequest) GetEnrollmentToken() string {
 	return ""
 }
 
+// Successful result of begin factor enrollment.
 type BeginFactorEnrollmentResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Challenge     *EnrollmentChallenge   `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Typed challenge offered for this flow. Its expiry and proof alternatives remain authoritative.
+	Challenge     *EnrollmentChallenge `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3367,12 +3583,18 @@ func (x *BeginFactorEnrollmentResponse) GetChallenge() *EnrollmentChallenge {
 	return nil
 }
 
+// Request for complete factor enrollment.
 type CompleteFactorEnrollmentRequest struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Parent          string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	ChallengeId     string                 `protobuf:"bytes,2,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
-	Attestation     *Fido2Attestation      `protobuf:"bytes,3,opt,name=attestation,proto3" json:"attestation,omitempty"`
-	EnrollmentToken string                 `protobuf:"bytes,4,opt,name=enrollment_token,json=enrollmentToken,proto3" json:"enrollment_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Opaque identifier of the exact offered challenge.
+	ChallengeId string `protobuf:"bytes,2,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
+	// The attestation represented by Fido2Attestation.
+	Attestation *Fido2Attestation `protobuf:"bytes,3,opt,name=attestation,proto3" json:"attestation,omitempty"`
+	// Required only for the restricted enrollment flow. Must not coexist with an
+	// Authorization header; the interactive-session flow leaves it empty.
+	EnrollmentToken string `protobuf:"bytes,4,opt,name=enrollment_token,json=enrollmentToken,proto3" json:"enrollment_token,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -3435,9 +3657,11 @@ func (x *CompleteFactorEnrollmentRequest) GetEnrollmentToken() string {
 	return ""
 }
 
+// Successful result of complete factor enrollment.
 type CompleteFactorEnrollmentResponse struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	FactorCredential *FactorCredential      `protobuf:"bytes,1,opt,name=factor_credential,json=factorCredential,proto3" json:"factor_credential,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Metadata of the factor credential; contains no private key or recovery secret.
+	FactorCredential *FactorCredential `protobuf:"bytes,1,opt,name=factor_credential,json=factorCredential,proto3" json:"factor_credential,omitempty"`
 	// Native bounded batch returned once after verified activation; never logged.
 	RecoveryCodes []string `protobuf:"bytes,2,rep,name=recovery_codes,json=recoveryCodes,proto3" json:"recovery_codes,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -3488,11 +3712,14 @@ func (x *CompleteFactorEnrollmentResponse) GetRecoveryCodes() []string {
 	return nil
 }
 
+// Request for list factor credentials.
 type ListFactorCredentialsRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Parent string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
 	// Default 50; maximum 100; negative is invalid.
-	PageSize      int32  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
 	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3549,12 +3776,15 @@ func (x *ListFactorCredentialsRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list factor credentials.
 type ListFactorCredentialsResponse struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	FactorCredentials []*FactorCredential    `protobuf:"bytes,1,rep,name=factor_credentials,json=factorCredentials,proto3" json:"factor_credentials,omitempty"`
-	NextPageToken     string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Factor credential metadata visible to the admitted caller.
+	FactorCredentials []*FactorCredential `protobuf:"bytes,1,rep,name=factor_credentials,json=factorCredentials,proto3" json:"factor_credentials,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListFactorCredentialsResponse) Reset() {
@@ -3601,9 +3831,11 @@ func (x *ListFactorCredentialsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Request for remove factor credential.
 type RemoveFactorCredentialRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3645,6 +3877,7 @@ func (x *RemoveFactorCredentialRequest) GetName() string {
 	return ""
 }
 
+// Successful result of remove factor credential.
 type RemoveFactorCredentialResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -3681,9 +3914,11 @@ func (*RemoveFactorCredentialResponse) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{51}
 }
 
+// Request for replace recovery codes.
 type ReplaceRecoveryCodesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3725,6 +3960,7 @@ func (x *ReplaceRecoveryCodesRequest) GetName() string {
 	return ""
 }
 
+// Successful result of replace recovery codes.
 type ReplaceRecoveryCodesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// One-shot replacement invalidates all unused previous codes atomically.
@@ -3770,10 +4006,13 @@ func (x *ReplaceRecoveryCodesResponse) GetRecoveryCodes() []string {
 	return nil
 }
 
+// Represents scope.
 type Scope struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Family        ScopeFamily            `protobuf:"varint,1,opt,name=family,proto3,enum=home.api.v2.ScopeFamily" json:"family,omitempty"`
-	Operation     ScopeOperation         `protobuf:"varint,2,opt,name=operation,proto3,enum=home.api.v2.ScopeOperation" json:"operation,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The family represented by ScopeFamily.
+	Family ScopeFamily `protobuf:"varint,1,opt,name=family,proto3,enum=home.api.v2.ScopeFamily" json:"family,omitempty"`
+	// The operation represented by ScopeOperation.
+	Operation     ScopeOperation `protobuf:"varint,2,opt,name=operation,proto3,enum=home.api.v2.ScopeOperation" json:"operation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3822,15 +4061,24 @@ func (x *Scope) GetOperation() ScopeOperation {
 	return ScopeOperation_SCOPE_OPERATION_UNSPECIFIED
 }
 
+// Represents mcp key.
 type McpKey struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	ClientName    string                 `protobuf:"bytes,2,opt,name=client_name,json=clientName,proto3" json:"client_name,omitempty"`
-	Audience      CredentialAudience     `protobuf:"varint,3,opt,name=audience,proto3,enum=home.api.v2.CredentialAudience" json:"audience,omitempty"`
-	Scopes        []*Scope               `protobuf:"bytes,4,rep,name=scopes,proto3" json:"scopes,omitempty"`
-	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
-	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
-	RevokeTime    *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=revoke_time,json=revokeTime,proto3" json:"revoke_time,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The client name associated with this message.
+	ClientName string `protobuf:"bytes,2,opt,name=client_name,json=clientName,proto3" json:"client_name,omitempty"`
+	// The audience represented by CredentialAudience.
+	Audience CredentialAudience `protobuf:"varint,3,opt,name=audience,proto3,enum=home.api.v2.CredentialAudience" json:"audience,omitempty"`
+	// Collection of scopes for this message.
+	Scopes []*Scope `protobuf:"bytes,4,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	// Time when this resource was created; absent when no historical creation time was recorded.
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// Time when this resource or credential expires.
+	ExpireTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	// Time when revocation was recorded; absent when no revocation was recorded.
+	RevokeTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=revoke_time,json=revokeTime,proto3" json:"revoke_time,omitempty"`
+	// Time of the last recorded use; absence does not mean a use occurred.
 	LastUseTime   *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_use_time,json=lastUseTime,proto3" json:"last_use_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3922,10 +4170,13 @@ func (x *McpKey) GetLastUseTime() *timestamppb.Timestamp {
 	return nil
 }
 
+// Request for issue mcp key.
 type IssueMcpKeyRequest struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	Parent     string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	ClientName string                 `protobuf:"bytes,2,opt,name=client_name,json=clientName,proto3" json:"client_name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// The client name associated with this message.
+	ClientName string `protobuf:"bytes,2,opt,name=client_name,json=clientName,proto3" json:"client_name,omitempty"`
 	// Empty grants no scope. Duplicate or unknown family/operation is invalid.
 	Scopes []*Scope `protobuf:"bytes,3,rep,name=scopes,proto3" json:"scopes,omitempty"`
 	// Absent means 30 days. Nonpositive or greater than 365 days is invalid.
@@ -3992,9 +4243,11 @@ func (x *IssueMcpKeyRequest) GetLifetime() *durationpb.Duration {
 	return nil
 }
 
+// Successful result of issue mcp key.
 type IssueMcpKeyResponse struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	McpKey *McpKey                `protobuf:"bytes,1,opt,name=mcp_key,json=mcpKey,proto3" json:"mcp_key,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The mcp key represented by McpKey.
+	McpKey *McpKey `protobuf:"bytes,1,opt,name=mcp_key,json=mcpKey,proto3" json:"mcp_key,omitempty"`
 	// Single issuance only, never metadata and never an idempotency replay value.
 	Secret        string `protobuf:"bytes,2,opt,name=secret,proto3" json:"secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -4045,11 +4298,14 @@ func (x *IssueMcpKeyResponse) GetSecret() string {
 	return ""
 }
 
+// Request for list mcp keys.
 type ListMcpKeysRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Parent string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
 	// Default 50; maximum 100; negative is invalid.
-	PageSize      int32  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
 	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4106,10 +4362,13 @@ func (x *ListMcpKeysRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list mcp keys.
 type ListMcpKeysResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	McpKeys       []*McpKey              `protobuf:"bytes,1,rep,name=mcp_keys,json=mcpKeys,proto3" json:"mcp_keys,omitempty"`
-	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Collection of mcp keys for this message.
+	McpKeys []*McpKey `protobuf:"bytes,1,rep,name=mcp_keys,json=mcpKeys,proto3" json:"mcp_keys,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4158,9 +4417,11 @@ func (x *ListMcpKeysResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Request for revoke mcp key.
 type RevokeMcpKeyRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4202,6 +4463,7 @@ func (x *RevokeMcpKeyRequest) GetName() string {
 	return ""
 }
 
+// Successful result of revoke mcp key.
 type RevokeMcpKeyResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -4238,15 +4500,22 @@ func (*RevokeMcpKeyResponse) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{61}
 }
 
+// Represents the native default or stored policy, with exact source distinct from its effective rights.
 type AuthorizationPolicy struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Exact UTF-8 source, 1..1048576 bytes, with no includes or credentials.
-	YamlSource    []byte                    `protobuf:"bytes,2,opt,name=yaml_source,json=yamlSource,proto3" json:"yaml_source,omitempty"`
-	Schema        string                    `protobuf:"bytes,3,opt,name=schema,proto3" json:"schema,omitempty"`
-	SyntaxProfile string                    `protobuf:"bytes,4,opt,name=syntax_profile,json=syntaxProfile,proto3" json:"syntax_profile,omitempty"`
-	UpdateTime    *timestamppb.Timestamp    `protobuf:"bytes,5,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
-	Etag          string                    `protobuf:"bytes,6,opt,name=etag,proto3" json:"etag,omitempty"`
+	YamlSource []byte `protobuf:"bytes,2,opt,name=yaml_source,json=yamlSource,proto3" json:"yaml_source,omitempty"`
+	// The schema associated with this message.
+	Schema string `protobuf:"bytes,3,opt,name=schema,proto3" json:"schema,omitempty"`
+	// Closed source syntax profile understood by the native compiler.
+	SyntaxProfile string `protobuf:"bytes,4,opt,name=syntax_profile,json=syntaxProfile,proto3" json:"syntax_profile,omitempty"`
+	// Time of the latest recorded resource update.
+	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	// Opaque revision token for optimistic concurrency. Compare it without interpretation.
+	Etag string `protobuf:"bytes,6,opt,name=etag,proto3" json:"etag,omitempty"`
+	// The origin represented by AuthorizationPolicyOrigin.
 	Origin        AuthorizationPolicyOrigin `protobuf:"varint,7,opt,name=origin,proto3,enum=home.api.v2.AuthorizationPolicyOrigin" json:"origin,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4331,9 +4600,11 @@ func (x *AuthorizationPolicy) GetOrigin() AuthorizationPolicyOrigin {
 	return AuthorizationPolicyOrigin_AUTHORIZATION_POLICY_ORIGIN_UNSPECIFIED
 }
 
+// Request for get authorization policy.
 type GetAuthorizationPolicyRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4375,10 +4646,13 @@ func (x *GetAuthorizationPolicyRequest) GetName() string {
 	return ""
 }
 
+// Request for replace authorization policy.
 type ReplaceAuthorizationPolicyRequest struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	Name       string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	YamlSource []byte                 `protobuf:"bytes,2,opt,name=yaml_source,json=yamlSource,proto3" json:"yaml_source,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Exact policy source bytes represented as UTF-8 text; not a serialized filtered projection.
+	YamlSource []byte `protobuf:"bytes,2,opt,name=yaml_source,json=yamlSource,proto3" json:"yaml_source,omitempty"`
 	// Exactly one is required. Empty expected_etag is invalid, never absence.
 	//
 	// Types that are valid to be assigned to Precondition:
@@ -4464,10 +4738,12 @@ type isReplaceAuthorizationPolicyRequest_Precondition interface {
 }
 
 type ReplaceAuthorizationPolicyRequest_ExpectedEtag struct {
+	// Expected current revision token; a stale value fails the conditional write.
 	ExpectedEtag string `protobuf:"bytes,3,opt,name=expected_etag,json=expectedEtag,proto3,oneof"`
 }
 
 type ReplaceAuthorizationPolicyRequest_ExpectAbsent struct {
+	// Selects the explicit expect absent alternative without an additional payload.
 	ExpectAbsent *emptypb.Empty `protobuf:"bytes,4,opt,name=expect_absent,json=expectAbsent,proto3,oneof"`
 }
 
@@ -4477,10 +4753,13 @@ func (*ReplaceAuthorizationPolicyRequest_ExpectedEtag) isReplaceAuthorizationPol
 func (*ReplaceAuthorizationPolicyRequest_ExpectAbsent) isReplaceAuthorizationPolicyRequest_Precondition() {
 }
 
+// Successful result of replace authorization policy.
 type ReplaceAuthorizationPolicyResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Policy        *AuthorizationPolicy   `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
-	RightsChange  PolicyRightsChange     `protobuf:"varint,2,opt,name=rights_change,json=rightsChange,proto3,enum=home.api.v2.PolicyRightsChange" json:"rights_change,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The policy represented by AuthorizationPolicy.
+	Policy *AuthorizationPolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
+	// The rights change represented by PolicyRightsChange.
+	RightsChange  PolicyRightsChange `protobuf:"varint,2,opt,name=rights_change,json=rightsChange,proto3,enum=home.api.v2.PolicyRightsChange" json:"rights_change,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4529,26 +4808,210 @@ func (x *ReplaceAuthorizationPolicyResponse) GetRightsChange() PolicyRightsChang
 	return PolicyRightsChange_POLICY_RIGHTS_CHANGE_UNSPECIFIED
 }
 
+// Request for GetInvitation.
+type GetInvitationRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetInvitationRequest) Reset() {
+	*x = GetInvitationRequest{}
+	mi := &file_home_api_v2_authentication_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetInvitationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInvitationRequest) ProtoMessage() {}
+
+func (x *GetInvitationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_authentication_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInvitationRequest.ProtoReflect.Descriptor instead.
+func (*GetInvitationRequest) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *GetInvitationRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Request for GetSession.
+type GetSessionRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSessionRequest) Reset() {
+	*x = GetSessionRequest{}
+	mi := &file_home_api_v2_authentication_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSessionRequest) ProtoMessage() {}
+
+func (x *GetSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_authentication_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSessionRequest.ProtoReflect.Descriptor instead.
+func (*GetSessionRequest) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *GetSessionRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Request for GetFactorCredential.
+type GetFactorCredentialRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetFactorCredentialRequest) Reset() {
+	*x = GetFactorCredentialRequest{}
+	mi := &file_home_api_v2_authentication_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetFactorCredentialRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetFactorCredentialRequest) ProtoMessage() {}
+
+func (x *GetFactorCredentialRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_authentication_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetFactorCredentialRequest.ProtoReflect.Descriptor instead.
+func (*GetFactorCredentialRequest) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *GetFactorCredentialRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Request for GetMcpKey.
+type GetMcpKeyRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMcpKeyRequest) Reset() {
+	*x = GetMcpKeyRequest{}
+	mi := &file_home_api_v2_authentication_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMcpKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMcpKeyRequest) ProtoMessage() {}
+
+func (x *GetMcpKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_authentication_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMcpKeyRequest.ProtoReflect.Descriptor instead.
+func (*GetMcpKeyRequest) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_authentication_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *GetMcpKeyRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 var File_home_api_v2_authentication_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_authentication_proto_rawDesc = "" +
 	"\n" +
-	" home/api/v2/authentication.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xab\x04\n" +
+	" home/api/v2/authentication.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc2\x04\n" +
 	"\aAccount\x12\x18\n" +
-	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12#\n" +
+	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12$\n" +
 	"\n" +
-	"login_name\x18\x02 \x01(\tB\x04\xe2A\x01\x05R\tloginName\x12!\n" +
-	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12,\n" +
-	"\x04role\x18\x04 \x01(\x0e2\x18.home.api.v2.AccountRoleR\x04role\x12/\n" +
-	"\x05state\x18\x05 \x01(\x0e2\x19.home.api.v2.AccountStateR\x05state\x128\n" +
+	"login_name\x18\x02 \x01(\tB\x05\xe2A\x02\x01\x05R\tloginName\x12'\n" +
+	"\fdisplay_name\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\vdisplayName\x122\n" +
+	"\x04role\x18\x04 \x01(\x0e2\x18.home.api.v2.AccountRoleB\x04\xe2A\x01\x01R\x04role\x128\n" +
+	"\x06access\x18\x05 \x01(\x0e2\x1a.home.api.v2.AccountAccessB\x04\xe2A\x01\x01R\x06access\x128\n" +
 	"\x15second_factor_enabled\x18\x06 \x01(\bB\x04\xe2A\x01\x03R\x13secondFactorEnabled\x12A\n" +
 	"\vcreate_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
 	"createTime\x12A\n" +
 	"\vupdate_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
 	"updateTime\x12\x12\n" +
-	"\x04etag\x18\t \x01(\tR\x04etag\x12/\n" +
+	"\x04etag\x18\t \x01(\tR\x04etag\x120\n" +
 	"\x10initial_password\x18\n" +
-	" \x01(\tB\x04\xe2A\x01\x04R\x0finitialPassword:Z\xeaAW\n" +
+	" \x01(\tB\x05\xe2A\x02\x04\x01R\x0finitialPassword:Z\xeaAW\n" +
 	"!homeward.damiengoehrig.ca/Account\x12\x1fhomes/{home}/accounts/{account}*\baccounts2\aaccount\"\xf6\x03\n" +
 	"\n" +
 	"Invitation\x12\x18\n" +
@@ -4572,10 +5035,12 @@ const file_home_api_v2_authentication_proto_rawDesc = "" +
 	"\vupdate_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
 	"updateTime\x12\x12\n" +
 	"\x04etag\x18\x04 \x01(\tR\x04etag:|\xeaAy\n" +
-	",homeward.damiengoehrig.ca/SecondFactorPolicy\x12\x1fhomes/{home}/secondFactorPolicy*\x14secondFactorPolicies2\x12secondFactorPolicy\"\x90\x01\n" +
+	",homeward.damiengoehrig.ca/SecondFactorPolicy\x12\x1fhomes/{home}/secondFactorPolicy*\x14secondFactorPolicies2\x12secondFactorPolicy\"\xb5\x01\n" +
 	"\x14CreateAccountRequest\x12B\n" +
 	"\x06parent\x18\x01 \x01(\tB*\xe2A\x01\x02\xfaA#\x12!homeward.damiengoehrig.ca/AccountR\x06parent\x124\n" +
-	"\aaccount\x18\x02 \x01(\v2\x14.home.api.v2.AccountB\x04\xe2A\x01\x02R\aaccount\"S\n" +
+	"\aaccount\x18\x02 \x01(\v2\x14.home.api.v2.AccountB\x04\xe2A\x01\x02R\aaccount\x12#\n" +
+	"\n" +
+	"account_id\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\taccountId\"S\n" +
 	"\x11GetAccountRequest\x12>\n" +
 	"\x04name\x18\x01 \x01(\tB*\xe2A\x01\x02\xfaA#\n" +
 	"!homeward.damiengoehrig.ca/AccountR\x04name\"\xa1\x01\n" +
@@ -4590,11 +5055,12 @@ const file_home_api_v2_authentication_proto_rawDesc = "" +
 	"\x14UpdateAccountRequest\x124\n" +
 	"\aaccount\x18\x01 \x01(\v2\x14.home.api.v2.AccountB\x04\xe2A\x01\x02R\aaccount\x12A\n" +
 	"\vupdate_mask\x18\x02 \x01(\v2\x1a.google.protobuf.FieldMaskB\x04\xe2A\x01\x01R\n" +
-	"updateMask\"p\n" +
+	"updateMask\"\x8c\x01\n" +
 	"\x14DeleteAccountRequest\x12>\n" +
 	"\x04name\x18\x01 \x01(\tB*\xe2A\x01\x02\xfaA#\n" +
 	"!homeward.damiengoehrig.ca/AccountR\x04name\x12\x18\n" +
-	"\x04etag\x18\x02 \x01(\tB\x04\xe2A\x01\x02R\x04etag\"\xfb\x01\n" +
+	"\x04etag\x18\x02 \x01(\tB\x04\xe2A\x01\x02R\x04etag\x12\x1a\n" +
+	"\x05force\x18\x03 \x01(\bB\x04\xe2A\x01\x01R\x05force\"\xfb\x01\n" +
 	"\x16IssueInvitationRequest\x12E\n" +
 	"\x06parent\x18\x01 \x01(\tB-\xe2A\x01\x02\xfaA&\x12$homeward.damiengoehrig.ca/InvitationR\x06parent\x12#\n" +
 	"\n" +
@@ -4631,7 +5097,7 @@ const file_home_api_v2_authentication_proto_rawDesc = "" +
 	"\x1fChangeSecondFactorPolicyRequest\x12I\n" +
 	"\x04name\x18\x01 \x01(\tB5\xe2A\x01\x02\xfaA.\n" +
 	",homeward.damiengoehrig.ca/SecondFactorPolicyR\x04name\x126\n" +
-	"\x14require_admin_factor\x18\x02 \x01(\bB\x04\xe2A\x01\x02R\x12requireAdminFactor\x12\x18\n" +
+	"\x14require_admin_factor\x18\x02 \x01(\bB\x04\xe2A\x01\x01R\x12requireAdminFactor\x12\x18\n" +
 	"\x04etag\x18\x03 \x01(\tB\x04\xe2A\x01\x02R\x04etag\"\xad\x01\n" +
 	" ChangeSecondFactorPolicyResponse\x127\n" +
 	"\x06policy\x18\x01 \x01(\v2\x1f.home.api.v2.SecondFactorPolicyR\x06policy\x12P\n" +
@@ -4690,21 +5156,21 @@ const file_home_api_v2_authentication_proto_rawDesc = "" +
 	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\x12;\n" +
 	"\vexpire_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"expireTime\x12;\n" +
-	"\x05fido2\x18\x03 \x01(\v2%.home.api.v2.Fido2EnrollmentChallengeR\x05fido2\"\x8c\x02\n" +
-	"\x0eFido2Assertion\x12#\n" +
-	"\rcredential_id\x18\x01 \x01(\fR\fcredentialId\x12-\n" +
-	"\x12authenticator_data\x18\x02 \x01(\fR\x11authenticatorData\x12(\n" +
-	"\x10client_data_json\x18\x03 \x01(\fR\x0eclientDataJson\x12\x1c\n" +
-	"\tsignature\x18\x04 \x01(\fR\tsignature\x12$\n" +
-	"\vuser_handle\x18\x05 \x01(\fH\x00R\n" +
-	"userHandle\x88\x01\x01\x12(\n" +
-	"\x10client_data_hash\x18\x06 \x01(\fR\x0eclientDataHashB\x0e\n" +
-	"\f_user_handle\"\xba\x01\n" +
-	"\x10Fido2Attestation\x12#\n" +
-	"\rcredential_id\x18\x01 \x01(\fR\fcredentialId\x12(\n" +
-	"\x10client_data_json\x18\x02 \x01(\fR\x0eclientDataJson\x12-\n" +
-	"\x12attestation_object\x18\x03 \x01(\fR\x11attestationObject\x12(\n" +
-	"\x10client_data_hash\x18\x04 \x01(\fR\x0eclientDataHash\"r\n" +
+	"\x05fido2\x18\x03 \x01(\v2%.home.api.v2.Fido2EnrollmentChallengeR\x05fido2\"\xb0\x02\n" +
+	"\x0eFido2Assertion\x12)\n" +
+	"\rcredential_id\x18\x01 \x01(\fB\x04\xe2A\x01\x02R\fcredentialId\x123\n" +
+	"\x12authenticator_data\x18\x02 \x01(\fB\x04\xe2A\x01\x02R\x11authenticatorData\x12.\n" +
+	"\x10client_data_json\x18\x03 \x01(\fB\x04\xe2A\x01\x02R\x0eclientDataJson\x12\"\n" +
+	"\tsignature\x18\x04 \x01(\fB\x04\xe2A\x01\x02R\tsignature\x12*\n" +
+	"\vuser_handle\x18\x05 \x01(\fB\x04\xe2A\x01\x01H\x00R\n" +
+	"userHandle\x88\x01\x01\x12.\n" +
+	"\x10client_data_hash\x18\x06 \x01(\fB\x04\xe2A\x01\x02R\x0eclientDataHashB\x0e\n" +
+	"\f_user_handle\"\xd2\x01\n" +
+	"\x10Fido2Attestation\x12)\n" +
+	"\rcredential_id\x18\x01 \x01(\fB\x04\xe2A\x01\x02R\fcredentialId\x12.\n" +
+	"\x10client_data_json\x18\x02 \x01(\fB\x04\xe2A\x01\x02R\x0eclientDataJson\x123\n" +
+	"\x12attestation_object\x18\x03 \x01(\fB\x04\xe2A\x01\x02R\x11attestationObject\x12.\n" +
+	"\x10client_data_hash\x18\x04 \x01(\fB\x04\xe2A\x01\x02R\x0eclientDataHash\"r\n" +
 	"\vFactorProof\x123\n" +
 	"\x05fido2\x18\x01 \x01(\v2\x1b.home.api.v2.Fido2AssertionH\x00R\x05fido2\x12%\n" +
 	"\rrecovery_code\x18\x02 \x01(\tH\x00R\frecoveryCodeB\a\n" +
@@ -4779,10 +5245,10 @@ const file_home_api_v2_authentication_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tB*\xe2A\x01\x02\xfaA#\n" +
 	"!homeward.damiengoehrig.ca/AccountR\x04name\"E\n" +
 	"\x1cReplaceRecoveryCodesResponse\x12%\n" +
-	"\x0erecovery_codes\x18\x01 \x03(\tR\rrecoveryCodes\"t\n" +
-	"\x05Scope\x120\n" +
-	"\x06family\x18\x01 \x01(\x0e2\x18.home.api.v2.ScopeFamilyR\x06family\x129\n" +
-	"\toperation\x18\x02 \x01(\x0e2\x1b.home.api.v2.ScopeOperationR\toperation\"\xb8\x04\n" +
+	"\x0erecovery_codes\x18\x01 \x03(\tR\rrecoveryCodes\"\x80\x01\n" +
+	"\x05Scope\x126\n" +
+	"\x06family\x18\x01 \x01(\x0e2\x18.home.api.v2.ScopeFamilyB\x04\xe2A\x01\x02R\x06family\x12?\n" +
+	"\toperation\x18\x02 \x01(\x0e2\x1b.home.api.v2.ScopeOperationB\x04\xe2A\x01\x02R\toperation\"\xb8\x04\n" +
 	"\x06McpKey\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12%\n" +
 	"\vclient_name\x18\x02 \x01(\tB\x04\xe2A\x01\x03R\n" +
@@ -4842,15 +5308,27 @@ const file_home_api_v2_authentication_proto_rawDesc = "" +
 	"\fprecondition\"\xa4\x01\n" +
 	"\"ReplaceAuthorizationPolicyResponse\x128\n" +
 	"\x06policy\x18\x01 \x01(\v2 .home.api.v2.AuthorizationPolicyR\x06policy\x12D\n" +
-	"\rrights_change\x18\x02 \x01(\x0e2\x1f.home.api.v2.PolicyRightsChangeR\frightsChange*Z\n" +
+	"\rrights_change\x18\x02 \x01(\x0e2\x1f.home.api.v2.PolicyRightsChangeR\frightsChange\"Y\n" +
+	"\x14GetInvitationRequest\x12A\n" +
+	"\x04name\x18\x01 \x01(\tB-\xe2A\x01\x02\xfaA&\n" +
+	"$homeward.damiengoehrig.ca/InvitationR\x04name\"S\n" +
+	"\x11GetSessionRequest\x12>\n" +
+	"\x04name\x18\x01 \x01(\tB*\xe2A\x01\x02\xfaA#\n" +
+	"!homeward.damiengoehrig.ca/SessionR\x04name\"e\n" +
+	"\x1aGetFactorCredentialRequest\x12G\n" +
+	"\x04name\x18\x01 \x01(\tB3\xe2A\x01\x02\xfaA,\n" +
+	"*homeward.damiengoehrig.ca/FactorCredentialR\x04name\"Q\n" +
+	"\x10GetMcpKeyRequest\x12=\n" +
+	"\x04name\x18\x01 \x01(\tB)\xe2A\x01\x02\xfaA\"\n" +
+	" homeward.damiengoehrig.ca/McpKeyR\x04name*Z\n" +
 	"\vAccountRole\x12\x1c\n" +
 	"\x18ACCOUNT_ROLE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12ACCOUNT_ROLE_ADMIN\x10\x01\x12\x15\n" +
-	"\x11ACCOUNT_ROLE_USER\x10\x02*c\n" +
-	"\fAccountState\x12\x1d\n" +
-	"\x19ACCOUNT_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
-	"\x14ACCOUNT_STATE_ACTIVE\x10\x01\x12\x1a\n" +
-	"\x16ACCOUNT_STATE_DISABLED\x10\x02*\xc9\x01\n" +
+	"\x11ACCOUNT_ROLE_USER\x10\x02*h\n" +
+	"\rAccountAccess\x12\x1e\n" +
+	"\x1aACCOUNT_ACCESS_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16ACCOUNT_ACCESS_ENABLED\x10\x01\x12\x1b\n" +
+	"\x17ACCOUNT_ACCESS_DISABLED\x10\x02*\xc9\x01\n" +
 	"\x1fSecondFactorSessionContinuation\x122\n" +
 	".SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED\x10\x00\x120\n" +
 	",SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES\x10\x01\x12@\n" +
@@ -4897,21 +5375,25 @@ const file_home_api_v2_authentication_proto_rawDesc = "" +
 	"\x12PolicyRightsChange\x12$\n" +
 	" POLICY_RIGHTS_CHANGE_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cPOLICY_RIGHTS_CHANGE_CHANGED\x10\x01\x12\"\n" +
-	"\x1ePOLICY_RIGHTS_CHANGE_UNCHANGED\x10\x022\xb3\f\n" +
-	"\x0eAccountService\x12\x89\x01\n" +
+	"\x1ePOLICY_RIGHTS_CHANGE_UNCHANGED\x10\x022\xb6\r\n" +
+	"\x0eAccountService\x12|\n" +
+	"\rGetInvitation\x12!.home.api.v2.GetInvitationRequest\x1a\x17.home.api.v2.Invitation\"/\xdaA\x04name\x82\xd3\xe4\x93\x02\"\x12 /v2/{name=homes/*/invitations/*}\x12\x89\x01\n" +
 	"\rCreateAccount\x12!.home.api.v2.CreateAccountRequest\x1a\x14.home.api.v2.Account\"?\xdaA\x0eparent,account\x82\xd3\xe4\x93\x02(:\aaccount\"\x1d/v2/{parent=homes/*}/accounts\x12p\n" +
 	"\n" +
 	"GetAccount\x12\x1e.home.api.v2.GetAccountRequest\x1a\x14.home.api.v2.Account\",\xdaA\x04name\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v2/{name=homes/*/accounts/*}\x12\x83\x01\n" +
 	"\fListAccounts\x12 .home.api.v2.ListAccountsRequest\x1a!.home.api.v2.ListAccountsResponse\".\xdaA\x06parent\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v2/{parent=homes/*}/accounts\x12\x96\x01\n" +
-	"\rUpdateAccount\x12!.home.api.v2.UpdateAccountRequest\x1a\x14.home.api.v2.Account\"L\xdaA\x13account,update_mask\x82\xd3\xe4\x93\x020:\aaccount2%/v2/{account.name=homes/*/accounts/*}\x12x\n" +
-	"\rDeleteAccount\x12!.home.api.v2.DeleteAccountRequest\x1a\x16.google.protobuf.Empty\",\xdaA\x04name\x82\xd3\xe4\x93\x02\x1f*\x1d/v2/{name=homes/*/accounts/*}\x12\x8f\x01\n" +
+	"\rUpdateAccount\x12!.home.api.v2.UpdateAccountRequest\x1a\x14.home.api.v2.Account\"L\xdaA\x13account,update_mask\x82\xd3\xe4\x93\x020:\aaccount2%/v2/{account.name=homes/*/accounts/*}\x12}\n" +
+	"\rDeleteAccount\x12!.home.api.v2.DeleteAccountRequest\x1a\x16.google.protobuf.Empty\"1\xdaA\tname,etag\x82\xd3\xe4\x93\x02\x1f*\x1d/v2/{name=homes/*/accounts/*}\x12\x8f\x01\n" +
 	"\x0fIssueInvitation\x12#.home.api.v2.IssueInvitationRequest\x1a$.home.api.v2.IssueInvitationResponse\"1\x82\xd3\xe4\x93\x02+:\x01*\"&/v2/{parent=homes/*}/invitations:issue\x12\x80\x01\n" +
 	"\x10AcceptInvitation\x12$.home.api.v2.AcceptInvitationRequest\x1a%.home.api.v2.AcceptInvitationResponse\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v2:acceptInvitation\x12\x8f\x01\n" +
 	"\x0fListInvitations\x12#.home.api.v2.ListInvitationsRequest\x1a$.home.api.v2.ListInvitationsResponse\"1\xdaA\x06parent\x82\xd3\xe4\x93\x02\"\x12 /v2/{parent=homes/*}/invitations\x12\x93\x01\n" +
 	"\x10RevokeInvitation\x12$.home.api.v2.RevokeInvitationRequest\x1a%.home.api.v2.RevokeInvitationResponse\"2\x82\xd3\xe4\x93\x02,:\x01*\"'/v2/{name=homes/*/invitations/*}:revoke\x12\x99\x01\n" +
 	"\x15GetSecondFactorPolicy\x12).home.api.v2.GetSecondFactorPolicyRequest\x1a\x1f.home.api.v2.SecondFactorPolicy\"4\xdaA\x04name\x82\xd3\xe4\x93\x02'\x12%/v2/{name=homes/*/secondFactorPolicy}\x12\xb0\x01\n" +
-	"\x18ChangeSecondFactorPolicy\x12,.home.api.v2.ChangeSecondFactorPolicyRequest\x1a-.home.api.v2.ChangeSecondFactorPolicyResponse\"7\x82\xd3\xe4\x93\x021:\x01*\",/v2/{name=homes/*/secondFactorPolicy}:change2\xb2\f\n" +
-	"\vAuthService\x12h\n" +
+	"\x18ChangeSecondFactorPolicy\x12,.home.api.v2.ChangeSecondFactorPolicyRequest\x1a-.home.api.v2.ChangeSecondFactorPolicyResponse\"7\x82\xd3\xe4\x93\x021:\x01*\",/v2/{name=homes/*/secondFactorPolicy}:change2\xd1\x0e\n" +
+	"\vAuthService\x12\x9f\x01\n" +
+	"\x13GetFactorCredential\x12'.home.api.v2.GetFactorCredentialRequest\x1a\x1d.home.api.v2.FactorCredential\"@\xdaA\x04name\x82\xd3\xe4\x93\x023\x121/v2/{name=homes/*/accounts/*/factorCredentials/*}\x12{\n" +
+	"\n" +
+	"GetSession\x12\x1e.home.api.v2.GetSessionRequest\x1a\x14.home.api.v2.Session\"7\xdaA\x04name\x82\xd3\xe4\x93\x02*\x12(/v2/{name=homes/*/accounts/*/sessions/*}\x12h\n" +
 	"\n" +
 	"StartLogin\x12\x1e.home.api.v2.StartLoginRequest\x1a\x1f.home.api.v2.StartLoginResponse\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v2:startLogin\x12t\n" +
 	"\rCompleteLogin\x12!.home.api.v2.CompleteLoginRequest\x1a\".home.api.v2.CompleteLoginResponse\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v2:completeLogin\x12x\n" +
@@ -4922,8 +5404,9 @@ const file_home_api_v2_authentication_proto_rawDesc = "" +
 	"\x18CompleteFactorEnrollment\x12,.home.api.v2.CompleteFactorEnrollmentRequest\x1a-.home.api.v2.CompleteFactorEnrollmentResponse\"O\x82\xd3\xe4\x93\x02I:\x01*\"D/v2/{parent=homes/*/accounts/*}/factorCredentials:completeEnrollment\x12\xb2\x01\n" +
 	"\x15ListFactorCredentials\x12).home.api.v2.ListFactorCredentialsRequest\x1a*.home.api.v2.ListFactorCredentialsResponse\"B\xdaA\x06parent\x82\xd3\xe4\x93\x023\x121/v2/{parent=homes/*/accounts/*}/factorCredentials\x12\xb6\x01\n" +
 	"\x16RemoveFactorCredential\x12*.home.api.v2.RemoveFactorCredentialRequest\x1a+.home.api.v2.RemoveFactorCredentialResponse\"C\x82\xd3\xe4\x93\x02=:\x01*\"8/v2/{name=homes/*/accounts/*/factorCredentials/*}:remove\x12\xaa\x01\n" +
-	"\x14ReplaceRecoveryCodes\x12(.home.api.v2.ReplaceRecoveryCodesRequest\x1a).home.api.v2.ReplaceRecoveryCodesResponse\"=\x82\xd3\xe4\x93\x027:\x01*\"2/v2/{name=homes/*/accounts/*}:replaceRecoveryCodes2\xba\x03\n" +
-	"\rMcpKeyService\x12\x8a\x01\n" +
+	"\x14ReplaceRecoveryCodes\x12(.home.api.v2.ReplaceRecoveryCodesRequest\x1a).home.api.v2.ReplaceRecoveryCodesResponse\"=\x82\xd3\xe4\x93\x027:\x01*\"2/v2/{name=homes/*/accounts/*}:replaceRecoveryCodes2\xb3\x04\n" +
+	"\rMcpKeyService\x12w\n" +
+	"\tGetMcpKey\x12\x1d.home.api.v2.GetMcpKeyRequest\x1a\x13.home.api.v2.McpKey\"6\xdaA\x04name\x82\xd3\xe4\x93\x02)\x12'/v2/{name=homes/*/accounts/*/mcpKeys/*}\x12\x8a\x01\n" +
 	"\vIssueMcpKey\x12\x1f.home.api.v2.IssueMcpKeyRequest\x1a .home.api.v2.IssueMcpKeyResponse\"8\x82\xd3\xe4\x93\x022:\x01*\"-/v2/{parent=homes/*/accounts/*}/mcpKeys:issue\x12\x8a\x01\n" +
 	"\vListMcpKeys\x12\x1f.home.api.v2.ListMcpKeysRequest\x1a .home.api.v2.ListMcpKeysResponse\"8\xdaA\x06parent\x82\xd3\xe4\x93\x02)\x12'/v2/{parent=homes/*/accounts/*}/mcpKeys\x12\x8e\x01\n" +
 	"\fRevokeMcpKey\x12 .home.api.v2.RevokeMcpKeyRequest\x1a!.home.api.v2.RevokeMcpKeyResponse\"9\x82\xd3\xe4\x93\x023:\x01*\"./v2/{name=homes/*/accounts/*/mcpKeys/*}:revoke2\x8d\x03\n" +
@@ -4945,10 +5428,10 @@ func file_home_api_v2_authentication_proto_rawDescGZIP() []byte {
 }
 
 var file_home_api_v2_authentication_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_home_api_v2_authentication_proto_msgTypes = make([]protoimpl.MessageInfo, 66)
+var file_home_api_v2_authentication_proto_msgTypes = make([]protoimpl.MessageInfo, 70)
 var file_home_api_v2_authentication_proto_goTypes = []any{
 	(AccountRole)(0),                           // 0: home.api.v2.AccountRole
-	(AccountState)(0),                          // 1: home.api.v2.AccountState
+	(AccountAccess)(0),                         // 1: home.api.v2.AccountAccess
 	(SecondFactorSessionContinuation)(0),       // 2: home.api.v2.SecondFactorSessionContinuation
 	(FactorKind)(0),                            // 3: home.api.v2.FactorKind
 	(CredentialAudience)(0),                    // 4: home.api.v2.CredentialAudience
@@ -5023,140 +5506,152 @@ var file_home_api_v2_authentication_proto_goTypes = []any{
 	(*GetAuthorizationPolicyRequest)(nil),      // 73: home.api.v2.GetAuthorizationPolicyRequest
 	(*ReplaceAuthorizationPolicyRequest)(nil),  // 74: home.api.v2.ReplaceAuthorizationPolicyRequest
 	(*ReplaceAuthorizationPolicyResponse)(nil), // 75: home.api.v2.ReplaceAuthorizationPolicyResponse
-	(*timestamppb.Timestamp)(nil),              // 76: google.protobuf.Timestamp
-	(*fieldmaskpb.FieldMask)(nil),              // 77: google.protobuf.FieldMask
-	(*durationpb.Duration)(nil),                // 78: google.protobuf.Duration
-	(*emptypb.Empty)(nil),                      // 79: google.protobuf.Empty
+	(*GetInvitationRequest)(nil),               // 76: home.api.v2.GetInvitationRequest
+	(*GetSessionRequest)(nil),                  // 77: home.api.v2.GetSessionRequest
+	(*GetFactorCredentialRequest)(nil),         // 78: home.api.v2.GetFactorCredentialRequest
+	(*GetMcpKeyRequest)(nil),                   // 79: home.api.v2.GetMcpKeyRequest
+	(*timestamppb.Timestamp)(nil),              // 80: google.protobuf.Timestamp
+	(*fieldmaskpb.FieldMask)(nil),              // 81: google.protobuf.FieldMask
+	(*durationpb.Duration)(nil),                // 82: google.protobuf.Duration
+	(*emptypb.Empty)(nil),                      // 83: google.protobuf.Empty
 }
 var file_home_api_v2_authentication_proto_depIdxs = []int32{
-	0,  // 0: home.api.v2.Account.role:type_name -> home.api.v2.AccountRole
-	1,  // 1: home.api.v2.Account.state:type_name -> home.api.v2.AccountState
-	76, // 2: home.api.v2.Account.create_time:type_name -> google.protobuf.Timestamp
-	76, // 3: home.api.v2.Account.update_time:type_name -> google.protobuf.Timestamp
-	0,  // 4: home.api.v2.Invitation.role:type_name -> home.api.v2.AccountRole
-	76, // 5: home.api.v2.Invitation.expire_time:type_name -> google.protobuf.Timestamp
-	76, // 6: home.api.v2.Invitation.create_time:type_name -> google.protobuf.Timestamp
-	76, // 7: home.api.v2.Invitation.accept_time:type_name -> google.protobuf.Timestamp
-	76, // 8: home.api.v2.Invitation.revoke_time:type_name -> google.protobuf.Timestamp
-	76, // 9: home.api.v2.SecondFactorPolicy.update_time:type_name -> google.protobuf.Timestamp
-	10, // 10: home.api.v2.CreateAccountRequest.account:type_name -> home.api.v2.Account
-	10, // 11: home.api.v2.ListAccountsResponse.accounts:type_name -> home.api.v2.Account
-	10, // 12: home.api.v2.UpdateAccountRequest.account:type_name -> home.api.v2.Account
-	77, // 13: home.api.v2.UpdateAccountRequest.update_mask:type_name -> google.protobuf.FieldMask
-	0,  // 14: home.api.v2.IssueInvitationRequest.role:type_name -> home.api.v2.AccountRole
-	76, // 15: home.api.v2.IssueInvitationRequest.expire_time:type_name -> google.protobuf.Timestamp
-	11, // 16: home.api.v2.IssueInvitationResponse.invitation:type_name -> home.api.v2.Invitation
-	10, // 17: home.api.v2.AcceptInvitationResponse.account:type_name -> home.api.v2.Account
-	11, // 18: home.api.v2.ListInvitationsResponse.invitations:type_name -> home.api.v2.Invitation
-	12, // 19: home.api.v2.ChangeSecondFactorPolicyResponse.policy:type_name -> home.api.v2.SecondFactorPolicy
-	2,  // 20: home.api.v2.ChangeSecondFactorPolicyResponse.continuation:type_name -> home.api.v2.SecondFactorSessionContinuation
-	76, // 21: home.api.v2.Session.create_time:type_name -> google.protobuf.Timestamp
-	76, // 22: home.api.v2.Session.expire_time:type_name -> google.protobuf.Timestamp
-	76, // 23: home.api.v2.Session.revoke_time:type_name -> google.protobuf.Timestamp
-	76, // 24: home.api.v2.Session.last_use_time:type_name -> google.protobuf.Timestamp
-	5,  // 25: home.api.v2.Session.authentication_satisfaction:type_name -> home.api.v2.AuthenticationSatisfaction
-	76, // 26: home.api.v2.Session.authentication_time:type_name -> google.protobuf.Timestamp
-	3,  // 27: home.api.v2.FactorCredential.kind:type_name -> home.api.v2.FactorKind
-	76, // 28: home.api.v2.FactorCredential.create_time:type_name -> google.protobuf.Timestamp
-	76, // 29: home.api.v2.FactorCredential.last_use_time:type_name -> google.protobuf.Timestamp
-	30, // 30: home.api.v2.SessionTokens.session:type_name -> home.api.v2.Session
-	4,  // 31: home.api.v2.SessionTokens.audience:type_name -> home.api.v2.CredentialAudience
-	76, // 32: home.api.v2.SessionTokens.access_expire_time:type_name -> google.protobuf.Timestamp
-	33, // 33: home.api.v2.FactorOption.fido2:type_name -> home.api.v2.Fido2AssertionChallenge
-	35, // 34: home.api.v2.FactorOption.recovery_code:type_name -> home.api.v2.RecoveryCodeChallenge
-	76, // 35: home.api.v2.FactorChallenge.expire_time:type_name -> google.protobuf.Timestamp
-	36, // 36: home.api.v2.FactorChallenge.options:type_name -> home.api.v2.FactorOption
-	76, // 37: home.api.v2.EnrollmentChallenge.expire_time:type_name -> google.protobuf.Timestamp
-	34, // 38: home.api.v2.EnrollmentChallenge.fido2:type_name -> home.api.v2.Fido2EnrollmentChallenge
-	39, // 39: home.api.v2.FactorProof.fido2:type_name -> home.api.v2.Fido2Assertion
-	76, // 40: home.api.v2.EnrollmentRequired.expire_time:type_name -> google.protobuf.Timestamp
-	32, // 41: home.api.v2.LoginDecision.authenticated:type_name -> home.api.v2.SessionTokens
-	37, // 42: home.api.v2.LoginDecision.challenge:type_name -> home.api.v2.FactorChallenge
-	42, // 43: home.api.v2.LoginDecision.enrollment_required:type_name -> home.api.v2.EnrollmentRequired
-	43, // 44: home.api.v2.StartLoginResponse.decision:type_name -> home.api.v2.LoginDecision
-	41, // 45: home.api.v2.CompleteLoginRequest.proof:type_name -> home.api.v2.FactorProof
-	43, // 46: home.api.v2.CompleteLoginResponse.decision:type_name -> home.api.v2.LoginDecision
-	32, // 47: home.api.v2.RefreshSessionResponse.tokens:type_name -> home.api.v2.SessionTokens
-	30, // 48: home.api.v2.ListSessionsResponse.sessions:type_name -> home.api.v2.Session
-	3,  // 49: home.api.v2.BeginFactorEnrollmentRequest.kind:type_name -> home.api.v2.FactorKind
-	38, // 50: home.api.v2.BeginFactorEnrollmentResponse.challenge:type_name -> home.api.v2.EnrollmentChallenge
-	40, // 51: home.api.v2.CompleteFactorEnrollmentRequest.attestation:type_name -> home.api.v2.Fido2Attestation
-	31, // 52: home.api.v2.CompleteFactorEnrollmentResponse.factor_credential:type_name -> home.api.v2.FactorCredential
-	31, // 53: home.api.v2.ListFactorCredentialsResponse.factor_credentials:type_name -> home.api.v2.FactorCredential
-	6,  // 54: home.api.v2.Scope.family:type_name -> home.api.v2.ScopeFamily
-	7,  // 55: home.api.v2.Scope.operation:type_name -> home.api.v2.ScopeOperation
-	4,  // 56: home.api.v2.McpKey.audience:type_name -> home.api.v2.CredentialAudience
-	64, // 57: home.api.v2.McpKey.scopes:type_name -> home.api.v2.Scope
-	76, // 58: home.api.v2.McpKey.create_time:type_name -> google.protobuf.Timestamp
-	76, // 59: home.api.v2.McpKey.expire_time:type_name -> google.protobuf.Timestamp
-	76, // 60: home.api.v2.McpKey.revoke_time:type_name -> google.protobuf.Timestamp
-	76, // 61: home.api.v2.McpKey.last_use_time:type_name -> google.protobuf.Timestamp
-	64, // 62: home.api.v2.IssueMcpKeyRequest.scopes:type_name -> home.api.v2.Scope
-	78, // 63: home.api.v2.IssueMcpKeyRequest.lifetime:type_name -> google.protobuf.Duration
-	65, // 64: home.api.v2.IssueMcpKeyResponse.mcp_key:type_name -> home.api.v2.McpKey
-	65, // 65: home.api.v2.ListMcpKeysResponse.mcp_keys:type_name -> home.api.v2.McpKey
-	76, // 66: home.api.v2.AuthorizationPolicy.update_time:type_name -> google.protobuf.Timestamp
-	8,  // 67: home.api.v2.AuthorizationPolicy.origin:type_name -> home.api.v2.AuthorizationPolicyOrigin
-	79, // 68: home.api.v2.ReplaceAuthorizationPolicyRequest.expect_absent:type_name -> google.protobuf.Empty
-	72, // 69: home.api.v2.ReplaceAuthorizationPolicyResponse.policy:type_name -> home.api.v2.AuthorizationPolicy
-	9,  // 70: home.api.v2.ReplaceAuthorizationPolicyResponse.rights_change:type_name -> home.api.v2.PolicyRightsChange
-	13, // 71: home.api.v2.AccountService.CreateAccount:input_type -> home.api.v2.CreateAccountRequest
-	14, // 72: home.api.v2.AccountService.GetAccount:input_type -> home.api.v2.GetAccountRequest
-	15, // 73: home.api.v2.AccountService.ListAccounts:input_type -> home.api.v2.ListAccountsRequest
-	17, // 74: home.api.v2.AccountService.UpdateAccount:input_type -> home.api.v2.UpdateAccountRequest
-	18, // 75: home.api.v2.AccountService.DeleteAccount:input_type -> home.api.v2.DeleteAccountRequest
-	19, // 76: home.api.v2.AccountService.IssueInvitation:input_type -> home.api.v2.IssueInvitationRequest
-	21, // 77: home.api.v2.AccountService.AcceptInvitation:input_type -> home.api.v2.AcceptInvitationRequest
-	23, // 78: home.api.v2.AccountService.ListInvitations:input_type -> home.api.v2.ListInvitationsRequest
-	25, // 79: home.api.v2.AccountService.RevokeInvitation:input_type -> home.api.v2.RevokeInvitationRequest
-	27, // 80: home.api.v2.AccountService.GetSecondFactorPolicy:input_type -> home.api.v2.GetSecondFactorPolicyRequest
-	28, // 81: home.api.v2.AccountService.ChangeSecondFactorPolicy:input_type -> home.api.v2.ChangeSecondFactorPolicyRequest
-	44, // 82: home.api.v2.AuthService.StartLogin:input_type -> home.api.v2.StartLoginRequest
-	46, // 83: home.api.v2.AuthService.CompleteLogin:input_type -> home.api.v2.CompleteLoginRequest
-	48, // 84: home.api.v2.AuthService.RefreshSession:input_type -> home.api.v2.RefreshSessionRequest
-	50, // 85: home.api.v2.AuthService.ListSessions:input_type -> home.api.v2.ListSessionsRequest
-	52, // 86: home.api.v2.AuthService.RevokeSession:input_type -> home.api.v2.RevokeSessionRequest
-	54, // 87: home.api.v2.AuthService.BeginFactorEnrollment:input_type -> home.api.v2.BeginFactorEnrollmentRequest
-	56, // 88: home.api.v2.AuthService.CompleteFactorEnrollment:input_type -> home.api.v2.CompleteFactorEnrollmentRequest
-	58, // 89: home.api.v2.AuthService.ListFactorCredentials:input_type -> home.api.v2.ListFactorCredentialsRequest
-	60, // 90: home.api.v2.AuthService.RemoveFactorCredential:input_type -> home.api.v2.RemoveFactorCredentialRequest
-	62, // 91: home.api.v2.AuthService.ReplaceRecoveryCodes:input_type -> home.api.v2.ReplaceRecoveryCodesRequest
-	66, // 92: home.api.v2.McpKeyService.IssueMcpKey:input_type -> home.api.v2.IssueMcpKeyRequest
-	68, // 93: home.api.v2.McpKeyService.ListMcpKeys:input_type -> home.api.v2.ListMcpKeysRequest
-	70, // 94: home.api.v2.McpKeyService.RevokeMcpKey:input_type -> home.api.v2.RevokeMcpKeyRequest
-	73, // 95: home.api.v2.AuthorizationPolicyService.GetAuthorizationPolicy:input_type -> home.api.v2.GetAuthorizationPolicyRequest
-	74, // 96: home.api.v2.AuthorizationPolicyService.ReplaceAuthorizationPolicy:input_type -> home.api.v2.ReplaceAuthorizationPolicyRequest
-	10, // 97: home.api.v2.AccountService.CreateAccount:output_type -> home.api.v2.Account
-	10, // 98: home.api.v2.AccountService.GetAccount:output_type -> home.api.v2.Account
-	16, // 99: home.api.v2.AccountService.ListAccounts:output_type -> home.api.v2.ListAccountsResponse
-	10, // 100: home.api.v2.AccountService.UpdateAccount:output_type -> home.api.v2.Account
-	79, // 101: home.api.v2.AccountService.DeleteAccount:output_type -> google.protobuf.Empty
-	20, // 102: home.api.v2.AccountService.IssueInvitation:output_type -> home.api.v2.IssueInvitationResponse
-	22, // 103: home.api.v2.AccountService.AcceptInvitation:output_type -> home.api.v2.AcceptInvitationResponse
-	24, // 104: home.api.v2.AccountService.ListInvitations:output_type -> home.api.v2.ListInvitationsResponse
-	26, // 105: home.api.v2.AccountService.RevokeInvitation:output_type -> home.api.v2.RevokeInvitationResponse
-	12, // 106: home.api.v2.AccountService.GetSecondFactorPolicy:output_type -> home.api.v2.SecondFactorPolicy
-	29, // 107: home.api.v2.AccountService.ChangeSecondFactorPolicy:output_type -> home.api.v2.ChangeSecondFactorPolicyResponse
-	45, // 108: home.api.v2.AuthService.StartLogin:output_type -> home.api.v2.StartLoginResponse
-	47, // 109: home.api.v2.AuthService.CompleteLogin:output_type -> home.api.v2.CompleteLoginResponse
-	49, // 110: home.api.v2.AuthService.RefreshSession:output_type -> home.api.v2.RefreshSessionResponse
-	51, // 111: home.api.v2.AuthService.ListSessions:output_type -> home.api.v2.ListSessionsResponse
-	53, // 112: home.api.v2.AuthService.RevokeSession:output_type -> home.api.v2.RevokeSessionResponse
-	55, // 113: home.api.v2.AuthService.BeginFactorEnrollment:output_type -> home.api.v2.BeginFactorEnrollmentResponse
-	57, // 114: home.api.v2.AuthService.CompleteFactorEnrollment:output_type -> home.api.v2.CompleteFactorEnrollmentResponse
-	59, // 115: home.api.v2.AuthService.ListFactorCredentials:output_type -> home.api.v2.ListFactorCredentialsResponse
-	61, // 116: home.api.v2.AuthService.RemoveFactorCredential:output_type -> home.api.v2.RemoveFactorCredentialResponse
-	63, // 117: home.api.v2.AuthService.ReplaceRecoveryCodes:output_type -> home.api.v2.ReplaceRecoveryCodesResponse
-	67, // 118: home.api.v2.McpKeyService.IssueMcpKey:output_type -> home.api.v2.IssueMcpKeyResponse
-	69, // 119: home.api.v2.McpKeyService.ListMcpKeys:output_type -> home.api.v2.ListMcpKeysResponse
-	71, // 120: home.api.v2.McpKeyService.RevokeMcpKey:output_type -> home.api.v2.RevokeMcpKeyResponse
-	72, // 121: home.api.v2.AuthorizationPolicyService.GetAuthorizationPolicy:output_type -> home.api.v2.AuthorizationPolicy
-	75, // 122: home.api.v2.AuthorizationPolicyService.ReplaceAuthorizationPolicy:output_type -> home.api.v2.ReplaceAuthorizationPolicyResponse
-	97, // [97:123] is the sub-list for method output_type
-	71, // [71:97] is the sub-list for method input_type
-	71, // [71:71] is the sub-list for extension type_name
-	71, // [71:71] is the sub-list for extension extendee
-	0,  // [0:71] is the sub-list for field type_name
+	0,   // 0: home.api.v2.Account.role:type_name -> home.api.v2.AccountRole
+	1,   // 1: home.api.v2.Account.access:type_name -> home.api.v2.AccountAccess
+	80,  // 2: home.api.v2.Account.create_time:type_name -> google.protobuf.Timestamp
+	80,  // 3: home.api.v2.Account.update_time:type_name -> google.protobuf.Timestamp
+	0,   // 4: home.api.v2.Invitation.role:type_name -> home.api.v2.AccountRole
+	80,  // 5: home.api.v2.Invitation.expire_time:type_name -> google.protobuf.Timestamp
+	80,  // 6: home.api.v2.Invitation.create_time:type_name -> google.protobuf.Timestamp
+	80,  // 7: home.api.v2.Invitation.accept_time:type_name -> google.protobuf.Timestamp
+	80,  // 8: home.api.v2.Invitation.revoke_time:type_name -> google.protobuf.Timestamp
+	80,  // 9: home.api.v2.SecondFactorPolicy.update_time:type_name -> google.protobuf.Timestamp
+	10,  // 10: home.api.v2.CreateAccountRequest.account:type_name -> home.api.v2.Account
+	10,  // 11: home.api.v2.ListAccountsResponse.accounts:type_name -> home.api.v2.Account
+	10,  // 12: home.api.v2.UpdateAccountRequest.account:type_name -> home.api.v2.Account
+	81,  // 13: home.api.v2.UpdateAccountRequest.update_mask:type_name -> google.protobuf.FieldMask
+	0,   // 14: home.api.v2.IssueInvitationRequest.role:type_name -> home.api.v2.AccountRole
+	80,  // 15: home.api.v2.IssueInvitationRequest.expire_time:type_name -> google.protobuf.Timestamp
+	11,  // 16: home.api.v2.IssueInvitationResponse.invitation:type_name -> home.api.v2.Invitation
+	10,  // 17: home.api.v2.AcceptInvitationResponse.account:type_name -> home.api.v2.Account
+	11,  // 18: home.api.v2.ListInvitationsResponse.invitations:type_name -> home.api.v2.Invitation
+	12,  // 19: home.api.v2.ChangeSecondFactorPolicyResponse.policy:type_name -> home.api.v2.SecondFactorPolicy
+	2,   // 20: home.api.v2.ChangeSecondFactorPolicyResponse.continuation:type_name -> home.api.v2.SecondFactorSessionContinuation
+	80,  // 21: home.api.v2.Session.create_time:type_name -> google.protobuf.Timestamp
+	80,  // 22: home.api.v2.Session.expire_time:type_name -> google.protobuf.Timestamp
+	80,  // 23: home.api.v2.Session.revoke_time:type_name -> google.protobuf.Timestamp
+	80,  // 24: home.api.v2.Session.last_use_time:type_name -> google.protobuf.Timestamp
+	5,   // 25: home.api.v2.Session.authentication_satisfaction:type_name -> home.api.v2.AuthenticationSatisfaction
+	80,  // 26: home.api.v2.Session.authentication_time:type_name -> google.protobuf.Timestamp
+	3,   // 27: home.api.v2.FactorCredential.kind:type_name -> home.api.v2.FactorKind
+	80,  // 28: home.api.v2.FactorCredential.create_time:type_name -> google.protobuf.Timestamp
+	80,  // 29: home.api.v2.FactorCredential.last_use_time:type_name -> google.protobuf.Timestamp
+	30,  // 30: home.api.v2.SessionTokens.session:type_name -> home.api.v2.Session
+	4,   // 31: home.api.v2.SessionTokens.audience:type_name -> home.api.v2.CredentialAudience
+	80,  // 32: home.api.v2.SessionTokens.access_expire_time:type_name -> google.protobuf.Timestamp
+	33,  // 33: home.api.v2.FactorOption.fido2:type_name -> home.api.v2.Fido2AssertionChallenge
+	35,  // 34: home.api.v2.FactorOption.recovery_code:type_name -> home.api.v2.RecoveryCodeChallenge
+	80,  // 35: home.api.v2.FactorChallenge.expire_time:type_name -> google.protobuf.Timestamp
+	36,  // 36: home.api.v2.FactorChallenge.options:type_name -> home.api.v2.FactorOption
+	80,  // 37: home.api.v2.EnrollmentChallenge.expire_time:type_name -> google.protobuf.Timestamp
+	34,  // 38: home.api.v2.EnrollmentChallenge.fido2:type_name -> home.api.v2.Fido2EnrollmentChallenge
+	39,  // 39: home.api.v2.FactorProof.fido2:type_name -> home.api.v2.Fido2Assertion
+	80,  // 40: home.api.v2.EnrollmentRequired.expire_time:type_name -> google.protobuf.Timestamp
+	32,  // 41: home.api.v2.LoginDecision.authenticated:type_name -> home.api.v2.SessionTokens
+	37,  // 42: home.api.v2.LoginDecision.challenge:type_name -> home.api.v2.FactorChallenge
+	42,  // 43: home.api.v2.LoginDecision.enrollment_required:type_name -> home.api.v2.EnrollmentRequired
+	43,  // 44: home.api.v2.StartLoginResponse.decision:type_name -> home.api.v2.LoginDecision
+	41,  // 45: home.api.v2.CompleteLoginRequest.proof:type_name -> home.api.v2.FactorProof
+	43,  // 46: home.api.v2.CompleteLoginResponse.decision:type_name -> home.api.v2.LoginDecision
+	32,  // 47: home.api.v2.RefreshSessionResponse.tokens:type_name -> home.api.v2.SessionTokens
+	30,  // 48: home.api.v2.ListSessionsResponse.sessions:type_name -> home.api.v2.Session
+	3,   // 49: home.api.v2.BeginFactorEnrollmentRequest.kind:type_name -> home.api.v2.FactorKind
+	38,  // 50: home.api.v2.BeginFactorEnrollmentResponse.challenge:type_name -> home.api.v2.EnrollmentChallenge
+	40,  // 51: home.api.v2.CompleteFactorEnrollmentRequest.attestation:type_name -> home.api.v2.Fido2Attestation
+	31,  // 52: home.api.v2.CompleteFactorEnrollmentResponse.factor_credential:type_name -> home.api.v2.FactorCredential
+	31,  // 53: home.api.v2.ListFactorCredentialsResponse.factor_credentials:type_name -> home.api.v2.FactorCredential
+	6,   // 54: home.api.v2.Scope.family:type_name -> home.api.v2.ScopeFamily
+	7,   // 55: home.api.v2.Scope.operation:type_name -> home.api.v2.ScopeOperation
+	4,   // 56: home.api.v2.McpKey.audience:type_name -> home.api.v2.CredentialAudience
+	64,  // 57: home.api.v2.McpKey.scopes:type_name -> home.api.v2.Scope
+	80,  // 58: home.api.v2.McpKey.create_time:type_name -> google.protobuf.Timestamp
+	80,  // 59: home.api.v2.McpKey.expire_time:type_name -> google.protobuf.Timestamp
+	80,  // 60: home.api.v2.McpKey.revoke_time:type_name -> google.protobuf.Timestamp
+	80,  // 61: home.api.v2.McpKey.last_use_time:type_name -> google.protobuf.Timestamp
+	64,  // 62: home.api.v2.IssueMcpKeyRequest.scopes:type_name -> home.api.v2.Scope
+	82,  // 63: home.api.v2.IssueMcpKeyRequest.lifetime:type_name -> google.protobuf.Duration
+	65,  // 64: home.api.v2.IssueMcpKeyResponse.mcp_key:type_name -> home.api.v2.McpKey
+	65,  // 65: home.api.v2.ListMcpKeysResponse.mcp_keys:type_name -> home.api.v2.McpKey
+	80,  // 66: home.api.v2.AuthorizationPolicy.update_time:type_name -> google.protobuf.Timestamp
+	8,   // 67: home.api.v2.AuthorizationPolicy.origin:type_name -> home.api.v2.AuthorizationPolicyOrigin
+	83,  // 68: home.api.v2.ReplaceAuthorizationPolicyRequest.expect_absent:type_name -> google.protobuf.Empty
+	72,  // 69: home.api.v2.ReplaceAuthorizationPolicyResponse.policy:type_name -> home.api.v2.AuthorizationPolicy
+	9,   // 70: home.api.v2.ReplaceAuthorizationPolicyResponse.rights_change:type_name -> home.api.v2.PolicyRightsChange
+	76,  // 71: home.api.v2.AccountService.GetInvitation:input_type -> home.api.v2.GetInvitationRequest
+	13,  // 72: home.api.v2.AccountService.CreateAccount:input_type -> home.api.v2.CreateAccountRequest
+	14,  // 73: home.api.v2.AccountService.GetAccount:input_type -> home.api.v2.GetAccountRequest
+	15,  // 74: home.api.v2.AccountService.ListAccounts:input_type -> home.api.v2.ListAccountsRequest
+	17,  // 75: home.api.v2.AccountService.UpdateAccount:input_type -> home.api.v2.UpdateAccountRequest
+	18,  // 76: home.api.v2.AccountService.DeleteAccount:input_type -> home.api.v2.DeleteAccountRequest
+	19,  // 77: home.api.v2.AccountService.IssueInvitation:input_type -> home.api.v2.IssueInvitationRequest
+	21,  // 78: home.api.v2.AccountService.AcceptInvitation:input_type -> home.api.v2.AcceptInvitationRequest
+	23,  // 79: home.api.v2.AccountService.ListInvitations:input_type -> home.api.v2.ListInvitationsRequest
+	25,  // 80: home.api.v2.AccountService.RevokeInvitation:input_type -> home.api.v2.RevokeInvitationRequest
+	27,  // 81: home.api.v2.AccountService.GetSecondFactorPolicy:input_type -> home.api.v2.GetSecondFactorPolicyRequest
+	28,  // 82: home.api.v2.AccountService.ChangeSecondFactorPolicy:input_type -> home.api.v2.ChangeSecondFactorPolicyRequest
+	78,  // 83: home.api.v2.AuthService.GetFactorCredential:input_type -> home.api.v2.GetFactorCredentialRequest
+	77,  // 84: home.api.v2.AuthService.GetSession:input_type -> home.api.v2.GetSessionRequest
+	44,  // 85: home.api.v2.AuthService.StartLogin:input_type -> home.api.v2.StartLoginRequest
+	46,  // 86: home.api.v2.AuthService.CompleteLogin:input_type -> home.api.v2.CompleteLoginRequest
+	48,  // 87: home.api.v2.AuthService.RefreshSession:input_type -> home.api.v2.RefreshSessionRequest
+	50,  // 88: home.api.v2.AuthService.ListSessions:input_type -> home.api.v2.ListSessionsRequest
+	52,  // 89: home.api.v2.AuthService.RevokeSession:input_type -> home.api.v2.RevokeSessionRequest
+	54,  // 90: home.api.v2.AuthService.BeginFactorEnrollment:input_type -> home.api.v2.BeginFactorEnrollmentRequest
+	56,  // 91: home.api.v2.AuthService.CompleteFactorEnrollment:input_type -> home.api.v2.CompleteFactorEnrollmentRequest
+	58,  // 92: home.api.v2.AuthService.ListFactorCredentials:input_type -> home.api.v2.ListFactorCredentialsRequest
+	60,  // 93: home.api.v2.AuthService.RemoveFactorCredential:input_type -> home.api.v2.RemoveFactorCredentialRequest
+	62,  // 94: home.api.v2.AuthService.ReplaceRecoveryCodes:input_type -> home.api.v2.ReplaceRecoveryCodesRequest
+	79,  // 95: home.api.v2.McpKeyService.GetMcpKey:input_type -> home.api.v2.GetMcpKeyRequest
+	66,  // 96: home.api.v2.McpKeyService.IssueMcpKey:input_type -> home.api.v2.IssueMcpKeyRequest
+	68,  // 97: home.api.v2.McpKeyService.ListMcpKeys:input_type -> home.api.v2.ListMcpKeysRequest
+	70,  // 98: home.api.v2.McpKeyService.RevokeMcpKey:input_type -> home.api.v2.RevokeMcpKeyRequest
+	73,  // 99: home.api.v2.AuthorizationPolicyService.GetAuthorizationPolicy:input_type -> home.api.v2.GetAuthorizationPolicyRequest
+	74,  // 100: home.api.v2.AuthorizationPolicyService.ReplaceAuthorizationPolicy:input_type -> home.api.v2.ReplaceAuthorizationPolicyRequest
+	11,  // 101: home.api.v2.AccountService.GetInvitation:output_type -> home.api.v2.Invitation
+	10,  // 102: home.api.v2.AccountService.CreateAccount:output_type -> home.api.v2.Account
+	10,  // 103: home.api.v2.AccountService.GetAccount:output_type -> home.api.v2.Account
+	16,  // 104: home.api.v2.AccountService.ListAccounts:output_type -> home.api.v2.ListAccountsResponse
+	10,  // 105: home.api.v2.AccountService.UpdateAccount:output_type -> home.api.v2.Account
+	83,  // 106: home.api.v2.AccountService.DeleteAccount:output_type -> google.protobuf.Empty
+	20,  // 107: home.api.v2.AccountService.IssueInvitation:output_type -> home.api.v2.IssueInvitationResponse
+	22,  // 108: home.api.v2.AccountService.AcceptInvitation:output_type -> home.api.v2.AcceptInvitationResponse
+	24,  // 109: home.api.v2.AccountService.ListInvitations:output_type -> home.api.v2.ListInvitationsResponse
+	26,  // 110: home.api.v2.AccountService.RevokeInvitation:output_type -> home.api.v2.RevokeInvitationResponse
+	12,  // 111: home.api.v2.AccountService.GetSecondFactorPolicy:output_type -> home.api.v2.SecondFactorPolicy
+	29,  // 112: home.api.v2.AccountService.ChangeSecondFactorPolicy:output_type -> home.api.v2.ChangeSecondFactorPolicyResponse
+	31,  // 113: home.api.v2.AuthService.GetFactorCredential:output_type -> home.api.v2.FactorCredential
+	30,  // 114: home.api.v2.AuthService.GetSession:output_type -> home.api.v2.Session
+	45,  // 115: home.api.v2.AuthService.StartLogin:output_type -> home.api.v2.StartLoginResponse
+	47,  // 116: home.api.v2.AuthService.CompleteLogin:output_type -> home.api.v2.CompleteLoginResponse
+	49,  // 117: home.api.v2.AuthService.RefreshSession:output_type -> home.api.v2.RefreshSessionResponse
+	51,  // 118: home.api.v2.AuthService.ListSessions:output_type -> home.api.v2.ListSessionsResponse
+	53,  // 119: home.api.v2.AuthService.RevokeSession:output_type -> home.api.v2.RevokeSessionResponse
+	55,  // 120: home.api.v2.AuthService.BeginFactorEnrollment:output_type -> home.api.v2.BeginFactorEnrollmentResponse
+	57,  // 121: home.api.v2.AuthService.CompleteFactorEnrollment:output_type -> home.api.v2.CompleteFactorEnrollmentResponse
+	59,  // 122: home.api.v2.AuthService.ListFactorCredentials:output_type -> home.api.v2.ListFactorCredentialsResponse
+	61,  // 123: home.api.v2.AuthService.RemoveFactorCredential:output_type -> home.api.v2.RemoveFactorCredentialResponse
+	63,  // 124: home.api.v2.AuthService.ReplaceRecoveryCodes:output_type -> home.api.v2.ReplaceRecoveryCodesResponse
+	65,  // 125: home.api.v2.McpKeyService.GetMcpKey:output_type -> home.api.v2.McpKey
+	67,  // 126: home.api.v2.McpKeyService.IssueMcpKey:output_type -> home.api.v2.IssueMcpKeyResponse
+	69,  // 127: home.api.v2.McpKeyService.ListMcpKeys:output_type -> home.api.v2.ListMcpKeysResponse
+	71,  // 128: home.api.v2.McpKeyService.RevokeMcpKey:output_type -> home.api.v2.RevokeMcpKeyResponse
+	72,  // 129: home.api.v2.AuthorizationPolicyService.GetAuthorizationPolicy:output_type -> home.api.v2.AuthorizationPolicy
+	75,  // 130: home.api.v2.AuthorizationPolicyService.ReplaceAuthorizationPolicy:output_type -> home.api.v2.ReplaceAuthorizationPolicyResponse
+	101, // [101:131] is the sub-list for method output_type
+	71,  // [71:101] is the sub-list for method input_type
+	71,  // [71:71] is the sub-list for extension type_name
+	71,  // [71:71] is the sub-list for extension extendee
+	0,   // [0:71] is the sub-list for field type_name
 }
 
 func init() { file_home_api_v2_authentication_proto_init() }
@@ -5188,7 +5683,7 @@ func file_home_api_v2_authentication_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_api_v2_authentication_proto_rawDesc), len(file_home_api_v2_authentication_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   66,
+			NumMessages:   70,
 			NumExtensions: 0,
 			NumServices:   4,
 		},

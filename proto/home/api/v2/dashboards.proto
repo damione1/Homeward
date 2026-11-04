@@ -5,11 +5,11 @@ import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/empty.proto";
 import "google/protobuf/duration.proto";
-import "home/api/v2/traits.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "home/api/v2/extended_traits.proto";
+import "home/api/v2/traits.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
 option java_multiple_files = true;
@@ -77,17 +77,25 @@ message DashboardDisplayProfile {
 // Reads one configured resource, not a joined observation projection.
 message GetDashboardRequest {
   // Format: homes/{home}/dashboards/{dashboard}.
-  string name = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Dashboard"];
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Dashboard"
+  ];
 }
+
 // Lists published resources in ascending canonical-name order.
 message ListDashboardsRequest {
   // Format: homes/{home}.
-  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Dashboard"];
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Dashboard"
+  ];
   // Zero selects 20. Maximum 100; larger values are capped, negatives invalid.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
   // Opaque continuation bound to caller, rights and source/profile generation.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
+
 // One bounded page; no hidden resource counts are disclosed.
 message ListDashboardsResponse {
   // Complete authorized resources. One resource is limited to 1 MiB.
@@ -97,27 +105,40 @@ message ListDashboardsResponse {
   // Present only on the final page of a coherent catalogue enumeration.
   string resume_token = 3;
 }
+
 // Watches the exact admitted catalogue, with current credentials and policy.
 message WatchDashboardsRequest {
   // Format: homes/{home}.
-  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Dashboard"];
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/Dashboard"
+  ];
   // Opaque completed-enumeration checkpoint, never an authority credential.
   string resume_token = 2 [(google.api.field_behavior) = REQUIRED];
 }
+
 // A configuration invalidation signal, never a replacement observation snapshot.
 message WatchDashboardsResponse {
   // True means discard the previous catalogue and all its joined projections.
   bool invalidated = 1;
 }
+
 // Joins a dashboard to one currently authorized, completed entity capture.
 message QueryDashboardRequest {
   // Format: homes/{home}/dashboards/{dashboard}.
-  string name = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Dashboard"];
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Dashboard"
+  ];
   // Format: homes/{home}/entityViews/{entity_view}; must belong to this caller.
-  string entity_view = 2 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/EntityView"];
+  string entity_view = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/EntityView"
+  ];
   // Completed snapshot or stream checkpoint, bound to the capture incarnation.
   string resume_token = 3 [(google.api.field_behavior) = REQUIRED];
 }
+
 // A denormalized read projection over existing owners, not a new resource or
 // state catalogue. Retaining configuration here makes the admitted join atomic.
 message QueryDashboardResponse {
@@ -169,22 +190,12 @@ message DashboardLiteral {
   }
 }
 
-// Closed observation selectors; each is validated against its exact capability.
-enum DashboardFieldKey {
-  DASHBOARD_FIELD_KEY_UNSPECIFIED = 0;
-  DASHBOARD_FIELD_KEY_STATE = 1;
-  DASHBOARD_FIELD_KEY_VALUE = 2;
-  DASHBOARD_FIELD_KEY_CURRENT_TEMPERATURE_CELSIUS = 3;
-  DASHBOARD_FIELD_KEY_SETPOINT_CELSIUS = 4;
-  DASHBOARD_FIELD_KEY_MEASUREMENT = 5;
-}
-
 // A dimension has one explicit alternative; an unspecified dimension is absent.
 message DashboardLayoutDimension {
   // Exactly one explicit dimension.
   oneof size {
-    // Positive bounded grid count.
-    uint32 count = 1;
+    // Grid count in the inclusive range 1..12.
+    int32 count = 1;
     // Full available span.
     google.protobuf.Empty full = 2;
     // Size determined by the finite native layout algorithm.
@@ -192,26 +203,14 @@ message DashboardLayoutDimension {
   }
 }
 
-// Finite heading presentation.
-enum DashboardHeadingStyle {
-  // Unspecified; never an admitted operational value.
-  DASHBOARD_HEADING_STYLE_UNSPECIFIED = 0;
-  // Default.
-  DASHBOARD_HEADING_STYLE_DEFAULT = 1;
-  // Title.
-  DASHBOARD_HEADING_STYLE_TITLE = 2;
-  // Subtitle.
-  DASHBOARD_HEADING_STYLE_SUBTITLE = 3;
-}
-
 // Bounded source location for diagnostics, excluding source contents.
 message DashboardLayoutSource {
   // Source-relative document path, excluding raw contents.
   string file = 1;
-  // Source line, when available.
-  uint32 line = 2;
-  // Source column, when available.
-  uint32 column = 3;
+  // Source line in 0..2147483647; zero means unavailable.
+  int32 line = 2;
+  // Source column in 0..2147483647; zero means unavailable.
+  int32 column = 3;
   // Stable location inside the published source document.
   string path = 4;
   // Bounded source variant label for inert diagnostics.
@@ -278,8 +277,8 @@ message DashboardPlacement {
 message DashboardChildren {
   // Unique child-node IDs with no shared child or cycle.
   repeated string children = 1;
-  // Logical spacing; zero is a legitimate authored value.
-  uint32 gap = 2;
+  // Logical spacing in 0..256; zero is a legitimate authored value.
+  int32 gap = 2;
 }
 
 // A configured root view.
@@ -288,30 +287,30 @@ message DashboardViewNode {
   string route = 1;
   // Ordered section/container children.
   DashboardChildren children = 2;
-  // Explicit bounded maximum column count.
-  uint32 maximum_columns = 3;
-  // Explicit bounded minimum logical column width.
-  uint32 minimum_column_width = 4;
+  // Maximum column count in 0..12; zero means unspecified.
+  int32 maximum_columns = 3;
+  // Minimum logical column width in 0..4096; zero means unspecified.
+  int32 minimum_column_width = 4;
 }
 
 // An authored section with only container properties.
 message DashboardSectionNode {
   // Ordered child cards.
   DashboardChildren children = 1;
-  // Explicit bounded minimum logical column width.
-  uint32 minimum_column_width = 2;
+  // Minimum logical column width in 0..4096; zero means unspecified.
+  int32 minimum_column_width = 2;
 }
 
 // An authored grid, distinct from a stack or heading.
 message DashboardGridNode {
   // Ordered child cards.
   DashboardChildren children = 1;
-  // Positive bounded column count.
-  uint32 columns = 2;
+  // Column count in 1..12; zero means unspecified.
+  int32 columns = 2;
   // Whether to use square cells; absence differs from false.
   optional bool square = 3;
-  // Explicit bounded minimum logical column width.
-  uint32 minimum_column_width = 4;
+  // Minimum logical column width in 0..4096; zero means unspecified.
+  int32 minimum_column_width = 4;
   // Finite authored gestures; no gesture grants command authority.
   DashboardInteractions interactions = 5;
 }
@@ -390,28 +389,18 @@ message DashboardUnsupportedNode {
 
 // Inclusive logical-width bounds; zero means no bound, not authority.
 message DashboardScreenVisibility {
-  // Inclusive minimum logical width; zero is unbounded.
-  uint32 min_width = 1;
-  // Inclusive maximum logical width; zero is unbounded.
-  uint32 max_width = 2;
-}
-
-// Explicit control versus summary rendering.
-enum DashboardControlPresentation {
-  // Unspecified; never an admitted operational value.
-  DASHBOARD_CONTROL_PRESENTATION_UNSPECIFIED = 0;
-  // Controls.
-  DASHBOARD_CONTROL_PRESENTATION_CONTROLS = 1;
-  // Summary.
-  DASHBOARD_CONTROL_PRESENTATION_SUMMARY = 2;
+  // Inclusive minimum logical width in 0..65535; zero is unbounded.
+  int32 min_width = 1;
+  // Inclusive maximum logical width in 0..65535; zero is unbounded.
+  int32 max_width = 2;
 }
 
 // An authored responsive span for a specified column count.
 message DashboardResponsiveSpan {
-  // Explicit column count.
-  uint32 columns = 1;
-  // Positive authored span within the column count.
-  uint32 span = 2;
+  // Explicit column count in 1..12.
+  int32 columns = 1;
+  // Authored span in 1..columns, with columns at most 12.
+  int32 span = 2;
 }
 
 // One exact capability and closed observation selector; no sibling fallback.
@@ -448,18 +437,6 @@ message DashboardActivityBinding {
   repeated DashboardLiteral active_values = 2;
 }
 
-// Explicit thermostat presentation density.
-enum DashboardThermostatPresentation {
-  // Unspecified; never an admitted operational value.
-  DASHBOARD_THERMOSTAT_PRESENTATION_UNSPECIFIED = 0;
-  // Compact.
-  DASHBOARD_THERMOSTAT_PRESENTATION_COMPACT = 1;
-  // Detail.
-  DASHBOARD_THERMOSTAT_PRESENTATION_DETAIL = 2;
-  // Summary.
-  DASHBOARD_THERMOSTAT_PRESENTATION_SUMMARY = 3;
-}
-
 // Independent exact control, current-value and target-value bindings.
 message DashboardThermostatWidget {
   // Exact canonical entity name for information display.
@@ -480,26 +457,16 @@ message DashboardAgendaWidget {
   string time_zone = 2;
   // Positive bounded agenda window.
   google.protobuf.Duration time_window = 3;
-  // Positive bounded number of displayed items.
-  uint32 limit = 4;
-}
-
-// Explicit task-list presentation.
-enum DashboardTasksPresentation {
-  // Unspecified; never an admitted operational value.
-  DASHBOARD_TASKS_PRESENTATION_UNSPECIFIED = 0;
-  // Preview.
-  DASHBOARD_TASKS_PRESENTATION_PREVIEW = 1;
-  // Shopping.
-  DASHBOARD_TASKS_PRESENTATION_SHOPPING = 2;
+  // Number of displayed items in 1..1000.
+  int32 limit = 4;
 }
 
 // An explicit task-list reference and bounded preview.
 message DashboardTasksWidget {
   // Exact canonical task-list name.
   string task_list = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/TaskList"];
-  // Positive bounded number of displayed items.
-  uint32 limit = 2;
+  // Number of displayed items in 1..1000.
+  int32 limit = 2;
   // Closed explicit presentation selection.
   DashboardTasksPresentation presentation = 3;
 }
@@ -563,6 +530,167 @@ message DashboardWidget {
   string empty_label = 12;
   // Finite authored gestures; no gesture grants command authority.
   DashboardInteractions interactions = 13;
+}
+
+// One exact authorized dashboard and local source-node identity.
+message DashboardDestination {
+  // Exact canonical dashboard name.
+  string dashboard = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/Dashboard"];
+  // Stable local source-node ID within the dashboard.
+  string node_id = 2;
+  // Closed explicit presentation selection.
+  DashboardPresentation presentation = 3;
+}
+
+// An entity reference for information display only.
+message DashboardEntityTarget {
+  // Exact canonical entity name for information display.
+  string entity = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"];
+}
+
+// An exact capability intention; execution still requires ExecuteCapability.
+message DashboardCommand {
+  // Exact canonical capability name; must match the declared role.
+  string capability = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/Capability"];
+  // Closed kind; unspecified or unknown values must remain inert.
+  DashboardCommandKind kind = 2;
+}
+
+// An explicit disabled interaction, distinct from an omitted gesture.
+message DashboardNoAction {}
+
+// A local confirmation prompt that grants no command authority.
+message DashboardConfirmation {
+  // Bounded plain text; an empty confirmation uses the native prompt.
+  string text = 1;
+}
+
+// One explicit gesture intention with optional local confirmation.
+message DashboardInteraction {
+  // Explicit finite user gesture.
+  DashboardGesture gesture = 1;
+  // Exactly one explicit alternative.
+  oneof intention {
+    // Explicitly disables the interaction.
+    DashboardNoAction none = 2;
+    // Opens information for the exact entity.
+    DashboardEntityTarget more_info = 3;
+    // Navigates to the exact configured destination.
+    DashboardDestination navigate = 4;
+    // Requests a finite intention for the exact capability.
+    DashboardCommand command = 5;
+  }
+  // Presence requests a local prompt, including when text is empty.
+  DashboardConfirmation confirmation = 6;
+  // Diagnostic location in the authorized published source.
+  DashboardLayoutSource source = 7;
+}
+
+// A bounded literal comparison over one exact observed capability.
+message DashboardStatePredicate {
+  // Exact capability and observation field to compare.
+  DashboardFieldBinding field = 1;
+  // Closed expected value on the exact field; missing is never a match.
+  DashboardLiteral expected = 2;
+  // Closed equality or inequality comparison.
+  DashboardComparison comparison = 3;
+}
+
+// A bounded recursive collection of visibility predicates.
+message DashboardPredicateList {
+  // Bounded child conditions; an empty list cannot authorize visibility.
+  repeated DashboardPredicate conditions = 1;
+}
+
+// Data-only visibility conditions; absence cannot satisfy inequality.
+message DashboardPredicate {
+  // Exactly one explicit alternative.
+  oneof condition {
+    // Explicit constant visibility.
+    bool constant = 1;
+    // Exact literal value; missing, stale or unavailable is never a match.
+    DashboardStatePredicate state = 2;
+    // All conditions must be satisfied.
+    DashboardPredicateList all = 3;
+    // At least one condition must be satisfied.
+    DashboardPredicateList any = 4;
+  }
+  // Diagnostic location in the authorized published source.
+  DashboardLayoutSource source = 5;
+}
+
+// At most one interaction per gesture, on explicitly interactive node families.
+message DashboardInteractions {
+  // Unique gestures with explicit authored intentions.
+  repeated DashboardInteraction interactions = 2;
+}
+
+// A bounded forest with at most 128 roots, 2432 nodes and depth 18.
+message DashboardLayout {
+  // Ordered root-node IDs.
+  repeated string views = 2;
+  // Unique bounded nodes forming a forest.
+  repeated DashboardLayoutNode nodes = 3;
+}
+
+// Closed observation selectors; each is validated against its exact capability.
+enum DashboardFieldKey {
+  // No explicit dashboard field key. Does not select an action.
+  DASHBOARD_FIELD_KEY_UNSPECIFIED = 0;
+  // Selects state for dashboard field key.
+  DASHBOARD_FIELD_KEY_STATE = 1;
+  // Selects value for dashboard field key.
+  DASHBOARD_FIELD_KEY_VALUE = 2;
+  // Selects current temperature celsius for dashboard field key.
+  DASHBOARD_FIELD_KEY_CURRENT_TEMPERATURE_CELSIUS = 3;
+  // Selects setpoint celsius for dashboard field key.
+  DASHBOARD_FIELD_KEY_SETPOINT_CELSIUS = 4;
+  // Selects measurement for dashboard field key.
+  DASHBOARD_FIELD_KEY_MEASUREMENT = 5;
+}
+
+// Finite heading presentation.
+enum DashboardHeadingStyle {
+  // Unspecified; never an admitted operational value.
+  DASHBOARD_HEADING_STYLE_UNSPECIFIED = 0;
+  // Default.
+  DASHBOARD_HEADING_STYLE_DEFAULT = 1;
+  // Title.
+  DASHBOARD_HEADING_STYLE_TITLE = 2;
+  // Subtitle.
+  DASHBOARD_HEADING_STYLE_SUBTITLE = 3;
+}
+
+// Explicit control versus summary rendering.
+enum DashboardControlPresentation {
+  // Unspecified; never an admitted operational value.
+  DASHBOARD_CONTROL_PRESENTATION_UNSPECIFIED = 0;
+  // Controls.
+  DASHBOARD_CONTROL_PRESENTATION_CONTROLS = 1;
+  // Summary.
+  DASHBOARD_CONTROL_PRESENTATION_SUMMARY = 2;
+}
+
+// Explicit thermostat presentation density.
+enum DashboardThermostatPresentation {
+  // Unspecified; never an admitted operational value.
+  DASHBOARD_THERMOSTAT_PRESENTATION_UNSPECIFIED = 0;
+  // Compact.
+  DASHBOARD_THERMOSTAT_PRESENTATION_COMPACT = 1;
+  // Detail.
+  DASHBOARD_THERMOSTAT_PRESENTATION_DETAIL = 2;
+  // Summary.
+  DASHBOARD_THERMOSTAT_PRESENTATION_SUMMARY = 3;
+}
+
+// Explicit task-list presentation.
+enum DashboardTasksPresentation {
+  // Unspecified; never an admitted operational value.
+  DASHBOARD_TASKS_PRESENTATION_UNSPECIFIED = 0;
+  // Preview.
+  DASHBOARD_TASKS_PRESENTATION_PREVIEW = 1;
+  // Shopping.
+  DASHBOARD_TASKS_PRESENTATION_SHOPPING = 2;
 }
 
 // Finite presentation recipes admitted by the native source compiler.
@@ -639,16 +767,6 @@ enum DashboardPresentation {
   DASHBOARD_PRESENTATION_POPUP = 2;
 }
 
-// One exact authorized dashboard and local source-node identity.
-message DashboardDestination {
-  // Exact canonical dashboard name.
-  string dashboard = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/Dashboard"];
-  // Stable local source-node ID within the dashboard.
-  string node_id = 2;
-  // Closed explicit presentation selection.
-  DashboardPresentation presentation = 3;
-}
-
 // Finite authored intentions re-admitted against a fresh capability.
 enum DashboardCommandKind {
   // Unspecified; never an admitted operational value.
@@ -679,50 +797,6 @@ enum DashboardCommandKind {
   DASHBOARD_COMMAND_KIND_ALARM_DISARM = 12;
 }
 
-// An entity reference for information display only.
-message DashboardEntityTarget {
-  // Exact canonical entity name for information display.
-  string entity = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"];
-}
-
-// An exact capability intention; execution still requires ExecuteCapability.
-message DashboardCommand {
-  // Exact canonical capability name; must match the declared role.
-  string capability = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/Capability"];
-  // Closed kind; unspecified or unknown values must remain inert.
-  DashboardCommandKind kind = 2;
-}
-
-// An explicit disabled interaction, distinct from an omitted gesture.
-message DashboardNoAction {}
-
-// A local confirmation prompt that grants no command authority.
-message DashboardConfirmation {
-  // Bounded plain text; an empty confirmation uses the native prompt.
-  string text = 1;
-}
-
-// One explicit gesture intention with optional local confirmation.
-message DashboardInteraction {
-  // Explicit finite user gesture.
-  DashboardGesture gesture = 1;
-  // Exactly one explicit alternative.
-  oneof intention {
-    // Explicitly disables the interaction.
-    DashboardNoAction none = 2;
-    // Opens information for the exact entity.
-    DashboardEntityTarget more_info = 3;
-    // Navigates to the exact configured destination.
-    DashboardDestination navigate = 4;
-    // Requests a finite intention for the exact capability.
-    DashboardCommand command = 5;
-  }
-  // Presence requests a local prompt, including when text is empty.
-  DashboardConfirmation confirmation = 6;
-  // Diagnostic location in the authorized published source.
-  DashboardLayoutSource source = 7;
-}
-
 // Closed literal observation comparisons.
 enum DashboardComparison {
   // Unspecified; never an admitted operational value.
@@ -731,53 +805,6 @@ enum DashboardComparison {
   DASHBOARD_COMPARISON_EQUAL = 1;
   // Not equal.
   DASHBOARD_COMPARISON_NOT_EQUAL = 2;
-}
-
-// A bounded literal comparison over one exact observed capability.
-message DashboardStatePredicate {
-  // Exact capability and observation field to compare.
-  DashboardFieldBinding field = 1;
-  // Closed expected value on the exact field; missing is never a match.
-  DashboardLiteral expected = 2;
-  // Closed equality or inequality comparison.
-  DashboardComparison comparison = 3;
-}
-
-// A bounded recursive collection of visibility predicates.
-message DashboardPredicateList {
-  // Bounded child conditions; an empty list cannot authorize visibility.
-  repeated DashboardPredicate conditions = 1;
-}
-
-// Data-only visibility conditions; absence cannot satisfy inequality.
-message DashboardPredicate {
-  // Exactly one explicit alternative.
-  oneof condition {
-    // Explicit constant visibility.
-    bool constant = 1;
-    // Exact literal value; missing, stale or unavailable is never a match.
-    DashboardStatePredicate state = 2;
-    // All conditions must be satisfied.
-    DashboardPredicateList all = 3;
-    // At least one condition must be satisfied.
-    DashboardPredicateList any = 4;
-  }
-  // Diagnostic location in the authorized published source.
-  DashboardLayoutSource source = 5;
-}
-
-// At most one interaction per gesture, on explicitly interactive node families.
-message DashboardInteractions {
-  // Unique gestures with explicit authored intentions.
-  repeated DashboardInteraction interactions = 2;
-}
-
-// A bounded forest with at most 128 roots, 2432 nodes and depth 18.
-message DashboardLayout {
-  // Ordered root-node IDs.
-  repeated string views = 2;
-  // Unique bounded nodes forming a forest.
-  repeated DashboardLayoutNode nodes = 3;
 }
 
 // Finite icon vocabulary supplied by the application, never remote assets.

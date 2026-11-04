@@ -17,12 +17,13 @@ import (
 
 	"github.com/damione1/Homeward/contracts"
 	actionswire "github.com/damione1/Homeward/gen/home/actions/v1"
-	listswire "github.com/damione1/Homeward/gen/home/lists/v1"
-	"github.com/damione1/Homeward/gen/home/lists/v1/listsv1connect"
+	taskwire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/storage"
+	"github.com/damione1/Homeward/internal/tasknames"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -207,15 +208,20 @@ func (w *nhf023Workload) seedMeter(t *testing.T, ctx context.Context, source *in
 
 func (w *nhf023Workload) seedList(t *testing.T, ctx context.Context, store *storage.Store, client *http.Client, origin, access string) {
 	t.Helper()
-	api := listsv1connect.NewListServiceClient(client, origin)
-	response, err := api.CreateList(ctx, nha162Bearer(&listswire.CreateListRequest{Name: "Liste synthétique de charge"}, access))
-	if err != nil || response.Msg.GetReceipt().GetListId() == nil {
+	api := apiv2connect.NewTaskServiceClient(client, origin)
+	homes, err := apiv2connect.NewHomeServiceClient(client, origin).ListHomes(ctx, nha162Bearer(&taskwire.ListHomesRequest{}, access))
+	if err != nil || len(homes.Msg.Homes) != 1 {
+		t.Fatal("fixture home discovery", err)
+	}
+	response, err := api.CreateTaskList(ctx, nha162Bearer(&taskwire.CreateTaskListRequest{Parent: homes.Msg.Homes[0].Name, TaskList: &taskwire.TaskList{DisplayName: "Liste synthétique de charge"}}, access))
+	if err != nil || response == nil || response.Msg.Name == "" {
 		t.Fatal("ordinary workload CreateList", err)
 	}
-	id, err := domain.ParseListID(response.Msg.Receipt.ListId.Value)
+	name, err := tasknames.ParseList(response.Msg.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
+	id := name.ID()
 	value, _ := id.Value()
 	// Only the newly allocated fixture's own Store is bulk-seeded. Subsequent
 	// native changes must use the ordinary authenticated CAS ListService.

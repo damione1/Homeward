@@ -472,7 +472,7 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	const userPassword = "NHA141 synthetic user password canary"
 	user, err := accountsClient.CreateAccount(context.Background(), nha141BearerRequest(&api.CreateAccountRequest{
 		Parent:  nha203SessionAccount(t, secondAdminSession.Session).Home().String(),
-		Account: &api.Account{LoginName: "NHA141 User", DisplayName: "NHA141 User", Role: api.AccountRole_ACCOUNT_ROLE_USER, State: api.AccountState_ACCOUNT_STATE_ACTIVE, InitialPassword: userPassword}}, secondAdminSession.AccessToken))
+		Account: &api.Account{LoginName: "NHA141 User", DisplayName: "NHA141 User", Role: api.AccountRole_ACCOUNT_ROLE_USER, Access: api.AccountAccess_ACCOUNT_ACCESS_ENABLED, InitialPassword: userPassword}}, secondAdminSession.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -493,7 +493,7 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	userSession = loginAs("NHA141 User", userPassword)
 	stream = openStream(userSession.AccessToken)
 	user, err = accountsClient.UpdateAccount(context.Background(), nha141BearerRequest(&api.UpdateAccountRequest{
-		Account: &api.Account{Name: user.Msg.Name, Etag: user.Msg.Etag, State: api.AccountState_ACCOUNT_STATE_DISABLED}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"state"}}}, secondAdminSession.AccessToken))
+		Account: &api.Account{Name: user.Msg.Name, Etag: user.Msg.Etag, Access: api.AccountAccess_ACCOUNT_ACCESS_DISABLED}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"access"}}}, secondAdminSession.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -507,13 +507,13 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	_, err = auth.StartLogin(context.Background(), connect.NewRequest(&api.StartLoginRequest{LoginName: "NHA141 User", Password: userPassword}))
 	nha049Code(t, err, connect.CodeUnauthenticated)
 	user, err = accountsClient.UpdateAccount(context.Background(), nha141BearerRequest(&api.UpdateAccountRequest{
-		Account: &api.Account{Name: user.Msg.Name, Etag: user.Msg.Etag, State: api.AccountState_ACCOUNT_STATE_ACTIVE}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"state"}}}, secondAdminSession.AccessToken))
+		Account: &api.Account{Name: user.Msg.Name, Etag: user.Msg.Etag, Access: api.AccountAccess_ACCOUNT_ACCESS_ENABLED}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"access"}}}, secondAdminSession.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	userSession = loginAs("NHA141 User", userPassword)
 	stream = openStream(userSession.AccessToken)
-	_, err = accountsClient.DeleteAccount(context.Background(), nha141BearerRequest(&api.DeleteAccountRequest{
+	_, err = accountsClient.DeleteAccount(context.Background(), nha141BearerRequest(&api.DeleteAccountRequest{Force: true,
 		Name: user.Msg.Name, Etag: user.Msg.Etag}, secondAdminSession.AccessToken))
 	if err != nil {
 		t.Fatal(err)

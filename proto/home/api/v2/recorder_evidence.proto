@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package home.api.v2;
 
+import "google/api/field_behavior.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -15,141 +16,242 @@ option java_package = "com.home.api.v2";
 // position interval is never a count of missing observations. These identifiers
 // confer no authority and never select an entity, credential or native command.
 message AdmissionPosition {
-  bytes epoch = 1;
-  uint64 sequence = 2;
+  // Native incarnation identifier. Positions from different epochs cannot be compared.
+  bytes epoch = 1 [(google.api.field_behavior) = REQUIRED];
+  // Position within the corresponding epoch, not a global time or authority token.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string sequence = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
+// Represents known lost.
 message KnownLost {
   oneof result {
-    // A strictly positive measured lower bound; never an interval's width.
-    uint64 lower_bound = 1;
+    // A strictly positive measured lower bound, capped at 9223372036854775807; never inferred from an interval width.
+    int64 lower_bound = 1;
+    // Selects unknown information, distinct from a known zero.
     google.protobuf.Empty not_known = 2;
   }
 }
 
-enum GapReason {
-  GAP_REASON_UNSPECIFIED = 0;
-  GAP_REASON_OVERFLOW = 1;
-  GAP_REASON_RECONCILIATION = 2;
-  GAP_REASON_ABANDONED = 3;
-}
-
-enum RecorderTraceDecision {
-  RECORDER_TRACE_DECISION_UNSPECIFIED = 0;
-  RECORDER_TRACE_DECISION_PREPARING = 1;
-  RECORDER_TRACE_DECISION_ADMITTED = 2;
-  RECORDER_TRACE_DECISION_QUEUED = 3;
-  RECORDER_TRACE_DECISION_RESTART_PENDING = 4;
-  RECORDER_TRACE_DECISION_SINGLE_BUSY = 5;
-  RECORDER_TRACE_DECISION_MAX_EXCEEDED = 6;
-  RECORDER_TRACE_DECISION_PREPARATION_SATURATED = 7;
-  RECORDER_TRACE_DECISION_MEMORY_SATURATED = 8;
-  RECORDER_TRACE_DECISION_CONDITION_FALSE = 9;
-  RECORDER_TRACE_DECISION_PREPARATION_ERROR = 10;
-  RECORDER_TRACE_DECISION_EXECUTION_ERROR = 11;
-  RECORDER_TRACE_DECISION_FINISHED = 12;
-  RECORDER_TRACE_DECISION_CANCELLED = 13;
-  RECORDER_TRACE_DECISION_SUPERSEDED = 14;
-  RECORDER_TRACE_DECISION_CLOSED = 15;
-  RECORDER_TRACE_DECISION_UNKNOWN_AUTOMATION = 16;
-  RECORDER_TRACE_DECISION_TRIGGER_MISSED = 17;
-  RECORDER_TRACE_DECISION_TRIGGER_DEGRADED = 18;
-}
-
-enum RecorderTraceActionKind {
-  RECORDER_TRACE_ACTION_KIND_UNSPECIFIED = 0;
-  RECORDER_TRACE_ACTION_KIND_VARIABLES = 1;
-  RECORDER_TRACE_ACTION_KIND_SEQUENCE = 2;
-  RECORDER_TRACE_ACTION_KIND_CHOOSE = 3;
-  RECORDER_TRACE_ACTION_KIND_IF = 4;
-  RECORDER_TRACE_ACTION_KIND_REPEAT = 5;
-  RECORDER_TRACE_ACTION_KIND_PARALLEL = 6;
-  RECORDER_TRACE_ACTION_KIND_WAIT = 7;
-  RECORDER_TRACE_ACTION_KIND_STOP = 8;
-  RECORDER_TRACE_ACTION_KIND_CALL = 9;
-  RECORDER_TRACE_ACTION_KIND_DELAY = 10;
-  RECORDER_TRACE_ACTION_KIND_WAIT_TEMPLATE = 11;
-}
-
-enum RecorderTraceNodeStage {
-  RECORDER_TRACE_NODE_STAGE_UNSPECIFIED = 0;
-  RECORDER_TRACE_NODE_STAGE_ENTERED = 1;
-  RECORDER_TRACE_NODE_STAGE_COMPLETED = 2;
-  RECORDER_TRACE_NODE_STAGE_STOPPED = 3;
-  RECORDER_TRACE_NODE_STAGE_CANCELLED = 4;
-  RECORDER_TRACE_NODE_STAGE_FAILED = 5;
-  RECORDER_TRACE_NODE_STAGE_WAITING = 6;
-}
-
-enum RecorderTraceExecutionErrorKind {
-  RECORDER_TRACE_EXECUTION_ERROR_KIND_UNSPECIFIED = 0;
-  RECORDER_TRACE_EXECUTION_ERROR_KIND_INVALID_PROGRAM = 1;
-  RECORDER_TRACE_EXECUTION_ERROR_KIND_WORK_BUDGET = 2;
-  RECORDER_TRACE_EXECUTION_ERROR_KIND_RECURSION = 3;
-  RECORDER_TRACE_EXECUTION_ERROR_KIND_WAIT_TIMEOUT = 4;
-  RECORDER_TRACE_EXECUTION_ERROR_KIND_SOURCE_UNAVAILABLE = 5;
-  RECORDER_TRACE_EXECUTION_ERROR_KIND_CONDITION_ERROR = 6;
-  RECORDER_TRACE_EXECUTION_ERROR_KIND_COMMAND_ERROR = 7;
-}
-
+// Represents recorder epoch identity.
 message RecorderEpochIdentity {
   // Existing storage.RecorderEpoch represented as exactly 16 nonzero bytes.
-  bytes value = 1;
+  bytes value = 1 [(google.api.field_behavior) = REQUIRED];
 }
 
-enum RecorderReconciliationState {
-  RECORDER_RECONCILIATION_STATE_UNSPECIFIED = 0;
-  RECORDER_RECONCILIATION_STATE_COMPLETE = 1;
-  RECORDER_RECONCILIATION_STATE_INCOMPLETE = 2;
-}
-
+// Represents previous recorder epoch.
 message PreviousRecorderEpoch {
+  // Native incarnation identifier. Positions from different epochs cannot be compared.
   RecorderEpochIdentity epoch = 1;
-  uint64 checkpoint = 2;
+  // Checkpoint within the admitted capture; does not authorize another capture.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string checkpoint = 2;
+  // Whether the recorder observed a clean epoch close.
   bool clean_close = 3;
 }
 
+// Represents recorder epoch coverage.
 message RecorderEpochCoverage {
+  // Native incarnation identifier. Positions from different epochs cannot be compared.
   RecorderEpochIdentity epoch = 1;
-  uint64 checkpoint = 2;
-  uint64 policy_excluded = 3;
+  // Checkpoint within the admitted capture; does not authorize another capture.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string checkpoint = 2;
+  // Evidence excluded by the recorder policy, not evidence of a physical observation.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string policy_excluded = 3;
+  // Recorded time for started at. Absence means no timestamp was supplied or recorded.
   google.protobuf.Timestamp started_at = 4;
   oneof close_time {
+    // Recorded time for closed at. Absence means no timestamp was supplied or recorded.
     google.protobuf.Timestamp closed_at = 5;
+    // Selects explicit absence of recorded evidence; does not invent a zero value.
     google.protobuf.Empty not_recorded = 6;
   }
+  // Whether the recorder observed a clean epoch close.
   bool clean_close = 7;
+  // The reconciliation represented by RecorderReconciliationState.
   RecorderReconciliationState reconciliation = 8;
   oneof predecessor {
+    // The previous represented by PreviousRecorderEpoch.
     PreviousRecorderEpoch previous = 9;
+    // Selects absence of a previous recorder epoch.
     google.protobuf.Empty no_previous = 10;
   }
 }
 
-enum GapEnvelope {
-  GAP_ENVELOPE_UNSPECIFIED = 0;
-  GAP_ENVELOPE_EXACT_POSITIONS = 1;
-  GAP_ENVELOPE_UNCERTAIN_ENVELOPE = 2;
-}
-
+// Represents recorder coverage gap.
 message RecorderCoverageGap {
+  // Native incarnation identifier. Positions from different epochs cannot be compared.
   RecorderEpochIdentity epoch = 1;
   // Positive inclusive source positions, not a count of lost states or time.
-  uint64 from_sequence = 2;
-  uint64 through_sequence = 3;
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string from_sequence = 2;
+  // The through sequence represented as an exact native quantity.
+  // Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+  string through_sequence = 3;
+  // Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
   GapReason reason = 4;
+  // Explicitly known loss evidence; unknown loss is represented separately.
   KnownLost known_lost = 5;
+  // The envelope represented by GapEnvelope.
   GapEnvelope envelope = 6;
   // 031 stores positional gaps without measured UTC bounds. Do not invent a
   // duration or reinterpret epoch start/close dates as a gap's UTC interval.
   oneof utc_bounds {
+    // Selects the explicit unknown utc alternative without an additional payload.
     google.protobuf.Empty unknown_utc = 7;
   }
 }
 
+// Represents recorder coverage snapshot.
 message RecorderCoverageSnapshot {
+  // Inclusive lower bound within the declared scope.
   AdmissionPosition from = 1;
+  // Upper bound within the declared scope; follow the enclosing interval contract.
   AdmissionPosition through = 2;
+  // Collection of epochs for this message.
   repeated RecorderEpochCoverage epochs = 3;
+  // Collection of gaps for this message.
   repeated RecorderCoverageGap gaps = 4;
+}
+
+// Defines the closed vocabulary for gap reason.
+enum GapReason {
+  // No explicit gap reason. Does not select an action.
+  GAP_REASON_UNSPECIFIED = 0;
+  // Selects overflow for gap reason.
+  GAP_REASON_OVERFLOW = 1;
+  // Selects reconciliation for gap reason.
+  GAP_REASON_RECONCILIATION = 2;
+  // Selects abandoned for gap reason.
+  GAP_REASON_ABANDONED = 3;
+}
+
+// Defines the closed vocabulary for recorder trace decision.
+enum RecorderTraceDecision {
+  // No explicit recorder trace decision. Does not select an action.
+  RECORDER_TRACE_DECISION_UNSPECIFIED = 0;
+  // Selects preparing for recorder trace decision.
+  RECORDER_TRACE_DECISION_PREPARING = 1;
+  // Selects admitted for recorder trace decision.
+  RECORDER_TRACE_DECISION_ADMITTED = 2;
+  // Selects queued for recorder trace decision.
+  RECORDER_TRACE_DECISION_QUEUED = 3;
+  // Selects restart pending for recorder trace decision.
+  RECORDER_TRACE_DECISION_RESTART_PENDING = 4;
+  // Selects single busy for recorder trace decision.
+  RECORDER_TRACE_DECISION_SINGLE_BUSY = 5;
+  // Selects max exceeded for recorder trace decision.
+  RECORDER_TRACE_DECISION_MAX_EXCEEDED = 6;
+  // Selects preparation saturated for recorder trace decision.
+  RECORDER_TRACE_DECISION_PREPARATION_SATURATED = 7;
+  // Selects memory saturated for recorder trace decision.
+  RECORDER_TRACE_DECISION_MEMORY_SATURATED = 8;
+  // Selects condition false for recorder trace decision.
+  RECORDER_TRACE_DECISION_CONDITION_FALSE = 9;
+  // Selects preparation error for recorder trace decision.
+  RECORDER_TRACE_DECISION_PREPARATION_ERROR = 10;
+  // Selects execution error for recorder trace decision.
+  RECORDER_TRACE_DECISION_EXECUTION_ERROR = 11;
+  // Selects finished for recorder trace decision.
+  RECORDER_TRACE_DECISION_FINISHED = 12;
+  // Selects cancelled for recorder trace decision.
+  RECORDER_TRACE_DECISION_CANCELLED = 13;
+  // Selects superseded for recorder trace decision.
+  RECORDER_TRACE_DECISION_SUPERSEDED = 14;
+  // Selects closed for recorder trace decision.
+  RECORDER_TRACE_DECISION_CLOSED = 15;
+  // Selects unknown automation for recorder trace decision.
+  RECORDER_TRACE_DECISION_UNKNOWN_AUTOMATION = 16;
+  // Selects trigger missed for recorder trace decision.
+  RECORDER_TRACE_DECISION_TRIGGER_MISSED = 17;
+  // Selects trigger degraded for recorder trace decision.
+  RECORDER_TRACE_DECISION_TRIGGER_DEGRADED = 18;
+}
+
+// Defines the closed vocabulary for recorder trace action kind.
+enum RecorderTraceActionKind {
+  // No explicit recorder trace action kind. Does not select an action.
+  RECORDER_TRACE_ACTION_KIND_UNSPECIFIED = 0;
+  // Selects variables for recorder trace action kind.
+  RECORDER_TRACE_ACTION_KIND_VARIABLES = 1;
+  // Selects sequence for recorder trace action kind.
+  RECORDER_TRACE_ACTION_KIND_SEQUENCE = 2;
+  // Selects choose for recorder trace action kind.
+  RECORDER_TRACE_ACTION_KIND_CHOOSE = 3;
+  // Selects if for recorder trace action kind.
+  RECORDER_TRACE_ACTION_KIND_IF = 4;
+  // Selects repeat for recorder trace action kind.
+  RECORDER_TRACE_ACTION_KIND_REPEAT = 5;
+  // Selects parallel for recorder trace action kind.
+  RECORDER_TRACE_ACTION_KIND_PARALLEL = 6;
+  // Selects wait for recorder trace action kind.
+  RECORDER_TRACE_ACTION_KIND_WAIT = 7;
+  // Selects stop for recorder trace action kind.
+  RECORDER_TRACE_ACTION_KIND_STOP = 8;
+  // Selects call for recorder trace action kind.
+  RECORDER_TRACE_ACTION_KIND_CALL = 9;
+  // Selects delay for recorder trace action kind.
+  RECORDER_TRACE_ACTION_KIND_DELAY = 10;
+  // Selects wait template for recorder trace action kind.
+  RECORDER_TRACE_ACTION_KIND_WAIT_TEMPLATE = 11;
+}
+
+// Defines the closed vocabulary for recorder trace node stage.
+enum RecorderTraceNodeStage {
+  // No explicit recorder trace node stage. Does not select an action.
+  RECORDER_TRACE_NODE_STAGE_UNSPECIFIED = 0;
+  // Selects entered for recorder trace node stage.
+  RECORDER_TRACE_NODE_STAGE_ENTERED = 1;
+  // Selects completed for recorder trace node stage.
+  RECORDER_TRACE_NODE_STAGE_COMPLETED = 2;
+  // Selects stopped for recorder trace node stage.
+  RECORDER_TRACE_NODE_STAGE_STOPPED = 3;
+  // Selects cancelled for recorder trace node stage.
+  RECORDER_TRACE_NODE_STAGE_CANCELLED = 4;
+  // Selects failed for recorder trace node stage.
+  RECORDER_TRACE_NODE_STAGE_FAILED = 5;
+  // Selects waiting for recorder trace node stage.
+  RECORDER_TRACE_NODE_STAGE_WAITING = 6;
+}
+
+// Defines the closed vocabulary for recorder trace execution error kind.
+enum RecorderTraceExecutionErrorKind {
+  // No explicit recorder trace execution error kind. Does not select an action.
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_UNSPECIFIED = 0;
+  // Selects invalid program for recorder trace execution error kind.
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_INVALID_PROGRAM = 1;
+  // Selects work budget for recorder trace execution error kind.
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_WORK_BUDGET = 2;
+  // Selects recursion for recorder trace execution error kind.
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_RECURSION = 3;
+  // Selects wait timeout for recorder trace execution error kind.
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_WAIT_TIMEOUT = 4;
+  // Selects source unavailable for recorder trace execution error kind.
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_SOURCE_UNAVAILABLE = 5;
+  // Selects condition error for recorder trace execution error kind.
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_CONDITION_ERROR = 6;
+  // Selects command error for recorder trace execution error kind.
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_COMMAND_ERROR = 7;
+}
+
+// Defines the closed vocabulary for recorder reconciliation state.
+enum RecorderReconciliationState {
+  // No explicit recorder reconciliation state. Does not select an action.
+  RECORDER_RECONCILIATION_STATE_UNSPECIFIED = 0;
+  // Selects complete for recorder reconciliation state.
+  RECORDER_RECONCILIATION_STATE_COMPLETE = 1;
+  // Selects incomplete for recorder reconciliation state.
+  RECORDER_RECONCILIATION_STATE_INCOMPLETE = 2;
+}
+
+// Defines the closed vocabulary for gap envelope.
+enum GapEnvelope {
+  // No explicit gap envelope. Does not select an action.
+  GAP_ENVELOPE_UNSPECIFIED = 0;
+  // Selects exact positions for gap envelope.
+  GAP_ENVELOPE_EXACT_POSITIONS = 1;
+  // Selects uncertain envelope for gap envelope.
+  GAP_ENVELOPE_UNCERTAIN_ENVELOPE = 2;
 }

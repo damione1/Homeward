@@ -312,7 +312,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                     EnumValue::Known(wire::VersionAvailability::Retained) => format!(
                         "Retained · {} · {}",
                         value.schema_version,
-                        render::at(&value.updated_at)
+                        render::at(&value.update_time)
                     ),
                     EnumValue::Known(wire::VersionAvailability::Purged) => {
                         "Source purged · no date or schema version inferred".into()
@@ -374,7 +374,7 @@ pub(super) fn rows(payload: &Payload) -> (Vec<render::Row>, Option<PageToken>) {
                     format!("Generation {}", value.generation.revision),
                     format!(
                         "{availability} · {}\n{}",
-                        render::at(&value.created_at),
+                        render::at(&value.create_time),
                         render::hex(&value.generation.manifest_sha256)
                     ),
                 );

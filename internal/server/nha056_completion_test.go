@@ -3,6 +3,8 @@ package server
 import (
 	"bytes"
 	"context"
+	obsv2 "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/jackc/pgx/v5"
 	"io"
 	"net"
 	"net/http"
@@ -14,16 +16,13 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	wire "github.com/damione1/Homeward/gen/home/integrations/v1"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/observability"
 	"github.com/damione1/Homeward/internal/testpg"
-	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -95,12 +94,13 @@ func TestNHA056RealRunCloudFailuresKeepReadyAndCoreDrainsBeforeListenerClose(t *
 	defer cancel()
 	const password = "NHA056 completion synthetic password"
 	nha162RunBootstrap(t, ctx, data, "NHA056 completion admin", password)
-	token := nha162RunLogin(t, ctx, authv1connect.NewAuthServiceClient(client, base), "NHA056 completion admin", password).AccessToken
-	reader := observabilityv1connect.NewObservabilityServiceClient(client, base)
+	token := nha162RunLogin(t, ctx, apiv2connect.NewAuthServiceClient(client, base), "NHA056 completion admin", password).AccessToken
+	reader := apiv2connect.NewObservabilityServiceClient(client, base)
+	home := nha203ObservationHome(t, ctx, client, base, token)
 	assertReady := func(t *testing.T) {
 		t.Helper()
-		response, err := reader.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, token))
-		if err != nil || contracts.AdmitObservabilityResponse(response.Msg) != nil || response.Msg.Health.Liveness != obs.Liveness_LIVENESS_LIVE || response.Msg.Health.Server.Readiness != obs.ServerReadiness_SERVER_READINESS_READY || response.Msg.Health.Server.Generation.GetPresent().GetValue() != revision {
+		response, err := reader.GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, token))
+		if err != nil || contracts.AdmitObservationResponse(response.Msg) != nil || response.Msg.Liveness != obsv2.ObservationLiveness_OBSERVATION_LIVENESS_LIVE || response.Msg.Server.Readiness != obsv2.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY || response.Msg.Server.Generation.GetPresent().GetValue() != revision {
 			t.Fatal("cloud failure changed actual Run readiness", err)
 		}
 	}
@@ -155,8 +155,8 @@ func TestNHA056RealRunCloudFailuresKeepReadyAndCoreDrainsBeforeListenerClose(t *
 			if _, err := cloud.Observe(ctx, request); err == nil {
 				t.Fatal("synthetic cloud failure succeeded")
 			}
-			health, err := reader.GetIntegrationHealth(ctx, nha056SessionRequest(&obs.GetIntegrationHealthRequest{IntegrationInstanceId: "nha056-cloud-" + mode}, token))
-			if err != nil || health.Msg.Report.GetPresent().GetStatus() != wire.HealthStatus_HEALTH_STATUS_DEGRADED {
+			health, err := runtime.sequence.IntegrationHealth(instance)
+			if err != nil || health.GetPresent().GetStatus() != wire.HealthStatus_HEALTH_STATUS_DEGRADED {
 				t.Fatal("actual cloud capacity not degraded", err)
 			}
 			assertReady(t)
@@ -165,8 +165,8 @@ func TestNHA056RealRunCloudFailuresKeepReadyAndCoreDrainsBeforeListenerClose(t *
 	if err := runtime.host.CloseAdmissions(); err != nil {
 		t.Fatal(err)
 	}
-	unavailable, err := reader.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, token))
-	if err != nil || unavailable.Msg.Health.Server.Readiness != obs.ServerReadiness_SERVER_READINESS_CORE_UNAVAILABLE || unavailable.Msg.Health.Liveness != obs.Liveness_LIVENESS_LIVE {
+	unavailable, err := reader.GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, token))
+	if err != nil || unavailable.Msg.Server.Readiness != obsv2.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_CORE_UNAVAILABLE || unavailable.Msg.Liveness != obsv2.ObservationLiveness_OBSERVATION_LIVENESS_LIVE {
 		t.Fatal("actual closed core reported Ready", err)
 	}
 	run.stop()
@@ -197,26 +197,27 @@ func TestNHA056RealNativeReaderRejectsRevokedAndExpired(t *testing.T) {
 	defer cancel()
 	const password = "NHA056 native synthetic password"
 	nha162RunBootstrap(t, ctx, data, "NHA056 native admin", password)
-	api := authv1connect.NewAuthServiceClient(client, base)
+	api := apiv2connect.NewAuthServiceClient(client, base)
 	owner := nha162RunLogin(t, ctx, api, "NHA056 native admin", password)
-	reader := observabilityv1connect.NewObservabilityServiceClient(client, base)
-	if _, err := reader.GetMetrics(ctx, nha056SessionRequest(&obs.GetMetricsRequest{}, owner.AccessToken)); err != nil {
+	reader := apiv2connect.NewObservabilityServiceClient(client, base)
+	home := nha203ObservationHome(t, ctx, client, base, owner.AccessToken)
+	if _, err := reader.GetMetrics(ctx, nha056SessionRequest(&obsv2.GetMetricsRequest{Name: home + "/metrics"}, owner.AccessToken)); err != nil {
 		t.Fatal("active native session rejected", err)
 	}
-	if _, err := api.RevokeSession(ctx, nha056SessionRequest(&auth.RevokeSessionRequest{SessionId: owner.Session.Id}, owner.AccessToken)); err != nil {
+	if _, err := api.RevokeSession(ctx, nha056SessionRequest(&obsv2.RevokeSessionRequest{Name: owner.Session.Name}, owner.AccessToken)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := reader.GetMetrics(ctx, nha056SessionRequest(&obs.GetMetricsRequest{}, owner.AccessToken)); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := reader.GetMetrics(ctx, nha056SessionRequest(&obsv2.GetMetricsRequest{Name: home + "/metrics"}, owner.AccessToken)); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatal("revoked native session admitted", err)
 	}
 	expired := nha162RunLogin(t, ctx, api, "NHA056 native admin", password)
 	if err := runtime.store.InTransaction(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `UPDATE public.auth_access_credentials SET expires_at=now()-interval '1 second' WHERE session_id=$1`, expired.Session.Id.Value)
+		_, err := tx.Exec(ctx, `UPDATE public.auth_access_credentials SET expires_at=now()-interval '1 second' WHERE session_id=$1`, nha203SessionText(t, nha203NativeSession(t, ctx, runtime.store, expired.Session.Name)))
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := reader.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, expired.AccessToken)); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := reader.GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, expired.AccessToken)); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatal("expired access credential admitted", err)
 	}
 	// MCP bearer issuance/validation (145) is absent from this base. The
@@ -236,25 +237,26 @@ func TestNHA056RealNativeTLSRejectsOpaqueBearerBeforeReaderAdmission(t *testing.
 	defer cancel()
 	const password = "NHA056 bearer boundary synthetic password"
 	nha162RunBootstrap(t, ctx, data, "NHA056 bearer boundary admin", password)
-	owner := nha162RunLogin(t, ctx, authv1connect.NewAuthServiceClient(client, base), "NHA056 bearer boundary admin", password)
-	reader := observabilityv1connect.NewObservabilityServiceClient(client, base)
-	if response, err := reader.GetMetrics(ctx, nha056SessionRequest(&obs.GetMetricsRequest{}, owner.AccessToken)); err != nil || response == nil {
+	owner := nha162RunLogin(t, ctx, apiv2connect.NewAuthServiceClient(client, base), "NHA056 bearer boundary admin", password)
+	reader := apiv2connect.NewObservabilityServiceClient(client, base)
+	home := nha203ObservationHome(t, ctx, client, base, owner.AccessToken)
+	if response, err := reader.GetMetrics(ctx, nha056SessionRequest(&obsv2.GetMetricsRequest{Name: home + "/metrics"}, owner.AccessToken)); err != nil || response == nil {
 		t.Fatal("native access-token positive control did not reach its reader", err)
 	}
 	// This controlled opaque value was never issued as a native access token.
 	// It is not a claimed MCP credential: no 145 issuer or key validation is
 	// supplied by this fixture. ScopedPrincipal ceilings remain tested separately.
 	const opaqueBearer = "NHA056_CONTROLLED_NON_NATIVE_OPAQUE_BEARER"
-	if response, err := reader.GetMetrics(ctx, nha056SessionRequest(&obs.GetMetricsRequest{}, opaqueBearer)); response != nil || connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if response, err := reader.GetMetrics(ctx, nha056SessionRequest(&obsv2.GetMetricsRequest{Name: home + "/metrics"}, opaqueBearer)); response != nil || connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatal("opaque non-native bearer obtained a metrics response", err)
 	}
 	// Admission of this body occurs first inside QueryAudits, before any SQL
 	// reader. The native positive control must reach that invalid-argument
 	// oracle, while the opaque bearer must be rejected by the common TLS guard
 	// before it reaches the same handler admission.
-	zero := uint32(0)
-	invalidRead := func() *obs.QueryAuditsRequest {
-		return &obs.QueryAuditsRequest{Source: obs.AuditSource_AUDIT_SOURCE_AUTHENTICATION, PageSize: &zero}
+	zero := int32(-1)
+	invalidRead := func() *obsv2.QueryAuditsRequest {
+		return &obsv2.QueryAuditsRequest{Parent: home, Source: obsv2.ObservationAuditSource_OBSERVATION_AUDIT_SOURCE_AUTHENTICATION, PageSize: zero}
 	}
 	if response, err := reader.QueryAudits(ctx, nha056SessionRequest(invalidRead(), owner.AccessToken)); response != nil || connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatal("native audit positive control did not reach reader admission", err)

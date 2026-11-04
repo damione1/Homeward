@@ -230,12 +230,12 @@ func TestNHA141AccountGateCommitOrderRollbackAndUnknown(t *testing.T) {
 		}
 	}
 	if _, err := accountHandler.UpdateAccount(adminContext, connect.NewRequest(&api.UpdateAccountRequest{
-		Account:    &api.Account{Name: currentAccount.Name, Etag: currentAccount.Etag, Role: api.AccountRole_ACCOUNT_ROLE_ADMIN, State: api.AccountState_ACCOUNT_STATE_ACTIVE},
-		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"role", "state"}},
+		Account:    &api.Account{Name: currentAccount.Name, Etag: currentAccount.Etag, Role: api.AccountRole_ACCOUNT_ROLE_ADMIN, Access: api.AccountAccess_ACCOUNT_ACCESS_ENABLED},
+		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"role", "access"}},
 	})); err != nil {
-		t.Fatalf("no-op role/state update: %v", err)
+		t.Fatalf("no-op role/access update: %v", err)
 	}
-	assertStillAdmitted("no-op role/state update")
+	assertStillAdmitted("no-op role/access update")
 	renamed, err := accountHandler.UpdateAccount(adminContext, connect.NewRequest(&api.UpdateAccountRequest{
 		Account:    &api.Account{Name: currentAccount.Name, Etag: currentAccount.Etag, DisplayName: "NHA141 Gate Admin Renamed"},
 		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"display_name"}},

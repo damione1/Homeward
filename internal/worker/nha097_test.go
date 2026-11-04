@@ -17,9 +17,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestNHA097AllHistoricalWorkersRejectHelperDescriptionsBeforeHost(t *testing.T) {
-	for minor := uint32(0); minor <= 3; minor++ {
-		p, _, counted := nha174Profile(t, minor)
+func TestNHA097CurrentWorkerRejectHelperDescriptionsBeforeHost(t *testing.T) {
+	for _, minor := range []uint32{hostProtocolMinor} {
+		p, _, counted := nha174Profile(t)
 		for _, description := range []*registry.CapabilityDescription{
 			{SchemaId: contracts.HelperSchema, Major: 1, Endpoint: "value", DisplayName: "synthetic helper",
 				Constraints: &registry.CapabilityDescription_Helper{Helper: &helperwire.HelperConstraints{Kind: helperwire.HelperKind_HELPER_KIND_BOOLEAN, Operations: []helperwire.HelperOperation{helperwire.HelperOperation_HELPER_OPERATION_SET}}}},
@@ -113,7 +113,7 @@ func TestNHA097HistoricalWorkerRejectsAdmittedHelperBeforeQueue(t *testing.T) {
 		t.Fatalf("native Host failed to admit helper command: %v %v", response, err)
 	}
 	p := newPilot(Config{})
-	p.active, p.handshaken, p.streaming, p.ready, p.hostMinor = true, true, true, true, 3
+	p.active, p.handshaken, p.streaming, p.ready = true, true, true, true
 	p.ctx, p.lastHeartbeat, p.frameLimit = ctx, time.Now(), 65536
 	p.capabilities = map[wire.Capability]bool{wire.Capability_CAPABILITY_COMMAND: true}
 	p.entityHandles[entity] = make([]byte, 32)

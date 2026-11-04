@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
+	"github.com/damione1/Homeward/internal/apierrors"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
@@ -662,12 +664,24 @@ func (p *compiledPublic) deny(w http.ResponseWriter, r *http.Request, route publ
 }
 
 func (p *compiledPublic) sendError(w http.ResponseWriter, r *http.Request, route publicRoute, code PublicErrorCode) {
-	name, status, connectCode := code.wire()
+	name, status, _ := code.wire()
 	if route.key.kind == RouteKindConnect {
-		err := connect.NewError(connectCode, errors.New(name))
-		if terminal := authorizationTerminationError(r.Context()); terminal != nil {
-			err = terminal
+		var reason api.ApiErrorReason
+		switch code {
+		case PublicErrorUnauthenticated:
+			reason = api.ApiErrorReason_API_ERROR_REASON_AUTHENTICATION_REQUIRED
+		case PublicErrorPermissionDenied:
+			reason = api.ApiErrorReason_API_ERROR_REASON_ACCESS_DENIED
+		case PublicErrorResourceExhausted:
+			reason = api.ApiErrorReason_API_ERROR_REASON_RATE_LIMITED
+		case PublicErrorDeadlineExceeded:
+			reason = api.ApiErrorReason_API_ERROR_REASON_REQUEST_DEADLINE_EXCEEDED
+		case PublicErrorUnavailable, PublicErrorUnspecified:
+			reason = api.ApiErrorReason_API_ERROR_REASON_SERVICE_UNAVAILABLE
+		default:
+			reason = api.ApiErrorReason_API_ERROR_REASON_INTERNAL_FAILURE
 		}
+		err := apiRPCError(r.Context(), apierrors.New(reason))
 		_ = p.errorWriter.Write(w, r, err)
 		return
 	}

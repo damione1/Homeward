@@ -1759,7 +1759,7 @@ pub(super) mod tests {
                     }
                     .into(),
                     availability: wire::GenerationAvailability::PartiallyPurged.into(),
-                    created_at: Timestamp {
+                    create_time: Timestamp {
                         seconds: 1_700_000_000,
                         ..Default::default()
                     }
@@ -1775,7 +1775,7 @@ pub(super) mod tests {
                     }
                     .into(),
                     availability: wire::GenerationAvailability::Complete.into(),
-                    created_at: Timestamp {
+                    create_time: Timestamp {
                         seconds: 1_700_000_000,
                         ..Default::default()
                     }

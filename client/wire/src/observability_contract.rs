@@ -2,6 +2,7 @@
 //! the common server transport and current Authority remain authoritative.
 
 use crate::home::api::v2 as obs;
+use crate::recorder_evidence_contract::{decimal, number};
 use buffa::{EnumValue, Message};
 use buffa_types::google::protobuf::{Empty, Timestamp};
 use home_client_model::api::HomeName;
@@ -78,7 +79,7 @@ fn source(value: EnumValue<obs::ObservationAuditSource>) -> bool {
     }
 }
 fn position(value: &obs::AdmissionPosition) -> bool {
-    identity(&value.epoch, 16) && value.__buffa_unknown_fields.is_empty()
+    crate::recorder_evidence_contract::position(value)
 }
 fn epoch(value: &obs::ObservationProcessObservationEpoch) -> bool {
     identity(&value.value, 16) && value.__buffa_unknown_fields.is_empty()
@@ -175,7 +176,8 @@ pub fn admit_query_recorder_coverage(
             && match &value.through {
                 Some(Through::Position(through)) => {
                     position(through)
-                        && (through.epoch != from.epoch || through.sequence >= from.sequence)
+                        && (through.epoch != from.epoch
+                            || number(&through.sequence) >= number(&from.sequence))
                 }
                 Some(Through::LatestInEpoch(through)) => recorder_epoch(through),
                 None => false,
@@ -191,9 +193,9 @@ fn counter(value: &obs::ObservationCounterMeasurement) -> bool {
     use obs::observation_counter_measurement::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
-            Some(Result::Exact(_)) => true,
+            Some(Result::Exact(value)) => *value >= 0,
             Some(Result::Saturated(value)) => {
-                value.value == u64::MAX && value.__buffa_unknown_fields.is_empty()
+                value.lower_bound == i64::MAX && value.__buffa_unknown_fields.is_empty()
             }
             Some(Result::NotMeasured(value)) => empty(value),
             Some(Result::Unavailable(value)) => unavailable(value),
@@ -216,7 +218,7 @@ fn gauge(value: &obs::ObservationGaugeMeasurement) -> bool {
     use obs::observation_gauge_measurement::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
-            Some(Result::Value(_)) => true,
+            Some(Result::Value(value)) => *value >= 0,
             Some(Result::NotMeasured(value)) => empty(value),
             Some(Result::Unavailable(value)) => unavailable(value),
             None => false,
@@ -237,7 +239,7 @@ fn lag(value: &obs::ObservationLagMeasurement) -> bool {
     use obs::observation_lag_measurement::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
-            Some(Result::SameEpochPositions(_)) => true,
+            Some(Result::SameEpochPositions(value)) => decimal(value),
             Some(Result::Invalidated(value) | Result::EpochMismatch(value)) => empty(value),
             Some(Result::Unavailable(value)) => unavailable(value),
             None => false,
@@ -349,16 +351,18 @@ pub fn admit_counter(
 
 fn runtime_page(value: &obs::QueryRuntimeLogsResponse) -> bool {
     let mut previous = 0;
-    value.rows.len() <= 100
+    decimal(&value.upper_sequence)
+        && value.rows.len() <= 100
         && value.next_page_token.len() <= 512
         && value.__buffa_unknown_fields.is_empty()
         && value.process_epoch.as_option().is_some_and(epoch)
         && value.rows.iter().all(|row| {
-            let valid = row.sequence > previous
-                && row.sequence <= value.upper_sequence
+            let valid = decimal(&row.sequence)
+                && number(&row.sequence) > previous
+                && number(&row.sequence) <= number(&value.upper_sequence)
                 && row.__buffa_unknown_fields.is_empty()
                 && row.event.as_option().is_some_and(event);
-            previous = row.sequence;
+            previous = number(&row.sequence);
             valid
         })
 }
@@ -374,7 +378,7 @@ fn generation(value: &obs::ObservationGenerationPresence) -> bool {
         && match &value.result {
             Some(Result::Present(value)) => {
                 value.value > 0
-                    && value.value <= i64::MAX as u64
+                    && value.value <= i64::MAX
                     && value.__buffa_unknown_fields.is_empty()
             }
             Some(Result::NotLoaded(value)) => empty(value),
@@ -446,7 +450,7 @@ pub fn admit_health_response(value: &obs::Health) -> Result<Admitted<obs::Health
     let valid = singleton(&value.name, "/health") && {
         let health = value;
         let mut seen = Vec::with_capacity(5);
-        let mut total = 0u64;
+        let mut total = 0i64;
         health.__buffa_unknown_fields.is_empty()
             && health.process_epoch.as_option().is_some_and(epoch)
             && health.liveness == EnumValue::Known(obs::ObservationLiveness::Live)
@@ -465,7 +469,7 @@ pub fn admit_health_response(value: &obs::Health) -> Result<Admitted<obs::Health
             && health.pilots.len() == 5
             && health.pilots.iter().all(|pilot| {
                 let valid = nonzero(pilot.phase, obs::ObservationPilotPhase::Unspecified)
-                    && pilot.instances <= 1024
+                    && (0..=1024).contains(&pilot.instances)
                     && !seen.contains(&pilot.phase)
                     && pilot.__buffa_unknown_fields.is_empty();
                 seen.push(pilot.phase);
@@ -510,8 +514,8 @@ pub fn admit_integration_health_response(
             && match &supervision.result {
                 Some(S::Supervised(value)) => {
                     nonzero(value.phase, obs::ObservationPilotPhase::Unspecified)
-                        && value.attempts <= 17
-                        && value.tasks <= 256
+                        && (0..=17).contains(&value.attempts)
+                        && (0..=256).contains(&value.tasks)
                         && value.__buffa_unknown_fields.is_empty()
                 }
                 Some(S::NotSupervised(value)) => empty(value),
@@ -553,10 +557,8 @@ fn installed_queue(value: &obs::ObservationInstalledQueueMetrics) -> bool {
 }
 fn queue(value: &obs::ObservationQueueAggregate) -> bool {
     use obs::observation_queue_aggregate::Result;
-    nonzero(
-        value.queue_class,
-        obs::ObservationQueueClass::Unspecified,
-    ) && value.__buffa_unknown_fields.is_empty()
+    nonzero(value.queue_class, obs::ObservationQueueClass::Unspecified)
+        && value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Installed(installed)) => {
                 use obs::observation_gauge_measurement::Result as GaugeResult;
@@ -614,13 +616,18 @@ fn observation_active_coverage(value: &obs::ObservationActiveCoverage) -> bool {
                 value.from.as_option().is_some_and(position)
                     && value.through.as_option().is_some_and(position)
                     && value.from.epoch == value.through.epoch
-                    && value.from.sequence > 0
-                    && value.through.sequence >= value.from.sequence
+                    && number(&value.from.sequence) > 0
+                    && number(&value.through.sequence) >= number(&value.from.sequence)
                     && value.known_lost.as_option().is_some_and(|lost| {
                         known_lost(lost)
                             && match &lost.result {
                                 Some(obs::known_lost::Result::LowerBound(count)) => {
-                                    *count <= value.through.sequence - value.from.sequence + 1
+                                    u64::try_from(*count).is_ok_and(|count| {
+                                        count
+                                            <= number(&value.through.sequence)
+                                                - number(&value.from.sequence)
+                                                + 1
+                                    })
                                 }
                                 Some(obs::known_lost::Result::NotKnown(_)) => true,
                                 None => false,
@@ -869,7 +876,9 @@ fn observation_trace_ordinal(value: &obs::ObservationTraceOrdinal) -> bool {
     use obs::observation_trace_ordinal::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
-            Some(Result::Native(value)) => *value > 0 && *value < u64::MAX,
+            Some(Result::Native(value)) => {
+                decimal(value) && number(value) > 0 && number(value) < u64::MAX
+            }
             Some(Result::Exhausted(value)) => empty(value),
             None => false,
         }
@@ -888,7 +897,7 @@ fn observation_trace_failure(value: &obs::ObservationTraceFailure) -> bool {
 fn observation_trace_row(value: &obs::ObservationTraceRow) -> bool {
     use obs::{observation_controller_trace_record::MaxExceeded, observation_trace_row::Record};
     RuntimeRunName::try_from(value.run.as_str()).is_ok()
-        && value.local_index < 512
+        && (0..512).contains(&value.local_index)
         && value
             .ordinal
             .as_option()
@@ -937,7 +946,9 @@ fn observation_trace_row(value: &obs::ObservationTraceRow) -> bool {
         }
 }
 fn trace_cuts(value: &obs::ObservationTraceCutMetadata) -> bool {
-    value.coherence == EnumValue::Known(obs::ObservationTraceCutCoherence::SeparateOwnerCuts)
+    decimal(&value.controller_evicted)
+        && decimal(&value.node_evicted)
+        && value.coherence == EnumValue::Known(obs::ObservationTraceCutCoherence::SeparateOwnerCuts)
         && nonzero(value.order, obs::ObservationTraceOrderState::Unspecified)
         && value
             .controller_captured_at
@@ -980,92 +991,10 @@ pub fn admit_trace_response(
 ) -> Result<Admitted<obs::QueryRunTraceResponse>, AdmissionError> {
     admit(value, trace_page(value) && sized(value, 256 << 10))
 }
-fn coverage_epoch(value: &obs::RecorderEpochCoverage) -> bool {
-    use obs::recorder_epoch_coverage::{CloseTime, Predecessor};
-    let closed = match &value.close_time {
-        Some(CloseTime::ClosedAt(value)) => timestamp(value),
-        Some(CloseTime::NotRecorded(none)) => !value.clean_close && empty(none),
-        None => false,
-    };
-    let previous = match &value.predecessor {
-        Some(Predecessor::Previous(value)) => {
-            value.epoch.as_option().is_some_and(recorder_epoch)
-                && value.__buffa_unknown_fields.is_empty()
-        }
-        Some(Predecessor::NoPrevious(value)) => empty(value),
-        None => false,
-    };
-    value.epoch.as_option().is_some_and(recorder_epoch)
-        && value.started_at.as_option().is_some_and(timestamp)
-        && nonzero(
-            value.reconciliation,
-            obs::RecorderReconciliationState::Unspecified,
-        )
-        && closed
-        && previous
-        && value.__buffa_unknown_fields.is_empty()
-}
-fn coverage_gap(value: &obs::RecorderCoverageGap) -> bool {
-    use obs::{known_lost::Result, recorder_coverage_gap::UtcBounds};
-    if value.from_sequence == 0 || value.through_sequence < value.from_sequence {
-        return false;
-    }
-    let count = value.known_lost.as_option().is_some_and(|count| {
-        known_lost(count)
-            && match &count.result {
-                Some(Result::LowerBound(count)) => {
-                    *count
-                        <= value
-                            .through_sequence
-                            .saturating_sub(value.from_sequence)
-                            .saturating_add(1)
-                        && (value.envelope != EnumValue::Known(obs::GapEnvelope::ExactPositions)
-                            || *count == value.through_sequence - value.from_sequence + 1)
-                }
-                Some(Result::NotKnown(_)) => {
-                    value.envelope != EnumValue::Known(obs::GapEnvelope::ExactPositions)
-                }
-                None => false,
-            }
-    });
-    value.from_sequence > 0
-        && value.through_sequence >= value.from_sequence
-        && value.epoch.as_option().is_some_and(recorder_epoch)
-        && nonzero(value.reason, obs::GapReason::Unspecified)
-        && nonzero(value.envelope, obs::GapEnvelope::Unspecified)
-        && count
-        && value.__buffa_unknown_fields.is_empty()
-        && match &value.utc_bounds {
-            Some(UtcBounds::UnknownUtc(value)) => empty(value),
-            None => false,
-        }
-}
 fn coverage(value: &obs::RecorderCoverageSnapshot) -> bool {
-    if value.epochs.is_empty() || value.epochs.len() > 64 || value.gaps.len() > 512 {
-        return false;
-    }
-    value.from.as_option().is_some_and(position)
-        && value.through.as_option().is_some_and(position)
-        && value.from.epoch == value.epochs[0].epoch.value
-        && value.through.epoch == value.epochs[value.epochs.len() - 1].epoch.value
-        && value.from.sequence <= value.epochs[0].checkpoint
-        && value.through.sequence <= value.epochs[value.epochs.len() - 1].checkpoint
-        && (value.from.epoch != value.through.epoch
-            || value.from.sequence <= value.through.sequence)
-        && value.epochs.iter().enumerate().all(|(i, epoch)| {
-            coverage_epoch(epoch)
-                && value.epochs[..i]
-                    .iter()
-                    .all(|previous| previous.epoch.value != epoch.epoch.value)
-        })
-        && value.gaps.iter().all(|gap| {
-            coverage_gap(gap)
-                && value.epochs.iter().any(|epoch| {
-                    epoch.epoch.value == gap.epoch.value && gap.through_sequence <= epoch.checkpoint
-                })
-        })
-        && value.__buffa_unknown_fields.is_empty()
+    crate::recorder_evidence_contract::coverage(value)
 }
+
 pub fn admit_coverage_response(
     value: &obs::QueryRecorderCoverageResponse,
 ) -> Result<Admitted<obs::QueryRecorderCoverageResponse>, AdmissionError> {

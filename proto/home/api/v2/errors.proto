@@ -85,6 +85,8 @@ enum ApiErrorReason {
   API_ERROR_REASON_STATE_PRECONDITION_FAILED = 25;
   // FAILED_PRECONDITION: restart the server before this uncommitted change can be applied.
   API_ERROR_REASON_CONFIG_RESTART_REQUIRED = 26;
+  // UNAVAILABLE: authority is unavailable; discard the capture and do not resume it.
+  API_ERROR_REASON_AUTHORITY_UNAVAILABLE = 27;
 }
 
 // The boundary whose result could not be established, without raw intent data.

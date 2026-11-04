@@ -2,20 +2,20 @@ package server
 
 import (
 	"bytes"
+	"connectrpc.com/connect"
 	"context"
+	obsv2 "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/damione1/Homeward/compat/ha/ir"
 	"github.com/damione1/Homeward/contracts"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/automationruns"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestNHA056TLSClientReusesPublishedActualControllerHandle(t *testing.T) {
@@ -76,35 +76,43 @@ func TestNHA056TLSClientReusesPublishedActualControllerHandle(t *testing.T) {
 	defer cancel()
 	const password = "NHA056 trace synthetic password"
 	nha162RunBootstrap(t, ctx, data, "NHA056 trace admin", password)
-	token := nha162RunLogin(t, ctx, authv1connect.NewAuthServiceClient(client, base), "NHA056 trace admin", password).AccessToken
-	reader := observabilityv1connect.NewObservabilityServiceClient(client, base)
-	first, err := reader.GetMetrics(ctx, nha056SessionRequest(&obs.GetMetricsRequest{}, token))
-	if err != nil || contracts.AdmitObservabilityResponse(first.Msg) != nil {
+	token := nha162RunLogin(t, ctx, apiv2connect.NewAuthServiceClient(client, base), "NHA056 trace admin", password).AccessToken
+	reader := apiv2connect.NewObservabilityServiceClient(client, base)
+	home := nha203ObservationHome(t, ctx, client, base, token)
+	first, err := reader.GetMetrics(ctx, nha056SessionRequest(&obsv2.GetMetricsRequest{Name: home + "/metrics"}, token))
+	if err != nil || contracts.AdmitObservationResponse(first.Msg) != nil {
 		t.Fatal("actual controller metrics unavailable", err)
 	}
-	handle := first.Msg.Metrics.Runs.GetInstalled().GetController()
-	if handle == nil || len(handle.Value) != 32 {
+	handle := first.Msg.Runs.GetInstalled().GetController()
+	controller, parseErr := apitypes.ParseRuntimeControllerName(handle)
+	if parseErr != nil {
 		t.Fatal("client did not receive the actual Controller identity")
 	}
-	trace, err := reader.ReadRunTrace(ctx, nha056SessionRequest(&obs.ReadRunTraceRequest{Controller: handle, RunId: uint64(actual.ID())}, token))
-	if err != nil || contracts.AdmitObservabilityResponse(trace.Msg) != nil || trace.Msg.GetPage() == nil || len(trace.Msg.GetPage().Rows) == 0 {
+	trace, err := reader.QueryRunTrace(ctx, nha056SessionRequest(&obsv2.QueryRunTraceRequest{Parent: nha203ObservationRun(t, handle, uint64(actual.ID()))}, token))
+	if err != nil || contracts.AdmitObservationResponse(trace.Msg) != nil || trace.Msg == nil || len(trace.Msg.Rows) == 0 {
 		t.Fatal("published Controller identity did not address its actual native trace", err)
 	}
-	second, err := reader.GetMetrics(ctx, nha056SessionRequest(&obs.GetMetricsRequest{}, token))
-	if err != nil || !proto.Equal(handle, second.Msg.Metrics.Runs.GetInstalled().Controller) {
+	second, err := reader.GetMetrics(ctx, nha056SessionRequest(&obsv2.GetMetricsRequest{Name: home + "/metrics"}, token))
+	if err != nil || handle != second.Msg.Runs.GetInstalled().Controller {
 		t.Fatal("Controller handle changed without replacement", err)
 	}
-	changed := proto.Clone(handle).(*obs.ControllerHandle)
-	changed.Value[31] ^= 1
-	stale, err := reader.ReadRunTrace(ctx, nha056SessionRequest(&obs.ReadRunTraceRequest{Controller: changed, RunId: uint64(actual.ID())}, token))
-	if err != nil || stale.Msg.GetStaleCursor() == nil {
+	identity := controller.Identity()
+	changedIdentity := identity
+	changedIdentity[31] ^= 1
+	changedName, err := apitypes.RuntimeControllerNameForIdentity(controller.Home(), changedIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := changedName.String()
+	stale, err := reader.QueryRunTrace(ctx, nha056SessionRequest(&obsv2.QueryRunTraceRequest{Parent: nha203ObservationRun(t, changed, uint64(actual.ID()))}, token))
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition || stale != nil {
 		t.Fatal("another Controller identity disclosed a trace", err)
 	}
-	absent, err := reader.ReadRunTrace(ctx, nha056SessionRequest(&obs.ReadRunTraceRequest{Controller: handle, RunId: 999999}, token))
-	if err != nil || absent.Msg.GetNotRetained() == nil {
+	absent, err := reader.QueryRunTrace(ctx, nha056SessionRequest(&obsv2.QueryRunTraceRequest{Parent: nha203ObservationRun(t, handle, 999999)}, token))
+	if connect.CodeOf(err) != connect.CodeNotFound || absent != nil {
 		t.Fatal("run outside native retention was presented as durable history", err)
 	}
-	if !bytes.Equal(handle.Value[:16], first.Msg.Metrics.ProcessEpoch.Value) {
+	if !bytes.Equal(identity[:16], first.Msg.ProcessEpoch.Value) {
 		t.Fatal("Controller identity escaped its real process context")
 	}
 }

@@ -14,13 +14,13 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/compat/ha/ir"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
-	"github.com/damione1/Homeward/gen/home/configuration/v1/configurationv1connect"
-	wire "github.com/damione1/Homeward/gen/home/configurationapply/v1"
-	"github.com/damione1/Homeward/gen/home/configurationapply/v1/configurationapplyv1connect"
-	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
-	"github.com/damione1/Homeward/gen/home/configurationplan/v1/configurationplanv1connect"
+	configuration "github.com/damione1/Homeward/gen/home/api/v2"
+	planwire "github.com/damione1/Homeward/gen/home/api/v2"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationapplyv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationplanv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/configactivation"
@@ -111,10 +111,12 @@ func (f *nha055PublicationFixture) startRun(t *testing.T) {
 	f.run = run
 	client := nha162RunClient(t, f.roots, run.address)
 	base := "https://" + run.address.String()
-	f.authentication = authv1connect.NewAuthServiceClient(client, base)
+	f.authentication = apiv2connect.NewAuthServiceClient(client, base)
 	f.api = configurationv1connect.NewConfigurationServiceClient(client, base)
+	f.http = client
+	f.origin = base
 	f.plans = configurationplanv1connect.NewConfigurationPlanServiceClient(client, base)
-	f.policies = authv1connect.NewAuthorizationPolicyServiceClient(client, base)
+	f.policies = apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
 	f.apply = configurationapplyv1connect.NewConfigurationApplyServiceClient(client, base)
 }
 
@@ -122,6 +124,7 @@ func (f *nha055PublicationFixture) login(t *testing.T) {
 	t.Helper()
 	f.tokens = nha162RunLogin(t, f.ctx, f.authentication, "NHA055 publication admin", "NHA055 publication isolated password")
 	f.token = f.tokens.AccessToken
+	f.home = nha203PublicHomeName(t, f.ctx, f.http, f.origin, f.token)
 }
 
 func nha055PublicationExpected(id, path string, previous *configuration.DocumentVersion, raw []byte) *wire.SourcePrecondition {
@@ -146,37 +149,37 @@ func TestNHA055ActualRunTLSComposedSourceApplyRollbackAndRestart(t *testing.T) {
 	const automationRuntimeID = "nha055_publication"
 	cases := []struct {
 		name            string
-		family          planwire.SourceFamily
+		family          planwire.ConfigurationPlanSourceFamily
 		identity, entry string
 		raw             []byte
 	}{
-		{"declarative1", planwire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V1, "nha055.publication.definitions", "definitions.yaml", []byte("input_boolean:\n  away_mode: {name: 'NHA055 isolated helper', initial: false}\n")},
-		{"declarative2", planwire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V2, "nha055.publication.definitions", "definitions.yaml", []byte("input_boolean:\n  away_mode: {name: 'NHA055 isolated helper', initial: false}\n")},
-		{"dashboard", planwire.SourceFamily_SOURCE_FAMILY_DASHBOARD, "dashboard.nha055_publication", "dashboard.yaml", []byte("views: []\n")},
-		{"automation", planwire.SourceFamily_SOURCE_FAMILY_AUTOMATION, "automation.turn_on_lights_at_sunset", "automation.yaml", []byte("id: " + automationRuntimeID + "\ntriggers:\n - trigger: time\n   at: '18:00:00'\nactions:\n - stop: complete\n")},
-		{"script", planwire.SourceFamily_SOURCE_FAMILY_SCRIPT, "script.nha055_publication", "script.yaml", []byte("sequence:\n - stop: complete\n")},
-		{"scene", planwire.SourceFamily_SOURCE_FAMILY_SCENE, "scene.ceilling_fan_night", "scene.yaml", []byte("id: fixture\nname: NHA055 isolated scene\nentities:\n switch.arc_soundbar_crossfade: 'off'\n")},
-		{"ownership", planwire.SourceFamily_SOURCE_FAMILY_OWNERSHIP, "heating.ownership", "ownership.json", scope.HeatingOwnershipV1()},
+		{"declarative1", planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V1, "nha055.publication.definitions", "definitions.yaml", []byte("input_boolean:\n  away_mode: {name: 'NHA055 isolated helper', initial: false}\n")},
+		{"declarative2", planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V2, "nha055.publication.definitions", "definitions.yaml", []byte("input_boolean:\n  away_mode: {name: 'NHA055 isolated helper', initial: false}\n")},
+		{"dashboard", planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD, "dashboard.nha055_publication", "dashboard.yaml", []byte("views: []\n")},
+		{"automation", planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION, "automation.turn_on_lights_at_sunset", "automation.yaml", []byte("id: " + automationRuntimeID + "\ntriggers:\n - trigger: time\n   at: '18:00:00'\nactions:\n - stop: complete\n")},
+		{"script", planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT, "script.nha055_publication", "script.yaml", []byte("sequence:\n - stop: complete\n")},
+		{"scene", planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE, "scene.ceilling_fan_night", "scene.yaml", []byte("id: fixture\nname: NHA055 isolated scene\nentities:\n switch.arc_soundbar_crossfade: 'off'\n")},
+		{"ownership", planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OWNERSHIP, "heating.ownership", "ownership.json", scope.HeatingOwnershipV1()},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			f := nha055PublicationStart(t)
 			id := "nha055.publication." + c.name
 			before := f.read(t)
-			candidate := &planwire.Candidate{Family: c.family, Identity: c.identity, Entry: c.entry, Files: []*planwire.SourceFile{{LogicalPath: c.entry, ExactSource: bytes.Clone(c.raw)}}}
-			apply := func(base *configuration.ReadDocumentResponse, raw []byte, previous *configuration.DocumentVersion, previousRaw []byte) *wire.ApplyResponse {
+			candidate := &planwire.ConfigurationPlanCandidate{Family: c.family, Identity: c.identity, Entry: c.entry, Files: []*planwire.ConfigurationPlanSourceFile{{LogicalPath: c.entry, ExactSource: bytes.Clone(c.raw)}}}
+			apply := func(base *configuration.ConfigurationDocument, raw []byte, previous *configuration.DocumentVersion, previousRaw []byte) *configuration.ConfigurationDocument {
 				t.Helper()
-				next := proto.Clone(candidate).(*planwire.Candidate)
+				next := proto.Clone(candidate).(*planwire.ConfigurationPlanCandidate)
 				next.Files[0].ExactSource = bytes.Clone(raw)
 				plan := f.build(t, next)
-				request := nha055Request(base, next, &plan.Receipt)
+				request := nha055Request(base, next, plan)
 				request.Sources = []*wire.SourcePrecondition{nha055PublicationExpected(id, c.entry, previous, previousRaw)}
 				// The journal can already have a documentary Refresh batch
 				// queued before activation. It is valid history, not the
 				// coalesced publication signal; keep reading until real resync.
 				watchCtx, stopWatch := context.WithTimeout(f.ctx, 10*time.Second)
 				defer stopWatch()
-				stream, err := f.api.WatchConfiguration(watchCtx, nha056SessionRequest(&configuration.WatchConfigurationRequest{ResumeToken: base.ResumeToken}, f.token))
+				stream, err := f.api.WatchConfiguration(watchCtx, nha056SessionRequest(&configuration.WatchConfigurationRequest{Parent: nha203DocumentParent(base.Name), ResumeToken: base.ResumeToken}, f.token))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -184,11 +187,11 @@ func TestNHA055ActualRunTLSComposedSourceApplyRollbackAndRestart(t *testing.T) {
 				if !stream.Receive() || stream.Msg().GetReady() == nil {
 					t.Fatal("publication watch not ready", stream.Err())
 				}
-				response, err := f.apply.Apply(f.ctx, nha056SessionRequest(request, f.token))
+				response, err := f.apply.ApplyConfigurationPlan(f.ctx, nha056SessionRequest(request, f.token))
 				if err != nil {
 					t.Fatal("composed source Apply", err)
 				}
-				if response.Msg.Activation.Outcome != configuration.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED || response.Msg.Current.ActiveGeneration.Revision != base.ActiveGeneration.Revision+1 {
+				if !response.Msg.Done || f.read(t).ActiveGeneration.Revision != base.ActiveGeneration.Revision+1 {
 					t.Fatal("source Apply did not publish exactly one new generation")
 				}
 				resynchronized := false
@@ -207,33 +210,33 @@ func TestNHA055ActualRunTLSComposedSourceApplyRollbackAndRestart(t *testing.T) {
 				if !resynchronized {
 					t.Fatal("source publication did not notify actual public consumer", stream.Err())
 				}
-				return response.Msg
+				return f.read(t)
 			}
 			readSource := func() *configuration.DocumentVersion {
 				t.Helper()
-				value, err := f.api.ReadDocument(f.ctx, nha056SessionRequest(&configuration.ReadDocumentRequest{Id: &configuration.DocumentId{Value: id}}, f.token))
-				if err != nil || value.Msg.Document == nil || value.Msg.Document.Version == nil {
+				value, err := f.api.GetConfigurationDocument(f.ctx, nha056SessionRequest(&configuration.GetConfigurationDocumentRequest{Name: nha203PublicDocumentName(t, f.ctx, f.http, f.origin, f.token, id)}, f.token))
+				if err != nil || value.Msg == nil || value.Msg.Version == nil {
 					t.Fatal("published source not readable through TLS", err)
 				}
-				return value.Msg.Document.Version
+				return value.Msg.Version
 			}
 			first := apply(before, c.raw, nil, nil)
 			firstVersion := readSource()
 			secondRaw := append(bytes.Clone(c.raw), []byte("\n")...)
-			second := apply(first.Current, secondRaw, firstVersion, c.raw)
+			second := apply(first, secondRaw, firstVersion, c.raw)
 			secondVersion := readSource()
 			if secondVersion.Revision != firstVersion.Revision+1 {
 				t.Fatal("source Apply did not create a new source revision")
 			}
-			restored, err := f.apply.Rollback(f.ctx, nha056SessionRequest(&wire.RollbackRequest{
-				Id: second.Current.Document.Id, Expected: second.Current.Document.Version, ExpectedWorkspaceSha256: second.Current.Document.GetWorkspace().SourceSha256,
-				Historical: first.Current.ActiveGeneration, Family: c.family, Identity: c.identity,
+			restored, err := f.apply.RollbackConfiguration(f.ctx, nha056SessionRequest(&wire.RollbackConfigurationRequest{
+				Name: second.Name, Expected: second.Version, ExpectedWorkspaceSha256: second.GetWorkspace().SourceSha256,
+				Historical: first.ActiveGeneration, Family: c.family, Identity: c.identity,
 				Sources: []*wire.SourcePrecondition{nha055PublicationExpected(id, c.entry, secondVersion, secondRaw)},
 			}, f.token))
 			if err != nil {
 				t.Fatal("composed source rollback", err)
 			}
-			if restored.Msg.Activation.Outcome != configuration.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED || restored.Msg.Current.ActiveGeneration.Revision != second.Current.ActiveGeneration.Revision+1 {
+			if !restored.Msg.Done || f.read(t).ActiveGeneration.Revision != second.ActiveGeneration.Revision+1 {
 				t.Fatal("rollback did not create a new published generation")
 			}
 			thirdVersion := readSource()
@@ -243,7 +246,7 @@ func TestNHA055ActualRunTLSComposedSourceApplyRollbackAndRestart(t *testing.T) {
 			check := func() {
 				t.Helper()
 				active, present, err := f.actual.store.ReadActiveConfig(f.ctx)
-				if err != nil || !present || active.Revision().Number() != restored.Msg.Current.ActiveGeneration.Revision {
+				if err != nil || !present || active.Revision().Number() != f.read(t).ActiveGeneration.Revision {
 					t.Fatal("actual SQL active generation differs", err)
 				}
 				stamp, err := f.owner.CurrentConfig(f.ctx)
@@ -277,7 +280,7 @@ func TestNHA055ActualRunTLSComposedSourceApplyRollbackAndRestart(t *testing.T) {
 					t.Fatal("publication/rollback/restart dispatched a physical command")
 				}
 
-				if c.family == planwire.SourceFamily_SOURCE_FAMILY_DASHBOARD {
+				if c.family == planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD {
 					dashboard, err := authorization.ParseDashboardID(c.identity)
 					if err != nil {
 						t.Fatal(err)
@@ -287,13 +290,13 @@ func TestNHA055ActualRunTLSComposedSourceApplyRollbackAndRestart(t *testing.T) {
 						t.Fatal("published dashboard consumer lost the exact compiled source", err)
 					}
 				}
-				if c.family == planwire.SourceFamily_SOURCE_FAMILY_OWNERSHIP {
+				if c.family == planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OWNERSHIP {
 					decision, present, err := f.owner.CurrentOwnership(f.ctx)
 					if err != nil || !present || len(decision.Pairs()) == 0 {
 						t.Fatal("published ownership consumer lost the admitted decision", err)
 					}
 				}
-				if c.family == planwire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V1 || c.family == planwire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V2 {
+				if c.family == planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V1 || c.family == planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V2 {
 					projection, err := f.actual.sequence.Capture()
 					if err != nil {
 						t.Fatal(err)
@@ -316,14 +319,14 @@ func TestNHA055ActualRunTLSComposedSourceApplyRollbackAndRestart(t *testing.T) {
 						t.Fatal("published registry/helper consumer did not receive declarative definition")
 					}
 				}
-				if c.family == planwire.SourceFamily_SOURCE_FAMILY_AUTOMATION {
+				if c.family == planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION {
 					plan, err := f.actual.runs.CloneTriggerPlan()
 					ids := plan.AutomationIDs()
 					if err != nil || !plan.Valid() || len(ids) != 1 || ids[0] != automationRuntimeID {
 						t.Fatalf("actual run consumer automation IDs = %v, want [%s]: %v", ids, automationRuntimeID, err)
 					}
 				}
-				if c.family == planwire.SourceFamily_SOURCE_FAMILY_SCRIPT {
+				if c.family == planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT {
 					script, err := ir.ParseScriptID(c.identity)
 					if err != nil {
 						t.Fatal(err)
@@ -338,18 +341,18 @@ func TestNHA055ActualRunTLSComposedSourceApplyRollbackAndRestart(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if c.family != planwire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V1 && c.family != planwire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V2 {
+			if c.family != planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V1 && c.family != planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V2 {
 				var descriptor storage.SourceDescriptor
 				switch c.family {
-				case planwire.SourceFamily_SOURCE_FAMILY_DASHBOARD:
+				case planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD:
 					descriptor, err = storage.DashboardSourceDescriptor(c.identity, c.entry)
-				case planwire.SourceFamily_SOURCE_FAMILY_AUTOMATION:
+				case planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION:
 					descriptor, err = storage.AutomationSourceDescriptor(c.identity, c.entry)
-				case planwire.SourceFamily_SOURCE_FAMILY_SCRIPT:
+				case planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT:
 					descriptor, err = storage.ScriptSourceDescriptor(c.identity, c.entry)
-				case planwire.SourceFamily_SOURCE_FAMILY_SCENE:
+				case planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE:
 					descriptor, err = storage.SceneSourceDescriptor(c.identity, c.entry)
-				case planwire.SourceFamily_SOURCE_FAMILY_OWNERSHIP:
+				case planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OWNERSHIP:
 					descriptor, err = storage.OwnershipSourceDescriptor(c.identity, c.entry)
 				}
 				if err != nil {

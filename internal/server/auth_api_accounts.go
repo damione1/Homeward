@@ -39,12 +39,19 @@ func (h *accountResourceHandler) CreateAccount(ctx context.Context, request *con
 	if err != nil {
 		return nil, authAPIError(ctx, authInvalid(r, "account.role", api.ValidationReason_VALIDATION_REASON_UNKNOWN_VALUE))
 	}
-	if r.Account.State != api.AccountState_ACCOUNT_STATE_UNSPECIFIED && r.Account.State != api.AccountState_ACCOUNT_STATE_ACTIVE {
-		return nil, authAPIError(ctx, authInvalid(r, "account.state", api.ValidationReason_VALIDATION_REASON_UNKNOWN_VALUE))
+	if r.Account.Access != api.AccountAccess_ACCOUNT_ACCESS_UNSPECIFIED && r.Account.Access != api.AccountAccess_ACCOUNT_ACCESS_ENABLED {
+		return nil, authAPIError(ctx, authInvalid(r, "account.access", api.ValidationReason_VALIDATION_REASON_UNKNOWN_VALUE))
 	}
 	input, err := newAccountInput(ctx, r.Account.LoginName, r.Account.DisplayName, r.Account.InitialPassword, role)
 	if err != nil {
 		return nil, authAPIError(ctx, err)
+	}
+	if r.AccountId != "" {
+		chosen, parseErr := storage.ParseAPIRequestedResourceID(r.AccountId)
+		if parseErr != nil {
+			return nil, authAPIError(ctx, authInvalid(r, "account_id", api.ValidationReason_VALIDATION_REASON_INVALID_FORMAT))
+		}
+		input.PublicID = &chosen
 	}
 	guard, err := h.accountCreationGuard(ctx, input.ID)
 	if err != nil {
@@ -221,7 +228,7 @@ func (h *accountResourceHandler) DeleteAccount(ctx context.Context, request *con
 	if err != nil {
 		return nil, authAPIError(ctx, err)
 	}
-	err = h.store.DeleteAccountIfCurrent(ctx, actor, target, expected)
+	err = h.store.DeleteAccountIfCurrent(ctx, actor, target, expected, r.Force)
 	if err := finishAccountMutation(guard, ctx, err, true); err != nil {
 		return nil, authAPIError(ctx, err)
 	}

@@ -62,7 +62,7 @@ func nha202NewMediaAPI(t *testing.T) *nha202MediaRig {
 	if err := registerMediaResourceRoutes(plan, handler); err != nil {
 		t.Fatal(err)
 	}
-	plan, _, err = composeSessionsWithCoordinator(plan, r.store, r.coordinator)
+	plan, _, err = composeSessionsWithCoordinator(plan, r.store, r.coordinator, administrationNames{home: r.lists.registry, store: r.store})
 	if err != nil {
 		t.Fatal(err)
 	}

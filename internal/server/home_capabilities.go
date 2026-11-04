@@ -23,6 +23,11 @@ func preparedCapabilities(page view.Page) ([]apiresources.Capability, error) {
 }
 
 func (h *homeResourceHandler) GetCapability(ctx context.Context, request *connect.Request[api.GetCapabilityRequest]) (*connect.Response[api.Capability], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	permission := homeReadPermission()
 	_, current, err := h.current(ctx, &permission)
 	if err != nil {
@@ -40,7 +45,7 @@ func (h *homeResourceHandler) GetCapability(ctx context.Context, request *connec
 		return nil, apiRPCError(ctx, err)
 	}
 	actor, _ := coreRPCActor(ctx)
-	defer h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken)
+	defer releaseReadResponse(ctx, func() { _ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken) })
 	values, err := preparedCapabilities(page)
 	if err != nil {
 		return nil, apiRPCError(ctx, err)
@@ -48,6 +53,9 @@ func (h *homeResourceHandler) GetCapability(ctx context.Context, request *connec
 	for _, capability := range values {
 		resource := capability.Resource()
 		if resource.Name == name.String() {
+			if err := h.retainReadCapture(ctx, page.SnapshotToken); err != nil {
+				return nil, apiRPCError(ctx, err)
+			}
 			return connect.NewResponse(resource), nil
 		}
 	}
@@ -55,6 +63,11 @@ func (h *homeResourceHandler) GetCapability(ctx context.Context, request *connec
 }
 
 func (h *homeResourceHandler) ListCapabilities(ctx context.Context, request *connect.Request[api.ListCapabilitiesRequest]) (*connect.Response[api.ListCapabilitiesResponse], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	permission := homeReadPermission()
 	_, current, err := h.current(ctx, &permission)
 	if err != nil {
@@ -68,6 +81,20 @@ func (h *homeResourceHandler) ListCapabilities(ctx context.Context, request *con
 	if err != nil {
 		return nil, apiRPCError(ctx, homeValidation(r, "parent", api.ValidationReason_VALIDATION_REASON_INVALID_NAME))
 	}
+	admittedPage, err := h.entityPage(ctx, parent, current)
+	if err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	actor, err := coreRPCActor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	admittedOwned := true
+	defer func() {
+		if admittedOwned {
+			releaseReadResponse(ctx, func() { _ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, admittedPage.SnapshotToken) })
+		}
+	}()
 	size, err := homePageSize(r, r.PageSize)
 	if err != nil {
 		return nil, apiRPCError(ctx, err)
@@ -76,14 +103,10 @@ func (h *homeResourceHandler) ListCapabilities(ctx context.Context, request *con
 	if err != nil {
 		return nil, apiRPCError(ctx, err)
 	}
-	actor, err := coreRPCActor(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var page view.Page
 	offset := 0
 	if r.PageToken == "" {
-		page, err = h.entityPage(ctx, parent, current)
+		page = admittedPage
 	} else {
 		var cursor homePageCursor
 		cursor, err = h.openPage(r.PageToken, binding)
@@ -98,10 +121,13 @@ func (h *homeResourceHandler) ListCapabilities(ctx context.Context, request *con
 	if err != nil {
 		return nil, apiRPCError(ctx, err)
 	}
+	if r.PageToken == "" {
+		admittedOwned = false
+	}
 	retain := r.PageToken != ""
 	defer func() {
 		if !retain {
-			_ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken)
+			releaseReadResponse(ctx, func() { _ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken) })
 		}
 	}()
 	values, err := preparedCapabilities(page)
@@ -125,5 +151,8 @@ func (h *homeResourceHandler) ListCapabilities(ctx context.Context, request *con
 	// A capture remains available until its bounded TTL even after the last page:
 	// a lost response may be retried with the same opaque continuation.
 	retain = retain || out.NextPageToken != ""
+	if err := h.retainReadCapture(ctx, page.SnapshotToken); err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
 	return connect.NewResponse(out), nil
 }

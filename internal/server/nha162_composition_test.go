@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -12,34 +13,27 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/damione1/Homeward/contracts"
-	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	listsv1 "github.com/damione1/Homeward/gen/home/lists/v1"
-	"github.com/damione1/Homeward/gen/home/lists/v1/listsv1connect"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/lists"
 	"github.com/damione1/Homeward/internal/registry"
 	"github.com/damione1/Homeward/internal/storage"
-	"github.com/jackc/pgx/v5"
-	"google.golang.org/protobuf/types/known/emptypb"
+	"github.com/damione1/Homeward/internal/tasknames"
 )
 
 func nha162ImportContext(t *testing.T, r *nha162RPCRig) context.Context {
 	t.Helper()
-	response, err := r.auth.StartLogin(r.ctx, connect.NewRequest(&authv1.StartLoginRequest{
+	response, err := r.auth.StartLogin(r.ctx, connect.NewRequest(&wire.StartLoginRequest{
 		LoginName: "NHA162 Admin", Password: "NHA162 synthetic admin password canary",
 	}))
 	if err != nil || response == nil || response.Msg.Decision.GetAuthenticated() == nil {
 		t.Fatal("synthetic importer native login:", err)
 	}
 	tokens := response.Msg.Decision.GetAuthenticated()
-	session, err := contracts.ParseSessionID(tokens.Session.Id.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	session := nha203NativeSession(t, r.ctx, r.store, tokens.Session.Name)
 	principal, err := authorization.NativePrincipal(r.admin, session)
 	if err != nil {
 		t.Fatal(err)
@@ -121,8 +115,8 @@ func TestNHA162ComposedImporterChecksMutableRegistryBeforeDomain(t *testing.T) {
 				if !errors.Is(err, ErrListImportBinding) || receipt.Outcome() != lists.ReceiptInvalid {
 					t.Fatal("conflicting registry identity admitted an import:", err)
 				}
-				count, err := r.client.CountLists(r.ctx, nha162Bearer(&listsv1.CountListsRequest{}, r.adminToken))
-				if err != nil || count.Msg.Count != 0 {
+				count, err := r.tasks.ListTaskLists(r.ctx, nha162Bearer(&wire.ListTaskListsRequest{Parent: r.taskHome(t)}, r.adminToken))
+				if err != nil || count.Msg.TotalSize != 0 {
 					t.Fatal("rejected registry guard changed durable lists:", err)
 				}
 				return
@@ -159,9 +153,21 @@ func TestNHA162ComposedImporterChecksMutableRegistryBeforeDomain(t *testing.T) {
 			if _, err := r.lists.ImportLegacyItem(ctx, receipt.ListID(), alias, legacyItem, expected); err != nil {
 				t.Fatal("composed item importer rejected an unchanged original alias:", err)
 			}
-			page, err := r.client.ListItems(r.ctx, nha162Bearer(&listsv1.ListItemsRequest{ListId: &listsv1.ListId{Value: listText}, PageSize: 1}, r.adminToken))
-			if err != nil || len(page.Msg.Items) != 1 || page.Msg.Items[0].Uid.Value != "nha162-synthetic-composed-item" {
-				t.Fatal("composed import did not persist through the common ListService:", err)
+			home, err := r.lists.registry.HomeName(r.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			name, err := tasknames.List(home, receipt.ListID())
+			if err != nil {
+				t.Fatal(err)
+			}
+			page, err := r.tasks.ListTasks(r.ctx, nha162Bearer(&wire.ListTasksRequest{Parent: name.String(), PageSize: 1}, r.adminToken))
+			if err != nil || len(page.Msg.Tasks) != 1 {
+				t.Fatal("composed import did not persist through the common TaskService:", err)
+			}
+			imported, err := tasknames.ParseTask(page.Msg.Tasks[0].Name)
+			if err != nil || imported.Parent() != name || imported.UID() != uid || page.Msg.Tasks[0].Summary != "Synthetic composed item" {
+				t.Fatal("canonical task name/content lost imported native identity:", page.Msg.Tasks[0], err)
 			}
 		})
 	}
@@ -205,7 +211,7 @@ func TestNHA162RealWatchRPCBlockedWriterResyncsWithoutBlockingOthers(t *testing.
 	watchDone := make(chan struct{})
 	compiledMux := r.server.Config.Handler
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != listsv1connect.ListServiceWatchListsProcedure {
+		if request.URL.Path != apiv2connect.TaskServiceWatchTaskListsProcedure {
 			compiledMux.ServeHTTP(writer, request)
 			return
 		}
@@ -219,13 +225,13 @@ func TestNHA162RealWatchRPCBlockedWriterResyncsWithoutBlockingOthers(t *testing.
 	client := server.Client()
 	client.Timeout = 45 * time.Second
 	t.Cleanup(client.CloseIdleConnections)
-	api := listsv1connect.NewListServiceClient(client, server.URL)
+	api := apiv2connect.NewTaskServiceClient(client, server.URL)
 	ctx, cancel := context.WithTimeout(r.ctx, 40*time.Second)
 	defer cancel()
-	scope := func() *listsv1.WatchListsRequest {
-		return &listsv1.WatchListsRequest{Scope: &listsv1.WatchListsRequest_Catalog{Catalog: &emptypb.Empty{}}}
+	scope := func() *wire.WatchTaskListsRequest {
+		return &wire.WatchTaskListsRequest{Parent: r.taskHome(t)}
 	}
-	slow, err := api.WatchLists(ctx, nha162Bearer(scope(), r.adminToken))
+	slow, err := api.WatchTaskLists(ctx, nha162Bearer(scope(), r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,11 +239,11 @@ func TestNHA162RealWatchRPCBlockedWriterResyncsWithoutBlockingOthers(t *testing.
 	if !slow.Receive() || slow.Msg().GetReady() == nil {
 		t.Fatal("blocked-writer Watch did not establish its subscription:", slow.Err())
 	}
-	page, err := r.client.ListLists(ctx, nha162Bearer(&listsv1.ListListsRequest{PageSize: 1}, r.adminToken))
-	if err != nil || len(page.Msg.Lists) != 0 {
+	page, err := r.tasks.ListTaskLists(ctx, nha162Bearer(&wire.ListTaskListsRequest{Parent: r.taskHome(t), PageSize: 1}, r.adminToken))
+	if err != nil || len(page.Msg.TaskLists) != 0 {
 		t.Fatal("blocked-writer reload after ready:", err)
 	}
-	fast, err := r.client.WatchLists(ctx, nha162Bearer(scope(), r.adminToken))
+	fast, err := r.tasks.WatchTaskLists(ctx, nha162Bearer(scope(), r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,11 +251,11 @@ func TestNHA162RealWatchRPCBlockedWriterResyncsWithoutBlockingOthers(t *testing.
 	if !fast.Receive() || fast.Msg().GetReady() == nil {
 		t.Fatal("fast Watch did not establish its subscription:", fast.Err())
 	}
-	first, err := r.client.CreateList(ctx, nha162Bearer(&listsv1.CreateListRequest{Name: "Synthetic blocked frame"}, r.adminToken))
+	first, err := r.tasks.CreateTaskList(ctx, nha162Bearer(&wire.CreateTaskListRequest{Parent: r.taskHome(t), TaskList: &wire.TaskList{DisplayName: "Synthetic blocked frame"}}, r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !fast.Receive() || fast.Msg().GetChanged() == nil || fast.Msg().GetChanged().ListId.Value != first.Msg.Receipt.ListId.Value {
+	if !fast.Receive() || fast.Msg().GetChanged() == nil || fast.Msg().GetChanged().TaskList != first.Msg.Name {
 		t.Fatal("another Watch did not receive the first change:", fast.Err())
 	}
 	select {
@@ -258,23 +264,23 @@ func TestNHA162RealWatchRPCBlockedWriterResyncsWithoutBlockingOthers(t *testing.
 		t.Fatal("real Watch handler never reached its blocked response writer")
 	}
 	for i := 0; i <= lists.MaxNotificationQueue; i++ {
-		created, err := r.client.CreateList(ctx, nha162Bearer(&listsv1.CreateListRequest{Name: "Synthetic queued invalidation"}, r.adminToken))
+		created, err := r.tasks.CreateTaskList(ctx, nha162Bearer(&wire.CreateTaskListRequest{Parent: r.taskHome(t), TaskList: &wire.TaskList{DisplayName: "Synthetic queued invalidation"}}, r.adminToken))
 		if err != nil {
 			t.Fatal("slow Watch blocked a writer:", err)
 		}
-		if !fast.Receive() || fast.Msg().GetChanged() == nil || fast.Msg().GetChanged().ListId.Value != created.Msg.Receipt.ListId.Value {
+		if !fast.Receive() || fast.Msg().GetChanged() == nil || fast.Msg().GetChanged().TaskList != created.Msg.Name {
 			t.Fatal("slow Watch blocked another Watch:", fast.Err())
 		}
 	}
-	count, err := r.client.CountLists(ctx, nha162Bearer(&listsv1.CountListsRequest{}, r.adminToken))
-	if err != nil || count.Msg.Count != uint64(lists.MaxNotificationQueue+2) {
+	count, err := r.tasks.ListTaskLists(ctx, nha162Bearer(&wire.ListTaskListsRequest{Parent: r.taskHome(t)}, r.adminToken))
+	if err != nil || count.Msg.TotalSize != int32(lists.MaxNotificationQueue+2) {
 		t.Fatal("writes did not finish while the real Watch send was blocked:", err)
 	}
 	gate.open()
-	if !slow.Receive() || slow.Msg().GetChanged() == nil || slow.Msg().GetChanged().ListId.Value != first.Msg.Receipt.ListId.Value || slow.Msg().StreamSequence != 2 {
+	if !slow.Receive() || slow.Msg().GetChanged() == nil || slow.Msg().GetChanged().TaskList != first.Msg.Name || slow.Msg().Sequence != 2 {
 		t.Fatal("blocked first change did not finish after release:", slow.Err())
 	}
-	if !slow.Receive() || slow.Msg().GetResyncRequired() == nil || slow.Msg().GetChanged() != nil || slow.Msg().StreamSequence != 3 {
+	if !slow.Receive() || slow.Msg().GetResyncRequired() == nil || slow.Msg().GetChanged() != nil || slow.Msg().Sequence != 3 {
 		t.Fatal("real overflow did not become an identity-free terminal resync:", slow.Err())
 	}
 	if slow.Receive() || slow.Err() != nil {
@@ -296,7 +302,7 @@ func TestNHA162AmbiguousCommitWireErrorsAreRedacted(t *testing.T) {
 		{lists.CommitUnknown, connect.CodeUnknown, "COMMIT_OUTCOME_UNKNOWN"},
 		{lists.CommittedResponseWithheld, connect.CodePermissionDenied, "ACCESS_DENIED"},
 	} {
-		err := listRPCCode(variant.domain)
+		err := listFault(variant.domain).Connect()
 		if connect.CodeOf(err) != variant.status || nha200Info(t, err).Reason != variant.reason {
 			t.Fatal(err)
 		}
@@ -336,35 +342,46 @@ func TestNHA162RealRPCKnownCommitWithholdsReceiptAfterPolicyRevocation(t *testin
 	ctx, cancel := context.WithTimeout(r.ctx, 30*time.Second)
 	defer cancel()
 	const password = "NHA162 synthetic withheld writer password"
-	user, err := r.accounts.CreateAccount(ctx, nha162Bearer(&authv1.CreateAccountRequest{
+	user, err := r.accounts.CreateAccount(ctx, nha162Bearer(&wire.CreateAccountRequest{Parent: r.taskHome(t), Account: &wire.Account{
 		LoginName: "NHA162 Withheld Writer", DisplayName: "NHA162 Withheld Writer",
-		Role: authv1.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password,
-	}, r.adminToken))
+		Role: wire.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password,
+	}}, r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	account, err := contracts.ParseAccountID(user.Msg.Account.Id.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	account := nha203NativeAccount(t, ctx, r.store, user.Msg.Name)
 	nha162SetPolicy(t, r, account, `  - scope: {family: lists, operation: write}
     objects: {lists: {all: {}}}
 `)
 	userToken := r.login(t, "NHA162 Withheld Writer", password)
-	created, err := r.client.CreateList(ctx, nha162Bearer(&listsv1.CreateListRequest{Name: "Before withheld response"}, r.adminToken))
+	created, err := r.tasks.CreateTaskList(ctx, nha162Bearer(&wire.CreateTaskListRequest{Parent: r.taskHome(t), TaskList: &wire.TaskList{DisplayName: "Before withheld response"}}, r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, initial := created.Msg.Receipt.ListId, created.Msg.Receipt.ListRevision
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(r.server.Client(), r.server.URL)
-	policy, err := policies.GetPolicy(ctx, nha162Bearer(&authv1.GetPolicyRequest{AccountId: user.Msg.Account.Id}, r.adminToken))
-	if err != nil || policy == nil || policy.Msg.GetPresent() == nil {
+	id, initial := created.Msg.Name, created.Msg.Etag
+	parsed, err := tasknames.ParseList(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nativeID, err := parsed.ID().Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var initialRevision int64
+	if err = r.store.InTransaction(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT revision FROM public.homeward_lists WHERE list_id=$1`, nativeID).Scan(&initialRevision)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(r.server.Client(), r.server.URL)
+	policy, err := policies.GetAuthorizationPolicy(ctx, nha162Bearer(&wire.GetAuthorizationPolicyRequest{Name: user.Msg.Name + "/authorizationPolicy"}, r.adminToken))
+	if err != nil || policy == nil || policy.Msg == nil {
 		t.Fatal("could not capture the real policy CAS:", err)
 	}
 	var renameCalls atomic.Int32
 	mux := r.server.Config.Handler
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path == listsv1connect.ListServiceRenameListProcedure {
+		if request.URL.Path == apiv2connect.TaskServiceUpdateTaskListProcedure {
 			renameCalls.Add(1)
 		}
 		mux.ServeHTTP(writer, request)
@@ -375,7 +392,7 @@ func TestNHA162RealRPCKnownCommitWithholdsReceiptAfterPolicyRevocation(t *testin
 	httpClient := server.Client()
 	httpClient.Timeout = 30 * time.Second
 	t.Cleanup(httpClient.CloseIdleConnections)
-	api := listsv1connect.NewListServiceClient(httpClient, server.URL)
+	api := apiv2connect.NewTaskServiceClient(httpClient, server.URL)
 
 	locked := make(chan int, 1)
 	release := make(chan struct{})
@@ -408,7 +425,7 @@ func TestNHA162RealRPCKnownCommitWithholdsReceiptAfterPolicyRevocation(t *testin
 		defer close(rowDone)
 		rowResult <- r.store.InTransaction(ctx, func(tx pgx.Tx) error {
 			var one, pid int
-			if err := tx.QueryRow(ctx, `SELECT 1 FROM public.homeward_lists WHERE list_id=$1 FOR UPDATE`, id.Value).Scan(&one); err != nil {
+			if err := tx.QueryRow(ctx, `SELECT 1 FROM public.homeward_lists WHERE list_id=$1 FOR UPDATE`, nativeID).Scan(&one); err != nil {
 				return err
 			}
 			if err := tx.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
@@ -432,33 +449,31 @@ func TestNHA162RealRPCKnownCommitWithholdsReceiptAfterPolicyRevocation(t *testin
 		t.Fatal(ctx.Err())
 	}
 	type renameResult struct {
-		response *connect.Response[listsv1.RenameListResponse]
+		response *connect.Response[wire.TaskList]
 		err      error
 	}
 	renamed := make(chan renameResult, 1)
 	renameStarted = true
 	go func() {
 		defer close(renameDone)
-		response, err := api.RenameList(ctx, nha162Bearer(&listsv1.RenameListRequest{
-			ListId: id, ExpectedRevision: initial, Name: "Committed with response withheld",
-		}, userToken))
+		response, err := api.UpdateTaskList(ctx, nha162Bearer(&wire.UpdateTaskListRequest{TaskList: &wire.TaskList{Name: id, Etag: initial, DisplayName: "Committed with response withheld"}}, userToken))
 		renamed <- renameResult{response, err}
 	}()
 	// The real domain call has passed its account/policy SQL share fences and
 	// is now waiting for the fixture row. No domain hook is installed.
 	renamePID := nha162WaitSQLBlockedBy(t, ctx, r.store, rowPID, "%FROM public.homeward_lists WHERE list_id=$1 FOR UPDATE%")
 	type policyResult struct {
-		response *connect.Response[authv1.ReplacePolicyResponse]
+		response *connect.Response[wire.ReplaceAuthorizationPolicyResponse]
 		err      error
 	}
 	withdrawn := make(chan policyResult, 1)
 	policyStarted = true
 	go func() {
 		defer close(policyDone)
-		response, err := policies.ReplacePolicy(ctx, nha162Bearer(&authv1.ReplacePolicyRequest{
-			AccountId:    user.Msg.Account.Id,
-			YamlSource:   []byte(fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants: []\n", user.Msg.Account.Id.Value)),
-			Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: policy.Msg.GetPresent().Version},
+		response, err := policies.ReplaceAuthorizationPolicy(ctx, nha162Bearer(&wire.ReplaceAuthorizationPolicyRequest{
+			Name:         user.Msg.Name + "/authorizationPolicy",
+			YamlSource:   []byte(fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants: []\n", nha203AccountText(t, account))),
+			Precondition: &wire.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: policy.Msg.Etag},
 		}, r.adminToken))
 		withdrawn <- policyResult{response, err}
 	}()
@@ -476,7 +491,7 @@ func TestNHA162RealRPCKnownCommitWithholdsReceiptAfterPolicyRevocation(t *testin
 	}
 	select {
 	case result := <-withdrawn:
-		if result.err != nil || result.response == nil || result.response.Msg.RightsChange != authv1.PolicyRightsChange_POLICY_RIGHTS_CHANGE_CHANGED {
+		if result.err != nil || result.response == nil || result.response.Msg.RightsChange != wire.PolicyRightsChange_POLICY_RIGHTS_CHANGE_CHANGED {
 			t.Fatal("native policy revocation did not commit/publish:", result.err)
 		}
 	case <-ctx.Done():
@@ -497,10 +512,16 @@ func TestNHA162RealRPCKnownCommitWithholdsReceiptAfterPolicyRevocation(t *testin
 	if renameCalls.Load() != 1 {
 		t.Fatalf("client retried the ambiguous commit: Rename HTTP calls=%d", renameCalls.Load())
 	}
-	final, err := r.client.GetList(ctx, nha162Bearer(&listsv1.GetListRequest{ListId: id}, r.adminToken))
-	if err != nil || final.Msg.List.Name != "Committed with response withheld" || final.Msg.List.Revision.Number != initial.Number+1 {
+	final, err := r.tasks.GetTaskList(ctx, nha162Bearer(&wire.GetTaskListRequest{Name: id}, r.adminToken))
+	if err != nil || final.Msg.DisplayName != "Committed with response withheld" || final.Msg.Etag == initial {
 		t.Fatal("withheld response did not leave exactly one durable mutation:", err)
 	}
-	_, err = api.GetList(ctx, nha162Bearer(&listsv1.GetListRequest{ListId: id}, userToken))
+	var finalRevision int64
+	if err = r.store.InTransaction(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT revision FROM public.homeward_lists WHERE list_id=$1`, nativeID).Scan(&finalRevision)
+	}); err != nil || finalRevision != initialRevision+1 {
+		t.Fatal("expected exactly one native SQL revision advance", err)
+	}
+	_, err = api.GetTaskList(ctx, nha162Bearer(&wire.GetTaskListRequest{Name: id}, userToken))
 	nha162Code(t, err, connect.CodePermissionDenied)
 }

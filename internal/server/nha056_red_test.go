@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/testpg"
 )
 
@@ -24,7 +24,7 @@ func TestNHA056ReadOutsideMCPOverCommonTLS(t *testing.T) {
 	defer cancel()
 	const login, password = "NHA056 admin", "NHA056 synthetic login canary"
 	nha162RunBootstrap(t, ctx, data, login, password)
-	auth := authv1connect.NewAuthServiceClient(client, base)
+	auth := apiv2connect.NewAuthServiceClient(client, base)
 	token := nha162RunLogin(t, ctx, auth, login, password).AccessToken
 	for _, tc := range []struct{ method, body string }{
 		{"GetHealth", `{}`},

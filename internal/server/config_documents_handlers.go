@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
-	"strconv"
 
 	longrunningpb "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"connectrpc.com/connect"
@@ -333,13 +332,7 @@ func (h *configDocumentsHandler) ListConfigurationRevisions(ctx context.Context,
 	result := &wire.ListConfigurationRevisionsResponse{}
 	var before int64
 	for _, version := range page.Documents() {
-		entry := &wire.ConfigurationRevision{Name: r.Msg.Parent + "/revisions/r-" + strconv.FormatInt(version.Ref().Revision().Number(), 10), Id: &wire.DocumentId{Value: id.String()}, Version: configVersion(version), Availability: wire.VersionAvailability_VERSION_AVAILABILITY_PURGED}
-		if version.Retained() {
-			entry.Availability = wire.VersionAvailability_VERSION_AVAILABILITY_RETAINED
-			updated, _ := version.UpdatedAt()
-			entry.UpdatedAt = timestamppb.New(updated)
-			entry.SchemaVersion = version.SchemaVersion()
-		}
+		entry := configurationRevisionWire(r.Msg.Parent, version)
 		result.Versions = append(result.Versions, entry)
 		before = version.Ref().Revision().Number()
 	}
@@ -374,12 +367,7 @@ func (h *configDocumentsHandler) ListConfigurationGenerations(ctx context.Contex
 	result := &wire.ListConfigurationGenerationsResponse{}
 	var before int64
 	for _, generation := range page.Generations() {
-		manifest := generation.ManifestSHA256()
-		availability := wire.GenerationAvailability_GENERATION_AVAILABILITY_COMPLETE
-		if generation.Availability() == storage.ConfigGenerationIncomplete {
-			availability = wire.GenerationAvailability_GENERATION_AVAILABILITY_PARTIALLY_PURGED
-		}
-		result.Generations = append(result.Generations, &wire.ConfigurationGeneration{Name: r.Msg.Parent + "/configurationGenerations/g-" + strconv.FormatInt(generation.Revision().Number(), 10), Generation: &wire.ActiveGeneration{Revision: generation.Revision().Number(), ManifestSha256: append([]byte(nil), manifest[:]...)}, Availability: availability, CreatedAt: timestamppb.New(generation.CreatedAt())})
+		result.Generations = append(result.Generations, configurationGenerationWire(r.Msg.Parent, generation))
 		before = generation.Revision().Number()
 	}
 	result.NextPageToken, err = h.continuation(page.More(), configdocuments.PageGenerations, storage.ConfigDocumentID{}, "", before, page.Cut().SHA256(), binding.digest)
@@ -426,11 +414,11 @@ func (h *configDocumentsHandler) ListConfigurationSchemas(ctx context.Context, r
 	}
 	result := &wire.ListConfigurationSchemasResponse{}
 	for _, schema := range schemas[start:through] {
-		name, err := configurationSchemaResourceName(r.Msg.Parent, schema)
+		entry, err := configurationSchemaWire(r.Msg.Parent, schema)
 		if err != nil {
 			return nil, configDocumentsRPCError(ctx, err, nil)
 		}
-		result.Schemas = append(result.Schemas, &wire.ConfigurationSchema{Name: name, Kind: configDocumentKind(schema.Kind()), SchemaVersion: schema.SchemaVersion(), SyntaxProfile: schema.SyntaxProfile(), EditableOperationalWorkspace: schema.Kind() == storage.ConfigDocumentKindOperationalYAML})
+		result.Schemas = append(result.Schemas, entry)
 	}
 	result.NextPageToken, err = h.continuation(through < len(schemas), configdocuments.PageSchemas, storage.ConfigDocumentID{}, "", int64(through), cut, binding.digest)
 	if err != nil {

@@ -237,16 +237,44 @@ pub fn admit_operation(
                 let Some(OperationResult::Response(response)) = &raw.result else {
                     return Err(InvalidConfigurationOperation);
                 };
-                if response.type_url
-                    != "type.googleapis.com/home.api.v2.ConfigurationActivationResult"
-                    || response.value.is_empty()
-                    || response.value.len() > 64 * 1024
-                {
+                if response.value.is_empty() || response.value.len() > 64 * 1024 {
                     return Err(InvalidConfigurationOperation);
                 }
-                let result =
-                    wire::ConfigurationActivationResult::decode_from_slice(&response.value)
+                let result = match response.type_url.as_str() {
+                    "type.googleapis.com/home.api.v2.ConfigurationActivationResult" => {
+                        wire::ConfigurationActivationResult::decode_from_slice(&response.value)
+                            .map_err(|_| InvalidConfigurationOperation)?
+                    }
+                    "type.googleapis.com/home.api.v2.PublishConfigurationDocumentResponse" => {
+                        let value = wire::PublishConfigurationDocumentResponse::decode_from_slice(
+                            &response.value,
+                        )
                         .map_err(|_| InvalidConfigurationOperation)?;
+                        if !value.__buffa_unknown_fields.is_empty() {
+                            return Err(InvalidConfigurationOperation);
+                        }
+                        value
+                            .result
+                            .as_option()
+                            .ok_or(InvalidConfigurationOperation)?
+                            .clone()
+                    }
+                    "type.googleapis.com/home.api.v2.RollbackConfigurationDocumentResponse" => {
+                        let value = wire::RollbackConfigurationDocumentResponse::decode_from_slice(
+                            &response.value,
+                        )
+                        .map_err(|_| InvalidConfigurationOperation)?;
+                        if !value.__buffa_unknown_fields.is_empty() {
+                            return Err(InvalidConfigurationOperation);
+                        }
+                        value
+                            .result
+                            .as_option()
+                            .ok_or(InvalidConfigurationOperation)?
+                            .clone()
+                    }
+                    _ => return Err(InvalidConfigurationOperation),
+                };
                 if !result.__buffa_unknown_fields.is_empty()
                     || result.generation != metadata.generation
                     || result.generation_revision != metadata.generation_revision

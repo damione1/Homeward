@@ -59,12 +59,19 @@ const (
 
 // IntegrationServiceClient is a client for the home.api.v2.IntegrationService service.
 type IntegrationServiceClient interface {
+	// Gets the authorized integration type.
 	GetIntegrationType(context.Context, *connect.Request[v2.GetIntegrationTypeRequest]) (*connect.Response[v2.IntegrationType], error)
+	// Lists the authorized integration types using bounded opaque pagination.
 	ListIntegrationTypes(context.Context, *connect.Request[v2.ListIntegrationTypesRequest]) (*connect.Response[v2.ListIntegrationTypesResponse], error)
+	// Gets the authorized integration instance.
 	GetIntegrationInstance(context.Context, *connect.Request[v2.GetIntegrationInstanceRequest]) (*connect.Response[v2.IntegrationInstance], error)
+	// Lists the authorized integration instances using bounded opaque pagination.
 	ListIntegrationInstances(context.Context, *connect.Request[v2.ListIntegrationInstancesRequest]) (*connect.Response[v2.ListIntegrationInstancesResponse], error)
+	// Creates a integration instance.
 	CreateIntegrationInstance(context.Context, *connect.Request[v2.CreateIntegrationInstanceRequest]) (*connect.Response[longrunningpb.Operation], error)
+	// Updates the authorized integration instance.
 	UpdateIntegrationInstance(context.Context, *connect.Request[v2.UpdateIntegrationInstanceRequest]) (*connect.Response[longrunningpb.Operation], error)
+	// Deletes the authorized integration instance.
 	DeleteIntegrationInstance(context.Context, *connect.Request[v2.DeleteIntegrationInstanceRequest]) (*connect.Response[longrunningpb.Operation], error)
 }
 
@@ -172,12 +179,19 @@ func (c *integrationServiceClient) DeleteIntegrationInstance(ctx context.Context
 
 // IntegrationServiceHandler is an implementation of the home.api.v2.IntegrationService service.
 type IntegrationServiceHandler interface {
+	// Gets the authorized integration type.
 	GetIntegrationType(context.Context, *connect.Request[v2.GetIntegrationTypeRequest]) (*connect.Response[v2.IntegrationType], error)
+	// Lists the authorized integration types using bounded opaque pagination.
 	ListIntegrationTypes(context.Context, *connect.Request[v2.ListIntegrationTypesRequest]) (*connect.Response[v2.ListIntegrationTypesResponse], error)
+	// Gets the authorized integration instance.
 	GetIntegrationInstance(context.Context, *connect.Request[v2.GetIntegrationInstanceRequest]) (*connect.Response[v2.IntegrationInstance], error)
+	// Lists the authorized integration instances using bounded opaque pagination.
 	ListIntegrationInstances(context.Context, *connect.Request[v2.ListIntegrationInstancesRequest]) (*connect.Response[v2.ListIntegrationInstancesResponse], error)
+	// Creates a integration instance.
 	CreateIntegrationInstance(context.Context, *connect.Request[v2.CreateIntegrationInstanceRequest]) (*connect.Response[longrunningpb.Operation], error)
+	// Updates the authorized integration instance.
 	UpdateIntegrationInstance(context.Context, *connect.Request[v2.UpdateIntegrationInstanceRequest]) (*connect.Response[longrunningpb.Operation], error)
+	// Deletes the authorized integration instance.
 	DeleteIntegrationInstance(context.Context, *connect.Request[v2.DeleteIntegrationInstanceRequest]) (*connect.Response[longrunningpb.Operation], error)
 }
 

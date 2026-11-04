@@ -45,10 +45,10 @@ func AdmitObservationResponse(m proto.Message) error {
 	case *api.QueryRuntimeLogsResponse:
 		var last uint64
 		for _, row := range v.Rows {
-			if row.Sequence <= last || row.Sequence > v.UpperSequence {
+			if observationDecimal(row.Sequence) <= last || observationDecimal(row.Sequence) > observationDecimal(v.UpperSequence) {
 				return ErrInvalidObservabilityContract
 			}
-			last = row.Sequence
+			last = observationDecimal(row.Sequence)
 		}
 	case *api.QueryAuditsResponse:
 		var last int64 = math.MaxInt64
@@ -66,7 +66,7 @@ func AdmitObservationResponse(m proto.Message) error {
 			return ErrInvalidObservabilityContract
 		}
 		var run string
-		var last uint32
+		var last int32
 		for i, row := range v.Rows {
 			if row.Run != v.Run || i > 0 && (row.Run != run || row.LocalIndex <= last) {
 				return ErrInvalidObservabilityContract
@@ -160,7 +160,17 @@ func observationV2Tree(m protoreflect.Message, depth int) bool {
 			if n := m.Get(f).Enum(); n == 0 || f.Enum().Values().ByNumber(n) == nil {
 				return false
 			}
+		case protoreflect.Int32Kind, protoreflect.Int64Kind:
+			if strings.HasPrefix(string(d.FullName()), "home.api.v2.") && m.Get(f).Int() < 0 {
+				return false
+			}
 		case protoreflect.StringKind:
+			switch f.Name() {
+			case "sequence", "checkpoint", "policy_excluded", "from_sequence", "through_sequence", "native", "upper_sequence", "same_epoch_positions", "controller_evicted", "node_evicted":
+				if _, err := apitypes.ParseDecimalUint64(m.Get(f).String()); err != nil {
+					return false
+				}
+			}
 			if f.Name() != "next_page_token" && !observationText(m.Get(f).String(), ObservationTokenMaxBytes) || f.Name() == "next_page_token" && len(m.Get(f).String()) > ObservationTokenMaxBytes {
 				return false
 			}
@@ -196,7 +206,7 @@ func observationV2Local(m proto.Message) bool {
 	case *api.ObservationActiveRevision:
 		return v.Value > 0 && v.Value <= math.MaxInt64
 	case *api.ObservationSaturatedCounter:
-		return v.Value == math.MaxUint64
+		return v.LowerBound == math.MaxInt64
 	case *api.KnownLost:
 		if n, ok := v.Result.(*api.KnownLost_LowerBound); ok {
 			return n.LowerBound > 0
@@ -207,9 +217,9 @@ func observationV2Local(m proto.Message) bool {
 	case *api.ObservationDurableHealth:
 		return (v.Availability == api.ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_UNKNOWN) == (v.GetNotObserved() != nil)
 	case *api.ObservationPilotPhaseCount:
-		return v.Instances <= 1024
+		return v.Instances >= 0 && v.Instances <= 1024
 	case *api.ObservationSupervisedIntegration:
-		return v.Attempts <= 17 && v.Tasks <= 256
+		return v.Attempts >= 0 && v.Attempts <= 17 && v.Tasks >= 0 && v.Tasks <= 256
 	case *api.Health:
 		if !observationSingletonName(v.Name, "health") {
 			return false
@@ -218,7 +228,7 @@ func observationV2Local(m proto.Message) bool {
 			return false
 		}
 		var seen uint64
-		var total uint64
+		var total int64
 		for _, p := range v.Pilots {
 			bit := uint64(1) << p.Phase
 			if seen&bit != 0 {
@@ -256,12 +266,12 @@ func observationV2Local(m proto.Message) bool {
 		_, nameErr := apitypes.ParseRuntimeControllerName(v.Controller)
 		return nameErr == nil && len(v.Kinds) == 2 && (uint64(1)<<v.Kinds[0].Kind|uint64(1)<<v.Kinds[1].Kind) == observationDomainMask(api.ObservationRunKind_OBSERVATION_RUN_KIND_UNSPECIFIED.Descriptor())
 	case *api.ObservationActiveCoverageInterval:
-		return bytes.Equal(v.From.Epoch, v.Through.Epoch) && v.From.Sequence > 0 && v.Through.Sequence >= v.From.Sequence &&
-			(v.KnownLost.GetLowerBound() == 0 || v.KnownLost.GetLowerBound() <= v.Through.Sequence-v.From.Sequence+1)
+		return bytes.Equal(v.From.Epoch, v.Through.Epoch) && observationDecimal(v.From.Sequence) > 0 && observationDecimal(v.Through.Sequence) >= observationDecimal(v.From.Sequence) &&
+			(v.KnownLost.GetLowerBound() == 0 || uint64(v.KnownLost.GetLowerBound()) <= observationDecimal(v.Through.Sequence)-observationDecimal(v.From.Sequence)+1)
 	case *api.ObservationRuntimeEvent:
 		return observationV2EventCode(v) && observationV2Sized(v, ObservationEventMaxBytes)
 	case *api.ObservationRuntimeLogRow:
-		return v.Sequence > 0
+		return observationDecimal(v.Sequence) > 0
 	case *api.ObservationAuditRoute:
 		return v.GetRegisteredProcedure() == "" || observationText(v.GetRegisteredProcedure(), 256) && strings.HasPrefix(v.GetRegisteredProcedure(), "/")
 	case *api.ObservationStoredMetadataInvalid:
@@ -274,7 +284,7 @@ func observationV2Local(m proto.Message) bool {
 		return v.Id > 0
 	case *api.ObservationTraceOrdinal:
 		if n, ok := v.Result.(*api.ObservationTraceOrdinal_Native); ok {
-			return n.Native > 0 && n.Native < math.MaxUint64
+			return observationDecimal(n.Native) > 0 && observationDecimal(n.Native) < math.MaxUint64
 		}
 		return true
 	case *api.ObservationControllerTraceRecord:
@@ -289,18 +299,18 @@ func observationV2Local(m proto.Message) bool {
 		}
 	case *api.ObservationTraceRow:
 		_, err := apitypes.ParseRuntimeRunName(v.Run)
-		return err == nil && v.LocalIndex < 512
+		return err == nil && v.LocalIndex >= 0 && v.LocalIndex < 512
 	case *api.RecorderEpochCoverage:
 		return !v.CleanClose || v.GetClosedAt() != nil
 	case *api.RecorderCoverageGap:
-		return v.FromSequence > 0 && v.ThroughSequence >= v.FromSequence &&
-			(v.KnownLost.GetLowerBound() == 0 || v.KnownLost.GetLowerBound() <= v.ThroughSequence-v.FromSequence+1) &&
-			(v.Envelope != api.GapEnvelope_GAP_ENVELOPE_EXACT_POSITIONS || v.KnownLost.GetLowerBound() == v.ThroughSequence-v.FromSequence+1)
+		return observationDecimal(v.FromSequence) > 0 && observationDecimal(v.ThroughSequence) >= observationDecimal(v.FromSequence) &&
+			(v.KnownLost.GetLowerBound() == 0 || uint64(v.KnownLost.GetLowerBound()) <= observationDecimal(v.ThroughSequence)-observationDecimal(v.FromSequence)+1) &&
+			(v.Envelope != api.GapEnvelope_GAP_ENVELOPE_EXACT_POSITIONS || uint64(v.KnownLost.GetLowerBound()) == min(observationDecimal(v.ThroughSequence)-observationDecimal(v.FromSequence)+1, uint64(math.MaxInt64)))
 	case *api.RecorderCoverageSnapshot:
 		if len(v.Epochs) == 0 || len(v.Epochs) > 64 || len(v.Gaps) > 512 || !bytes.Equal(v.From.Epoch, v.Epochs[0].Epoch.Value) || !bytes.Equal(v.Through.Epoch, v.Epochs[len(v.Epochs)-1].Epoch.Value) {
 			return false
 		}
-		if v.From.Sequence > v.Epochs[0].Checkpoint || v.Through.Sequence > v.Epochs[len(v.Epochs)-1].Checkpoint || bytes.Equal(v.From.Epoch, v.Through.Epoch) && v.From.Sequence > v.Through.Sequence {
+		if observationDecimal(v.From.Sequence) > observationDecimal(v.Epochs[0].Checkpoint) || observationDecimal(v.Through.Sequence) > observationDecimal(v.Epochs[len(v.Epochs)-1].Checkpoint) || bytes.Equal(v.From.Epoch, v.Through.Epoch) && observationDecimal(v.From.Sequence) > observationDecimal(v.Through.Sequence) {
 			return false
 		}
 		for i, epoch := range v.Epochs {
@@ -313,7 +323,7 @@ func observationV2Local(m proto.Message) bool {
 		for _, gap := range v.Gaps {
 			found := false
 			for _, epoch := range v.Epochs {
-				if bytes.Equal(gap.Epoch.Value, epoch.Epoch.Value) && gap.ThroughSequence <= epoch.Checkpoint {
+				if bytes.Equal(gap.Epoch.Value, epoch.Epoch.Value) && observationDecimal(gap.ThroughSequence) <= observationDecimal(epoch.Checkpoint) {
 					found = true
 					break
 				}
@@ -413,4 +423,10 @@ func observationV2QueueApplicability(class api.ObservationQueueClass, value *api
 	default:
 		return inflightNotMeasured && pendingNotMeasured
 	}
+}
+
+// Only used after observationV2Tree admits canonical decimal fields.
+func observationDecimal(text string) uint64 {
+	value, _ := apitypes.ParseDecimalUint64(text)
+	return value.Value()
 }

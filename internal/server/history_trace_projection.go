@@ -206,7 +206,7 @@ func publicHistoryTrace(home apitypes.HomeName, record storage.HistoryRecord) (*
 		return nil, historyquery.ErrIntegrity
 	}
 	in := record.Input()
-	point := &api.HistoryExecutionTrace{Ordinal: in.ID.Ordinal(), EmissionTime: timestamppb.New(in.EmissionTime)}
+	point := &api.HistoryExecutionTrace{Ordinal: apitypes.DecimalUint64FromNative(in.ID.Ordinal()).String(), EmissionTime: timestamppb.New(in.EmissionTime)}
 	switch in.Kind {
 	case storage.HistoryDecision:
 		value, err := publicHistoryDecision(in.Decision)

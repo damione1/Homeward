@@ -26,10 +26,6 @@ import (
 	"github.com/damione1/Homeward/gen/google/longrunning/longrunningpbconnect"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	dashboardwire "github.com/damione1/Homeward/gen/home/dashboard/v1"
-	"github.com/damione1/Homeward/gen/home/dashboard/v1/dashboardv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/configactivation"
@@ -192,9 +188,9 @@ func (c *nhf006Calls) proxy(t *testing.T, upstream string, transport *http.Trans
 	}
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case authv1connect.AuthServiceStartLoginProcedure:
+		case apiv2connect.AuthServiceStartLoginProcedure:
 			c.logins.Add(1)
-		case authv1connect.AuthServiceRevokeSessionProcedure:
+		case apiv2connect.AuthServiceRevokeSessionProcedure:
 			c.revokes.Add(1)
 		case apiv2connect.EntityViewServiceCreateEntityViewProcedure:
 			c.views.Add(1)
@@ -313,9 +309,6 @@ func TestNHF006ActionServer(t *testing.T) {
 			if err != nil {
 				return RuntimePlan{}, err
 			}
-			if err := dashboard.register(public); err != nil {
-				return RuntimePlan{}, err
-			}
 		}
 		return RuntimePlan{Identity: repository, Public: public,
 			ConfigureAuthorization: func(_ context.Context, composition AuthorizationComposition) error {
@@ -371,9 +364,6 @@ func TestNHF006ActionServer(t *testing.T) {
 		defer calls.mu.Unlock()
 		result := map[string]any{"server_joined": started == joined, "servers_started": started, "servers_joined": joined, "fake_driver_calls": driver.count.Load(), "command_driver_entries": entries, "execute_request_ids": calls.execute, "get_operation_names": calls.get, "wait_operation_names": calls.wait, "admitted_operations": calls.admitted, "lost_responses": calls.lost.Load(), "refusal_faults": calls.refusalFaults.Load(), "scenario": scenario, "native_login_calls": calls.logins.Load(), "native_open_views": calls.views.Load(), "native_revokes": calls.revokes.Load(), "entity_count": len(devices)}
 		if dashboard != nil {
-			result["dashboard_list_calls"] = dashboard.lists.Load()
-			result["dashboard_get_calls"] = dashboard.gets.Load()
-			result["dashboard_watch_calls"] = dashboard.watches.Load()
 		}
 		nhf003WritePrivate(t, out, "result.json", result)
 	}()
@@ -451,13 +441,14 @@ func TestNHF006ActionServer(t *testing.T) {
 	client := nha181Client(roots)
 	defer client.CloseIdleConnections()
 	base := "https://" + address
-	tokens := nha162RunLogin(t, ctx, authv1connect.NewAuthServiceClient(client, base), login, password)
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
+	tokens := nha162RunLogin(t, ctx, apiv2connect.NewAuthServiceClient(client, base), login, password)
+	dashboard.start(t, ctx, client, base, tokens.AccessToken)
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
 	dashboardRead := true
 	setPolicy := func(write bool) {
 		t.Helper()
-		current, err := policies.GetPolicy(ctx, nha141BearerRequest(&auth.GetPolicyRequest{AccountId: account}, tokens.AccessToken))
-		if err != nil || current.Msg.GetPresent() == nil {
+		current, err := policies.GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: nha203SessionAccount(t, tokens.Session).String() + "/authorizationPolicy"}, tokens.AccessToken))
+		if err != nil || current.Msg == nil {
 			t.Fatal("policy read", err)
 		}
 		policy := fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n", account.Value)
@@ -471,7 +462,7 @@ func TestNHF006ActionServer(t *testing.T) {
 		if dashboard != nil && dashboardRead {
 			policy += "  - scope: {family: dashboards, operation: read}\n    objects: {dashboards: {own: {}}}\n"
 		}
-		if _, err := policies.ReplacePolicy(ctx, nha141BearerRequest(&auth.ReplacePolicyRequest{AccountId: account, YamlSource: []byte(policy), Precondition: &auth.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, tokens.AccessToken)); err != nil {
+		if _, err := policies.ReplaceAuthorizationPolicy(ctx, nha141BearerRequest(&api.ReplaceAuthorizationPolicyRequest{Name: nha203SessionAccount(t, tokens.Session).String() + "/authorizationPolicy", YamlSource: []byte(policy), Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: current.Msg.Etag}}, tokens.AccessToken)); err != nil {
 			t.Fatal("policy CAS", err)
 		}
 	}
@@ -502,13 +493,7 @@ func TestNHF006ActionServer(t *testing.T) {
 		}
 	}
 	if dashboard != nil {
-		response, err := dashboardv1connect.NewDashboardServiceClient(client, base).GetDashboard(ctx, nha141BearerRequest(&dashboardwire.GetDashboardRequest{Id: &dashboardwire.DashboardId{Value: nhf005DashboardID}}, tokens.AccessToken))
-		if err != nil || response.Msg.GetDashboard().GetNativeOverview() == nil || response.Msg.ResumeToken == "" {
-			t.Fatal("authorized native dashboard is not ready", err)
-		}
-		if len(response.Msg.GetDashboard().GetNativeOverview().Observations) != len(devices) {
-			t.Fatal("native favorites do not match the explicit synthetic fixture")
-		}
+		dashboard.ready(t, ctx, client, base, tokens.AccessToken)
 	}
 	pair, err := tls.LoadX509KeyPair(filepath.Join(data, nha181CertificateName), filepath.Join(data, nha181PrivateKeyName))
 	if err != nil {

@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use buffa_types::google::protobuf::Timestamp;
 use connectrpc::ConnectError;
 use home_client_transport::Failure;
-use home_wire_contract::home::{api::v2 as auth, auth::v1 as native};
+use home_wire_contract::home::api::v2 as auth;
 use tokio::sync::{Notify, Semaphore};
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
@@ -78,7 +78,7 @@ struct TestApi {
     refused_connect: AtomicBool,
     gateway_offline: AtomicBool,
     bare_preflight_unauthenticated: AtomicBool,
-    preflight_reason: Mutex<Option<native::AuthorizationTerminationReason>>,
+    preflight_reason: Mutex<Option<auth::ApiErrorReason>>,
     block_preflight: AtomicBool,
     preflight_started: Notify,
     preflight_cancelled: Notify,
@@ -174,7 +174,7 @@ impl AuthApi for TestApi {
         }
         let reason = *self.preflight_reason.lock().unwrap();
         if let Some(reason) = reason {
-            return Err(termination(reason));
+            return Err(canonical_auth_failure(reason));
         }
         if self.gateway_offline.load(Ordering::SeqCst) {
             return Err(ConnectError::unavailable("synthetic proxy backend unavailable").into());
@@ -293,19 +293,6 @@ fn fixture() -> (
     )
 }
 
-fn termination(reason: native::AuthorizationTerminationReason) -> Failure {
-    use buffa::MessageName;
-    ConnectError::unauthenticated("synthetic termination")
-        .with_detail(connectrpc::ErrorDetail::from_message(
-            native::AuthorizationTermination::FULL_NAME,
-            &native::AuthorizationTermination {
-                reason: reason.into(),
-                ..Default::default()
-            },
-        ))
-        .into()
-}
-
 #[tokio::test]
 async fn independent_clocks_restore_normally_and_refresh_before_the_server_deadline() {
     let (owner, api, clock, store) = fixture();
@@ -374,7 +361,7 @@ async fn close_joins_a_restore_waiting_to_spawn_its_os_task_and_refuses_later_wr
 }
 
 #[tokio::test]
-async fn network_failure_keeps_session_authority_failure_suspends_and_revocation_deletes() {
+async fn network_and_authority_failure_preserve_refresh_and_access_refusal_fences_view() {
     let (owner, _, _, store) = fixture();
     owner
         .login("alice".into(), Zeroizing::new("synthetic password".into()))
@@ -394,7 +381,7 @@ async fn network_failure_keeps_session_authority_failure_suspends_and_revocation
         owner
             .observe_failure(
                 initial.generation,
-                &termination(native::AuthorizationTerminationReason::AuthorityUnavailable)
+                &canonical_auth_failure(auth::ApiErrorReason::AuthorityUnavailable)
             )
             .await
             .unwrap(),
@@ -412,7 +399,7 @@ async fn network_failure_keeps_session_authority_failure_suspends_and_revocation
         owner
             .observe_failure(
                 initial.generation,
-                &termination(native::AuthorizationTerminationReason::CredentialRevoked)
+                &canonical_auth_failure(auth::ApiErrorReason::AuthenticationRequired)
             )
             .await
             .unwrap(),
@@ -423,15 +410,15 @@ async fn network_failure_keeps_session_authority_failure_suspends_and_revocation
         owner
             .observe_failure(
                 resumed.generation,
-                &termination(native::AuthorizationTerminationReason::CredentialRevoked)
+                &canonical_auth_failure(auth::ApiErrorReason::AuthenticationRequired)
             )
             .await
             .unwrap(),
-        crate::SessionReaction::CredentialsDiscarded
+        crate::SessionReaction::ViewSuspended
     );
     assert!(resumed.cancellation.is_cancelled());
-    assert!(store.load().unwrap().is_none());
-    assert_eq!(owner.subscribe().borrow().phase, Phase::NeedsLogin);
+    assert!(store.load().unwrap().is_some());
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Offline);
     owner.close().await;
 }
 
@@ -447,7 +434,7 @@ async fn rights_change_resets_the_view_without_revoking_the_native_session() {
         owner
             .observe_failure(
                 initial.generation,
-                &termination(native::AuthorizationTerminationReason::RightsChanged)
+                &canonical_auth_failure(auth::ApiErrorReason::AccessDenied)
             )
             .await
             .unwrap(),
@@ -846,11 +833,11 @@ async fn closing_during_blocked_preflight_joins_without_operation_lock_deadlock(
 }
 
 #[tokio::test]
-async fn preflight_distinguishes_expired_access_from_revocation_and_unavailable_authority() {
-    use native::AuthorizationTerminationReason as Reason;
+async fn preflight_distinguishes_access_refusal_denied_view_and_unavailable_authority() {
+    use auth::ApiErrorReason as Reason;
     for reason in [
-        Reason::CredentialExpired,
-        Reason::CredentialRevoked,
+        Reason::AuthenticationRequired,
+        Reason::AccessDenied,
         Reason::AuthorityUnavailable,
     ] {
         let (owner, api, clock, store) = fixture();
@@ -863,15 +850,15 @@ async fn preflight_distinguishes_expired_access_from_revocation_and_unavailable_
         api.release.add_permits(1);
         let result = owner.access(&CancellationToken::new()).await;
         match reason {
-            Reason::CredentialExpired => {
+            Reason::AuthenticationRequired => {
                 assert!(result.is_ok());
                 assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 1);
             }
-            Reason::CredentialRevoked => {
+            Reason::AccessDenied => {
                 assert!(result.is_err());
-                assert_eq!(owner.subscribe().borrow().phase, Phase::NeedsLogin);
+                assert_eq!(owner.subscribe().borrow().phase, Phase::RightsChanged);
                 assert_eq!(api.refresh_calls.load(Ordering::SeqCst), 0);
-                assert!(store.load().unwrap().is_none());
+                assert!(store.load().unwrap().is_some());
             }
             Reason::AuthorityUnavailable => {
                 assert!(result.is_err());
@@ -885,7 +872,7 @@ async fn preflight_distinguishes_expired_access_from_revocation_and_unavailable_
                         .is_ok()
                 );
             }
-            Reason::Unspecified | Reason::RightsChanged | Reason::AccountDisabled => {
+            _ => {
                 unreachable!("not an exercised case")
             }
         }
@@ -1013,7 +1000,7 @@ async fn untyped_refusal_preserves_the_session_and_recovers_the_same_pending_ren
 
 #[tokio::test]
 async fn failed_secure_clear_publishes_storage_failure_under_the_new_generation() {
-    for during_refresh in [true, false] {
+    {
         let (owner, api, clock, store) = fixture();
         owner
             .login("alice".into(), Zeroizing::new("synthetic password".into()))
@@ -1022,7 +1009,7 @@ async fn failed_secure_clear_publishes_storage_failure_under_the_new_generation(
         let lease = owner.access(&CancellationToken::new()).await.unwrap();
         let detail = auth::ApiErrorReason::AuthenticationRequired;
         store.fail_clear.store(true, Ordering::SeqCst);
-        if during_refresh {
+        {
             clock.0.store(BASE + 121, Ordering::SeqCst);
             *api.refresh_error.lock().unwrap() = Some(detail);
             api.release.add_permits(1);
@@ -1032,12 +1019,6 @@ async fn failed_secure_clear_publishes_storage_failure_under_the_new_generation(
             )
             .await;
             assert!(result.unwrap().is_err());
-        } else {
-            let error = termination(native::AuthorizationTerminationReason::CredentialRevoked);
-            assert_eq!(
-                owner.observe_failure(lease.generation, &error).await,
-                Err(SessionFailure::Store(StoreFailure::Unavailable))
-            );
         }
         assert!(lease.cancellation.is_cancelled());
         assert_eq!(owner.subscribe().borrow().phase, Phase::StorageUnavailable);
@@ -1062,7 +1043,7 @@ async fn an_expired_stream_access_lease_renews_the_session_instead_of_signing_ou
         .await
         .unwrap();
     let lease = owner.access(&CancellationToken::new()).await.unwrap();
-    let expired_access = termination(native::AuthorizationTerminationReason::CredentialExpired);
+    let expired_access = canonical_auth_failure(auth::ApiErrorReason::AuthenticationRequired);
     assert_eq!(
         owner
             .observe_failure(lease.generation, &expired_access)
@@ -1089,6 +1070,8 @@ fn canonical_auth_failure(reason: auth::ApiErrorReason) -> Failure {
     use buffa::{Enumeration, MessageName};
     let code = if reason == auth::ApiErrorReason::AuthenticationRequired {
         connectrpc::ErrorCode::Unauthenticated
+    } else if reason == auth::ApiErrorReason::AuthorityUnavailable {
+        connectrpc::ErrorCode::Unavailable
     } else {
         connectrpc::ErrorCode::PermissionDenied
     };

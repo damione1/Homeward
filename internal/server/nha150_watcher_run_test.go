@@ -15,21 +15,21 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
-	wire "github.com/damione1/Homeward/gen/home/configuration/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/jackc/pgx/v5"
 )
 
-func nha150AwaitDocument(t *testing.T, f nha149TLSFixture, accept func(*wire.ReadDocumentResponse) bool) *wire.ReadDocumentResponse {
+func nha150AwaitDocument(t *testing.T, f nha149TLSFixture, accept func(*wire.ConfigurationDocument) bool) *wire.ConfigurationDocument {
 	t.Helper()
 	deadline := time.NewTimer(10 * time.Second)
 	defer deadline.Stop()
 	tick := time.NewTicker(10 * time.Millisecond)
 	defer tick.Stop()
 	for {
-		response, err := f.api.ReadDocument(f.ctx, nha056SessionRequest(&wire.ReadDocumentRequest{Id: &wire.DocumentId{Value: "operational.main"}}, f.token))
+		response, err := f.api.GetConfigurationDocument(f.ctx, nha056SessionRequest(&wire.GetConfigurationDocumentRequest{Name: nha203DocumentName(t, f.ctx, f.run, "operational.main")}, f.token))
 		if err == nil {
 			if err := contracts.AdmitConfigurationResponse(response.Msg); err != nil {
 				t.Fatal("watcher returned an inadmissible public document")
@@ -57,11 +57,11 @@ func nha150Counts(t *testing.T, store *storage.Store) (attempts, commands int) {
 	}
 	return
 }
-func nha150CleanHash(raw []byte) func(*wire.ReadDocumentResponse) bool {
+func nha150CleanHash(raw []byte) func(*wire.ConfigurationDocument) bool {
 	hash := sha256.Sum256(raw)
-	return func(read *wire.ReadDocumentResponse) bool {
-		workspace := read.Document.GetWorkspace()
-		return workspace != nil && workspace.Dirty == wire.DirtyState_DIRTY_STATE_CLEAN && bytes.Equal(read.Document.Version.SourceSha256, hash[:]) && bytes.Equal(workspace.SourceSha256, hash[:]) && workspace.Diagnostic == nil
+	return func(read *wire.ConfigurationDocument) bool {
+		workspace := read.GetWorkspace()
+		return workspace != nil && workspace.Dirty == wire.DirtyState_DIRTY_STATE_CLEAN && bytes.Equal(read.Version.SourceSha256, hash[:]) && bytes.Equal(workspace.SourceSha256, hash[:]) && workspace.Diagnostic == nil
 	}
 }
 
@@ -125,13 +125,13 @@ func TestNHA150ActualRunTLSRejectedDiagnosticsTrackCurrentSourceThenDisappear(t 
 		if err != nil {
 			t.Fatal(err)
 		}
-		dirty := nha150AwaitDocument(t, f, func(read *wire.ReadDocumentResponse) bool {
-			w := read.Document.GetWorkspace()
+		dirty := nha150AwaitDocument(t, f, func(read *wire.ConfigurationDocument) bool {
+			w := read.GetWorkspace()
 			return w != nil && w.Dirty == wire.DirtyState_DIRTY_STATE_REJECTED && w.Diagnostic != nil && bytes.Equal(w.SourceSha256, hash[:])
 		})
-		w := dirty.Document.GetWorkspace()
+		w := dirty.GetWorkspace()
 		d := w.Diagnostic
-		if dirty.ActiveGeneration.Revision != before.ActiveGeneration.Revision || dirty.Document.Version.Revision != before.Document.Version.Revision || d.Document.Value != "operational.main" || !bytes.Equal(d.ObservedSourceSha256, hash[:]) || !d.ObservedAt.AsTime().Equal(info.ModTime().UTC()) || !d.ObservedAt.AsTime().Equal(w.UpdatedAt.AsTime()) || d.Code != wire.DiagnosticCode_DIAGNOSTIC_CODE_CANDIDATE_REJECTED {
+		if dirty.ActiveGeneration.Revision != before.ActiveGeneration.Revision || dirty.Version.Revision != before.Version.Revision || d.Document.Value != "operational.main" || !bytes.Equal(d.ObservedSourceSha256, hash[:]) || !d.ObservedAt.AsTime().Equal(info.ModTime().UTC()) || !d.ObservedAt.AsTime().Equal(w.UpdatedAt.AsTime()) || d.Code != wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_CANDIDATE_REJECTED {
 			t.Fatal("rejection mixed active authority and observed source")
 		}
 		if bytes.Contains([]byte(fmt.Sprintf("%v", dirty)), []byte("NHA150_PRIVATE_CANARY")) {
@@ -158,8 +158,8 @@ func TestNHA150ActualRunTLSSourceUnavailableNeverBecomesClean(t *testing.T) {
 	if err := os.Remove(f.path); err != nil {
 		t.Fatal(err)
 	}
-	unavailable := nha150AwaitDocument(t, f, func(read *wire.ReadDocumentResponse) bool {
-		return read.Document.GetWorkspaceUnobserved().GetReason() == wire.WorkspaceUnobservedReason_WORKSPACE_UNOBSERVED_REASON_SOURCE_UNAVAILABLE
+	unavailable := nha150AwaitDocument(t, f, func(read *wire.ConfigurationDocument) bool {
+		return read.GetWorkspaceUnobserved().GetReason() == wire.WorkspaceUnobservedReason_WORKSPACE_UNOBSERVED_REASON_SOURCE_UNAVAILABLE
 	})
 	if unavailable.ActiveGeneration.Revision != before.ActiveGeneration.Revision {
 		t.Fatal("missing source changed SQL authority")

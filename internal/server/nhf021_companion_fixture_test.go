@@ -15,13 +15,10 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	"github.com/damione1/Homeward/gen/home/companion/v1/companionv1connect"
-	cfg "github.com/damione1/Homeward/gen/home/configuration/v1"
-	"github.com/damione1/Homeward/gen/home/configuration/v1/configurationv1connect"
-	integration "github.com/damione1/Homeward/gen/home/integrationadmin/v1"
-	"github.com/damione1/Homeward/gen/home/integrationadmin/v1/integrationadminv1connect"
+	cfg "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	"github.com/damione1/Homeward/gen/home/testing/companion/v1/companionv1connect"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/testpg"
 	"google.golang.org/protobuf/proto"
@@ -159,17 +156,17 @@ func TestNHF021CompanionServer(t *testing.T) {
 	const adminLogin = "NHF021 isolated administrator"
 	const adminPassword = "NHF021 isolated administrator password"
 	nha162RunBootstrap(t, ctx, data, adminLogin, adminPassword)
-	authentication := authv1connect.NewAuthServiceClient(client, base)
-	accounts := authv1connect.NewAccountServiceClient(client, base)
+	authentication := apiv2connect.NewAuthServiceClient(client, base)
+	accounts := apiv2connect.NewAccountServiceClient(client, base)
 	admin := nha162RunLogin(t, ctx, authentication, adminLogin, adminPassword)
 	const login = "NHF021 synthetic ordinary user"
 	const password = "NHF021 synthetic ordinary password"
-	user, err := accounts.CreateAccount(ctx, nha056SessionRequest(&auth.CreateAccountRequest{LoginName: login, DisplayName: login, InitialPassword: password, Role: auth.AccountRole_ACCOUNT_ROLE_USER}, admin.AccessToken))
+	user, err := accounts.CreateAccount(ctx, nha056SessionRequest(&cfg.CreateAccountRequest{Parent: nha203SessionAccount(t, admin.Session).Home().String(), Account: &cfg.Account{LoginName: login, DisplayName: login, InitialPassword: password, Role: cfg.AccountRole_ACCOUNT_ROLE_USER}}, admin.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	documents := configurationv1connect.NewConfigurationServiceClient(client, base)
-	before, err := documents.ReadDocument(ctx, nha056SessionRequest(&cfg.ReadDocumentRequest{Id: &cfg.DocumentId{Value: "operational.main"}}, admin.AccessToken))
+	before, err := documents.GetConfigurationDocument(ctx, nha056SessionRequest(&cfg.GetConfigurationDocumentRequest{Name: nha203DocumentName(t, ctx, run, "operational.main")}, admin.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +188,7 @@ func TestNHF021CompanionServer(t *testing.T) {
 			t.Fatal("companion fixture deadline", ctx.Err())
 		case <-ticker.C:
 			if _, err := os.Stat(filepath.Join(out, "revoke-account")); err == nil && !revoked {
-				_, err := accounts.UpdateAccount(ctx, nha056SessionRequest(&auth.UpdateAccountRequest{AccountId: user.Msg.Account.Id, Status: auth.AccountStatus_ACCOUNT_STATUS_DISABLED.Enum()}, admin.AccessToken))
+				_, err := accounts.UpdateAccount(ctx, nha056SessionRequest(&cfg.UpdateAccountRequest{Account: &cfg.Account{Name: user.Msg.Name, Etag: user.Msg.Etag, Access: cfg.AccountAccess_ACCOUNT_ACCESS_DISABLED}}, admin.AccessToken))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -201,12 +198,12 @@ func TestNHF021CompanionServer(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(out, "stop")); err != nil {
 				continue
 			}
-			after, err := documents.ReadDocument(ctx, nha056SessionRequest(&cfg.ReadDocumentRequest{Id: before.Msg.Document.Id}, admin.AccessToken))
-			if err != nil || !proto.Equal(before.Msg.Document, after.Msg.Document) || !proto.Equal(before.Msg.ActiveGeneration, after.Msg.ActiveGeneration) {
+			after, err := documents.GetConfigurationDocument(ctx, nha056SessionRequest(&cfg.GetConfigurationDocumentRequest{Name: before.Msg.Name}, admin.AccessToken))
+			if err != nil || !proto.Equal(before.Msg, after.Msg) || !proto.Equal(before.Msg.ActiveGeneration, after.Msg.ActiveGeneration) {
 				t.Fatal("companion changed configuration", err)
 			}
-			instances, err := integrationadminv1connect.NewIntegrationServiceClient(client, base).ListInstances(ctx, nha056SessionRequest(&integration.ListInstancesRequest{}, admin.AccessToken))
-			if err != nil || len(instances.Msg.Instances) != 0 {
+			instances, err := configurationv1connect.NewIntegrationServiceClient(client, base).ListIntegrationInstances(ctx, nha056SessionRequest(&cfg.ListIntegrationInstancesRequest{Parent: nha203HomeName(t, ctx, run)}, admin.AccessToken))
+			if err != nil || len(instances.Msg.IntegrationInstances) != 0 {
 				t.Fatal("physical provider introduced", err)
 			}
 			if err := run.join(t); err != nil {

@@ -89,6 +89,8 @@ const (
 	ApiErrorReason_API_ERROR_REASON_STATE_PRECONDITION_FAILED ApiErrorReason = 25
 	// FAILED_PRECONDITION: restart the server before this uncommitted change can be applied.
 	ApiErrorReason_API_ERROR_REASON_CONFIG_RESTART_REQUIRED ApiErrorReason = 26
+	// UNAVAILABLE: authority is unavailable; discard the capture and do not resume it.
+	ApiErrorReason_API_ERROR_REASON_AUTHORITY_UNAVAILABLE ApiErrorReason = 27
 )
 
 // Enum value maps for ApiErrorReason.
@@ -121,6 +123,7 @@ var (
 		24: "API_ERROR_REASON_METHOD_NOT_SUPPORTED",
 		25: "API_ERROR_REASON_STATE_PRECONDITION_FAILED",
 		26: "API_ERROR_REASON_CONFIG_RESTART_REQUIRED",
+		27: "API_ERROR_REASON_AUTHORITY_UNAVAILABLE",
 	}
 	ApiErrorReason_value = map[string]int32{
 		"API_ERROR_REASON_UNSPECIFIED":               0,
@@ -150,6 +153,7 @@ var (
 		"API_ERROR_REASON_METHOD_NOT_SUPPORTED":      24,
 		"API_ERROR_REASON_STATE_PRECONDITION_FAILED": 25,
 		"API_ERROR_REASON_CONFIG_RESTART_REQUIRED":   26,
+		"API_ERROR_REASON_AUTHORITY_UNAVAILABLE":     27,
 	}
 )
 
@@ -347,7 +351,7 @@ const file_home_api_v2_errors_proto_rawDesc = "" +
 	"\x18home/api/v2/errors.proto\x12\vhome.api.v2\x1a\x1fgoogle/api/field_behavior.proto\"\xa1\x01\n" +
 	"\x14ExecutionUncertainty\x129\n" +
 	"\x05phase\x18\x01 \x01(\x0e2\x1d.home.api.v2.UncertaintyPhaseB\x04\xe2A\x01\x03R\x05phase\x12N\n" +
-	"\vdisposition\x18\x02 \x01(\x0e2&.home.api.v2.ReconciliationDispositionB\x04\xe2A\x01\x03R\vdisposition*\xea\b\n" +
+	"\vdisposition\x18\x02 \x01(\x0e2&.home.api.v2.ReconciliationDispositionB\x04\xe2A\x01\x03R\vdisposition*\x96\t\n" +
 	"\x0eApiErrorReason\x12 \n" +
 	"\x1cAPI_ERROR_REASON_UNSPECIFIED\x10\x00\x12,\n" +
 	"(API_ERROR_REASON_AUTHENTICATION_REQUIRED\x10\x01\x12\"\n" +
@@ -376,7 +380,8 @@ const file_home_api_v2_errors_proto_rawDesc = "" +
 	"&API_ERROR_REASON_STORED_DATA_INTEGRITY\x10\x17\x12)\n" +
 	"%API_ERROR_REASON_METHOD_NOT_SUPPORTED\x10\x18\x12.\n" +
 	"*API_ERROR_REASON_STATE_PRECONDITION_FAILED\x10\x19\x12,\n" +
-	"(API_ERROR_REASON_CONFIG_RESTART_REQUIRED\x10\x1a*q\n" +
+	"(API_ERROR_REASON_CONFIG_RESTART_REQUIRED\x10\x1a\x12*\n" +
+	"&API_ERROR_REASON_AUTHORITY_UNAVAILABLE\x10\x1b*q\n" +
 	"\x10UncertaintyPhase\x12!\n" +
 	"\x1dUNCERTAINTY_PHASE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18UNCERTAINTY_PHASE_COMMIT\x10\x01\x12\x1c\n" +

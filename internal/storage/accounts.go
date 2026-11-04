@@ -25,6 +25,8 @@ var ErrLastActiveAdmin = errors.New("accounts: last active administrator protect
 var ErrInvitationNotFound = errors.New("accounts: invitation not found")
 var ErrInvitationExpired = errors.New("accounts: invitation expired")
 var ErrInvitationUnavailable = errors.New("accounts: invitation already used or revoked")
+var ErrAccountHasChildren = errors.New("accounts: child resources require explicit force")
+
 var ErrAccountListTooLarge = errors.New("accounts: account listing exceeds bounded response")
 
 const sqlRoleAdmin int16 = 1
@@ -234,6 +236,8 @@ func (r RevocationRevision) NewerThan(previous RevocationRevision) bool {
 }
 
 type NewAccount struct {
+	// PublicID is an optional admitted API ID, reserved atomically with creation.
+	PublicID *APIRequestedResourceID
 	ID       contracts.AccountID
 	Login    accounts.LoginName
 	Display  accounts.DisplayName
@@ -460,7 +464,7 @@ func classifyAccountError(err error) error {
 		return ErrAccountConflict
 	}
 	for _, known := range []error{ErrAccountInvalid, ErrAccountConflict, ErrAccountVersionConflict, ErrAccountNotFound, ErrAccountPermission,
-		ErrBootstrapCompleted, ErrLastActiveAdmin, ErrInvitationNotFound, ErrInvitationExpired, ErrInvitationUnavailable, ErrAccountListTooLarge,
+		ErrBootstrapCompleted, ErrLastActiveAdmin, ErrAccountHasChildren, ErrInvitationNotFound, ErrInvitationExpired, ErrInvitationUnavailable, ErrAccountListTooLarge,
 		ErrPolicyNotConfigured, authorization.ErrInvalid, authorization.ErrConflict} {
 		if errors.Is(err, known) {
 			return known
@@ -646,7 +650,16 @@ func insertAccountRow(ctx context.Context, tx pgx.Tx, input NewAccount) error {
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, id, display, key, name, role,
 		sqlStatusActive, profile, salt[:], digest[:])
 	if err == nil {
-		_, err = EnsureAPIResourceIdentityTx(ctx, tx, APIAccounts, id)
+		if input.PublicID == nil {
+			_, err = EnsureAPIResourceIdentityTx(ctx, tx, APIAccounts, id)
+		} else if !input.PublicID.valid() {
+			err = ErrAccountInvalid
+		} else {
+			_, err = InsertAPIResourceIdentityTx(ctx, tx, APIAccounts, id, *input.PublicID)
+			if errors.Is(err, ErrAPIResourceAlreadyExists) {
+				err = ErrAccountConflict
+			}
+		}
 	}
 	return err
 }

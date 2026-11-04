@@ -26,7 +26,7 @@ func (nha179Generation) WithCurrent(ctx context.Context, admit func(uint64) erro
 	return admit(7)
 }
 
-func TestNHA179CasetaBindingOptInRequiresExactNegotiatedHost13(t *testing.T) {
+func TestNHA179CasetaBindingOptInRequiresExactNegotiatedHost14(t *testing.T) {
 	configured, err := NewConfiguredBinding("synthetic-bridge", "zone-1", "light.synthetic")
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestNHA179CasetaBindingOptInRequiresExactNegotiatedHost13(t *testing.T) {
 		digest   string
 		admitted bool
 	}{
-		{1, schemaDigestV11Hex, false}, {2, schemaDigestV12Hex, false}, {3, schemaDigestV13Hex, true},
+		{0, schemaDigestHex, false}, {1, schemaDigestHex, false}, {2, schemaDigestHex, false}, {3, schemaDigestHex, false}, {4, schemaDigestHex, true},
 	} {
 		t.Run(fixture.digest[:8], func(t *testing.T) {
 			p := newPilot(config)
@@ -69,10 +69,10 @@ func TestNHA179CasetaBindingOptInRequiresExactNegotiatedHost13(t *testing.T) {
 				SchemaSha256: digest, MaxFrameBytes: 65536, Capabilities: []wire.Capability{wire.Capability_CAPABILITY_DISCOVER, wire.Capability_CAPABILITY_COMMAND}})
 			response, err := p.Handshake(context.Background(), request)
 			if fixture.admitted {
-				if err != nil || response == nil || !p.handshaken || p.hostMinor != 3 {
-					t.Fatalf("qualified 1.3 rejected: %v", err)
+				if err != nil || response == nil || !p.handshaken {
+					t.Fatalf("qualified 1.4 rejected: %v", err)
 				}
-			} else if response != nil || connect.CodeOf(err) != connect.CodeFailedPrecondition || !errors.Is(err, ErrCasetaHAProfileUnavailable) || p.handshaken {
+			} else if response != nil || connect.CodeOf(err) != connect.CodeFailedPrecondition || !errors.Is(err, ErrInvalidConfig) || p.handshaken {
 				t.Fatalf("unqualified Host minor admitted: %v response=%v", err, response)
 			}
 		})
@@ -122,11 +122,11 @@ func TestNHA179WorkerDiscoveryJoinsConfiguredSourceToCasetaProfile(t *testing.T)
 	}
 	p := newPilot(Config{instance: instance, executable: "/synthetic-worker", bindings: []ConfiguredBinding{binding}})
 	p.active, p.token, p.ctx, p.host = true, "synthetic-nha174-token", ctx, session
-	digest, err := hex.DecodeString(schemaDigestV13Hex)
+	digest, err := hex.DecodeString(schemaDigestHex)
 	if err != nil {
 		t.Fatal(err)
 	}
-	handshake := nha174Request(&wire.HandshakeRequest{HostMajor: 1, HostMinor: 3, DriverMajor: 1, DriverMinor: 3, SchemaSha256: digest, MaxFrameBytes: 65536,
+	handshake := nha174Request(&wire.HandshakeRequest{HostMajor: 1, HostMinor: hostProtocolMinor, DriverMajor: 1, DriverMinor: hostProtocolMinor, SchemaSha256: digest, MaxFrameBytes: 65536,
 		Capabilities: []wire.Capability{wire.Capability_CAPABILITY_DISCOVER, wire.Capability_CAPABILITY_COMMAND}})
 	if _, err := p.Handshake(ctx, handshake); err != nil {
 		t.Fatal(err)
@@ -184,7 +184,7 @@ func TestNHA179WorkerDiscoveryJoinsConfiguredSourceToCasetaProfile(t *testing.T)
 	}
 	capture, err := router.CaptureLight(ctx, alias)
 	if err != nil {
-		t.Fatalf("configured Host 1.3 did not attach Caseta profile: %v", err)
+		t.Fatalf("configured Host 1.4 did not attach Caseta profile: %v", err)
 	}
 	b, _, err := capture.ObservedHABrightness()
 	if err != nil || b != 63 {

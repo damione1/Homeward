@@ -34,7 +34,7 @@ func authAPIFault(err error) apierrors.Fault {
 		reason = api.ApiErrorReason_API_ERROR_REASON_RESOURCE_NOT_FOUND
 	case errors.Is(err, storage.ErrAccountConflict):
 		reason = api.ApiErrorReason_API_ERROR_REASON_RESOURCE_ALREADY_EXISTS
-	case errors.Is(err, storage.ErrBootstrapCompleted), errors.Is(err, storage.ErrLastActiveAdmin), errors.Is(err, storage.ErrInvitationExpired), errors.Is(err, storage.ErrInvitationUnavailable):
+	case errors.Is(err, storage.ErrBootstrapCompleted), errors.Is(err, storage.ErrLastActiveAdmin), errors.Is(err, storage.ErrAccountHasChildren), errors.Is(err, storage.ErrInvitationExpired), errors.Is(err, storage.ErrInvitationUnavailable):
 		reason = api.ApiErrorReason_API_ERROR_REASON_STATE_PRECONDITION_FAILED
 	case errors.Is(err, accounts.ErrInvalidLogin), errors.Is(err, accounts.ErrInvalidDisplayName), errors.Is(err, accounts.ErrInvalidPassword), errors.Is(err, accounts.ErrBlockedPassword), errors.Is(err, accounts.ErrInvalidInvitationToken), errors.Is(err, storage.ErrAccountInvalid), errors.Is(err, storage.ErrSessionInvalid), errors.Is(err, storage.ErrAPIResourceIdentity), errors.Is(err, mcpkeys.ErrInvalid):
 		reason = api.ApiErrorReason_API_ERROR_REASON_VALIDATION_FAILED

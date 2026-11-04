@@ -139,7 +139,7 @@ impl Authority {
         auth_contract::admit_account(&account).map_err(|_| Refusal::Invalid)?;
         let received =
             AccountName::try_from(account.name.as_str()).map_err(|_| Refusal::Invalid)?;
-        if received != identity.account || account.state != auth::AccountState::Active {
+        if received != identity.account || account.access != auth::AccountAccess::Enabled {
             return Err(Refusal::Denied);
         }
         Ok(Self {

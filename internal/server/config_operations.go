@@ -103,7 +103,7 @@ func configurationOperation(name apitypes.OperationName, attempt storage.ConfigA
 	}
 	operation := &longrunningpb.Operation{Name: name.String(), Metadata: packed, Done: published}
 	if published {
-		result, err := anypb.New(&api.ConfigurationActivationResult{Generation: generation, GenerationRevision: attempt.Target().Number(), ManifestSha256: append([]byte(nil), digest[:]...)})
+		result, err := anypb.New(configurationActivationEnvelope(attempt, &api.ConfigurationActivationResult{Generation: generation, GenerationRevision: attempt.Target().Number(), ManifestSha256: append([]byte(nil), digest[:]...)}))
 		if err != nil {
 			return nil, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_INTERNAL_FAILURE)
 		}
@@ -114,6 +114,18 @@ func configurationOperation(name apitypes.OperationName, attempt storage.ConfigA
 	}
 	return operation, nil
 }
+func configurationActivationEnvelope(attempt storage.ConfigActivationAttempt, result *api.ConfigurationActivationResult) proto.Message {
+	method, _ := attempt.APIMethod()
+	switch method {
+	case storage.ConfigurationPublishDocument:
+		return &api.PublishConfigurationDocumentResponse{Result: result}
+	case storage.ConfigurationRollbackDocument:
+		return &api.RollbackConfigurationDocumentResponse{Result: result}
+	default:
+		return result
+	}
+}
+
 func configurationOperationType(message proto.Message) string {
 	return "type.googleapis.com/" + string(message.ProtoReflect().Descriptor().FullName())
 }
@@ -145,11 +157,11 @@ func admitConfigurationOperationTerminal(data []byte, name apitypes.OperationNam
 		return invalid()
 	}
 	response, ok := operation.Result.(*longrunningpb.Operation_Response)
-	if !ok || response == nil || response.Response == nil || response.Response.TypeUrl != configurationOperationType(&api.ConfigurationActivationResult{}) {
+	if !ok || response == nil || response.Response == nil || response.Response.TypeUrl != configurationOperationType(configurationActivationEnvelope(attempt, &api.ConfigurationActivationResult{})) {
 		return invalid()
 	}
-	result := new(api.ConfigurationActivationResult)
-	if anypb.UnmarshalTo(response.Response, result, proto.UnmarshalOptions{}) != nil || result.Generation != generation || result.GenerationRevision != attempt.Target().Number() || !bytes.Equal(result.ManifestSha256, digest[:]) {
+	result, err := contracts.ParseConfigurationActivationResult(response.Response)
+	if err != nil || result.Generation != generation || result.GenerationRevision != attempt.Target().Number() || !bytes.Equal(result.ManifestSha256, digest[:]) {
 		return invalid()
 	}
 	return operation, nil

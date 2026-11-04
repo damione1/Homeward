@@ -152,9 +152,12 @@ func (IntegrationOperationPhase) EnumDescriptor() ([]byte, []int) {
 type IntegrationDesiredState int32
 
 const (
+	// No explicit integration desired state. Does not select an action.
 	IntegrationDesiredState_INTEGRATION_DESIRED_STATE_UNSPECIFIED IntegrationDesiredState = 0
-	IntegrationDesiredState_INTEGRATION_DESIRED_STATE_ENABLED     IntegrationDesiredState = 1
-	IntegrationDesiredState_INTEGRATION_DESIRED_STATE_DISABLED    IntegrationDesiredState = 2
+	// Selects enabled for integration desired state.
+	IntegrationDesiredState_INTEGRATION_DESIRED_STATE_ENABLED IntegrationDesiredState = 1
+	// Selects disabled for integration desired state.
+	IntegrationDesiredState_INTEGRATION_DESIRED_STATE_DISABLED IntegrationDesiredState = 2
 )
 
 // Enum value maps for IntegrationDesiredState.
@@ -202,9 +205,13 @@ func (IntegrationDesiredState) EnumDescriptor() ([]byte, []int) {
 type IntegrationHealthStatus int32
 
 const (
+	// No explicit integration health status. Does not select an action.
 	IntegrationHealthStatus_INTEGRATION_HEALTH_STATUS_UNSPECIFIED IntegrationHealthStatus = 0
-	IntegrationHealthStatus_INTEGRATION_HEALTH_STATUS_READY       IntegrationHealthStatus = 1
-	IntegrationHealthStatus_INTEGRATION_HEALTH_STATUS_DEGRADED    IntegrationHealthStatus = 2
+	// Selects ready for integration health status.
+	IntegrationHealthStatus_INTEGRATION_HEALTH_STATUS_READY IntegrationHealthStatus = 1
+	// Selects degraded for integration health status.
+	IntegrationHealthStatus_INTEGRATION_HEALTH_STATUS_DEGRADED IntegrationHealthStatus = 2
+	// Selects unavailable for integration health status.
 	IntegrationHealthStatus_INTEGRATION_HEALTH_STATUS_UNAVAILABLE IntegrationHealthStatus = 3
 )
 
@@ -255,12 +262,18 @@ func (IntegrationHealthStatus) EnumDescriptor() ([]byte, []int) {
 type IntegrationLifecycle int32
 
 const (
+	// No explicit integration lifecycle. Does not select an action.
 	IntegrationLifecycle_INTEGRATION_LIFECYCLE_UNSPECIFIED IntegrationLifecycle = 0
-	IntegrationLifecycle_INTEGRATION_LIFECYCLE_STARTING    IntegrationLifecycle = 1
-	IntegrationLifecycle_INTEGRATION_LIFECYCLE_RUNNING     IntegrationLifecycle = 2
-	IntegrationLifecycle_INTEGRATION_LIFECYCLE_RETRYING    IntegrationLifecycle = 3
-	IntegrationLifecycle_INTEGRATION_LIFECYCLE_DEGRADED    IntegrationLifecycle = 4
-	IntegrationLifecycle_INTEGRATION_LIFECYCLE_STOPPED     IntegrationLifecycle = 5
+	// Selects starting for integration lifecycle.
+	IntegrationLifecycle_INTEGRATION_LIFECYCLE_STARTING IntegrationLifecycle = 1
+	// Selects running for integration lifecycle.
+	IntegrationLifecycle_INTEGRATION_LIFECYCLE_RUNNING IntegrationLifecycle = 2
+	// Selects retrying for integration lifecycle.
+	IntegrationLifecycle_INTEGRATION_LIFECYCLE_RETRYING IntegrationLifecycle = 3
+	// Selects degraded for integration lifecycle.
+	IntegrationLifecycle_INTEGRATION_LIFECYCLE_DEGRADED IntegrationLifecycle = 4
+	// Selects stopped for integration lifecycle.
+	IntegrationLifecycle_INTEGRATION_LIFECYCLE_STOPPED IntegrationLifecycle = 5
 )
 
 // Enum value maps for IntegrationLifecycle.
@@ -799,10 +812,12 @@ type isIntegrationHealthReport_Admission interface {
 }
 
 type IntegrationHealthReport_AdmissionTime struct {
+	// Recorded time for admission time. Absence means no timestamp was supplied or recorded.
 	AdmissionTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=admission_time,json=admissionTime,proto3,oneof"`
 }
 
 type IntegrationHealthReport_AdmissionNotRecorded struct {
+	// Selects the explicit admission not recorded alternative without an additional payload.
 	AdmissionNotRecorded *emptypb.Empty `protobuf:"bytes,3,opt,name=admission_not_recorded,json=admissionNotRecorded,proto3,oneof"`
 }
 
@@ -1068,10 +1083,12 @@ type isIntegrationInstance_Configuration interface {
 }
 
 type IntegrationInstance_Editable struct {
+	// The editable represented by IntegrationConfiguration.
 	Editable *IntegrationConfiguration `protobuf:"bytes,5,opt,name=editable,proto3,oneof"`
 }
 
 type IntegrationInstance_Opaque struct {
+	// The opaque represented by OpaqueIntegrationConfiguration.
 	Opaque *OpaqueIntegrationConfiguration `protobuf:"bytes,6,opt,name=opaque,proto3,oneof"`
 }
 
@@ -1084,10 +1101,12 @@ type isIntegrationInstance_ObservedHealth interface {
 }
 
 type IntegrationInstance_HealthReport struct {
+	// The health report represented by IntegrationHealthReport.
 	HealthReport *IntegrationHealthReport `protobuf:"bytes,7,opt,name=health_report,json=healthReport,proto3,oneof"`
 }
 
 type IntegrationInstance_NoHealthReport struct {
+	// Selects absence of an admitted health report.
 	NoHealthReport *emptypb.Empty `protobuf:"bytes,8,opt,name=no_health_report,json=noHealthReport,proto3,oneof"`
 }
 
@@ -1100,10 +1119,12 @@ type isIntegrationInstance_ObservedSupervision interface {
 }
 
 type IntegrationInstance_Supervision struct {
+	// The supervision represented by IntegrationSupervisionSnapshot.
 	Supervision *IntegrationSupervisionSnapshot `protobuf:"bytes,9,opt,name=supervision,proto3,oneof"`
 }
 
 type IntegrationInstance_NotSupervised struct {
+	// Selects an integration outside native supervision.
 	NotSupervised *emptypb.Empty `protobuf:"bytes,10,opt,name=not_supervised,json=notSupervised,proto3,oneof"`
 }
 
@@ -1111,6 +1132,7 @@ func (*IntegrationInstance_Supervision) isIntegrationInstance_ObservedSupervisio
 
 func (*IntegrationInstance_NotSupervised) isIntegrationInstance_ObservedSupervision() {}
 
+// Request for get integration type.
 type GetIntegrationTypeRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Resource to read after current integration-administration authorization.
@@ -1156,6 +1178,7 @@ func (x *GetIntegrationTypeRequest) GetName() string {
 	return ""
 }
 
+// Request for list integration types.
 type ListIntegrationTypesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Authorized installation.
@@ -1219,6 +1242,7 @@ func (x *ListIntegrationTypesRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list integration types.
 type ListIntegrationTypesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Authorized immutable descriptors in resource-name order.
@@ -1273,6 +1297,7 @@ func (x *ListIntegrationTypesResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Request for get integration instance.
 type GetIntegrationInstanceRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Resource to read after current integration-administration authorization.
@@ -1318,6 +1343,7 @@ func (x *GetIntegrationInstanceRequest) GetName() string {
 	return ""
 }
 
+// Request for list integration instances.
 type ListIntegrationInstancesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Authorized installation.
@@ -1381,6 +1407,7 @@ func (x *ListIntegrationInstancesRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of list integration instances.
 type ListIntegrationInstancesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Authorized declarations in resource-name order, including disabled ones.
@@ -1435,8 +1462,13 @@ func (x *ListIntegrationInstancesResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Request for create integration instance.
 type CreateIntegrationInstanceRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// Optional public identifier: 1..63 lowercase letters, digits or hyphens,
+	// beginning with a letter and ending with a letter or digit. When absent the
+	// server allocates an identifier. A requested collision is ALREADY_EXISTS.
+	IntegrationInstanceId string `protobuf:"bytes,3,opt,name=integration_instance_id,json=integrationInstanceId,proto3" json:"integration_instance_id,omitempty"`
 	// Installation that owns the existing shared operational configuration.
 	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
 	// New declaration; instance_key and integration_type are immutable after creation.
@@ -1479,6 +1511,13 @@ func (*CreateIntegrationInstanceRequest) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_integrations_proto_rawDescGZIP(), []int{14}
 }
 
+func (x *CreateIntegrationInstanceRequest) GetIntegrationInstanceId() string {
+	if x != nil {
+		return x.IntegrationInstanceId
+	}
+	return ""
+}
+
 func (x *CreateIntegrationInstanceRequest) GetParent() string {
 	if x != nil {
 		return x.Parent
@@ -1500,6 +1539,7 @@ func (x *CreateIntegrationInstanceRequest) GetRequestId() string {
 	return ""
 }
 
+// Request for update integration instance.
 type UpdateIntegrationInstanceRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Declaration with its current weak definition etag.
@@ -1564,6 +1604,7 @@ func (x *UpdateIntegrationInstanceRequest) GetRequestId() string {
 	return ""
 }
 
+// Request for delete integration instance.
 type DeleteIntegrationInstanceRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Native declaration to remove; this does not delete another owner's secrets.
@@ -1723,8 +1764,9 @@ const file_home_api_v2_integrations_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\xa1\x01\n" +
 	" ListIntegrationInstancesResponse\x12U\n" +
 	"\x15integration_instances\x18\x01 \x03(\v2 .home.api.v2.IntegrationInstanceR\x14integrationInstances\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xfa\x01\n" +
-	" CreateIntegrationInstanceRequest\x12N\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xb8\x02\n" +
+	" CreateIntegrationInstanceRequest\x12<\n" +
+	"\x17integration_instance_id\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\x15integrationInstanceId\x12N\n" +
 	"\x06parent\x18\x01 \x01(\tB6\xe2A\x01\x02\xfaA/\x12-homeward.damiengoehrig.ca/IntegrationInstanceR\x06parent\x12Y\n" +
 	"\x14integration_instance\x18\x02 \x01(\v2 .home.api.v2.IntegrationInstanceB\x04\xe2A\x01\x02R\x13integrationInstance\x12+\n" +
 	"\n" +

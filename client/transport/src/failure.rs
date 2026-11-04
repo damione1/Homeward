@@ -4,21 +4,12 @@ use base64::{
     Engine as _,
     engine::general_purpose::{STANDARD, STANDARD_NO_PAD},
 };
-use buffa::{Message, MessageName};
+use buffa::Message;
 use connectrpc::{ConnectError, ErrorCode};
-use home_wire_contract::home::{
-    auth::v1::AuthorizationTermination,
-};
 use home_wire_contract::{
     api_errors::{self, ApiFailure, InvalidApiError},
     google::rpc::Status,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DetailFailure {
-    Malformed,
-    Duplicate,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FailureKind {
@@ -56,7 +47,9 @@ impl Failure {
             Ok(None) => true,
             Ok(Some(failure)) => !matches!(
                 failure.reason(),
-                ApiErrorReason::AuthenticationRequired | ApiErrorReason::AccessDenied
+                ApiErrorReason::AuthenticationRequired
+                    | ApiErrorReason::AccessDenied
+                    | ApiErrorReason::AuthorityUnavailable
             ),
             Err(_) => false,
         }
@@ -87,8 +80,7 @@ impl Failure {
                         | ErrorCode::Unknown
                         | ErrorCode::ResourceExhausted
                 )
-        ) && matches!(self.authorization_termination(), Ok(None))
-            && self.canonical_read_recovery()
+        ) && self.canonical_read_recovery()
     }
 
     /// Only the identified, durably saved renewal operation may use this
@@ -109,41 +101,12 @@ impl Failure {
                         | RpcCode::Unauthenticated
                 )
         );
-        transient
-            && matches!(self.authorization_termination(), Ok(None))
-            && self.canonical_read_recovery()
+        transient && self.canonical_read_recovery()
     }
 
     /// Inspect typed details explicitly; callers must not log the raw response.
     pub fn rpc(&self) -> Option<&ConnectError> {
         self.rpc.as_deref()
-    }
-
-    /// Decode the existing contract with Buffa. Unknown details stay available
-    /// in `rpc()`; a malformed or duplicate known detail is never treated as absent.
-    pub fn authorization_termination(
-        &self,
-    ) -> Result<Option<AuthorizationTermination>, DetailFailure> {
-        self.typed_detail()
-    }
-
-    fn typed_detail<T: Message + MessageName>(&self) -> Result<Option<T>, DetailFailure> {
-        let mut found = None;
-        for detail in self.rpc().into_iter().flat_map(|rpc| &rpc.details) {
-            if detail.type_url != T::FULL_NAME && detail.type_url != T::TYPE_URL {
-                continue;
-            }
-            if found.is_some() {
-                return Err(DetailFailure::Duplicate);
-            }
-            let value = detail.value.as_deref().ok_or(DetailFailure::Malformed)?;
-            let bytes = STANDARD_NO_PAD
-                .decode(value)
-                .or_else(|_| STANDARD.decode(value))
-                .map_err(|_| DetailFailure::Malformed)?;
-            found = Some(T::decode_from_slice(&bytes).map_err(|_| DetailFailure::Malformed)?);
-        }
-        Ok(found)
     }
 
     pub(crate) fn invalid_configuration() -> Self {

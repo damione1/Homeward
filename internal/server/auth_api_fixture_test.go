@@ -82,3 +82,21 @@ func nha203NativeSession(t *testing.T, ctx context.Context, store *storage.Store
 	}
 	return id
 }
+
+func nha203AccountText(t *testing.T, account contracts.AccountID) string {
+	t.Helper()
+	value, err := account.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return value
+}
+
+func nha203SessionText(t *testing.T, session contracts.SessionID) string {
+	t.Helper()
+	value, err := session.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return value
+}

@@ -129,7 +129,13 @@ func withTaskList[T any](h *taskHandler, ctx context.Context, raw string, op aut
 	if err != nil {
 		return zero, apiRPCError(ctx, err)
 	}
-	defer admission.Release()
+	retained := false
+	defer func() {
+		if !retained {
+			admission.Release()
+		}
+	}()
+
 	if _, err = h.home(ctx, name.Home().String()); err != nil {
 		return zero, err
 	}
@@ -150,6 +156,13 @@ func withTaskList[T any](h *taskHandler, ctx context.Context, raw string, op aut
 	}
 	if !admission.Ready() {
 		return zero, taskDenied()
+	}
+	if err == nil {
+		var transferErr error
+		retained, transferErr = retainPublicResponse(ctx, admission.Context(), admission.Ready, admission.Release)
+		if transferErr != nil {
+			return zero, apiRPCError(ctx, transferErr)
+		}
 	}
 	return result, err
 }
@@ -917,7 +930,13 @@ func withTaskCollection[T any](h *taskHandler, ctx context.Context, op auth.Scop
 	if err != nil {
 		return zero, apiRPCError(ctx, err)
 	}
-	defer admission.Release()
+	retained := false
+	defer func() {
+		if !retained {
+			admission.Release()
+		}
+	}()
+
 	initial, err := h.service.CursorBinding(ctx)
 	if err != nil {
 		return zero, apiRPCError(ctx, err)
@@ -935,6 +954,13 @@ func withTaskCollection[T any](h *taskHandler, ctx context.Context, op auth.Scop
 	}
 	if !admission.Ready() {
 		return zero, taskDenied()
+	}
+	if operationErr == nil {
+		var transferErr error
+		retained, transferErr = retainPublicResponse(ctx, admission.Context(), admission.Ready, admission.Release)
+		if transferErr != nil {
+			return zero, apiRPCError(ctx, transferErr)
+		}
 	}
 	return result, operationErr
 }

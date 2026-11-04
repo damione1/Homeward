@@ -378,11 +378,14 @@ fn ambiguous_or_unknown_typed_errors_and_authority_termination_do_not_become_con
         ListWriteOutcome::CommitUnknown(WriteIssue::UnsupportedResponse)
     ));
     let authority = Failure::from(ConnectError::unauthenticated("private").with_detail(
-        ErrorDetail {
-            type_url: "type.googleapis.com/home.auth.v1.AuthorizationTermination".into(),
-            value: Some("%%%".into()),
-            debug: None,
-        },
+        ErrorDetail::from_message(
+            ErrorInfo::FULL_NAME,
+            &ErrorInfo {
+                domain: DOMAIN.into(),
+                reason: "AUTHENTICATION_REQUIRED".into(),
+                ..Default::default()
+            },
+        ),
     ));
     assert!(matches!(
         classify(&authority),

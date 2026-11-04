@@ -17,11 +17,10 @@ import (
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
+	configuration "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
-	"github.com/damione1/Homeward/gen/home/configuration/v1/configurationv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
@@ -46,9 +45,9 @@ type nha052Fixture struct {
 	base          string
 	http          *http.Client
 	clock         *nha141Clock
-	tokens        *auth.SessionTokens
-	account       *auth.AccountId
-	keys          authv1connect.McpKeyServiceClient
+	tokens        *api.SessionTokens
+	account       string
+	keys          apiv2connect.McpKeyServiceClient
 	bindings      []integrations.Binding
 	driver        *nha147Driver
 	leaseEntered  chan struct{}
@@ -172,9 +171,9 @@ func nha052Start(t *testing.T, enabled bool) *nha052Fixture {
 	base := "https://" + address.String()
 	const password = "NHA052 synthetic password only"
 	nha162RunBootstrap(t, ctx, data, "NHA052 admin", password)
-	authentication := authv1connect.NewAuthServiceClient(client, base)
+	authentication := apiv2connect.NewAuthServiceClient(client, base)
 	tokens := nha162RunLogin(t, ctx, authentication, "NHA052 admin", password)
-	account := tokens.Session.AccountId
+	account := nha203SessionAccount(t, tokens.Session).String()
 	session, err := host.OpenSession(instance)
 	if err != nil {
 		t.Fatal(err)
@@ -208,13 +207,13 @@ func nha052Start(t *testing.T, enabled bool) *nha052Fixture {
 	}
 	// The human grants only two of three synthetic entities. MCP must use this
 	// same current policy instead of widening the view because the owner is admin.
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
-	current, err := policies.GetPolicy(ctx, nha141BearerRequest(&auth.GetPolicyRequest{AccountId: account}, tokens.AccessToken))
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
+	current, err := policies.GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: account + "/authorizationPolicy"}, tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var yaml strings.Builder
-	fmt.Fprintf(&yaml, "schema: homeward.authorization/1\naccount_id: %q\ngrants:\n  - scope: {family: state_registry, operation: read}\n    objects:\n      entities:\n        explicit:\n", account.Value)
+	fmt.Fprintf(&yaml, "schema: homeward.authorization/1\naccount_id: %q\ngrants:\n  - scope: {family: state_registry, operation: read}\n    objects:\n      entities:\n        explicit:\n", nha203AccountText(t, nha203PolicyAccount(t, current.Msg.YamlSource)))
 	for _, binding := range bindings[:2] {
 		_, entity, e := binding.IDs()
 		if e != nil {
@@ -223,20 +222,20 @@ func nha052Start(t *testing.T, enabled bool) *nha052Fixture {
 		id, _ := entity.Value()
 		fmt.Fprintf(&yaml, "          - entity_id: %q\n            capabilities: {explicit: [{schema_id: core.switch.v1, endpoint: relay}]}\n", id)
 	}
-	_, err = policies.ReplacePolicy(ctx, nha141BearerRequest(&auth.ReplacePolicyRequest{AccountId: account, YamlSource: []byte(yaml.String()), Precondition: &auth.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, tokens.AccessToken))
+	_, err = policies.ReplaceAuthorizationPolicy(ctx, nha141BearerRequest(&api.ReplaceAuthorizationPolicyRequest{Name: account + "/authorizationPolicy", YamlSource: []byte(yaml.String()), Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: current.Msg.Etag}}, tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &nha052Fixture{ctx: ctx, base: base, http: client, clock: clock, tokens: tokens, account: account, keys: authv1connect.NewMcpKeyServiceClient(client, base), bindings: bindings, driver: driver, leaseEntered: leaseEntered, leaseCanceled: leaseCanceled}
+	return &nha052Fixture{ctx: ctx, base: base, http: client, clock: clock, tokens: tokens, account: account, keys: apiv2connect.NewMcpKeyServiceClient(client, base), bindings: bindings, driver: driver, leaseEntered: leaseEntered, leaseCanceled: leaseCanceled}
 }
 
-func (f *nha052Fixture) key(t *testing.T, name string, families ...auth.ScopeFamily) *auth.CreateMcpKeyResponse {
+func (f *nha052Fixture) key(t *testing.T, name string, families ...auth.ScopeFamily) *api.IssueMcpKeyResponse {
 	t.Helper()
-	scopes := make([]*auth.Scope, 0, len(families))
+	scopes := make([]*api.Scope, 0, len(families))
 	for _, family := range families {
-		scopes = append(scopes, &auth.Scope{Family: family, Operation: auth.ScopeOperation_SCOPE_OPERATION_READ})
+		scopes = append(scopes, &api.Scope{Family: api.ScopeFamily(family), Operation: api.ScopeOperation_SCOPE_OPERATION_READ})
 	}
-	response, err := f.keys.CreateMcpKey(f.ctx, nha141BearerRequest(&auth.CreateMcpKeyRequest{ClientName: name, Scopes: scopes, Lifetime: durationpb.New(time.Hour)}, f.tokens.AccessToken))
+	response, err := f.keys.IssueMcpKey(f.ctx, nha141BearerRequest(&api.IssueMcpKeyRequest{Parent: f.account, ClientName: name, Scopes: scopes, Lifetime: durationpb.New(time.Hour)}, f.tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,30 +297,30 @@ func TestNHA052ActualRunSDKReadsScopesPaginationRevocationExpiryAndNoActions(t *
 			t.Fatal("mutation in read catalogue", tool.Name)
 		}
 	}
-	var schemas configuration.ListSchemasResponse
-	nha052Call(t, f.ctx, configClient, "homeward.list_schemas", map[string]any{"page": map[string]any{"pageSize": 1}}, &schemas)
-	if len(schemas.Schemas) != 1 || schemas.Continuation.GetNextPageToken() == "" {
+	var schemas configuration.ListConfigurationSchemasResponse
+	nha052Call(t, f.ctx, configClient, "homeward.list_configuration_schemas", map[string]any{"parent": nha052ConfigurationHome(t, f), "pageSize": 1}, &schemas)
+	if len(schemas.Schemas) != 1 || schemas.NextPageToken == "" {
 		t.Fatal("configuration pagination", &schemas)
 	}
-	var second configuration.ListSchemasResponse
-	nha052Call(t, f.ctx, configClient, "homeward.list_schemas", map[string]any{"page": map[string]any{"pageSize": 1, "pageToken": schemas.Continuation.GetNextPageToken()}}, &second)
+	var second configuration.ListConfigurationSchemasResponse
+	nha052Call(t, f.ctx, configClient, "homeward.list_configuration_schemas", map[string]any{"parent": nha052ConfigurationHome(t, f), "pageSize": 1, "pageToken": schemas.NextPageToken}, &second)
 	if len(second.Schemas) != 1 || proto.Equal(schemas.Schemas[0], second.Schemas[0]) {
 		t.Fatal("configuration page repeats")
 	}
-	var document configuration.ReadDocumentResponse
-	nha052Call(t, f.ctx, configClient, "homeward.read_document", map[string]any{"id": map[string]any{"value": "operational.main"}}, &document)
+	var document configuration.ConfigurationDocument
+	nha052Call(t, f.ctx, configClient, "homeward.get_configuration_document", map[string]any{"name": nha052ConfigurationDocument(t, f)}, &document)
 	native := configurationv1connect.NewConfigurationServiceClient(f.http, f.base)
-	expected, err := native.ReadDocument(f.ctx, nha141BearerRequest(&configuration.ReadDocumentRequest{Id: &configuration.DocumentId{Value: "operational.main"}}, f.tokens.AccessToken))
+	expected, err := native.GetConfigurationDocument(f.ctx, nha141BearerRequest(&configuration.GetConfigurationDocumentRequest{Name: nha203PublicDocumentName(t, f.ctx, f.http, f.base, f.tokens.AccessToken, "operational.main")}, f.tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !proto.Equal(document.Document, expected.Msg.Document) {
+	if !proto.Equal(&document, expected.Msg) {
 		t.Fatal("MCP configuration differs from native")
 	}
-	nha052Call(t, f.ctx, configClient, "homeward.get_health", map[string]any{}, nil)
-	nha052Call(t, f.ctx, configClient, "homeward.list_documents", map[string]any{"page": map[string]any{"pageSize": 1}}, nil)
-	nha052Call(t, f.ctx, configClient, "homeward.list_generations", map[string]any{"page": map[string]any{"pageSize": 1}}, nil)
-	nha052Call(t, f.ctx, configClient, "homeward.list_versions", map[string]any{"id": map[string]any{"value": "operational.main"}, "page": map[string]any{"pageSize": 1}}, nil)
+	nha052Call(t, f.ctx, configClient, "homeward.get_health", map[string]any{"name": nha052ConfigurationHome(t, f) + "/health"}, nil)
+	nha052Call(t, f.ctx, configClient, "homeward.list_configuration_documents", map[string]any{"parent": nha052ConfigurationHome(t, f), "pageSize": 1}, nil)
+	nha052Call(t, f.ctx, configClient, "homeward.list_configuration_generations", map[string]any{"parent": nha052ConfigurationHome(t, f), "pageSize": 1}, nil)
+	nha052Call(t, f.ctx, configClient, "homeward.list_configuration_revisions", map[string]any{"parent": nha052ConfigurationDocument(t, f), "pageSize": 1}, nil)
 	request, _ := http.NewRequestWithContext(f.ctx, http.MethodPost, f.base+mcpReadsPath, strings.NewReader(strings.Repeat("x", (4<<20)+1)))
 	request.Header.Set("Authorization", "Bearer "+configKey.Secret)
 	request.Header.Set("Content-Type", "application/json")
@@ -429,8 +428,8 @@ func TestNHA052ActualRunSDKReadsScopesPaginationRevocationExpiryAndNoActions(t *
 	}{
 		{"homeward.query_entity_view", map[string]any{"name": created.Name, "pageSize": -1}},
 		{"homeward.create_entity_view", map[string]any{"parent": homeName.String(), "entityView": map[string]any{}, "actor": "admin"}},
-		{"homeward.list_documents", map[string]any{"page": map[string]any{"pageSize": 101}}},
-		{"homeward.list_schemas", map[string]any{"page": map[string]any{"pageSize": 1, "pageToken": "forged"}}},
+		{"homeward.list_configuration_documents", map[string]any{"parent": nha052ConfigurationHome(t, f), "pageSize": -1}},
+		{"homeward.list_configuration_schemas", map[string]any{"page": map[string]any{"pageSize": 1, "pageToken": "forged"}}},
 		{"homeward.submit_action", map[string]any{"entityId": hiddenID, "on": true}},
 	} {
 		r, e := stateClient.CallTool(f.ctx, &mcp.CallToolParams{Name: bad.name, Arguments: bad.args})
@@ -448,14 +447,14 @@ func TestNHA052ActualRunSDKReadsScopesPaginationRevocationExpiryAndNoActions(t *
 			t.Fatal("invalid/native key admitted MCP")
 		}
 	}
-	_, err = f.keys.RevokeMcpKey(f.ctx, nha141BearerRequest(&auth.RevokeMcpKeyRequest{KeyId: stateKey.Key.Id}, f.tokens.AccessToken))
+	_, err = f.keys.RevokeMcpKey(f.ctx, nha141BearerRequest(&api.RevokeMcpKeyRequest{Name: stateKey.McpKey.Name}, f.tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = stateClient.CallTool(f.ctx, &mcp.CallToolParams{Name: "homeward.create_entity_view", Arguments: map[string]any{"parent": homeName.String(), "entityView": map[string]any{}}}); err == nil {
 		t.Fatal("revoked key reused")
 	}
-	nha052Call(t, f.ctx, configClient, "homeward.get_health", map[string]any{}, nil)
+	nha052Call(t, f.ctx, configClient, "homeward.get_health", map[string]any{"name": nha052ConfigurationHome(t, f) + "/health"}, nil)
 	leaseKey := f.key(t, "SDK cancellation", auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION)
 	leaseClient, err := f.connectPath(leaseKey.Secret, "/nha052/lease")
 	if err != nil {
@@ -475,7 +474,7 @@ func TestNHA052ActualRunSDKReadsScopesPaginationRevocationExpiryAndNoActions(t *
 	case <-time.After(3 * time.Second):
 		t.Fatal("SDK tool never entered lease")
 	}
-	_, err = f.keys.RevokeMcpKey(f.ctx, nha141BearerRequest(&auth.RevokeMcpKeyRequest{KeyId: leaseKey.Key.Id}, f.tokens.AccessToken))
+	_, err = f.keys.RevokeMcpKey(f.ctx, nha141BearerRequest(&api.RevokeMcpKeyRequest{Name: leaseKey.McpKey.Name}, f.tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -494,7 +493,7 @@ func TestNHA052ActualRunSDKReadsScopesPaginationRevocationExpiryAndNoActions(t *
 		t.Fatal("expired key reused")
 	}
 	// The operator and ordinary HTTPS auth API survive MCP refusals and expiry.
-	authentication := authv1connect.NewAuthServiceClient(f.http, f.base)
+	authentication := apiv2connect.NewAuthServiceClient(f.http, f.base)
 	fresh := nha162RunLogin(t, f.ctx, authentication, "NHA052 admin", "NHA052 synthetic password only")
 	if fresh.AccessToken == "" {
 		t.Fatal("native auth unavailable after MCP failures")
@@ -508,8 +507,8 @@ func TestNHA052ActualRunDisabledKeepsNativeControl(t *testing.T) {
 		session.Close()
 		t.Fatal("disabled MCP accepted SDK initialization")
 	}
-	response, err := configurationv1connect.NewConfigurationServiceClient(f.http, f.base).ReadDocument(f.ctx, nha141BearerRequest(&configuration.ReadDocumentRequest{Id: &configuration.DocumentId{Value: "operational.main"}}, f.tokens.AccessToken))
-	if err != nil || response.Msg.Document == nil {
+	response, err := configurationv1connect.NewConfigurationServiceClient(f.http, f.base).GetConfigurationDocument(f.ctx, nha141BearerRequest(&configuration.GetConfigurationDocumentRequest{Name: nha203PublicDocumentName(t, f.ctx, f.http, f.base, f.tokens.AccessToken, "operational.main")}, f.tokens.AccessToken))
+	if err != nil || response.Msg == nil {
 		t.Fatal("disabling MCP stopped native configuration", err)
 	}
 	req, _ := http.NewRequestWithContext(f.ctx, http.MethodPost, f.base+mcpReadsPath, strings.NewReader(`{}`))
@@ -526,4 +525,13 @@ func TestNHA052ActualRunDisabledKeepsNativeControl(t *testing.T) {
 	if f.driver.emitted.Load() != 0 {
 		t.Fatal("MCP disable dispatched action")
 	}
+}
+
+func nha052ConfigurationDocument(t *testing.T, f *nha052Fixture) string {
+	return nha203PublicDocumentName(t, f.ctx, f.http, f.base, f.tokens.AccessToken, "operational.main")
+}
+func nha052ConfigurationHome(t *testing.T, f *nha052Fixture) string {
+	name := nha052ConfigurationDocument(t, f)
+	parent, _, _ := strings.Cut(name, "/configurationDocuments/")
+	return parent
 }

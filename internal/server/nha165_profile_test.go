@@ -36,7 +36,6 @@ import (
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	reg "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/authorization"
@@ -495,13 +494,13 @@ func TestNHA165CoreHelper(t *testing.T) {
 		t.Fatal(e)
 	}
 	base := "https://" + addr.String()
-	login, e := authv1connect.NewAuthServiceClient(client, base).StartLogin(ctx, connect.NewRequest(&auth.StartLoginRequest{LoginName: "NHA165 Admin", Password: password}))
+	login, e := apiv2connect.NewAuthServiceClient(client, base).StartLogin(ctx, connect.NewRequest(&api.StartLoginRequest{LoginName: "NHA165 Admin", Password: password}))
 	if e != nil || login.Msg.Decision.GetAuthenticated() == nil {
 		t.Fatal("native login", e)
 	}
 	token := login.Msg.Decision.GetAuthenticated().AccessToken
-	policy := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
-	current, e := policy.GetPolicy(ctx, nha141BearerRequest(&auth.GetPolicyRequest{AccountId: admin.Msg.Account.Id}, token))
+	policy := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
+	current, e := policy.GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: nha203SessionAccount(t, login.Msg.Decision.GetAuthenticated().Session).String() + "/authorizationPolicy"}, token))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -509,7 +508,7 @@ func TestNHA165CoreHelper(t *testing.T) {
 	for _, s := range []string{"state_registry, operation: read", "actions, operation: read", "actions, operation: write"} {
 		source += "  - scope: {family: " + s + "}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n"
 	}
-	_, e = policy.ReplacePolicy(ctx, nha141BearerRequest(&auth.ReplacePolicyRequest{AccountId: admin.Msg.Account.Id, YamlSource: []byte(source), Precondition: &auth.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, token))
+	_, e = policy.ReplaceAuthorizationPolicy(ctx, nha141BearerRequest(&api.ReplaceAuthorizationPolicyRequest{Name: nha203SessionAccount(t, login.Msg.Decision.GetAuthenticated().Session).String() + "/authorizationPolicy", YamlSource: []byte(source), Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: current.Msg.Etag}}, token))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -768,7 +767,7 @@ func TestNHA165ClientsHelper(t *testing.T) {
 	// the ten readers and command sampler then refresh independent sessions.
 	provisioning := nha181Client(nha165LoadRoots(t, ready.Data))
 	defer provisioning.CloseIdleConnections()
-	var sessions [nha165Clients + 1]*auth.SessionTokens
+	var sessions [nha165Clients + 1]*api.SessionTokens
 	for i := range sessions {
 		sessions[i], e = nha165Login(ctx, provisioning, ready.Base)
 		if e != nil {
@@ -813,8 +812,8 @@ func TestNHA165ClientsHelper(t *testing.T) {
 		t.Fatal(e)
 	}
 }
-func nha165Login(ctx context.Context, client *http.Client, base string) (*auth.SessionTokens, error) {
-	r, e := authv1connect.NewAuthServiceClient(client, base).StartLogin(ctx, connect.NewRequest(&auth.StartLoginRequest{LoginName: "NHA165 Admin", Password: "NHA165 synthetic device-free native password"}))
+func nha165Login(ctx context.Context, client *http.Client, base string) (*api.SessionTokens, error) {
+	r, e := apiv2connect.NewAuthServiceClient(client, base).StartLogin(ctx, connect.NewRequest(&api.StartLoginRequest{LoginName: "NHA165 Admin", Password: "NHA165 synthetic device-free native password"}))
 	if e != nil {
 		return nil, e
 	}
@@ -910,7 +909,7 @@ type nha165ViewReader struct {
 	events chan nha165ViewDelivery
 }
 
-func nha165ReadClient(ctx context.Context, t *testing.T, id int, p nha165Profile, proof string, ready nha165Ready, tokens *auth.SessionTokens, snapshots *sync.Mutex, fast *nha165Log, summary *nha165ClientSummary, readyCount *atomic.Int32) error {
+func nha165ReadClient(ctx context.Context, t *testing.T, id int, p nha165Profile, proof string, ready nha165Ready, tokens *api.SessionTokens, snapshots *sync.Mutex, fast *nha165Log, summary *nha165ClientSummary, readyCount *atomic.Int32) error {
 	client := nha181Client(nha165LoadRoots(t, ready.Data))
 	client.Timeout = 0
 	defer client.CloseIdleConnections()
@@ -1050,7 +1049,7 @@ func nha165ReadClient(ctx context.Context, t *testing.T, id int, p nha165Profile
 	// contiguously before deduplication; no snapshot reset can hide a missing frame.
 	type preparedCapture struct {
 		capture nha165EntityCapture
-		tokens  *auth.SessionTokens
+		tokens  *api.SessionTokens
 		err     error
 	}
 	prepared := make(chan preparedCapture, 1)
@@ -1078,7 +1077,7 @@ func nha165ReadClient(ctx context.Context, t *testing.T, id int, p nha165Profile
 				defer prepare.Done()
 				result := preparedCapture{tokens: oldTokens}
 				if refresh {
-					response, err := authv1connect.NewAuthServiceClient(client, ready.Base).RefreshSession(work, connect.NewRequest(&auth.RefreshSessionRequest{RefreshToken: oldTokens.RefreshToken}))
+					response, err := apiv2connect.NewAuthServiceClient(client, ready.Base).RefreshSession(work, connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: oldTokens.RefreshToken, RenewalKey: []byte("0123456789abcdef0123456789abcdef")}))
 					if err != nil {
 						result.err = err
 					} else if response.Msg.Tokens == nil {
@@ -1152,7 +1151,7 @@ func nha165ReadClient(ctx context.Context, t *testing.T, id int, p nha165Profile
 	summary.Counts[id] = received
 	return nil
 }
-func nha165CommandsClient(ctx context.Context, t *testing.T, p nha165Profile, proof string, ready nha165Ready, tokens *auth.SessionTokens, summary *nha165ClientSummary) error {
+func nha165CommandsClient(ctx context.Context, t *testing.T, p nha165Profile, proof string, ready nha165Ready, tokens *api.SessionTokens, summary *nha165ClientSummary) error {
 	if e := nha165WaitFile(ctx, filepath.Join(proof, "main-start.json")); e != nil {
 		return e
 	}
@@ -1175,7 +1174,7 @@ func nha165CommandsClient(ctx context.Context, t *testing.T, p nha165Profile, pr
 			}
 		}
 		if i > 0 && i%240 == 0 {
-			refresh, e := authv1connect.NewAuthServiceClient(client, ready.Base).RefreshSession(ctx, connect.NewRequest(&auth.RefreshSessionRequest{RefreshToken: tokens.RefreshToken}))
+			refresh, e := apiv2connect.NewAuthServiceClient(client, ready.Base).RefreshSession(ctx, connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: tokens.RefreshToken, RenewalKey: []byte("0123456789abcdef0123456789abcdef")}))
 			if e != nil {
 				return e
 			}

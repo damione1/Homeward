@@ -39,7 +39,7 @@ func nha202TaskAPI(t *testing.T) (*nha162RPCRig, apiv2connect.TaskServiceClient,
 	if err = registerTaskRoutes(plan, handler); err != nil {
 		t.Fatal(err)
 	}
-	plan, _, err = composeSessionsWithCoordinator(plan, r.store, r.coordinator)
+	plan, _, err = composeSessionsWithCoordinator(plan, r.store, r.coordinator, administrationNames{home: r.lists.registry, store: r.store})
 	if err != nil {
 		t.Fatal(err)
 	}

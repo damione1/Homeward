@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -24,7 +25,6 @@ import (
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	registryv1 "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/apierrors"
@@ -41,6 +41,7 @@ import (
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -197,19 +198,19 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	defer operatorHTTP.CloseIdleConnections()
 	operator := operatorv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
 	const password = "NHA147 synthetic native local password"
-	admin, err := operator.BootstrapAdmin(ctx, connect.NewRequest(&authv1.BootstrapAdminRequest{LoginName: "NHA147 Admin", DisplayName: "NHA147 Admin", Password: password}))
+	_, err = operator.BootstrapAdmin(ctx, connect.NewRequest(&authv1.BootstrapAdminRequest{LoginName: "NHA147 Admin", DisplayName: "NHA147 Admin", Password: password}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	loginAccount := func(name string) *authv1.SessionTokens {
+	loginAccount := func(name string) *api.SessionTokens {
 		t.Helper()
-		response, err := authv1connect.NewAuthServiceClient(client, base).StartLogin(ctx, connect.NewRequest(&authv1.StartLoginRequest{LoginName: name, Password: password}))
+		response, err := apiv2connect.NewAuthServiceClient(client, base).StartLogin(ctx, connect.NewRequest(&api.StartLoginRequest{LoginName: name, Password: password}))
 		if err != nil || response.Msg.Decision.GetAuthenticated() == nil {
 			t.Fatal("native login", err)
 		}
 		return response.Msg.Decision.GetAuthenticated()
 	}
-	login := func() *authv1.SessionTokens { return loginAccount("NHA147 Admin") }
+	login := func() *api.SessionTokens { return loginAccount("NHA147 Admin") }
 	tokens := login()
 	views := apiv2connect.NewEntityViewServiceClient(client, base)
 	homes := apiv2connect.NewHomeServiceClient(client, base)
@@ -236,15 +237,15 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	}
 	// Explicit fixture grants go through the real native policy CAS API.
 	// Admin is an account-management role, never implicit equipment access.
-	grantPolicy := func(account *authv1.AccountId, stateRead, actionRead, actionWrite bool) {
+	grantPolicy := func(account string, stateRead, actionRead, actionWrite bool) {
 		t.Helper()
-		policy := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
-		current, err := policy.GetPolicy(ctx, nha141BearerRequest(&authv1.GetPolicyRequest{AccountId: account}, tokens.AccessToken))
-		if err != nil || current.Msg.GetPresent() == nil {
+		policy := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
+		current, err := policy.GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: account + "/authorizationPolicy"}, tokens.AccessToken))
+		if err != nil || current == nil {
 			t.Fatal("native policy read", err)
 		}
 		var source strings.Builder
-		fmt.Fprintf(&source, "schema: homeward.authorization/1\naccount_id: %q\n", account.Value)
+		fmt.Fprintf(&source, "schema: homeward.authorization/1\naccount_id: %q\n", nha203AccountText(t, nha203PolicyAccount(t, current.Msg.YamlSource)))
 		if !stateRead && !actionRead && !actionWrite {
 			source.WriteString("grants: []\n")
 		} else {
@@ -272,7 +273,11 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 				fmt.Fprintf(&source, "          - entity_id: %q\n            capabilities: {explicit: [{schema_id: core.switch.v1, endpoint: relay}]}\n", id)
 			}
 		}
-		_, err = policy.ReplacePolicy(ctx, nha141BearerRequest(&authv1.ReplacePolicyRequest{AccountId: account, YamlSource: []byte(source.String()), Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: current.Msg.GetPresent().Version}}, tokens.AccessToken))
+		request := &api.ReplaceAuthorizationPolicyRequest{Name: current.Msg.Name, YamlSource: []byte(source.String()), Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: current.Msg.Etag}}
+		if current.Msg.Origin == api.AuthorizationPolicyOrigin_AUTHORIZATION_POLICY_ORIGIN_DEFAULT {
+			request.Precondition = &api.ReplaceAuthorizationPolicyRequest_ExpectAbsent{ExpectAbsent: &emptypb.Empty{}}
+		}
+		_, err = policy.ReplaceAuthorizationPolicy(ctx, nha141BearerRequest(request, tokens.AccessToken))
 		if err != nil {
 			t.Fatal("native policy CAS", err)
 		}
@@ -371,7 +376,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	if _, err := capabilities.ExecuteCapability(ctx, nha141BearerRequest(denied, tokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied || driver.emitted.Load() != 0 {
 		t.Fatal("empty admin policy dispatched", err)
 	}
-	grantPolicy(admin.Msg.Account.Id, true, true, true)
+	grantPolicy(nha203SessionAccount(t, tokens.Session).String(), true, true, true)
 	first := capture(tokens.AccessToken, 1, false)
 	if len(first.Entries) != 1 || first.Page.NextPageToken == "" || first.Resume != "" || power(first.Entries[0]) != api.PowerValue_POWER_VALUE_OFF {
 		t.Fatal("initial coherent partial page", first)
@@ -412,7 +417,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	wrongCapture.ResumeToken = first.Resume
 	assertResync(watchError(wrongCapture, tokens.AccessToken))
 	closeCapture(other, tokens.AccessToken)
-	slowAccount, err := authv1connect.NewAccountServiceClient(client, base).CreateAccount(ctx, nha141BearerRequest(&authv1.CreateAccountRequest{LoginName: "NHA147 Reader", DisplayName: "NHA147 Reader", Role: authv1.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}, tokens.AccessToken))
+	slowAccount, err := apiv2connect.NewAccountServiceClient(client, base).CreateAccount(ctx, nha141BearerRequest(&api.CreateAccountRequest{Parent: home.String(), Account: &api.Account{LoginName: "NHA147 Reader", DisplayName: "NHA147 Reader", Role: api.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}}, tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +427,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 		t.Fatal("empty user policy exposed equipment")
 	}
 	closeCapture(empty, slowTokens.AccessToken)
-	grantPolicy(slowAccount.Msg.Account.Id, true, true, true)
+	grantPolicy(slowAccount.Msg.Name, true, true, true)
 	if _, err := views.QueryEntityView(ctx, nha141BearerRequest(pageRequest, slowTokens.AccessToken)); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatal("capture crossed credential binding", err)
 	}
@@ -446,7 +451,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	if slowConnection.State().StreamsActive != 1 {
 		t.Fatal("unread slow stream ended before revocation proof")
 	}
-	grantPolicy(slowAccount.Msg.Account.Id, false, true, true)
+	grantPolicy(slowAccount.Msg.Name, false, true, true)
 	waitClosed := func(connection *http2.ClientConn, reason string) {
 		t.Helper()
 		until := time.Now().Add(3 * time.Second)
@@ -478,7 +483,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	}
 	fast.Close()
 	closeCapture(freshFast, tokens.AccessToken)
-	if sessions, err := authv1connect.NewAuthServiceClient(client, base).ListSessions(ctx, nha141BearerRequest(&authv1.ListSessionsRequest{AccountId: slowAccount.Msg.Account.Id}, slowTokens.AccessToken)); err != nil || len(sessions.Msg.Sessions) == 0 {
+	if sessions, err := apiv2connect.NewAuthServiceClient(client, base).ListSessions(ctx, nha141BearerRequest(&api.ListSessionsRequest{Parent: slowAccount.Msg.Name}, slowTokens.AccessToken)); err != nil || len(sessions.Msg.Sessions) == 0 {
 		t.Fatal("policy withdrawal revoked credential", err)
 	}
 	empty = capture(slowTokens.AccessToken, 1, true)
@@ -486,20 +491,20 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 		t.Fatal("withdrawn view exposed equipment")
 	}
 	closeCapture(empty, slowTokens.AccessToken)
-	grantPolicy(slowAccount.Msg.Account.Id, true, true, true)
+	grantPolicy(slowAccount.Msg.Name, true, true, true)
 	readablePage := capture(slowTokens.AccessToken, 1, true)
 	publish(0, false)
 	readable, err := views.WatchEntityView(ctx, nha141BearerRequest(watchRequest(readablePage), slowTokens.AccessToken))
 	if err != nil || !readable.Receive() || readable.Msg().GetUpsert() == nil {
 		t.Fatal("readable policy watch did not become idle", err)
 	}
-	grantPolicy(slowAccount.Msg.Account.Id, false, true, true)
+	grantPolicy(slowAccount.Msg.Name, false, true, true)
 	if readable.Receive() {
 		t.Fatal("withdrawn policy emitted a state")
 	}
 	assertResync(readable.Err())
 	readable.Close()
-	grantPolicy(slowAccount.Msg.Account.Id, true, true, true)
+	grantPolicy(slowAccount.Msg.Name, true, true, true)
 	assertResync(watchError(watchRequest(first), tokens.AccessToken))
 	// These captures become invalid after policy publication; the operation gets
 	// its definition binding from a fresh authorized capability.
@@ -522,8 +527,8 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	submit := func(command *api.ExecuteCapabilityRequest) (*connect.Response[longrunningpb.Operation], error) {
 		return capabilities.ExecuteCapability(ctx, nha141BearerRequest(command, tokens.AccessToken))
 	}
-	operationName := func(requestID string, account *authv1.AccountId) string {
-		actor, err := domain.ParseActorID(account.Value)
+	operationName := func(requestID string, account string) string {
+		actor, err := domain.ParseActorID(nha203AccountText(t, nha203NativeAccount(t, ctx, nativeStore, account)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -648,7 +653,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	}
 	unknownResult := proto.Clone(command).(*api.ExecuteCapabilityRequest)
 	unknownResult.RequestId = nha114RequestID("nha147-unknown-result")
-	unknownName := operationName(unknownResult.RequestId, tokens.Session.AccountId)
+	unknownName := operationName(unknownResult.RequestId, nha203SessionAccount(t, tokens.Session).String())
 	rpcUnknown := func(err error) {
 		t.Helper()
 		var failure *connect.Error
@@ -756,7 +761,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	if witness, err := get(name, tokens.AccessToken); err != nil || witness.Msg.Name != name {
 		t.Fatal("blocked operation stalled independent reader", err)
 	}
-	grantPolicy(slowAccount.Msg.Account.Id, true, false, false)
+	grantPolicy(slowAccount.Msg.Name, true, false, false)
 	waitClosed(blockedAction, "policy withdrawal retained blocked operation Send")
 	for _, method := range []string{"get", "wait"} {
 		var err error
@@ -774,7 +779,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	if _, err := capabilities.ExecuteCapability(ctx, nha141BearerRequest(refusedWrite, slowTokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied || driver.emitted.Load() != 4 {
 		t.Fatal("withdrawn write reached driver", err)
 	}
-	if sessions, err := authv1connect.NewAuthServiceClient(client, base).ListSessions(ctx, nha141BearerRequest(&authv1.ListSessionsRequest{AccountId: slowAccount.Msg.Account.Id}, slowTokens.AccessToken)); err != nil || len(sessions.Msg.Sessions) == 0 {
+	if sessions, err := apiv2connect.NewAuthServiceClient(client, base).ListSessions(ctx, nha141BearerRequest(&api.ListSessionsRequest{Parent: slowAccount.Msg.Name}, slowTokens.AccessToken)); err != nil || len(sessions.Msg.Sessions) == 0 {
 		t.Fatal("action withdrawal revoked credential", err)
 	}
 	remaining := capture(slowTokens.AccessToken, 1, true)
@@ -790,7 +795,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	if witness, err := get(name, tokens.AccessToken); err != nil || witness.Msg.Name != name {
 		t.Fatal("withdrawal broke independent operation reader", err)
 	}
-	secondName := operationName(secondCommand.RequestId, tokens.Session.AccountId)
+	secondName := operationName(secondCommand.RequestId, nha203SessionAccount(t, tokens.Session).String())
 	blockedCredential, _ := nha147UnreadH2(t, ctx, base, roots, longrunningpbconnect.OperationsGetOperationProcedure, &longrunningpb.GetOperationRequest{Name: secondName}, tokens.AccessToken, 1)
 	if blockedCredential.State().StreamsActive != 1 {
 		t.Fatal("credential revocation lacked blocked response")
@@ -802,7 +807,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	if err != nil || !live.Receive() {
 		t.Fatal("credential entity stream absent", err)
 	}
-	if _, err := authv1connect.NewAuthServiceClient(client, base).RevokeSession(ctx, nha141BearerRequest(&authv1.RevokeSessionRequest{SessionId: tokens.Session.Id}, tokens.AccessToken)); err != nil {
+	if _, err := apiv2connect.NewAuthServiceClient(client, base).RevokeSession(ctx, nha141BearerRequest(&api.RevokeSessionRequest{Name: tokens.Session.Name}, tokens.AccessToken)); err != nil {
 		t.Fatal(err)
 	}
 	waitClosed(blockedCredential, "credential revocation retained blocked operation Send")
@@ -817,7 +822,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	for _, detail := range ended.Details() {
 		value, err := detail.Value()
 		if err == nil {
-			if reason, ok := value.(*authv1.AuthorizationTermination); ok && reason.Reason == authv1.AuthorizationTerminationReason_AUTHORIZATION_TERMINATION_REASON_CREDENTIAL_REVOKED {
+			if reason, ok := value.(*errdetails.ErrorInfo); ok && reason.Domain == apierrors.Domain() && reason.Reason == "AUTHENTICATION_REQUIRED" {
 				foundTermination = true
 			}
 		}
@@ -840,7 +845,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	if _, err := submit(command); err != nil || driver.emitted.Load() != 4 {
 		t.Fatal("restart replayed effect", err)
 	}
-	recoveredName := operationName(unknownResult.RequestId, tokens.Session.AccountId)
+	recoveredName := operationName(unknownResult.RequestId, nha203SessionAccount(t, tokens.Session).String())
 	recovered, err := get(recoveredName, tokens.AccessToken)
 	if err != nil || !recovered.Msg.Done || nha114Metadata(t, recovered.Msg).LiveProgressAvailable || nha114Metadata(t, recovered.Msg).Phase != api.CommandPhase_COMMAND_PHASE_INDETERMINATE || durable(recoveredName).State() != storage.IntentIndeterminate {
 		t.Fatal("restart erased uncertain effect", err)
@@ -905,7 +910,7 @@ func nha147UnreadH2(t *testing.T, ctx context.Context, base string, roots *x509.
 	}
 	payload := encoded
 	contentType := "application/proto"
-	if procedure != longrunningpbconnect.OperationsGetOperationProcedure {
+	if strings.Contains(procedure, "/Watch") {
 		contentType = "application/connect+proto"
 		payload = make([]byte, 5+len(encoded))
 		binary.BigEndian.PutUint32(payload[1:5], uint32(len(encoded)))

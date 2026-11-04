@@ -24,18 +24,28 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Defines the closed vocabulary for read unavailable reason.
 type ObservationReadUnavailableReason int32
 
 const (
-	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_UNSPECIFIED           ObservationReadUnavailableReason = 0
-	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_NOT_OBSERVED          ObservationReadUnavailableReason = 1
-	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_PRODUCER_STOPPED      ObservationReadUnavailableReason = 2
-	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_INTEGRITY             ObservationReadUnavailableReason = 3
-	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_CORE_UNAVAILABLE      ObservationReadUnavailableReason = 4
-	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_STORAGE_UNAVAILABLE   ObservationReadUnavailableReason = 5
+	// No explicit observation read unavailable reason. Does not select an action.
+	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_UNSPECIFIED ObservationReadUnavailableReason = 0
+	// Selects not observed for read unavailable reason.
+	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_NOT_OBSERVED ObservationReadUnavailableReason = 1
+	// Selects producer stopped for read unavailable reason.
+	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_PRODUCER_STOPPED ObservationReadUnavailableReason = 2
+	// Selects integrity for read unavailable reason.
+	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_INTEGRITY ObservationReadUnavailableReason = 3
+	// Selects core unavailable for read unavailable reason.
+	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_CORE_UNAVAILABLE ObservationReadUnavailableReason = 4
+	// Selects storage unavailable for read unavailable reason.
+	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_STORAGE_UNAVAILABLE ObservationReadUnavailableReason = 5
+	// Selects authority unavailable for read unavailable reason.
 	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_AUTHORITY_UNAVAILABLE ObservationReadUnavailableReason = 6
-	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_TIME_BUDGET           ObservationReadUnavailableReason = 7
-	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_COMPLETION_UNKNOWN    ObservationReadUnavailableReason = 8
+	// Selects time budget for read unavailable reason.
+	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_TIME_BUDGET ObservationReadUnavailableReason = 7
+	// Selects completion unknown for read unavailable reason.
+	ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_COMPLETION_UNKNOWN ObservationReadUnavailableReason = 8
 )
 
 // Enum value maps for ObservationReadUnavailableReason.
@@ -91,9 +101,11 @@ func (ObservationReadUnavailableReason) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{0}
 }
 
+// Defines the closed vocabulary for liveness.
 type ObservationLiveness int32
 
 const (
+	// No explicit observation liveness. Does not select an action.
 	ObservationLiveness_OBSERVATION_LIVENESS_UNSPECIFIED ObservationLiveness = 0
 	// Processing this read proves only the process is live at this cut.
 	ObservationLiveness_OBSERVATION_LIVENESS_LIVE ObservationLiveness = 1
@@ -138,13 +150,19 @@ func (ObservationLiveness) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{1}
 }
 
+// Defines the closed vocabulary for server readiness.
 type ObservationServerReadiness int32
 
 const (
-	ObservationServerReadiness_OBSERVATION_SERVER_READINESS_UNSPECIFIED      ObservationServerReadiness = 0
-	ObservationServerReadiness_OBSERVATION_SERVER_READINESS_STARTING         ObservationServerReadiness = 1
-	ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY            ObservationServerReadiness = 2
-	ObservationServerReadiness_OBSERVATION_SERVER_READINESS_DRAINING         ObservationServerReadiness = 3
+	// No explicit observation server readiness. Does not select an action.
+	ObservationServerReadiness_OBSERVATION_SERVER_READINESS_UNSPECIFIED ObservationServerReadiness = 0
+	// Selects starting for server readiness.
+	ObservationServerReadiness_OBSERVATION_SERVER_READINESS_STARTING ObservationServerReadiness = 1
+	// Selects ready for server readiness.
+	ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY ObservationServerReadiness = 2
+	// Selects draining for server readiness.
+	ObservationServerReadiness_OBSERVATION_SERVER_READINESS_DRAINING ObservationServerReadiness = 3
+	// Selects core unavailable for server readiness.
 	ObservationServerReadiness_OBSERVATION_SERVER_READINESS_CORE_UNAVAILABLE ObservationServerReadiness = 4
 )
 
@@ -193,16 +211,24 @@ func (ObservationServerReadiness) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{2}
 }
 
+// Defines the closed vocabulary for core cause.
 type ObservationCoreCause int32
 
 const (
-	ObservationCoreCause_OBSERVATION_CORE_CAUSE_UNSPECIFIED               ObservationCoreCause = 0
-	ObservationCoreCause_OBSERVATION_CORE_CAUSE_GENERATION_NOT_LOADED     ObservationCoreCause = 1
-	ObservationCoreCause_OBSERVATION_CORE_CAUSE_REGISTRY_UNAVAILABLE      ObservationCoreCause = 2
+	// No explicit observation core cause. Does not select an action.
+	ObservationCoreCause_OBSERVATION_CORE_CAUSE_UNSPECIFIED ObservationCoreCause = 0
+	// Selects generation not loaded for core cause.
+	ObservationCoreCause_OBSERVATION_CORE_CAUSE_GENERATION_NOT_LOADED ObservationCoreCause = 1
+	// Selects registry unavailable for core cause.
+	ObservationCoreCause_OBSERVATION_CORE_CAUSE_REGISTRY_UNAVAILABLE ObservationCoreCause = 2
+	// Selects control admissions closed for core cause.
 	ObservationCoreCause_OBSERVATION_CORE_CAUSE_CONTROL_ADMISSIONS_CLOSED ObservationCoreCause = 3
-	ObservationCoreCause_OBSERVATION_CORE_CAUSE_OWNERS_NOT_STARTED        ObservationCoreCause = 4
-	ObservationCoreCause_OBSERVATION_CORE_CAUSE_LISTENER_NOT_READY        ObservationCoreCause = 5
-	ObservationCoreCause_OBSERVATION_CORE_CAUSE_SHUTTING_DOWN             ObservationCoreCause = 6
+	// Selects owners not started for core cause.
+	ObservationCoreCause_OBSERVATION_CORE_CAUSE_OWNERS_NOT_STARTED ObservationCoreCause = 4
+	// Selects listener not ready for core cause.
+	ObservationCoreCause_OBSERVATION_CORE_CAUSE_LISTENER_NOT_READY ObservationCoreCause = 5
+	// Selects shutting down for core cause.
+	ObservationCoreCause_OBSERVATION_CORE_CAUSE_SHUTTING_DOWN ObservationCoreCause = 6
 )
 
 // Enum value maps for ObservationCoreCause.
@@ -254,15 +280,22 @@ func (ObservationCoreCause) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{3}
 }
 
+// Defines the closed vocabulary for durable availability.
 type ObservationDurableAvailability int32
 
 const (
-	ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_UNSPECIFIED    ObservationDurableAvailability = 0
-	ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_AVAILABLE      ObservationDurableAvailability = 1
-	ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_DEGRADED       ObservationDurableAvailability = 2
-	ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_UNAVAILABLE    ObservationDurableAvailability = 3
+	// No explicit observation durable availability. Does not select an action.
+	ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_UNSPECIFIED ObservationDurableAvailability = 0
+	// Selects available for durable availability.
+	ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_AVAILABLE ObservationDurableAvailability = 1
+	// Selects degraded for durable availability.
+	ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_DEGRADED ObservationDurableAvailability = 2
+	// Selects unavailable for durable availability.
+	ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_UNAVAILABLE ObservationDurableAvailability = 3
+	// Selects not configured for durable availability.
 	ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_NOT_CONFIGURED ObservationDurableAvailability = 4
-	ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_UNKNOWN        ObservationDurableAvailability = 5
+	// Selects unknown for durable availability.
+	ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_UNKNOWN ObservationDurableAvailability = 5
 )
 
 // Enum value maps for ObservationDurableAvailability.
@@ -312,15 +345,22 @@ func (ObservationDurableAvailability) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{4}
 }
 
+// Defines the closed vocabulary for pilot phase.
 type ObservationPilotPhase int32
 
 const (
+	// No explicit observation pilot phase. Does not select an action.
 	ObservationPilotPhase_OBSERVATION_PILOT_PHASE_UNSPECIFIED ObservationPilotPhase = 0
-	ObservationPilotPhase_OBSERVATION_PILOT_PHASE_STARTING    ObservationPilotPhase = 1
-	ObservationPilotPhase_OBSERVATION_PILOT_PHASE_RUNNING     ObservationPilotPhase = 2
-	ObservationPilotPhase_OBSERVATION_PILOT_PHASE_RETRYING    ObservationPilotPhase = 3
-	ObservationPilotPhase_OBSERVATION_PILOT_PHASE_DEGRADED    ObservationPilotPhase = 4
-	ObservationPilotPhase_OBSERVATION_PILOT_PHASE_STOPPED     ObservationPilotPhase = 5
+	// Selects starting for pilot phase.
+	ObservationPilotPhase_OBSERVATION_PILOT_PHASE_STARTING ObservationPilotPhase = 1
+	// Selects running for pilot phase.
+	ObservationPilotPhase_OBSERVATION_PILOT_PHASE_RUNNING ObservationPilotPhase = 2
+	// Selects retrying for pilot phase.
+	ObservationPilotPhase_OBSERVATION_PILOT_PHASE_RETRYING ObservationPilotPhase = 3
+	// Selects degraded for pilot phase.
+	ObservationPilotPhase_OBSERVATION_PILOT_PHASE_DEGRADED ObservationPilotPhase = 4
+	// Selects stopped for pilot phase.
+	ObservationPilotPhase_OBSERVATION_PILOT_PHASE_STOPPED ObservationPilotPhase = 5
 )
 
 // Enum value maps for ObservationPilotPhase.
@@ -370,16 +410,24 @@ func (ObservationPilotPhase) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{5}
 }
 
+// Defines the closed vocabulary for recorder phase.
 type ObservationRecorderPhase int32
 
 const (
+	// No explicit observation recorder phase. Does not select an action.
 	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_UNSPECIFIED ObservationRecorderPhase = 0
-	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_RUNNING     ObservationRecorderPhase = 1
-	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_WRITING     ObservationRecorderPhase = 2
-	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_BACKOFF     ObservationRecorderPhase = 3
-	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_STOPPING    ObservationRecorderPhase = 4
-	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_FAILED      ObservationRecorderPhase = 5
-	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_STOPPED     ObservationRecorderPhase = 6
+	// Selects running for recorder phase.
+	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_RUNNING ObservationRecorderPhase = 1
+	// Selects writing for recorder phase.
+	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_WRITING ObservationRecorderPhase = 2
+	// Selects backoff for recorder phase.
+	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_BACKOFF ObservationRecorderPhase = 3
+	// Selects stopping for recorder phase.
+	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_STOPPING ObservationRecorderPhase = 4
+	// Selects failed for recorder phase.
+	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_FAILED ObservationRecorderPhase = 5
+	// Selects stopped for recorder phase.
+	ObservationRecorderPhase_OBSERVATION_RECORDER_PHASE_STOPPED ObservationRecorderPhase = 6
 )
 
 // Enum value maps for ObservationRecorderPhase.
@@ -431,13 +479,18 @@ func (ObservationRecorderPhase) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{6}
 }
 
+// Defines the closed vocabulary for recorder health state.
 type ObservationRecorderHealthState int32
 
 const (
+	// No explicit observation recorder health state. Does not select an action.
 	ObservationRecorderHealthState_OBSERVATION_RECORDER_HEALTH_STATE_UNSPECIFIED ObservationRecorderHealthState = 0
-	ObservationRecorderHealthState_OBSERVATION_RECORDER_HEALTH_STATE_OPERATING   ObservationRecorderHealthState = 1
-	ObservationRecorderHealthState_OBSERVATION_RECORDER_HEALTH_STATE_DEGRADED    ObservationRecorderHealthState = 2
-	ObservationRecorderHealthState_OBSERVATION_RECORDER_HEALTH_STATE_FAILED      ObservationRecorderHealthState = 3
+	// Selects operating for recorder health state.
+	ObservationRecorderHealthState_OBSERVATION_RECORDER_HEALTH_STATE_OPERATING ObservationRecorderHealthState = 1
+	// Selects degraded for recorder health state.
+	ObservationRecorderHealthState_OBSERVATION_RECORDER_HEALTH_STATE_DEGRADED ObservationRecorderHealthState = 2
+	// Selects failed for recorder health state.
+	ObservationRecorderHealthState_OBSERVATION_RECORDER_HEALTH_STATE_FAILED ObservationRecorderHealthState = 3
 )
 
 // Enum value maps for ObservationRecorderHealthState.
@@ -483,19 +536,30 @@ func (ObservationRecorderHealthState) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{7}
 }
 
+// Defines the closed vocabulary for queue class.
 type ObservationQueueClass int32
 
 const (
-	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_UNSPECIFIED        ObservationQueueClass = 0
-	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_UI                 ObservationQueueClass = 1
-	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_EDGE               ObservationQueueClass = 2
-	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_RECORDER           ObservationQueueClass = 3
-	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_VIEW               ObservationQueueClass = 4
+	// No explicit observation queue class. Does not select an action.
+	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_UNSPECIFIED ObservationQueueClass = 0
+	// Selects ui for queue class.
+	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_UI ObservationQueueClass = 1
+	// Selects edge for queue class.
+	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_EDGE ObservationQueueClass = 2
+	// Selects recorder for queue class.
+	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_RECORDER ObservationQueueClass = 3
+	// Selects view for queue class.
+	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_VIEW ObservationQueueClass = 4
+	// Selects automation pending for queue class.
 	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_AUTOMATION_PENDING ObservationQueueClass = 5
-	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_SCRIPT_PENDING     ObservationQueueClass = 6
-	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_MQTT_INBOUND       ObservationQueueClass = 7
-	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_WORKER_COMMANDS    ObservationQueueClass = 8
-	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_CLOUD_REQUESTS     ObservationQueueClass = 9
+	// Selects script pending for queue class.
+	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_SCRIPT_PENDING ObservationQueueClass = 6
+	// Selects mqtt inbound for queue class.
+	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_MQTT_INBOUND ObservationQueueClass = 7
+	// Selects worker commands for queue class.
+	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_WORKER_COMMANDS ObservationQueueClass = 8
+	// Selects cloud requests for queue class.
+	ObservationQueueClass_OBSERVATION_QUEUE_CLASS_CLOUD_REQUESTS ObservationQueueClass = 9
 )
 
 // Enum value maps for ObservationQueueClass.
@@ -553,12 +617,16 @@ func (ObservationQueueClass) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{8}
 }
 
+// Defines the closed vocabulary for attempt ledger.
 type ObservationAttemptLedger int32
 
 const (
+	// No explicit observation attempt ledger. Does not select an action.
 	ObservationAttemptLedger_OBSERVATION_ATTEMPT_LEDGER_UNSPECIFIED ObservationAttemptLedger = 0
-	ObservationAttemptLedger_OBSERVATION_ATTEMPT_LEDGER_VOLATILE    ObservationAttemptLedger = 1
-	ObservationAttemptLedger_OBSERVATION_ATTEMPT_LEDGER_DURABLE     ObservationAttemptLedger = 2
+	// Selects volatile for attempt ledger.
+	ObservationAttemptLedger_OBSERVATION_ATTEMPT_LEDGER_VOLATILE ObservationAttemptLedger = 1
+	// Selects durable for attempt ledger.
+	ObservationAttemptLedger_OBSERVATION_ATTEMPT_LEDGER_DURABLE ObservationAttemptLedger = 2
 )
 
 // Enum value maps for ObservationAttemptLedger.
@@ -602,12 +670,16 @@ func (ObservationAttemptLedger) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{9}
 }
 
+// Defines the closed vocabulary for run kind.
 type ObservationRunKind int32
 
 const (
+	// No explicit observation run kind. Does not select an action.
 	ObservationRunKind_OBSERVATION_RUN_KIND_UNSPECIFIED ObservationRunKind = 0
-	ObservationRunKind_OBSERVATION_RUN_KIND_AUTOMATION  ObservationRunKind = 1
-	ObservationRunKind_OBSERVATION_RUN_KIND_SCRIPT      ObservationRunKind = 2
+	// Selects automation for run kind.
+	ObservationRunKind_OBSERVATION_RUN_KIND_AUTOMATION ObservationRunKind = 1
+	// Selects script for run kind.
+	ObservationRunKind_OBSERVATION_RUN_KIND_SCRIPT ObservationRunKind = 2
 )
 
 // Enum value maps for ObservationRunKind.
@@ -651,18 +723,28 @@ func (ObservationRunKind) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{10}
 }
 
+// Defines the closed vocabulary for metric owner.
 type ObservationMetricOwner int32
 
 const (
-	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_UNSPECIFIED     ObservationMetricOwner = 0
-	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_SEQUENCER       ObservationMetricOwner = 1
-	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_RECORDER        ObservationMetricOwner = 2
-	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_ACTIONS         ObservationMetricOwner = 3
+	// No explicit observation metric owner. Does not select an action.
+	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_UNSPECIFIED ObservationMetricOwner = 0
+	// Selects sequencer for metric owner.
+	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_SEQUENCER ObservationMetricOwner = 1
+	// Selects recorder for metric owner.
+	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_RECORDER ObservationMetricOwner = 2
+	// Selects actions for metric owner.
+	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_ACTIONS ObservationMetricOwner = 3
+	// Selects automation runs for metric owner.
 	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_AUTOMATION_RUNS ObservationMetricOwner = 4
-	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_MQTT            ObservationMetricOwner = 5
-	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_WORKER          ObservationMetricOwner = 6
-	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_CLOUD_POLICY    ObservationMetricOwner = 7
-	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_JOURNAL         ObservationMetricOwner = 8
+	// Selects mqtt for metric owner.
+	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_MQTT ObservationMetricOwner = 5
+	// Selects worker for metric owner.
+	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_WORKER ObservationMetricOwner = 6
+	// Selects cloud policy for metric owner.
+	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_CLOUD_POLICY ObservationMetricOwner = 7
+	// Selects journal for metric owner.
+	ObservationMetricOwner_OBSERVATION_METRIC_OWNER_JOURNAL ObservationMetricOwner = 8
 )
 
 // Enum value maps for ObservationMetricOwner.
@@ -718,13 +800,18 @@ func (ObservationMetricOwner) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{11}
 }
 
+// Defines the closed vocabulary for log level.
 type ObservationLogLevel int32
 
 const (
+	// No explicit observation log level. Does not select an action.
 	ObservationLogLevel_OBSERVATION_LOG_LEVEL_UNSPECIFIED ObservationLogLevel = 0
-	ObservationLogLevel_OBSERVATION_LOG_LEVEL_INFO        ObservationLogLevel = 1
-	ObservationLogLevel_OBSERVATION_LOG_LEVEL_WARNING     ObservationLogLevel = 2
-	ObservationLogLevel_OBSERVATION_LOG_LEVEL_ERROR       ObservationLogLevel = 3
+	// Selects info for log level.
+	ObservationLogLevel_OBSERVATION_LOG_LEVEL_INFO ObservationLogLevel = 1
+	// Selects warning for log level.
+	ObservationLogLevel_OBSERVATION_LOG_LEVEL_WARNING ObservationLogLevel = 2
+	// Selects error for log level.
+	ObservationLogLevel_OBSERVATION_LOG_LEVEL_ERROR ObservationLogLevel = 3
 )
 
 // Enum value maps for ObservationLogLevel.
@@ -770,16 +857,24 @@ func (ObservationLogLevel) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{12}
 }
 
+// Defines the closed vocabulary for log component.
 type ObservationLogComponent int32
 
 const (
-	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_UNSPECIFIED        ObservationLogComponent = 0
-	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_PROCESS            ObservationLogComponent = 1
-	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_PUBLIC_TRANSPORT   ObservationLogComponent = 2
+	// No explicit observation log component. Does not select an action.
+	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_UNSPECIFIED ObservationLogComponent = 0
+	// Selects process for log component.
+	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_PROCESS ObservationLogComponent = 1
+	// Selects public transport for log component.
+	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_PUBLIC_TRANSPORT ObservationLogComponent = 2
+	// Selects operator transport for log component.
 	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_OPERATOR_TRANSPORT ObservationLogComponent = 3
-	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_WORKER_TRANSPORT   ObservationLogComponent = 4
-	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_MQTT               ObservationLogComponent = 5
-	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_SUPERVISOR         ObservationLogComponent = 6
+	// Selects worker transport for log component.
+	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_WORKER_TRANSPORT ObservationLogComponent = 4
+	// Selects mqtt for log component.
+	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_MQTT ObservationLogComponent = 5
+	// Selects supervisor for log component.
+	ObservationLogComponent_OBSERVATION_LOG_COMPONENT_SUPERVISOR ObservationLogComponent = 6
 )
 
 // Enum value maps for ObservationLogComponent.
@@ -831,38 +926,68 @@ func (ObservationLogComponent) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{13}
 }
 
+// Defines the closed vocabulary for log code.
 type ObservationLogCode int32
 
 const (
-	ObservationLogCode_OBSERVATION_LOG_CODE_UNSPECIFIED                     ObservationLogCode = 0
-	ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_CONFIG_READ_FAILED      ObservationLogCode = 1
+	// No explicit observation log code. Does not select an action.
+	ObservationLogCode_OBSERVATION_LOG_CODE_UNSPECIFIED ObservationLogCode = 0
+	// Selects process config read failed for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_CONFIG_READ_FAILED ObservationLogCode = 1
+	// Selects process config admission failed for log code.
 	ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_CONFIG_ADMISSION_FAILED ObservationLogCode = 2
-	ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_RUNTIME_START_FAILED    ObservationLogCode = 3
-	ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_RUNTIME_FAILED          ObservationLogCode = 4
-	ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_READY                   ObservationLogCode = 5
-	ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_STOPPED                 ObservationLogCode = 6
-	ObservationLogCode_OBSERVATION_LOG_CODE_TRANSPORT_INTERNAL_DIAGNOSTIC   ObservationLogCode = 7
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_UNKNOWN_DISCOVERY          ObservationLogCode = 8
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_INVALID_DISCOVERY          ObservationLogCode = 9
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_UNCONFIGURED_SOURCE        ObservationLogCode = 10
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_UNSUPPORTED_EFFECT         ObservationLogCode = 11
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_UNSUPPORTED_COLOR_MODE     ObservationLogCode = 12
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_INVALID_STATE              ObservationLogCode = 13
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_INVALID_AVAILABILITY       ObservationLogCode = 14
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_RETIREMENT_FAILED          ObservationLogCode = 15
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_SNAPSHOT_OVERFLOW          ObservationLogCode = 16
+	// Selects process runtime start failed for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_RUNTIME_START_FAILED ObservationLogCode = 3
+	// Selects process runtime failed for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_RUNTIME_FAILED ObservationLogCode = 4
+	// Selects process ready for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_READY ObservationLogCode = 5
+	// Selects process stopped for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_STOPPED ObservationLogCode = 6
+	// Selects transport internal diagnostic for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_TRANSPORT_INTERNAL_DIAGNOSTIC ObservationLogCode = 7
+	// Selects mqtt unknown discovery for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_UNKNOWN_DISCOVERY ObservationLogCode = 8
+	// Selects mqtt invalid discovery for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_INVALID_DISCOVERY ObservationLogCode = 9
+	// Selects mqtt unconfigured source for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_UNCONFIGURED_SOURCE ObservationLogCode = 10
+	// Selects mqtt unsupported effect for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_UNSUPPORTED_EFFECT ObservationLogCode = 11
+	// Selects mqtt unsupported color mode for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_UNSUPPORTED_COLOR_MODE ObservationLogCode = 12
+	// Selects mqtt invalid state for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_INVALID_STATE ObservationLogCode = 13
+	// Selects mqtt invalid availability for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_INVALID_AVAILABILITY ObservationLogCode = 14
+	// Selects mqtt retirement failed for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_RETIREMENT_FAILED ObservationLogCode = 15
+	// Selects mqtt snapshot overflow for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_SNAPSHOT_OVERFLOW ObservationLogCode = 16
+	// Selects mqtt unconfigured action anchor for log code.
 	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_UNCONFIGURED_ACTION_ANCHOR ObservationLogCode = 17
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_AMBIGUOUS_ACTION_DEVICE    ObservationLogCode = 18
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_ACTION_OVERFLOW            ObservationLogCode = 19
-	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_INVALID_ACTION             ObservationLogCode = 20
-	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_STARTING                  ObservationLogCode = 21
-	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_RUNNING                   ObservationLogCode = 22
-	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_RETRYING                  ObservationLogCode = 23
-	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_DEGRADED                  ObservationLogCode = 24
-	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_STOPPED                   ObservationLogCode = 25
-	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_JOIN_TIMEOUT              ObservationLogCode = 26
-	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_TASK_CAPACITY             ObservationLogCode = 27
-	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_FACTORY_FAILED            ObservationLogCode = 28
+	// Selects mqtt ambiguous action device for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_AMBIGUOUS_ACTION_DEVICE ObservationLogCode = 18
+	// Selects mqtt action overflow for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_ACTION_OVERFLOW ObservationLogCode = 19
+	// Selects mqtt invalid action for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_MQTT_INVALID_ACTION ObservationLogCode = 20
+	// Selects pilot starting for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_STARTING ObservationLogCode = 21
+	// Selects pilot running for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_RUNNING ObservationLogCode = 22
+	// Selects pilot retrying for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_RETRYING ObservationLogCode = 23
+	// Selects pilot degraded for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_DEGRADED ObservationLogCode = 24
+	// Selects pilot stopped for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_STOPPED ObservationLogCode = 25
+	// Selects pilot join timeout for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_JOIN_TIMEOUT ObservationLogCode = 26
+	// Selects pilot task capacity for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_TASK_CAPACITY ObservationLogCode = 27
+	// Selects pilot factory failed for log code.
+	ObservationLogCode_OBSERVATION_LOG_CODE_PILOT_FACTORY_FAILED ObservationLogCode = 28
 )
 
 // Enum value maps for ObservationLogCode.
@@ -958,12 +1083,16 @@ func (ObservationLogCode) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{14}
 }
 
+// Defines the closed vocabulary for audit source.
 type ObservationAuditSource int32
 
 const (
-	ObservationAuditSource_OBSERVATION_AUDIT_SOURCE_UNSPECIFIED    ObservationAuditSource = 0
+	// No explicit observation audit source. Does not select an action.
+	ObservationAuditSource_OBSERVATION_AUDIT_SOURCE_UNSPECIFIED ObservationAuditSource = 0
+	// Selects authentication for audit source.
 	ObservationAuditSource_OBSERVATION_AUDIT_SOURCE_AUTHENTICATION ObservationAuditSource = 1
-	ObservationAuditSource_OBSERVATION_AUDIT_SOURCE_SECRET_ACCESS  ObservationAuditSource = 2
+	// Selects secret access for audit source.
+	ObservationAuditSource_OBSERVATION_AUDIT_SOURCE_SECRET_ACCESS ObservationAuditSource = 2
 )
 
 // Enum value maps for ObservationAuditSource.
@@ -1007,39 +1136,70 @@ func (ObservationAuditSource) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{15}
 }
 
+// Defines the closed vocabulary for auth audit action.
 type ObservationAuthAuditAction int32
 
 const (
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_UNSPECIFIED          ObservationAuthAuditAction = 0
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_BOOTSTRAP            ObservationAuthAuditAction = 1
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_RECOVER              ObservationAuthAuditAction = 2
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_CREATE_ACCOUNT       ObservationAuthAuditAction = 3
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_GET_ACCOUNT          ObservationAuthAuditAction = 4
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_LIST_ACCOUNTS        ObservationAuthAuditAction = 5
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_UPDATE_ACCOUNT       ObservationAuthAuditAction = 6
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_DELETE_ACCOUNT       ObservationAuthAuditAction = 7
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_CREATE_INVITATION    ObservationAuthAuditAction = 8
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_ACCEPT_INVITATION    ObservationAuthAuditAction = 9
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_LIST_INVITATIONS     ObservationAuthAuditAction = 10
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_REVOKE_INVITATION    ObservationAuthAuditAction = 11
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_TRANSPORT            ObservationAuthAuditAction = 12
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_LOGIN_DENIED         ObservationAuthAuditAction = 13
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_LOGIN_LIMITED        ObservationAuthAuditAction = 14
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_CHALLENGE_ISSUED     ObservationAuthAuditAction = 15
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_CHALLENGE_DENIED     ObservationAuthAuditAction = 16
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_SESSION_CREATE       ObservationAuthAuditAction = 17
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REFRESH      ObservationAuthAuditAction = 18
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REPLAY       ObservationAuthAuditAction = 19
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REVOKE       ObservationAuthAuditAction = 20
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_POLICY_READ          ObservationAuthAuditAction = 21
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_POLICY_REPLACE       ObservationAuthAuditAction = 22
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_POLICY_SEED          ObservationAuthAuditAction = 23
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_ENROLL           ObservationAuthAuditAction = 24
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_REMOVE           ObservationAuthAuditAction = 25
+	// No explicit observation auth audit action. Does not select an action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_UNSPECIFIED ObservationAuthAuditAction = 0
+	// Selects bootstrap for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_BOOTSTRAP ObservationAuthAuditAction = 1
+	// Selects recover for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_RECOVER ObservationAuthAuditAction = 2
+	// Selects create account for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_CREATE_ACCOUNT ObservationAuthAuditAction = 3
+	// Selects get account for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_GET_ACCOUNT ObservationAuthAuditAction = 4
+	// Selects list accounts for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_LIST_ACCOUNTS ObservationAuthAuditAction = 5
+	// Selects update account for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_UPDATE_ACCOUNT ObservationAuthAuditAction = 6
+	// Selects delete account for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_DELETE_ACCOUNT ObservationAuthAuditAction = 7
+	// Selects create invitation for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_CREATE_INVITATION ObservationAuthAuditAction = 8
+	// Selects accept invitation for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_ACCEPT_INVITATION ObservationAuthAuditAction = 9
+	// Selects list invitations for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_LIST_INVITATIONS ObservationAuthAuditAction = 10
+	// Selects revoke invitation for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_REVOKE_INVITATION ObservationAuthAuditAction = 11
+	// Selects transport for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_TRANSPORT ObservationAuthAuditAction = 12
+	// Selects login denied for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_LOGIN_DENIED ObservationAuthAuditAction = 13
+	// Selects login limited for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_LOGIN_LIMITED ObservationAuthAuditAction = 14
+	// Selects challenge issued for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_CHALLENGE_ISSUED ObservationAuthAuditAction = 15
+	// Selects challenge denied for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_CHALLENGE_DENIED ObservationAuthAuditAction = 16
+	// Selects session create for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_SESSION_CREATE ObservationAuthAuditAction = 17
+	// Selects session refresh for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REFRESH ObservationAuthAuditAction = 18
+	// Selects session replay for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REPLAY ObservationAuthAuditAction = 19
+	// Selects session revoke for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_SESSION_REVOKE ObservationAuthAuditAction = 20
+	// Selects policy read for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_POLICY_READ ObservationAuthAuditAction = 21
+	// Selects policy replace for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_POLICY_REPLACE ObservationAuthAuditAction = 22
+	// Selects policy seed for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_POLICY_SEED ObservationAuthAuditAction = 23
+	// Selects mfa enroll for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_ENROLL ObservationAuthAuditAction = 24
+	// Selects mfa remove for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_REMOVE ObservationAuthAuditAction = 25
+	// Selects mfa recovery replace for auth audit action.
 	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_RECOVERY_REPLACE ObservationAuthAuditAction = 26
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_RESET            ObservationAuthAuditAction = 27
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_POLICY_REPLACE   ObservationAuthAuditAction = 28
-	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_POLICY_READ      ObservationAuthAuditAction = 29
+	// Selects mfa reset for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_RESET ObservationAuthAuditAction = 27
+	// Selects mfa policy replace for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_POLICY_REPLACE ObservationAuthAuditAction = 28
+	// Selects mfa policy read for auth audit action.
+	ObservationAuthAuditAction_OBSERVATION_AUTH_AUDIT_ACTION_MFA_POLICY_READ ObservationAuthAuditAction = 29
 )
 
 // Enum value maps for ObservationAuthAuditAction.
@@ -1137,12 +1297,16 @@ func (ObservationAuthAuditAction) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{16}
 }
 
+// Defines the closed vocabulary for audit outcome.
 type ObservationAuditOutcome int32
 
 const (
+	// No explicit observation audit outcome. Does not select an action.
 	ObservationAuditOutcome_OBSERVATION_AUDIT_OUTCOME_UNSPECIFIED ObservationAuditOutcome = 0
-	ObservationAuditOutcome_OBSERVATION_AUDIT_OUTCOME_ADMITTED    ObservationAuditOutcome = 1
-	ObservationAuditOutcome_OBSERVATION_AUDIT_OUTCOME_DENIED      ObservationAuditOutcome = 2
+	// Selects admitted for audit outcome.
+	ObservationAuditOutcome_OBSERVATION_AUDIT_OUTCOME_ADMITTED ObservationAuditOutcome = 1
+	// Selects denied for audit outcome.
+	ObservationAuditOutcome_OBSERVATION_AUDIT_OUTCOME_DENIED ObservationAuditOutcome = 2
 )
 
 // Enum value maps for ObservationAuditOutcome.
@@ -1186,11 +1350,15 @@ func (ObservationAuditOutcome) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{17}
 }
 
+// Defines the closed vocabulary for secret denial reason.
 type ObservationSecretDenialReason int32
 
 const (
-	ObservationSecretDenialReason_OBSERVATION_SECRET_DENIAL_REASON_UNSPECIFIED      ObservationSecretDenialReason = 0
-	ObservationSecretDenialReason_OBSERVATION_SECRET_DENIAL_REASON_FOREIGN_HANDLE   ObservationSecretDenialReason = 1
+	// No explicit observation secret denial reason. Does not select an action.
+	ObservationSecretDenialReason_OBSERVATION_SECRET_DENIAL_REASON_UNSPECIFIED ObservationSecretDenialReason = 0
+	// Selects foreign handle for secret denial reason.
+	ObservationSecretDenialReason_OBSERVATION_SECRET_DENIAL_REASON_FOREIGN_HANDLE ObservationSecretDenialReason = 1
+	// Selects inactive session for secret denial reason.
 	ObservationSecretDenialReason_OBSERVATION_SECRET_DENIAL_REASON_INACTIVE_SESSION ObservationSecretDenialReason = 2
 )
 
@@ -1235,15 +1403,23 @@ func (ObservationSecretDenialReason) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{18}
 }
 
+// Defines the closed vocabulary for stored metadata field.
 type ObservationStoredMetadataField int32
 
 const (
-	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_UNSPECIFIED         ObservationStoredMetadataField = 0
-	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_ACTOR               ObservationStoredMetadataField = 1
-	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_ROUTE               ObservationStoredMetadataField = 2
-	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_OCCURRED_AT         ObservationStoredMetadataField = 3
-	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_ACTION              ObservationStoredMetadataField = 4
-	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_OUTCOME             ObservationStoredMetadataField = 5
+	// No explicit observation stored metadata field. Does not select an action.
+	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_UNSPECIFIED ObservationStoredMetadataField = 0
+	// Selects actor for stored metadata field.
+	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_ACTOR ObservationStoredMetadataField = 1
+	// Selects route for stored metadata field.
+	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_ROUTE ObservationStoredMetadataField = 2
+	// Selects occurred at for stored metadata field.
+	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_OCCURRED_AT ObservationStoredMetadataField = 3
+	// Selects action for stored metadata field.
+	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_ACTION ObservationStoredMetadataField = 4
+	// Selects outcome for stored metadata field.
+	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_OUTCOME ObservationStoredMetadataField = 5
+	// Selects requesting instance for stored metadata field.
 	ObservationStoredMetadataField_OBSERVATION_STORED_METADATA_FIELD_REQUESTING_INSTANCE ObservationStoredMetadataField = 6
 )
 
@@ -1296,28 +1472,48 @@ func (ObservationStoredMetadataField) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{19}
 }
 
+// Defines the closed vocabulary for trace decision.
 type ObservationTraceDecision int32
 
 const (
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_UNSPECIFIED           ObservationTraceDecision = 0
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_PREPARING             ObservationTraceDecision = 1
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_ADMITTED              ObservationTraceDecision = 2
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_QUEUED                ObservationTraceDecision = 3
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_RESTART_PENDING       ObservationTraceDecision = 4
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_SINGLE_BUSY           ObservationTraceDecision = 5
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_MAX_EXCEEDED          ObservationTraceDecision = 6
+	// No explicit observation trace decision. Does not select an action.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_UNSPECIFIED ObservationTraceDecision = 0
+	// Selects preparing for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_PREPARING ObservationTraceDecision = 1
+	// Selects admitted for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_ADMITTED ObservationTraceDecision = 2
+	// Selects queued for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_QUEUED ObservationTraceDecision = 3
+	// Selects restart pending for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_RESTART_PENDING ObservationTraceDecision = 4
+	// Selects single busy for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_SINGLE_BUSY ObservationTraceDecision = 5
+	// Selects max exceeded for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_MAX_EXCEEDED ObservationTraceDecision = 6
+	// Selects preparation saturated for trace decision.
 	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_PREPARATION_SATURATED ObservationTraceDecision = 7
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_MEMORY_SATURATED      ObservationTraceDecision = 8
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_CONDITION_FALSE       ObservationTraceDecision = 9
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_PREPARATION_ERROR     ObservationTraceDecision = 10
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_EXECUTION_ERROR       ObservationTraceDecision = 11
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_FINISHED              ObservationTraceDecision = 12
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_CANCELLED             ObservationTraceDecision = 13
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_SUPERSEDED            ObservationTraceDecision = 14
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_CLOSED                ObservationTraceDecision = 15
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_UNKNOWN_AUTOMATION    ObservationTraceDecision = 16
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_TRIGGER_MISSED        ObservationTraceDecision = 17
-	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_TRIGGER_DEGRADED      ObservationTraceDecision = 18
+	// Selects memory saturated for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_MEMORY_SATURATED ObservationTraceDecision = 8
+	// Selects condition false for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_CONDITION_FALSE ObservationTraceDecision = 9
+	// Selects preparation error for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_PREPARATION_ERROR ObservationTraceDecision = 10
+	// Selects execution error for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_EXECUTION_ERROR ObservationTraceDecision = 11
+	// Selects finished for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_FINISHED ObservationTraceDecision = 12
+	// Selects cancelled for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_CANCELLED ObservationTraceDecision = 13
+	// Selects superseded for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_SUPERSEDED ObservationTraceDecision = 14
+	// Selects closed for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_CLOSED ObservationTraceDecision = 15
+	// Selects unknown automation for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_UNKNOWN_AUTOMATION ObservationTraceDecision = 16
+	// Selects trigger missed for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_TRIGGER_MISSED ObservationTraceDecision = 17
+	// Selects trigger degraded for trace decision.
+	ObservationTraceDecision_OBSERVATION_TRACE_DECISION_TRIGGER_DEGRADED ObservationTraceDecision = 18
 )
 
 // Enum value maps for ObservationTraceDecision.
@@ -1393,13 +1589,18 @@ func (ObservationTraceDecision) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{20}
 }
 
+// Defines the closed vocabulary for trace max exceeded mode.
 type ObservationTraceMaxExceededMode int32
 
 const (
+	// No explicit observation trace max exceeded mode. Does not select an action.
 	ObservationTraceMaxExceededMode_OBSERVATION_TRACE_MAX_EXCEEDED_MODE_UNSPECIFIED ObservationTraceMaxExceededMode = 0
-	ObservationTraceMaxExceededMode_OBSERVATION_TRACE_MAX_EXCEEDED_MODE_SILENT      ObservationTraceMaxExceededMode = 1
-	ObservationTraceMaxExceededMode_OBSERVATION_TRACE_MAX_EXCEEDED_MODE_WARNING     ObservationTraceMaxExceededMode = 2
-	ObservationTraceMaxExceededMode_OBSERVATION_TRACE_MAX_EXCEEDED_MODE_ERROR       ObservationTraceMaxExceededMode = 3
+	// Selects silent for trace max exceeded mode.
+	ObservationTraceMaxExceededMode_OBSERVATION_TRACE_MAX_EXCEEDED_MODE_SILENT ObservationTraceMaxExceededMode = 1
+	// Selects warning for trace max exceeded mode.
+	ObservationTraceMaxExceededMode_OBSERVATION_TRACE_MAX_EXCEEDED_MODE_WARNING ObservationTraceMaxExceededMode = 2
+	// Selects error for trace max exceeded mode.
+	ObservationTraceMaxExceededMode_OBSERVATION_TRACE_MAX_EXCEEDED_MODE_ERROR ObservationTraceMaxExceededMode = 3
 )
 
 // Enum value maps for ObservationTraceMaxExceededMode.
@@ -1445,20 +1646,33 @@ func (ObservationTraceMaxExceededMode) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{21}
 }
 
+// Defines the closed vocabulary for trace action kind.
 type ObservationTraceActionKind int32
 
 const (
-	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_UNSPECIFIED   ObservationTraceActionKind = 0
-	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_VARIABLES     ObservationTraceActionKind = 1
-	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_SEQUENCE      ObservationTraceActionKind = 2
-	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_CHOOSE        ObservationTraceActionKind = 3
-	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_IF            ObservationTraceActionKind = 4
-	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_REPEAT        ObservationTraceActionKind = 5
-	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_PARALLEL      ObservationTraceActionKind = 6
-	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_WAIT          ObservationTraceActionKind = 7
-	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_STOP          ObservationTraceActionKind = 8
-	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_CALL          ObservationTraceActionKind = 9
-	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_DELAY         ObservationTraceActionKind = 10
+	// No explicit observation trace action kind. Does not select an action.
+	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_UNSPECIFIED ObservationTraceActionKind = 0
+	// Selects variables for trace action kind.
+	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_VARIABLES ObservationTraceActionKind = 1
+	// Selects sequence for trace action kind.
+	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_SEQUENCE ObservationTraceActionKind = 2
+	// Selects choose for trace action kind.
+	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_CHOOSE ObservationTraceActionKind = 3
+	// Selects if for trace action kind.
+	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_IF ObservationTraceActionKind = 4
+	// Selects repeat for trace action kind.
+	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_REPEAT ObservationTraceActionKind = 5
+	// Selects parallel for trace action kind.
+	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_PARALLEL ObservationTraceActionKind = 6
+	// Selects wait for trace action kind.
+	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_WAIT ObservationTraceActionKind = 7
+	// Selects stop for trace action kind.
+	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_STOP ObservationTraceActionKind = 8
+	// Selects call for trace action kind.
+	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_CALL ObservationTraceActionKind = 9
+	// Selects delay for trace action kind.
+	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_DELAY ObservationTraceActionKind = 10
+	// Selects wait template for trace action kind.
 	ObservationTraceActionKind_OBSERVATION_TRACE_ACTION_KIND_WAIT_TEMPLATE ObservationTraceActionKind = 11
 )
 
@@ -1521,16 +1735,24 @@ func (ObservationTraceActionKind) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{22}
 }
 
+// Defines the closed vocabulary for trace node stage.
 type ObservationTraceNodeStage int32
 
 const (
+	// No explicit observation trace node stage. Does not select an action.
 	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_UNSPECIFIED ObservationTraceNodeStage = 0
-	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_ENTERED     ObservationTraceNodeStage = 1
-	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_COMPLETED   ObservationTraceNodeStage = 2
-	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_STOPPED     ObservationTraceNodeStage = 3
-	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_CANCELLED   ObservationTraceNodeStage = 4
-	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_FAILED      ObservationTraceNodeStage = 5
-	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_WAITING     ObservationTraceNodeStage = 6
+	// Selects entered for trace node stage.
+	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_ENTERED ObservationTraceNodeStage = 1
+	// Selects completed for trace node stage.
+	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_COMPLETED ObservationTraceNodeStage = 2
+	// Selects stopped for trace node stage.
+	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_STOPPED ObservationTraceNodeStage = 3
+	// Selects cancelled for trace node stage.
+	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_CANCELLED ObservationTraceNodeStage = 4
+	// Selects failed for trace node stage.
+	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_FAILED ObservationTraceNodeStage = 5
+	// Selects waiting for trace node stage.
+	ObservationTraceNodeStage_OBSERVATION_TRACE_NODE_STAGE_WAITING ObservationTraceNodeStage = 6
 )
 
 // Enum value maps for ObservationTraceNodeStage.
@@ -1582,17 +1804,26 @@ func (ObservationTraceNodeStage) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{23}
 }
 
+// Defines the closed vocabulary for trace execution error kind.
 type ObservationTraceExecutionErrorKind int32
 
 const (
-	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_UNSPECIFIED        ObservationTraceExecutionErrorKind = 0
-	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_INVALID_PROGRAM    ObservationTraceExecutionErrorKind = 1
-	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_WORK_BUDGET        ObservationTraceExecutionErrorKind = 2
-	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_RECURSION          ObservationTraceExecutionErrorKind = 3
-	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_WAIT_TIMEOUT       ObservationTraceExecutionErrorKind = 4
+	// No explicit observation trace execution error kind. Does not select an action.
+	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_UNSPECIFIED ObservationTraceExecutionErrorKind = 0
+	// Selects invalid program for trace execution error kind.
+	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_INVALID_PROGRAM ObservationTraceExecutionErrorKind = 1
+	// Selects work budget for trace execution error kind.
+	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_WORK_BUDGET ObservationTraceExecutionErrorKind = 2
+	// Selects recursion for trace execution error kind.
+	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_RECURSION ObservationTraceExecutionErrorKind = 3
+	// Selects wait timeout for trace execution error kind.
+	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_WAIT_TIMEOUT ObservationTraceExecutionErrorKind = 4
+	// Selects source unavailable for trace execution error kind.
 	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_SOURCE_UNAVAILABLE ObservationTraceExecutionErrorKind = 5
-	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_CONDITION_ERROR    ObservationTraceExecutionErrorKind = 6
-	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_COMMAND_ERROR      ObservationTraceExecutionErrorKind = 7
+	// Selects condition error for trace execution error kind.
+	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_CONDITION_ERROR ObservationTraceExecutionErrorKind = 6
+	// Selects command error for trace execution error kind.
+	ObservationTraceExecutionErrorKind_OBSERVATION_TRACE_EXECUTION_ERROR_KIND_COMMAND_ERROR ObservationTraceExecutionErrorKind = 7
 )
 
 // Enum value maps for ObservationTraceExecutionErrorKind.
@@ -1646,12 +1877,16 @@ func (ObservationTraceExecutionErrorKind) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{24}
 }
 
+// Defines the closed vocabulary for trace order state.
 type ObservationTraceOrderState int32
 
 const (
+	// No explicit observation trace order state. Does not select an action.
 	ObservationTraceOrderState_OBSERVATION_TRACE_ORDER_STATE_UNSPECIFIED ObservationTraceOrderState = 0
-	ObservationTraceOrderState_OBSERVATION_TRACE_ORDER_STATE_HEALTHY     ObservationTraceOrderState = 1
-	ObservationTraceOrderState_OBSERVATION_TRACE_ORDER_STATE_EXHAUSTED   ObservationTraceOrderState = 2
+	// Selects healthy for trace order state.
+	ObservationTraceOrderState_OBSERVATION_TRACE_ORDER_STATE_HEALTHY ObservationTraceOrderState = 1
+	// Selects exhausted for trace order state.
+	ObservationTraceOrderState_OBSERVATION_TRACE_ORDER_STATE_EXHAUSTED ObservationTraceOrderState = 2
 )
 
 // Enum value maps for ObservationTraceOrderState.
@@ -1695,9 +1930,11 @@ func (ObservationTraceOrderState) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{25}
 }
 
+// Defines the closed vocabulary for trace cut coherence.
 type ObservationTraceCutCoherence int32
 
 const (
+	// No explicit observation trace cut coherence. Does not select an action.
 	ObservationTraceCutCoherence_OBSERVATION_TRACE_CUT_COHERENCE_UNSPECIFIED ObservationTraceCutCoherence = 0
 	// Even with 188, copying two independently locked rings is not atomic.
 	ObservationTraceCutCoherence_OBSERVATION_TRACE_CUT_COHERENCE_SEPARATE_OWNER_CUTS ObservationTraceCutCoherence = 1
@@ -1742,12 +1979,16 @@ func (ObservationTraceCutCoherence) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{26}
 }
 
+// Defines the closed vocabulary for trace truncation reason.
 type ObservationTraceTruncationReason int32
 
 const (
+	// No explicit observation trace truncation reason. Does not select an action.
 	ObservationTraceTruncationReason_OBSERVATION_TRACE_TRUNCATION_REASON_UNSPECIFIED ObservationTraceTruncationReason = 0
-	ObservationTraceTruncationReason_OBSERVATION_TRACE_TRUNCATION_REASON_ROW_LIMIT   ObservationTraceTruncationReason = 1
-	ObservationTraceTruncationReason_OBSERVATION_TRACE_TRUNCATION_REASON_BYTE_LIMIT  ObservationTraceTruncationReason = 2
+	// Selects row limit for trace truncation reason.
+	ObservationTraceTruncationReason_OBSERVATION_TRACE_TRUNCATION_REASON_ROW_LIMIT ObservationTraceTruncationReason = 1
+	// Selects byte limit for trace truncation reason.
+	ObservationTraceTruncationReason_OBSERVATION_TRACE_TRUNCATION_REASON_BYTE_LIMIT ObservationTraceTruncationReason = 2
 )
 
 // Enum value maps for ObservationTraceTruncationReason.
@@ -1791,12 +2032,17 @@ func (ObservationTraceTruncationReason) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{27}
 }
 
+// Defines the closed vocabulary for integration health status.
 type ObservationIntegrationHealthStatus int32
 
 const (
+	// No explicit observation integration health status. Does not select an action.
 	ObservationIntegrationHealthStatus_OBSERVATION_INTEGRATION_HEALTH_STATUS_UNSPECIFIED ObservationIntegrationHealthStatus = 0
-	ObservationIntegrationHealthStatus_OBSERVATION_INTEGRATION_HEALTH_STATUS_READY       ObservationIntegrationHealthStatus = 1
-	ObservationIntegrationHealthStatus_OBSERVATION_INTEGRATION_HEALTH_STATUS_DEGRADED    ObservationIntegrationHealthStatus = 2
+	// Selects ready for integration health status.
+	ObservationIntegrationHealthStatus_OBSERVATION_INTEGRATION_HEALTH_STATUS_READY ObservationIntegrationHealthStatus = 1
+	// Selects degraded for integration health status.
+	ObservationIntegrationHealthStatus_OBSERVATION_INTEGRATION_HEALTH_STATUS_DEGRADED ObservationIntegrationHealthStatus = 2
+	// Selects unavailable for integration health status.
 	ObservationIntegrationHealthStatus_OBSERVATION_INTEGRATION_HEALTH_STATUS_UNAVAILABLE ObservationIntegrationHealthStatus = 3
 )
 
@@ -1843,9 +2089,11 @@ func (ObservationIntegrationHealthStatus) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{28}
 }
 
+// Represents process observation epoch.
 type ObservationProcessObservationEpoch struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Value         []byte                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Exact bytes representing value. Not interpreted as a display string.
+	Value         []byte `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1887,8 +2135,10 @@ func (x *ObservationProcessObservationEpoch) GetValue() []byte {
 	return nil
 }
 
+// Reports a closed unavailability reason without a provider error message.
 type ObservationReadUnavailable struct {
-	state         protoimpl.MessageState           `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
 	Reason        ObservationReadUnavailableReason `protobuf:"varint,1,opt,name=reason,proto3,enum=home.api.v2.ObservationReadUnavailableReason" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1931,10 +2181,11 @@ func (x *ObservationReadUnavailable) GetReason() ObservationReadUnavailableReaso
 	return ObservationReadUnavailableReason_OBSERVATION_READ_UNAVAILABLE_REASON_UNSPECIFIED
 }
 
+// Represents active revision.
 type ObservationActiveRevision struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// An actually admitted active revision, in 1..INT64_MAX. Never invented.
-	Value         uint64 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	Value         int64 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1969,13 +2220,14 @@ func (*ObservationActiveRevision) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ObservationActiveRevision) GetValue() uint64 {
+func (x *ObservationActiveRevision) GetValue() int64 {
 	if x != nil {
 		return x.Value
 	}
 	return 0
 }
 
+// Reports an admitted active generation or explicitly states that none is loaded.
 type ObservationGenerationPresence struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -2047,10 +2299,12 @@ type isObservationGenerationPresence_Result interface {
 }
 
 type ObservationGenerationPresence_Present struct {
+	// The present represented by ObservationActiveRevision.
 	Present *ObservationActiveRevision `protobuf:"bytes,1,opt,name=present,proto3,oneof"`
 }
 
 type ObservationGenerationPresence_NotLoaded struct {
+	// Selects absence of an admitted active configuration generation.
 	NotLoaded *emptypb.Empty `protobuf:"bytes,2,opt,name=not_loaded,json=notLoaded,proto3,oneof"`
 }
 
@@ -2058,8 +2312,10 @@ func (*ObservationGenerationPresence_Present) isObservationGenerationPresence_Re
 
 func (*ObservationGenerationPresence_NotLoaded) isObservationGenerationPresence_Result() {}
 
+// Represents durable health.
 type ObservationDurableHealth struct {
-	state        protoimpl.MessageState         `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The availability represented by ObservationDurableAvailability.
 	Availability ObservationDurableAvailability `protobuf:"varint,1,opt,name=availability,proto3,enum=home.api.v2.ObservationDurableAvailability" json:"availability,omitempty"`
 	// UNKNOWN requires not_observed. All other values require the UTC instant of
 	// a real admitted local fact. This is not a permanent database probe.
@@ -2140,10 +2396,12 @@ type isObservationDurableHealth_Evidence interface {
 }
 
 type ObservationDurableHealth_ObservedAt struct {
+	// Time recorded for this observation; does not prove a physical command was confirmed.
 	ObservedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=observed_at,json=observedAt,proto3,oneof"`
 }
 
 type ObservationDurableHealth_NotObserved struct {
+	// Selects the explicit not observed alternative without an additional payload.
 	NotObserved *emptypb.Empty `protobuf:"bytes,3,opt,name=not_observed,json=notObserved,proto3,oneof"`
 }
 
@@ -2151,10 +2409,13 @@ func (*ObservationDurableHealth_ObservedAt) isObservationDurableHealth_Evidence(
 
 func (*ObservationDurableHealth_NotObserved) isObservationDurableHealth_Evidence() {}
 
+// Represents pilot phase count.
 type ObservationPilotPhaseCount struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Phase         ObservationPilotPhase  `protobuf:"varint,1,opt,name=phase,proto3,enum=home.api.v2.ObservationPilotPhase" json:"phase,omitempty"`
-	Instances     uint64                 `protobuf:"varint,2,opt,name=instances,proto3" json:"instances,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The phase represented by ObservationPilotPhase.
+	Phase ObservationPilotPhase `protobuf:"varint,1,opt,name=phase,proto3,enum=home.api.v2.ObservationPilotPhase" json:"phase,omitempty"`
+	// The instances represented as an exact native quantity.
+	Instances     int64 `protobuf:"varint,2,opt,name=instances,proto3" json:"instances,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2196,18 +2457,22 @@ func (x *ObservationPilotPhaseCount) GetPhase() ObservationPilotPhase {
 	return ObservationPilotPhase_OBSERVATION_PILOT_PHASE_UNSPECIFIED
 }
 
-func (x *ObservationPilotPhaseCount) GetInstances() uint64 {
+func (x *ObservationPilotPhaseCount) GetInstances() int64 {
 	if x != nil {
 		return x.Instances
 	}
 	return 0
 }
 
+// Represents recorder health fact.
 type ObservationRecorderHealthFact struct {
-	state         protoimpl.MessageState         `protogen:"open.v1"`
-	Phase         ObservationRecorderPhase       `protobuf:"varint,1,opt,name=phase,proto3,enum=home.api.v2.ObservationRecorderPhase" json:"phase,omitempty"`
-	State         ObservationRecorderHealthState `protobuf:"varint,2,opt,name=state,proto3,enum=home.api.v2.ObservationRecorderHealthState" json:"state,omitempty"`
-	ObservedAt    *timestamppb.Timestamp         `protobuf:"bytes,3,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The phase represented by ObservationRecorderPhase.
+	Phase ObservationRecorderPhase `protobuf:"varint,1,opt,name=phase,proto3,enum=home.api.v2.ObservationRecorderPhase" json:"phase,omitempty"`
+	// The state represented by ObservationRecorderHealthState.
+	State ObservationRecorderHealthState `protobuf:"varint,2,opt,name=state,proto3,enum=home.api.v2.ObservationRecorderHealthState" json:"state,omitempty"`
+	// Time recorded for this observation; does not prove a physical command was confirmed.
+	ObservedAt    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2263,6 +2528,7 @@ func (x *ObservationRecorderHealthFact) GetObservedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// Represents recorder health.
 type ObservationRecorderHealth struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -2344,14 +2610,17 @@ type isObservationRecorderHealth_Result interface {
 }
 
 type ObservationRecorderHealth_Observed struct {
+	// The observed represented by ObservationRecorderHealthFact.
 	Observed *ObservationRecorderHealthFact `protobuf:"bytes,1,opt,name=observed,proto3,oneof"`
 }
 
 type ObservationRecorderHealth_NotInstalled struct {
+	// Selects explicit absence of an installed native owner.
 	NotInstalled *emptypb.Empty `protobuf:"bytes,2,opt,name=not_installed,json=notInstalled,proto3,oneof"`
 }
 
 type ObservationRecorderHealth_Unavailable struct {
+	// Typed reason this observation could not be produced; contains no provider payload.
 	Unavailable *ObservationReadUnavailable `protobuf:"bytes,3,opt,name=unavailable,proto3,oneof"`
 }
 
@@ -2361,9 +2630,12 @@ func (*ObservationRecorderHealth_NotInstalled) isObservationRecorderHealth_Resul
 
 func (*ObservationRecorderHealth_Unavailable) isObservationRecorderHealth_Result() {}
 
+// Represents server health.
 type ObservationServerHealth struct {
-	state      protoimpl.MessageState         `protogen:"open.v1"`
-	Readiness  ObservationServerReadiness     `protobuf:"varint,1,opt,name=readiness,proto3,enum=home.api.v2.ObservationServerReadiness" json:"readiness,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The readiness represented by ObservationServerReadiness.
+	Readiness ObservationServerReadiness `protobuf:"varint,1,opt,name=readiness,proto3,enum=home.api.v2.ObservationServerReadiness" json:"readiness,omitempty"`
+	// The generation represented by ObservationGenerationPresence.
 	Generation *ObservationGenerationPresence `protobuf:"bytes,2,opt,name=generation,proto3" json:"generation,omitempty"`
 	// At most six distinct known causes; READY requires no causes and a present
 	// generation, open core admissions/owners/projection, and the ready listener.
@@ -2423,14 +2695,21 @@ func (x *ObservationServerHealth) GetCauses() []ObservationCoreCause {
 	return nil
 }
 
+// Represents health.
 type Health struct {
-	state        protoimpl.MessageState              `protogen:"open.v1"`
-	Name         string                              `protobuf:"bytes,20,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,20,opt,name=name,proto3" json:"name,omitempty"`
+	// The process epoch represented by ObservationProcessObservationEpoch.
 	ProcessEpoch *ObservationProcessObservationEpoch `protobuf:"bytes,1,opt,name=process_epoch,json=processEpoch,proto3" json:"process_epoch,omitempty"`
-	Liveness     ObservationLiveness                 `protobuf:"varint,2,opt,name=liveness,proto3,enum=home.api.v2.ObservationLiveness" json:"liveness,omitempty"`
-	Server       *ObservationServerHealth            `protobuf:"bytes,3,opt,name=server,proto3" json:"server,omitempty"`
-	Durable      *ObservationDurableHealth           `protobuf:"bytes,4,opt,name=durable,proto3" json:"durable,omitempty"`
-	Recorder     *ObservationRecorderHealth          `protobuf:"bytes,5,opt,name=recorder,proto3" json:"recorder,omitempty"`
+	// The liveness represented by ObservationLiveness.
+	Liveness ObservationLiveness `protobuf:"varint,2,opt,name=liveness,proto3,enum=home.api.v2.ObservationLiveness" json:"liveness,omitempty"`
+	// The server represented by ObservationServerHealth.
+	Server *ObservationServerHealth `protobuf:"bytes,3,opt,name=server,proto3" json:"server,omitempty"`
+	// The durable represented by ObservationDurableHealth.
+	Durable *ObservationDurableHealth `protobuf:"bytes,4,opt,name=durable,proto3" json:"durable,omitempty"`
+	// The recorder represented by ObservationRecorderHealth.
+	Recorder *ObservationRecorderHealth `protobuf:"bytes,5,opt,name=recorder,proto3" json:"recorder,omitempty"`
 	// Exactly one entry per known nonzero phase, not a metric per integration.
 	Pilots        []*ObservationPilotPhaseCount `protobuf:"bytes,6,rep,name=pilots,proto3" json:"pilots,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2516,8 +2795,10 @@ func (x *Health) GetPilots() []*ObservationPilotPhaseCount {
 	return nil
 }
 
+// Represents integration report.
 type ObservationIntegrationReport struct {
-	state  protoimpl.MessageState             `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The status represented by ObservationIntegrationHealthStatus.
 	Status ObservationIntegrationHealthStatus `protobuf:"varint,1,opt,name=status,proto3,enum=home.api.v2.ObservationIntegrationHealthStatus" json:"status,omitempty"`
 	// The source's private detail is deliberately absent from the schema.
 	//
@@ -2597,10 +2878,12 @@ type isObservationIntegrationReport_AdmissionTime interface {
 }
 
 type ObservationIntegrationReport_AdmittedAt struct {
+	// Recorded time for admitted at. Absence means no timestamp was supplied or recorded.
 	AdmittedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=admitted_at,json=admittedAt,proto3,oneof"`
 }
 
 type ObservationIntegrationReport_NotRecorded struct {
+	// Selects explicit absence of recorded evidence; does not invent a zero value.
 	NotRecorded *emptypb.Empty `protobuf:"bytes,3,opt,name=not_recorded,json=notRecorded,proto3,oneof"`
 }
 
@@ -2608,6 +2891,7 @@ func (*ObservationIntegrationReport_AdmittedAt) isObservationIntegrationReport_A
 
 func (*ObservationIntegrationReport_NotRecorded) isObservationIntegrationReport_AdmissionTime() {}
 
+// Represents integration report presence.
 type ObservationIntegrationReportPresence struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -2679,10 +2963,12 @@ type isObservationIntegrationReportPresence_Result interface {
 }
 
 type ObservationIntegrationReportPresence_Present struct {
+	// The present represented by ObservationIntegrationReport.
 	Present *ObservationIntegrationReport `protobuf:"bytes,1,opt,name=present,proto3,oneof"`
 }
 
 type ObservationIntegrationReportPresence_NoReport struct {
+	// Selects absence of an admitted integration report.
 	NoReport *emptypb.Empty `protobuf:"bytes,2,opt,name=no_report,json=noReport,proto3,oneof"`
 }
 
@@ -2692,11 +2978,15 @@ func (*ObservationIntegrationReportPresence_Present) isObservationIntegrationRep
 func (*ObservationIntegrationReportPresence_NoReport) isObservationIntegrationReportPresence_Result() {
 }
 
+// Represents supervised integration.
 type ObservationSupervisedIntegration struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Phase         ObservationPilotPhase  `protobuf:"varint,1,opt,name=phase,proto3,enum=home.api.v2.ObservationPilotPhase" json:"phase,omitempty"`
-	Attempts      uint64                 `protobuf:"varint,2,opt,name=attempts,proto3" json:"attempts,omitempty"`
-	Tasks         uint64                 `protobuf:"varint,3,opt,name=tasks,proto3" json:"tasks,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The phase represented by ObservationPilotPhase.
+	Phase ObservationPilotPhase `protobuf:"varint,1,opt,name=phase,proto3,enum=home.api.v2.ObservationPilotPhase" json:"phase,omitempty"`
+	// The attempts represented as an exact native quantity.
+	Attempts int64 `protobuf:"varint,2,opt,name=attempts,proto3" json:"attempts,omitempty"`
+	// The tasks represented as an exact native quantity.
+	Tasks         int64 `protobuf:"varint,3,opt,name=tasks,proto3" json:"tasks,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2738,20 +3028,21 @@ func (x *ObservationSupervisedIntegration) GetPhase() ObservationPilotPhase {
 	return ObservationPilotPhase_OBSERVATION_PILOT_PHASE_UNSPECIFIED
 }
 
-func (x *ObservationSupervisedIntegration) GetAttempts() uint64 {
+func (x *ObservationSupervisedIntegration) GetAttempts() int64 {
 	if x != nil {
 		return x.Attempts
 	}
 	return 0
 }
 
-func (x *ObservationSupervisedIntegration) GetTasks() uint64 {
+func (x *ObservationSupervisedIntegration) GetTasks() int64 {
 	if x != nil {
 		return x.Tasks
 	}
 	return 0
 }
 
+// Represents integration supervision.
 type ObservationIntegrationSupervision struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -2823,10 +3114,12 @@ type isObservationIntegrationSupervision_Result interface {
 }
 
 type ObservationIntegrationSupervision_Supervised struct {
+	// Projection of the native supervision owner.
 	Supervised *ObservationSupervisedIntegration `protobuf:"bytes,1,opt,name=supervised,proto3,oneof"`
 }
 
 type ObservationIntegrationSupervision_NotSupervised struct {
+	// Selects an integration outside native supervision.
 	NotSupervised *emptypb.Empty `protobuf:"bytes,2,opt,name=not_supervised,json=notSupervised,proto3,oneof"`
 }
 
@@ -2835,11 +3128,12 @@ func (*ObservationIntegrationSupervision_Supervised) isObservationIntegrationSup
 func (*ObservationIntegrationSupervision_NotSupervised) isObservationIntegrationSupervision_Result() {
 }
 
+// Reports an exact counter or an explicit saturation state.
 type ObservationSaturatedCounter struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Must equal UINT64_MAX. Reaching that value exactly is still an exact
-	// counter; only a subsequent attempted overflow produces this variant.
-	Value         uint64 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	// Nonnegative lower bound capped at 9223372036854775807. This variant
+	// means at least this value, never an exact measurement.
+	LowerBound    int64 `protobuf:"varint,1,opt,name=lower_bound,json=lowerBound,proto3" json:"lower_bound,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2874,13 +3168,14 @@ func (*ObservationSaturatedCounter) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *ObservationSaturatedCounter) GetValue() uint64 {
+func (x *ObservationSaturatedCounter) GetLowerBound() int64 {
 	if x != nil {
-		return x.Value
+		return x.LowerBound
 	}
 	return 0
 }
 
+// Represents counter measurement.
 type ObservationCounterMeasurement struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -2931,7 +3226,7 @@ func (x *ObservationCounterMeasurement) GetResult() isObservationCounterMeasurem
 	return nil
 }
 
-func (x *ObservationCounterMeasurement) GetExact() uint64 {
+func (x *ObservationCounterMeasurement) GetExact() int64 {
 	if x != nil {
 		if x, ok := x.Result.(*ObservationCounterMeasurement_Exact); ok {
 			return x.Exact
@@ -2972,18 +3267,22 @@ type isObservationCounterMeasurement_Result interface {
 }
 
 type ObservationCounterMeasurement_Exact struct {
-	Exact uint64 `protobuf:"varint,1,opt,name=exact,proto3,oneof"`
+	// Exact value reported by the native owner, distinct from saturation or absence.
+	Exact int64 `protobuf:"varint,1,opt,name=exact,proto3,oneof"`
 }
 
 type ObservationCounterMeasurement_Saturated struct {
+	// Selects a counter whose exact value can no longer be represented.
 	Saturated *ObservationSaturatedCounter `protobuf:"bytes,2,opt,name=saturated,proto3,oneof"`
 }
 
 type ObservationCounterMeasurement_NotMeasured struct {
+	// Selects explicit absence of a measurement; distinct from a measured zero.
 	NotMeasured *emptypb.Empty `protobuf:"bytes,3,opt,name=not_measured,json=notMeasured,proto3,oneof"`
 }
 
 type ObservationCounterMeasurement_Unavailable struct {
+	// Typed reason this observation could not be produced; contains no provider payload.
 	Unavailable *ObservationReadUnavailable `protobuf:"bytes,4,opt,name=unavailable,proto3,oneof"`
 }
 
@@ -2995,6 +3294,7 @@ func (*ObservationCounterMeasurement_NotMeasured) isObservationCounterMeasuremen
 
 func (*ObservationCounterMeasurement_Unavailable) isObservationCounterMeasurement_Result() {}
 
+// Represents gauge measurement.
 type ObservationGaugeMeasurement struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -3044,7 +3344,7 @@ func (x *ObservationGaugeMeasurement) GetResult() isObservationGaugeMeasurement_
 	return nil
 }
 
-func (x *ObservationGaugeMeasurement) GetValue() uint64 {
+func (x *ObservationGaugeMeasurement) GetValue() int64 {
 	if x != nil {
 		if x, ok := x.Result.(*ObservationGaugeMeasurement_Value); ok {
 			return x.Value
@@ -3076,14 +3376,17 @@ type isObservationGaugeMeasurement_Result interface {
 }
 
 type ObservationGaugeMeasurement_Value struct {
-	Value uint64 `protobuf:"varint,1,opt,name=value,proto3,oneof"`
+	// The value represented as an exact native quantity.
+	Value int64 `protobuf:"varint,1,opt,name=value,proto3,oneof"`
 }
 
 type ObservationGaugeMeasurement_NotMeasured struct {
+	// Selects explicit absence of a measurement; distinct from a measured zero.
 	NotMeasured *emptypb.Empty `protobuf:"bytes,2,opt,name=not_measured,json=notMeasured,proto3,oneof"`
 }
 
 type ObservationGaugeMeasurement_Unavailable struct {
+	// Typed reason this observation could not be produced; contains no provider payload.
 	Unavailable *ObservationReadUnavailable `protobuf:"bytes,3,opt,name=unavailable,proto3,oneof"`
 }
 
@@ -3093,6 +3396,7 @@ func (*ObservationGaugeMeasurement_NotMeasured) isObservationGaugeMeasurement_Re
 
 func (*ObservationGaugeMeasurement_Unavailable) isObservationGaugeMeasurement_Result() {}
 
+// Represents position measurement.
 type ObservationPositionMeasurement struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -3164,10 +3468,12 @@ type isObservationPositionMeasurement_Result interface {
 }
 
 type ObservationPositionMeasurement_Value struct {
+	// The value represented by AdmissionPosition.
 	Value *AdmissionPosition `protobuf:"bytes,1,opt,name=value,proto3,oneof"`
 }
 
 type ObservationPositionMeasurement_Unavailable struct {
+	// Typed reason this observation could not be produced; contains no provider payload.
 	Unavailable *ObservationReadUnavailable `protobuf:"bytes,2,opt,name=unavailable,proto3,oneof"`
 }
 
@@ -3175,6 +3481,7 @@ func (*ObservationPositionMeasurement_Value) isObservationPositionMeasurement_Re
 
 func (*ObservationPositionMeasurement_Unavailable) isObservationPositionMeasurement_Result() {}
 
+// Represents lag measurement.
 type ObservationLagMeasurement struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -3225,13 +3532,13 @@ func (x *ObservationLagMeasurement) GetResult() isObservationLagMeasurement_Resu
 	return nil
 }
 
-func (x *ObservationLagMeasurement) GetSameEpochPositions() uint64 {
+func (x *ObservationLagMeasurement) GetSameEpochPositions() string {
 	if x != nil {
 		if x, ok := x.Result.(*ObservationLagMeasurement_SameEpochPositions); ok {
 			return x.SameEpochPositions
 		}
 	}
-	return 0
+	return ""
 }
 
 func (x *ObservationLagMeasurement) GetInvalidated() *emptypb.Empty {
@@ -3267,18 +3574,22 @@ type isObservationLagMeasurement_Result interface {
 
 type ObservationLagMeasurement_SameEpochPositions struct {
 	// Source admission positions, never milliseconds or lost-event counts.
-	SameEpochPositions uint64 `protobuf:"varint,1,opt,name=same_epoch_positions,json=sameEpochPositions,proto3,oneof"`
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	SameEpochPositions string `protobuf:"bytes,1,opt,name=same_epoch_positions,json=sameEpochPositions,proto3,oneof"`
 }
 
 type ObservationLagMeasurement_Invalidated struct {
+	// Selects the explicit invalidated alternative without an additional payload.
 	Invalidated *emptypb.Empty `protobuf:"bytes,2,opt,name=invalidated,proto3,oneof"`
 }
 
 type ObservationLagMeasurement_EpochMismatch struct {
+	// Selects the explicit epoch mismatch alternative without an additional payload.
 	EpochMismatch *emptypb.Empty `protobuf:"bytes,3,opt,name=epoch_mismatch,json=epochMismatch,proto3,oneof"`
 }
 
 type ObservationLagMeasurement_Unavailable struct {
+	// Typed reason this observation could not be produced; contains no provider payload.
 	Unavailable *ObservationReadUnavailable `protobuf:"bytes,4,opt,name=unavailable,proto3,oneof"`
 }
 
@@ -3290,21 +3601,30 @@ func (*ObservationLagMeasurement_EpochMismatch) isObservationLagMeasurement_Resu
 
 func (*ObservationLagMeasurement_Unavailable) isObservationLagMeasurement_Result() {}
 
+// Represents installed queue metrics.
 type ObservationInstalledQueueMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Nine common numeric slots per class, plus worker in-flight/pending and
 	// cloud in-flight only. Every field is
 	// present; an inapplicable slot uses not_measured. Bytes are only reported
 	// when actually accounted by the owner. No IDs, URIs, or error labels.
-	ActiveQueues           *ObservationGaugeMeasurement   `protobuf:"bytes,1,opt,name=active_queues,json=activeQueues,proto3" json:"active_queues,omitempty"`
-	QueuedEntries          *ObservationGaugeMeasurement   `protobuf:"bytes,2,opt,name=queued_entries,json=queuedEntries,proto3" json:"queued_entries,omitempty"`
-	CapacityEntries        *ObservationGaugeMeasurement   `protobuf:"bytes,3,opt,name=capacity_entries,json=capacityEntries,proto3" json:"capacity_entries,omitempty"`
-	RejectedTotal          *ObservationCounterMeasurement `protobuf:"bytes,4,opt,name=rejected_total,json=rejectedTotal,proto3" json:"rejected_total,omitempty"`
-	LostDeliveriesTotal    *ObservationCounterMeasurement `protobuf:"bytes,5,opt,name=lost_deliveries_total,json=lostDeliveriesTotal,proto3" json:"lost_deliveries_total,omitempty"`
-	CoalescedTotal         *ObservationCounterMeasurement `protobuf:"bytes,6,opt,name=coalesced_total,json=coalescedTotal,proto3" json:"coalesced_total,omitempty"`
-	DegradedQueues         *ObservationGaugeMeasurement   `protobuf:"bytes,7,opt,name=degraded_queues,json=degradedQueues,proto3" json:"degraded_queues,omitempty"`
-	QueuedAccountedBytes   *ObservationGaugeMeasurement   `protobuf:"bytes,8,opt,name=queued_accounted_bytes,json=queuedAccountedBytes,proto3" json:"queued_accounted_bytes,omitempty"`
-	CapacityAccountedBytes *ObservationGaugeMeasurement   `protobuf:"bytes,9,opt,name=capacity_accounted_bytes,json=capacityAccountedBytes,proto3" json:"capacity_accounted_bytes,omitempty"`
+	ActiveQueues *ObservationGaugeMeasurement `protobuf:"bytes,1,opt,name=active_queues,json=activeQueues,proto3" json:"active_queues,omitempty"`
+	// The queued entries represented by ObservationGaugeMeasurement.
+	QueuedEntries *ObservationGaugeMeasurement `protobuf:"bytes,2,opt,name=queued_entries,json=queuedEntries,proto3" json:"queued_entries,omitempty"`
+	// The capacity entries represented by ObservationGaugeMeasurement.
+	CapacityEntries *ObservationGaugeMeasurement `protobuf:"bytes,3,opt,name=capacity_entries,json=capacityEntries,proto3" json:"capacity_entries,omitempty"`
+	// Cumulative rejected reported by the native owner.
+	RejectedTotal *ObservationCounterMeasurement `protobuf:"bytes,4,opt,name=rejected_total,json=rejectedTotal,proto3" json:"rejected_total,omitempty"`
+	// Cumulative lost deliveries reported by the native owner.
+	LostDeliveriesTotal *ObservationCounterMeasurement `protobuf:"bytes,5,opt,name=lost_deliveries_total,json=lostDeliveriesTotal,proto3" json:"lost_deliveries_total,omitempty"`
+	// Cumulative coalesced reported by the native owner.
+	CoalescedTotal *ObservationCounterMeasurement `protobuf:"bytes,6,opt,name=coalesced_total,json=coalescedTotal,proto3" json:"coalesced_total,omitempty"`
+	// The degraded queues represented by ObservationGaugeMeasurement.
+	DegradedQueues *ObservationGaugeMeasurement `protobuf:"bytes,7,opt,name=degraded_queues,json=degradedQueues,proto3" json:"degraded_queues,omitempty"`
+	// Size of queued accounted in bytes.
+	QueuedAccountedBytes *ObservationGaugeMeasurement `protobuf:"bytes,8,opt,name=queued_accounted_bytes,json=queuedAccountedBytes,proto3" json:"queued_accounted_bytes,omitempty"`
+	// Size of capacity accounted in bytes.
+	CapacityAccountedBytes *ObservationGaugeMeasurement `protobuf:"bytes,9,opt,name=capacity_accounted_bytes,json=capacityAccountedBytes,proto3" json:"capacity_accounted_bytes,omitempty"`
 	// Applicable only to WorkerCommands and CloudRequests; otherwise NotMeasured.
 	InFlightEntries *ObservationGaugeMeasurement `protobuf:"bytes,10,opt,name=in_flight_entries,json=inFlightEntries,proto3" json:"in_flight_entries,omitempty"`
 	// Applicable only to WorkerCommands; includes queued and handed-off commands
@@ -3421,9 +3741,11 @@ func (x *ObservationInstalledQueueMetrics) GetPendingEntries() *ObservationGauge
 	return nil
 }
 
+// Represents queue aggregate.
 type ObservationQueueAggregate struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	QueueClass ObservationQueueClass  `protobuf:"varint,1,opt,name=queue_class,json=queueClass,proto3,enum=home.api.v2.ObservationQueueClass" json:"queue_class,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The queue class represented by ObservationQueueClass.
+	QueueClass ObservationQueueClass `protobuf:"varint,1,opt,name=queue_class,json=queueClass,proto3,enum=home.api.v2.ObservationQueueClass" json:"queue_class,omitempty"`
 	// Types that are valid to be assigned to Result:
 	//
 	//	*ObservationQueueAggregate_Installed
@@ -3510,14 +3832,17 @@ type isObservationQueueAggregate_Result interface {
 }
 
 type ObservationQueueAggregate_Installed struct {
+	// The installed represented by ObservationInstalledQueueMetrics.
 	Installed *ObservationInstalledQueueMetrics `protobuf:"bytes,2,opt,name=installed,proto3,oneof"`
 }
 
 type ObservationQueueAggregate_NotInstalled struct {
+	// Selects explicit absence of an installed native owner.
 	NotInstalled *emptypb.Empty `protobuf:"bytes,3,opt,name=not_installed,json=notInstalled,proto3,oneof"`
 }
 
 type ObservationQueueAggregate_Unavailable struct {
+	// Typed reason this observation could not be produced; contains no provider payload.
 	Unavailable *ObservationReadUnavailable `protobuf:"bytes,4,opt,name=unavailable,proto3,oneof"`
 }
 
@@ -3527,6 +3852,7 @@ func (*ObservationQueueAggregate_NotInstalled) isObservationQueueAggregate_Resul
 
 func (*ObservationQueueAggregate_Unavailable) isObservationQueueAggregate_Result() {}
 
+// Represents queue lag.
 type ObservationQueueLag struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Only UI, Edge, Recorder, and View, once each. If any member is invalidated,
@@ -3618,14 +3944,17 @@ type isObservationQueueLag_Result interface {
 }
 
 type ObservationQueueLag_Installed struct {
+	// The installed represented by ObservationLagMeasurement.
 	Installed *ObservationLagMeasurement `protobuf:"bytes,2,opt,name=installed,proto3,oneof"`
 }
 
 type ObservationQueueLag_NotInstalled struct {
+	// Selects explicit absence of an installed native owner.
 	NotInstalled *emptypb.Empty `protobuf:"bytes,3,opt,name=not_installed,json=notInstalled,proto3,oneof"`
 }
 
 type ObservationQueueLag_Unavailable struct {
+	// Typed reason this observation could not be produced; contains no provider payload.
 	Unavailable *ObservationReadUnavailable `protobuf:"bytes,4,opt,name=unavailable,proto3,oneof"`
 }
 
@@ -3635,11 +3964,16 @@ func (*ObservationQueueLag_NotInstalled) isObservationQueueLag_Result() {}
 
 func (*ObservationQueueLag_Unavailable) isObservationQueueLag_Result() {}
 
+// Represents committed gap metrics.
 type ObservationCommittedGapMetrics struct {
-	state                      protoimpl.MessageState         `protogen:"open.v1"`
-	Reason                     GapReason                      `protobuf:"varint,1,opt,name=reason,proto3,enum=home.api.v2.GapReason" json:"reason,omitempty"`
-	RowsTotal                  *ObservationCounterMeasurement `protobuf:"bytes,2,opt,name=rows_total,json=rowsTotal,proto3" json:"rows_total,omitempty"`
-	KnownLostLowerBoundTotal   *ObservationCounterMeasurement `protobuf:"bytes,3,opt,name=known_lost_lower_bound_total,json=knownLostLowerBoundTotal,proto3" json:"known_lost_lower_bound_total,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
+	Reason GapReason `protobuf:"varint,1,opt,name=reason,proto3,enum=home.api.v2.GapReason" json:"reason,omitempty"`
+	// Cumulative rows reported by the native owner.
+	RowsTotal *ObservationCounterMeasurement `protobuf:"bytes,2,opt,name=rows_total,json=rowsTotal,proto3" json:"rows_total,omitempty"`
+	// Cumulative known lost lower bound reported by the native owner.
+	KnownLostLowerBoundTotal *ObservationCounterMeasurement `protobuf:"bytes,3,opt,name=known_lost_lower_bound_total,json=knownLostLowerBoundTotal,proto3" json:"known_lost_lower_bound_total,omitempty"`
+	// Cumulative rows without known count reported by the native owner.
 	RowsWithoutKnownCountTotal *ObservationCounterMeasurement `protobuf:"bytes,4,opt,name=rows_without_known_count_total,json=rowsWithoutKnownCountTotal,proto3" json:"rows_without_known_count_total,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
@@ -3703,12 +4037,15 @@ func (x *ObservationCommittedGapMetrics) GetRowsWithoutKnownCountTotal() *Observ
 	return nil
 }
 
+// Represents active coverage interval.
 type ObservationActiveCoverageInterval struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// A volatile at-risk interval, not a committed historical gap.
-	From          *AdmissionPosition `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
-	Through       *AdmissionPosition `protobuf:"bytes,2,opt,name=through,proto3" json:"through,omitempty"`
-	KnownLost     *KnownLost         `protobuf:"bytes,3,opt,name=known_lost,json=knownLost,proto3" json:"known_lost,omitempty"`
+	From *AdmissionPosition `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
+	// Upper bound within the declared scope; follow the enclosing interval contract.
+	Through *AdmissionPosition `protobuf:"bytes,2,opt,name=through,proto3" json:"through,omitempty"`
+	// Explicitly known loss evidence; unknown loss is represented separately.
+	KnownLost     *KnownLost `protobuf:"bytes,3,opt,name=known_lost,json=knownLost,proto3" json:"known_lost,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3764,6 +4101,7 @@ func (x *ObservationActiveCoverageInterval) GetKnownLost() *KnownLost {
 	return nil
 }
 
+// Represents active coverage.
 type ObservationActiveCoverage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -3845,14 +4183,17 @@ type isObservationActiveCoverage_Result interface {
 }
 
 type ObservationActiveCoverage_AtRisk struct {
+	// The at risk represented by ObservationActiveCoverageInterval.
 	AtRisk *ObservationActiveCoverageInterval `protobuf:"bytes,1,opt,name=at_risk,json=atRisk,proto3,oneof"`
 }
 
 type ObservationActiveCoverage_NoActiveRisk struct {
+	// Selects no currently observed recorder risk; does not reconstruct missing history.
 	NoActiveRisk *emptypb.Empty `protobuf:"bytes,2,opt,name=no_active_risk,json=noActiveRisk,proto3,oneof"`
 }
 
 type ObservationActiveCoverage_Unavailable struct {
+	// Typed reason this observation could not be produced; contains no provider payload.
 	Unavailable *ObservationReadUnavailable `protobuf:"bytes,3,opt,name=unavailable,proto3,oneof"`
 }
 
@@ -3862,24 +4203,36 @@ func (*ObservationActiveCoverage_NoActiveRisk) isObservationActiveCoverage_Resul
 
 func (*ObservationActiveCoverage_Unavailable) isObservationActiveCoverage_Result() {}
 
+// Represents installed recorder metrics.
 type ObservationInstalledRecorderMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Eleven numeric slots. Positions carry source epoch context, not labels.
-	QueuedBytes          *ObservationGaugeMeasurement    `protobuf:"bytes,1,opt,name=queued_bytes,json=queuedBytes,proto3" json:"queued_bytes,omitempty"`
-	PendingBytes         *ObservationGaugeMeasurement    `protobuf:"bytes,2,opt,name=pending_bytes,json=pendingBytes,proto3" json:"pending_bytes,omitempty"`
-	TotalCapacityBytes   *ObservationGaugeMeasurement    `protobuf:"bytes,3,opt,name=total_capacity_bytes,json=totalCapacityBytes,proto3" json:"total_capacity_bytes,omitempty"`
-	QueueCapacityBytes   *ObservationGaugeMeasurement    `protobuf:"bytes,4,opt,name=queue_capacity_bytes,json=queueCapacityBytes,proto3" json:"queue_capacity_bytes,omitempty"`
-	QueuedEntries        *ObservationGaugeMeasurement    `protobuf:"bytes,5,opt,name=queued_entries,json=queuedEntries,proto3" json:"queued_entries,omitempty"`
-	RetriesTotal         *ObservationCounterMeasurement  `protobuf:"bytes,6,opt,name=retries_total,json=retriesTotal,proto3" json:"retries_total,omitempty"`
-	LostEntriesTotal     *ObservationCounterMeasurement  `protobuf:"bytes,7,opt,name=lost_entries_total,json=lostEntriesTotal,proto3" json:"lost_entries_total,omitempty"`
-	PolicyExcludedTotal  *ObservationCounterMeasurement  `protobuf:"bytes,8,opt,name=policy_excluded_total,json=policyExcludedTotal,proto3" json:"policy_excluded_total,omitempty"`
-	Checkpoint           *ObservationPositionMeasurement `protobuf:"bytes,9,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
-	Tail                 *ObservationPositionMeasurement `protobuf:"bytes,10,opt,name=tail,proto3" json:"tail,omitempty"`
-	RecorderLagPositions *ObservationLagMeasurement      `protobuf:"bytes,11,opt,name=recorder_lag_positions,json=recorderLagPositions,proto3" json:"recorder_lag_positions,omitempty"`
+	QueuedBytes *ObservationGaugeMeasurement `protobuf:"bytes,1,opt,name=queued_bytes,json=queuedBytes,proto3" json:"queued_bytes,omitempty"`
+	// Size of pending in bytes.
+	PendingBytes *ObservationGaugeMeasurement `protobuf:"bytes,2,opt,name=pending_bytes,json=pendingBytes,proto3" json:"pending_bytes,omitempty"`
+	// Size of total capacity in bytes.
+	TotalCapacityBytes *ObservationGaugeMeasurement `protobuf:"bytes,3,opt,name=total_capacity_bytes,json=totalCapacityBytes,proto3" json:"total_capacity_bytes,omitempty"`
+	// Size of queue capacity in bytes.
+	QueueCapacityBytes *ObservationGaugeMeasurement `protobuf:"bytes,4,opt,name=queue_capacity_bytes,json=queueCapacityBytes,proto3" json:"queue_capacity_bytes,omitempty"`
+	// The queued entries represented by ObservationGaugeMeasurement.
+	QueuedEntries *ObservationGaugeMeasurement `protobuf:"bytes,5,opt,name=queued_entries,json=queuedEntries,proto3" json:"queued_entries,omitempty"`
+	// Cumulative retries reported by the native owner.
+	RetriesTotal *ObservationCounterMeasurement `protobuf:"bytes,6,opt,name=retries_total,json=retriesTotal,proto3" json:"retries_total,omitempty"`
+	// Cumulative lost entries reported by the native owner.
+	LostEntriesTotal *ObservationCounterMeasurement `protobuf:"bytes,7,opt,name=lost_entries_total,json=lostEntriesTotal,proto3" json:"lost_entries_total,omitempty"`
+	// Cumulative policy excluded reported by the native owner.
+	PolicyExcludedTotal *ObservationCounterMeasurement `protobuf:"bytes,8,opt,name=policy_excluded_total,json=policyExcludedTotal,proto3" json:"policy_excluded_total,omitempty"`
+	// Checkpoint within the admitted capture; does not authorize another capture.
+	Checkpoint *ObservationPositionMeasurement `protobuf:"bytes,9,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
+	// The tail represented by ObservationPositionMeasurement.
+	Tail *ObservationPositionMeasurement `protobuf:"bytes,10,opt,name=tail,proto3" json:"tail,omitempty"`
+	// The recorder lag positions represented by ObservationLagMeasurement.
+	RecorderLagPositions *ObservationLagMeasurement `protobuf:"bytes,11,opt,name=recorder_lag_positions,json=recorderLagPositions,proto3" json:"recorder_lag_positions,omitempty"`
 	// Three reasons, three cumulative counters each. Count only confirmed
 	// runtime commits, never retries, historical scans, or ObservationActiveCoverage.
-	CommittedGaps  []*ObservationCommittedGapMetrics `protobuf:"bytes,12,rep,name=committed_gaps,json=committedGaps,proto3" json:"committed_gaps,omitempty"`
-	ActiveCoverage *ObservationActiveCoverage        `protobuf:"bytes,13,opt,name=active_coverage,json=activeCoverage,proto3" json:"active_coverage,omitempty"`
+	CommittedGaps []*ObservationCommittedGapMetrics `protobuf:"bytes,12,rep,name=committed_gaps,json=committedGaps,proto3" json:"committed_gaps,omitempty"`
+	// Coverage evidence for the currently active recorder interval.
+	ActiveCoverage *ObservationActiveCoverage `protobuf:"bytes,13,opt,name=active_coverage,json=activeCoverage,proto3" json:"active_coverage,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -4005,6 +4358,7 @@ func (x *ObservationInstalledRecorderMetrics) GetActiveCoverage() *ObservationAc
 	return nil
 }
 
+// Represents recorder metrics.
 type ObservationRecorderMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -4086,14 +4440,17 @@ type isObservationRecorderMetrics_Result interface {
 }
 
 type ObservationRecorderMetrics_Installed struct {
+	// The installed represented by ObservationInstalledRecorderMetrics.
 	Installed *ObservationInstalledRecorderMetrics `protobuf:"bytes,1,opt,name=installed,proto3,oneof"`
 }
 
 type ObservationRecorderMetrics_NotInstalled struct {
+	// Selects explicit absence of an installed native owner.
 	NotInstalled *emptypb.Empty `protobuf:"bytes,2,opt,name=not_installed,json=notInstalled,proto3,oneof"`
 }
 
 type ObservationRecorderMetrics_Unavailable struct {
+	// Typed reason this observation could not be produced; contains no provider payload.
 	Unavailable *ObservationReadUnavailable `protobuf:"bytes,3,opt,name=unavailable,proto3,oneof"`
 }
 
@@ -4103,9 +4460,12 @@ func (*ObservationRecorderMetrics_NotInstalled) isObservationRecorderMetrics_Res
 
 func (*ObservationRecorderMetrics_Unavailable) isObservationRecorderMetrics_Result() {}
 
+// Represents first attempt metrics.
 type ObservationFirstAttemptMetrics struct {
-	state              protoimpl.MessageState         `protogen:"open.v1"`
-	Ledger             ObservationAttemptLedger       `protobuf:"varint,1,opt,name=ledger,proto3,enum=home.api.v2.ObservationAttemptLedger" json:"ledger,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The ledger represented by ObservationAttemptLedger.
+	Ledger ObservationAttemptLedger `protobuf:"varint,1,opt,name=ledger,proto3,enum=home.api.v2.ObservationAttemptLedger" json:"ledger,omitempty"`
+	// Cumulative indeterminate reported by the native owner.
 	IndeterminateTotal *ObservationCounterMeasurement `protobuf:"bytes,2,opt,name=indeterminate_total,json=indeterminateTotal,proto3" json:"indeterminate_total,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
@@ -4155,14 +4515,16 @@ func (x *ObservationFirstAttemptMetrics) GetIndeterminateTotal() *ObservationCou
 	return nil
 }
 
+// Represents action metrics.
 type ObservationActionMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// These are three distinct, nonadditive populations: live progression,
 	// responses to first attempts, and old dispatching rows recovered durably.
 	ProgressIndeterminateTotal *ObservationCounterMeasurement `protobuf:"bytes,1,opt,name=progress_indeterminate_total,json=progressIndeterminateTotal,proto3" json:"progress_indeterminate_total,omitempty"`
 	// Exactly Volatile and Durable once each. Replays do not increment.
-	FirstAttempts                      []*ObservationFirstAttemptMetrics `protobuf:"bytes,2,rep,name=first_attempts,json=firstAttempts,proto3" json:"first_attempts,omitempty"`
-	DurableRecoveredIndeterminateTotal *ObservationCounterMeasurement    `protobuf:"bytes,3,opt,name=durable_recovered_indeterminate_total,json=durableRecoveredIndeterminateTotal,proto3" json:"durable_recovered_indeterminate_total,omitempty"`
+	FirstAttempts []*ObservationFirstAttemptMetrics `protobuf:"bytes,2,rep,name=first_attempts,json=firstAttempts,proto3" json:"first_attempts,omitempty"`
+	// Cumulative durable recovered indeterminate reported by the native owner.
+	DurableRecoveredIndeterminateTotal *ObservationCounterMeasurement `protobuf:"bytes,3,opt,name=durable_recovered_indeterminate_total,json=durableRecoveredIndeterminateTotal,proto3" json:"durable_recovered_indeterminate_total,omitempty"`
 	unknownFields                      protoimpl.UnknownFields
 	sizeCache                          protoimpl.SizeCache
 }
@@ -4218,13 +4580,18 @@ func (x *ObservationActionMetrics) GetDurableRecoveredIndeterminateTotal() *Obse
 	return nil
 }
 
+// Represents run kind metrics.
 type ObservationRunKindMetrics struct {
-	state  protoimpl.MessageState       `protogen:"open.v1"`
-	Kind   ObservationRunKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=home.api.v2.ObservationRunKind" json:"kind,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The kind represented by ObservationRunKind.
+	Kind ObservationRunKind `protobuf:"varint,1,opt,name=kind,proto3,enum=home.api.v2.ObservationRunKind" json:"kind,omitempty"`
+	// The active represented by ObservationGaugeMeasurement.
 	Active *ObservationGaugeMeasurement `protobuf:"bytes,2,opt,name=active,proto3" json:"active,omitempty"`
 	// FIFO plus replacement, distinct from active and preparing.
-	Pending         *ObservationGaugeMeasurement   `protobuf:"bytes,3,opt,name=pending,proto3" json:"pending,omitempty"`
-	CancelledTotal  *ObservationCounterMeasurement `protobuf:"bytes,4,opt,name=cancelled_total,json=cancelledTotal,proto3" json:"cancelled_total,omitempty"`
+	Pending *ObservationGaugeMeasurement `protobuf:"bytes,3,opt,name=pending,proto3" json:"pending,omitempty"`
+	// Cumulative cancelled reported by the native owner.
+	CancelledTotal *ObservationCounterMeasurement `protobuf:"bytes,4,opt,name=cancelled_total,json=cancelledTotal,proto3" json:"cancelled_total,omitempty"`
+	// Cumulative superseded reported by the native owner.
 	SupersededTotal *ObservationCounterMeasurement `protobuf:"bytes,5,opt,name=superseded_total,json=supersededTotal,proto3" json:"superseded_total,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -4295,11 +4662,13 @@ func (x *ObservationRunKindMetrics) GetSupersededTotal() *ObservationCounterMeas
 	return nil
 }
 
+// Represents installed run metrics.
 type ObservationInstalledRunMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Exactly Automation and Script. Totals survive native trace eviction,
 	// owner replacement, and reads; NodeCancelled is not another cancelled run.
-	Kinds     []*ObservationRunKindMetrics `protobuf:"bytes,1,rep,name=kinds,proto3" json:"kinds,omitempty"`
+	Kinds []*ObservationRunKindMetrics `protobuf:"bytes,1,rep,name=kinds,proto3" json:"kinds,omitempty"`
+	// The preparing represented by ObservationGaugeMeasurement.
 	Preparing *ObservationGaugeMeasurement `protobuf:"bytes,2,opt,name=preparing,proto3" json:"preparing,omitempty"`
 	// Stable identity of this actual Controller, independent of causal revision.
 	// Context for targeted trace reads; no metric series or authority is added.
@@ -4359,6 +4728,7 @@ func (x *ObservationInstalledRunMetrics) GetController() string {
 	return ""
 }
 
+// Represents run metrics.
 type ObservationRunMetrics struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -4440,14 +4810,17 @@ type isObservationRunMetrics_Result interface {
 }
 
 type ObservationRunMetrics_Installed struct {
+	// The installed represented by ObservationInstalledRunMetrics.
 	Installed *ObservationInstalledRunMetrics `protobuf:"bytes,1,opt,name=installed,proto3,oneof"`
 }
 
 type ObservationRunMetrics_NotInstalled struct {
+	// Selects explicit absence of an installed native owner.
 	NotInstalled *emptypb.Empty `protobuf:"bytes,2,opt,name=not_installed,json=notInstalled,proto3,oneof"`
 }
 
 type ObservationRunMetrics_Unavailable struct {
+	// Typed reason this observation could not be produced; contains no provider payload.
 	Unavailable *ObservationReadUnavailable `protobuf:"bytes,3,opt,name=unavailable,proto3,oneof"`
 }
 
@@ -4457,10 +4830,14 @@ func (*ObservationRunMetrics_NotInstalled) isObservationRunMetrics_Result() {}
 
 func (*ObservationRunMetrics_Unavailable) isObservationRunMetrics_Result() {}
 
+// Represents journal metrics.
 type ObservationJournalMetrics struct {
-	state         protoimpl.MessageState         `protogen:"open.v1"`
-	RetainedRows  *ObservationGaugeMeasurement   `protobuf:"bytes,1,opt,name=retained_rows,json=retainedRows,proto3" json:"retained_rows,omitempty"`
-	ChargedBytes  *ObservationGaugeMeasurement   `protobuf:"bytes,2,opt,name=charged_bytes,json=chargedBytes,proto3" json:"charged_bytes,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The retained rows represented by ObservationGaugeMeasurement.
+	RetainedRows *ObservationGaugeMeasurement `protobuf:"bytes,1,opt,name=retained_rows,json=retainedRows,proto3" json:"retained_rows,omitempty"`
+	// Size of charged in bytes.
+	ChargedBytes *ObservationGaugeMeasurement `protobuf:"bytes,2,opt,name=charged_bytes,json=chargedBytes,proto3" json:"charged_bytes,omitempty"`
+	// Cumulative evicted reported by the native owner.
 	EvictedTotal  *ObservationCounterMeasurement `protobuf:"bytes,3,opt,name=evicted_total,json=evictedTotal,proto3" json:"evicted_total,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4517,9 +4894,12 @@ func (x *ObservationJournalMetrics) GetEvictedTotal() *ObservationCounterMeasure
 	return nil
 }
 
+// Identifies the native owner and epoch of this observation cut.
 type ObservationObservationCut struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Owner         ObservationMetricOwner `protobuf:"varint,1,opt,name=owner,proto3,enum=home.api.v2.ObservationMetricOwner" json:"owner,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The owner represented by ObservationMetricOwner.
+	Owner ObservationMetricOwner `protobuf:"varint,1,opt,name=owner,proto3,enum=home.api.v2.ObservationMetricOwner" json:"owner,omitempty"`
+	// Time when the native owner captured this projection.
 	CapturedAt    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=captured_at,json=capturedAt,proto3" json:"captured_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4569,17 +4949,25 @@ func (x *ObservationObservationCut) GetCapturedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// Represents metrics.
 type Metrics struct {
-	state        protoimpl.MessageState              `protogen:"open.v1"`
-	Name         string                              `protobuf:"bytes,20,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,20,opt,name=name,proto3" json:"name,omitempty"`
+	// The process epoch represented by ObservationProcessObservationEpoch.
 	ProcessEpoch *ObservationProcessObservationEpoch `protobuf:"bytes,1,opt,name=process_epoch,json=processEpoch,proto3" json:"process_epoch,omitempty"`
 	// Exactly nine classes, once each; four sequencer lag classes, once each.
-	Queues    []*ObservationQueueAggregate `protobuf:"bytes,2,rep,name=queues,proto3" json:"queues,omitempty"`
-	QueueLags []*ObservationQueueLag       `protobuf:"bytes,3,rep,name=queue_lags,json=queueLags,proto3" json:"queue_lags,omitempty"`
-	Recorder  *ObservationRecorderMetrics  `protobuf:"bytes,4,opt,name=recorder,proto3" json:"recorder,omitempty"`
-	Actions   *ObservationActionMetrics    `protobuf:"bytes,5,opt,name=actions,proto3" json:"actions,omitempty"`
-	Runs      *ObservationRunMetrics       `protobuf:"bytes,6,opt,name=runs,proto3" json:"runs,omitempty"`
-	Journal   *ObservationJournalMetrics   `protobuf:"bytes,7,opt,name=journal,proto3" json:"journal,omitempty"`
+	Queues []*ObservationQueueAggregate `protobuf:"bytes,2,rep,name=queues,proto3" json:"queues,omitempty"`
+	// Collection of queue lags for this message.
+	QueueLags []*ObservationQueueLag `protobuf:"bytes,3,rep,name=queue_lags,json=queueLags,proto3" json:"queue_lags,omitempty"`
+	// The recorder represented by ObservationRecorderMetrics.
+	Recorder *ObservationRecorderMetrics `protobuf:"bytes,4,opt,name=recorder,proto3" json:"recorder,omitempty"`
+	// The actions represented by ObservationActionMetrics.
+	Actions *ObservationActionMetrics `protobuf:"bytes,5,opt,name=actions,proto3" json:"actions,omitempty"`
+	// The runs represented by ObservationRunMetrics.
+	Runs *ObservationRunMetrics `protobuf:"bytes,6,opt,name=runs,proto3" json:"runs,omitempty"`
+	// The journal represented by ObservationJournalMetrics.
+	Journal *ObservationJournalMetrics `protobuf:"bytes,7,opt,name=journal,proto3" json:"journal,omitempty"`
 	// At most eight known owners, no duplicates. These qualify independent cuts,
 	// not a global transaction or wall-clock ordering proof between owners.
 	Cuts          []*ObservationObservationCut `protobuf:"bytes,8,rep,name=cuts,proto3" json:"cuts,omitempty"`
@@ -4680,6 +5068,7 @@ func (x *Metrics) GetCuts() []*ObservationObservationCut {
 	return nil
 }
 
+// Represents runtime author.
 type ObservationRuntimeAuthor struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -4771,10 +5160,12 @@ type isObservationRuntimeAuthor_Result interface {
 }
 
 type ObservationRuntimeAuthor_Process struct {
+	// Selects the explicit process alternative without an additional payload.
 	Process *emptypb.Empty `protobuf:"bytes,1,opt,name=process,proto3,oneof"`
 }
 
 type ObservationRuntimeAuthor_InternalAutomation struct {
+	// Identifies execution inside an admitted internal routine, without a human principal.
 	InternalAutomation *emptypb.Empty `protobuf:"bytes,2,opt,name=internal_automation,json=internalAutomation,proto3,oneof"`
 }
 
@@ -4784,6 +5175,7 @@ type ObservationRuntimeAuthor_HumanAccount struct {
 }
 
 type ObservationRuntimeAuthor_Unauthenticated struct {
+	// Identifies an attempt for which no human account was authenticated.
 	Unauthenticated *emptypb.Empty `protobuf:"bytes,4,opt,name=unauthenticated,proto3,oneof"`
 }
 
@@ -4795,14 +5187,19 @@ func (*ObservationRuntimeAuthor_HumanAccount) isObservationRuntimeAuthor_Result(
 
 func (*ObservationRuntimeAuthor_Unauthenticated) isObservationRuntimeAuthor_Result() {}
 
+// Represents runtime event.
 type ObservationRuntimeEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// At most 1 KiB serialized and charged before retention. Message text is
 	// rendered from ObservationLogCode by a client, never copied from a provider.
-	Code          ObservationLogCode        `protobuf:"varint,1,opt,name=code,proto3,enum=home.api.v2.ObservationLogCode" json:"code,omitempty"`
-	Level         ObservationLogLevel       `protobuf:"varint,2,opt,name=level,proto3,enum=home.api.v2.ObservationLogLevel" json:"level,omitempty"`
-	Component     ObservationLogComponent   `protobuf:"varint,3,opt,name=component,proto3,enum=home.api.v2.ObservationLogComponent" json:"component,omitempty"`
-	OccurredAt    *timestamppb.Timestamp    `protobuf:"bytes,4,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
+	Code ObservationLogCode `protobuf:"varint,1,opt,name=code,proto3,enum=home.api.v2.ObservationLogCode" json:"code,omitempty"`
+	// The level represented by ObservationLogLevel.
+	Level ObservationLogLevel `protobuf:"varint,2,opt,name=level,proto3,enum=home.api.v2.ObservationLogLevel" json:"level,omitempty"`
+	// The component represented by ObservationLogComponent.
+	Component ObservationLogComponent `protobuf:"varint,3,opt,name=component,proto3,enum=home.api.v2.ObservationLogComponent" json:"component,omitempty"`
+	// Recorded time of the event represented by this row.
+	OccurredAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
+	// The author represented by ObservationRuntimeAuthor.
 	Author        *ObservationRuntimeAuthor `protobuf:"bytes,5,opt,name=author,proto3" json:"author,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4873,9 +5270,13 @@ func (x *ObservationRuntimeEvent) GetAuthor() *ObservationRuntimeAuthor {
 	return nil
 }
 
+// Represents runtime log row.
 type ObservationRuntimeLogRow struct {
-	state         protoimpl.MessageState   `protogen:"open.v1"`
-	Sequence      uint64                   `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Position within the corresponding epoch, not a global time or authority token.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	Sequence string `protobuf:"bytes,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	// The event represented by ObservationRuntimeEvent.
 	Event         *ObservationRuntimeEvent `protobuf:"bytes,2,opt,name=event,proto3" json:"event,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4911,11 +5312,11 @@ func (*ObservationRuntimeLogRow) Descriptor() ([]byte, []int) {
 	return file_home_api_v2_observability_proto_rawDescGZIP(), []int{37}
 }
 
-func (x *ObservationRuntimeLogRow) GetSequence() uint64 {
+func (x *ObservationRuntimeLogRow) GetSequence() string {
 	if x != nil {
 		return x.Sequence
 	}
-	return 0
+	return ""
 }
 
 func (x *ObservationRuntimeLogRow) GetEvent() *ObservationRuntimeEvent {
@@ -4925,9 +5326,11 @@ func (x *ObservationRuntimeLogRow) GetEvent() *ObservationRuntimeEvent {
 	return nil
 }
 
+// Represents integration reference.
 type ObservationIntegrationReference struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Value         []byte                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Exact bytes representing value. Not interpreted as a display string.
+	Value         []byte `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4969,6 +5372,7 @@ func (x *ObservationIntegrationReference) GetValue() []byte {
 	return nil
 }
 
+// Represents audit author.
 type ObservationAuditAuthor struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -5050,14 +5454,17 @@ type isObservationAuditAuthor_Result interface {
 }
 
 type ObservationAuditAuthor_HumanAccount struct {
+	// Canonical account associated with this human-originated observation.
 	HumanAccount string `protobuf:"bytes,1,opt,name=human_account,json=humanAccount,proto3,oneof"`
 }
 
 type ObservationAuditAuthor_InternalIntegration struct {
+	// The internal integration represented by ObservationIntegrationReference.
 	InternalIntegration *ObservationIntegrationReference `protobuf:"bytes,2,opt,name=internal_integration,json=internalIntegration,proto3,oneof"`
 }
 
 type ObservationAuditAuthor_NotRecorded struct {
+	// Selects explicit absence of recorded evidence; does not invent a zero value.
 	NotRecorded *emptypb.Empty `protobuf:"bytes,3,opt,name=not_recorded,json=notRecorded,proto3,oneof"`
 }
 
@@ -5067,6 +5474,7 @@ func (*ObservationAuditAuthor_InternalIntegration) isObservationAuditAuthor_Resu
 
 func (*ObservationAuditAuthor_NotRecorded) isObservationAuditAuthor_Result() {}
 
+// Represents audit route.
 type ObservationAuditRoute struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -5154,10 +5562,12 @@ type ObservationAuditRoute_RegisteredProcedure struct {
 }
 
 type ObservationAuditRoute_OtherRegisteredRoute struct {
+	// Identifies a registered route without exposing a raw URL or request.
 	OtherRegisteredRoute *emptypb.Empty `protobuf:"bytes,2,opt,name=other_registered_route,json=otherRegisteredRoute,proto3,oneof"`
 }
 
 type ObservationAuditRoute_NotRecorded struct {
+	// Selects explicit absence of recorded evidence; does not invent a zero value.
 	NotRecorded *emptypb.Empty `protobuf:"bytes,3,opt,name=not_recorded,json=notRecorded,proto3,oneof"`
 }
 
@@ -5167,6 +5577,7 @@ func (*ObservationAuditRoute_OtherRegisteredRoute) isObservationAuditRoute_Resul
 
 func (*ObservationAuditRoute_NotRecorded) isObservationAuditRoute_Result() {}
 
+// Represents stored metadata invalid.
 type ObservationStoredMetadataInvalid struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// At most six distinct known fields, never their rejected stored values.
@@ -5212,13 +5623,19 @@ func (x *ObservationStoredMetadataInvalid) GetFields() []ObservationStoredMetada
 	return nil
 }
 
+// Represents authentication audit.
 type ObservationAuthenticationAudit struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
-	OccurredAt    *timestamppb.Timestamp     `protobuf:"bytes,1,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
-	Action        ObservationAuthAuditAction `protobuf:"varint,2,opt,name=action,proto3,enum=home.api.v2.ObservationAuthAuditAction" json:"action,omitempty"`
-	Outcome       ObservationAuditOutcome    `protobuf:"varint,3,opt,name=outcome,proto3,enum=home.api.v2.ObservationAuditOutcome" json:"outcome,omitempty"`
-	Author        *ObservationAuditAuthor    `protobuf:"bytes,4,opt,name=author,proto3" json:"author,omitempty"`
-	Route         *ObservationAuditRoute     `protobuf:"bytes,5,opt,name=route,proto3" json:"route,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Recorded time of the event represented by this row.
+	OccurredAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
+	// The action represented by ObservationAuthAuditAction.
+	Action ObservationAuthAuditAction `protobuf:"varint,2,opt,name=action,proto3,enum=home.api.v2.ObservationAuthAuditAction" json:"action,omitempty"`
+	// Closed outcome recorded by the native owner; distinguish acknowledgment from confirmed effect.
+	Outcome ObservationAuditOutcome `protobuf:"varint,3,opt,name=outcome,proto3,enum=home.api.v2.ObservationAuditOutcome" json:"outcome,omitempty"`
+	// The author represented by ObservationAuditAuthor.
+	Author *ObservationAuditAuthor `protobuf:"bytes,4,opt,name=author,proto3" json:"author,omitempty"`
+	// The route represented by ObservationAuditRoute.
+	Route         *ObservationAuditRoute `protobuf:"bytes,5,opt,name=route,proto3" json:"route,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5288,11 +5705,15 @@ func (x *ObservationAuthenticationAudit) GetRoute() *ObservationAuditRoute {
 	return nil
 }
 
+// Represents secret access audit.
 type ObservationSecretAccessAudit struct {
-	state         protoimpl.MessageState        `protogen:"open.v1"`
-	OccurredAt    *timestamppb.Timestamp        `protobuf:"bytes,1,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
-	Reason        ObservationSecretDenialReason `protobuf:"varint,2,opt,name=reason,proto3,enum=home.api.v2.ObservationSecretDenialReason" json:"reason,omitempty"`
-	Author        *ObservationAuditAuthor       `protobuf:"bytes,3,opt,name=author,proto3" json:"author,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Recorded time of the event represented by this row.
+	OccurredAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
+	// Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
+	Reason ObservationSecretDenialReason `protobuf:"varint,2,opt,name=reason,proto3,enum=home.api.v2.ObservationSecretDenialReason" json:"reason,omitempty"`
+	// The author represented by ObservationAuditAuthor.
+	Author        *ObservationAuditAuthor `protobuf:"bytes,3,opt,name=author,proto3" json:"author,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5348,6 +5769,7 @@ func (x *ObservationSecretAccessAudit) GetAuthor() *ObservationAuditAuthor {
 	return nil
 }
 
+// Represents audit row.
 type ObservationAuditRow struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Positive PK from the selected source; not a global wall-clock/commit order.
@@ -5438,14 +5860,17 @@ type isObservationAuditRow_Result interface {
 }
 
 type ObservationAuditRow_Authentication struct {
+	// The authentication represented by ObservationAuthenticationAudit.
 	Authentication *ObservationAuthenticationAudit `protobuf:"bytes,2,opt,name=authentication,proto3,oneof"`
 }
 
 type ObservationAuditRow_SecretAccess struct {
+	// The secret access represented by ObservationSecretAccessAudit.
 	SecretAccess *ObservationSecretAccessAudit `protobuf:"bytes,3,opt,name=secret_access,json=secretAccess,proto3,oneof"`
 }
 
 type ObservationAuditRow_StoredMetadataInvalid struct {
+	// Signals invalid stored metadata without returning its raw contents.
 	StoredMetadataInvalid *ObservationStoredMetadataInvalid `protobuf:"bytes,4,opt,name=stored_metadata_invalid,json=storedMetadataInvalid,proto3,oneof"`
 }
 
@@ -5455,6 +5880,7 @@ func (*ObservationAuditRow_SecretAccess) isObservationAuditRow_Result() {}
 
 func (*ObservationAuditRow_StoredMetadataInvalid) isObservationAuditRow_Result() {}
 
+// Represents trace ordinal.
 type ObservationTraceOrdinal struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -5503,13 +5929,13 @@ func (x *ObservationTraceOrdinal) GetResult() isObservationTraceOrdinal_Result {
 	return nil
 }
 
-func (x *ObservationTraceOrdinal) GetNative() uint64 {
+func (x *ObservationTraceOrdinal) GetNative() string {
 	if x != nil {
 		if x, ok := x.Result.(*ObservationTraceOrdinal_Native); ok {
 			return x.Native
 		}
 	}
-	return 0
+	return ""
 }
 
 func (x *ObservationTraceOrdinal) GetExhausted() *emptypb.Empty {
@@ -5528,10 +5954,12 @@ type isObservationTraceOrdinal_Result interface {
 type ObservationTraceOrdinal_Native struct {
 	// Native 188 ordinal in 1..UINT64_MAX-1. Same Controller only; no sorting
 	// across Controllers, no renumbering, and no continuity claim on eviction.
-	Native uint64 `protobuf:"varint,1,opt,name=native,proto3,oneof"`
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	Native string `protobuf:"bytes,1,opt,name=native,proto3,oneof"`
 }
 
 type ObservationTraceOrdinal_Exhausted struct {
+	// Selects the explicit exhausted alternative without an additional payload.
 	Exhausted *emptypb.Empty `protobuf:"bytes,2,opt,name=exhausted,proto3,oneof"`
 }
 
@@ -5539,8 +5967,10 @@ func (*ObservationTraceOrdinal_Native) isObservationTraceOrdinal_Result() {}
 
 func (*ObservationTraceOrdinal_Exhausted) isObservationTraceOrdinal_Result() {}
 
+// Represents controller trace record.
 type ObservationControllerTraceRecord struct {
-	state    protoimpl.MessageState   `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The decision represented by ObservationTraceDecision.
 	Decision ObservationTraceDecision `protobuf:"varint,1,opt,name=decision,proto3,enum=home.api.v2.ObservationTraceDecision" json:"decision,omitempty"`
 	// Types that are valid to be assigned to MaxExceeded:
 	//
@@ -5631,10 +6061,12 @@ type isObservationControllerTraceRecord_MaxExceeded interface {
 }
 
 type ObservationControllerTraceRecord_Mode struct {
+	// The mode represented by ObservationTraceMaxExceededMode.
 	Mode ObservationTraceMaxExceededMode `protobuf:"varint,2,opt,name=mode,proto3,enum=home.api.v2.ObservationTraceMaxExceededMode,oneof"`
 }
 
 type ObservationControllerTraceRecord_NotApplicable struct {
+	// Selects a value that does not apply to this observation.
 	NotApplicable *emptypb.Empty `protobuf:"bytes,3,opt,name=not_applicable,json=notApplicable,proto3,oneof"`
 }
 
@@ -5643,6 +6075,7 @@ func (*ObservationControllerTraceRecord_Mode) isObservationControllerTraceRecord
 func (*ObservationControllerTraceRecord_NotApplicable) isObservationControllerTraceRecord_MaxExceeded() {
 }
 
+// Represents trace failure.
 type ObservationTraceFailure struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -5724,10 +6157,12 @@ type isObservationTraceFailure_Result interface {
 }
 
 type ObservationTraceFailure_Known struct {
+	// The known represented by ObservationTraceExecutionErrorKind.
 	Known ObservationTraceExecutionErrorKind `protobuf:"varint,1,opt,name=known,proto3,enum=home.api.v2.ObservationTraceExecutionErrorKind,oneof"`
 }
 
 type ObservationTraceFailure_NoFailure struct {
+	// Selects the explicit no failure alternative without an additional payload.
 	NoFailure *emptypb.Empty `protobuf:"bytes,2,opt,name=no_failure,json=noFailure,proto3,oneof"`
 }
 
@@ -5742,12 +6177,17 @@ func (*ObservationTraceFailure_NoFailure) isObservationTraceFailure_Result() {}
 
 func (*ObservationTraceFailure_NotRecorded) isObservationTraceFailure_Result() {}
 
+// Represents node trace record.
 type ObservationNodeTraceRecord struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
-	ActionKind    ObservationTraceActionKind `protobuf:"varint,1,opt,name=action_kind,json=actionKind,proto3,enum=home.api.v2.ObservationTraceActionKind" json:"action_kind,omitempty"`
-	Stage         ObservationTraceNodeStage  `protobuf:"varint,2,opt,name=stage,proto3,enum=home.api.v2.ObservationTraceNodeStage" json:"stage,omitempty"`
-	OccurredAt    *timestamppb.Timestamp     `protobuf:"bytes,3,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
-	Failure       *ObservationTraceFailure   `protobuf:"bytes,4,opt,name=failure,proto3" json:"failure,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The action kind represented by ObservationTraceActionKind.
+	ActionKind ObservationTraceActionKind `protobuf:"varint,1,opt,name=action_kind,json=actionKind,proto3,enum=home.api.v2.ObservationTraceActionKind" json:"action_kind,omitempty"`
+	// The stage represented by ObservationTraceNodeStage.
+	Stage ObservationTraceNodeStage `protobuf:"varint,2,opt,name=stage,proto3,enum=home.api.v2.ObservationTraceNodeStage" json:"stage,omitempty"`
+	// Recorded time of the event represented by this row.
+	OccurredAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
+	// The failure represented by ObservationTraceFailure.
+	Failure       *ObservationTraceFailure `protobuf:"bytes,4,opt,name=failure,proto3" json:"failure,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5810,12 +6250,15 @@ func (x *ObservationNodeTraceRecord) GetFailure() *ObservationTraceFailure {
 	return nil
 }
 
+// Represents trace row.
 type ObservationTraceRow struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Run   string                 `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`
+	// The run associated with this message.
+	Run string `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`
 	// Zero-based stable index in this bounded capture, not a source ordinal.
-	LocalIndex uint32                   `protobuf:"varint,2,opt,name=local_index,json=localIndex,proto3" json:"local_index,omitempty"`
-	Ordinal    *ObservationTraceOrdinal `protobuf:"bytes,3,opt,name=ordinal,proto3" json:"ordinal,omitempty"`
+	LocalIndex int32 `protobuf:"varint,2,opt,name=local_index,json=localIndex,proto3" json:"local_index,omitempty"`
+	// The ordinal represented by ObservationTraceOrdinal.
+	Ordinal *ObservationTraceOrdinal `protobuf:"bytes,3,opt,name=ordinal,proto3" json:"ordinal,omitempty"`
 	// Types that are valid to be assigned to Record:
 	//
 	//	*ObservationTraceRow_Controller
@@ -5862,7 +6305,7 @@ func (x *ObservationTraceRow) GetRun() string {
 	return ""
 }
 
-func (x *ObservationTraceRow) GetLocalIndex() uint32 {
+func (x *ObservationTraceRow) GetLocalIndex() int32 {
 	if x != nil {
 		return x.LocalIndex
 	}
@@ -5906,10 +6349,12 @@ type isObservationTraceRow_Record interface {
 }
 
 type ObservationTraceRow_Controller struct {
+	// The controller represented by ObservationControllerTraceRecord.
 	Controller *ObservationControllerTraceRecord `protobuf:"bytes,4,opt,name=controller,proto3,oneof"`
 }
 
 type ObservationTraceRow_Node struct {
+	// The node represented by ObservationNodeTraceRecord.
 	Node *ObservationNodeTraceRecord `protobuf:"bytes,5,opt,name=node,proto3,oneof"`
 }
 
@@ -5917,17 +6362,25 @@ func (*ObservationTraceRow_Controller) isObservationTraceRow_Record() {}
 
 func (*ObservationTraceRow_Node) isObservationTraceRow_Record() {}
 
+// Describes independently captured native trace cuts and their coherence.
 type ObservationTraceCutMetadata struct {
-	state     protoimpl.MessageState       `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The coherence represented by ObservationTraceCutCoherence.
 	Coherence ObservationTraceCutCoherence `protobuf:"varint,1,opt,name=coherence,proto3,enum=home.api.v2.ObservationTraceCutCoherence" json:"coherence,omitempty"`
-	Order     ObservationTraceOrderState   `protobuf:"varint,2,opt,name=order,proto3,enum=home.api.v2.ObservationTraceOrderState" json:"order,omitempty"`
+	// The order represented by ObservationTraceOrderState.
+	Order ObservationTraceOrderState `protobuf:"varint,2,opt,name=order,proto3,enum=home.api.v2.ObservationTraceOrderState" json:"order,omitempty"`
 	// Source-reported native eviction counts, distinct from truncation by 056.
-	ControllerEvicted    uint64                 `protobuf:"varint,3,opt,name=controller_evicted,json=controllerEvicted,proto3" json:"controller_evicted,omitempty"`
-	NodeEvicted          uint64                 `protobuf:"varint,4,opt,name=node_evicted,json=nodeEvicted,proto3" json:"node_evicted,omitempty"`
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	ControllerEvicted string `protobuf:"bytes,3,opt,name=controller_evicted,json=controllerEvicted,proto3" json:"controller_evicted,omitempty"`
+	// The node evicted represented as an exact native quantity.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	NodeEvicted string `protobuf:"bytes,4,opt,name=node_evicted,json=nodeEvicted,proto3" json:"node_evicted,omitempty"`
+	// Recorded time for controller captured at. Absence means no timestamp was supplied or recorded.
 	ControllerCapturedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=controller_captured_at,json=controllerCapturedAt,proto3" json:"controller_captured_at,omitempty"`
-	NodeCapturedAt       *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=node_captured_at,json=nodeCapturedAt,proto3" json:"node_captured_at,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Recorded time for node captured at. Absence means no timestamp was supplied or recorded.
+	NodeCapturedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=node_captured_at,json=nodeCapturedAt,proto3" json:"node_captured_at,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ObservationTraceCutMetadata) Reset() {
@@ -5974,18 +6427,18 @@ func (x *ObservationTraceCutMetadata) GetOrder() ObservationTraceOrderState {
 	return ObservationTraceOrderState_OBSERVATION_TRACE_ORDER_STATE_UNSPECIFIED
 }
 
-func (x *ObservationTraceCutMetadata) GetControllerEvicted() uint64 {
+func (x *ObservationTraceCutMetadata) GetControllerEvicted() string {
 	if x != nil {
 		return x.ControllerEvicted
 	}
-	return 0
+	return ""
 }
 
-func (x *ObservationTraceCutMetadata) GetNodeEvicted() uint64 {
+func (x *ObservationTraceCutMetadata) GetNodeEvicted() string {
 	if x != nil {
 		return x.NodeEvicted
 	}
-	return 0
+	return ""
 }
 
 func (x *ObservationTraceCutMetadata) GetControllerCapturedAt() *timestamppb.Timestamp {
@@ -6002,11 +6455,15 @@ func (x *ObservationTraceCutMetadata) GetNodeCapturedAt() *timestamppb.Timestamp
 	return nil
 }
 
+// Represents integration health.
 type IntegrationHealth struct {
-	state         protoimpl.MessageState                `protogen:"open.v1"`
-	Name          string                                `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Report        *ObservationIntegrationReportPresence `protobuf:"bytes,2,opt,name=report,proto3" json:"report,omitempty"`
-	Supervision   *ObservationIntegrationSupervision    `protobuf:"bytes,3,opt,name=supervision,proto3" json:"supervision,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The report represented by ObservationIntegrationReportPresence.
+	Report *ObservationIntegrationReportPresence `protobuf:"bytes,2,opt,name=report,proto3" json:"report,omitempty"`
+	// The supervision represented by ObservationIntegrationSupervision.
+	Supervision   *ObservationIntegrationSupervision `protobuf:"bytes,3,opt,name=supervision,proto3" json:"supervision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6062,9 +6519,11 @@ func (x *IntegrationHealth) GetSupervision() *ObservationIntegrationSupervision 
 	return nil
 }
 
+// Request for get health.
 type GetHealthRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6106,9 +6565,11 @@ func (x *GetHealthRequest) GetName() string {
 	return ""
 }
 
+// Request for get metrics.
 type GetMetricsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6150,9 +6611,11 @@ func (x *GetMetricsRequest) GetName() string {
 	return ""
 }
 
+// Request for get integration health.
 type GetIntegrationHealthRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical resource name. Uses the pattern declared on the resource message.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6194,11 +6657,15 @@ func (x *GetIntegrationHealthRequest) GetName() string {
 	return ""
 }
 
+// Request for query runtime logs.
 type QueryRuntimeLogsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parent        string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Requested page size. Zero selects the documented default; negative values are invalid.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6254,12 +6721,18 @@ func (x *QueryRuntimeLogsRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of query runtime logs.
 type QueryRuntimeLogsResponse struct {
-	state         protoimpl.MessageState              `protogen:"open.v1"`
-	Rows          []*ObservationRuntimeLogRow         `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
-	NextPageToken string                              `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	ProcessEpoch  *ObservationProcessObservationEpoch `protobuf:"bytes,3,opt,name=process_epoch,json=processEpoch,proto3" json:"process_epoch,omitempty"`
-	UpperSequence uint64                              `protobuf:"varint,4,opt,name=upper_sequence,json=upperSequence,proto3" json:"upper_sequence,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Authorized rows selected for this bounded query.
+	Rows []*ObservationRuntimeLogRow `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	// The process epoch represented by ObservationProcessObservationEpoch.
+	ProcessEpoch *ObservationProcessObservationEpoch `protobuf:"bytes,3,opt,name=process_epoch,json=processEpoch,proto3" json:"process_epoch,omitempty"`
+	// The upper sequence represented as an exact native quantity.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	UpperSequence string `protobuf:"bytes,4,opt,name=upper_sequence,json=upperSequence,proto3" json:"upper_sequence,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6315,19 +6788,24 @@ func (x *QueryRuntimeLogsResponse) GetProcessEpoch() *ObservationProcessObservat
 	return nil
 }
 
-func (x *QueryRuntimeLogsResponse) GetUpperSequence() uint64 {
+func (x *QueryRuntimeLogsResponse) GetUpperSequence() string {
 	if x != nil {
 		return x.UpperSequence
 	}
-	return 0
+	return ""
 }
 
+// Request for query audits.
 type QueryAuditsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parent        string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	Source        ObservationAuditSource `protobuf:"varint,2,opt,name=source,proto3,enum=home.api.v2.ObservationAuditSource" json:"source,omitempty"`
-	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// The source represented by ObservationAuditSource.
+	Source ObservationAuditSource `protobuf:"varint,2,opt,name=source,proto3,enum=home.api.v2.ObservationAuditSource" json:"source,omitempty"`
+	// Requested page size. Zero selects the documented default; negative values are invalid.
+	PageSize int32 `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+	PageToken     string `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6390,10 +6868,14 @@ func (x *QueryAuditsRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of query audits.
 type QueryAuditsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Rows          []*ObservationAuditRow `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
-	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Authorized rows selected for this bounded query.
+	Rows []*ObservationAuditRow `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	// The source represented by ObservationAuditSource.
 	Source        ObservationAuditSource `protobuf:"varint,3,opt,name=source,proto3,enum=home.api.v2.ObservationAuditSource" json:"source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -6450,11 +6932,15 @@ func (x *QueryAuditsResponse) GetSource() ObservationAuditSource {
 	return ObservationAuditSource_OBSERVATION_AUDIT_SOURCE_UNSPECIFIED
 }
 
+// Request for query run trace.
 type QueryRunTraceRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parent        string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Requested page size. Zero selects the documented default; negative values are invalid.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque continuation from the preceding page. Keep all other query parameters unchanged.
+	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6510,13 +6996,17 @@ func (x *QueryRunTraceRequest) GetPageToken() string {
 	return ""
 }
 
+// Successful result of query run trace.
 type QueryRunTraceResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Exact native run selected by the request, including its process controller.
-	Run           string                       `protobuf:"bytes,5,opt,name=run,proto3" json:"run,omitempty"`
-	Rows          []*ObservationTraceRow       `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
-	NextPageToken string                       `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	Cuts          *ObservationTraceCutMetadata `protobuf:"bytes,3,opt,name=cuts,proto3" json:"cuts,omitempty"`
+	Run string `protobuf:"bytes,5,opt,name=run,proto3" json:"run,omitempty"`
+	// Authorized rows selected for this bounded query.
+	Rows []*ObservationTraceRow `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
+	// Opaque continuation for the next page. Empty when no continuation is available.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	// The cuts represented by ObservationTraceCutMetadata.
+	Cuts *ObservationTraceCutMetadata `protobuf:"bytes,3,opt,name=cuts,proto3" json:"cuts,omitempty"`
 	// Optional means the retained native capture was truncated by this bound.
 	TruncationReason *ObservationTraceTruncationReason `protobuf:"varint,4,opt,name=truncation_reason,json=truncationReason,proto3,enum=home.api.v2.ObservationTraceTruncationReason,oneof" json:"truncation_reason,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -6588,10 +7078,13 @@ func (x *QueryRunTraceResponse) GetTruncationReason() ObservationTraceTruncation
 	return ObservationTraceTruncationReason_OBSERVATION_TRACE_TRUNCATION_REASON_UNSPECIFIED
 }
 
+// Request for query recorder coverage.
 type QueryRecorderCoverageRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Parent string                 `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	From   *AdmissionPosition     `protobuf:"bytes,2,opt,name=from,proto3" json:"from,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Canonical parent resource under which this request is authorized.
+	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
+	// Inclusive lower bound within the declared scope.
+	From *AdmissionPosition `protobuf:"bytes,2,opt,name=from,proto3" json:"from,omitempty"`
 	// Types that are valid to be assigned to Through:
 	//
 	//	*QueryRecorderCoverageRequest_Position
@@ -6675,10 +7168,12 @@ type isQueryRecorderCoverageRequest_Through interface {
 }
 
 type QueryRecorderCoverageRequest_Position struct {
+	// Position within the corresponding native owner and epoch.
 	Position *AdmissionPosition `protobuf:"bytes,3,opt,name=position,proto3,oneof"`
 }
 
 type QueryRecorderCoverageRequest_LatestInEpoch struct {
+	// The latest in epoch represented by RecorderEpochIdentity.
 	LatestInEpoch *RecorderEpochIdentity `protobuf:"bytes,4,opt,name=latest_in_epoch,json=latestInEpoch,proto3,oneof"`
 }
 
@@ -6686,8 +7181,10 @@ func (*QueryRecorderCoverageRequest_Position) isQueryRecorderCoverageRequest_Thr
 
 func (*QueryRecorderCoverageRequest_LatestInEpoch) isQueryRecorderCoverageRequest_Through() {}
 
+// Successful result of query recorder coverage.
 type QueryRecorderCoverageResponse struct {
-	state         protoimpl.MessageState    `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Evidence of observed, retained and missing data within the admitted scope.
 	Coverage      *RecorderCoverageSnapshot `protobuf:"bytes,1,opt,name=coverage,proto3" json:"coverage,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -6740,7 +7237,7 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"\x1aObservationReadUnavailable\x12E\n" +
 	"\x06reason\x18\x01 \x01(\x0e2-.home.api.v2.ObservationReadUnavailableReasonR\x06reason\"1\n" +
 	"\x19ObservationActiveRevision\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\x04R\x05value\"\xa6\x01\n" +
+	"\x05value\x18\x01 \x01(\x03R\x05value\"\xa6\x01\n" +
 	"\x1dObservationGenerationPresence\x12B\n" +
 	"\apresent\x18\x01 \x01(\v2&.home.api.v2.ObservationActiveRevisionH\x00R\apresent\x127\n" +
 	"\n" +
@@ -6755,7 +7252,7 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"\bevidence\"t\n" +
 	"\x1aObservationPilotPhaseCount\x128\n" +
 	"\x05phase\x18\x01 \x01(\x0e2\".home.api.v2.ObservationPilotPhaseR\x05phase\x12\x1c\n" +
-	"\tinstances\x18\x02 \x01(\x04R\tinstances\"\xdc\x01\n" +
+	"\tinstances\x18\x02 \x01(\x03R\tinstances\"\xdc\x01\n" +
 	"\x1dObservationRecorderHealthFact\x12;\n" +
 	"\x05phase\x18\x01 \x01(\x0e2%.home.api.v2.ObservationRecorderPhaseR\x05phase\x12A\n" +
 	"\x05state\x18\x02 \x01(\x0e2+.home.api.v2.ObservationRecorderHealthStateR\x05state\x12;\n" +
@@ -6793,24 +7290,25 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"\x06result\"\x8e\x01\n" +
 	" ObservationSupervisedIntegration\x128\n" +
 	"\x05phase\x18\x01 \x01(\x0e2\".home.api.v2.ObservationPilotPhaseR\x05phase\x12\x1a\n" +
-	"\battempts\x18\x02 \x01(\x04R\battempts\x12\x14\n" +
-	"\x05tasks\x18\x03 \x01(\x04R\x05tasks\"\xbf\x01\n" +
+	"\battempts\x18\x02 \x01(\x03R\battempts\x12\x14\n" +
+	"\x05tasks\x18\x03 \x01(\x03R\x05tasks\"\xbf\x01\n" +
 	"!ObservationIntegrationSupervision\x12O\n" +
 	"\n" +
 	"supervised\x18\x01 \x01(\v2-.home.api.v2.ObservationSupervisedIntegrationH\x00R\n" +
 	"supervised\x12?\n" +
 	"\x0enot_supervised\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\rnotSupervisedB\b\n" +
-	"\x06result\"3\n" +
-	"\x1bObservationSaturatedCounter\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\x04R\x05value\"\x95\x02\n" +
+	"\x06result\">\n" +
+	"\x1bObservationSaturatedCounter\x12\x1f\n" +
+	"\vlower_bound\x18\x01 \x01(\x03R\n" +
+	"lowerBound\"\x95\x02\n" +
 	"\x1dObservationCounterMeasurement\x12\x16\n" +
-	"\x05exact\x18\x01 \x01(\x04H\x00R\x05exact\x12H\n" +
+	"\x05exact\x18\x01 \x01(\x03H\x00R\x05exact\x12H\n" +
 	"\tsaturated\x18\x02 \x01(\v2(.home.api.v2.ObservationSaturatedCounterH\x00R\tsaturated\x12;\n" +
 	"\fnot_measured\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\vnotMeasured\x12K\n" +
 	"\vunavailable\x18\x04 \x01(\v2'.home.api.v2.ObservationReadUnavailableH\x00R\vunavailableB\b\n" +
 	"\x06result\"\xc9\x01\n" +
 	"\x1bObservationGaugeMeasurement\x12\x16\n" +
-	"\x05value\x18\x01 \x01(\x04H\x00R\x05value\x12;\n" +
+	"\x05value\x18\x01 \x01(\x03H\x00R\x05value\x12;\n" +
 	"\fnot_measured\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\vnotMeasured\x12K\n" +
 	"\vunavailable\x18\x03 \x01(\v2'.home.api.v2.ObservationReadUnavailableH\x00R\vunavailableB\b\n" +
 	"\x06result\"\xaf\x01\n" +
@@ -6819,7 +7317,7 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"\vunavailable\x18\x02 \x01(\v2'.home.api.v2.ObservationReadUnavailableH\x00R\vunavailableB\b\n" +
 	"\x06result\"\xa3\x02\n" +
 	"\x19ObservationLagMeasurement\x122\n" +
-	"\x14same_epoch_positions\x18\x01 \x01(\x04H\x00R\x12sameEpochPositions\x12:\n" +
+	"\x14same_epoch_positions\x18\x01 \x01(\tH\x00R\x12sameEpochPositions\x12:\n" +
 	"\vinvalidated\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\vinvalidated\x12?\n" +
 	"\x0eepoch_mismatch\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\repochMismatch\x12K\n" +
 	"\vunavailable\x18\x04 \x01(\v2'.home.api.v2.ObservationReadUnavailableH\x00R\vunavailableB\b\n" +
@@ -6947,7 +7445,7 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"occurredAt\x12=\n" +
 	"\x06author\x18\x05 \x01(\v2%.home.api.v2.ObservationRuntimeAuthorR\x06author\"r\n" +
 	"\x18ObservationRuntimeLogRow\x12\x1a\n" +
-	"\bsequence\x18\x01 \x01(\x04R\bsequence\x12:\n" +
+	"\bsequence\x18\x01 \x01(\tR\bsequence\x12:\n" +
 	"\x05event\x18\x02 \x01(\v2$.home.api.v2.ObservationRuntimeEventR\x05event\"7\n" +
 	"\x1fObservationIntegrationReference\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\fR\x05value\"\xe9\x01\n" +
@@ -6982,7 +7480,7 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"\x17stored_metadata_invalid\x18\x04 \x01(\v2-.home.api.v2.ObservationStoredMetadataInvalidH\x00R\x15storedMetadataInvalidB\b\n" +
 	"\x06result\"u\n" +
 	"\x17ObservationTraceOrdinal\x12\x18\n" +
-	"\x06native\x18\x01 \x01(\x04H\x00R\x06native\x126\n" +
+	"\x06native\x18\x01 \x01(\tH\x00R\x06native\x126\n" +
 	"\texhausted\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\texhaustedB\b\n" +
 	"\x06result\"\xdf\x02\n" +
 	" ObservationControllerTraceRecord\x12A\n" +
@@ -7008,7 +7506,7 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"\x13ObservationTraceRow\x12;\n" +
 	"\x03run\x18\x01 \x01(\tB)\xfaA&\n" +
 	"$homeward.damiengoehrig.ca/RuntimeRunR\x03run\x12\x1f\n" +
-	"\vlocal_index\x18\x02 \x01(\rR\n" +
+	"\vlocal_index\x18\x02 \x01(\x05R\n" +
 	"localIndex\x12>\n" +
 	"\aordinal\x18\x03 \x01(\v2$.home.api.v2.ObservationTraceOrdinalR\aordinal\x12O\n" +
 	"\n" +
@@ -7019,8 +7517,8 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"\x1bObservationTraceCutMetadata\x12G\n" +
 	"\tcoherence\x18\x01 \x01(\x0e2).home.api.v2.ObservationTraceCutCoherenceR\tcoherence\x12=\n" +
 	"\x05order\x18\x02 \x01(\x0e2'.home.api.v2.ObservationTraceOrderStateR\x05order\x12-\n" +
-	"\x12controller_evicted\x18\x03 \x01(\x04R\x11controllerEvicted\x12!\n" +
-	"\fnode_evicted\x18\x04 \x01(\x04R\vnodeEvicted\x12P\n" +
+	"\x12controller_evicted\x18\x03 \x01(\tR\x11controllerEvicted\x12!\n" +
+	"\fnode_evicted\x18\x04 \x01(\tR\vnodeEvicted\x12P\n" +
 	"\x16controller_captured_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x14controllerCapturedAt\x12D\n" +
 	"\x10node_captured_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x0enodeCapturedAt\"\xe6\x02\n" +
 	"\x11IntegrationHealth\x12\x18\n" +
@@ -7036,35 +7534,35 @@ const file_home_api_v2_observability_proto_rawDesc = "" +
 	"!homeward.damiengoehrig.ca/MetricsR\x04name\"g\n" +
 	"\x1bGetIntegrationHealthRequest\x12H\n" +
 	"\x04name\x18\x01 \x01(\tB4\xe2A\x01\x02\xfaA-\n" +
-	"+homeward.damiengoehrig.ca/IntegrationHealthR\x04name\"\x96\x01\n" +
+	"+homeward.damiengoehrig.ca/IntegrationHealthR\x04name\"\xa2\x01\n" +
 	"\x17QueryRuntimeLogsRequest\x12?\n" +
 	"\x06parent\x18\x01 \x01(\tB'\xe2A\x01\x02\xfaA \n" +
-	"\x1ehomeward.damiengoehrig.ca/HomeR\x06parent\x12\x1b\n" +
-	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\x1ehomeward.damiengoehrig.ca/HomeR\x06parent\x12!\n" +
+	"\tpage_size\x18\x02 \x01(\x05B\x04\xe2A\x01\x01R\bpageSize\x12#\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tR\tpageToken\"\xfa\x01\n" +
+	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\xfa\x01\n" +
 	"\x18QueryRuntimeLogsResponse\x129\n" +
 	"\x04rows\x18\x01 \x03(\v2%.home.api.v2.ObservationRuntimeLogRowR\x04rows\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\x12T\n" +
 	"\rprocess_epoch\x18\x03 \x01(\v2/.home.api.v2.ObservationProcessObservationEpochR\fprocessEpoch\x12%\n" +
-	"\x0eupper_sequence\x18\x04 \x01(\x04R\rupperSequence\"\xd4\x01\n" +
+	"\x0eupper_sequence\x18\x04 \x01(\tR\rupperSequence\"\xe0\x01\n" +
 	"\x12QueryAuditsRequest\x12?\n" +
 	"\x06parent\x18\x01 \x01(\tB'\xe2A\x01\x02\xfaA \n" +
 	"\x1ehomeward.damiengoehrig.ca/HomeR\x06parent\x12A\n" +
-	"\x06source\x18\x02 \x01(\x0e2#.home.api.v2.ObservationAuditSourceB\x04\xe2A\x01\x02R\x06source\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\x06source\x18\x02 \x01(\x0e2#.home.api.v2.ObservationAuditSourceB\x04\xe2A\x01\x02R\x06source\x12!\n" +
+	"\tpage_size\x18\x03 \x01(\x05B\x04\xe2A\x01\x01R\bpageSize\x12#\n" +
 	"\n" +
-	"page_token\x18\x04 \x01(\tR\tpageToken\"\xb0\x01\n" +
+	"page_token\x18\x04 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\xb0\x01\n" +
 	"\x13QueryAuditsResponse\x124\n" +
 	"\x04rows\x18\x01 \x03(\v2 .home.api.v2.ObservationAuditRowR\x04rows\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\x12;\n" +
-	"\x06source\x18\x03 \x01(\x0e2#.home.api.v2.ObservationAuditSourceR\x06source\"\x99\x01\n" +
+	"\x06source\x18\x03 \x01(\x0e2#.home.api.v2.ObservationAuditSourceR\x06source\"\xa5\x01\n" +
 	"\x14QueryRunTraceRequest\x12E\n" +
 	"\x06parent\x18\x01 \x01(\tB-\xe2A\x01\x02\xfaA&\n" +
-	"$homeward.damiengoehrig.ca/RuntimeRunR\x06parent\x12\x1b\n" +
-	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"$homeward.damiengoehrig.ca/RuntimeRunR\x06parent\x12!\n" +
+	"\tpage_size\x18\x02 \x01(\x05B\x04\xe2A\x01\x01R\bpageSize\x12#\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tR\tpageToken\"\xe7\x02\n" +
+	"page_token\x18\x03 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"\xe7\x02\n" +
 	"\x15QueryRunTraceResponse\x12;\n" +
 	"\x03run\x18\x05 \x01(\tB)\xfaA&\n" +
 	"$homeward.damiengoehrig.ca/RuntimeRunR\x03run\x124\n" +

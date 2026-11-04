@@ -1,0 +1,37 @@
+package server
+
+import (
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/apitypes"
+	"github.com/damione1/Homeward/internal/storage"
+	"testing"
+	"time"
+)
+
+func TestNHA204RequestedPlanIDIsHonoredAndCollisionsAreAtomic(t *testing.T) {
+	now := time.Unix(1700000000, 0).UTC()
+	catalog, err := newConfigurationPlanCatalog(func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := apitypes.ParseHomeName("homes/synthetic")
+	id, err := storage.ParseAPIRequestedResourceID("chosen-plan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog.mu.Lock()
+	defer catalog.mu.Unlock()
+	first, err := catalog.prepareAddLocked(home, nha203PlanBinding(t, 1), nha203PlanMetadata(), now.Add(time.Minute), &id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.name.String() != "homes/synthetic/configurationPlans/chosen-plan" {
+		t.Fatal("requested plan identifier ignored")
+	}
+	catalog.publishLocked(first)
+	_, err = catalog.prepareAddLocked(home, nha203PlanBinding(t, 2), nha203PlanMetadata(), now.Add(time.Minute), &id)
+	nha203AssertPlanFault(t, err, api.ApiErrorReason_API_ERROR_REASON_RESOURCE_ALREADY_EXISTS)
+	if len(catalog.records) != 1 || len(catalog.pending) != 0 {
+		t.Fatal("collision changed catalogue")
+	}
+}

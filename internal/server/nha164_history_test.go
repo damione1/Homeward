@@ -10,8 +10,9 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	history "github.com/damione1/Homeward/gen/home/api/v2"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	history "github.com/damione1/Homeward/gen/home/history/v1"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/historyquery"
 	"github.com/damione1/Homeward/internal/sequencer"
@@ -38,7 +39,7 @@ func (s *nha164ReaderSpy) ReadExecutionHistoryPage(ctx context.Context, q storag
 	now := time.Now().UTC()
 	return storage.HistoryPage{Epoch: epoch, EpochState: storage.HistoryEpochCurrent, AsOf: now, Cutoff: now.Add(-7 * 24 * time.Hour)}, nil
 }
-func (s *nha164ReaderSpy) ReadHistoricalRecorderPageAt(ctx context.Context, q historyquery.Query, c *storage.RecorderQueryCursor, _ *storage.RecorderLiveHigh) (storage.RecorderQueryPage, error) {
+func (s *nha164ReaderSpy) ReadHistoricalRecorderPageAt(ctx context.Context, q historyquery.Query, c *storage.RecorderQueryCursor, _ *storage.RecorderLiveHigh, _ storage.RecorderScopeAuthorizer) (storage.RecorderQueryPage, error) {
 	s.calls.Add(1)
 	if s.recorder != nil {
 		return s.recorder(ctx, q, c)
@@ -62,7 +63,7 @@ func nha164AuthorityState(t *testing.T, source authorization.PolicySource, role 
 	}
 	return state
 }
-func nha164Handler(t *testing.T, role auth.AccountRole, family auth.ScopeFamily, operation auth.ScopeOperation) (*historyHandler, context.Context, authorization.PolicySource, *nha164ReaderSpy) {
+func nha164Handler(t *testing.T, role auth.AccountRole, family auth.ScopeFamily, operation auth.ScopeOperation) (*historyV2Handler, context.Context, authorization.PolicySource, *nha164ReaderSpy) {
 	t.Helper()
 	account, err := contracts.ParseAccountID("nha164-account")
 	if err != nil {
@@ -113,11 +114,20 @@ func nha164Handler(t *testing.T, role auth.AccountRole, family auth.ScopeFamily,
 		t.Fatal(err)
 	}
 	spy := &nha164ReaderSpy{}
-	return &historyHandler{runtime: &historyRuntime{reader: spy, authority: authority, sequence: sequence, codec: codec, currentConfig: func(context.Context) (view.ConfigStamp, error) { return stamp, nil }}}, ctx, source, spy
+	home, err := apitypes.ParseHomeName("homes/nha164-fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := &historyRuntime{reader: spy, names: nha203HistoryNames{home: home}, authority: authority, sequence: sequence, codec: codec, currentConfig: func(context.Context) (view.ConfigStamp, error) { return stamp, nil }}
+	handler, err := newHistoryV2Handler(runtime, runtime.names)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return handler, ctx, source, spy
 }
 func nha164TraceRequest() *connect.Request[history.QueryExecutionTracesRequest] {
 	now := time.Now().UTC()
-	return connect.NewRequest(&history.QueryExecutionTracesRequest{Period: &history.Period{Start: timestamppb.New(now.Add(-time.Hour)), End: timestamppb.New(now.Add(time.Hour))}})
+	return connect.NewRequest(&history.QueryExecutionTracesRequest{Parent: "homes/nha164-fixture", Period: &history.HistoryPeriod{Start: timestamppb.New(now.Add(-time.Hour)), End: timestamppb.New(now.Add(time.Hour))}})
 }
 func TestNHA164DeniedTraceRequestsNeverEnterReader(t *testing.T) {
 	for _, tc := range []struct {
@@ -136,7 +146,7 @@ func TestNHA164DeniedTraceRequestsNeverEnterReader(t *testing.T) {
 		}
 	}
 	handler, ctx, _, spy := nha164Handler(t, auth.AccountRole_ACCOUNT_ROLE_ADMIN, auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, auth.ScopeOperation_SCOPE_OPERATION_READ)
-	if response, err := handler.QueryExecutionTraces(ctx, nha164TraceRequest()); err != nil || response.Msg.GetPage() == nil || spy.calls.Load() != 1 {
+	if response, err := handler.QueryExecutionTraces(ctx, nha164TraceRequest()); err != nil || response.Msg.Scope == nil || spy.calls.Load() != 1 {
 		t.Fatalf("exact administrative READ refused: %v", err)
 	}
 }
@@ -160,10 +170,10 @@ func TestNHA164RevocationDuringReadWithholdsResult(t *testing.T) {
 		returned <- err
 	}()
 	<-entered
-	if err := handler.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_USER, 2)); err != nil {
+	if err := handler.native.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_USER, 2)); err != nil {
 		t.Fatal(err)
 	}
-	if err := handler.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_ADMIN, 3)); err != nil {
+	if err := handler.native.runtime.authority.Publish(nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_ADMIN, 3)); err != nil {
 		t.Fatal(err)
 	}
 	close(release)
@@ -183,7 +193,7 @@ func TestNHA164UnavailableReaderRedactsProviderCanaries(t *testing.T) {
 		return storage.HistoryPage{}, errors.New(canary)
 	}
 	response, err := handler.QueryExecutionTraces(ctx, nha164TraceRequest())
-	if response != nil || connect.CodeOf(err) != connect.CodeUnavailable || strings.Contains(err.Error(), canary) {
+	if response != nil || connect.CodeOf(err) != connect.CodeInternal || strings.Contains(err.Error(), canary) {
 		t.Fatalf("unavailable reader leaked/returned a page: %v", err)
 	}
 }

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	"github.com/damione1/Homeward/gen/home/configuration/v1/configurationv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	configurationv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/testpg"
 )
@@ -228,9 +228,9 @@ func nha150StartClockTLS(t *testing.T, clock *nha150StepClock) nha149TLSFixture 
 	t.Cleanup(cancel)
 	const password = "NHA150 isolated synthetic clock password"
 	nha162RunBootstrap(t, ctx, data, "NHA150 admin", password)
-	authentication := authv1connect.NewAuthServiceClient(client, base)
+	authentication := apiv2connect.NewAuthServiceClient(client, base)
 	tokens := nha162RunLogin(t, ctx, authentication, "NHA150 admin", password)
-	return nha149TLSFixture{api: configurationv1connect.NewConfigurationServiceClient(client, base), authentication: authentication, accounts: authv1connect.NewAccountServiceClient(client, base), tokens: tokens, token: tokens.AccessToken, path: path, raw: source.Bytes(), run: run, ctx: ctx}
+	return nha149TLSFixture{http: client, origin: base, home: nha203PublicHomeName(t, ctx, client, base, tokens.AccessToken), api: configurationv1connect.NewConfigurationServiceClient(client, base), authentication: authentication, accounts: apiv2connect.NewAccountServiceClient(client, base), tokens: tokens, token: tokens.AccessToken, path: path, raw: source.Bytes(), run: run, ctx: ctx}
 }
 func TestNHA150ReviewAPIPublicationInvalidatesCompletedSameSourceAndDate(t *testing.T) {
 	clock := &nha150StepClock{now: time.Now(), waiting: make(chan struct{}, 1), advance: make(chan struct{})}
@@ -249,10 +249,7 @@ func TestNHA150ReviewAPIPublicationInvalidatesCompletedSameSourceAndDate(t *test
 	if err != nil {
 		t.Fatal("real API149 publication B failed", err)
 	}
-	if response.Msg.Activation.GenerationRevision == nil {
-		t.Fatal("API B has no published generation")
-	}
-	bGeneration := *response.Msg.Activation.GenerationRevision
+	bGeneration := nha203PublishedMetadata(t, response.Msg).GenerationRevision
 	if err := os.WriteFile(f.path, f.raw, 0600); err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,6 @@ import (
 	"github.com/damione1/Homeward/gen/google/longrunning/longrunningpbconnect"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/apitypes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -51,11 +50,14 @@ func TestNHA203IntegrationCRUDNoChangeKeepsOriginalCaptureTLS(t *testing.T) {
 	if typ == "" {
 		t.Fatal("native workday descriptor absent")
 	}
-	created, err := client.CreateIntegrationInstance(f.ctx, nha056SessionRequest(&api.CreateIntegrationInstanceRequest{Parent: home, IntegrationInstance: &api.IntegrationInstance{InstanceKey: "homeward-workday-v1", IntegrationType: typ, DesiredState: api.IntegrationDesiredState_INTEGRATION_DESIRED_STATE_DISABLED, Configuration: &api.IntegrationInstance_Editable{Editable: &api.IntegrationConfiguration{SchemaVersion: "homeward.integration/workday/1", YamlSource: []byte("timezone: America/Toronto\n")}}}}, f.token))
+	created, err := client.CreateIntegrationInstance(f.ctx, nha056SessionRequest(&api.CreateIntegrationInstanceRequest{Parent: home, IntegrationInstanceId: "chosen-workday", IntegrationInstance: &api.IntegrationInstance{InstanceKey: "homeward-workday-v1", IntegrationType: typ, DesiredState: api.IntegrationDesiredState_INTEGRATION_DESIRED_STATE_DISABLED, Configuration: &api.IntegrationInstance_Editable{Editable: &api.IntegrationConfiguration{SchemaVersion: "homeward.integration/workday/1", YamlSource: []byte("timezone: America/Toronto\n")}}}}, f.token))
 	if err != nil {
 		t.Fatal("create", err)
 	}
 	original := nha203IntegrationResult(t, created.Msg)
+	if original.Name != home+"/integrationInstances/chosen-workday" {
+		t.Fatal("caller-chosen public identifier was not retained")
+	}
 	current, err := client.GetIntegrationInstance(f.ctx, nha056SessionRequest(&api.GetIntegrationInstanceRequest{Name: original.Name}, f.token))
 	if err != nil || current.Msg.Etag != original.Etag {
 		t.Fatal("published etag does not represent original native capture", err)
@@ -115,13 +117,13 @@ func TestNHA203IntegrationCRUDNoChangeKeepsOriginalCaptureTLS(t *testing.T) {
 	if _, err := client.GetIntegrationInstance(f.ctx, nha056SessionRequest(&api.GetIntegrationInstanceRequest{Name: latest.Name}, f.token)); connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatal("deleted declaration remained readable", err)
 	}
-	stableSession := f.tokens.Session.Id.Value
+	stableSession := f.tokens.Session.Name
 	if err := f.run.join(t); err != nil {
 		t.Fatal(err)
 	}
 	f.start(t)
-	refreshed, err := f.authentication.RefreshSession(f.ctx, connect.NewRequest(&auth.RefreshSessionRequest{RefreshToken: f.tokens.RefreshToken}))
-	if err != nil || refreshed.Msg.Tokens.Session.Id.Value != stableSession {
+	refreshed, err := f.authentication.RefreshSession(f.ctx, connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: f.tokens.RefreshToken, RenewalKey: []byte("0123456789abcdef0123456789abcdef")}))
+	if err != nil || refreshed.Msg.Tokens.Session.Name != stableSession {
 		t.Fatal("restart refresh replaced stable native session", err)
 	}
 	f.tokens, f.token = refreshed.Msg.Tokens, refreshed.Msg.Tokens.AccessToken
@@ -133,7 +135,7 @@ func TestNHA203IntegrationCRUDNoChangeKeepsOriginalCaptureTLS(t *testing.T) {
 		}
 	}
 	other := nha162RunLogin(t, f.ctx, f.authentication, "NHA148 admin", "NHA148 synthetic isolated password")
-	if other.Session.Id.Value == stableSession {
+	if other.Session.Name == stableSession {
 		t.Fatal("new login reused original session")
 	}
 	if _, err := operations.GetOperation(f.ctx, nha056SessionRequest(&longrunningpb.GetOperationRequest{Name: noChange[0].Name}, other.AccessToken)); err == nil {

@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	authapi "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/jackc/pgx/v5"
 	"io"
 	"log"
 	"net"
@@ -25,13 +27,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/damione1/Homeward/contracts"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
-	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -164,7 +162,7 @@ func TestNHF032SessionRecoveryServer(t *testing.T) {
 			return nil
 		}
 		path := response.Request.URL.Path
-		if path != authv1connect.AuthServiceStartLoginProcedure && path != authv1connect.AuthServiceRefreshSessionProcedure {
+		if path != apiv2connect.AuthServiceStartLoginProcedure && path != apiv2connect.AuthServiceRefreshSessionProcedure {
 			return nil
 		}
 		payload, err := io.ReadAll(io.LimitReader(response.Body, 65537))
@@ -173,16 +171,16 @@ func TestNHF032SessionRecoveryServer(t *testing.T) {
 			clear(payload)
 			return errors.New("bounded synthetic response unreadable")
 		}
-		var tokens *authv1.SessionTokens
-		if path == authv1connect.AuthServiceStartLoginProcedure {
-			message := &authv1.StartLoginResponse{}
+		var tokens *authapi.SessionTokens
+		if path == apiv2connect.AuthServiceStartLoginProcedure {
+			message := &authapi.StartLoginResponse{}
 			if err := proto.Unmarshal(payload, message); err != nil {
 				clear(payload)
 				return err
 			}
 			tokens = message.Decision.GetAuthenticated()
 		} else {
-			message := &authv1.RefreshSessionResponse{}
+			message := &authapi.RefreshSessionResponse{}
 			if err := proto.Unmarshal(payload, message); err != nil {
 				clear(payload)
 				return err
@@ -193,22 +191,14 @@ func TestNHF032SessionRecoveryServer(t *testing.T) {
 			clear(payload)
 			return errors.New("synthetic tokens absent")
 		}
-		session, err := contracts.ParseSessionID(tokens.Session.Id.GetValue())
-		if err != nil {
-			clear(payload)
-			return err
-		}
-		ownerAccount, err := contracts.ParseAccountID(tokens.Session.AccountId.GetValue())
-		if err != nil {
-			clear(payload)
-			return err
-		}
+		session := nha203NativeSession(t, ctx, store, tokens.Session.Name)
+		ownerAccount := nha203NativeAccount(t, ctx, store, nha203SessionAccount(t, tokens.Session).String())
 		observed.mu.Lock()
-		if path == authv1connect.AuthServiceStartLoginProcedure {
-			observed.loginExpiry = tokens.Session.ExpiresAt.AsTime()
+		if path == apiv2connect.AuthServiceStartLoginProcedure {
+			observed.loginExpiry = tokens.Session.ExpireTime.AsTime()
 			observed.owner = storage.SessionOwner{Account: ownerAccount, Session: session}
 		} else {
-			observed.refreshExpiry = tokens.Session.ExpiresAt.AsTime()
+			observed.refreshExpiry = tokens.Session.ExpireTime.AsTime()
 		}
 		observed.mu.Unlock()
 		response.Body = &nhf003ObservedBody{reader: bytes.NewReader(payload), data: payload}
@@ -231,14 +221,14 @@ func TestNHF032SessionRecoveryServer(t *testing.T) {
 			_, _ = io.WriteString(w, `{"code":"unavailable","message":"synthetic upstream unavailable"}`)
 			return
 		case nhf032RenewalUnauthenticated:
-			if r.URL.Path == authv1connect.AuthServiceRefreshSessionProcedure {
+			if r.URL.Path == apiv2connect.AuthServiceRefreshSessionProcedure {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = io.WriteString(w, `{"code":"unauthenticated","message":"synthetic bare renewal denial"}`)
 				return
 			}
 		case nhf032Unauthenticated:
-			if r.URL.Path == authv1connect.AuthServiceListSessionsProcedure {
+			if r.URL.Path == apiv2connect.AuthServiceListSessionsProcedure {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = io.WriteString(w, `{"code":"unauthenticated","message":"synthetic bare access denial"}`)
@@ -249,7 +239,7 @@ func TestNHF032SessionRecoveryServer(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if r.URL.Path == authv1connect.AuthServiceRefreshSessionProcedure {
+		if r.URL.Path == apiv2connect.AuthServiceRefreshSessionProcedure {
 			payload, err := io.ReadAll(io.LimitReader(r.Body, 65537))
 			_ = r.Body.Close()
 			if err != nil || len(payload) > 65536 {
@@ -257,7 +247,7 @@ func TestNHF032SessionRecoveryServer(t *testing.T) {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			message := &authv1.RefreshSessionRequest{}
+			message := &authapi.RefreshSessionRequest{}
 			if err := proto.Unmarshal(payload, message); err != nil || len(message.RenewalKey) != 32 {
 				clear(payload)
 				w.WriteHeader(http.StatusBadRequest)

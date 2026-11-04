@@ -10,6 +10,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
@@ -90,7 +91,7 @@ func TestNHA050NativeHandlersReserveCapacityBeforeSQLAndReconcilePublicationFail
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &accountHandler{store: store, coordinator: coordinator}
+	h := nha203AccountHandler(store, coordinator)
 	const password = "NHA050 capacity synthetic native password"
 	admin, err := h.BootstrapAdmin(ctx, connect.NewRequest(&authv1.BootstrapAdminRequest{LoginName: "Capacity Admin", DisplayName: "Capacity Admin", Password: password}))
 	if err != nil {
@@ -101,12 +102,16 @@ func TestNHA050NativeHandlersReserveCapacityBeforeSQLAndReconcilePublicationFail
 	principal, _ := authorization.NativePrincipal(account, session)
 	actor, _ := principal.Actor()
 	nativeCtx, _ := authorization.WithPrincipal(context.WithValue(ctx, actorContextKey{}, actor), principal)
-	policy := &authorizationPolicyHandler{store: store, coordinator: coordinator}
-	seed, err := policy.GetPolicy(nativeCtx, connect.NewRequest(&authv1.GetPolicyRequest{AccountId: admin.Msg.Account.Id}))
+	policy := h
+	accountName, err := h.names.account(ctx, account)
 	if err != nil {
 		t.Fatal(err)
 	}
-	invitation, err := h.CreateInvitation(nativeCtx, connect.NewRequest(&authv1.CreateInvitationRequest{LoginName: "Capacity Invited", Role: authv1.AccountRole_ACCOUNT_ROLE_USER, ExpiresAt: timestamppb.New(time.Now().Add(time.Hour))}))
+	seed, err := policy.GetAuthorizationPolicy(nativeCtx, connect.NewRequest(&api.GetAuthorizationPolicyRequest{Name: accountName.String() + "/authorizationPolicy"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	invitation, err := h.IssueInvitation(nativeCtx, connect.NewRequest(&api.IssueInvitationRequest{Parent: "homes/auth-fixture", LoginName: "Capacity Invited", Role: api.AccountRole_ACCOUNT_ROLE_USER, ExpireTime: timestamppb.New(time.Now().Add(time.Hour))}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,17 +127,17 @@ func TestNHA050NativeHandlersReserveCapacityBeforeSQLAndReconcilePublicationFail
 	}
 	release := nha050ReserveRemainingCapacity(t, coordinator.authority)
 	growth := []byte("schema: homeward.authorization/1\naccount_id: " + admin.Msg.Account.Id.Value + "\ngrants:\n  - scope: {family: actions, operation: write}\n    objects: {entities: {all: {capabilities: {all: {}}}}}\n")
-	request := &authv1.ReplacePolicyRequest{AccountId: admin.Msg.Account.Id, YamlSource: growth, Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: seed.Msg.GetPresent().Version}}
-	if _, err := policy.ReplacePolicy(nativeCtx, connect.NewRequest(request)); connect.CodeOf(err) != connect.CodeUnavailable {
+	request := &api.ReplaceAuthorizationPolicyRequest{Name: seed.Msg.Name, YamlSource: growth, Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: seed.Msg.Etag}}
+	if _, err := policy.ReplaceAuthorizationPolicy(nativeCtx, connect.NewRequest(request)); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatal("policy capacity rejected only after SQL", err)
 	}
-	if got, err := policy.GetPolicy(nativeCtx, connect.NewRequest(&authv1.GetPolicyRequest{AccountId: admin.Msg.Account.Id})); err != nil || got.Msg.GetPresent().Version.Revision != seed.Msg.GetPresent().Version.Revision {
+	if got, err := policy.GetAuthorizationPolicy(nativeCtx, connect.NewRequest(&api.GetAuthorizationPolicyRequest{Name: accountName.String() + "/authorizationPolicy"})); err != nil || got.Msg.Etag != seed.Msg.Etag {
 		t.Fatal("rejected growth persisted a version", err)
 	}
-	if _, err := h.CreateAccount(nativeCtx, connect.NewRequest(&authv1.CreateAccountRequest{LoginName: "Capacity Created", DisplayName: "Capacity Created", InitialPassword: password, Role: authv1.AccountRole_ACCOUNT_ROLE_USER})); connect.CodeOf(err) != connect.CodeResourceExhausted {
+	if _, err := h.CreateAccount(nativeCtx, connect.NewRequest(&api.CreateAccountRequest{Parent: "homes/auth-fixture", Account: &api.Account{LoginName: "Capacity Created", DisplayName: "Capacity Created", InitialPassword: password, Role: api.AccountRole_ACCOUNT_ROLE_USER}})); connect.CodeOf(err) != connect.CodeResourceExhausted {
 		t.Fatal("creation seed did not reserve before INSERT", err)
 	}
-	if _, err := h.AcceptInvitation(ctx, connect.NewRequest(&authv1.AcceptInvitationRequest{InvitationToken: invitation.Msg.InvitationToken, DisplayName: "Capacity Invited", Password: password})); connect.CodeOf(err) != connect.CodeResourceExhausted {
+	if _, err := h.AcceptInvitation(ctx, connect.NewRequest(&api.AcceptInvitationRequest{InvitationToken: invitation.Msg.InvitationToken, DisplayName: "Capacity Invited", Password: password})); connect.CodeOf(err) != connect.CodeResourceExhausted {
 		t.Fatal("invitation seed did not reserve before INSERT", err)
 	}
 	if _, err := h.BootstrapAdmin(ctx, connect.NewRequest(&authv1.BootstrapAdminRequest{LoginName: "Capacity Other Admin", DisplayName: "Capacity Other Admin", Password: password})); connect.CodeOf(err) != connect.CodeResourceExhausted {
@@ -143,9 +148,9 @@ func TestNHA050NativeHandlersReserveCapacityBeforeSQLAndReconcilePublicationFail
 	}
 	// A source-only edit still fits at the aggregate bound and must not spend
 	// another pending mutation's reservation or quarantine this administrator.
-	request.YamlSource = append(append([]byte(nil), seed.Msg.GetPresent().YamlSource...), []byte("# capacity no-op\n")...)
-	noOp, err := policy.ReplacePolicy(nativeCtx, connect.NewRequest(request))
-	if err != nil || noOp.Msg.RightsChange != authv1.PolicyRightsChange_POLICY_RIGHTS_CHANGE_UNCHANGED {
+	request.YamlSource = append(append([]byte(nil), seed.Msg.YamlSource...), []byte("# capacity no-op\n")...)
+	noOp, err := policy.ReplaceAuthorizationPolicy(nativeCtx, connect.NewRequest(request))
+	if err != nil || noOp.Msg.RightsChange != api.PolicyRightsChange_POLICY_RIGHTS_CHANGE_UNCHANGED {
 		t.Fatal("capacity prevented no-op policy repair", err)
 	}
 	release() // other transactions roll back their growth reservations
@@ -159,7 +164,7 @@ func TestNHA050NativeHandlersReserveCapacityBeforeSQLAndReconcilePublicationFail
 	if err := guard.mutation.ReservePolicy(source); err != nil {
 		t.Fatal(err)
 	}
-	version := noOp.Msg.Policy.Version
+	version := nha055PolicyVersion(t, noOp.Msg.Policy)
 	var hash [32]byte
 	copy(hash[:], version.SourceSha256)
 	expectedVersion, _ := authorization.NewVersion(version.Revision, hash)
@@ -198,7 +203,7 @@ func TestNHA050NativeHandlersReserveCapacityBeforeSQLAndReconcilePublicationFail
 	if current, err := restarted.authority.Current(principal); err != nil || current.Authorize(permission, object) != nil {
 		t.Fatal("restart lost committed growth", err)
 	}
-	if _, err := h.AcceptInvitation(ctx, connect.NewRequest(&authv1.AcceptInvitationRequest{InvitationToken: invitation.Msg.InvitationToken, DisplayName: "Capacity Invited", Password: password})); err != nil || count() != 2 {
+	if _, err := h.AcceptInvitation(ctx, connect.NewRequest(&api.AcceptInvitationRequest{InvitationToken: invitation.Msg.InvitationToken, DisplayName: "Capacity Invited", Password: password})); err != nil || count() != 2 {
 		t.Fatal("capacity rejection consumed invitation or leaked seed reservation", err)
 	}
 }

@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
-	wire "github.com/damione1/Homeward/gen/home/configurationapply/v1"
-	plan "github.com/damione1/Homeward/gen/home/configurationplan/v1"
+	configuration "github.com/damione1/Homeward/gen/home/api/v2"
+	plan "github.com/damione1/Homeward/gen/home/api/v2"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -42,7 +42,7 @@ func TestNHA055SourcePreconditionsRejectTypedNilOneofsWithoutPanic(t *testing.T)
 
 func TestNHA055OperationalRollbackRefusesIgnoredSourcePreconditions(t *testing.T) {
 	request := nha055PolicyHistoryRequest()
-	request.Family = plan.SourceFamily_SOURCE_FAMILY_OPERATIONAL
+	request.Family = plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL
 	request.Identity = "operational.main"
 	request.HistoricalPolicyVersion = nil
 	request.Historical = &configuration.ActiveGeneration{Revision: 1, ManifestSha256: request.ExpectedWorkspaceSha256}

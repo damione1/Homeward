@@ -7,6 +7,7 @@
 package apiv2
 
 import (
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -23,13 +24,18 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Defines the closed vocabulary for gap reason.
 type GapReason int32
 
 const (
-	GapReason_GAP_REASON_UNSPECIFIED    GapReason = 0
-	GapReason_GAP_REASON_OVERFLOW       GapReason = 1
+	// No explicit gap reason. Does not select an action.
+	GapReason_GAP_REASON_UNSPECIFIED GapReason = 0
+	// Selects overflow for gap reason.
+	GapReason_GAP_REASON_OVERFLOW GapReason = 1
+	// Selects reconciliation for gap reason.
 	GapReason_GAP_REASON_RECONCILIATION GapReason = 2
-	GapReason_GAP_REASON_ABANDONED      GapReason = 3
+	// Selects abandoned for gap reason.
+	GapReason_GAP_REASON_ABANDONED GapReason = 3
 )
 
 // Enum value maps for GapReason.
@@ -75,28 +81,48 @@ func (GapReason) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_recorder_evidence_proto_rawDescGZIP(), []int{0}
 }
 
+// Defines the closed vocabulary for recorder trace decision.
 type RecorderTraceDecision int32
 
 const (
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_UNSPECIFIED           RecorderTraceDecision = 0
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_PREPARING             RecorderTraceDecision = 1
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_ADMITTED              RecorderTraceDecision = 2
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_QUEUED                RecorderTraceDecision = 3
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_RESTART_PENDING       RecorderTraceDecision = 4
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_SINGLE_BUSY           RecorderTraceDecision = 5
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_MAX_EXCEEDED          RecorderTraceDecision = 6
+	// No explicit recorder trace decision. Does not select an action.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_UNSPECIFIED RecorderTraceDecision = 0
+	// Selects preparing for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_PREPARING RecorderTraceDecision = 1
+	// Selects admitted for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_ADMITTED RecorderTraceDecision = 2
+	// Selects queued for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_QUEUED RecorderTraceDecision = 3
+	// Selects restart pending for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_RESTART_PENDING RecorderTraceDecision = 4
+	// Selects single busy for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_SINGLE_BUSY RecorderTraceDecision = 5
+	// Selects max exceeded for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_MAX_EXCEEDED RecorderTraceDecision = 6
+	// Selects preparation saturated for recorder trace decision.
 	RecorderTraceDecision_RECORDER_TRACE_DECISION_PREPARATION_SATURATED RecorderTraceDecision = 7
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_MEMORY_SATURATED      RecorderTraceDecision = 8
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_CONDITION_FALSE       RecorderTraceDecision = 9
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_PREPARATION_ERROR     RecorderTraceDecision = 10
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_EXECUTION_ERROR       RecorderTraceDecision = 11
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_FINISHED              RecorderTraceDecision = 12
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_CANCELLED             RecorderTraceDecision = 13
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_SUPERSEDED            RecorderTraceDecision = 14
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_CLOSED                RecorderTraceDecision = 15
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_UNKNOWN_AUTOMATION    RecorderTraceDecision = 16
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_TRIGGER_MISSED        RecorderTraceDecision = 17
-	RecorderTraceDecision_RECORDER_TRACE_DECISION_TRIGGER_DEGRADED      RecorderTraceDecision = 18
+	// Selects memory saturated for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_MEMORY_SATURATED RecorderTraceDecision = 8
+	// Selects condition false for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_CONDITION_FALSE RecorderTraceDecision = 9
+	// Selects preparation error for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_PREPARATION_ERROR RecorderTraceDecision = 10
+	// Selects execution error for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_EXECUTION_ERROR RecorderTraceDecision = 11
+	// Selects finished for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_FINISHED RecorderTraceDecision = 12
+	// Selects cancelled for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_CANCELLED RecorderTraceDecision = 13
+	// Selects superseded for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_SUPERSEDED RecorderTraceDecision = 14
+	// Selects closed for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_CLOSED RecorderTraceDecision = 15
+	// Selects unknown automation for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_UNKNOWN_AUTOMATION RecorderTraceDecision = 16
+	// Selects trigger missed for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_TRIGGER_MISSED RecorderTraceDecision = 17
+	// Selects trigger degraded for recorder trace decision.
+	RecorderTraceDecision_RECORDER_TRACE_DECISION_TRIGGER_DEGRADED RecorderTraceDecision = 18
 )
 
 // Enum value maps for RecorderTraceDecision.
@@ -172,20 +198,33 @@ func (RecorderTraceDecision) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_recorder_evidence_proto_rawDescGZIP(), []int{1}
 }
 
+// Defines the closed vocabulary for recorder trace action kind.
 type RecorderTraceActionKind int32
 
 const (
-	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_UNSPECIFIED   RecorderTraceActionKind = 0
-	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_VARIABLES     RecorderTraceActionKind = 1
-	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_SEQUENCE      RecorderTraceActionKind = 2
-	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_CHOOSE        RecorderTraceActionKind = 3
-	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_IF            RecorderTraceActionKind = 4
-	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_REPEAT        RecorderTraceActionKind = 5
-	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_PARALLEL      RecorderTraceActionKind = 6
-	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_WAIT          RecorderTraceActionKind = 7
-	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_STOP          RecorderTraceActionKind = 8
-	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_CALL          RecorderTraceActionKind = 9
-	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_DELAY         RecorderTraceActionKind = 10
+	// No explicit recorder trace action kind. Does not select an action.
+	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_UNSPECIFIED RecorderTraceActionKind = 0
+	// Selects variables for recorder trace action kind.
+	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_VARIABLES RecorderTraceActionKind = 1
+	// Selects sequence for recorder trace action kind.
+	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_SEQUENCE RecorderTraceActionKind = 2
+	// Selects choose for recorder trace action kind.
+	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_CHOOSE RecorderTraceActionKind = 3
+	// Selects if for recorder trace action kind.
+	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_IF RecorderTraceActionKind = 4
+	// Selects repeat for recorder trace action kind.
+	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_REPEAT RecorderTraceActionKind = 5
+	// Selects parallel for recorder trace action kind.
+	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_PARALLEL RecorderTraceActionKind = 6
+	// Selects wait for recorder trace action kind.
+	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_WAIT RecorderTraceActionKind = 7
+	// Selects stop for recorder trace action kind.
+	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_STOP RecorderTraceActionKind = 8
+	// Selects call for recorder trace action kind.
+	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_CALL RecorderTraceActionKind = 9
+	// Selects delay for recorder trace action kind.
+	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_DELAY RecorderTraceActionKind = 10
+	// Selects wait template for recorder trace action kind.
 	RecorderTraceActionKind_RECORDER_TRACE_ACTION_KIND_WAIT_TEMPLATE RecorderTraceActionKind = 11
 )
 
@@ -248,16 +287,24 @@ func (RecorderTraceActionKind) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_recorder_evidence_proto_rawDescGZIP(), []int{2}
 }
 
+// Defines the closed vocabulary for recorder trace node stage.
 type RecorderTraceNodeStage int32
 
 const (
+	// No explicit recorder trace node stage. Does not select an action.
 	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_UNSPECIFIED RecorderTraceNodeStage = 0
-	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_ENTERED     RecorderTraceNodeStage = 1
-	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_COMPLETED   RecorderTraceNodeStage = 2
-	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_STOPPED     RecorderTraceNodeStage = 3
-	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_CANCELLED   RecorderTraceNodeStage = 4
-	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_FAILED      RecorderTraceNodeStage = 5
-	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_WAITING     RecorderTraceNodeStage = 6
+	// Selects entered for recorder trace node stage.
+	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_ENTERED RecorderTraceNodeStage = 1
+	// Selects completed for recorder trace node stage.
+	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_COMPLETED RecorderTraceNodeStage = 2
+	// Selects stopped for recorder trace node stage.
+	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_STOPPED RecorderTraceNodeStage = 3
+	// Selects cancelled for recorder trace node stage.
+	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_CANCELLED RecorderTraceNodeStage = 4
+	// Selects failed for recorder trace node stage.
+	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_FAILED RecorderTraceNodeStage = 5
+	// Selects waiting for recorder trace node stage.
+	RecorderTraceNodeStage_RECORDER_TRACE_NODE_STAGE_WAITING RecorderTraceNodeStage = 6
 )
 
 // Enum value maps for RecorderTraceNodeStage.
@@ -309,17 +356,26 @@ func (RecorderTraceNodeStage) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_recorder_evidence_proto_rawDescGZIP(), []int{3}
 }
 
+// Defines the closed vocabulary for recorder trace execution error kind.
 type RecorderTraceExecutionErrorKind int32
 
 const (
-	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_UNSPECIFIED        RecorderTraceExecutionErrorKind = 0
-	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_INVALID_PROGRAM    RecorderTraceExecutionErrorKind = 1
-	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_WORK_BUDGET        RecorderTraceExecutionErrorKind = 2
-	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_RECURSION          RecorderTraceExecutionErrorKind = 3
-	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_WAIT_TIMEOUT       RecorderTraceExecutionErrorKind = 4
+	// No explicit recorder trace execution error kind. Does not select an action.
+	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_UNSPECIFIED RecorderTraceExecutionErrorKind = 0
+	// Selects invalid program for recorder trace execution error kind.
+	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_INVALID_PROGRAM RecorderTraceExecutionErrorKind = 1
+	// Selects work budget for recorder trace execution error kind.
+	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_WORK_BUDGET RecorderTraceExecutionErrorKind = 2
+	// Selects recursion for recorder trace execution error kind.
+	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_RECURSION RecorderTraceExecutionErrorKind = 3
+	// Selects wait timeout for recorder trace execution error kind.
+	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_WAIT_TIMEOUT RecorderTraceExecutionErrorKind = 4
+	// Selects source unavailable for recorder trace execution error kind.
 	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_SOURCE_UNAVAILABLE RecorderTraceExecutionErrorKind = 5
-	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_CONDITION_ERROR    RecorderTraceExecutionErrorKind = 6
-	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_COMMAND_ERROR      RecorderTraceExecutionErrorKind = 7
+	// Selects condition error for recorder trace execution error kind.
+	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_CONDITION_ERROR RecorderTraceExecutionErrorKind = 6
+	// Selects command error for recorder trace execution error kind.
+	RecorderTraceExecutionErrorKind_RECORDER_TRACE_EXECUTION_ERROR_KIND_COMMAND_ERROR RecorderTraceExecutionErrorKind = 7
 )
 
 // Enum value maps for RecorderTraceExecutionErrorKind.
@@ -373,12 +429,16 @@ func (RecorderTraceExecutionErrorKind) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_recorder_evidence_proto_rawDescGZIP(), []int{4}
 }
 
+// Defines the closed vocabulary for recorder reconciliation state.
 type RecorderReconciliationState int32
 
 const (
+	// No explicit recorder reconciliation state. Does not select an action.
 	RecorderReconciliationState_RECORDER_RECONCILIATION_STATE_UNSPECIFIED RecorderReconciliationState = 0
-	RecorderReconciliationState_RECORDER_RECONCILIATION_STATE_COMPLETE    RecorderReconciliationState = 1
-	RecorderReconciliationState_RECORDER_RECONCILIATION_STATE_INCOMPLETE  RecorderReconciliationState = 2
+	// Selects complete for recorder reconciliation state.
+	RecorderReconciliationState_RECORDER_RECONCILIATION_STATE_COMPLETE RecorderReconciliationState = 1
+	// Selects incomplete for recorder reconciliation state.
+	RecorderReconciliationState_RECORDER_RECONCILIATION_STATE_INCOMPLETE RecorderReconciliationState = 2
 )
 
 // Enum value maps for RecorderReconciliationState.
@@ -422,11 +482,15 @@ func (RecorderReconciliationState) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_recorder_evidence_proto_rawDescGZIP(), []int{5}
 }
 
+// Defines the closed vocabulary for gap envelope.
 type GapEnvelope int32
 
 const (
-	GapEnvelope_GAP_ENVELOPE_UNSPECIFIED        GapEnvelope = 0
-	GapEnvelope_GAP_ENVELOPE_EXACT_POSITIONS    GapEnvelope = 1
+	// No explicit gap envelope. Does not select an action.
+	GapEnvelope_GAP_ENVELOPE_UNSPECIFIED GapEnvelope = 0
+	// Selects exact positions for gap envelope.
+	GapEnvelope_GAP_ENVELOPE_EXACT_POSITIONS GapEnvelope = 1
+	// Selects uncertain envelope for gap envelope.
 	GapEnvelope_GAP_ENVELOPE_UNCERTAIN_ENVELOPE GapEnvelope = 2
 )
 
@@ -476,9 +540,12 @@ func (GapEnvelope) EnumDescriptor() ([]byte, []int) {
 // position interval is never a count of missing observations. These identifiers
 // confer no authority and never select an entity, credential or native command.
 type AdmissionPosition struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Epoch         []byte                 `protobuf:"bytes,1,opt,name=epoch,proto3" json:"epoch,omitempty"`
-	Sequence      uint64                 `protobuf:"varint,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Native incarnation identifier. Positions from different epochs cannot be compared.
+	Epoch []byte `protobuf:"bytes,1,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	// Position within the corresponding epoch, not a global time or authority token.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	Sequence      string `protobuf:"bytes,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -520,13 +587,14 @@ func (x *AdmissionPosition) GetEpoch() []byte {
 	return nil
 }
 
-func (x *AdmissionPosition) GetSequence() uint64 {
+func (x *AdmissionPosition) GetSequence() string {
 	if x != nil {
 		return x.Sequence
 	}
-	return 0
+	return ""
 }
 
+// Represents known lost.
 type KnownLost struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Result:
@@ -575,7 +643,7 @@ func (x *KnownLost) GetResult() isKnownLost_Result {
 	return nil
 }
 
-func (x *KnownLost) GetLowerBound() uint64 {
+func (x *KnownLost) GetLowerBound() int64 {
 	if x != nil {
 		if x, ok := x.Result.(*KnownLost_LowerBound); ok {
 			return x.LowerBound
@@ -598,11 +666,12 @@ type isKnownLost_Result interface {
 }
 
 type KnownLost_LowerBound struct {
-	// A strictly positive measured lower bound; never an interval's width.
-	LowerBound uint64 `protobuf:"varint,1,opt,name=lower_bound,json=lowerBound,proto3,oneof"`
+	// A strictly positive measured lower bound, capped at 9223372036854775807; never inferred from an interval width.
+	LowerBound int64 `protobuf:"varint,1,opt,name=lower_bound,json=lowerBound,proto3,oneof"`
 }
 
 type KnownLost_NotKnown struct {
+	// Selects unknown information, distinct from a known zero.
 	NotKnown *emptypb.Empty `protobuf:"bytes,2,opt,name=not_known,json=notKnown,proto3,oneof"`
 }
 
@@ -610,6 +679,7 @@ func (*KnownLost_LowerBound) isKnownLost_Result() {}
 
 func (*KnownLost_NotKnown) isKnownLost_Result() {}
 
+// Represents recorder epoch identity.
 type RecorderEpochIdentity struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Existing storage.RecorderEpoch represented as exactly 16 nonzero bytes.
@@ -655,11 +725,16 @@ func (x *RecorderEpochIdentity) GetValue() []byte {
 	return nil
 }
 
+// Represents previous recorder epoch.
 type PreviousRecorderEpoch struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Epoch         *RecorderEpochIdentity `protobuf:"bytes,1,opt,name=epoch,proto3" json:"epoch,omitempty"`
-	Checkpoint    uint64                 `protobuf:"varint,2,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
-	CleanClose    bool                   `protobuf:"varint,3,opt,name=clean_close,json=cleanClose,proto3" json:"clean_close,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Native incarnation identifier. Positions from different epochs cannot be compared.
+	Epoch *RecorderEpochIdentity `protobuf:"bytes,1,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	// Checkpoint within the admitted capture; does not authorize another capture.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	Checkpoint string `protobuf:"bytes,2,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
+	// Whether the recorder observed a clean epoch close.
+	CleanClose    bool `protobuf:"varint,3,opt,name=clean_close,json=cleanClose,proto3" json:"clean_close,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -701,11 +776,11 @@ func (x *PreviousRecorderEpoch) GetEpoch() *RecorderEpochIdentity {
 	return nil
 }
 
-func (x *PreviousRecorderEpoch) GetCheckpoint() uint64 {
+func (x *PreviousRecorderEpoch) GetCheckpoint() string {
 	if x != nil {
 		return x.Checkpoint
 	}
-	return 0
+	return ""
 }
 
 func (x *PreviousRecorderEpoch) GetCleanClose() bool {
@@ -715,19 +790,28 @@ func (x *PreviousRecorderEpoch) GetCleanClose() bool {
 	return false
 }
 
+// Represents recorder epoch coverage.
 type RecorderEpochCoverage struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Epoch          *RecorderEpochIdentity `protobuf:"bytes,1,opt,name=epoch,proto3" json:"epoch,omitempty"`
-	Checkpoint     uint64                 `protobuf:"varint,2,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
-	PolicyExcluded uint64                 `protobuf:"varint,3,opt,name=policy_excluded,json=policyExcluded,proto3" json:"policy_excluded,omitempty"`
-	StartedAt      *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Native incarnation identifier. Positions from different epochs cannot be compared.
+	Epoch *RecorderEpochIdentity `protobuf:"bytes,1,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	// Checkpoint within the admitted capture; does not authorize another capture.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	Checkpoint string `protobuf:"bytes,2,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
+	// Evidence excluded by the recorder policy, not evidence of a physical observation.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	PolicyExcluded string `protobuf:"bytes,3,opt,name=policy_excluded,json=policyExcluded,proto3" json:"policy_excluded,omitempty"`
+	// Recorded time for started at. Absence means no timestamp was supplied or recorded.
+	StartedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	// Types that are valid to be assigned to CloseTime:
 	//
 	//	*RecorderEpochCoverage_ClosedAt
 	//	*RecorderEpochCoverage_NotRecorded
-	CloseTime      isRecorderEpochCoverage_CloseTime `protobuf_oneof:"close_time"`
-	CleanClose     bool                              `protobuf:"varint,7,opt,name=clean_close,json=cleanClose,proto3" json:"clean_close,omitempty"`
-	Reconciliation RecorderReconciliationState       `protobuf:"varint,8,opt,name=reconciliation,proto3,enum=home.api.v2.RecorderReconciliationState" json:"reconciliation,omitempty"`
+	CloseTime isRecorderEpochCoverage_CloseTime `protobuf_oneof:"close_time"`
+	// Whether the recorder observed a clean epoch close.
+	CleanClose bool `protobuf:"varint,7,opt,name=clean_close,json=cleanClose,proto3" json:"clean_close,omitempty"`
+	// The reconciliation represented by RecorderReconciliationState.
+	Reconciliation RecorderReconciliationState `protobuf:"varint,8,opt,name=reconciliation,proto3,enum=home.api.v2.RecorderReconciliationState" json:"reconciliation,omitempty"`
 	// Types that are valid to be assigned to Predecessor:
 	//
 	//	*RecorderEpochCoverage_Previous
@@ -774,18 +858,18 @@ func (x *RecorderEpochCoverage) GetEpoch() *RecorderEpochIdentity {
 	return nil
 }
 
-func (x *RecorderEpochCoverage) GetCheckpoint() uint64 {
+func (x *RecorderEpochCoverage) GetCheckpoint() string {
 	if x != nil {
 		return x.Checkpoint
 	}
-	return 0
+	return ""
 }
 
-func (x *RecorderEpochCoverage) GetPolicyExcluded() uint64 {
+func (x *RecorderEpochCoverage) GetPolicyExcluded() string {
 	if x != nil {
 		return x.PolicyExcluded
 	}
-	return 0
+	return ""
 }
 
 func (x *RecorderEpochCoverage) GetStartedAt() *timestamppb.Timestamp {
@@ -864,10 +948,12 @@ type isRecorderEpochCoverage_CloseTime interface {
 }
 
 type RecorderEpochCoverage_ClosedAt struct {
+	// Recorded time for closed at. Absence means no timestamp was supplied or recorded.
 	ClosedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=closed_at,json=closedAt,proto3,oneof"`
 }
 
 type RecorderEpochCoverage_NotRecorded struct {
+	// Selects explicit absence of recorded evidence; does not invent a zero value.
 	NotRecorded *emptypb.Empty `protobuf:"bytes,6,opt,name=not_recorded,json=notRecorded,proto3,oneof"`
 }
 
@@ -880,10 +966,12 @@ type isRecorderEpochCoverage_Predecessor interface {
 }
 
 type RecorderEpochCoverage_Previous struct {
+	// The previous represented by PreviousRecorderEpoch.
 	Previous *PreviousRecorderEpoch `protobuf:"bytes,9,opt,name=previous,proto3,oneof"`
 }
 
 type RecorderEpochCoverage_NoPrevious struct {
+	// Selects absence of a previous recorder epoch.
 	NoPrevious *emptypb.Empty `protobuf:"bytes,10,opt,name=no_previous,json=noPrevious,proto3,oneof"`
 }
 
@@ -891,15 +979,23 @@ func (*RecorderEpochCoverage_Previous) isRecorderEpochCoverage_Predecessor() {}
 
 func (*RecorderEpochCoverage_NoPrevious) isRecorderEpochCoverage_Predecessor() {}
 
+// Represents recorder coverage gap.
 type RecorderCoverageGap struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// Native incarnation identifier. Positions from different epochs cannot be compared.
 	Epoch *RecorderEpochIdentity `protobuf:"bytes,1,opt,name=epoch,proto3" json:"epoch,omitempty"`
 	// Positive inclusive source positions, not a count of lost states or time.
-	FromSequence    uint64      `protobuf:"varint,2,opt,name=from_sequence,json=fromSequence,proto3" json:"from_sequence,omitempty"`
-	ThroughSequence uint64      `protobuf:"varint,3,opt,name=through_sequence,json=throughSequence,proto3" json:"through_sequence,omitempty"`
-	Reason          GapReason   `protobuf:"varint,4,opt,name=reason,proto3,enum=home.api.v2.GapReason" json:"reason,omitempty"`
-	KnownLost       *KnownLost  `protobuf:"bytes,5,opt,name=known_lost,json=knownLost,proto3" json:"known_lost,omitempty"`
-	Envelope        GapEnvelope `protobuf:"varint,6,opt,name=envelope,proto3,enum=home.api.v2.GapEnvelope" json:"envelope,omitempty"`
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	FromSequence string `protobuf:"bytes,2,opt,name=from_sequence,json=fromSequence,proto3" json:"from_sequence,omitempty"`
+	// The through sequence represented as an exact native quantity.
+	// Canonical decimal in 0..18446744073709551615; no sign or leading zero. Compare numerically, never lexically.
+	ThroughSequence string `protobuf:"bytes,3,opt,name=through_sequence,json=throughSequence,proto3" json:"through_sequence,omitempty"`
+	// Machine-readable reason from the closed vocabulary. Do not inspect human-readable text.
+	Reason GapReason `protobuf:"varint,4,opt,name=reason,proto3,enum=home.api.v2.GapReason" json:"reason,omitempty"`
+	// Explicitly known loss evidence; unknown loss is represented separately.
+	KnownLost *KnownLost `protobuf:"bytes,5,opt,name=known_lost,json=knownLost,proto3" json:"known_lost,omitempty"`
+	// The envelope represented by GapEnvelope.
+	Envelope GapEnvelope `protobuf:"varint,6,opt,name=envelope,proto3,enum=home.api.v2.GapEnvelope" json:"envelope,omitempty"`
 	// 031 stores positional gaps without measured UTC bounds. Do not invent a
 	// duration or reinterpret epoch start/close dates as a gap's UTC interval.
 	//
@@ -948,18 +1044,18 @@ func (x *RecorderCoverageGap) GetEpoch() *RecorderEpochIdentity {
 	return nil
 }
 
-func (x *RecorderCoverageGap) GetFromSequence() uint64 {
+func (x *RecorderCoverageGap) GetFromSequence() string {
 	if x != nil {
 		return x.FromSequence
 	}
-	return 0
+	return ""
 }
 
-func (x *RecorderCoverageGap) GetThroughSequence() uint64 {
+func (x *RecorderCoverageGap) GetThroughSequence() string {
 	if x != nil {
 		return x.ThroughSequence
 	}
-	return 0
+	return ""
 }
 
 func (x *RecorderCoverageGap) GetReason() GapReason {
@@ -1004,17 +1100,23 @@ type isRecorderCoverageGap_UtcBounds interface {
 }
 
 type RecorderCoverageGap_UnknownUtc struct {
+	// Selects the explicit unknown utc alternative without an additional payload.
 	UnknownUtc *emptypb.Empty `protobuf:"bytes,7,opt,name=unknown_utc,json=unknownUtc,proto3,oneof"`
 }
 
 func (*RecorderCoverageGap_UnknownUtc) isRecorderCoverageGap_UtcBounds() {}
 
+// Represents recorder coverage snapshot.
 type RecorderCoverageSnapshot struct {
-	state         protoimpl.MessageState   `protogen:"open.v1"`
-	From          *AdmissionPosition       `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
-	Through       *AdmissionPosition       `protobuf:"bytes,2,opt,name=through,proto3" json:"through,omitempty"`
-	Epochs        []*RecorderEpochCoverage `protobuf:"bytes,3,rep,name=epochs,proto3" json:"epochs,omitempty"`
-	Gaps          []*RecorderCoverageGap   `protobuf:"bytes,4,rep,name=gaps,proto3" json:"gaps,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Inclusive lower bound within the declared scope.
+	From *AdmissionPosition `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
+	// Upper bound within the declared scope; follow the enclosing interval contract.
+	Through *AdmissionPosition `protobuf:"bytes,2,opt,name=through,proto3" json:"through,omitempty"`
+	// Collection of epochs for this message.
+	Epochs []*RecorderEpochCoverage `protobuf:"bytes,3,rep,name=epochs,proto3" json:"epochs,omitempty"`
+	// Collection of gaps for this message.
+	Gaps          []*RecorderCoverageGap `protobuf:"bytes,4,rep,name=gaps,proto3" json:"gaps,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1081,30 +1183,30 @@ var File_home_api_v2_recorder_evidence_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_recorder_evidence_proto_rawDesc = "" +
 	"\n" +
-	"#home/api/v2/recorder_evidence.proto\x12\vhome.api.v2\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"E\n" +
-	"\x11AdmissionPosition\x12\x14\n" +
-	"\x05epoch\x18\x01 \x01(\fR\x05epoch\x12\x1a\n" +
-	"\bsequence\x18\x02 \x01(\x04R\bsequence\"o\n" +
+	"#home/api/v2/recorder_evidence.proto\x12\vhome.api.v2\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"Q\n" +
+	"\x11AdmissionPosition\x12\x1a\n" +
+	"\x05epoch\x18\x01 \x01(\fB\x04\xe2A\x01\x02R\x05epoch\x12 \n" +
+	"\bsequence\x18\x02 \x01(\tB\x04\xe2A\x01\x02R\bsequence\"o\n" +
 	"\tKnownLost\x12!\n" +
-	"\vlower_bound\x18\x01 \x01(\x04H\x00R\n" +
+	"\vlower_bound\x18\x01 \x01(\x03H\x00R\n" +
 	"lowerBound\x125\n" +
 	"\tnot_known\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\bnotKnownB\b\n" +
-	"\x06result\"-\n" +
-	"\x15RecorderEpochIdentity\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\fR\x05value\"\x92\x01\n" +
+	"\x06result\"3\n" +
+	"\x15RecorderEpochIdentity\x12\x1a\n" +
+	"\x05value\x18\x01 \x01(\fB\x04\xe2A\x01\x02R\x05value\"\x92\x01\n" +
 	"\x15PreviousRecorderEpoch\x128\n" +
 	"\x05epoch\x18\x01 \x01(\v2\".home.api.v2.RecorderEpochIdentityR\x05epoch\x12\x1e\n" +
 	"\n" +
-	"checkpoint\x18\x02 \x01(\x04R\n" +
+	"checkpoint\x18\x02 \x01(\tR\n" +
 	"checkpoint\x12\x1f\n" +
 	"\vclean_close\x18\x03 \x01(\bR\n" +
 	"cleanClose\"\xda\x04\n" +
 	"\x15RecorderEpochCoverage\x128\n" +
 	"\x05epoch\x18\x01 \x01(\v2\".home.api.v2.RecorderEpochIdentityR\x05epoch\x12\x1e\n" +
 	"\n" +
-	"checkpoint\x18\x02 \x01(\x04R\n" +
+	"checkpoint\x18\x02 \x01(\tR\n" +
 	"checkpoint\x12'\n" +
-	"\x0fpolicy_excluded\x18\x03 \x01(\x04R\x0epolicyExcluded\x129\n" +
+	"\x0fpolicy_excluded\x18\x03 \x01(\tR\x0epolicyExcluded\x129\n" +
 	"\n" +
 	"started_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x129\n" +
 	"\tclosed_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\bclosedAt\x12;\n" +
@@ -1121,8 +1223,8 @@ const file_home_api_v2_recorder_evidence_proto_rawDesc = "" +
 	"\vpredecessor\"\x85\x03\n" +
 	"\x13RecorderCoverageGap\x128\n" +
 	"\x05epoch\x18\x01 \x01(\v2\".home.api.v2.RecorderEpochIdentityR\x05epoch\x12#\n" +
-	"\rfrom_sequence\x18\x02 \x01(\x04R\ffromSequence\x12)\n" +
-	"\x10through_sequence\x18\x03 \x01(\x04R\x0fthroughSequence\x12.\n" +
+	"\rfrom_sequence\x18\x02 \x01(\tR\ffromSequence\x12)\n" +
+	"\x10through_sequence\x18\x03 \x01(\tR\x0fthroughSequence\x12.\n" +
 	"\x06reason\x18\x04 \x01(\x0e2\x16.home.api.v2.GapReasonR\x06reason\x125\n" +
 	"\n" +
 	"known_lost\x18\x05 \x01(\v2\x16.home.api.v2.KnownLostR\tknownLost\x124\n" +

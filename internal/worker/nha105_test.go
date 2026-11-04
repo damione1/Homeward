@@ -14,9 +14,9 @@ import (
 	"unsafe"
 )
 
-func TestNHA105HistoricalWorkersRemainClosed(t *testing.T) {
-	for minor := uint32(0); minor <= 3; minor++ {
-		pilot, _, counted := nha174Profile(t, minor)
+func TestNHA105CurrentWorkerRemainsClosed(t *testing.T) {
+	{
+		pilot, _, counted := nha174Profile(t)
 		for _, description := range []*registrywire.CapabilityDescription{
 			{SchemaId: contracts.SolarSchema, Major: 1, Endpoint: "value", DisplayName: "Synthetic sun", Constraints: &registrywire.CapabilityDescription_Solar{Solar: &solarwire.SolarConstraints{}}},
 			{SchemaId: contracts.SolarEventSchema, Major: 1, Endpoint: "value", DisplayName: "Synthetic dawn", Constraints: &registrywire.CapabilityDescription_SolarEvent{SolarEvent: &solarwire.SolarEventConstraints{Event: solarwire.SolarEventKind_SOLAR_EVENT_KIND_DAWN}}},
@@ -26,11 +26,11 @@ func TestNHA105HistoricalWorkersRemainClosed(t *testing.T) {
 		} {
 			response, err := pilot.Discover(context.Background(), nha174Discover(description))
 			if response != nil || connect.CodeOf(err) != connect.CodeInvalidArgument {
-				t.Fatal("historical worker admitted native solar discovery")
+				t.Fatal("current worker admitted native solar discovery")
 			}
 		}
 		if counted.discoverCalls.Load() != 0 || len(pilot.bindings) != 0 {
-			t.Fatal("solar reached historical Host or created a binding")
+			t.Fatal("solar reached current Host or created a binding")
 		}
 	}
 }

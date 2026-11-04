@@ -1071,7 +1071,7 @@ mod tests {
                         }
                         .into(),
                         availability: document::GenerationAvailability::PartiallyPurged.into(),
-                        created_at: Timestamp {
+                        create_time: Timestamp {
                             seconds: 1_700_000_000,
                             ..Default::default()
                         }
@@ -1087,7 +1087,7 @@ mod tests {
                         }
                         .into(),
                         availability: document::GenerationAvailability::Complete.into(),
-                        created_at: Timestamp {
+                        create_time: Timestamp {
                             seconds: 1_700_000_000,
                             ..Default::default()
                         }
@@ -1102,6 +1102,7 @@ mod tests {
                 id.clone(),
                 document::ListConfigurationRevisionsResponse {
                     versions: vec![document::ConfigurationRevision {
+                        name: "homes/test/configurationDocuments/document/revisions/r-3".into(),
                         id: id.to_wire().into(),
                         version: document::DocumentVersion {
                             revision: 3,
@@ -1111,7 +1112,7 @@ mod tests {
                         .into(),
                         availability: document::VersionAvailability::Retained.into(),
                         schema_version: "homeward.authorization/1".into(),
-                        updated_at: Timestamp {
+                        update_time: Timestamp {
                             seconds: 1_700_000_000,
                             ..Default::default()
                         }

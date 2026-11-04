@@ -202,6 +202,10 @@ func (a ConfigActivationAttempt) CreateTime() time.Time {
 	}
 	return a.committed
 }
+func (a ConfigActivationAttempt) APIMethod() (ConfigurationAPIMethod, bool) {
+	return a.apiMethod, a.apiMethod.Valid()
+}
+
 func (a ConfigActivationAttempt) APIRequestID() (apitypes.RequestID, bool) {
 	return a.apiRequest, a.apiRequest.Valid()
 }

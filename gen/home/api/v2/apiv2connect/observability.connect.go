@@ -58,12 +58,19 @@ const (
 
 // ObservabilityServiceClient is a client for the home.api.v2.ObservabilityService service.
 type ObservabilityServiceClient interface {
+	// Gets the authorized health.
 	GetHealth(context.Context, *connect.Request[v2.GetHealthRequest]) (*connect.Response[v2.Health], error)
+	// Gets the authorized metrics.
 	GetMetrics(context.Context, *connect.Request[v2.GetMetricsRequest]) (*connect.Response[v2.Metrics], error)
+	// Gets the authorized integration health.
 	GetIntegrationHealth(context.Context, *connect.Request[v2.GetIntegrationHealthRequest]) (*connect.Response[v2.IntegrationHealth], error)
+	// Reads a bounded redacted projection of native runtime logs.
 	QueryRuntimeLogs(context.Context, *connect.Request[v2.QueryRuntimeLogsRequest]) (*connect.Response[v2.QueryRuntimeLogsResponse], error)
+	// Reads authorized audit metadata without credentials, raw requests or provider messages.
 	QueryAudits(context.Context, *connect.Request[v2.QueryAuditsRequest]) (*connect.Response[v2.QueryAuditsResponse], error)
+	// Reads the selected native run trace and its explicit completeness evidence.
 	QueryRunTrace(context.Context, *connect.Request[v2.QueryRunTraceRequest]) (*connect.Response[v2.QueryRunTraceResponse], error)
+	// Reads recorder coverage evidence without manufacturing missing observations.
 	QueryRecorderCoverage(context.Context, *connect.Request[v2.QueryRecorderCoverageRequest]) (*connect.Response[v2.QueryRecorderCoverageResponse], error)
 }
 
@@ -171,12 +178,19 @@ func (c *observabilityServiceClient) QueryRecorderCoverage(ctx context.Context, 
 
 // ObservabilityServiceHandler is an implementation of the home.api.v2.ObservabilityService service.
 type ObservabilityServiceHandler interface {
+	// Gets the authorized health.
 	GetHealth(context.Context, *connect.Request[v2.GetHealthRequest]) (*connect.Response[v2.Health], error)
+	// Gets the authorized metrics.
 	GetMetrics(context.Context, *connect.Request[v2.GetMetricsRequest]) (*connect.Response[v2.Metrics], error)
+	// Gets the authorized integration health.
 	GetIntegrationHealth(context.Context, *connect.Request[v2.GetIntegrationHealthRequest]) (*connect.Response[v2.IntegrationHealth], error)
+	// Reads a bounded redacted projection of native runtime logs.
 	QueryRuntimeLogs(context.Context, *connect.Request[v2.QueryRuntimeLogsRequest]) (*connect.Response[v2.QueryRuntimeLogsResponse], error)
+	// Reads authorized audit metadata without credentials, raw requests or provider messages.
 	QueryAudits(context.Context, *connect.Request[v2.QueryAuditsRequest]) (*connect.Response[v2.QueryAuditsResponse], error)
+	// Reads the selected native run trace and its explicit completeness evidence.
 	QueryRunTrace(context.Context, *connect.Request[v2.QueryRunTraceRequest]) (*connect.Response[v2.QueryRunTraceResponse], error)
+	// Reads recorder coverage evidence without manufacturing missing observations.
 	QueryRecorderCoverage(context.Context, *connect.Request[v2.QueryRecorderCoverageRequest]) (*connect.Response[v2.QueryRecorderCoverageResponse], error)
 }
 

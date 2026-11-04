@@ -37,6 +37,11 @@ func registerDeviceRoutes(plan *PublicPlan, handler *homeResourceHandler) error 
 }
 
 func (h *homeResourceHandler) GetDevice(ctx context.Context, request *connect.Request[api.GetDeviceRequest]) (*connect.Response[api.Device], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	permission := homeReadPermission()
 	if _, _, err := h.current(ctx, &permission); err != nil {
 		return nil, apiRPCError(ctx, err)
@@ -64,14 +69,22 @@ func (h *homeResourceHandler) GetDevice(ctx context.Context, request *connect.Re
 	if err != nil {
 		return nil, apiRPCError(ctx, err)
 	}
-	defer h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken)
+	defer releaseReadResponse(ctx, func() { _ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, page.SnapshotToken) })
 	if len(page.Items) == 0 {
 		return nil, apiRPCError(ctx, authorization.ErrDenied)
+	}
+	if err := h.retainReadCapture(ctx, page.SnapshotToken); err != nil {
+		return nil, apiRPCError(ctx, err)
 	}
 	return connect.NewResponse(&api.Device{Name: name.String()}), nil
 }
 
 func (h *homeResourceHandler) ListDevices(ctx context.Context, request *connect.Request[api.ListDevicesRequest]) (*connect.Response[api.ListDevicesResponse], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	permission := homeReadPermission()
 	_, current, err := h.current(ctx, &permission)
 	if err != nil {
@@ -124,7 +137,7 @@ func (h *homeResourceHandler) ListDevices(ctx context.Context, request *connect.
 	retain := r.PageToken != ""
 	defer func() {
 		if !retain {
-			_ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, snapshot)
+			releaseReadResponse(ctx, func() { _ = h.views.ReleaseView(context.WithoutCancel(ctx), actor, snapshot) })
 		}
 	}()
 	// Work is bounded by the existing native capture's item/byte budgets. Each
@@ -170,5 +183,8 @@ func (h *homeResourceHandler) ListDevices(ctx context.Context, request *connect.
 		}
 	}
 	retain = retain || out.NextPageToken != ""
+	if err := h.retainReadCapture(ctx, snapshot); err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
 	return connect.NewResponse(out), nil
 }

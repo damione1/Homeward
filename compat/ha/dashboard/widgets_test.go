@@ -2,14 +2,12 @@ package dashboard
 
 import (
 	"fmt"
+	"github.com/damione1/Homeward/compat/ha/parser"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/authorization"
+	"google.golang.org/protobuf/proto"
 	"strings"
 	"testing"
-
-	"github.com/damione1/Homeward/compat/ha/parser"
-	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
-	"github.com/damione1/Homeward/internal/authorization"
-	"github.com/damione1/Homeward/internal/domain"
-	"google.golang.org/protobuf/proto"
 )
 
 const widgetSource = `homeward: {profile: homeward-dashboard-3, owner: dashboard-owner, url_path: configured}
@@ -79,99 +77,64 @@ func compileWidgets(t *testing.T, source string) Result {
 	}
 	return result
 }
-func widgetsSupport() *wire.ClientLayoutSupport {
-	support := nhf009LayoutSupport()
-	support.Profile = DashboardProfile
-	support.Version = 3
-	support.ScreenVisibility = true
-	support.Kinds = append(support.Kinds, wire.LayoutKind_LAYOUT_KIND_WIDGET)
-	return support
-}
-func widgetNodes(layout *wire.NativeLayout) []*wire.LayoutNode {
-	var result []*wire.LayoutNode
+func widgetNodes(layout *wire.DashboardLayout) []*wire.DashboardLayoutNode {
+	var out []*wire.DashboardLayoutNode
 	for _, node := range layout.Nodes {
 		if node.Source != nil && strings.HasPrefix(node.Source.Variant, "custom:homeward-") {
-			result = append(result, node)
+			out = append(out, node)
 		}
 	}
-	return result
+	return out
 }
-func TestDashboardWidgetsPreserveExactConfigurationAndBoundedForest(t *testing.T) {
-	result := compileWidgets(t, widgetSource)
+func TestDashboardWidgetsExactSourceAndClosedProjection(t *testing.T) {
+	source := strings.Replace(widgetSource, "            weather_entity: weather.configured\n", "", 1)
+	result := compileWidgets(t, source)
 	if result.Status() != StatusSupported {
-		t.Fatalf("compile %v: %v", result.Status(), result.Diagnostics())
+		t.Fatal(result.Diagnostics())
 	}
-	definition, _ := result.Definition()
-	owner, known := definition.Owner()
-	ownerText, _ := owner.Value()
-	if !known || ownerText != "dashboard-owner" || definition.Profile() != DashboardProfile || definition.Source().URLPath() != "configured" {
-		t.Fatal("trusted metadata lost")
+	layout := projectAPIFixture(t, result)
+	nodes := widgetNodes(layout)
+	if len(nodes) != 8 || layout.Nodes[0].GetView().GetChildren().GetGap() != 0 || layout.Nodes[0].GetView().MinimumColumnWidth != 280 {
+		t.Fatal("authored forest or explicit zero lost")
 	}
-	layout, err := ProjectNativeDefinition(definition, LayoutProjection{Support: widgetsSupport(), Entity: nhf009ResolveEverySyntheticAlias})
+	clock := nodes[0].GetWidget().GetClockWeather()
+	if clock == nil || clock.TimeZone != "America/Toronto" || nodes[0].DisplayName != "Exact clock" || len(nodes[0].GetPlacement().GetResponsiveSpans()) != 2 {
+		t.Fatal("authored clock presentation lost")
+	}
+	// Without an admitted source slot, names alone cannot activate these widgets.
+	for _, i := range []int{1, 2, 5, 6} {
+		if nodes[i].GetUnsupported() == nil {
+			t.Fatalf("widget %d inferred capability from alias", i)
+		}
+	}
+	navigation := nodes[7].GetWidget().GetNavigation()
+	if navigation == nil || navigation.Destination.NodeId != "$.views[1]" || nodes[7].GetWidget().ActionLabel != "Exact navigation" {
+		t.Fatal("exact local navigation lost")
+	}
+	clock.TimeZone = "UTC"
+	if widgetNodes(projectAPIFixture(t, result))[0].GetWidget().GetClockWeather().TimeZone != "America/Toronto" {
+		t.Fatal("projection mutated captured source")
+	}
+	bytes, err := proto.Marshal(layout)
 	if err != nil {
 		t.Fatal(err)
 	}
-	widgets := widgetNodes(layout)
-	if layout.Version != 3 || len(widgets) != 8 || layout.Nodes[0].Gap != 0 || layout.Nodes[0].MinimumColumnWidth != 280 || layout.Nodes[1].Gap != 20 {
-		t.Fatal("configured widget order or explicit/default metrics lost")
-	}
-	for _, node := range widgets {
-		if node.Kind != wire.LayoutKind_LAYOUT_KIND_WIDGET || node.Widget == nil {
-			t.Fatalf("widget not projected: %v", node)
-		}
-	}
-	if widgets[0].Widget.GetClockWeather().WeatherEntityId != "synthetic-id:weather.configured" || widgets[0].Widget.GetClockWeather().Timezone != "America/Toronto" || widgets[0].Title != "Exact clock" || len(widgets[0].ResponsiveSpans) != 2 || widgets[0].ResponsiveSpans[1].Span != 1 {
-		t.Fatal("clock exact binding or responsive spans lost")
-	}
-	room := widgets[1].Widget.GetRoom()
-	if room.Temperature.EntityId != "synthetic-id:sensor.room_temperature" || room.ActivityEntityIds[0] != "synthetic-id:light.room" || room.ActiveStates[0] != "on" || widgets[1].Widget.Action.NodeId != "$.views[1]" {
-		t.Fatal("room binding or configured action lost")
-	}
-	thermostat := widgets[2].Widget.GetThermostat()
-	if thermostat.EntityId != "synthetic-id:climate.configured" || thermostat.TargetTemperature.FieldKey != "setpoint_celsius" {
-		t.Fatal("thermostat binding lost")
-	}
-	agenda := widgets[3].Widget.GetAgenda()
-	if agenda.CalendarId != "calendar-id:configured" || agenda.Limit != 4 || agenda.WindowSeconds != 86400 {
-		t.Fatal("agenda binding lost")
-	}
-	if widgets[4].Widget.GetTasks().ListId != "configured-list" || widgets[4].Widget.GetTasks().Limit != 3 || widgets[4].Widget.EmptyLabel != "Exact empty label" || widgets[5].Widget.GetSecurity().EntityIds[0] != "synthetic-id:lock.configured" || widgets[6].Widget.GetObservations().Items[0].Label != "Exact observation" || widgets[7].Widget.GetNavigation().Destination.NodeId != "$.views[1]" || widgets[7].Widget.ActionLabel != "Exact navigation" {
-		t.Fatal("explicit data or navigation changed")
-	}
-	// Projection output and exported model clones cannot mutate the source.
-	widgets[0].Widget.GetClockWeather().Timezone = "UTC"
-	copy, _ := result.Definition()
-	again, err := ProjectNativeDefinition(copy, LayoutProjection{Support: widgetsSupport(), Entity: nhf009ResolveEverySyntheticAlias})
-	if err != nil || widgetNodes(again)[0].Widget.GetClockWeather().Timezone != "America/Toronto" {
-		t.Fatal("projection mutated source")
+	decoded := new(wire.DashboardLayout)
+	if err = proto.Unmarshal(bytes, decoded); err != nil || !proto.Equal(layout, decoded) {
+		t.Fatal("v2 closed representation did not roundtrip", err)
 	}
 }
-func TestDashboardWidgetsNeverFallbackAfterMissingOrUnnegotiatedBinding(t *testing.T) {
-	result := compileWidgets(t, widgetSource)
-	for _, support := range []*wire.ClientLayoutSupport{nil, nhf009LayoutSupport(), {Profile: DashboardProfile, Version: 99}} {
-		layout, err := ProjectNativeLayout(result, LayoutProjection{Support: support, Entity: nhf009ResolveEverySyntheticAlias})
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, node := range layout.Nodes {
-			if node.Kind != wire.LayoutKind_LAYOUT_KIND_UNSUPPORTED || node.Widget != nil || node.Recipes != nil {
-				t.Fatal("unnegotiated payload escaped")
-			}
-		}
-	}
-	layout, err := ProjectNativeLayout(result, LayoutProjection{Support: widgetsSupport(), Entity: func(alias domain.HAAlias) (domain.EntityID, bool) {
-		text, _ := alias.Value()
-		if text == "sensor.room_temperature" {
-			return domain.EntityID{}, false
-		}
-		return nhf009ResolveEverySyntheticAlias(alias)
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestDashboardWidgetsMissingBindingNeverFallsBack(t *testing.T) {
+	layout := projectAPIFixture(t, compileWidgets(t, widgetSource))
 	nodes := widgetNodes(layout)
-	if nodes[1].Kind != wire.LayoutKind_LAYOUT_KIND_UNSUPPORTED || nodes[1].Widget != nil || nodes[2].Kind != wire.LayoutKind_LAYOUT_KIND_WIDGET {
-		t.Fatal("missing room temperature substituted unrelated entity or hid unrelated widget")
+	if nodes[0].GetUnsupported() == nil || nodes[2].GetUnsupported() == nil || nodes[7].GetWidget().GetNavigation() == nil {
+		t.Fatal("missing capability fell back or hid unrelated navigation")
+	}
+}
+func TestEmptyConfiguredDashboardHasNoImplicitWidgets(t *testing.T) {
+	layout := projectAPIFixture(t, compileWidgets(t, "homeward: {profile: homeward-dashboard-3, owner: dashboard-owner, url_path: configured}\nviews: []\n"))
+	if len(layout.Nodes) != 0 || len(layout.Views) != 0 {
+		t.Fatal("empty definition invented content")
 	}
 }
 func TestDashboardWidgetMalformedOptionsRemainInert(t *testing.T) {
@@ -201,54 +164,17 @@ func TestDashboardWidgetMalformedOptionsRemainInert(t *testing.T) {
 				t.Fatal("invalid source admitted")
 			}
 			if def, ok := result.Definition(); ok {
-				layout, err := ProjectNativeDefinition(def, LayoutProjection{Support: widgetsSupport(), Entity: nhf009ResolveEverySyntheticAlias})
+				layout, err := ProjectDashboardDefinition(def, apiFixtureProjection(t))
 				if err != nil {
 					t.Fatal(err)
 				}
 				for _, node := range layout.Nodes {
-					if node.Kind == wire.LayoutKind_LAYOUT_KIND_UNSUPPORTED && node.Widget != nil {
-						t.Fatal("invalid widget still executable")
+					if node.GetUnsupported() != nil && node.Visibility != nil {
+						t.Fatal("inert node carried domain predicate")
 					}
 				}
 			}
 		})
-	}
-}
-func TestEmptyConfiguredDashboardHasNoImplicitWidgets(t *testing.T) {
-	result := compileWidgets(t, "homeward: {profile: homeward-dashboard-3, owner: dashboard-owner, url_path: configured}\nviews: []\n")
-	if result.Status() != StatusSupported {
-		t.Fatal(result.Diagnostics())
-	}
-	definition, _ := result.Definition()
-	layout, err := ProjectNativeDefinition(definition, LayoutProjection{Support: widgetsSupport(), Entity: nhf009ResolveEverySyntheticAlias})
-	if err != nil || layout.Version != 3 || len(layout.Nodes) != 0 || len(layout.Views) != 0 {
-		t.Fatal("empty configuration invented content")
-	}
-}
-func TestWidgetProjectionRoundTripAndBasicCompatibility(t *testing.T) {
-	result := compileWidgets(t, widgetSource)
-	layout, err := ProjectNativeLayout(result, LayoutProjection{Support: widgetsSupport(), Entity: nhf009ResolveEverySyntheticAlias})
-	if err != nil {
-		t.Fatal(err)
-	}
-	bytes, err := proto.Marshal(layout)
-	if err != nil {
-		t.Fatal(err)
-	}
-	decoded := &wire.NativeLayout{}
-	if err = proto.Unmarshal(bytes, decoded); err != nil || !proto.Equal(layout, decoded) {
-		t.Fatal("widget protocol roundtrip failed")
-	}
-	id, _ := authorization.ParseDashboardID("basic")
-	source, _ := NewSource(id, "basic", "basic.yaml")
-	file, _ := parser.NewSourceFile("basic.yaml", []byte("views: [{type: sections, path: home, title: Home, sections: []}]\n"))
-	basic, err := RestoreConfigured(source, []parser.SourceFile{file})
-	definition, _ := basic.Definition()
-	if err != nil || basic.Status() != StatusSupported || definition.Profile() != Profile {
-		t.Fatal("configured importer changed legacy profile")
-	}
-	if _, err = ProjectNativeDefinition(definition, LayoutProjection{Support: widgetsSupport(), Entity: nhf009ResolveEverySyntheticAlias}); err != nil {
-		t.Fatal("v3 client cannot consume Basic")
 	}
 }
 
@@ -275,21 +201,5 @@ func TestDashboardWidgetAggregateBudgetsMatchNativeClientAdmission(t *testing.T)
 	clock := "       - type: custom:homeward-clock-weather\n         timezone: UTC\n         weather_entity: weather.extra\n"
 	if result := compileWidgets(t, widgetBudgetSource(cards+clock)); result.Status() != StatusFatal {
 		t.Fatal("aggregate entity binding budget escaped", result.Status())
-	}
-}
-
-func TestNativeWidgetEquivalentExplicitTapKeepsItsRecipeAndConfiguredLabel(t *testing.T) {
-	source := strings.Replace(widgetSource, "action: /configured/rooms", "action: /configured/rooms\n            tap_action: {action: navigate, navigation_path: /configured/rooms}", 1)
-	result := compileWidgets(t, source)
-	if result.Status() != StatusSupported {
-		t.Fatal("equivalent configured intentions refused", result.Diagnostics())
-	}
-	layout, err := ProjectNativeLayout(result, LayoutProjection{Support: widgetsSupport(), Entity: nhf009ResolveEverySyntheticAlias})
-	if err != nil {
-		t.Fatal(err)
-	}
-	room := widgetNodes(layout)[1]
-	if room.Kind != wire.LayoutKind_LAYOUT_KIND_WIDGET || room.Widget.Action.NodeId != "$.views[1]" || room.Recipes.Interactions[0].GetNavigate().NodeId != "$.views[1]" {
-		t.Fatal("equivalent configured actions lost")
 	}
 }

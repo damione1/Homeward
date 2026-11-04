@@ -151,7 +151,9 @@ fn dimension(
             };
             match v.size.as_ref() {
                 Some(wire::dashboard_layout_dimension::Size::Count(v)) if (1..=12).contains(v) => {
-                    Ok(Dimension::Count(*v as u8))
+                    Ok(Dimension::Count(
+                        u8::try_from(*v).map_err(|_| LayoutFailure::Invalid)?,
+                    ))
                 }
                 Some(wire::dashboard_layout_dimension::Size::Full(v))
                     if v.__buffa_unknown_fields.is_empty() =>
@@ -435,20 +437,22 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
             {
                 return Err(LayoutFailure::Invalid);
             };
-            node.responsive_spans
-                .push((span.columns as u8, span.span as u8))
+            node.responsive_spans.push((
+                u8::try_from(span.columns).map_err(|_| LayoutFailure::Invalid)?,
+                u8::try_from(span.span).map_err(|_| LayoutFailure::Invalid)?,
+            ))
         }
     }
     if let Some(screen) = raw.screen_visibility.as_option() {
         if !screen.__buffa_unknown_fields.is_empty()
-            || screen.min_width > 65535
-            || screen.max_width > 65535
+            || !(0..=65535).contains(&screen.min_width)
+            || !(0..=65535).contains(&screen.max_width)
             || (screen.max_width != 0 && screen.min_width > screen.max_width)
         {
             return Err(LayoutFailure::Invalid);
         };
-        node.viewport_min_width = screen.min_width as i32;
-        node.viewport_max_width = screen.max_width as i32
+        node.viewport_min_width = screen.min_width;
+        node.viewport_max_width = screen.max_width
     }
     let mut interactions = None;
     let mut children = None;
@@ -587,13 +591,17 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
             }
         }
     }
-    if width > 4096 {
+    if !(0..=4096).contains(&width) {
         return Err(LayoutFailure::Budget);
     };
-    node.minimum_column_width = (width > 0).then_some(width);
+    node.minimum_column_width = if width == 0 {
+        None
+    } else {
+        Some(u32::try_from(width).map_err(|_| LayoutFailure::Invalid)?)
+    };
     if let Some(children) = children {
         if !children.__buffa_unknown_fields.is_empty()
-            || children.gap > 256
+            || !(0..=256).contains(&children.gap)
             || children.children.len() > MAX_NODES
         {
             return Err(LayoutFailure::Budget);
@@ -603,7 +611,7 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
             .iter()
             .map(|v| identity(v))
             .collect::<Result<_, _>>()?;
-        node.gap = Some(children.gap)
+        node.gap = Some(u32::try_from(children.gap).map_err(|_| LayoutFailure::Invalid)?)
     }
     let visibility = raw
         .visibility
@@ -646,11 +654,15 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
     }
     Ok(node)
 }
-fn columns(value: u32) -> Result<Option<u8>, LayoutFailure> {
-    if value > 12 {
+fn columns(value: i32) -> Result<Option<u8>, LayoutFailure> {
+    if !(0..=12).contains(&value) {
         Err(LayoutFailure::Budget)
     } else {
-        Ok((value > 0).then_some(value as u8))
+        Ok(if value == 0 {
+            None
+        } else {
+            Some(u8::try_from(value).map_err(|_| LayoutFailure::Invalid)?)
+        })
     }
 }
 fn bind_node(node: &mut Node, value: &str) -> Result<(), LayoutFailure> {

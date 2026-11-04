@@ -342,8 +342,9 @@ impl TryFrom<&wire::DashboardWidget> for Widget {
                         .time_zone
                         .parse()
                         .map_err(|_| LayoutFailure::Unsupported)?,
-                    window_seconds: duration.seconds as u32,
-                    limit: v.limit as usize,
+                    window_seconds: u32::try_from(duration.seconds)
+                        .map_err(|_| LayoutFailure::Invalid)?,
+                    limit: usize::try_from(v.limit).map_err(|_| LayoutFailure::Invalid)?,
                 }
             }
             W::Tasks(v) => {
@@ -361,7 +362,7 @@ impl TryFrom<&wire::DashboardWidget> for Widget {
                 Content::Tasks {
                     list: TaskListName::try_from(v.task_list.as_str())
                         .map_err(|_| LayoutFailure::Invalid)?,
-                    limit: v.limit as usize,
+                    limit: usize::try_from(v.limit).map_err(|_| LayoutFailure::Invalid)?,
                     shopping_only,
                 }
             }

@@ -9,7 +9,7 @@ fn account(name: &str, role: auth::AccountRole) -> auth::Account {
         login_name: name.into(),
         display_name: name.into(),
         role: role.into(),
-        state: auth::AccountState::Active.into(),
+        access: auth::AccountAccess::Enabled.into(),
         create_time: Timestamp {
             seconds: 1_700_000_000,
             ..Default::default()

@@ -125,7 +125,8 @@ pub fn admit_integration_admin_request(
                 && parse_resource(&v.name, "integrationInstances").is_some()
         }
         IntegrationAdminRequest::Create(v) => {
-            v.__buffa_unknown_fields.is_empty()
+            configuration_contract::requested_resource_id(&v.integration_instance_id)
+                && v.__buffa_unknown_fields.is_empty()
                 && configuration_contract::home_name(&v.parent)
                 && request_id(&v.request_id)
                 && v.integration_instance.as_option().is_some_and(|inst| {

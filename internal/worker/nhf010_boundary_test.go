@@ -12,8 +12,8 @@ import (
 )
 
 func TestNHF010HistoricalWorkerProfilesDoNotAcquireNewNativeObservations(t *testing.T) {
-	for minor := uint32(0); minor <= 3; minor++ {
-		pilot, _, counted := nha174Profile(t, minor)
+	for _, minor := range []uint32{hostProtocolMinor} {
+		pilot, _, counted := nha174Profile(t)
 		for _, description := range []*registry.CapabilityDescription{
 			{SchemaId: contracts.WeatherSchema, Major: 1, Endpoint: "value", DisplayName: "Synthetic weather", Constraints: &registry.CapabilityDescription_Weather{Weather: &env.WeatherConstraints{}}},
 			{SchemaId: contracts.PresenceSchema, Major: 1, Endpoint: "value", DisplayName: "Synthetic presence", Constraints: &registry.CapabilityDescription_Presence{Presence: &env.PresenceConstraints{}}},
@@ -26,7 +26,7 @@ func TestNHF010HistoricalWorkerProfilesDoNotAcquireNewNativeObservations(t *test
 		} {
 			response, err := pilot.Discover(context.Background(), nha174Discover(description))
 			if response != nil || connect.CodeOf(err) != connect.CodeInvalidArgument {
-				t.Fatal("historical worker profile acquired native data semantics", minor, err)
+				t.Fatal("current worker acquired native data semantics", minor, err)
 			}
 		}
 		if counted.discoverCalls.Load() != 0 || len(pilot.bindings) != 0 {

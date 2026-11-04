@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	api "github.com/damione1/Homeward/gen/home/api/v2"
-	lists "github.com/damione1/Homeward/gen/home/lists/v1"
 	"google.golang.org/genproto/googleapis/rpc/code"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
@@ -168,21 +167,21 @@ func TestViolationsAreAdmittedSortedBoundedAndImmutable(t *testing.T) {
 }
 
 func TestFieldPathsComeFromDescriptors(t *testing.T) {
-	root := (&lists.AddItemRequest{}).ProtoReflect().Descriptor()
-	for _, path := range []string{"item.completed", "item.due_instant.at", "expected_list_revision.number", ""} {
+	root := (&api.UpdateTaskRequest{}).ProtoReflect().Descriptor()
+	for _, path := range []string{"task.completed", "task.due_instant.due_time", "task.etag", ""} {
 		if _, err := NewViolation(root, path, api.ValidationReason_VALIDATION_REASON_REQUIRED_VALUE); err != nil {
 			t.Fatalf("valid field %q: %v", path, err)
 		}
 	}
-	for _, path := range []string{"item[0]", "item.secret", "item.due", "item..summary", "item['private-value']", "item.summary.value", strings.Repeat("a", 257)} {
+	for _, path := range []string{"task[0]", "task.secret", "task.due", "task..summary", "task['private-value']", "task.summary.value", strings.Repeat("a", 257)} {
 		if _, err := NewViolation(root, path, api.ValidationReason_VALIDATION_REASON_REQUIRED_VALUE); err == nil {
 			t.Fatalf("non-field admitted: %q", path)
 		}
 	}
-	if _, err := NewViolation(root, "item", api.ValidationReason(1000)); err == nil {
+	if _, err := NewViolation(root, "task", api.ValidationReason(1000)); err == nil {
 		t.Fatal("unknown rule admitted")
 	}
-	if _, err := NewViolation(root, "item", 0); err == nil {
+	if _, err := NewViolation(root, "task", 0); err == nil {
 		t.Fatal("unspecified rule admitted")
 	}
 }

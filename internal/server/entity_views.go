@@ -42,6 +42,11 @@ func (h *homeResourceHandler) entityView(ctx context.Context, raw string) (view.
 	return descriptor, current, err
 }
 func (h *homeResourceHandler) CreateEntityView(ctx context.Context, request *connect.Request[api.CreateEntityViewRequest]) (*connect.Response[api.EntityView], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	permission := homeReadPermission()
 	if _, _, err := h.current(ctx, &permission); err != nil {
 		return nil, apiRPCError(ctx, err)
@@ -88,9 +93,17 @@ func (h *homeResourceHandler) CreateEntityView(ctx context.Context, request *con
 	if final.SnapshotToken != descriptor.SnapshotToken {
 		return nil, apiRPCError(ctx, view.ErrViewChanged)
 	}
+	if err := h.retainReadCapture(ctx, descriptor.SnapshotToken); err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
 	return connect.NewResponse(encodeEntityView(descriptor)), nil
 }
 func (h *homeResourceHandler) GetEntityView(ctx context.Context, request *connect.Request[api.GetEntityViewRequest]) (*connect.Response[api.EntityView], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	raw := ""
 	if request != nil && request.Msg != nil {
 		raw = request.Msg.Name
@@ -99,9 +112,17 @@ func (h *homeResourceHandler) GetEntityView(ctx context.Context, request *connec
 	if err != nil {
 		return nil, apiRPCError(ctx, err)
 	}
+	if err := h.retainReadCapture(ctx, descriptor.SnapshotToken); err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
 	return connect.NewResponse(encodeEntityView(descriptor)), nil
 }
 func (h *homeResourceHandler) DeleteEntityView(ctx context.Context, request *connect.Request[api.DeleteEntityViewRequest]) (*connect.Response[emptypb.Empty], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	raw := ""
 	if request != nil && request.Msg != nil {
 		raw = request.Msg.Name
@@ -135,6 +156,11 @@ func entityViewEntry(home apitypes.HomeName, item view.Item) (*api.EntityViewEnt
 	return entry, nil
 }
 func (h *homeResourceHandler) QueryEntityView(ctx context.Context, request *connect.Request[api.QueryEntityViewRequest]) (*connect.Response[api.QueryEntityViewResponse], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	raw := ""
 	if request != nil && request.Msg != nil {
 		raw = request.Msg.Name
@@ -204,10 +230,18 @@ func (h *homeResourceHandler) QueryEntityView(ctx context.Context, request *conn
 	if final.SnapshotToken != descriptor.SnapshotToken {
 		return nil, apiRPCError(ctx, view.ErrViewChanged)
 	}
+	if err := h.retainReadCapture(ctx, descriptor.SnapshotToken); err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
 	return connect.NewResponse(out), nil
 }
 
 func (h *homeResourceHandler) ListEntityViews(ctx context.Context, request *connect.Request[api.ListEntityViewsRequest]) (*connect.Response[api.ListEntityViewsResponse], error) {
+	ctx, finishResponse, responseErr := h.beginReadResponse(ctx)
+	if responseErr != nil {
+		return nil, apiRPCError(ctx, responseErr)
+	}
+	defer finishResponse()
 	permission := homeReadPermission()
 	_, current, err := h.current(ctx, &permission)
 	if err != nil {
@@ -272,6 +306,9 @@ func (h *homeResourceHandler) ListEntityViews(ctx context.Context, request *conn
 		}
 		if value.SnapshotToken != token.Snapshots[token.Offset-1] {
 			continue
+		}
+		if err := h.retainReadCapture(ctx, value.SnapshotToken); err != nil {
+			return nil, apiRPCError(ctx, err)
 		}
 		out.EntityViews = append(out.EntityViews, encodeEntityView(value))
 	}

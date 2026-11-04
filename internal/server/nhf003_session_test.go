@@ -20,8 +20,6 @@ import (
 	"github.com/damione1/Homeward/contracts"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
-	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	registryv1 "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
@@ -193,7 +191,7 @@ func TestNHF003SessionServer(t *testing.T) {
 	client.Timeout = 10 * time.Second
 	defer client.CloseIdleConnections()
 	base := "https://" + address.String()
-	auth := authv1connect.NewAuthServiceClient(client, base)
+	auth := apiv2connect.NewAuthServiceClient(client, base)
 	tokens := nha162RunLogin(t, ctx, auth, login, password)
 	source, err := host.OpenSession(instance)
 	if err != nil {
@@ -215,13 +213,13 @@ func TestNHF003SessionServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	policies := authv1connect.NewAuthorizationPolicyServiceClient(client, base)
-	currentPolicy, err := policies.GetPolicy(ctx, nha141BearerRequest(&authv1.GetPolicyRequest{AccountId: account}, tokens.AccessToken))
-	if err != nil || currentPolicy.Msg.GetPresent() == nil {
+	policies := apiv2connect.NewAuthorizationPolicyServiceClient(client, base)
+	currentPolicy, err := policies.GetAuthorizationPolicy(ctx, nha141BearerRequest(&api.GetAuthorizationPolicyRequest{Name: nha203SessionAccount(t, tokens.Session).String() + "/authorizationPolicy"}, tokens.AccessToken))
+	if err != nil || currentPolicy.Msg == nil {
 		t.Fatal("synthetic read policy:", err)
 	}
 	policy := fmt.Sprintf("schema: homeward.authorization/1\naccount_id: %q\ngrants:\n  - scope: {family: state_registry, operation: read}\n    objects:\n      entities:\n        explicit:\n          - entity_id: %q\n            capabilities: {explicit: [{schema_id: core.switch.v1, endpoint: relay}]}\n", account.Value, entityID)
-	if _, err := policies.ReplacePolicy(ctx, nha141BearerRequest(&authv1.ReplacePolicyRequest{AccountId: account, YamlSource: []byte(policy), Precondition: &authv1.ReplacePolicyRequest_Expected{Expected: currentPolicy.Msg.GetPresent().Version}}, tokens.AccessToken)); err != nil {
+	if _, err := policies.ReplaceAuthorizationPolicy(ctx, nha141BearerRequest(&api.ReplaceAuthorizationPolicyRequest{Name: nha203SessionAccount(t, tokens.Session).String() + "/authorizationPolicy", YamlSource: []byte(policy), Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: currentPolicy.Msg.Etag}}, tokens.AccessToken)); err != nil {
 		t.Fatal("synthetic policy CAS:", err)
 	}
 	quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
@@ -245,28 +243,28 @@ func TestNHF003SessionServer(t *testing.T) {
 	switch mode {
 	case nhf003Recovery:
 		authenticator := nha142NewAuthenticator(t)
-		begun, err := auth.BeginFactorEnrollment(ctx, nha141BearerRequest(&authv1.BeginFactorEnrollmentRequest{Kind: authv1.FactorKind_FACTOR_KIND_FIDO2}, tokens.AccessToken))
+		begun, err := auth.BeginFactorEnrollment(ctx, nha141BearerRequest(&api.BeginFactorEnrollmentRequest{Parent: nha203SessionAccount(t, tokens.Session).String(), Kind: api.FactorKind_FACTOR_KIND_FIDO2}, tokens.AccessToken))
 		if err != nil || begun.Msg.Challenge == nil {
 			t.Fatal("synthetic factor setup:", err)
 		}
-		activated, err := auth.CompleteFactorEnrollment(ctx, nha141BearerRequest(&authv1.CompleteFactorEnrollmentRequest{ChallengeId: begun.Msg.Challenge.Id, Attestation: authenticator.attestation(t, begun.Msg.Challenge)}, tokens.AccessToken))
+		activated, err := auth.CompleteFactorEnrollment(ctx, nha141BearerRequest(&api.CompleteFactorEnrollmentRequest{Parent: nha203SessionAccount(t, tokens.Session).String(), ChallengeId: begun.Msg.Challenge.ChallengeId, Attestation: authenticator.attestation(t, begun.Msg.Challenge)}, tokens.AccessToken))
 		if err != nil || len(activated.Msg.RecoveryCodes) == 0 {
 			t.Fatal("synthetic recovery setup:", err)
 		}
 		recoveryCode = activated.Msg.RecoveryCodes[0]
 	case nhf003Enrollment:
-		accounts := authv1connect.NewAccountServiceClient(client, base)
-		current, err := accounts.GetSecondFactorPolicy(ctx, nha141BearerRequest(&authv1.GetSecondFactorPolicyRequest{}, tokens.AccessToken))
+		accounts := apiv2connect.NewAccountServiceClient(client, base)
+		current, err := accounts.GetSecondFactorPolicy(ctx, nha141BearerRequest(&api.GetSecondFactorPolicyRequest{Name: nha203SessionAccount(t, tokens.Session).Home().String() + "/secondFactorPolicy"}, tokens.AccessToken))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := accounts.SetSecondFactorPolicy(ctx, nha141BearerRequest(&authv1.SetSecondFactorPolicyRequest{Expected: current.Msg.Policy.Version, RequireAdminFactor: true}, tokens.AccessToken)); err != nil {
+		if _, err := accounts.ChangeSecondFactorPolicy(ctx, nha141BearerRequest(&api.ChangeSecondFactorPolicyRequest{Name: current.Msg.Name, Etag: current.Msg.Etag, RequireAdminFactor: true}, tokens.AccessToken)); err != nil {
 			t.Fatal(err)
 		}
 	case nhf003RateLimit:
 		limited := false
 		for attempt := 0; attempt < 80; attempt++ {
-			_, err := auth.StartLogin(ctx, connect.NewRequest(&authv1.StartLoginRequest{LoginName: login, Password: "synthetic incorrect password"}))
+			_, err := auth.StartLogin(ctx, connect.NewRequest(&api.StartLoginRequest{LoginName: login, Password: "synthetic incorrect password"}))
 			if connect.CodeOf(err) == connect.CodeResourceExhausted {
 				limited = true
 				break

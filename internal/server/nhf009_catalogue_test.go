@@ -6,39 +6,13 @@ import (
 
 	imported "github.com/damione1/Homeward/compat/ha/dashboard"
 	"github.com/damione1/Homeward/contracts"
-	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/apiresources"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 )
 
-// Inputs are exactly the documents covered by the containing capture's held
-// dashboard permits. Never resolve routes from an unauthorized source file.
-func projectCatalogueLayouts(results []imported.Result, support *wire.ClientLayoutSupport, resolve func(domain.HAAlias) (domain.EntityID, bool)) ([]*wire.NativeLayout, error) {
-	definitions := make([]imported.Definition, 0, len(results))
-	for _, result := range results {
-		definition, present := result.Definition()
-		if !present {
-			return nil, ErrInvalidPublicPlan
-		}
-		definitions = append(definitions, definition)
-	}
-	navigation, err := imported.NewNavigationIndex(definitions)
-	if err != nil {
-		return nil, err
-	}
-	layouts := make([]*wire.NativeLayout, 0, len(results))
-	for _, result := range results {
-		layout, err := imported.ProjectNativeLayout(result, imported.LayoutProjection{Support: support, Entity: resolve, Navigation: &navigation})
-		if err != nil {
-			return nil, err
-		}
-		layouts = append(layouts, layout)
-	}
-	return layouts, nil
-}
-func nhf009Support() *wire.ClientLayoutSupport {
-	return &wire.ClientLayoutSupport{Profile: imported.RecipesProfile, Version: 2, Kinds: []wire.LayoutKind{wire.LayoutKind_LAYOUT_KIND_VIEW, wire.LayoutKind_LAYOUT_KIND_SECTION, wire.LayoutKind_LAYOUT_KIND_GRID, wire.LayoutKind_LAYOUT_KIND_HORIZONTAL_STACK, wire.LayoutKind_LAYOUT_KIND_VERTICAL_STACK, wire.LayoutKind_LAYOUT_KIND_HEADING, wire.LayoutKind_LAYOUT_KIND_TILE, wire.LayoutKind_LAYOUT_KIND_RECIPE, wire.LayoutKind_LAYOUT_KIND_POPUP, wire.LayoutKind_LAYOUT_KIND_CHIP_GROUP, wire.LayoutKind_LAYOUT_KIND_UNSUPPORTED}}
-}
 func TestNHF009FixtureCatalogueResolvesOnlyCapturedDefinitions(t *testing.T) {
 	root := filepath.Join("..", "..", "qualification", "frontend", "recipes")
 	devices, err := nhf009ReadDevices(filepath.Join(root, "devices.json"))
@@ -85,41 +59,41 @@ func TestNHF009FixtureCatalogueResolvesOnlyCapturedDefinitions(t *testing.T) {
 		id, err := domain.ParseEntityID("synthetic:" + text)
 		return id, err == nil
 	}
-	layouts, err := projectCatalogueLayouts(results, nhf009Support(), resolve)
+	layouts, err := projectCatalogueLayouts(results, resolve)
 	if err != nil {
 		t.Fatal(err)
 	}
+	home, _ := apitypes.ParseHomeName("homes/qualification-dashboard")
+	secondary, _ := authorization.ParseDashboardID("synthetic-secondary")
+	secondaryName, _ := apiresources.DashboardNameForIdentity(home, secondary)
 	var cross, popup bool
 	for _, node := range layouts[0].Nodes {
-		for _, gesture := range node.GetRecipes().GetInteractions() {
+		for _, gesture := range node.GetRecipe().GetInteractions().GetInteractions() {
 			if destination := gesture.GetNavigate(); destination != nil {
-				cross = cross || destination.DashboardId.Value == "synthetic-secondary"
-				popup = popup || destination.Presentation == wire.NativePresentation_NATIVE_PRESENTATION_POPUP
+				cross = cross || destination.Dashboard == secondaryName.String()
+				popup = popup || destination.Presentation == wire.DashboardPresentation_DASHBOARD_PRESENTATION_POPUP
 			}
 		}
 	}
 	if !cross || !popup {
 		t.Fatal("configured cross-dashboard and popup routes were not resolved")
 	}
-	isolated, err := projectCatalogueLayouts(results[:1], nhf009Support(), resolve)
+	isolated, err := projectCatalogueLayouts(results[:1], resolve)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, node := range isolated[0].Nodes {
-		for _, gesture := range node.GetRecipes().GetInteractions() {
-			if destination := gesture.GetNavigate(); destination != nil && destination.DashboardId.Value == "synthetic-secondary" {
+		for _, gesture := range node.GetRecipe().GetInteractions().GetInteractions() {
+			if destination := gesture.GetNavigate(); destination != nil && destination.Dashboard == secondaryName.String() {
 				t.Fatal("uncaptured dashboard escaped navigation index")
 			}
 		}
 	}
 	var diagnostic bool
 	for _, node := range isolated[0].Nodes {
-		diagnostic = diagnostic || node.Kind == wire.LayoutKind_LAYOUT_KIND_UNSUPPORTED && node.Source != nil && node.Source.Path != "" && node.Diagnostic != ""
+		diagnostic = diagnostic || node.GetUnsupported() != nil && node.Source != nil && node.Source.Path != "" && node.GetUnsupported().Diagnostic != ""
 	}
 	if !diagnostic {
 		t.Fatal("unresolved external destination lost its sourced refusal")
-	}
-	if (&nhf005Dashboard{}).compilationProfile() != imported.CompilationBasic {
-		t.Fatal("historical fixtures changed default profile")
 	}
 }

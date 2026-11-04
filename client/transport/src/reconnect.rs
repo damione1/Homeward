@@ -112,8 +112,9 @@ fn retryable(error: &Failure) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use buffa::MessageName;
     use connectrpc::{ConnectError, ErrorDetail};
-    use home_wire_contract::home::auth::v1::AuthorizationTermination;
+    use home_wire_contract::google::rpc::ErrorInfo;
 
     #[test]
     fn fibonacci_outages_cap_at_one_hour_and_success_resets_the_sequence() {
@@ -132,13 +133,28 @@ mod tests {
     }
 
     #[test]
-    fn authority_termination_never_retries_a_cached_cursor_even_when_unavailable() {
+    fn canonical_authority_failure_never_retries_a_cached_cursor_even_when_unavailable() {
         let plain = Failure::from(ConnectError::unavailable("network"));
         assert!(retryable(&plain));
-        for value in [Some("CAU".into()), None, Some("%%%".into())] {
+        for value in [
+            Some({
+                use base64::Engine;
+                use buffa::Message;
+                base64::engine::general_purpose::STANDARD.encode(
+                    ErrorInfo {
+                        domain: home_wire_contract::api_errors::DOMAIN.into(),
+                        reason: "AUTHORITY_UNAVAILABLE".into(),
+                        ..Default::default()
+                    }
+                    .encode_to_vec(),
+                )
+            }),
+            None,
+            Some("%%%".into()),
+        ] {
             let failure = Failure::from(ConnectError::unavailable("authority").with_detail(
                 ErrorDetail {
-                    type_url: AuthorizationTermination::TYPE_URL.into(),
+                    type_url: ErrorInfo::TYPE_URL.into(),
                     value,
                     debug: None,
                 },
@@ -158,7 +174,7 @@ mod tests {
         let terminated = ConnectError::internal("body I/O")
             .with_source(connectrpc::client::ResponseBodyReadError)
             .with_detail(ErrorDetail {
-                type_url: AuthorizationTermination::TYPE_URL.into(),
+                type_url: ErrorInfo::TYPE_URL.into(),
                 value: Some("%%%".into()),
                 debug: None,
             });

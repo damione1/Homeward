@@ -2,16 +2,14 @@ package server
 
 import (
 	"context"
+	obsv2 "github.com/damione1/Homeward/gen/home/api/v2"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/config/bundle"
 	"github.com/damione1/Homeward/internal/storage"
@@ -154,31 +152,32 @@ func TestNHA056TLSHealthPublishesActualActiveGenerationAndDeniesBroadUser(t *tes
 	defer cancel()
 	const password = "NHA056 generation synthetic password"
 	nha162RunBootstrap(t, ctx, data, "NHA056 generation admin", password)
-	authClient := authv1connect.NewAuthServiceClient(client, base)
+	authClient := apiv2connect.NewAuthServiceClient(client, base)
 	token := nha162RunLogin(t, ctx, authClient, "NHA056 generation admin", password).AccessToken
-	reader := observabilityv1connect.NewObservabilityServiceClient(client, base)
-	response, err := reader.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, token))
-	if err != nil || contracts.AdmitObservabilityResponse(response.Msg) != nil {
+	reader := apiv2connect.NewObservabilityServiceClient(client, base)
+	home := nha203ObservationHome(t, ctx, client, base, token)
+	response, err := reader.GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, token))
+	if err != nil || contracts.AdmitObservationResponse(response.Msg) != nil {
 		t.Fatal("real active-generation health unavailable", err)
 	}
-	if response.Msg.Health.Server.Readiness != obs.ServerReadiness_SERVER_READINESS_READY || response.Msg.Health.Server.Generation.GetPresent().GetValue() != revision {
+	if response.Msg.Server.Readiness != obsv2.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY || response.Msg.Server.Generation.GetPresent().GetValue() != revision {
 		t.Fatal("Ready did not identify the real committed generation")
 	}
-	accounts := authv1connect.NewAccountServiceClient(client, base)
-	created, err := accounts.CreateAccount(ctx, nha056SessionRequest(&auth.CreateAccountRequest{LoginName: "NHA056 broad user", DisplayName: "NHA056 broad user", Role: auth.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}, token))
+	accounts := apiv2connect.NewAccountServiceClient(client, base)
+	created, err := accounts.CreateAccount(ctx, nha056SessionRequest(&obsv2.CreateAccountRequest{Parent: nha203ObservationHome(t, ctx, client, base, token), Account: &obsv2.Account{LoginName: "NHA056 broad user", DisplayName: "NHA056 broad user", Role: obsv2.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}}, token))
 	if err != nil {
 		t.Fatal(err)
 	}
 	// All entity rights are intentionally broad. Administrative observability
 	// still evaluates the current role at its real common TLS/API boundary.
-	nha162RunPolicy(t, ctx, authv1connect.NewAuthorizationPolicyServiceClient(client, base), created.Msg.Account.Id, token, `  - scope: {family: state_registry, operation: read}
+	nha162RunPolicy(t, ctx, apiv2connect.NewAuthorizationPolicyServiceClient(client, base), created.Msg.Name, token, `  - scope: {family: state_registry, operation: read}
     objects: {entities: {all: {capabilities: {all: {}}}}}
 `)
 	user := nha162RunLogin(t, ctx, authClient, "NHA056 broad user", password).AccessToken
-	if _, err := reader.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, user)); connect.CodeOf(err) != connect.CodePermissionDenied {
+	if _, err := reader.GetHealth(ctx, nha056SessionRequest(&obsv2.GetHealthRequest{Name: home + "/health"}, user)); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatal("entity-wide user gained administrative health", err)
 	}
-	if _, err := reader.GetMetrics(ctx, nha056SessionRequest(&obs.GetMetricsRequest{}, user)); connect.CodeOf(err) != connect.CodePermissionDenied {
+	if _, err := reader.GetMetrics(ctx, nha056SessionRequest(&obsv2.GetMetricsRequest{Name: home + "/metrics"}, user)); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatal("entity-wide user gained administrative metrics", err)
 	}
 }

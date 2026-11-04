@@ -375,7 +375,7 @@ pub(super) struct Draft {
     client_name: Zeroizing<String>,
     days: Zeroizing<String>,
     role: auth::AccountRole,
-    status: auth::AccountState,
+    status: auth::AccountAccess,
     scopes: Vec<ScopeChoice>,
     require_admin_factor: bool,
     advanced: Option<Box<advanced::Draft>>,
@@ -393,7 +393,7 @@ impl Draft {
             client_name: Zeroizing::new(String::new()),
             days: Zeroizing::new("7".into()),
             role: auth::AccountRole::User,
-            status: auth::AccountState::Active,
+            status: auth::AccountAccess::Enabled,
             scopes: Vec::new(),
             require_admin_factor: false,
             advanced: None,
@@ -404,7 +404,7 @@ impl Draft {
             value.login = Zeroizing::new(account.login_name.clone());
             value.name = Zeroizing::new(account.display_name.clone());
             value.role = auth_contract::admit_role(account.role).expect("admitted role");
-            value.status = match account.state {
+            value.status = match account.access {
                 buffa::EnumValue::Known(value) => value,
                 buffa::EnumValue::Unknown(_) => unreachable!("admitted status"),
             };
@@ -553,7 +553,7 @@ impl Draft {
                         {
                             return;
                         }
-                        self.status = auth::AccountState::Active;
+                        self.status = auth::AccountAccess::Enabled;
                     }
                     Choice::Disabled => {
                         if field != ChoiceField::Status
@@ -561,7 +561,7 @@ impl Draft {
                         {
                             return;
                         }
-                        self.status = auth::AccountState::Disabled;
+                        self.status = auth::AccountAccess::Disabled;
                     }
                     Choice::RequireMfa | Choice::OptionalMfa => return,
                 }
@@ -631,12 +631,12 @@ impl Draft {
                     (
                         Choice::Active,
                         "Account active",
-                        self.status == auth::AccountState::Active,
+                        self.status == auth::AccountAccess::Enabled,
                     ),
                     (
                         Choice::Disabled,
                         "Account disabled",
-                        self.status == auth::AccountState::Disabled,
+                        self.status == auth::AccountAccess::Disabled,
                     ),
                 ]
                 .map(|(choice, label, selected)| ProAdminChoice {
@@ -743,7 +743,7 @@ impl Draft {
                         display_name: self.name.to_string(),
                         initial_password: self.password.to_string(),
                         role: self.role.into(),
-                        state: auth::AccountState::Active.into(),
+                        access: auth::AccountAccess::Enabled.into(),
                         ..Default::default()
                     }
                     .into(),
@@ -756,18 +756,19 @@ impl Draft {
                     etag: account.etag.clone(),
                     display_name: self.name.to_string(),
                     role: self.role.into(),
-                    state: self.status.into(),
+                    access: self.status.into(),
                     ..Default::default()
                 }
                 .into(),
                 update_mask: buffa_types::google::protobuf::FieldMask {
-                    paths: vec!["display_name".into(), "role".into(), "state".into()],
+                    paths: vec!["display_name".into(), "role".into(), "access".into()],
                     ..Default::default()
                 }
                 .into(),
                 ..Default::default()
             }),
             Command::Delete(account) => Operation::Delete(auth::DeleteAccountRequest {
+                force: true,
                 name: account.name.clone(),
                 etag: account.etag.clone(),
                 ..Default::default()

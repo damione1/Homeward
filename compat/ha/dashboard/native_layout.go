@@ -12,7 +12,10 @@ func nativeDimension(value Dimension, present bool) *api.DashboardLayoutDimensio
 	switch value.Kind() {
 	case DimensionCount:
 		count, _ := value.Count()
-		return &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Count{Count: uint32(count)}}
+		if count < 1 || count > 12 {
+			return nil
+		}
+		return &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Count{Count: int32(count)}}
 	case DimensionFull:
 		return &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Full{Full: &emptypb.Empty{}}}
 	case DimensionAuto:
@@ -67,17 +70,36 @@ func ProjectDashboardDefinition(def Definition, options APIProjection) (*api.Das
 		}
 		ids := []string{}
 		for _, card := range values {
+			if card.gap > 256 || card.minimumColumnWidth > 4096 || card.columns > 12 {
+				return nil, ErrInvalidInput
+			}
+			for _, span := range card.grid.responsiveSpans {
+				if span.Columns < 1 || span.Columns > 12 || span.Span < 1 || span.Span > span.Columns {
+					return nil, ErrInvalidInput
+				}
+			}
 			node := add(card.Location(), card.Status(), card.Visibility(), blocked, view)
 			ids = append(ids, node.Id)
+			if node.Source == nil {
+				return nil, ErrInvalidInput
+			}
 			node.Source.Variant = card.Variant()
 			node.DisplayName, _ = card.Name()
 			if title, ok := card.Title(); ok {
 				node.DisplayName = title
 			}
 			node.Icon = nativeCardIcon(card.icon)
+			for _, dimension := range []struct {
+				value   Dimension
+				present bool
+			}{{card.grid.columns, card.grid.hasColumns}, {card.grid.rows, card.grid.hasRows}} {
+				if count, counted := dimension.value.Count(); dimension.present && counted && (count < 1 || count > 12) {
+					return nil, ErrInvalidInput
+				}
+			}
 			node.Placement = &api.DashboardPlacement{ColumnSpan: nativeDimension(card.GridOptions().Columns()), RowSpan: nativeDimension(card.GridOptions().Rows())}
 			for _, span := range card.grid.responsiveSpans {
-				node.Placement.ResponsiveSpans = append(node.Placement.ResponsiveSpans, &api.DashboardResponsiveSpan{Columns: span.Columns, Span: span.Span})
+				node.Placement.ResponsiveSpans = append(node.Placement.ResponsiveSpans, &api.DashboardResponsiveSpan{Columns: int32(span.Columns), Span: int32(span.Span)})
 			}
 			recipes, err := projectRecipes(card.Location(), card.Actions(), card.Visibility(), p, view)
 			if err != nil {
@@ -86,14 +108,14 @@ func ProjectDashboardDefinition(def Definition, options APIProjection) (*api.Das
 			if node.GetUnsupported() == nil {
 				interactions := &api.DashboardInteractions{Interactions: recipes.Interactions}
 				node.Visibility = recipes.Visibility
-				children := &api.DashboardChildren{Gap: card.gap}
+				children := &api.DashboardChildren{Gap: int32(card.gap)}
 				presentation := api.DashboardControlPresentation_DASHBOARD_CONTROL_PRESENTATION_CONTROLS
 				if card.controlPresentation == controlsSummary {
 					presentation = api.DashboardControlPresentation_DASHBOARD_CONTROL_PRESENTATION_SUMMARY
 				}
 				switch card.Kind() {
 				case ElementGridCard:
-					grid := &api.DashboardGridNode{Children: children, Columns: uint32(card.columns), MinimumColumnWidth: card.minimumColumnWidth, Interactions: interactions}
+					grid := &api.DashboardGridNode{Children: children, Columns: int32(card.columns), MinimumColumnWidth: int32(card.minimumColumnWidth), Interactions: interactions}
 					if value, ok := card.Square(); ok {
 						grid.Square = &value
 					}
@@ -174,23 +196,30 @@ func ProjectDashboardDefinition(def Definition, options APIProjection) (*api.Das
 		return ids, nil
 	}
 	for _, view := range def.Views() {
+		columns, _ := view.MaxColumns()
+		if view.gap > 256 || view.minimumColumnWidth > 4096 || columns > 12 {
+			return nil, ErrInvalidInput
+		}
 		node := add(view.Location(), view.Status(), view.Visibility(), false, view.Location())
 		node.DisplayName = view.Title()
 		layout.Views = append(layout.Views, node.Id)
-		children := &api.DashboardChildren{Gap: view.gap}
+		children := &api.DashboardChildren{Gap: int32(view.gap)}
 		if node.GetUnsupported() == nil {
 			columns, _ := view.MaxColumns()
-			node.Content = &api.DashboardLayoutNode_View{View: &api.DashboardViewNode{Route: view.NativeRoute(), Children: children, MaximumColumns: uint32(columns), MinimumColumnWidth: view.minimumColumnWidth}}
+			node.Content = &api.DashboardLayoutNode_View{View: &api.DashboardViewNode{Route: view.NativeRoute(), Children: children, MaximumColumns: int32(columns), MinimumColumnWidth: int32(view.minimumColumnWidth)}}
 		}
 		for _, section := range view.Sections() {
+			if section.gap > 256 || section.minimumColumnWidth > 4096 || section.columnSpan > 12 || section.rowSpan > 12 {
+				return nil, ErrInvalidInput
+			}
 			child := add(section.Location(), section.Status(), section.Visibility(), node.GetUnsupported() != nil, view.Location())
 			children.Children = append(children.Children, child.Id)
 			child.Placement = &api.DashboardPlacement{}
 			if count, ok := section.ColumnSpan(); ok {
-				child.Placement.ColumnSpan = &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Count{Count: uint32(count)}}
+				child.Placement.ColumnSpan = &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Count{Count: int32(count)}}
 			}
 			if count, ok := section.RowSpan(); ok {
-				child.Placement.RowSpan = &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Count{Count: uint32(count)}}
+				child.Placement.RowSpan = &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Count{Count: int32(count)}}
 			}
 			ids, err := cards(section.Cards(), child.GetUnsupported() != nil, 0, view.Location())
 			if err != nil {
@@ -199,11 +228,16 @@ func ProjectDashboardDefinition(def Definition, options APIProjection) (*api.Das
 			if child.GetUnsupported() != nil {
 				child.GetUnsupported().Children = ids
 			} else {
-				child.Content = &api.DashboardLayoutNode_Section{Section: &api.DashboardSectionNode{Children: &api.DashboardChildren{Children: ids, Gap: section.gap}, MinimumColumnWidth: section.minimumColumnWidth}}
+				child.Content = &api.DashboardLayoutNode_Section{Section: &api.DashboardSectionNode{Children: &api.DashboardChildren{Children: ids, Gap: int32(section.gap)}, MinimumColumnWidth: int32(section.minimumColumnWidth)}}
 			}
 		}
 		if node.GetUnsupported() != nil {
 			node.GetUnsupported().Children = children.Children
+		}
+	}
+	for _, node := range layout.Nodes {
+		if node.Source == nil {
+			return nil, ErrInvalidInput
 		}
 	}
 	if len(layout.Views) > 128 || len(layout.Nodes) > 2432 {

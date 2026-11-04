@@ -1,6 +1,7 @@
 package server
 
 import (
+ authapi "github.com/damione1/Homeward/gen/home/api/v2"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -131,7 +132,7 @@ func nhf016NewCameraRig(t *testing.T, lifetime time.Duration) *nhf016CameraRig {
 	if err = m.register(plan); err != nil {
 		t.Fatal(err)
 	}
-	plan, _, err = composeSessionsWithCoordinator(plan, base.store, base.coordinator)
+	plan, _, err = composeSessionsWithCoordinator(plan,base.store,base.coordinator,administrationNames{home:base.lists.registry,store:base.store})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,14 +229,11 @@ func TestNHF016CameraTLSExactSourcesAndSessionBinding(t *testing.T) {
 func TestNHF016CameraTLSAuthorizedAccountCannotReuseOrCloseAnotherAccountsReference(t *testing.T) {
 	r := nhf016NewCameraRig(t, 60*time.Second)
 	const login, password = "NHF016 Other Account", "NHF016 synthetic account password"
-	created, err := r.accounts.CreateAccount(r.ctx, nha162Bearer(&authv1.CreateAccountRequest{LoginName: login, DisplayName: login, InitialPassword: password, Role: authv1.AccountRole_ACCOUNT_ROLE_USER}, r.adminToken))
+	created, err := r.accounts.CreateAccount(r.ctx, nha162Bearer(&authapi.CreateAccountRequest{Parent:r.taskHome(t),Account:&authapi.Account{LoginName: login, DisplayName: login, InitialPassword: password, Role: authapi.AccountRole_ACCOUNT_ROLE_USER}}, r.adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	account, err := contracts.ParseAccountID(created.Msg.Account.Id.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	account := nha203NativeAccount(t,r.ctx,r.store,created.Msg.Name)
 	nha162SetPolicy(t, r.nha162RPCRig, account, nhf016AllCameras)
 	other := r.login(t, login, password)
 	lease := r.open(t, "driveway")

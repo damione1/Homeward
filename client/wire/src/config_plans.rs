@@ -92,7 +92,8 @@ pub fn admit_plan_request(
 ) -> Result<AdmittedPlanRequest<'_>, PlanAdmissionError> {
     let valid = match &value {
         PlanRequest::Build(v) => {
-            v.__buffa_unknown_fields.is_empty()
+            crate::configuration_contract::requested_resource_id(&v.configuration_plan_id)
+                && v.__buffa_unknown_fields.is_empty()
                 && (v.request_id.is_empty()
                     || home_client_model::api::RequestId::try_from(v.request_id.as_str()).is_ok())
                 && crate::configuration_contract::home_name(&v.parent)
@@ -326,8 +327,8 @@ fn plan(value: &wire::ConfigurationPlan) -> bool {
             || !effect(family, change.effect)
             || change.effect == wire::ConfigurationPlanEffect::None
             || change.effect.to_i32() > value.effect.to_i32()
-            || change.references_added > 4096
-            || change.references_removed > 4096
+            || !(0..=4096).contains(&change.references_added)
+            || !(0..=4096).contains(&change.references_removed)
         {
             return false;
         }
@@ -528,7 +529,11 @@ mod remote_calendar_tests {
         let mut response = plan;
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_ok());
         let admitted_author = response.author.clone();
-        for invalid_author in ["server-admitted-admin", "homes/test/sessions/admin", " homes/test/accounts/admin"] {
+        for invalid_author in [
+            "server-admitted-admin",
+            "homes/test/sessions/admin",
+            " homes/test/accounts/admin",
+        ] {
             response.author = invalid_author.into();
             assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
         }

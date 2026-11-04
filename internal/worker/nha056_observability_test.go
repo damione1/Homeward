@@ -170,12 +170,12 @@ func TestNHA056WorkerSyntheticChild(t *testing.T) {
 	defer transport.CloseIdleConnections()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	defer stop()
-	digest, err := hex.DecodeString(schemaDigestV13Hex)
+	digest, err := hex.DecodeString(schemaDigestHex)
 	if err != nil {
 		t.Fatal(err)
 	}
 	callCtx, cancel := context.WithTimeout(ctx, startupTimeout)
-	_, err = client.Handshake(callCtx, nha056WorkerRequest(&wire.HandshakeRequest{HostMajor: 1, HostMinor: 3, DriverMajor: 1, DriverMinor: 3, SchemaSha256: digest, MaxFrameBytes: 65536, Capabilities: []wire.Capability{wire.Capability_CAPABILITY_HEALTH}}, string(tokenBytes)))
+	_, err = client.Handshake(callCtx, nha056WorkerRequest(&wire.HandshakeRequest{HostMajor: 1, HostMinor: hostProtocolMinor, DriverMajor: 1, DriverMinor: hostProtocolMinor, SchemaSha256: digest, MaxFrameBytes: 65536, Capabilities: []wire.Capability{wire.Capability_CAPABILITY_HEALTH}}, string(tokenBytes)))
 	cancel()
 	if err != nil {
 		t.Fatal("synthetic handshake failed")

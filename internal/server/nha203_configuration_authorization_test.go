@@ -6,17 +6,16 @@ import (
 
 	"connectrpc.com/connect"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 )
 
 func TestNHA203ConfigurationTLSAuthorizationPrecedesNameDiagnostics(t *testing.T) {
 	fixture := nha149StartTLS(t)
-	user, err := fixture.accounts.CreateAccount(fixture.ctx, nha056SessionRequest(&auth.CreateAccountRequest{LoginName: "nha203-user", DisplayName: "Synthetic user", InitialPassword: "NHA203 isolated strong password", Role: auth.AccountRole_ACCOUNT_ROLE_USER}, fixture.token))
+	user, err := fixture.accounts.CreateAccount(fixture.ctx, nha056SessionRequest(&api.CreateAccountRequest{Parent: nha203SessionAccount(t, fixture.tokens.Session).Home().String(), Account: &api.Account{LoginName: "nha203-user", DisplayName: "Synthetic user", InitialPassword: "NHA203 isolated strong password", Role: api.AccountRole_ACCOUNT_ROLE_USER}}, fixture.token))
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := nha162RunLogin(t, fixture.ctx, fixture.authentication, user.Msg.Account.LoginName, "NHA203 isolated strong password")
+	tokens := nha162RunLogin(t, fixture.ctx, fixture.authentication, user.Msg.LoginName, "NHA203 isolated strong password")
 	request := &api.GetConfigurationDocumentRequest{Name: "SYNTHETIC_INVALID_NAME_CANARY"}
 	_, err = fixture.api.GetConfigurationDocument(fixture.ctx, nha056SessionRequest(request, tokens.AccessToken))
 	if connect.CodeOf(err) != connect.CodePermissionDenied {

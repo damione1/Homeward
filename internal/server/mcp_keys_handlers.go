@@ -20,6 +20,7 @@ func registerMCPKeyRoutes(plan *PublicPlan, store *storage.Store, coordinator *s
 		return apiv2connect.NewMcpKeyServiceHandler(handler, options...)
 	},
 		ConnectProcedure{Path: apiv2connect.McpKeyServiceIssueMcpKeyProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.McpKeyServiceGetMcpKeyProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		ConnectProcedure{Path: apiv2connect.McpKeyServiceListMcpKeysProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 		ConnectProcedure{Path: apiv2connect.McpKeyServiceRevokeMcpKeyProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired})
 }

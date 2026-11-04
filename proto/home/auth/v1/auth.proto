@@ -172,5 +172,3 @@ enum AuthorizationTerminationReason {
   AUTHORIZATION_TERMINATION_REASON_RIGHTS_CHANGED = 4;
   AUTHORIZATION_TERMINATION_REASON_AUTHORITY_UNAVAILABLE = 5;
 }
-
-message AuthorizationTermination { AuthorizationTerminationReason reason = 1; }
