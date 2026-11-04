@@ -2,10 +2,10 @@
 //! Compiled only in the test executable; no product endpoint or credentials.
 use super::*;
 use crate::{
-    dashboard::{DashboardId, LayoutState},
+    dashboard::{DashboardName, LayoutState},
     dashboard_catalogue::{Capture, CaptureOutcome},
 };
-use home_client_actions::{
+use home_client_actions::capabilities::{
     CapabilityController, CapabilityHandle, CapabilitySnapshot, CapabilitySubmission,
 };
 use home_client_cache::{Filter, FrameEffect, LiveView, read_snapshot};
@@ -151,24 +151,35 @@ async fn read_request(
     connection: &Connection,
     session: &SessionCoordinator,
     cancel: &CancellationToken,
+    view: &CachedView,
 ) -> Result<ProjectionRequest> {
     let lease = admit(session.access(cancel).await)?;
     let transport = connection.dashboard();
     let list = transport
-        .list(lease.token(), Duration::from_secs(10), cancel)
+        .list_dashboards(
+            control::ListDashboardsRequest {
+                parent: view.name().home().as_str().to_owned(),
+                page_size: 64,
+                ..Default::default()
+            },
+            lease.token(),
+            Duration::from_secs(10),
+            cancel,
+        )
         .await?;
     assert_eq!(list.dashboards.len(), 2);
-    let id = admit(DashboardId::parse(&list.dashboards[0].id.value))?;
-    let mut capture = admit(Capture::new(&list))?;
-    for metadata in &list.dashboards {
-        assert_eq!(
-            metadata.profile,
-            home_client_model::dashboard::Profile::Recipes.name()
-        );
-        let requested = admit(DashboardId::parse(&metadata.id.value))?;
+    let id = admit(DashboardName::try_from(list.dashboards[0].name.as_str()))?;
+    let mut capture = admit(Capture::new(&list, Arc::new(view.clone())))?;
+    for document in &list.dashboards {
+        let requested = admit(DashboardName::try_from(document.name.as_str()))?;
         let response = transport
-            .get(
-                requested.as_str().into(),
+            .query_dashboard(
+                control::QueryDashboardRequest {
+                    name: requested.as_str().to_owned(),
+                    entity_view: view.name().as_str().to_owned(),
+                    resume_token: view.checkpoint().to_owned(),
+                    ..Default::default()
+                },
                 lease.token(),
                 Duration::from_secs(10),
                 cancel,
@@ -180,8 +191,8 @@ async fn read_request(
         ));
     }
     let catalogue = admit(capture.finish())?;
-    let layout = catalogue.layout(&id).ok_or("profile2 layout refused")?;
-    assert!(layout.mode == crate::dashboard::ServingMode::Synthetic && layout.native.is_some());
+    let layout = catalogue.layout(&id).ok_or("authorized layout refused")?;
+    assert!(layout.native.is_some());
     Ok(ProjectionRequest {
         dashboard: LayoutState::Ready(layout),
         catalogue: Some(catalogue),
@@ -264,9 +275,9 @@ async fn run(fixture: Fixture) -> Result<()> {
             .await,
     )?;
     let cancel = CancellationToken::new();
-    let mut request = read_request(&connection, &session, &cancel).await?;
-    let store = DeviceStore::default();
     let mut view = snapshot(&connection, &session, &cancel).await?;
+    let mut request = read_request(&connection, &session, &cancel, &view).await?;
+    let store = DeviceStore::default();
     assert_eq!(view.len(), 4);
     let projection = store.project(CachePhase::Live, Some(&view), &request);
     assert!(
@@ -509,6 +520,7 @@ async fn run(fixture: Fixture) -> Result<()> {
     assert!(controller.submit(held.request, held.guard).is_err());
     controls.command(Command::Rediscover, None).await?;
     view = snapshot(&connection, &session, &cancel).await?;
+    request = read_request(&connection, &session, &cancel, &view).await?;
     let restored = row(&store, &view, &request, ProDeviceKind::Cover)?;
     assert_ne!(restored.generation, cover.generation);
     let held = admit(store.prepare(
@@ -518,8 +530,8 @@ async fn run(fixture: Fixture) -> Result<()> {
         Operation::CoverOpen.intent(),
     ))?;
     controls.command(Command::DenyWrite, None).await?;
-    request = read_request(&connection, &session, &cancel).await?;
     view = snapshot(&connection, &session, &cancel).await?;
+    request = read_request(&connection, &session, &cancel, &view).await?;
     let denied = row(&store, &view, &request, ProDeviceKind::Cover)?;
     assert_eq!(denied.access, ProControlAccess::Denied);
     assert!(!(held.guard)());
@@ -554,13 +566,13 @@ async fn run(fixture: Fixture) -> Result<()> {
     session.close().await;
     println!(
         "NHF009_RESULT {}",
-        serde_json::json!({"pass":true,"profile":home_client_model::dashboard::Profile::Recipes.name(),"commands":submitted,"capability_withdrawal":true,"readonly_host_and_server_refusal":true,"denied_request_id":denied_id,"no_real_devices":true})
+        serde_json::json!({"pass":true,"contract":"dashboard-v2","commands":submitted,"capability_withdrawal":true,"readonly_host_and_server_refusal":true,"denied_request_id":denied_id,"no_real_devices":true})
     );
     Ok(())
 }
 #[test]
 #[ignore = "requires the explicit isolated Go NHF009 fixture and private stdin control harness"]
-fn real_tls_secure_controls_and_profile2_catalogue() {
+fn real_tls_secure_controls_and_bound_catalogue() {
     let path =
         std::env::var_os("HOMEWARD_NHF009_READY").expect("explicit synthetic fixture required");
     let fixture: Fixture = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();

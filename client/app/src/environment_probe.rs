@@ -1,6 +1,6 @@
 //! Opt-in real Rust TLS/cache/host proof against the isolated Go fixture.
 use crate::{
-    dashboard::{DashboardId, LayoutState, ProjectionRequest},
+    dashboard::{DashboardName, LayoutState, ProjectionRequest},
     dashboard_catalogue::{Capture, CaptureOutcome},
     device_view::DeviceStore,
     environment_view::ProfileZone,
@@ -214,31 +214,47 @@ async fn layout(
     connection: &Connection,
     session: &SessionCoordinator,
     cancel: &CancellationToken,
+    view: &CachedView,
 ) -> Result<ProjectionRequest> {
     let lease = admit(session.access(cancel).await)?;
     let transport = connection.dashboard();
     let list = transport
-        .list(lease.token(), Duration::from_secs(10), cancel)
-        .await?;
-    assert_eq!(list.dashboards.len(), 1);
-    let id = admit(DashboardId::parse(&list.dashboards[0].id.value))?;
-    let mut capture = admit(Capture::new(&list))?;
-    let response = transport
-        .get(
-            id.as_str().into(),
+        .list_dashboards(
+            env::ListDashboardsRequest {
+                parent: view.name().home().as_str().to_owned(),
+                page_size: 64,
+                ..Default::default()
+            },
             lease.token(),
             Duration::from_secs(10),
             cancel,
         )
         .await?;
-    assert!(matches!(
-        admit(capture.insert(&id, &response))?,
-        CaptureOutcome::Accepted
-    ));
+    assert_eq!(list.dashboards.len(), 1);
+    let id = admit(DashboardName::try_from(list.dashboards[0].name.as_str()))?;
+    let mut capture = admit(Capture::new(&list, Arc::new(view.clone())))?;
+    for document in &list.dashboards {
+        let requested = admit(DashboardName::try_from(document.name.as_str()))?;
+        let response = transport
+            .query_dashboard(
+                env::QueryDashboardRequest {
+                    name: requested.as_str().to_owned(),
+                    entity_view: view.name().as_str().to_owned(),
+                    resume_token: view.checkpoint().to_owned(),
+                    ..Default::default()
+                },
+                lease.token(),
+                Duration::from_secs(10),
+                cancel,
+            )
+            .await?;
+        assert!(matches!(
+            admit(capture.insert(&requested, &response))?,
+            CaptureOutcome::Accepted
+        ));
+    }
     let catalogue = admit(capture.finish())?;
-    let layout = catalogue
-        .layout(&id)
-        .ok_or("configured environment layout refused")?;
+    let layout = catalogue.layout(&id).ok_or("authorized layout refused")?;
     assert!(layout.native.is_some());
     Ok(ProjectionRequest {
         dashboard: LayoutState::Ready(layout),
@@ -270,7 +286,7 @@ async fn run(fixture: Fixture) -> Result<()> {
     let guest_view = snapshot(&connection, &guest, &cancel).await?;
     assert_eq!(guest_view.len(), 3);
     assert!(!private(&guest_view));
-    let guest_layout = layout(&connection, &guest, &cancel).await?;
+    let guest_layout = layout(&connection, &guest, &cancel, &guest_view).await?;
     let guest_projection =
         DeviceStore::default().project(CachePhase::Live, Some(&guest_view), &guest_layout);
     assert_eq!(guest_projection.native_devices.len(), 3);
@@ -289,11 +305,11 @@ async fn run(fixture: Fixture) -> Result<()> {
     let initial = snapshot(&connection, &session, &cancel).await?;
     assert_eq!(initial.len(), 4);
     assert!(private(&initial));
+    let request = layout(&connection, &session, &cancel, &initial).await?;
     assert_eq!(
-        initial.display_profile().unwrap().time_zone,
-        "America/Toronto"
+        request.dashboard.layout().unwrap().profile_zone,
+        ProfileZone::from_time_zone(Some("America/Toronto"))
     );
-    let request = layout(&connection, &session, &cancel).await?;
     let store = DeviceStore::default();
     let projected = store.project(CachePhase::Live, Some(&initial), &request);
     assert_eq!(projected.native_devices.len(), 4);
@@ -387,29 +403,21 @@ async fn run(fixture: Fixture) -> Result<()> {
         .until(|p| p.phase == CachePhase::Live && p.view.as_ref().is_some_and(private))
         .await?;
     controls.send(Control::ProfileParis).await?;
-    // The real owner must retire the old cohort, then obtain the new profile.
-    let paris = queue
-        .until(|p| {
-            p.view
-                .as_ref()
-                .and_then(CachedView::display_profile)
-                .is_some_and(|v| v.time_zone == "Europe/Paris")
-        })
-        .await?;
-    let paris = paris.view.unwrap();
-    assert!(matches!(
-        ProfileZone::from_profile(paris.display_profile()),
-        ProfileZone::Known(_)
-    ));
+    // DisplayProfile belongs to the authorized Dashboard projection, not to
+    // observation cache frames. Re-query against an exact fresh capture.
+    let paris = snapshot(&connection, &session, &cancel).await?;
+    let paris_layout = layout(&connection, &session, &cancel, &paris).await?;
+    assert_eq!(
+        paris_layout.dashboard.layout().unwrap().profile_zone,
+        ProfileZone::from_time_zone(Some("Europe/Paris"))
+    );
     controls.send(Control::ProfileToronto).await?;
-    queue
-        .until(|p| {
-            p.view
-                .as_ref()
-                .and_then(CachedView::display_profile)
-                .is_some_and(|v| v.time_zone == "America/Toronto")
-        })
-        .await?;
+    let toronto = snapshot(&connection, &session, &cancel).await?;
+    let toronto_layout = layout(&connection, &session, &cancel, &toronto).await?;
+    assert_eq!(
+        toronto_layout.dashboard.layout().unwrap().profile_zone,
+        ProfileZone::from_time_zone(Some("America/Toronto"))
+    );
     controls.send(Control::RevokeDetails).await?;
     // The actual owner must publish a private clear or a newly authorized view
     // after authority termination/resync; old details cannot remain projected.

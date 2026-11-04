@@ -274,7 +274,7 @@ async fn invitation_forms(owner: &Administration, connection: &Connection) {
     owner.select(row_token, generation(owner));
     owner.action(0, generation(owner), ProAdminAction::Revoke);
     owner.editor_action(1, generation(owner), ProAdminAction::Save);
-    until(owner,"invitation revoked after confirmation",|state|ready(state)&&state.private.draft().is_none()&&state.private.pane(Section::Invitations).and_then(|pane|pane.content.as_ref()).is_some_and(|payload|matches!(payload,Payload::Invitations(rows) if rows.iter().any(|row|row.login_name=="NHF018 revoked invitation"&&row.revoked_at.is_set())))).await;
+    until(owner,"invitation revoked after confirmation",|state|ready(state)&&state.private.draft().is_none()&&state.private.pane(Section::Invitations).and_then(|pane|pane.content.as_ref()).is_some_and(|payload|matches!(payload,Payload::Invitations(rows) if rows.iter().any(|row|row.login_name=="NHF018 revoked invitation"&&row.revoke_time.is_set())))).await;
     assert!(
         connection
             .accounts()
@@ -481,7 +481,7 @@ async fn actual_administration_owner_reads_personal_access_and_withdrawal() {
             panic!("integration catalogue")
         };
         assert_eq!(value.types.len(), 8);
-        assert_eq!(value.response.instances.len(), 1);
+        assert_eq!(value.response.integration_instances.len(), 1);
         state.rows[0].token
     };
     owner.select(token, generation(&owner));

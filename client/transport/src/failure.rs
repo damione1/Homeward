@@ -4,7 +4,6 @@ use base64::{
     Engine as _,
     engine::general_purpose::{STANDARD, STANDARD_NO_PAD},
 };
-use buffa::Message;
 use connectrpc::{ConnectError, ErrorCode};
 use home_wire_contract::{
     api_errors::{self, ApiFailure, InvalidApiError},

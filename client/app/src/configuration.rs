@@ -42,21 +42,27 @@ pub(crate) fn operation_for_test(
         name: format!("{home}/operations/config-11111111111111111111111111111111"),
         metadata: Any {
             type_url: "type.googleapis.com/home.api.v2.ConfigurationOperationMetadata".into(),
-            value: metadata.encode_to_vec(),
+            value: metadata.encode_to_vec().into(),
             ..Default::default()
         }
         .into(),
         done: published,
         result: published.then(|| {
             operation::Result::Response(Box::new(Any {
-                type_url: "type.googleapis.com/home.api.v2.ConfigurationActivationResult".into(),
-                value: wire::ConfigurationActivationResult {
-                    generation,
-                    generation_revision: revision,
-                    manifest_sha256: vec![manifest; 32],
+                type_url: "type.googleapis.com/home.api.v2.PublishConfigurationDocumentResponse"
+                    .into(),
+                value: wire::PublishConfigurationDocumentResponse {
+                    result: wire::ConfigurationActivationResult {
+                        generation,
+                        generation_revision: revision,
+                        manifest_sha256: vec![manifest; 32],
+                        ..Default::default()
+                    }
+                    .into(),
                     ..Default::default()
                 }
-                .encode_to_vec(),
+                .encode_to_vec()
+                .into(),
                 ..Default::default()
             }))
         }),

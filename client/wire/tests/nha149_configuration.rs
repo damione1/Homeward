@@ -3,7 +3,7 @@ use home_wire_contract::configuration_contract::{
     ConfigurationRequest, admit_configuration_activation, admit_configuration_read,
     admit_configuration_request,
 };
-use home_wire_contract::home::configuration::v1 as wire;
+use home_wire_contract::home::api::v2 as wire;
 
 #[test]
 fn nha149_configuration_go_rust_admission_parity() {
@@ -15,12 +15,8 @@ fn nha149_configuration_go_rust_admission_parity() {
         assert_eq!(columns.len(), 9);
         let number = |n: usize| columns[n].parse::<i64>().expect("shared integer");
         let id = if columns[1] == "-" { "" } else { columns[1] };
-        let request = wire::WriteDocumentRequest {
-            id: Some(wire::DocumentId {
-                value: id.into(),
-                ..Default::default()
-            })
-            .into(),
+        let request = wire::PublishConfigurationDocumentRequest {
+            name: id.into(),
             expected: Some(wire::DocumentVersion {
                 revision: number(2),
                 source_sha256: vec![number(4) as u8; number(3) as usize],
@@ -42,11 +38,14 @@ fn nha149_configuration_go_rust_admission_parity() {
 
 #[test]
 fn nha149_nested_unknown_wire_fields_stay_compatible_but_not_admitted() {
-    // ReadDocumentRequest.id={value:"operational.main", unknown field2=1}.
-    let raw = b"\x0a\x14\x0a\x10operational.main\x10\x01";
-    let request =
-        wire::ReadDocumentRequest::decode_from_slice(raw).expect("compatible wire decoding");
-    assert_eq!(request.encode_to_vec().as_slice(), raw.as_slice());
+    let original = wire::GetConfigurationDocumentRequest {
+        name: "homes/synthetic/configurationDocuments/operational".into(),
+        ..Default::default()
+    };
+    let mut raw = original.encode_to_vec();
+    raw.extend_from_slice(&[0x98, 0x06, 0x01]);
+    let request = wire::GetConfigurationDocumentRequest::decode_from_slice(&raw).unwrap();
+    assert_eq!(request.encode_to_vec(), raw);
     assert!(admit_configuration_request(ConfigurationRequest::Read(&request)).is_err());
 }
 
@@ -87,12 +86,14 @@ fn nha149_configuration_activation_go_rust_parity() {
 
 #[test]
 fn nha149_reads_support_operational_and_retained_yaml_metadata() {
-    use wire::document::WorkspaceState;
+    use wire::configuration_document::WorkspaceState;
     let time = buffa_types::google::protobuf::Timestamp {
         seconds: 1_792_314_000,
         ..Default::default()
     };
-    let operational = wire::Document {
+    let operational = wire::ConfigurationDocument {
+        name: "homes/synthetic/configurationDocuments/operational".into(),
+        etag: "opaque-fixture-etag".into(),
         id: wire::DocumentId {
             value: "operational.main".into(),
             ..Default::default()
@@ -120,8 +121,7 @@ fn nha149_reads_support_operational_and_retained_yaml_metadata() {
         protected_source_reference: vec![2; 32],
         ..Default::default()
     };
-    let mut read = wire::ReadDocumentResponse {
-        document: operational.into(),
+    let mut read = wire::ConfigurationDocument {
         active_generation: wire::ActiveGeneration {
             revision: 3,
             manifest_sha256: vec![3; 32],
@@ -129,10 +129,10 @@ fn nha149_reads_support_operational_and_retained_yaml_metadata() {
         }
         .into(),
         resume_token: "r".repeat(118),
-        ..Default::default()
+        ..operational
     };
     assert!(admit_configuration_read(&read).is_ok());
-    let document = read.document.as_option_mut().expect("document");
+    let document = &mut read;
     document.id = wire::DocumentId {
         value: "retained.yaml.source".into(),
         ..Default::default()
@@ -148,18 +148,12 @@ fn nha149_reads_support_operational_and_retained_yaml_metadata() {
         },
     )));
     assert!(admit_configuration_read(&read).is_ok());
-    read.document
-        .as_option_mut()
-        .expect("document")
-        .workspace_state = None;
+    read.workspace_state = None;
     assert!(
         admit_configuration_read(&read).is_err(),
         "missing observation state is not clean"
     );
-    read.document
-        .as_option_mut()
-        .expect("document")
-        .workspace_state = Some(WorkspaceState::WorkspaceUnobserved(Box::new(
+    read.workspace_state = Some(WorkspaceState::WorkspaceUnobserved(Box::new(
         wire::WorkspaceUnobserved {
             reason: EnumValue::Unknown(99),
             ..Default::default()

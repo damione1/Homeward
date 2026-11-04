@@ -1,10 +1,7 @@
 use std::collections::BTreeSet;
 
 use crate::administration::Refusal;
-use home_wire_contract::{
-    config_plans::{self, PlanRequest},
-    home::api::v2 as wire,
-};
+use home_wire_contract::{config_plans, home::api::v2 as wire};
 use zeroize::Zeroizing;
 
 pub const MAX_SOURCE_BYTES: usize = 1_048_576;
@@ -175,9 +172,7 @@ impl Candidate {
             entry,
             files,
         };
-        let request = value.build_request();
-        config_plans::admit_plan_request(PlanRequest::Build(&request))
-            .map_err(|_| Refusal::Invalid)?;
+        config_plans::admit_candidate(&value.to_wire()).map_err(|_| Refusal::Invalid)?;
         Ok(value)
     }
     pub fn family(&self) -> SourceFamily {

@@ -1,62 +1,61 @@
 use buffa::MessageName;
 use connectrpc::{ConnectError, ErrorDetail};
-use home_client_transport::{DetailFailure, Failure};
-use home_wire_contract::home::configuration::v1 as configuration;
+use home_client_transport::Failure;
+use home_wire_contract::{
+    api_errors::{DOMAIN, InvalidApiError},
+    google::rpc::ErrorInfo,
+    home::api::v2::ApiErrorReason,
+};
+
+fn detail(reason: &str) -> ErrorDetail {
+    ErrorDetail::from_message(
+        ErrorInfo::FULL_NAME,
+        &ErrorInfo {
+            reason: reason.into(),
+            domain: DOMAIN.into(),
+            ..Default::default()
+        },
+    )
+}
 
 #[test]
-fn configuration_conflict_keeps_exact_sql_revision_without_exposing_source() {
-    let conflict = configuration::ConfigurationError {
-        code: configuration::ErrorCode::Conflict.into(),
-        current: Some(configuration::DocumentVersion {
-            revision: 23,
-            source_sha256: vec![9; 32],
-            ..Default::default()
-        })
-        .into(),
-        ..Default::default()
-    };
-    let detail = ErrorDetail::from_message(configuration::ConfigurationError::FULL_NAME, &conflict);
+fn configuration_conflict_is_canonical_without_exposing_source_or_inventing_a_version() {
+    // Current etags come from an explicit resource read; error messages never
+    // supply a replacement version or authorize replay of the mutation.
+    let detail = detail("ETAG_MISMATCH");
     let failure = Failure::from(
-        ConnectError::aborted("private candidate source").with_detail(detail.clone()),
+        ConnectError::aborted("private candidate source; revision 23").with_detail(detail.clone()),
     );
-    assert_eq!(failure.configuration_error(), Ok(Some(conflict)));
-    assert_eq!(failure.authorization_termination(), Ok(None));
+    let api = failure.api_failure().unwrap().unwrap();
+    assert_eq!(api.reason(), ApiErrorReason::EtagMismatch);
+    assert!(api.operation().is_none());
+    assert!(api.uncertainty().is_none());
+    assert!(!failure.request_not_dispatched());
     assert!(!format!("{failure:?} {failure}").contains("private"));
+    assert!(!format!("{failure:?} {failure}").contains("23"));
 
     let duplicate = Failure::from(
         ConnectError::aborted("private candidate source")
             .with_detail(detail.clone())
             .with_detail(detail),
     );
-    assert_eq!(
-        duplicate.configuration_error(),
-        Err(DetailFailure::Duplicate)
-    );
+    assert_eq!(duplicate.api_failure(), Err(InvalidApiError::Duplicate));
 
     let malformed = Failure::from(ConnectError::aborted("private").with_detail(ErrorDetail {
-        type_url: configuration::ConfigurationError::TYPE_URL.into(),
+        type_url: ErrorInfo::TYPE_URL.into(),
         value: Some("%%%".into()),
         debug: None,
     }));
-    assert_eq!(
-        malformed.configuration_error(),
-        Err(DetailFailure::Malformed)
-    );
+    assert_eq!(malformed.api_failure(), Err(InvalidApiError::Malformed));
 }
 
 #[test]
-fn unknown_configuration_reason_is_preserved_without_inventing_a_conflict() {
-    let error = configuration::ConfigurationError {
-        code: 999.into(),
-        ..Default::default()
-    };
+fn unknown_configuration_reason_is_rejected_without_inventing_a_conflict() {
     let failure = Failure::from(
-        ConnectError::unavailable("private workspace path").with_detail(ErrorDetail::from_message(
-            configuration::ConfigurationError::FULL_NAME,
-            &error,
-        )),
+        ConnectError::unavailable("private workspace path").with_detail(detail("FUTURE_REASON")),
     );
-    assert_eq!(failure.configuration_error(), Ok(Some(error)));
-    assert_eq!(failure.integration_error(), Ok(None));
+    assert_eq!(failure.api_failure(), Err(InvalidApiError::Unsupported));
+    assert!(!failure.may_resume_read());
+    assert!(!failure.may_recover_renewal());
     assert!(!format!("{failure:?} {failure}").contains("private"));
 }

@@ -314,11 +314,11 @@ fn room_cards_follow_server_order_and_reordering_withdraws_a_captured_gesture() 
     assert!(!(captured.guard)());
 }
 #[test]
-fn detail_uses_the_exact_server_capability_name_and_keeps_alias_as_fallback() {
+fn detail_uses_the_server_entity_label_for_its_exact_capability() {
     let mut request = request();
     let mut entity = light(&request);
     request.detail = Some(EntityName::try_from(entity.entity.name.as_str()).unwrap());
-    entity.capabilities[0].display_name = "Reading light".into();
+    entity.entity.as_option_mut().unwrap().display_name = "Reading light".into();
     let store = DeviceStore::default();
     let named = store.project(
         CachePhase::Live,
@@ -326,14 +326,16 @@ fn detail_uses_the_exact_server_capability_name_and_keeps_alias_as_fallback() {
         &request,
     );
     assert_eq!(named.rows[0].title.as_str(), "Reading light");
-    entity.capabilities[0].display_name = "  ".into();
-    let fallback = store.project(
-        CachePhase::Live,
-        Some(&view(&request, vec![entity.clone()])),
-        &request,
+    let row = &named.rows[0];
+    let prepared = store
+        .prepare(row.token, row.generation, 0, DeviceIntent::Power(Power::On))
+        .unwrap();
+    assert_eq!(
+        prepared.request.target().as_str(),
+        entity.capabilities[0].name
     );
-    assert_eq!(fallback.rows[0].title.as_str(), entity.entity.display_name);
 }
+
 #[test]
 fn observations_preserve_the_gesture_but_permission_capability_or_config_changes_withdraw_it() {
     let request = request();

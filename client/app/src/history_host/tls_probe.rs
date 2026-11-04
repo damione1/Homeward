@@ -3,7 +3,7 @@
 use super::*;
 use home_client_session::{SecureStore, StoreFailure};
 use home_client_transport::Connection;
-use home_wire_contract::home::{history::v1 as wire, state::v1 as state_wire};
+use home_wire_contract::{history_contract, home::api::v2 as wire};
 use serde::{Deserialize, Serialize};
 use std::{io::Write as _, time::Duration};
 use zeroize::Zeroizing;
@@ -119,7 +119,7 @@ async fn run(mut fixture: Fixture) -> Result<()> {
         return Err("explicit loopback TLS fixture required".into());
     }
     assert_eq!(fixture.point_count, 20_000);
-    let entity: EntityId = admit(fixture.entity_id.parse())?;
+    let entity = admit(EntityName::try_from(fixture.entity_id.as_str()))?;
     let connection = Connection::new(&fixture.origin, fixture.ca_pem.as_bytes())?;
     let session = SessionCoordinator::new(connection.auth(), Arc::new(MemoryStore::default()));
     admit(
@@ -172,8 +172,11 @@ async fn run(mut fixture: Fixture) -> Result<()> {
             return Err("raw pages missing".into());
         };
         assert!(pages.len() >= 200);
-        let first = &pages[0].points[0].state;
-        assert_eq!(first.received_at.seconds - first.observed_at.seconds, 3600);
+        let first = &pages[0].observations[0].state;
+        assert_eq!(
+            first.receive_time.seconds - first.observed_time.seconds,
+            3600
+        );
         let frame = state.frame.as_ref().ok_or("history bitmap absent")?;
         assert_eq!(frame.stats().source_samples, 20_000);
         assert!(frame.stats().projected_points <= 4 * usize::from(state.width) + 2);
@@ -194,10 +197,9 @@ async fn run(mut fixture: Fixture) -> Result<()> {
         .history()
         .query_observations(
             wire::QueryObservationsRequest {
-                entity_id: entity.as_str().into(),
+                parent: entity.as_str().into(),
                 period: query.period().clone().into(),
-                resolution: wire::Resolution::Raw.into(),
-                page_size: Some(1),
+                page_size: 1,
                 ..Default::default()
             },
             lease.token(),
@@ -205,22 +207,20 @@ async fn run(mut fixture: Fixture) -> Result<()> {
             &cancel,
         )
         .await?;
-    let Some(wire::query_observations_response::Result::Page(page)) = first.result else {
-        return Err("first keyset page absent".into());
-    };
-    let Some(wire::continuation::Result::NextPageToken(token)) = &page.continuation.result else {
+    let first = admit(history_contract::admit_observations_response(&first))?;
+    let token = &first.wire().next_page_token;
+    if token.is_empty() {
         return Err("keyset continuation absent".into());
-    };
+    }
     let mut changed = query.period().clone();
     changed.start.get_or_insert_default().nanos = 1;
     let stale = connection
         .history()
         .query_observations(
             wire::QueryObservationsRequest {
-                entity_id: entity.as_str().into(),
+                parent: entity.as_str().into(),
                 period: changed.clone().into(),
-                resolution: wire::Resolution::Raw.into(),
-                page_size: Some(1),
+                page_size: 1,
                 page_token: token.clone(),
                 ..Default::default()
             },
@@ -228,18 +228,18 @@ async fn run(mut fixture: Fixture) -> Result<()> {
             Duration::from_secs(3),
             &cancel,
         )
-        .await?;
+        .await;
     assert!(matches!(
-        stale.result,
-        Some(wire::query_observations_response::Result::StaleCursor(_))
+        stale,
+        Err(error) if matches!(error.api_failure(), Ok(Some(api))
+            if api.reason() == wire::ApiErrorReason::ResyncRequired)
     ));
     let invalid = connection
         .history()
         .query_aggregates(
             wire::QueryAggregatesRequest {
-                entity_id: entity.as_str().into(),
+                parent: entity.as_str().into(),
                 period: changed.into(),
-                resolution: wire::Resolution::Hour.into(),
                 ..Default::default()
             },
             lease.token(),
@@ -254,9 +254,11 @@ async fn run(mut fixture: Fixture) -> Result<()> {
         .history()
         .query_observations(
             wire::QueryObservationsRequest {
-                entity_id: "foreign-synthetic-entity".into(),
+                parent: format!(
+                    "{}/entities/foreign-synthetic-entity",
+                    entity.home().as_str()
+                ),
                 period: query.period().clone().into(),
-                resolution: wire::Resolution::Raw.into(),
                 ..Default::default()
             },
             lease.token(),
@@ -282,7 +284,7 @@ async fn run(mut fixture: Fixture) -> Result<()> {
         assert!(
             pages
                 .iter()
-                .flat_map(|page| &page.points)
+                .flat_map(|page| &page.aggregates)
                 .all(|point| point.mean.is_none())
         );
     }
@@ -298,11 +300,11 @@ async fn run(mut fixture: Fixture) -> Result<()> {
         let Content::Retained(history::Pages::Hourly(pages)) = &data.snapshot.content else {
             return Err("aggregate pages absent".into());
         };
-        assert!(!pages[0].points.is_empty());
+        assert!(!pages[0].aggregates.is_empty());
         assert!(
             pages
                 .iter()
-                .flat_map(|page| &page.points)
+                .flat_map(|page| &page.aggregates)
                 .any(|point| point.contribution.is_some())
         );
     }
@@ -316,9 +318,12 @@ async fn run(mut fixture: Fixture) -> Result<()> {
         let state = owner.0.state.lock().unwrap();
         let data = state.data.as_ref().ok_or("restored history absent")?;
         assert_eq!(data.snapshot.points, 20_001);
-        assert!(data.groups.iter().any(|group| group.quality.freshness
-            == state_wire::Freshness::Stale
-            && group.quality.provenance == state_wire::Provenance::Restored));
+        assert!(
+            data.groups
+                .iter()
+                .any(|group| group.quality.freshness == wire::Freshness::Stale
+                    && group.quality.provenance == wire::Provenance::Restored)
+        );
     }
     control(2, Control::RevokeHistory).await?;
     owner.apply(&fixture.start, &fixture.end, HistoryStatistic::Observation);
@@ -343,7 +348,7 @@ async fn run(mut fixture: Fixture) -> Result<()> {
 }
 async fn run_costs(
     fixture: &Fixture,
-    entity: EntityId,
+    entity: EntityName,
     connection: Connection,
     session: SessionCoordinator,
 ) -> Result<()> {
@@ -377,18 +382,22 @@ async fn run_costs(
             group.value(1).unwrap().text(),
             "123456789012345678901234567890.123456789"
         );
-        assert_eq!(group.quality.provenance, state_wire::Provenance::Estimated);
+        assert_eq!(group.quality.provenance, wire::Provenance::Estimated);
         let Content::Retained(history::Pages::Observations(pages)) = &data.snapshot.content else {
             return Err("cost pages missing".into());
         };
         assert!(pages.len() >= 200);
-        assert!(pages.iter().any(|page| page.points.is_empty()));
-        assert!(pages.iter().flat_map(|page| &page.points).all(|point| {
-            point
-                .state
-                .source_session
-                .starts_with("MOCK coûts synthétiques")
-        }));
+        assert!(pages.iter().any(|page| page.observations.is_empty()));
+        assert!(
+            pages
+                .iter()
+                .flat_map(|page| &page.observations)
+                .all(|point| {
+                    point.state.quality.provenance == wire::Provenance::Estimated
+                        && point.descriptor.unit == "CAD"
+                        && point.descriptor.canonical_unit == "CAD"
+                })
+        );
         assert_eq!(
             state
                 .frame

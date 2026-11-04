@@ -257,8 +257,8 @@ async fn qualify(
 ) -> Result<()> {
     let mut sequence = 0;
     let view = ProjectionMailbox::<()>::new();
-    let minimal: EntityId = admit(fixture.entities.minimal.parse())?;
-    let group: EntityId = admit(fixture.entities.group.parse())?;
+    let minimal = admit(EntityName::try_from(fixture.entities.minimal.as_str()))?;
+    let group = admit(EntityName::try_from(fixture.entities.group.as_str()))?;
     owner.interactive(true);
     owner.choose(Some(minimal), view.generation());
     until(owner, "minimal player", |state| {

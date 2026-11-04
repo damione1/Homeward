@@ -582,17 +582,21 @@ mod tests {
     #[test]
     fn fan_power_and_speed_are_distinct_and_unknown_speed_names_never_fall_back() {
         let control = Fan::parse(&wire::FanControlCapability {
-            set_on: true,
-            speed_options: vec!["Low".into(), "High".into()],
+            supports_power: true,
+            speed: wire::SelectorDefinition {
+                options: vec!["Low".into(), "High".into()],
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         })
         .unwrap();
         let power = control.power(Power::On).unwrap();
-        assert_eq!(power.on, Some(true));
-        assert!(power.speed.is_none());
+        assert_eq!(power.on(), Some(true));
+        assert!(power.speed().is_none());
         let speed = control.speed(wire::FanSpeed::High).unwrap();
-        assert_eq!(speed.speed.as_deref(), Some("High"));
-        assert!(speed.on.is_none());
+        assert_eq!(speed.speed().map(|value| value.as_str()), Some("High"));
+        assert!(speed.on().is_none());
         assert!(matches!(
             control.speed(wire::FanSpeed::Off),
             Err(Refusal::Unsupported)
@@ -608,7 +612,11 @@ mod tests {
         ] {
             assert!(
                 Fan::parse(&wire::FanControlCapability {
-                    speed_options: values,
+                    speed: wire::SelectorDefinition {
+                        options: values,
+                        ..Default::default()
+                    }
+                    .into(),
                     ..Default::default()
                 })
                 .is_none()

@@ -1141,7 +1141,10 @@ mod tests {
         assert!(!request.historical.is_set());
         assert_eq!(request.historical_policy_version.revision, 3);
         assert_eq!(request.expected.revision, 7);
-        assert_eq!(request.family, plan::SourceFamily::Authorization);
+        assert_eq!(
+            request.family,
+            plan::ConfigurationPlanSourceFamily::Authorization
+        );
         assert!(editor.action(ProAdminAction::Rollback).is_none());
     }
 }

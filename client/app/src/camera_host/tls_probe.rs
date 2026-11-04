@@ -113,14 +113,21 @@ async fn qualify(owner: &Cameras, root: &Path, session: &SessionCoordinator) {
     let mut sequence = 0;
     owner.interactive(true);
     until(owner, "initial private image", ready).await;
+    let (catalog_first, catalog_last) = {
+        let state = owner.0.state.lock().unwrap();
+        let first = state.catalog.first().unwrap().id.clone();
+        let last = state.catalog.last().unwrap().id.clone();
+        assert_ne!(first, last);
+        (first, last)
+    };
     owner.navigate_catalog(NavigationStep::Last);
     until(owner, "catalog keyboard last exact identity", |s| {
-        ready(s) && s.selected.as_ref().unwrap().entity().as_str() == "driveway"
+        ready(s) && s.selected.as_ref() == Some(&catalog_last)
     })
     .await;
     owner.navigate_catalog(NavigationStep::First);
     until(owner, "catalog keyboard first exact identity", |s| {
-        ready(s) && s.selected.as_ref().unwrap().entity().as_str() == "_driveway"
+        ready(s) && s.selected.as_ref() == Some(&catalog_first)
     })
     .await;
     let previous_context = owner.0.state.lock().unwrap().context;
@@ -222,7 +229,7 @@ async fn qualify(owner: &Cameras, root: &Path, session: &SessionCoordinator) {
         root,
         &mut sequence,
         Control::MissingImage,
-        Some(second.entity().as_str().into()),
+        Some(second.as_str().into()),
     )
     .await;
     owner.reload(generation(owner));
@@ -234,7 +241,7 @@ async fn qualify(owner: &Cameras, root: &Path, session: &SessionCoordinator) {
         root,
         &mut sequence,
         Control::RestoreImages,
-        Some(second.entity().as_str().into()),
+        Some(second.as_str().into()),
     )
     .await;
     owner.reload(generation(owner));
@@ -277,7 +284,6 @@ async fn qualify(owner: &Cameras, root: &Path, session: &SessionCoordinator) {
         .selected
         .as_ref()
         .unwrap()
-        .entity()
         .as_str()
         .to_owned();
     control(

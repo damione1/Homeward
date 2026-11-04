@@ -1,5 +1,5 @@
 use super::*;
-use home_wire_contract::home::observability::v1 as obs;
+use home_wire_contract::home::api::v2 as obs;
 use std::{collections::BTreeSet, path::Path};
 
 fn logs(owner: &Administration) -> Option<obs::QueryRuntimeLogsResponse> {
@@ -19,8 +19,7 @@ fn logs(owner: &Administration) -> Option<obs::QueryRuntimeLogsResponse> {
         | Payload::Health(_)
         | Payload::Metrics(_)
         | Payload::Configuration(_)
-        | Payload::Audits(_)
-        | Payload::Logic(_) => None,
+        | Payload::Audits(_) => None,
     }
 }
 async fn marker(root: &Path, name: &str) {
@@ -32,24 +31,27 @@ async fn marker(root: &Path, name: &str) {
     .await
     .unwrap_or_else(|_| panic!("synthetic fixture marker missing: {name}"));
 }
-async fn bounded_logs(owner: &Administration, root: &Path) {
+async fn bounded_logs(
+    owner: &Administration,
+    root: &Path,
+    connection: &Connection,
+    session: &SessionCoordinator,
+) {
     section(owner, Section::Logs).await;
     let mut seen = BTreeSet::new();
     let mut through = None;
     loop {
-        let Some(obs::query_runtime_logs_response::Result::Page(page)) =
-            logs(owner).unwrap().result
-        else {
-            panic!("runtime logs page")
-        };
+        let page = logs(owner).unwrap();
+        home_wire_contract::observability_contract::admit_runtime_logs_response(&page).unwrap();
         assert!(!page.rows.is_empty() && page.rows.len() <= 100);
-        if let Some(upper) = through {
-            assert_eq!(page.upper_sequence, upper);
+        if let Some((epoch, upper)) = &through {
+            assert_eq!(&page.upper_sequence, upper);
+            assert_eq!(&page.process_epoch, epoch);
         }
-        through = Some(page.upper_sequence);
+        through = Some((page.process_epoch.clone(), page.upper_sequence.clone()));
         for row in &page.rows {
             assert!(
-                seen.insert(row.sequence),
+                seen.insert(row.sequence.clone()),
                 "runtime row duplicated across pages"
             );
         }
@@ -65,30 +67,53 @@ async fn bounded_logs(owner: &Administration, root: &Path) {
     until(owner, "runtime logs restart at first page", ready).await;
     assert!(owner.0.state.lock().unwrap().page.is_none());
     assert!(owner.0.state.lock().unwrap().next.is_some());
+    let expired_token = logs(owner).unwrap().next_page_token;
+    assert!(!expired_token.is_empty());
     std::fs::write(root.join("evict-logs"), []).unwrap();
     marker(root, "logs-evicted").await;
+    let cancel = CancellationToken::new();
+    let lease = session.access(&cancel).await.unwrap();
+    let parent = super::super::configuration::home_name(session, connection, &lease, &cancel)
+        .await
+        .unwrap();
+    let failure = connection
+        .observability()
+        .query_runtime_logs(
+            obs::QueryRuntimeLogsRequest {
+                parent,
+                page_size: 100,
+                page_token: expired_token,
+                ..Default::default()
+            },
+            lease.token(),
+            Duration::from_secs(4),
+            &cancel,
+        )
+        .await
+        .err()
+        .unwrap();
+    assert_eq!(
+        failure.api_failure().unwrap().unwrap().reason(),
+        obs::ApiErrorReason::ResyncRequired
+    );
     owner.action(0, generation(owner), ProAdminAction::More);
     until(owner, "runtime journal reports eviction", |state| {
-        ready(state)
-            && state
-                .rows
-                .iter()
-                .any(|row| row.title == "Log history truncated")
+        state.stage == Stage::Unavailable
     })
     .await;
-    assert!(matches!(
-        logs(owner).unwrap().result,
-        Some(obs::query_runtime_logs_response::Result::CursorEvicted(_))
-    ));
     assert!(owner.0.state.lock().unwrap().next.is_none());
     owner.action(0, generation(owner), ProAdminAction::Refresh);
     until(owner, "fresh runtime capture after eviction", ready).await;
-    assert!(matches!(
-        logs(owner).unwrap().result,
-        Some(obs::query_runtime_logs_response::Result::Page(_))
-    ));
+    let fresh = logs(owner).unwrap();
+    home_wire_contract::observability_contract::admit_runtime_logs_response(&fresh).unwrap();
+    assert!(!fresh.rows.is_empty());
 }
-async fn bounded_audits(owner: &Administration, section_value: Section) {
+async fn bounded_audits(
+    owner: &Administration,
+    section_value: Section,
+    connection: &Connection,
+    session: &SessionCoordinator,
+) {
     section(owner, section_value).await;
     let mut seen = BTreeSet::new();
     let mut upper = None;
@@ -102,16 +127,17 @@ async fn bounded_audits(owner: &Administration, section_value: Section) {
             };
             (*value.clone(), state.next.is_some())
         };
-        let Some(obs::query_audits_response::Result::Page(page)) = response.result else {
-            panic!("audit page")
-        };
+        let page = response;
         assert_eq!(page.source, section_value.audit_source().unwrap());
         assert!(!page.rows.is_empty() && page.rows.len() <= 100);
-        if let Some(expected) = upper {
-            assert_eq!(page.upper_id, expected);
-        }
-        upper = Some(page.upper_id);
         for row in &page.rows {
+            if let Some(previous) = upper {
+                assert!(
+                    row.id < previous,
+                    "audit order changed across the bounded capture"
+                );
+            }
+            upper = Some(row.id);
             assert!(seen.insert(row.id), "audit row duplicated across pages");
         }
         if !more {
@@ -121,7 +147,33 @@ async fn bounded_audits(owner: &Administration, section_value: Section) {
         until(owner, "next bounded audit page", ready).await;
     }
     assert!(seen.len() >= 110);
-    // A stale server cursor is a semantic response, not an empty successful page.
+    // A stale token is a canonical failure, never an empty successful page.
+    let cancel = CancellationToken::new();
+    let lease = session.access(&cancel).await.unwrap();
+    let parent = super::super::configuration::home_name(session, connection, &lease, &cancel)
+        .await
+        .unwrap();
+    let failure = connection
+        .observability()
+        .query_audits(
+            obs::QueryAuditsRequest {
+                parent,
+                source: section_value.audit_source().unwrap().into(),
+                page_size: 100,
+                page_token: "nhf018-invalid-cursor".into(),
+                ..Default::default()
+            },
+            lease.token(),
+            Duration::from_secs(4),
+            &cancel,
+        )
+        .await
+        .err()
+        .unwrap();
+    assert_eq!(
+        failure.api_failure().unwrap().unwrap().reason(),
+        obs::ApiErrorReason::ResyncRequired
+    );
     {
         let mut state = owner.0.state.lock().unwrap();
         state.page = Some(PageToken::parse("nhf018-invalid-cursor").unwrap());
@@ -129,14 +181,22 @@ async fn bounded_audits(owner: &Administration, section_value: Section) {
         owner.retired(&state);
     }
     until(owner, "stale audit cursor is visible", |state| {
-        ready(state) && state.rows.iter().any(|row| row.title == "Snapshot expired")
+        state.stage == Stage::Unavailable
     })
     .await;
     owner.action(0, generation(owner), ProAdminAction::Refresh);
     until(owner, "refresh discards stale audit cursor", |state| {
-        ready(state) && state.page.is_none() && state.private.pane(section_value)
-            .and_then(|pane|pane.content.as_ref()).is_some_and(|payload|matches!(payload,Payload::Audits(value) if matches!(value.result,Some(obs::query_audits_response::Result::Page(_)))))
-    }).await;
+        ready(state)
+            && state.page.is_none()
+            && state
+                .private
+                .pane(section_value)
+                .and_then(|pane| pane.content.as_ref())
+                .is_some_and(
+                    |payload| matches!(payload,Payload::Audits(value) if !value.rows.is_empty()),
+                )
+    })
+    .await;
 }
 #[derive(Clone, Copy)]
 enum ReadFault {
@@ -210,10 +270,9 @@ async fn independent_failure(session: &SessionCoordinator, fixture: &Fixture, ro
     std::fs::write(root.join("read-release"), []).unwrap();
     marker(root, "read-finished").await;
     section(&owner, Section::Logs).await;
-    assert!(matches!(
-        logs(&owner).unwrap().result,
-        Some(obs::query_runtime_logs_response::Result::Page(_))
-    ));
+    let fresh = logs(&owner).unwrap();
+    home_wire_contract::observability_contract::admit_runtime_logs_response(&fresh).unwrap();
+    assert!(!fresh.rows.is_empty());
     cancel.cancel();
     tokio::time::timeout(Duration::from_secs(5), task)
         .await
@@ -222,13 +281,13 @@ async fn independent_failure(session: &SessionCoordinator, fixture: &Fixture, ro
 }
 pub(super) async fn qualify(
     owner: &Administration,
-    _connection: &Connection,
+    connection: &Connection,
     session: &SessionCoordinator,
     fixture: &Fixture,
     root: &Path,
 ) {
-    bounded_logs(owner, root).await;
-    bounded_audits(owner, Section::Audits).await;
-    bounded_audits(owner, Section::SecretAudits).await;
+    bounded_logs(owner, root, connection, session).await;
+    bounded_audits(owner, Section::Audits, connection, session).await;
+    bounded_audits(owner, Section::SecretAudits, connection, session).await;
     independent_failure(session, fixture, root).await;
 }

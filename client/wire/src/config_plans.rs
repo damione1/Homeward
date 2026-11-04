@@ -87,6 +87,16 @@ pub(crate) fn candidate(value: &wire::ConfigurationPlanCandidate) -> bool {
     }
     seen.contains(value.entry.as_str())
 }
+/// Admit source content independently of the resource parent and request ID.
+/// Full Create admission still checks those fields at the transport boundary.
+pub fn admit_candidate(value: &wire::ConfigurationPlanCandidate) -> Result<(), PlanAdmissionError> {
+    if candidate(value) {
+        Ok(())
+    } else {
+        Err(PlanAdmissionError::Invalid)
+    }
+}
+
 pub fn admit_plan_request(
     value: PlanRequest<'_>,
 ) -> Result<AdmittedPlanRequest<'_>, PlanAdmissionError> {

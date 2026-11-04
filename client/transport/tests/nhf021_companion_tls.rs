@@ -2,9 +2,9 @@
 use buffa_types::google::protobuf::Timestamp;
 use home_client_transport::{AccessToken, Connection, FailureKind, RpcCode};
 use home_wire_contract::{
-    auth_contract::{AccountId, SessionId},
     companion_contract as admit,
-    home::{auth::v1 as auth, companion::v1 as wire},
+    home::{api::v2 as auth, testing::companion::v1 as wire},
+    qualification_identity::{AccountId, SessionId},
 };
 use serde::Deserialize;
 use std::{
@@ -56,7 +56,10 @@ async fn login(
         .await
         .unwrap();
     match response.decision.outcome.as_ref() {
-        Some(auth::login_decision::Outcome::Authenticated(tokens)) => (**tokens).clone(),
+        Some(auth::login_decision::Outcome::Authenticated(tokens)) => {
+            home_wire_contract::auth_contract::admit_session_metadata(&tokens.session).unwrap();
+            (**tokens).clone()
+        }
         Some(
             auth::login_decision::Outcome::Challenge(_)
             | auth::login_decision::Outcome::EnrollmentRequired(_),
@@ -211,7 +214,7 @@ fn lose(root: &Path, reply: LostReply) {
     };
     std::fs::write(
         root.join("lose-next-reply"),
-        format!("/home.companion.v1.CompanionService/{method}"),
+        format!("/home.testing.companion.v1.CompanionService/{method}"),
     )
     .unwrap();
 }
@@ -286,10 +289,12 @@ async fn actual_companion_tls_identity_consent_cadence_uncertainty_and_revocatio
         .await
         .unwrap();
     admit::admit_response(admit::Response::Register(&registered)).unwrap();
+    // The isolated issuer obtains these private identities from the verified
+    // native lease; public v2 names are never decoded into native IDs.
     admit::bind_native(
         &registered.installation,
-        &AccountId::try_from(&*user.session.account_id).unwrap(),
-        &SessionId::try_from(&*user.session.id).unwrap(),
+        &AccountId::try_from(&*described.synthetic_identity.account_id).unwrap(),
+        &SessionId::try_from(&*described.synthetic_identity.session_id).unwrap(),
     )
     .unwrap();
     let context = (*registered.context).clone();
@@ -306,7 +311,7 @@ async fn actual_companion_tls_identity_consent_cadence_uncertainty_and_revocatio
     );
     let other_session = login(&connection, &fixture.user, &cancel).await;
     let other_token = AccessToken::parse(&other_session.access_token).unwrap();
-    assert_ne!(other_session.session.id, user.session.id);
+    assert_ne!(other_session.session.name, user.session.name);
     assert_eq!(
         api.get_installation(get((*record.id).clone()), &other_token, TIMEOUT, &cancel)
             .await
@@ -381,11 +386,20 @@ async fn actual_companion_tls_identity_consent_cadence_uncertainty_and_revocatio
             .kind(),
         FailureKind::Rpc(RpcCode::InvalidArgument)
     );
+    // Persist this one synthetic renewal operation before its only dispatch.
+    let mut renewal_key = vec![0; 32];
+    std::io::Read::read_exact(
+        &mut std::fs::File::open("/dev/urandom").unwrap(),
+        &mut renewal_key,
+    )
+    .unwrap();
+    std::fs::write(root.join("renewal-key"), &renewal_key).unwrap();
     let rotated = connection
         .auth()
         .refresh_session(
             auth::RefreshSessionRequest {
                 refresh_token: user.refresh_token.clone(),
+                renewal_key,
                 ..Default::default()
             },
             TIMEOUT,
@@ -393,7 +407,7 @@ async fn actual_companion_tls_identity_consent_cadence_uncertainty_and_revocatio
         )
         .await
         .unwrap();
-    assert_eq!(rotated.tokens.session.id, user.session.id);
+    assert_eq!(rotated.tokens.session.name, user.session.name);
     let refreshed = AccessToken::parse(&rotated.tokens.access_token).unwrap();
     assert_eq!(
         api.get_installation(get((*record.id).clone()), &token, TIMEOUT, &cancel)
@@ -469,7 +483,13 @@ async fn actual_companion_tls_identity_consent_cadence_uncertainty_and_revocatio
         .auth()
         .list_sessions(
             auth::ListSessionsRequest {
-                account_id: user.session.account_id.clone(),
+                parent: home_wire_contract::auth_contract::SessionName::try_from(
+                    user.session.name.as_str(),
+                )
+                .unwrap()
+                .account()
+                .as_str()
+                .into(),
                 ..Default::default()
             },
             &token,

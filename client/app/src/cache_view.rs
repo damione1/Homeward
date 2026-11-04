@@ -1270,7 +1270,6 @@ mod tests {
     use super::*;
     use buffa::EnumValue;
     use buffa::Message;
-    use buffa_types::google::protobuf::Timestamp;
     use home_client_cache::ProjectionMailbox;
 
     use crate::device_view::fixture as fixtures;
@@ -1346,13 +1345,23 @@ mod tests {
                 "homes/synthetic/entities/{}",
                 entities[index]["id"].as_str().unwrap()
             );
+            let mut capability = fixtures::power(
+                &format!("{name}/capabilities/power"),
+                Some(wire::PowerValue::Off),
+            );
+            let Some(wire::capability::Trait::Power(value)) = capability.r#trait.as_mut() else {
+                panic!("power fixture");
+            };
+            value.observation.as_option_mut().unwrap().observed_time =
+                buffa_types::google::protobuf::Timestamp {
+                    seconds: 10,
+                    ..Default::default()
+                }
+                .into();
             fixtures::entry(
                 &name,
                 entities[index]["alias"].as_str().unwrap(),
-                vec![fixtures::power(
-                    &format!("{name}/capabilities/power"),
-                    Some(wire::PowerValue::Off),
-                )],
+                vec![capability],
             )
         })
     }
@@ -1626,7 +1635,7 @@ mod tests {
             .unwrap(),
             key: crate::dashboard_widgets::FieldKey::State,
         };
-        assert_eq!(field.reading(Some(&full)).as_deref(), Some("on"));
+        assert_eq!(field.reading(Some(&full)).as_deref(), Some("On"));
         assert_eq!(
             crate::dashboard_visibility::literal(
                 &full,
@@ -2103,8 +2112,11 @@ mod tests {
         };
         i_slint_backend_testing::init_no_event_loop();
         let window = crate::create_window().unwrap();
+        let view = home_view();
         let request = std::sync::Arc::new(std::sync::Mutex::new(ProjectionRequest {
-            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(
+                dashboard::joined_fixture(&view),
+            )),
             ..Default::default()
         }));
         bind(&window);
@@ -2118,7 +2130,7 @@ mod tests {
         render(
             &window,
             ProjectionMailbox::<()>::new().generation(),
-            project(CachePhase::Live, Some(&home_view()), Viewport::default()),
+            project(CachePhase::Live, Some(&view), Viewport::default()),
         );
         window.invoke_room_open(dashboard::ROOM_TOKEN_BASE, window.get_home_generation());
         let button = ElementQuery::from_root(&window)
@@ -2176,8 +2188,11 @@ mod tests {
         use slint::ComponentHandle;
         i_slint_backend_testing::init_no_event_loop();
         let window = crate::create_window().unwrap();
+        let view = home_view();
         let request = std::sync::Arc::new(std::sync::Mutex::new(ProjectionRequest {
-            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::fixture())),
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(
+                dashboard::joined_fixture(&view),
+            )),
             ..Default::default()
         }));
         bind(&window);
@@ -2185,7 +2200,6 @@ mod tests {
         window.set_access_stage(crate::ProAccessStage::Connected);
         window.set_show_endpoint(false);
         window.show().unwrap();
-        let view = home_view();
         let generation = ProjectionMailbox::<()>::new().generation();
         render(
             &window,
@@ -2251,16 +2265,32 @@ mod tests {
         assert!(window.invoke_system_back());
         assert_eq!(window.get_page(), crate::ViewPage::Home);
         assert!(!window.invoke_system_back());
+        // The current native dashboard has no overview-v1 observation slots.
+        // Resolve the authorized entity through the live inventory projection.
+        window.invoke_quick_navigation(crate::ViewPage::Inventory);
         let current = request.lock().unwrap().clone();
         render(
             &window,
             generation,
             project_request(CachePhase::Live, Some(&view), Viewport::default(), &current),
         );
-        window.invoke_observation_open(
-            dashboard::OBSERVATION_TOKEN_BASE,
-            window.get_home_generation(),
-        );
+        let token = {
+            let model = window.get_cache_rows();
+            let rows = model.as_any().downcast_ref::<CacheRows>().unwrap();
+            let state = rows.state.borrow();
+            let target =
+                EntityName::try_from("homes/synthetic/entities/private-entity-0000").unwrap();
+            i32::try_from(
+                *state
+                    .rows
+                    .iter()
+                    .find(|(_, (row, _))| row.id.as_ref() == Some(&target))
+                    .unwrap()
+                    .0,
+            )
+            .unwrap()
+        };
+        window.invoke_cache_activate(token, window.get_cache_generation());
         assert_eq!(window.get_page(), crate::ViewPage::Detail);
         let current = request.lock().unwrap().clone();
         render(
@@ -2532,7 +2562,7 @@ mod tests {
             ))),
             "Empty text"
         );
-        assert_eq!(value_text(&helper(None)), "No observation");
+        assert_eq!(value_text(&helper(None)), "Value not provided");
     }
     #[test]
     fn native_layout_models_survive_switching_and_private_clear_without_losing_their_binding() {
@@ -2560,17 +2590,28 @@ mod tests {
                     }
                     .into(),
                 ),
-                Kind::Heading => C::Heading(wire::DashboardHeadingNode::default().into()),
-                Kind::Unsupported => {
-                    C::Unsupported(wire::DashboardUnsupportedNode::default().into())
-                }
+                Kind::Heading => C::Heading(
+                    wire::DashboardHeadingNode {
+                        style: wire::DashboardHeadingStyle::Default.into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
+                Kind::Unsupported => C::Unsupported(
+                    wire::DashboardUnsupportedNode {
+                        diagnostic: "Unsupported source card".into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
                 _ => panic!("fixture only declares four closed node variants"),
             };
             let mut result = strict_node(id, payload);
             result.display_name = title.into();
             result
         };
-        let mut layout = dashboard::fixture();
+        let cache = home_view();
+        let mut layout = dashboard::joined_fixture(&cache);
         let fixture: serde_json::Value =
             serde_json::from_str(include_str!("../tests/fixtures/overview.json")).unwrap();
         let mut room_node = node("room", Kind::View, &["room-section"], "Room");
@@ -2601,7 +2642,6 @@ mod tests {
         bind(&window);
         crate::navigation::bind(&window, request.clone(), || {});
         let generation = ProjectionMailbox::<()>::new().generation();
-        let cache = home_view();
         render(
             &window,
             generation,

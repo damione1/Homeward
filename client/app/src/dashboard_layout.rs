@@ -390,8 +390,8 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
         icon,
         source: Source {
             file: source.file.clone(),
-            line: source.line,
-            column: source.column,
+            line: u32::try_from(source.line).map_err(|_| LayoutFailure::Invalid)?,
+            column: u32::try_from(source.column).map_err(|_| LayoutFailure::Invalid)?,
             path: source.path.clone(),
             variant: source.variant.clone(),
         },

@@ -1,45 +1,43 @@
 use super::*;
 use buffa_types::google::protobuf::Timestamp;
 
-fn response() -> wire::ReadDocumentResponse {
-    wire::ReadDocumentResponse {
-        document: wire::Document {
-            id: wire::DocumentId {
-                value: "operational.main".into(),
-                ..Default::default()
-            }
-            .into(),
-            kind: wire::DocumentKind::OperationalYaml.into(),
-            schema_version: "homeward.operational/1".into(),
-            syntax_profile: "homeward.operational-yaml/1".into(),
-            version: wire::DocumentVersion {
-                revision: 7,
-                source_sha256: vec![1; 32],
-                ..Default::default()
-            }
-            .into(),
-            active: true,
-            updated_at: Timestamp {
-                seconds: 1_700_000_000,
-                ..Default::default()
-            }
-            .into(),
-            protected_source_reference: vec![3; 32],
-            workspace_state: Some(wire::document::WorkspaceState::Workspace(Box::new(
-                wire::WorkspaceObservation {
-                    source_sha256: vec![2; 32],
-                    dirty: wire::DirtyState::Unvalidated.into(),
-                    updated_at: Timestamp {
-                        seconds: 1_700_000_001,
-                        ..Default::default()
-                    }
-                    .into(),
-                    ..Default::default()
-                },
-            ))),
+fn response() -> wire::ConfigurationDocument {
+    wire::ConfigurationDocument {
+        name: "homes/test/configurationDocuments/operational-main".into(),
+        etag: "synthetic-current-etag".into(),
+        id: wire::DocumentId {
+            value: "operational.main".into(),
             ..Default::default()
         }
         .into(),
+        kind: wire::DocumentKind::OperationalYaml.into(),
+        schema_version: "homeward.operational/1".into(),
+        syntax_profile: "homeward.operational-yaml/1".into(),
+        version: wire::DocumentVersion {
+            revision: 7,
+            source_sha256: vec![1; 32],
+            ..Default::default()
+        }
+        .into(),
+        active: true,
+        updated_at: Timestamp {
+            seconds: 1_700_000_000,
+            ..Default::default()
+        }
+        .into(),
+        protected_source_reference: vec![3; 32],
+        workspace_state: Some(wire::configuration_document::WorkspaceState::Workspace(
+            Box::new(wire::WorkspaceObservation {
+                source_sha256: vec![2; 32],
+                dirty: wire::DirtyState::Unvalidated.into(),
+                updated_at: Timestamp {
+                    seconds: 1_700_000_001,
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            }),
+        )),
         active_generation: wire::ActiveGeneration {
             revision: 6,
             manifest_sha256: vec![4; 32],
@@ -50,6 +48,69 @@ fn response() -> wire::ReadDocumentResponse {
         ..Default::default()
     }
 }
+
+// Reservations and terminal native failures use the current standard envelope;
+// they carry no invented commit target and never grant an implicit retry.
+fn reservation(
+    failure: Option<(wire::ApiErrorReason, home_wire_contract::google::rpc::Code)>,
+) -> home_wire_contract::configuration_operations_contract::Publication {
+    use buffa::{Enumeration, Message};
+    use buffa_types::google::protobuf::Any;
+    use home_wire_contract::google::{
+        longrunning::{Operation, operation},
+        rpc,
+    };
+    let metadata = wire::ConfigurationOperationMetadata {
+        request_id: "11111111-1111-4111-8111-111111111111".into(),
+        create_time: Timestamp {
+            seconds: 1_700_000_000,
+            ..Default::default()
+        }
+        .into(),
+        phase: if failure.is_some() {
+            wire::ConfigurationOperationPhase::Failed
+        } else {
+            wire::ConfigurationOperationPhase::Accepted
+        }
+        .into(),
+        ..Default::default()
+    };
+    let result = failure.map(|(reason, code)| {
+        operation::Result::Error(Box::new(rpc::Status {
+            code: code as i32,
+            details: vec![Any {
+                type_url: "type.googleapis.com/google.rpc.ErrorInfo".into(),
+                value: rpc::ErrorInfo {
+                    domain: home_wire_contract::api_errors::DOMAIN.into(),
+                    reason: reason
+                        .proto_name()
+                        .strip_prefix("API_ERROR_REASON_")
+                        .unwrap()
+                        .into(),
+                    ..Default::default()
+                }
+                .encode_to_vec()
+                .into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }))
+    });
+    let raw = Operation {
+        name: "homes/test/operations/config-11111111111111111111111111111111".into(),
+        metadata: Any {
+            type_url: "type.googleapis.com/home.api.v2.ConfigurationOperationMetadata".into(),
+            value: metadata.encode_to_vec().into(),
+            ..Default::default()
+        }
+        .into(),
+        done: result.is_some(),
+        result,
+        ..Default::default()
+    };
+    home_wire_contract::configuration_operations_contract::admit_response(&raw).unwrap()
+}
+
 fn source(value: &[u8]) -> UserSource {
     UserSource::supplied(value.to_vec()).unwrap()
 }
@@ -89,14 +150,7 @@ fn metadata_never_fills_the_editor_and_all_three_references_stay_independent() {
 fn same_source_hash_after_a_revision_change_and_external_workspace_changes_do_not_rebase() {
     let capture = Capture::admit(response()).unwrap();
     let mut changed = response();
-    changed
-        .document
-        .as_option_mut()
-        .unwrap()
-        .version
-        .as_option_mut()
-        .unwrap()
-        .revision = 8;
+    changed.version.as_option_mut().unwrap().revision = 8;
     let changed = Capture::admit(changed).unwrap();
     let mut draft = SourceEdit::open(capture.clone()).unwrap();
     draft.supply(source(b"# exact supplied bytes\n")).unwrap();
@@ -110,11 +164,8 @@ fn same_source_hash_after_a_revision_change_and_external_workspace_changes_do_no
         8
     );
     let mut externally_changed = response();
-    let Some(wire::document::WorkspaceState::Workspace(workspace)) = &mut externally_changed
-        .document
-        .as_option_mut()
-        .unwrap()
-        .workspace_state
+    let Some(wire::configuration_document::WorkspaceState::Workspace(workspace)) =
+        &mut externally_changed.workspace_state
     else {
         panic!("workspace")
     };
@@ -128,11 +179,13 @@ fn same_source_hash_after_a_revision_change_and_external_workspace_changes_do_no
 #[test]
 fn unobserved_or_reconciling_workspace_never_becomes_a_clean_write_anchor() {
     let mut unknown = response();
-    unknown.document.as_option_mut().unwrap().workspace_state = Some(
-        wire::document::WorkspaceState::WorkspaceUnobserved(Box::new(wire::WorkspaceUnobserved {
-            reason: wire::WorkspaceUnobservedReason::SourceUnavailable.into(),
-            ..Default::default()
-        })),
+    unknown.workspace_state = Some(
+        wire::configuration_document::WorkspaceState::WorkspaceUnobserved(Box::new(
+            wire::WorkspaceUnobserved {
+                reason: wire::WorkspaceUnobservedReason::SourceUnavailable.into(),
+                ..Default::default()
+            },
+        )),
     );
     let capture = Capture::admit(unknown).unwrap();
     assert!(matches!(
@@ -141,11 +194,8 @@ fn unobserved_or_reconciling_workspace_never_becomes_a_clean_write_anchor() {
     ));
     assert!(matches!(SourceEdit::open(capture), Err(Refusal::ReadOnly)));
     let mut reconciling = response();
-    let Some(wire::document::WorkspaceState::Workspace(value)) = &mut reconciling
-        .document
-        .as_option_mut()
-        .unwrap()
-        .workspace_state
+    let Some(wire::configuration_document::WorkspaceState::Workspace(value)) =
+        &mut reconciling.workspace_state
     else {
         panic!("workspace")
     };
@@ -164,16 +214,7 @@ fn lost_or_ambiguous_response_never_replays_and_preserves_the_old_active_generat
     let (capture, mut draft) = submitted();
     let mut newer = response();
     newer.active_generation.as_option_mut().unwrap().revision = 8;
-    let receipt = draft
-        .complete(
-            &wire::ActivationResult {
-                outcome: wire::ActivationOutcome::CommitUnknown.into(),
-                transaction: wire::TransactionOutcome::CommitUnknown.into(),
-                ..Default::default()
-            },
-            Some(newer),
-        )
-        .unwrap();
+    let receipt = draft.complete(&reservation(None), Some(newer)).unwrap();
     assert_eq!(receipt.outcome, Outcome::CommitUnknown);
     assert_eq!(receipt.displayed_active(), capture.active());
     assert_eq!(receipt.current().unwrap().active().revision(), 8);
@@ -183,60 +224,58 @@ fn lost_or_ambiguous_response_never_replays_and_preserves_the_old_active_generat
 #[test]
 fn publication_requires_matching_authoritative_evidence_and_keeps_business_outcomes_distinct() {
     let prior = Capture::admit(response()).unwrap();
-    for (outcome, transaction, expected) in [
+    use home_wire_contract::google::rpc::Code;
+    for (activation, expected, transaction) in [
         (
-            wire::ActivationOutcome::RejectedBeforeCommit,
-            wire::TransactionOutcome::NotCommitted,
-            Outcome::RejectedBeforeCommit,
-        ),
-        (
-            wire::ActivationOutcome::NotCommitted,
-            wire::TransactionOutcome::NotCommitted,
-            Outcome::NotCommitted,
-        ),
-        (
-            wire::ActivationOutcome::CommitUnknown,
-            wire::TransactionOutcome::CommitUnknown,
+            reservation(None),
             Outcome::CommitUnknown,
+            Transaction::Unknown,
         ),
         (
-            wire::ActivationOutcome::CommittedReconciling,
-            wire::TransactionOutcome::Committed,
+            publication_for_test("homes/test", false, 8, 4),
             Outcome::CommittedReconciling,
+            Transaction::Committed,
         ),
         (
-            wire::ActivationOutcome::RestartRequired,
-            wire::TransactionOutcome::NoTransaction,
+            reservation(Some((
+                wire::ApiErrorReason::AccessDenied,
+                Code::PERMISSION_DENIED,
+            ))),
+            Outcome::RejectedBeforeCommit,
+            Transaction::NotCommitted,
+        ),
+        (
+            reservation(Some((
+                wire::ApiErrorReason::ConfigRestartRequired,
+                Code::FAILED_PRECONDITION,
+            ))),
             Outcome::RestartRequired,
+            Transaction::NotCommitted,
         ),
     ] {
-        let activation = wire::ActivationResult {
-            outcome: outcome.into(),
-            transaction: transaction.into(),
-            generation_revision: Some(8),
-            ..Default::default()
-        };
         let receipt = Receipt::admit(&prior, &activation, None).unwrap();
         assert_eq!(receipt.outcome, expected);
+        assert_eq!(receipt.transaction, transaction);
         assert_eq!(receipt.displayed_active(), prior.active());
     }
-    let published = wire::ActivationResult {
-        outcome: wire::ActivationOutcome::Published.into(),
-        transaction: wire::TransactionOutcome::Committed.into(),
-        generation_revision: Some(8),
-        ..Default::default()
-    };
+    let published = publication_for_test("homes/test", true, 8, 4);
     let reported = Receipt::admit(&prior, &published, None).unwrap();
     assert_eq!(reported.outcome, Outcome::Published);
     assert_eq!(
         reported.publication,
-        Some(PublicationEvidence::Reported { revision: 8 })
+        Some(PublicationEvidence::Reported(ActiveGeneration {
+            revision: 8,
+            manifest: ManifestHash::parse(&[4; 32]).unwrap()
+        }))
     );
     assert_eq!(reported.displayed_active(), prior.active());
     let stale_metadata = Receipt::admit(&prior, &published, Some(response())).unwrap();
     assert_eq!(
         stale_metadata.publication,
-        Some(PublicationEvidence::Reported { revision: 8 })
+        Some(PublicationEvidence::Reported(ActiveGeneration {
+            revision: 8,
+            manifest: ManifestHash::parse(&[4; 32]).unwrap()
+        }))
     );
     let mut later = response();
     later.active_generation.as_option_mut().unwrap().revision = 9;
@@ -244,7 +283,10 @@ fn publication_requires_matching_authoritative_evidence_and_keeps_business_outco
     assert_eq!(later.outcome, Outcome::Published);
     assert_eq!(
         later.publication,
-        Some(PublicationEvidence::Reported { revision: 8 })
+        Some(PublicationEvidence::Reported(ActiveGeneration {
+            revision: 8,
+            manifest: ManifestHash::parse(&[4; 32]).unwrap()
+        }))
     );
     assert_eq!(later.displayed_active().revision(), 9);
     let mut current = response();

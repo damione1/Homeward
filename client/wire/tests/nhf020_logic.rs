@@ -1,10 +1,7 @@
 use buffa::EnumValue;
 use buffa_types::google::protobuf::Timestamp;
 use home_wire_contract::{
-    home::{
-        auth::v1 as auth, configuration::v1 as cfg, configurationplan::v1 as plan,
-        logic::v1 as wire,
-    },
+    home::{api::v2 as cfg, api::v2 as plan, auth::v1 as auth, testing::logic::v1 as wire},
     logic_contract::{Request, Response, admit_request, admit_response},
 };
 
@@ -38,7 +35,7 @@ fn definition() -> wire::Definition {
     wire::Definition {
         reference: reference().into(),
         title: "Synthetic definition".into(),
-        family: plan::SourceFamily::Script.into(),
+        family: plan::ConfigurationPlanSourceFamily::Script.into(),
         source_document: cfg::DocumentId {
             value: "synthetic.script".into(),
             ..Default::default()
@@ -130,7 +127,7 @@ fn catalogue_is_a_protected_projection_not_a_reconstructed_source() {
     value.definitions[0].mode = EnumValue::Unknown(987);
     assert!(admit_response(Response::Definitions(&value)).is_err());
     value.definitions[0] = definition();
-    value.definitions[0].family = plan::SourceFamily::Operational.into();
+    value.definitions[0].family = plan::ConfigurationPlanSourceFamily::Operational.into();
     assert!(admit_response(Response::Definitions(&value)).is_err());
 }
 

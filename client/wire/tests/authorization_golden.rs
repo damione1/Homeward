@@ -33,9 +33,10 @@ fn nha203_policy_boundaries_unknown_and_snapshot() {
         .is_err()
     );
     value = request();
-    let admitted = policy::admit_replace_request(&value).unwrap();
+    policy::admit_replace_request(&value).unwrap();
+    assert_eq!(value.yaml_source, request().yaml_source);
     value.yaml_source.clear();
-    assert_eq!(admitted.wire().yaml_source, request().yaml_source);
+    assert!(policy::admit_replace_request(&value).is_err());
     for precondition in [
         None,
         Some(auth::replace_authorization_policy_request::Precondition::ExpectedEtag(String::new())),

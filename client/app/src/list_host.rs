@@ -633,7 +633,10 @@ mod widget_tests {
             crate::dashboard_widget_host::TaskTarget {
                 token: 7,
                 generation: 11,
-                list: "configured-second-list".parse().unwrap(),
+                list: home_client_model::api_tasks::TaskListName::new(
+                    home_client_model::api::HomeName::try_from("homes/synthetic").unwrap(),
+                    "configured-second-list".parse().unwrap(),
+                ),
                 limit,
                 shopping_only: false,
             },

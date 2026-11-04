@@ -358,7 +358,7 @@ fn indexes(values: &[i32]) -> String {
     } else {
         values
             .iter()
-            .map(u32::to_string)
+            .map(i32::to_string)
             .collect::<Vec<_>>()
             .join(" / ")
     }

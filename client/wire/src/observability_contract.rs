@@ -202,18 +202,6 @@ fn counter(value: &obs::ObservationCounterMeasurement) -> bool {
             None => false,
         }
 }
-fn positive_counter(value: &obs::ObservationCounterMeasurement) -> bool {
-    counter(value)
-        && match &value.result {
-            Some(obs::observation_counter_measurement::Result::Exact(value)) => *value > 0,
-            Some(obs::observation_counter_measurement::Result::Saturated(_)) => true,
-            Some(
-                obs::observation_counter_measurement::Result::NotMeasured(_)
-                | obs::observation_counter_measurement::Result::Unavailable(_),
-            )
-            | None => false,
-        }
-}
 fn gauge(value: &obs::ObservationGaugeMeasurement) -> bool {
     use obs::observation_gauge_measurement::Result;
     value.__buffa_unknown_fields.is_empty()
