@@ -1,0 +1,13 @@
+challenge {
+  challenge_id: "challenge-a"
+  expire_time { seconds: 1792314300 }
+  options {
+    fido2 {
+      challenge: "synthetic-challenge"
+      rp_id: "homeward.example"
+      instance_id: "instance-a"
+      origin: "https://homeward.example"
+    }
+  }
+  options { recovery_code {} }
+}

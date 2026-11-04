@@ -1,0 +1,3 @@
+parent: "homes/home-a/accounts/account-a"
+client_name: "synthetic-mcp-client"
+lifetime { seconds: 31536000 nanos: 1 }

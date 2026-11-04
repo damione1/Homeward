@@ -1,13 +1,13 @@
 use buffa::Message;
 use buffa_types::google::protobuf::{Duration, Timestamp};
-use home_wire_contract::{auth_contract, home::auth::v1 as auth};
+use home_wire_contract::{auth_contract, home::api::v2 as auth};
 
 fn fixture(name: &str) -> Vec<u8> {
     fixture_bytes(&format!("{name}.bin"))
 }
 fn fixture_bytes(name: &str) -> Vec<u8> {
     let cwd = std::env::current_dir().expect("cannot locate auth fixture: no current directory");
-    let path = cwd.join("../../contracts/auth_golden").join(name);
+    let path = cwd.join("../../contracts/auth_resource_golden").join(name);
     std::fs::read(&path).unwrap_or_else(|error| {
         panic!(
             "cannot read auth fixture {} from test cwd {} (expected client/wire): {error}",
@@ -46,14 +46,13 @@ fn nha146_cross_language_fixtures() {
             "LoginDecision" => {
                 auth_contract::admit_login(&roundtrip::<auth::LoginDecision>(name), &now()).is_ok()
             }
-            "AuthError" => auth_contract::admit_error(&roundtrip::<auth::AuthError>(name)).is_ok(),
             "McpKey" => {
                 auth_contract::admit_mcp_key(&roundtrip::<auth::McpKey>(name), &now()).is_ok()
             }
-            "CreateMcpKeyRequest" => auth_contract::admit_mcp_create_request(&roundtrip::<
-                auth::CreateMcpKeyRequest,
-            >(name))
-            .is_ok(),
+            "IssueMcpKeyRequest" => {
+                auth_contract::admit_mcp_issue_request(&roundtrip::<auth::IssueMcpKeyRequest>(name))
+                    .is_ok()
+            }
             "BeginFactorEnrollmentRequest" => {
                 auth_contract::admit_begin_factor_enrollment(&roundtrip::<
                     auth::BeginFactorEnrollmentRequest,
@@ -91,18 +90,18 @@ fn nha146_cross_language_fixtures() {
         assert_eq!(admitted, accepted == "true", "{name}");
         count += 1;
     }
-    assert_eq!(count, 37);
+    assert_eq!(count, 32);
 }
 
 #[test]
 fn nha146_absence_zero_and_immutable_snapshot() {
-    let default: auth::CreateMcpKeyRequest = roundtrip("mcp-create-default");
+    let default: auth::IssueMcpKeyRequest = roundtrip("mcp-create-default");
     assert!(default.lifetime.as_option().is_none());
     assert_eq!(
         auth_contract::admit_mcp_lifetime(default.lifetime.as_option()),
         Ok(std::time::Duration::from_secs(30 * 86_400))
     );
-    let zero: auth::CreateMcpKeyRequest = roundtrip("mcp-create-zero");
+    let zero: auth::IssueMcpKeyRequest = roundtrip("mcp-create-zero");
     assert!(zero.lifetime.as_option().is_some());
     assert!(auth_contract::admit_mcp_lifetime(zero.lifetime.as_option()).is_err());
     for (name, want) in [
@@ -115,13 +114,13 @@ fn nha146_absence_zero_and_immutable_snapshot() {
             std::time::Duration::from_millis(1500),
         ),
     ] {
-        let request: auth::CreateMcpKeyRequest = roundtrip(name);
+        let request: auth::IssueMcpKeyRequest = roundtrip(name);
         assert_eq!(
             auth_contract::admit_mcp_lifetime(request.lifetime.as_option()),
             Ok(want)
         );
     }
-    let over: auth::CreateMcpKeyRequest = roundtrip("mcp-create-overmax");
+    let over: auth::IssueMcpKeyRequest = roundtrip("mcp-create-overmax");
     assert!(auth_contract::admit_mcp_lifetime(over.lifetime.as_option()).is_err());
     let mut unknown = Duration {
         seconds: 1,
@@ -138,12 +137,12 @@ fn nha146_absence_zero_and_immutable_snapshot() {
     let mut source: auth::LoginDecision = roundtrip("login-challenge");
     let admitted = auth_contract::admit_login(&source, &now()).unwrap();
     if let Some(auth::login_decision::Outcome::Challenge(challenge)) = &mut source.outcome {
-        challenge.id.as_option_mut().unwrap().value = "changed-after-admission".into();
+        challenge.challenge_id = "changed-after-admission".into();
     }
     let Some(auth::login_decision::Outcome::Challenge(challenge)) = &admitted.wire().outcome else {
         panic!("admission lost challenge");
     };
-    assert_eq!(challenge.id.value, "challenge-a");
+    assert_eq!(challenge.challenge_id, "challenge-a");
     let unknown_oneof: auth::LoginDecision = roundtrip("login-future-oneof");
     assert!(unknown_oneof.outcome.is_none());
     assert!(!unknown_oneof.__buffa_unknown_fields.is_empty());

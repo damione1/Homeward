@@ -11,8 +11,9 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/configactivation"
@@ -97,7 +98,7 @@ func TestNHA145YAMLActivationCancelsBeforeMutationRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, _, err := composeSessionsWithCoordinator(nil, store, coordinator)
+	plan, _, err := composeSessionsWithCoordinator(nil, store, coordinator, nha203AuthFixtureNames(store))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,11 +143,11 @@ func TestNHA145YAMLActivationCancelsBeforeMutationRelease(t *testing.T) {
 	defer func() { cancel(); server.Close() }()
 	client := server.Client()
 	defer client.CloseIdleConnections()
-	auth := authv1connect.NewAuthServiceClient(client, server.URL)
-	keys := authv1connect.NewMcpKeyServiceClient(client, server.URL)
-	login := func(name string) *authv1.SessionTokens {
+	auth := apiv2connect.NewAuthServiceClient(client, server.URL)
+	keys := apiv2connect.NewMcpKeyServiceClient(client, server.URL)
+	login := func(name string) *api.SessionTokens {
 		t.Helper()
-		response, err := auth.StartLogin(ctx, connect.NewRequest(&authv1.StartLoginRequest{LoginName: name, Password: password}))
+		response, err := auth.StartLogin(ctx, connect.NewRequest(&api.StartLoginRequest{LoginName: name, Password: password}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -158,16 +159,16 @@ func TestNHA145YAMLActivationCancelsBeforeMutationRelease(t *testing.T) {
 	}
 	adminTokens := login("Activation Admin")
 	otherTokens := login("Activation Other")
-	issue := func(token, name string) *authv1.CreateMcpKeyResponse {
+	issue := func(tokens *api.SessionTokens, name string) *api.IssueMcpKeyResponse {
 		t.Helper()
-		r, err := keys.CreateMcpKey(ctx, nha141BearerRequest(&authv1.CreateMcpKeyRequest{ClientName: name, Scopes: []*authv1.Scope{{Family: authv1.ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY, Operation: authv1.ScopeOperation_SCOPE_OPERATION_READ}}}, token))
+		r, err := keys.IssueMcpKey(ctx, nha141BearerRequest(&api.IssueMcpKeyRequest{Parent: nha203SessionAccount(t, tokens.Session).String(), ClientName: name, Scopes: []*api.Scope{{Family: api.ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY, Operation: api.ScopeOperation_SCOPE_OPERATION_READ}}}, tokens.AccessToken))
 		if err != nil {
 			t.Fatal(err)
 		}
 		return r.Msg
 	}
-	first := issue(adminTokens.AccessToken, "YAML-bound")
-	sibling := issue(otherTokens.AccessToken, "other-account")
+	first := issue(adminTokens, "YAML-bound")
+	sibling := issue(otherTokens, "other-account")
 	open := func(path, secret, label string) (*http.Response, admitted) {
 		t.Helper()
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+path, nil)
@@ -316,7 +317,7 @@ func TestNHA145YAMLActivationCancelsBeforeMutationRelease(t *testing.T) {
 		}
 	}
 	rejectOld(first.Secret)
-	fresh := issue(adminTokens.AccessToken, "explicit new ceiling")
+	fresh := issue(adminTokens, "explicit new ceiling")
 	freshResponse, freshAdmission := open("/nha145/activation/mcp", fresh.Secret, "fresh")
 	defer freshResponse.Body.Close()
 	current, err := coordinator.authority.Current(freshAdmission.principal)
@@ -327,7 +328,7 @@ func TestNHA145YAMLActivationCancelsBeforeMutationRelease(t *testing.T) {
 	publish(false, "reduction", freshAdmission, true)
 	rejectOld(fresh.Secret)
 	// A new explicit issue after the reduction is valid within the new ceiling.
-	reduced := issue(adminTokens.AccessToken, "reduced ceiling")
+	reduced := issue(adminTokens, "reduced ceiling")
 	reducedResponse, reducedAdmission := open("/nha145/activation/mcp", reduced.Secret, "reduced")
 	defer reducedResponse.Body.Close()
 	current, err = coordinator.authority.Current(reducedAdmission.principal)

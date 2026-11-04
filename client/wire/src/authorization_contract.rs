@@ -1,12 +1,12 @@
-//! Structural admission for policy RPCs. This module never evaluates rights.
-use crate::auth_contract::{AccountId, AdmissionError};
-use crate::home::auth::v1 as auth;
+//! Structural admission of native-owned public policy resources; never evaluates rights.
+use crate::auth_contract::AdmissionError;
+use crate::home::{api::v2 as auth, auth::v1 as native};
 use buffa::EnumValue;
+use home_client_model::auth::AuthorizationPolicyName;
 
 pub const POLICY_SCHEMA: &str = "homeward.authorization/1";
 pub const POLICY_SYNTAX_PROFILE: &str = "homeward.authorization-yaml/1";
 pub const MAX_SOURCE_BYTES: usize = 1 << 20;
-
 pub struct Admitted<T> {
     wire: T,
 }
@@ -15,39 +15,41 @@ impl<T> Admitted<T> {
         &self.wire
     }
 }
-
 fn source(value: &[u8]) -> bool {
     !value.is_empty() && value.len() <= MAX_SOURCE_BYTES && std::str::from_utf8(value).is_ok()
 }
-fn version(value: &auth::PolicyVersion) -> bool {
-    value.__buffa_unknown_fields.is_empty()
-        && value.revision > 0
-        && value.revision <= i64::MAX as u64
-        && value.source_sha256.len() == 32
-        && value.source_sha256.iter().any(|b| *b != 0)
+fn etag(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 128
 }
-fn snapshot(value: &auth::PolicySnapshot) -> bool {
-    value.__buffa_unknown_fields.is_empty()
-        && value
-            .account_id
-            .as_option()
-            .is_some_and(|v| AccountId::try_from(v).is_ok())
+fn snapshot(value: &auth::AuthorizationPolicy) -> bool {
+    let stored = match value.origin {
+        EnumValue::Known(auth::AuthorizationPolicyOrigin::Default) => {
+            value.etag.is_empty() && !value.update_time.is_set()
+        }
+        EnumValue::Known(auth::AuthorizationPolicyOrigin::Stored) => {
+            etag(&value.etag)
+                && value.update_time.as_option().is_some_and(|v| {
+                    v.__buffa_unknown_fields.is_empty()
+                        && (-62_135_596_800..=253_402_300_799).contains(&v.seconds)
+                        && (0..1_000_000_000).contains(&v.nanos)
+                })
+        }
+        EnumValue::Known(auth::AuthorizationPolicyOrigin::Unspecified) | EnumValue::Unknown(_) => {
+            false
+        }
+    };
+    stored
+        && value.__buffa_unknown_fields.is_empty()
+        && AuthorizationPolicyName::try_from(value.name.as_str()).is_ok()
         && source(&value.yaml_source)
         && value.schema == POLICY_SCHEMA
         && value.syntax_profile == POLICY_SYNTAX_PROFILE
-        && value.version.as_option().is_some_and(version)
-        && value.updated_at.as_option().is_some_and(|v| {
-            v.__buffa_unknown_fields.is_empty()
-                && (-62_135_596_800..=253_402_300_799).contains(&v.seconds)
-                && (0..1_000_000_000).contains(&v.nanos)
-        })
 }
-pub fn admit_get_request(value: &auth::GetPolicyRequest) -> Result<(), AdmissionError> {
+pub fn admit_get_request(
+    value: &auth::GetAuthorizationPolicyRequest,
+) -> Result<(), AdmissionError> {
     if value.__buffa_unknown_fields.is_empty()
-        && value
-            .account_id
-            .as_option()
-            .is_some_and(|v| AccountId::try_from(v).is_ok())
+        && AuthorizationPolicyName::try_from(value.name.as_str()).is_ok()
     {
         Ok(())
     } else {
@@ -55,15 +57,9 @@ pub fn admit_get_request(value: &auth::GetPolicyRequest) -> Result<(), Admission
     }
 }
 pub fn admit_get_response(
-    value: &auth::GetPolicyResponse,
-) -> Result<Admitted<auth::GetPolicyResponse>, AdmissionError> {
-    use auth::get_policy_response::Result;
-    let valid = match &value.result {
-        Some(Result::Present(v)) => snapshot(v),
-        Some(Result::Absent(v)) => v.__buffa_unknown_fields.is_empty(),
-        None => false,
-    };
-    if valid && value.__buffa_unknown_fields.is_empty() {
+    value: &auth::AuthorizationPolicy,
+) -> Result<Admitted<auth::AuthorizationPolicy>, AdmissionError> {
+    if snapshot(value) {
         Ok(Admitted {
             wire: value.clone(),
         })
@@ -71,20 +67,19 @@ pub fn admit_get_response(
         Err(AdmissionError::Invalid)
     }
 }
-pub fn admit_replace_request(value: &auth::ReplacePolicyRequest) -> Result<(), AdmissionError> {
-    use auth::replace_policy_request::Precondition;
+pub fn admit_replace_request(
+    value: &auth::ReplaceAuthorizationPolicyRequest,
+) -> Result<(), AdmissionError> {
+    use auth::replace_authorization_policy_request::Precondition;
     let valid = match &value.precondition {
-        Some(Precondition::Expected(v)) => version(v),
+        Some(Precondition::ExpectedEtag(v)) => etag(v),
         Some(Precondition::ExpectAbsent(v)) => v.__buffa_unknown_fields.is_empty(),
         None => false,
     };
     if valid
         && value.__buffa_unknown_fields.is_empty()
         && source(&value.yaml_source)
-        && value
-            .account_id
-            .as_option()
-            .is_some_and(|v| AccountId::try_from(v).is_ok())
+        && AuthorizationPolicyName::try_from(value.name.as_str()).is_ok()
     {
         Ok(())
     } else {
@@ -92,8 +87,8 @@ pub fn admit_replace_request(value: &auth::ReplacePolicyRequest) -> Result<(), A
     }
 }
 pub fn admit_replace_response(
-    value: &auth::ReplacePolicyResponse,
-) -> Result<Admitted<auth::ReplacePolicyResponse>, AdmissionError> {
+    value: &auth::ReplaceAuthorizationPolicyResponse,
+) -> Result<Admitted<auth::ReplaceAuthorizationPolicyResponse>, AdmissionError> {
     let valid = match value.rights_change {
         EnumValue::Known(auth::PolicyRightsChange::Changed)
         | EnumValue::Known(auth::PolicyRightsChange::Unchanged) => true,
@@ -101,37 +96,10 @@ pub fn admit_replace_response(
     };
     if valid
         && value.__buffa_unknown_fields.is_empty()
-        && value.policy.as_option().is_some_and(snapshot)
-    {
-        Ok(Admitted {
-            wire: value.clone(),
+        && value.policy.as_option().is_some_and(|policy| {
+            snapshot(policy) && policy.origin == auth::AuthorizationPolicyOrigin::Stored
         })
-    } else {
-        Err(AdmissionError::Invalid)
-    }
-}
-pub fn admit_error(
-    value: &auth::AuthorizationPolicyError,
-) -> Result<Admitted<auth::AuthorizationPolicyError>, AdmissionError> {
-    let path = value.field_path.len() <= 128
-        && value
-            .field_path
-            .bytes()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"_.[]".contains(&c));
-    let valid = match value.code {
-        EnumValue::Known(auth::AuthorizationPolicyErrorCode::VersionConflict)
-        | EnumValue::Known(auth::AuthorizationPolicyErrorCode::ScopeDenied)
-        | EnumValue::Known(auth::AuthorizationPolicyErrorCode::AuthorityUnavailable) => {
-            value.field_path.is_empty()
-        }
-        EnumValue::Known(auth::AuthorizationPolicyErrorCode::InvalidSource)
-        | EnumValue::Known(auth::AuthorizationPolicyErrorCode::InvalidVersion) => {
-            !value.field_path.is_empty()
-        }
-        EnumValue::Known(auth::AuthorizationPolicyErrorCode::Unspecified)
-        | EnumValue::Unknown(_) => false,
-    };
-    if valid && path && value.__buffa_unknown_fields.is_empty() {
+    {
         Ok(Admitted {
             wire: value.clone(),
         })
@@ -141,15 +109,15 @@ pub fn admit_error(
 }
 /// Every admitted termination requires discarding the complete cached view.
 pub fn admit_termination(
-    value: &auth::AuthorizationTermination,
-) -> Result<Admitted<auth::AuthorizationTermination>, AdmissionError> {
+    value: &native::AuthorizationTermination,
+) -> Result<Admitted<native::AuthorizationTermination>, AdmissionError> {
     let valid = match value.reason {
-        EnumValue::Known(auth::AuthorizationTerminationReason::CredentialRevoked)
-        | EnumValue::Known(auth::AuthorizationTerminationReason::CredentialExpired)
-        | EnumValue::Known(auth::AuthorizationTerminationReason::AccountDisabled)
-        | EnumValue::Known(auth::AuthorizationTerminationReason::RightsChanged)
-        | EnumValue::Known(auth::AuthorizationTerminationReason::AuthorityUnavailable) => true,
-        EnumValue::Known(auth::AuthorizationTerminationReason::Unspecified)
+        EnumValue::Known(native::AuthorizationTerminationReason::CredentialRevoked)
+        | EnumValue::Known(native::AuthorizationTerminationReason::CredentialExpired)
+        | EnumValue::Known(native::AuthorizationTerminationReason::AccountDisabled)
+        | EnumValue::Known(native::AuthorizationTerminationReason::RightsChanged)
+        | EnumValue::Known(native::AuthorizationTerminationReason::AuthorityUnavailable) => true,
+        EnumValue::Known(native::AuthorizationTerminationReason::Unspecified)
         | EnumValue::Unknown(_) => false,
     };
     if valid && value.__buffa_unknown_fields.is_empty() {

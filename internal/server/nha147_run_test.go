@@ -17,16 +17,18 @@ import (
 	"testing"
 	"time"
 
+	longrunningpb "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
-	actions "github.com/damione1/Homeward/gen/home/actions/v1"
-	"github.com/damione1/Homeward/gen/home/actions/v1/actionsv1connect"
+	"github.com/damione1/Homeward/gen/google/longrunning/longrunningpbconnect"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	registryv1 "github.com/damione1/Homeward/gen/home/registry/v1"
-	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
+	"github.com/damione1/Homeward/internal/apierrors"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -36,9 +38,17 @@ import (
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/damione1/Homeward/scope"
 	"golang.org/x/net/http2"
+	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+type nha147EntityCapture struct {
+	Name, Resume string
+	Page         *api.QueryEntityViewResponse
+	Entries      []*api.EntityViewEntry
+}
 
 type nha147Driver struct {
 	emitted atomic.Int32
@@ -89,7 +99,9 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	var bindings []integrations.Binding
 	var base string
 	var stop func()
+	var nativeStore *storage.Store
 	factory := func(factoryCtx context.Context, store *storage.Store) (RuntimePlan, error) {
+		nativeStore = store
 		manifest, err := registry.LoadManifest(scope.BaselineV1())
 		if err != nil {
 			return RuntimePlan{}, err
@@ -183,7 +195,7 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 		return dialer.DialContext(ctx, "unix", filepath.Join(data, operatorSocketName))
 	}}}
 	defer operatorHTTP.CloseIdleConnections()
-	operator := authv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
+	operator := operatorv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
 	const password = "NHA147 synthetic native local password"
 	admin, err := operator.BootstrapAdmin(ctx, connect.NewRequest(&authv1.BootstrapAdminRequest{LoginName: "NHA147 Admin", DisplayName: "NHA147 Admin", Password: password}))
 	if err != nil {
@@ -199,8 +211,29 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 	}
 	login := func() *authv1.SessionTokens { return loginAccount("NHA147 Admin") }
 	tokens := login()
-	state := statev1connect.NewStateServiceClient(client, base)
-	action := actionsv1connect.NewActionServiceClient(client, base)
+	views := apiv2connect.NewEntityViewServiceClient(client, base)
+	homes := apiv2connect.NewHomeServiceClient(client, base)
+	capabilities := apiv2connect.NewCapabilityServiceClient(client, base)
+	operations := longrunningpbconnect.NewOperationsClient(client, base)
+	listedHomes, err := homes.ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{}, tokens.AccessToken))
+	if err != nil || len(listedHomes.Msg.GetHomes()) != 1 {
+		t.Fatal("native installation discovery", err)
+	}
+	home, err := apitypes.ParseHomeName(listedHomes.Msg.Homes[0].Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entityName := func(index int) string {
+		_, entity, err := bindings[index].IDs()
+		if err != nil {
+			t.Fatal(err)
+		}
+		name, err := apitypes.EntityNameForIdentity(home, entity)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return name.String()
+	}
 	// Explicit fixture grants go through the real native policy CAS API.
 	// Admin is an account-management role, never implicit equipment access.
 	grantPolicy := func(account *authv1.AccountId, stateRead, actionRead, actionWrite bool) {
@@ -266,438 +299,519 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	open := func(size uint32) *statev1.OpenViewResponse {
+	capture := func(token string, size int32, complete bool) *nha147EntityCapture {
 		t.Helper()
-		response, err := state.OpenView(ctx, nha141BearerRequest(&statev1.OpenViewRequest{PageSize: size, Filter: &statev1.ViewFilter{}}, tokens.AccessToken))
+		created, err := views.CreateEntityView(ctx, nha141BearerRequest(&api.CreateEntityViewRequest{Parent: home.String(), EntityView: &api.EntityView{}}, token))
 		if err != nil {
-			t.Fatal(err)
+			t.Fatal("authenticated entity capture", err)
 		}
-		return response.Msg
+		page, err := views.QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{Name: created.Msg.Name, PageSize: size}, token))
+		if err != nil {
+			t.Fatal("entity snapshot first page", err)
+		}
+		result := &nha147EntityCapture{Name: created.Msg.Name, Page: page.Msg}
+		result.Entries = append(result.Entries, page.Msg.Entries...)
+		for complete && page.Msg.NextPageToken != "" {
+			if page.Msg.ResumeToken != "" {
+				t.Fatal("partial snapshot emitted checkpoint")
+			}
+			page, err = views.QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{Name: created.Msg.Name, PageSize: size, PageToken: page.Msg.NextPageToken}, token))
+			if err != nil {
+				t.Fatal("complete entity snapshot", err)
+			}
+			result.Entries = append(result.Entries, page.Msg.Entries...)
+		}
+		result.Resume = page.Msg.ResumeToken
+		if complete && result.Resume == "" {
+			t.Fatal("complete snapshot omitted checkpoint")
+		}
+		return result
+	}
+	open := func(size int32) *nha147EntityCapture { return capture(tokens.AccessToken, size, true) }
+	watchRequest := func(c *nha147EntityCapture) *api.WatchEntityViewRequest {
+		return &api.WatchEntityViewRequest{Name: c.Name, ResumeToken: c.Resume}
+	}
+	closeCapture := func(c *nha147EntityCapture, token string) {
+		_, _ = views.DeleteEntityView(ctx, nha141BearerRequest(&api.DeleteEntityViewRequest{Name: c.Name}, token))
+	}
+	power := func(entry *api.EntityViewEntry) api.PowerValue {
+		for _, capability := range entry.GetCapabilities() {
+			if capability.GetPower().GetObservation() != nil {
+				return capability.GetPower().GetObservation().GetValue()
+			}
+		}
+		return api.PowerValue_POWER_VALUE_UNSPECIFIED
+	}
+	watchError := func(request *api.WatchEntityViewRequest, token string) error {
+		stream, err := views.WatchEntityView(ctx, nha141BearerRequest(request, token))
+		if err == nil {
+			defer stream.Close()
+			if stream.Receive() {
+				t.Fatal("invalidated capture emitted state")
+			}
+			err = stream.Err()
+		}
+		return err
+	}
+	assertResync := func(err error) {
+		t.Helper()
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition || nha147FailureKind(t, err) != api.ApiErrorReason_API_ERROR_REASON_RESYNC_REQUIRED {
+			t.Fatal("invalidation lost canonical resync", err)
+		}
 	}
 	publish(0, false)
 	publish(1, false)
-	if empty := open(1); len(empty.Entities) != 0 || len(empty.States) != 0 {
-		t.Fatal("empty admin policy exposed synthetic equipment")
+	empty := open(1)
+	if len(empty.Entries) != 0 {
+		t.Fatal("empty admin policy exposed equipment")
 	}
-	{
-		epoch, err := sequence.CurrentAdmissionEpoch()
-		if err != nil {
-			t.Fatal(err)
-		}
-		stamp, err := owner.CurrentConfig(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		revision, _, err := stamp.Components()
-		if err != nil {
-			t.Fatal(err)
-		}
-		denied := &actions.CommandRequest{CommandId: "nha147-empty-policy", AdmissionEpoch: epoch, ConfigRevision: revision, Target: &registryv1.EntityRef{Reference: &registryv1.EntityRef_HaAlias{HaAlias: aliases[0]}}, CapabilitySchemaId: contracts.SwitchSchema, Endpoint: "relay", Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetSwitch{SetSwitch: &actions.SetSwitch{On: true}}}, ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}
-		if _, err := action.SubmitAction(ctx, nha141BearerRequest(&actions.SubmitActionRequest{Command: denied}, tokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied || driver.emitted.Load() != 0 {
-			t.Fatal("empty admin policy dispatched a command", err)
-		}
+	closeCapture(empty, tokens.AccessToken)
+	// Authorize the object before exposing command payload or stale-binding diagnostics.
+	denied := &api.ExecuteCapabilityRequest{Name: entityName(0) + "/capabilities/denied", RequestId: nha114RequestID("nha147-empty-policy"), ExpireTime: timestamppb.New(time.Now().Add(time.Minute)), Command: &api.ExecuteCapabilityRequest_Power{Power: &api.SetPowerCommand{Value: api.PowerValue_POWER_VALUE_ON}}}
+	if _, err := capabilities.ExecuteCapability(ctx, nha141BearerRequest(denied, tokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied || driver.emitted.Load() != 0 {
+		t.Fatal("empty admin policy dispatched", err)
 	}
 	grantPolicy(admin.Msg.Account.Id, true, true, true)
-	first := open(1)
-	if len(first.Entities) != 1 || first.NextPageToken == "" || len(first.States) != 1 || first.States[0].GetSwitchOn() {
-		t.Fatal("initial coherent page", first)
-	}
-	stamp, err := owner.CurrentConfig(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	revision, manifestHash, err := stamp.Components()
-	if err != nil || first.Cursor.ConfigRevision != revision || !bytes.Equal(first.Cursor.ConfigSha256, manifestHash[:]) {
-		t.Fatal("public cursor did not borrow actual Owner029 generation")
+	first := capture(tokens.AccessToken, 1, false)
+	if len(first.Entries) != 1 || first.Page.NextPageToken == "" || first.Resume != "" || power(first.Entries[0]) != api.PowerValue_POWER_VALUE_OFF {
+		t.Fatal("initial coherent partial page", first)
 	}
 	publish(0, true)
-	pageRequest := &statev1.ReadPageRequest{SnapshotToken: first.SnapshotToken, PageToken: first.NextPageToken}
-	second, err := state.ReadPage(ctx, nha141BearerRequest(pageRequest, tokens.AccessToken))
+	pageRequest := &api.QueryEntityViewRequest{Name: first.Name, PageSize: 1, PageToken: first.Page.NextPageToken}
+	second, err := views.QueryEntityView(ctx, nha141BearerRequest(pageRequest, tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, err := state.ReadPage(ctx, nha141BearerRequest(pageRequest, tokens.AccessToken))
-	if err != nil || !proto.Equal(second.Msg, again.Msg) || !proto.Equal(first.Cursor, second.Msg.Page.Cursor) {
-		t.Fatal("page/cursor changed after concurrent publication", err)
+	again, err := views.QueryEntityView(ctx, nha141BearerRequest(pageRequest, tokens.AccessToken))
+	if err != nil || !proto.Equal(&api.QueryEntityViewResponse{Entries: second.Msg.Entries}, &api.QueryEntityViewResponse{Entries: again.Msg.Entries}) || second.Msg.NextPageToken != "" || again.Msg.NextPageToken != "" || second.Msg.ResumeToken == "" || again.Msg.ResumeToken == "" {
+		t.Fatal("immutable page/checkpoint changed", err)
 	}
-	watch, err := state.WatchView(ctx, nha141BearerRequest(&statev1.WatchViewRequest{Cursor: first.Cursor, Filter: &statev1.ViewFilter{}}, tokens.AccessToken))
+	first.Resume = second.Msg.ResumeToken
+	first.Entries = append(first.Entries, second.Msg.Entries...)
+	for _, entry := range first.Entries {
+		if power(entry) != api.PowerValue_POWER_VALUE_OFF {
+			t.Fatal("concurrent observation changed captured page")
+		}
+	}
+	watch, err := views.WatchEntityView(ctx, nha141BearerRequest(watchRequest(first), tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !watch.Receive() || watch.Msg().GetDelta() == nil || len(watch.Msg().GetDelta().States) != 1 || !watch.Msg().GetDelta().States[0].GetSwitchOn() {
+	if !watch.Receive() || power(watch.Msg().GetUpsert()) != api.PowerValue_POWER_VALUE_ON || watch.Msg().ResumeToken == "" {
 		t.Fatal("snapshot/live suffix mismatch", watch.Err())
 	}
 	watch.Close()
-	for _, tc := range []struct {
-		reason statev1.ResyncReason
-		mutate func(*statev1.WatchViewRequest)
-	}{
-		{statev1.ResyncReason_RESYNC_REASON_EPOCH_CHANGED, func(r *statev1.WatchViewRequest) {
-			if r.Cursor.Epoch[0] == '0' {
-				r.Cursor.Epoch = "1" + r.Cursor.Epoch[1:]
-			} else {
-				r.Cursor.Epoch = "0" + r.Cursor.Epoch[1:]
-			}
-		}},
-		{statev1.ResyncReason_RESYNC_REASON_CONFIGURATION_CHANGED, func(r *statev1.WatchViewRequest) { r.Cursor.ConfigRevision++ }},
-		{statev1.ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED, func(r *statev1.WatchViewRequest) { r.Cursor.AuthorizationRevision++ }},
-		{statev1.ResyncReason_RESYNC_REASON_FILTER_CHANGED, func(r *statev1.WatchViewRequest) { r.Filter.EntityIds = []string{first.Entities[0].EntityId} }},
-		{statev1.ResyncReason_RESYNC_REASON_INVALID_CURSOR, func(r *statev1.WatchViewRequest) { r.Cursor.AdmissionProof[39] ^= 1 }},
-	} {
-		request := &statev1.WatchViewRequest{Cursor: proto.Clone(first.Cursor).(*statev1.ViewCursor), Filter: &statev1.ViewFilter{}}
-		tc.mutate(request)
-		stream, err := state.WatchView(ctx, nha141BearerRequest(request, tokens.AccessToken))
-		if err != nil || !stream.Receive() || stream.Msg().GetResyncRequired().GetReason() != tc.reason || stream.Receive() || stream.Err() != nil {
-			t.Fatal("typed resync was collapsed or replay fabricated", tc.reason, err)
-		}
-		stream.Close()
+	// Epoch/configuration/rights/filter binding is sealed, not client-editable.
+	for _, token := range []string{"invalid", first.Resume[:len(first.Resume)-1] + "!"} {
+		request := watchRequest(first)
+		request.ResumeToken = token
+		assertResync(watchError(request, tokens.AccessToken))
 	}
-	// The dedicated x/net HTTP/2 client advertises a 4 MiB stream window.
-	// Leave its response entirely unread while a second real client consumes
-	// more than twice that wire volume from the same published state stream.
+	other := open(1)
+	wrongCapture := watchRequest(other)
+	wrongCapture.ResumeToken = first.Resume
+	assertResync(watchError(wrongCapture, tokens.AccessToken))
+	closeCapture(other, tokens.AccessToken)
 	slowAccount, err := authv1connect.NewAccountServiceClient(client, base).CreateAccount(ctx, nha141BearerRequest(&authv1.CreateAccountRequest{LoginName: "NHA147 Reader", DisplayName: "NHA147 Reader", Role: authv1.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: password}, tokens.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	slowTokens := loginAccount("NHA147 Reader")
-	if empty, err := state.OpenView(ctx, nha141BearerRequest(&statev1.OpenViewRequest{PageSize: 1, Filter: &statev1.ViewFilter{}}, slowTokens.AccessToken)); err != nil || len(empty.Msg.Entities) != 0 {
-		t.Fatal("empty user policy exposed equipment", err)
+	empty = capture(slowTokens.AccessToken, 1, true)
+	if len(empty.Entries) != 0 {
+		t.Fatal("empty user policy exposed equipment")
 	}
+	closeCapture(empty, slowTokens.AccessToken)
 	grantPolicy(slowAccount.Msg.Account.Id, true, true, true)
-	if _, err := state.ReadPage(ctx, nha141BearerRequest(pageRequest, slowTokens.AccessToken)); connect.CodeOf(err) != connect.CodeFailedPrecondition {
-		t.Fatal("snapshot token crossed a credential binding", err)
+	if _, err := views.QueryEntityView(ctx, nha141BearerRequest(pageRequest, slowTokens.AccessToken)); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatal("capture crossed credential binding", err)
 	}
-	slowPage, err := state.OpenView(ctx, nha141BearerRequest(&statev1.OpenViewRequest{PageSize: 1, Filter: &statev1.ViewFilter{}}, slowTokens.AccessToken))
-	if err != nil {
-		t.Fatal(err)
-	}
+	slowPage := capture(slowTokens.AccessToken, 1, true)
 	fastPage := open(1)
 	publish(0, false)
-	slowTransport := &http2.Transport{}
-	defer slowTransport.CloseIdleConnections()
-	dialer := net.Dialer{Timeout: 3 * time.Second}
-	tlsConnection, err := tls.DialWithDialer(&dialer, "tcp", strings.TrimPrefix(base, "https://"), &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12, NextProtos: []string{"h2"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tlsConnection.Close()
-	if tlsConnection.ConnectionState().NegotiatedProtocol != "h2" {
-		t.Fatal("slow TLS connection did not negotiate HTTP/2")
-	}
-	slowConnection, err := slowTransport.NewClientConn(tlsConnection)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer slowConnection.Close()
-	slowCtx, stopSlow := context.WithCancel(ctx)
-	defer stopSlow()
-	watchMessage, err := proto.Marshal(&statev1.WatchViewRequest{Cursor: slowPage.Msg.Cursor, Filter: &statev1.ViewFilter{}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	envelope := make([]byte, 5+len(watchMessage))
-	binary.BigEndian.PutUint32(envelope[1:5], uint32(len(watchMessage)))
-	copy(envelope[5:], watchMessage)
-	slowRequest, err := http.NewRequestWithContext(slowCtx, http.MethodPost, base+statev1connect.StateServiceWatchViewProcedure, bytes.NewReader(envelope))
-	if err != nil {
-		t.Fatal(err)
-	}
-	slowRequest.Header.Set("Content-Type", "application/connect+proto")
-	slowRequest.Header.Set("Connect-Protocol-Version", "1")
-	slowRequest.Header.Set("Authorization", "Bearer "+slowTokens.AccessToken)
-	slow, err := slowConnection.RoundTrip(slowRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if slow.StatusCode != http.StatusOK || slow.ProtoMajor != 2 {
-		slow.Body.Close()
-		t.Fatal("slow proof did not use a real HTTP/2 stream", slow.StatusCode, slow.Proto)
-	}
-	defer slow.Body.Close()
-	fast, err := state.WatchView(ctx, nha141BearerRequest(&statev1.WatchViewRequest{Cursor: fastPage.Cursor, Filter: &statev1.ViewFilter{}}, tokens.AccessToken))
-	if err != nil || !fast.Receive() || fast.Msg().GetDelta() == nil {
+	// Consume >8MiB while a separate real HTTP/2 reader leaves its 4MiB window unread.
+	slowConnection, _ := nha147UnreadH2(t, ctx, base, roots, apiv2connect.EntityViewServiceWatchEntityViewProcedure, watchRequest(slowPage), slowTokens.AccessToken, 4<<20)
+	fast, err := views.WatchEntityView(ctx, nha141BearerRequest(watchRequest(fastPage), tokens.AccessToken))
+	if err != nil || !fast.Receive() || fast.Msg().GetUpsert() == nil {
 		t.Fatal("fast stream did not start", err)
 	}
-	var fastBytes int
+	fastBytes := 0
 	for count := 0; count <= 16384 || fastBytes <= 8<<20; count++ {
 		publish(0, count%2 == 0)
-		if !fast.Receive() || fast.Msg().GetDelta() == nil {
+		if !fast.Receive() || fast.Msg().GetUpsert() == nil {
 			t.Fatal("slow reader degraded active reader", fast.Err())
 		}
 		fastBytes += 5 + proto.Size(fast.Msg())
 	}
-	if active := slowConnection.State().StreamsActive; active != 1 {
-		t.Fatal("unread slow stream ended before the blocked-send revocation proof", active)
+	if slowConnection.State().StreamsActive != 1 {
+		t.Fatal("unread slow stream ended before revocation proof")
 	}
-	// Withdraw rights while Send is blocked; the credential is not revoked.
 	grantPolicy(slowAccount.Msg.Account.Id, false, true, true)
-	until := time.Now().Add(3 * time.Second)
-	for slowConnection.State().StreamsActive != 0 {
-		if time.Now().After(until) {
-			t.Fatal("policy withdrawal left an unread HTTP/2 Send active beyond its bounded error grace")
+	waitClosed := func(connection *http2.ClientConn, reason string) {
+		t.Helper()
+		until := time.Now().Add(3 * time.Second)
+		for connection.State().StreamsActive != 0 {
+			if time.Now().After(until) {
+				t.Fatal(reason)
+			}
+			time.Sleep(10 * time.Millisecond)
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
-	// Completion was observed without reading or cancelling the client body.
-	stopSlow()
-	if err := slow.Body.Close(); err != nil {
-		t.Fatal(err)
-	}
+	waitClosed(slowConnection, "policy withdrawal retained blocked entity Send")
+	// A different account may also be told to recapture after publication; either
+	// valid state or canonical resync is explicit, and neither stalls admission.
 	publish(0, false)
-	if !fast.Receive() {
-		t.Fatal("policy-invalidated slow reader stalled its fast witness", fast.Err())
-	}
-	if resync := fast.Msg().GetResyncRequired(); resync != nil {
-		if resync.Reason != statev1.ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED && resync.Reason != statev1.ResyncReason_RESYNC_REASON_EPOCH_CHANGED {
-			t.Fatal("unexpected fast witness invalidation", resync)
+	if fast.Receive() {
+		if fast.Msg().GetUpsert() == nil {
+			t.Fatal("fast witness lost typed membership")
 		}
-	} else if fast.Msg().GetDelta() == nil {
-		t.Fatal("fast witness lost its typed frame")
+	} else {
+		assertResync(fast.Err())
 	}
 	fast.Close()
+	closeCapture(fastPage, tokens.AccessToken)
 	freshFast := open(1)
 	publish(0, true)
-	fast, err = state.WatchView(ctx, nha141BearerRequest(&statev1.WatchViewRequest{Cursor: freshFast.Cursor, Filter: &statev1.ViewFilter{}}, tokens.AccessToken))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !fast.Receive() || fast.Msg().GetDelta() == nil {
-		t.Fatal("fast witness could not reopen after policy invalidation", fast.Err())
+	fast, err = views.WatchEntityView(ctx, nha141BearerRequest(watchRequest(freshFast), tokens.AccessToken))
+	if err != nil || !fast.Receive() || fast.Msg().GetUpsert() == nil {
+		t.Fatal("fast witness could not recapture", err)
 	}
 	fast.Close()
-	if page := open(1); page.Cursor == nil {
-		t.Fatal("slow stream retained public admissions")
-	}
+	closeCapture(freshFast, tokens.AccessToken)
 	if sessions, err := authv1connect.NewAuthServiceClient(client, base).ListSessions(ctx, nha141BearerRequest(&authv1.ListSessionsRequest{AccountId: slowAccount.Msg.Account.Id}, slowTokens.AccessToken)); err != nil || len(sessions.Msg.Sessions) == 0 {
-		t.Fatal("policy withdrawal revoked the credential", err)
+		t.Fatal("policy withdrawal revoked credential", err)
 	}
-	if empty, err := state.OpenView(ctx, nha141BearerRequest(&statev1.OpenViewRequest{PageSize: 1, Filter: &statev1.ViewFilter{}}, slowTokens.AccessToken)); err != nil || len(empty.Msg.Entities) != 0 {
-		t.Fatal("withdrawn view still exposed synthetic equipment", err)
+	empty = capture(slowTokens.AccessToken, 1, true)
+	if len(empty.Entries) != 0 {
+		t.Fatal("withdrawn view exposed equipment")
 	}
-	// A normally consuming reader keeps the existing typed resync terminal.
+	closeCapture(empty, slowTokens.AccessToken)
 	grantPolicy(slowAccount.Msg.Account.Id, true, true, true)
-	readablePage, err := state.OpenView(ctx, nha141BearerRequest(&statev1.OpenViewRequest{PageSize: 1, Filter: &statev1.ViewFilter{}}, slowTokens.AccessToken))
-	if err != nil {
-		t.Fatal(err)
-	}
+	readablePage := capture(slowTokens.AccessToken, 1, true)
 	publish(0, false)
-	readable, err := state.WatchView(ctx, nha141BearerRequest(&statev1.WatchViewRequest{Cursor: readablePage.Msg.Cursor, Filter: &statev1.ViewFilter{}}, slowTokens.AccessToken))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !readable.Receive() || readable.Msg().GetDelta() == nil {
-		t.Fatal("readable policy watch did not reach its idle point", readable.Err())
+	readable, err := views.WatchEntityView(ctx, nha141BearerRequest(watchRequest(readablePage), slowTokens.AccessToken))
+	if err != nil || !readable.Receive() || readable.Msg().GetUpsert() == nil {
+		t.Fatal("readable policy watch did not become idle", err)
 	}
 	grantPolicy(slowAccount.Msg.Account.Id, false, true, true)
-	if !readable.Receive() || readable.Msg().GetResyncRequired().GetReason() != statev1.ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED || readable.Receive() || readable.Err() != nil {
-		t.Fatal("policy withdrawal lost typed authorization resync", readable.Err())
+	if readable.Receive() {
+		t.Fatal("withdrawn policy emitted a state")
 	}
+	assertResync(readable.Err())
 	readable.Close()
 	grantPolicy(slowAccount.Msg.Account.Id, true, true, true)
-	expired, err := state.WatchView(ctx, nha141BearerRequest(&statev1.WatchViewRequest{Cursor: first.Cursor, Filter: &statev1.ViewFilter{}}, tokens.AccessToken))
-	if err != nil || !expired.Receive() || expired.Msg().GetResyncRequired().GetReason() != statev1.ResyncReason_RESYNC_REASON_REPLAY_EXPIRED || expired.Receive() || expired.Err() != nil {
-		t.Fatal("bounded replay did not expire explicitly", err)
+	assertResync(watchError(watchRequest(first), tokens.AccessToken))
+	// These captures become invalid after policy publication; the operation gets
+	// its definition binding from a fresh authorized capability.
+	current := open(2)
+	var selected *api.Capability
+	for _, entry := range current.Entries {
+		if entry.Entity.GetName() == entityName(0) {
+			for _, capability := range entry.Capabilities {
+				if capability.GetPower() != nil {
+					selected = capability
+				}
+			}
+		}
 	}
-	expired.Close()
-	epoch, err := sequence.CurrentAdmissionEpoch()
-	if err != nil {
-		t.Fatal(err)
+	if selected == nil {
+		t.Fatal("current capability absent")
 	}
-	command := &actions.CommandRequest{CommandId: "nha147-real-ledger", AdmissionEpoch: epoch, ConfigRevision: first.Cursor.ConfigRevision,
-		Target: &registryv1.EntityRef{Reference: &registryv1.EntityRef_HaAlias{HaAlias: aliases[0]}}, CapabilitySchemaId: contracts.SwitchSchema, Endpoint: "relay",
-		Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetSwitch{SetSwitch: &actions.SetSwitch{On: true}}}, ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}
-	submit := func(command *actions.CommandRequest) (*connect.Response[actions.SubmitActionResponse], error) {
-		return action.SubmitAction(ctx, nha141BearerRequest(&actions.SubmitActionRequest{Command: command}, tokens.AccessToken))
+	closeCapture(current, tokens.AccessToken)
+	command := &api.ExecuteCapabilityRequest{Name: selected.Name, Etag: selected.Etag, RequestId: nha114RequestID("nha147-real-ledger"), ExpireTime: timestamppb.New(time.Now().Add(time.Minute)), Command: &api.ExecuteCapabilityRequest_Power{Power: &api.SetPowerCommand{Value: api.PowerValue_POWER_VALUE_ON}}}
+	submit := func(command *api.ExecuteCapabilityRequest) (*connect.Response[longrunningpb.Operation], error) {
+		return capabilities.ExecuteCapability(ctx, nha141BearerRequest(command, tokens.AccessToken))
+	}
+	operationName := func(requestID string, account *authv1.AccountId) string {
+		actor, err := domain.ParseActorID(account.Value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		key, err := apitypes.ParseRequestID(requestID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, err := publicCommandID(actor, &key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text, _ := id.Value()
+		return home.String() + "/operations/cmd-" + text
+	}
+	get := func(name, token string) (*connect.Response[longrunningpb.Operation], error) {
+		return operations.GetOperation(ctx, nha141BearerRequest(&longrunningpb.GetOperationRequest{Name: name}, token))
+	}
+	durable := func(name string) storage.IntentRecord {
+		parsed, err := apitypes.ParseOperationName(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, err := domain.ParseCommandID(strings.TrimPrefix(parsed.ID(), "cmd-"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		record, found, err := nativeStore.CommandIntent(ctx, id)
+		if err != nil || !found {
+			t.Fatal("native durable occurrence absent", err)
+		}
+		return record
 	}
 	observer := nha030ServerObserver(t, cluster.Port)
-	if _, err := observer.Exec(ctx, `CREATE FUNCTION public.nha147_refuse_accept() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic deferred acceptance failure'; END $$;
-		CREATE CONSTRAINT TRIGGER nha147_refuse_accept AFTER INSERT ON public.command_intents DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.nha147_refuse_accept()`); err != nil {
+	if _, err := observer.Exec(ctx, `CREATE FUNCTION public.nha147_refuse_accept() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic deferred acceptance failure'; END $$; CREATE CONSTRAINT TRIGGER nha147_refuse_accept AFTER INSERT ON public.command_intents DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.nha147_refuse_accept()`); err != nil {
 		t.Fatal(err)
 	}
-	unknownCommit := proto.Clone(command).(*actions.CommandRequest)
-	unknownCommit.CommandId += "-unknown-commit"
+	unknownCommit := proto.Clone(command).(*api.ExecuteCapabilityRequest)
+	unknownCommit.RequestId = nha114RequestID("nha147-unknown-commit")
 	if _, err := submit(unknownCommit); nha147FailureKind(t, err) != api.ApiErrorReason_API_ERROR_REASON_COMMIT_OUTCOME_UNKNOWN || driver.emitted.Load() != 0 {
-		t.Fatal("unknown acceptance commit lost its phase or reached driver", err)
+		t.Fatal("uncertain acceptance reached driver", err)
 	}
 	if _, err := observer.Exec(ctx, `DROP TRIGGER nha147_refuse_accept ON public.command_intents; DROP FUNCTION public.nha147_refuse_accept()`); err != nil {
 		t.Fatal(err)
 	}
 	result, err := submit(command)
-	if err != nil || result.Msg.Result.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED || driver.emitted.Load() != 1 {
-		t.Fatal("one durable admission without a job", result, err)
+	if err != nil || result == nil || result.Msg.Name == "" {
+		t.Fatal("durable admission without job", result, err)
 	}
+	name := result.Msg.Name
+	nha114Eventually(t, "native dispatch result did not settle", func() bool {
+		record := durable(name)
+		return driver.emitted.Load() == 1 && record.State() == storage.IntentResult && record.ErrorKind() == storage.IntentNoError && len(record.Response()) > 0
+	})
+	original := durable(name).Response()
 	if _, err := submit(command); err != nil || driver.emitted.Load() != 1 {
-		t.Fatal("same ID was dispatched again", err)
+		t.Fatal("same key dispatched twice", err)
 	}
-	conflict := proto.Clone(command).(*actions.CommandRequest)
-	conflict.Arguments.GetSetSwitch().On = false
+	conflict := proto.Clone(command).(*api.ExecuteCapabilityRequest)
+	conflict.GetPower().Value = api.PowerValue_POWER_VALUE_OFF
 	if _, err := submit(conflict); connect.CodeOf(err) != connect.CodeAlreadyExists || driver.emitted.Load() != 1 {
-		t.Fatal("conflicting ID changed the intention", err)
+		t.Fatal("key conflict changed intention", err)
 	}
-	for _, mutate := range []func(*actions.CommandRequest){
-		func(v *actions.CommandRequest) {
-			if v.AdmissionEpoch[0] == '0' {
-				v.AdmissionEpoch = "1" + v.AdmissionEpoch[1:]
-			} else {
-				v.AdmissionEpoch = "0" + v.AdmissionEpoch[1:]
-			}
+	for i, mutate := range []func(*api.ExecuteCapabilityRequest){
+		func(v *api.ExecuteCapabilityRequest) { v.Etag = "stale-definition" },
+		func(v *api.ExecuteCapabilityRequest) {
+			v.Name = home.String() + "/entities/missing/capabilities/missing"
 		},
-		func(v *actions.CommandRequest) { v.ConfigRevision++ },
-		func(v *actions.CommandRequest) {
-			v.Target = &registryv1.EntityRef{Reference: &registryv1.EntityRef_HaAlias{HaAlias: "switch.nha147_absent"}}
-		},
-		func(v *actions.CommandRequest) { v.CapabilitySchemaId = "nha147.unregistered" },
-		func(v *actions.CommandRequest) { v.Endpoint = "unavailable" },
-		func(v *actions.CommandRequest) { v.ExpectedRevision = new(uint64); *v.ExpectedRevision = ^uint64(0) },
-		func(v *actions.CommandRequest) { v.ProtoReflect().SetUnknown([]byte{0xa0, 0x06, 0x01}) },
-		func(v *actions.CommandRequest) {
-			v.Arguments.Arguments = &actions.ActionArgs_Extension{Extension: &actions.ExtensionPayload{SchemaId: "nha147.unregistered", Major: 1, DescriptorSha256: make([]byte, 32), ProtobufPayload: []byte{1}}}
+		func(v *api.ExecuteCapabilityRequest) { v.Name = entityName(0) + "/capabilities/unavailable" },
+		func(v *api.ExecuteCapabilityRequest) { v.ExpireTime = timestamppb.New(time.Now().Add(-time.Second)) },
+		func(v *api.ExecuteCapabilityRequest) { v.RequestId = "not-a-uuid" },
+		func(v *api.ExecuteCapabilityRequest) { v.ProtoReflect().SetUnknown([]byte{0xa0, 0x06, 0x01}) },
+		func(v *api.ExecuteCapabilityRequest) {
+			v.Command = &api.ExecuteCapabilityRequest_Level{Level: &api.SetLevelCommand{Target: &api.SetLevelCommand_Percentage{Percentage: 50}}}
 		},
 	} {
-		invalid := proto.Clone(command).(*actions.CommandRequest)
-		invalid.CommandId += "-refused-" + time.Now().Format("150405.000000000")
+		invalid := proto.Clone(command).(*api.ExecuteCapabilityRequest)
+		invalid.RequestId = nha114RequestID(fmt.Sprintf("nha147-refused-%d", i))
 		mutate(invalid)
-		response, err := submit(invalid)
-		if err == nil && response.Msg.Result.Status != actions.ActionStatus_ACTION_STATUS_FAILED {
-			t.Fatal("invalid fence admitted", response)
+		if response, err := submit(invalid); err == nil {
+			t.Fatal("invalid binding admitted", response)
 		}
 		if driver.emitted.Load() != 1 {
-			t.Fatal("refused fence reached fake driver")
+			t.Fatal("refused binding reached driver")
 		}
 	}
-	stored, err := action.GetAction(ctx, nha141BearerRequest(&actions.GetActionRequest{CommandId: command.CommandId}, tokens.AccessToken))
-	if err != nil || stored.Msg.GetProgress() == nil || stored.Msg.GetProgress().Status == actions.ActionStatus_ACTION_STATUS_CONFIRMED {
-		t.Fatal("ACK/dispatch became physical confirmation", stored, err)
+	stored, err := get(name, tokens.AccessToken)
+	if err != nil || nha114Metadata(t, stored.Msg).Phase == api.CommandPhase_COMMAND_PHASE_CONFIRMED {
+		t.Fatal("dispatch became confirmation", err)
 	}
 	admitted := driver.captured()
 	if err := admitted.Acknowledge(); err != nil {
 		t.Fatal(err)
 	}
 	publish(0, true)
-	acked, err := action.GetAction(ctx, nha141BearerRequest(&actions.GetActionRequest{CommandId: command.CommandId}, tokens.AccessToken))
-	if err != nil || acked.Msg.GetProgress().Status != actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED {
-		t.Fatal("uncorrelated matching state confirmed an ACK", acked, err)
+	acked, err := get(name, tokens.AccessToken)
+	if err != nil || nha114Metadata(t, acked.Msg).Phase != api.CommandPhase_COMMAND_PHASE_ACKNOWLEDGED {
+		t.Fatal("uncorrelated equality confirmed ACK", err)
 	}
 	proof, err := admitted.Causality()
 	if err != nil {
 		t.Fatal(err)
 	}
 	publish(0, true, proof)
-	confirmed, err := action.GetAction(ctx, nha141BearerRequest(&actions.GetActionRequest{CommandId: command.CommandId}, tokens.AccessToken))
-	if err != nil || confirmed.Msg.GetProgress().Status != actions.ActionStatus_ACTION_STATUS_CONFIRMED || confirmed.Msg.Durable.Response.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
-		t.Fatal("qualified live proof rewrote durable dispatch or failed to confirm", confirmed, err)
+	nha114Eventually(t, "qualified native proof did not confirm operation", func() bool {
+		confirmed, err := get(name, tokens.AccessToken)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(durable(name).Response(), original) {
+			t.Fatal("qualified proof rewrote original durable dispatch")
+		}
+		return confirmed.Msg.Done && nha114Metadata(t, confirmed.Msg).Phase == api.CommandPhase_COMMAND_PHASE_CONFIRMED
+	})
+	secondCommand := proto.Clone(command).(*api.ExecuteCapabilityRequest)
+	secondCommand.RequestId = nha114RequestID("nha147-pending-revocation")
+	if _, err := submit(secondCommand); err != nil {
+		t.Fatal("pending revocation fixture", err)
 	}
-	secondCommand := proto.Clone(command).(*actions.CommandRequest)
-	secondCommand.CommandId += "-pending-revocation"
-	if _, err := submit(secondCommand); err != nil || driver.emitted.Load() != 2 {
-		t.Fatal("pending revocation fixture action", err)
-	}
-	if _, err := observer.Exec(ctx, `CREATE FUNCTION public.nha147_refuse_result() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic deferred result failure'; END $$;
-		CREATE CONSTRAINT TRIGGER nha147_refuse_result AFTER UPDATE ON public.command_intents DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.state IN ('result', 'indeterminate')) EXECUTE FUNCTION public.nha147_refuse_result()`); err != nil {
+	nha114Eventually(t, "second intention did not dispatch", func() bool { return driver.emitted.Load() == 2 })
+	if _, err := observer.Exec(ctx, `CREATE FUNCTION public.nha147_refuse_result() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic deferred result failure'; END $$; CREATE CONSTRAINT TRIGGER nha147_refuse_result AFTER UPDATE ON public.command_intents DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.state IN ('result','indeterminate')) EXECUTE FUNCTION public.nha147_refuse_result()`); err != nil {
 		t.Fatal(err)
 	}
-	unknownResult := proto.Clone(command).(*actions.CommandRequest)
-	unknownResult.CommandId += "-unknown-result"
-	if _, err := submit(unknownResult); nha147FailureKind(t, err) != api.ApiErrorReason_API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN || driver.emitted.Load() != 3 {
-		t.Fatal("post-effect persistence failure lost its uncertainty", err)
+	unknownResult := proto.Clone(command).(*api.ExecuteCapabilityRequest)
+	unknownResult.RequestId = nha114RequestID("nha147-unknown-result")
+	unknownName := operationName(unknownResult.RequestId, tokens.Session.AccountId)
+	rpcUnknown := func(err error) {
+		t.Helper()
+		var failure *connect.Error
+		if !errors.As(err, &failure) {
+			t.Fatal("uncertainty lost structured transport error", err)
+		}
+		raw := &statuspb.Status{Code: int32(failure.Code())}
+		for _, detail := range failure.Details() {
+			value, err := detail.Value()
+			if err != nil {
+				t.Fatal(err)
+			}
+			packed, err := anypb.New(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw.Details = append(raw.Details, packed)
+		}
+		fault, err := apierrors.AdmitStatus(raw)
+		if err != nil || fault.Reason() != api.ApiErrorReason_API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN {
+			t.Fatal("uncertainty lost canonical status", err)
+		}
+		operation, present := fault.Operation()
+		if !present || operation.String() != unknownName {
+			t.Fatal("uncertainty lost authorized reconciliation handle")
+		}
+	}
+	assertUnknown := func(result *connect.Response[longrunningpb.Operation], err error) {
+		t.Helper()
+		if err != nil {
+			rpcUnknown(err)
+			return
+		}
+		if result == nil || result.Msg.Name != unknownName {
+			t.Fatal("admitted uncertain intention lost operation identity")
+		}
+		nha114Eventually(t, "post-effect persistence failure remained pending", func() bool {
+			observed, err := get(unknownName, tokens.AccessToken)
+			if err != nil {
+				rpcUnknown(err)
+				return true
+			}
+			if !observed.Msg.Done {
+				return false
+			}
+			if nha114Metadata(t, observed.Msg).Phase != api.CommandPhase_COMMAND_PHASE_INDETERMINATE || observed.Msg.GetError() == nil {
+				t.Fatal("uncertain effect became success", observed.Msg)
+			}
+			fault, err := apierrors.AdmitStatus(observed.Msg.GetError())
+			if err != nil || fault.Reason() != api.ApiErrorReason_API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN {
+				t.Fatal("uncertain operation lost canonical reason", err)
+			}
+			return true
+		})
+	}
+	uncertain, err := submit(unknownResult)
+	assertUnknown(uncertain, err)
+	if driver.emitted.Load() != 3 {
+		t.Fatal("uncertain intention did not dispatch exactly once")
 	}
 	if _, err := observer.Exec(ctx, `DROP TRIGGER nha147_refuse_result ON public.command_intents; DROP FUNCTION public.nha147_refuse_result()`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := submit(unknownResult); nha147FailureKind(t, err) != api.ApiErrorReason_API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN || driver.emitted.Load() != 3 {
-		t.Fatal("unknown-result replay repeated an effect", err)
+	uncertain, err = submit(unknownResult)
+	assertUnknown(uncertain, err)
+	if driver.emitted.Load() != 3 {
+		t.Fatal("uncertain effect replayed")
 	}
-	// AuthorizeActionRead retains the existing050 historical-actor boundary.
-	if _, err := action.GetAction(ctx, nha141BearerRequest(&actions.GetActionRequest{CommandId: command.CommandId}, slowTokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied {
-		t.Fatal("cross-authority action read admitted", err)
+	if _, err := get(name, slowTokens.AccessToken); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatal("cross-authority operation read admitted", err)
 	}
-	if _, err := action.GetAction(ctx, nha141BearerRequest(&actions.GetActionRequest{CommandId: "nha147-absent-intent"}, slowTokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied {
-		t.Fatal("absent action was exposed", err)
+	if _, err := get(home.String()+"/operations/cmd-absent", slowTokens.AccessToken); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatal("absent operation exposed", err)
 	}
-	readerCommand := proto.Clone(command).(*actions.CommandRequest)
-	readerCommand.CommandId += "-reader-policy"
-	if _, err := action.SubmitAction(ctx, nha141BearerRequest(&actions.SubmitActionRequest{Command: readerCommand}, slowTokens.AccessToken)); err != nil || driver.emitted.Load() != 4 {
-		t.Fatal("reader policy fixture command", err)
+	// Native rights changed: the user obtains its own current definition binding.
+	readerCapture := capture(slowTokens.AccessToken, 2, true)
+	var readerCapability *api.Capability
+	for _, entry := range readerCapture.Entries {
+		if entry.Entity.GetName() == entityName(0) {
+			readerCapability = entry.Capabilities[0]
+		}
 	}
-	readableAction, err := action.WatchAction(ctx, nha141BearerRequest(&actions.WatchActionRequest{CommandId: readerCommand.CommandId}, slowTokens.AccessToken))
-	if err != nil || !readableAction.Receive() || readableAction.Msg().GetProgress() == nil {
-		t.Fatal("policy action reader did not start", err)
+	if readerCapability == nil {
+		t.Fatal("reader capability absent")
 	}
-	// One-byte stream credit forces the first real progression Send to block.
-	blockedAction, _ := nha147UnreadH2(t, ctx, base, roots, actionsv1connect.ActionServiceWatchActionProcedure, &actions.WatchActionRequest{CommandId: readerCommand.CommandId}, slowTokens.AccessToken, 1)
+	closeCapture(readerCapture, slowTokens.AccessToken)
+	readerCommand := proto.Clone(command).(*api.ExecuteCapabilityRequest)
+	readerCommand.Etag = readerCapability.Etag
+	readerCommand.RequestId = nha114RequestID("nha147-reader-policy")
+	readerResult, err := capabilities.ExecuteCapability(ctx, nha141BearerRequest(readerCommand, slowTokens.AccessToken))
+	if err != nil {
+		t.Fatal("reader fixture dispatch", err)
+	}
+	nha114Eventually(t, "reader intention did not dispatch", func() bool { return driver.emitted.Load() == 4 })
+	readerName := readerResult.Msg.Name
+	if readable, err := get(readerName, slowTokens.AccessToken); err != nil || nha114Metadata(t, readable.Msg).Phase != api.CommandPhase_COMMAND_PHASE_DISPATCHED {
+		t.Fatal("reader operation absent", err)
+	}
+	// Unary protobuf, not a fabricated streaming RPC. One byte of flow credit
+	// holds the real operation response body while policy publication proceeds.
+	blockedAction, _ := nha147UnreadH2(t, ctx, base, roots, longrunningpbconnect.OperationsGetOperationProcedure, &longrunningpb.GetOperationRequest{Name: readerName}, slowTokens.AccessToken, 1)
 	if blockedAction.State().StreamsActive != 1 {
-		t.Fatal("policy action stream was not held by unread HTTP/2 flow control")
+		t.Fatal("operation response not held by flow control")
 	}
-	if witness, err := action.GetAction(ctx, nha141BearerRequest(&actions.GetActionRequest{CommandId: command.CommandId}, tokens.AccessToken)); err != nil || witness.Msg.Durable == nil {
-		t.Fatal("blocked action stalled the independent authorized reader", err)
+	if witness, err := get(name, tokens.AccessToken); err != nil || witness.Msg.Name != name {
+		t.Fatal("blocked operation stalled independent reader", err)
 	}
 	grantPolicy(slowAccount.Msg.Account.Id, true, false, false)
-	until = time.Now().Add(3 * time.Second)
-	for blockedAction.State().StreamsActive != 0 {
-		if time.Now().After(until) {
-			t.Fatal("policy withdrawal retained blocked action Send")
+	waitClosed(blockedAction, "policy withdrawal retained blocked operation Send")
+	for _, method := range []string{"get", "wait"} {
+		var err error
+		if method == "get" {
+			_, err = get(readerName, slowTokens.AccessToken)
+		} else {
+			_, err = operations.WaitOperation(ctx, nha141BearerRequest(&longrunningpb.WaitOperationRequest{Name: readerName}, slowTokens.AccessToken))
 		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if readableAction.Receive() || connect.CodeOf(readableAction.Err()) != connect.CodePermissionDenied {
-		t.Fatal("idle action read survived policy withdrawal", readableAction.Err())
-	}
-	readableAction.Close()
-	if _, err := action.GetAction(ctx, nha141BearerRequest(&actions.GetActionRequest{CommandId: readerCommand.CommandId}, slowTokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied {
-		t.Fatal("withdrawn action read admitted", err)
-	}
-	refusedWatch, err := action.WatchAction(ctx, nha141BearerRequest(&actions.WatchActionRequest{CommandId: readerCommand.CommandId}, slowTokens.AccessToken))
-	if err == nil {
-		if refusedWatch.Receive() {
-			t.Fatal("withdrawn action watch emitted a point")
+		if connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatal("withdrawn operation read admitted", method, err)
 		}
-		err = refusedWatch.Err()
-		refusedWatch.Close()
 	}
-	if connect.CodeOf(err) != connect.CodePermissionDenied {
-		t.Fatal("withdrawn action watch admitted", err)
-	}
-	refusedWrite := proto.Clone(readerCommand).(*actions.CommandRequest)
-	refusedWrite.CommandId += "-write-denied"
-	if _, err := action.SubmitAction(ctx, nha141BearerRequest(&actions.SubmitActionRequest{Command: refusedWrite}, slowTokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied || driver.emitted.Load() != 4 {
-		t.Fatal("withdrawn action write reached driver", err)
+	refusedWrite := proto.Clone(readerCommand).(*api.ExecuteCapabilityRequest)
+	refusedWrite.RequestId = nha114RequestID("nha147-write-denied")
+	if _, err := capabilities.ExecuteCapability(ctx, nha141BearerRequest(refusedWrite, slowTokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied || driver.emitted.Load() != 4 {
+		t.Fatal("withdrawn write reached driver", err)
 	}
 	if sessions, err := authv1connect.NewAuthServiceClient(client, base).ListSessions(ctx, nha141BearerRequest(&authv1.ListSessionsRequest{AccountId: slowAccount.Msg.Account.Id}, slowTokens.AccessToken)); err != nil || len(sessions.Msg.Sessions) == 0 {
-		t.Fatal("action policy withdrawal revoked credential", err)
+		t.Fatal("action withdrawal revoked credential", err)
 	}
-	if response, err := state.OpenView(ctx, nha141BearerRequest(&statev1.OpenViewRequest{PageSize: 1, Filter: &statev1.ViewFilter{}}, slowTokens.AccessToken)); err != nil || len(response.Msg.Entities) != 1 {
-		t.Fatal("action policy withdrawal removed remaining state read", err)
+	remaining := capture(slowTokens.AccessToken, 1, true)
+	if len(remaining.Entries) != 2 {
+		t.Fatal("action withdrawal removed remaining state read")
 	}
-	if witness := open(1); len(witness.Entities) != 1 {
-		t.Fatal("action policy withdrawal blocked the independent fast account")
+	closeCapture(remaining, slowTokens.AccessToken)
+	witness := open(1)
+	if len(witness.Entries) != 2 {
+		t.Fatal("withdrawal blocked independent account")
 	}
-	if witness, err := action.GetAction(ctx, nha141BearerRequest(&actions.GetActionRequest{CommandId: command.CommandId}, tokens.AccessToken)); err != nil || witness.Msg.Durable == nil {
-		t.Fatal("action policy withdrawal broke the independent action reader", err)
+	closeCapture(witness, tokens.AccessToken)
+	if witness, err := get(name, tokens.AccessToken); err != nil || witness.Msg.Name != name {
+		t.Fatal("withdrawal broke independent operation reader", err)
 	}
-	blockedCredential, _ := nha147UnreadH2(t, ctx, base, roots, actionsv1connect.ActionServiceWatchActionProcedure, &actions.WatchActionRequest{CommandId: secondCommand.CommandId}, tokens.AccessToken, 1)
+	secondName := operationName(secondCommand.RequestId, tokens.Session.AccountId)
+	blockedCredential, _ := nha147UnreadH2(t, ctx, base, roots, longrunningpbconnect.OperationsGetOperationProcedure, &longrunningpb.GetOperationRequest{Name: secondName}, tokens.AccessToken, 1)
 	if blockedCredential.State().StreamsActive != 1 {
-		t.Fatal("credential revocation lacked an active blocked Send")
+		t.Fatal("credential revocation lacked blocked response")
 	}
-	live, err := action.WatchAction(ctx, nha141BearerRequest(&actions.WatchActionRequest{CommandId: secondCommand.CommandId}, tokens.AccessToken))
-	if err != nil || !live.Receive() || live.Msg().GetProgress() == nil {
-		t.Fatal("live progression did not start", err)
+	// Keep an actual streaming reader idle to verify its structured credential terminal too.
+	liveCapture := open(2)
+	publish(0, false)
+	live, err := views.WatchEntityView(ctx, nha141BearerRequest(watchRequest(liveCapture), tokens.AccessToken))
+	if err != nil || !live.Receive() {
+		t.Fatal("credential entity stream absent", err)
 	}
 	if _, err := authv1connect.NewAuthServiceClient(client, base).RevokeSession(ctx, nha141BearerRequest(&authv1.RevokeSessionRequest{SessionId: tokens.Session.Id}, tokens.AccessToken)); err != nil {
 		t.Fatal(err)
 	}
-	until = time.Now().Add(3 * time.Second)
-	for blockedCredential.State().StreamsActive != 0 {
-		if time.Now().After(until) {
-			t.Fatal("credential revocation retained unread blocked action Send")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitClosed(blockedCredential, "credential revocation retained blocked operation Send")
 	if live.Receive() {
-		t.Fatal("progression emitted after revocation")
+		t.Fatal("entity frame emitted after credential revocation")
 	}
 	var ended *connect.Error
 	if !errors.As(live.Err(), &ended) || ended.Code() != connect.CodeUnauthenticated {
-		t.Fatal("revoked stream lost termination", live.Err())
+		t.Fatal("revoked reader lost termination", live.Err())
 	}
 	foundTermination := false
 	for _, detail := range ended.Details() {
@@ -709,49 +823,55 @@ func TestNHA147RunNoJobsSnapshotDispatchRestartAndRevocation(t *testing.T) {
 		}
 	}
 	if !foundTermination {
-		t.Fatal("revoked progression lost detail141")
+		t.Fatal("revoked reader lost detail141")
 	}
 	live.Close()
 	stop()
 	start(true)
 	tokens = login()
-	state, action = statev1connect.NewStateServiceClient(client, base), actionsv1connect.NewActionServiceClient(client, base)
-	stored, err = action.GetAction(ctx, nha141BearerRequest(&actions.GetActionRequest{CommandId: command.CommandId}, tokens.AccessToken))
-	if err != nil || stored.Msg.Durable == nil || stored.Msg.GetUnavailable() == nil || stored.Msg.Durable.Response.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
-		t.Fatal("restart conflated durable result and missing live tracker", stored, err)
+	views = apiv2connect.NewEntityViewServiceClient(client, base)
+	homes = apiv2connect.NewHomeServiceClient(client, base)
+	capabilities = apiv2connect.NewCapabilityServiceClient(client, base)
+	operations = longrunningpbconnect.NewOperationsClient(client, base)
+	stored, err = get(name, tokens.AccessToken)
+	if err != nil || !stored.Msg.Done || nha114Metadata(t, stored.Msg).LiveProgressAvailable || !bytes.Equal(durable(name).Response(), original) {
+		t.Fatal("restart lost durable terminal or invented live tracker", err)
 	}
 	if _, err := submit(command); err != nil || driver.emitted.Load() != 4 {
-		t.Fatal("restart replay emitted an effect", err)
+		t.Fatal("restart replayed effect", err)
 	}
-	recovered, err := action.GetAction(ctx, nha141BearerRequest(&actions.GetActionRequest{CommandId: unknownResult.CommandId}, tokens.AccessToken))
-	if err != nil || recovered.Msg.GetUnavailable() == nil || recovered.Msg.Durable.State != actions.DurableActionState_DURABLE_ACTION_STATE_INDETERMINATE || recovered.Msg.Durable.Response.Status != actions.ActionStatus_ACTION_STATUS_INDETERMINATE {
-		t.Fatal("restart erased an uncertain effect", recovered, err)
+	recoveredName := operationName(unknownResult.RequestId, tokens.Session.AccountId)
+	recovered, err := get(recoveredName, tokens.AccessToken)
+	if err != nil || !recovered.Msg.Done || nha114Metadata(t, recovered.Msg).LiveProgressAvailable || nha114Metadata(t, recovered.Msg).Phase != api.CommandPhase_COMMAND_PHASE_INDETERMINATE || durable(recoveredName).State() != storage.IntentIndeterminate {
+		t.Fatal("restart erased uncertain effect", err)
 	}
-	if _, err := submit(unknownResult); nha147FailureKind(t, err) != api.ApiErrorReason_API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN || driver.emitted.Load() != 4 {
-		t.Fatal("recovered uncertainty emitted again", err)
+	uncertain, err = submit(unknownResult)
+	assertUnknown(uncertain, err)
+	if driver.emitted.Load() != 4 {
+		t.Fatal("recovered uncertainty replayed effect")
 	}
-	missing, err := action.WatchAction(ctx, nha141BearerRequest(&actions.WatchActionRequest{CommandId: command.CommandId}, tokens.AccessToken))
-	if err != nil || !missing.Receive() || missing.Msg().GetUnavailable() == nil || missing.Receive() || missing.Err() != nil {
-		t.Fatal("missing live tracker was erased/treated as generic EOF", err)
+	// Missing live progress is explicit metadata, not a streaming EOF surrogate.
+	missing, err := get(secondName, tokens.AccessToken)
+	if err != nil || nha114Metadata(t, missing.Msg).LiveProgressAvailable {
+		t.Fatal("restart invented pending live tracker", err)
 	}
-	missing.Close()
 	stop()
-	// The non-factory Run must publish the same StateService without configuring
-	// a job, script, automation or external hardware pilot.
 	start(false)
 	tokens = login()
-	state = statev1connect.NewStateServiceClient(client, base)
-	if response := open(1); response.Cursor == nil {
-		t.Fatal("default no-job Run omitted common RPCs")
+	views = apiv2connect.NewEntityViewServiceClient(client, base)
+	homes = apiv2connect.NewHomeServiceClient(client, base)
+	if response := open(1); response.Name == "" || response.Resume == "" {
+		t.Fatal("default no-job Run omitted common entity RPCs")
 	}
 	if driver.emitted.Load() != 4 {
-		t.Fatal("read/reconnect/default startup replayed a command")
+		t.Fatal("read/reconnect/default startup replayed command")
 	}
+
 }
 
 // NewClientConn uses the pinned x/net client implementation. ConfigureTransports
 // carries net/http.HTTP2Config into its actual SETTINGS_INITIAL_WINDOW_SIZE.
-// A one-byte window retains the first Connect envelope in Send without a
+// A one-byte window retains the first protobuf response in Send without a
 // synthetic action tracker, extra action updates or a read from the body.
 func nha147UnreadH2(t *testing.T, ctx context.Context, base string, roots *x509.CertPool, procedure string, message proto.Message, token string, window int) (*http2.ClientConn, *http.Response) {
 	t.Helper()
@@ -768,7 +888,7 @@ func nha147UnreadH2(t *testing.T, ctx context.Context, base string, roots *x509.
 	}
 	t.Cleanup(func() { _ = tlsConnection.Close() })
 	if tlsConnection.ConnectionState().NegotiatedProtocol != "h2" {
-		t.Fatal("blocked action connection did not negotiate HTTP/2")
+		t.Fatal("blocked response connection did not negotiate HTTP/2")
 	}
 	wire := &nha147H2SettingsConn{Conn: tlsConnection}
 	connection, err := h2.NewClientConn(wire)
@@ -783,14 +903,19 @@ func nha147UnreadH2(t *testing.T, ctx context.Context, base string, roots *x509.
 	if err != nil {
 		t.Fatal(err)
 	}
-	envelope := make([]byte, 5+len(encoded))
-	binary.BigEndian.PutUint32(envelope[1:5], uint32(len(encoded)))
-	copy(envelope[5:], encoded)
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, base+procedure, bytes.NewReader(envelope))
+	payload := encoded
+	contentType := "application/proto"
+	if procedure != longrunningpbconnect.OperationsGetOperationProcedure {
+		contentType = "application/connect+proto"
+		payload = make([]byte, 5+len(encoded))
+		binary.BigEndian.PutUint32(payload[1:5], uint32(len(encoded)))
+		copy(payload[5:], encoded)
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, base+procedure, bytes.NewReader(payload))
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.Header.Set("Content-Type", "application/connect+proto")
+	request.Header.Set("Content-Type", contentType)
 	request.Header.Set("Connect-Protocol-Version", "1")
 	request.Header.Set("Authorization", "Bearer "+token)
 	response, err := connection.RoundTrip(request)
@@ -799,7 +924,7 @@ func nha147UnreadH2(t *testing.T, ctx context.Context, base string, roots *x509.
 	}
 	t.Cleanup(func() { _ = response.Body.Close() })
 	if response.StatusCode != http.StatusOK || response.ProtoMajor != 2 {
-		t.Fatal("blocked action did not reach real HTTP/2 Send", response.StatusCode, response.Proto)
+		t.Fatal("blocked response did not reach real HTTP/2 Send", response.StatusCode, response.Proto)
 	}
 	return connection, response
 }

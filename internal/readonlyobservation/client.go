@@ -3,6 +3,7 @@ package readonlyobservation
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
@@ -16,14 +17,13 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
-	state "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Config struct {
@@ -39,11 +39,13 @@ type credentials struct {
 }
 type NativeSource struct {
 	config          Config
-	auth            authv1connect.AuthServiceClient
-	observation     observabilityv1connect.ObservabilityServiceClient
-	states          statev1connect.StateServiceClient
+	auth            apiv2connect.AuthServiceClient
+	observation     apiv2connect.ObservabilityServiceClient
+	homes           apiv2connect.HomeServiceClient
+	views           apiv2connect.EntityViewServiceClient
 	access, refresh string
 	expires         time.Time
+	renewalKey      []byte
 	epoch           string
 }
 type ReadError struct{ Code string }
@@ -64,6 +66,9 @@ func LoadConfig(path string) (Config, error) {
 func validateConfig(c Config) error {
 	u, err := url.Parse(c.URL)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" || c.CredentialFile == "" || c.Instance == "" || len(c.Instance) > 256 || c.Expected.Profile != "mqtt-passive-readonly-v1" {
+		return ErrSample
+	}
+	if _, err := apitypes.ParseIntegrationInstanceName(c.Instance); err != nil {
 		return ErrSample
 	}
 	for _, s := range []string{c.Expected.Executable, c.Expected.Manifest, c.Expected.Source} {
@@ -109,27 +114,42 @@ func NewNativeSource(c Config) (*NativeSource, error) {
 		}
 	}
 	client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}}, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &NativeSource{config: c, auth: authv1connect.NewAuthServiceClient(client, c.URL, connect.WithReadMaxBytes(64<<10)), observation: observabilityv1connect.NewObservabilityServiceClient(client, c.URL, connect.WithReadMaxBytes(2<<20)), states: statev1connect.NewStateServiceClient(client, c.URL, connect.WithReadMaxBytes(2<<20))}, nil
+	return &NativeSource{config: c, auth: apiv2connect.NewAuthServiceClient(client, c.URL, connect.WithReadMaxBytes(64<<10)), observation: apiv2connect.NewObservabilityServiceClient(client, c.URL, connect.WithReadMaxBytes(2<<20)), homes: apiv2connect.NewHomeServiceClient(client, c.URL, connect.WithReadMaxBytes(64<<10)), views: apiv2connect.NewEntityViewServiceClient(client, c.URL, connect.WithReadMaxBytes(2<<20))}, nil
 }
 func (n *NativeSource) session(ctx context.Context) error {
-	if n.access != "" && time.Until(n.expires) > time.Minute {
+	if len(n.renewalKey) == 0 && n.access != "" && time.Until(n.expires) > time.Minute {
 		return nil
 	}
 	if n.refresh != "" {
-		response, err := n.auth.RefreshSession(ctx, connect.NewRequest(&auth.RefreshSessionRequest{RefreshToken: n.refresh}))
-		if err == nil && response.Msg.Tokens != nil {
-			return n.tokens(response.Msg.Tokens)
+		if len(n.renewalKey) == 0 {
+			var key [32]byte
+			if _, err := rand.Read(key[:]); err != nil {
+				return ErrSample
+			}
+			// This source never persists bearer tokens. A retry within its lifetime
+			// keeps this exact key; restarting creates a fresh password session.
+			n.renewalKey = append([]byte(nil), key[:]...)
 		}
-		// Do not replay a refresh token whose consumed outcome is unknown. A fresh
-		// password login is safe for this isolated account and is bounded to once.
-		n.access, n.refresh = "", ""
+		if len(n.renewalKey) != 32 {
+			return ErrSample
+		}
+		response, err := n.auth.RefreshSession(ctx, connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: n.refresh, RenewalKey: n.renewalKey}))
+		if err != nil {
+			return readError(err)
+		}
+		// No hidden password login after a failed or ambiguous renewal. Keep both
+		// the old family token and pending key until an admitted successor arrives.
+		if response == nil || response.Msg == nil || response.Msg.Tokens == nil {
+			return ErrSample
+		}
+		return n.tokens(response.Msg.Tokens)
 	}
 	var credential credentials
 	if err := readProtectedJSON(n.config.CredentialFile, &credential); err != nil {
 		return err
 	}
 	defer func() { credential.Password = "" }()
-	response, err := n.auth.StartLogin(ctx, connect.NewRequest(&auth.StartLoginRequest{LoginName: credential.Login, Password: credential.Password}))
+	response, err := n.auth.StartLogin(ctx, connect.NewRequest(&api.StartLoginRequest{LoginName: credential.Login, Password: credential.Password}))
 	if err != nil {
 		return readError(err)
 	}
@@ -139,20 +159,23 @@ func (n *NativeSource) session(ctx context.Context) error {
 	}
 	return n.tokens(tokens)
 }
-func (n *NativeSource) tokens(tokens *auth.SessionTokens) error {
-	if tokens == nil || tokens.AccessToken == "" || tokens.RefreshToken == "" || tokens.AccessExpiresAt == nil || tokens.AccessExpiresAt.CheckValid() != nil {
+func (n *NativeSource) tokens(tokens *api.SessionTokens) error {
+	if contracts.AdmitAPISessionTokens(tokens, time.Now()) != nil {
 		return ErrSample
 	}
-	n.access, n.refresh, n.expires = tokens.AccessToken, tokens.RefreshToken, tokens.AccessExpiresAt.AsTime()
+	n.access, n.refresh, n.expires = tokens.AccessToken, tokens.RefreshToken, tokens.AccessExpireTime.AsTime()
+	clear(n.renewalKey)
+	n.renewalKey = nil
 	return nil
 }
+
 func bearer[T any](message *T, token string) *connect.Request[T] {
 	r := connect.NewRequest(message)
 	r.Header().Set("Authorization", "Bearer "+token)
 	return r
 }
 func safeJSON(message proto.Message) (json.RawMessage, error) {
-	if contracts.AdmitObservabilityResponse(message) != nil {
+	if contracts.AdmitObservationResponse(message) != nil {
 		return nil, ErrSample
 	}
 	raw, err := protojson.Marshal(message)
@@ -168,7 +191,12 @@ func (n *NativeSource) Read(ctx context.Context, lastLog uint64) (Sample, error)
 	if err := n.session(ctx); err != nil {
 		return sample, err
 	}
-	health, err := n.observation.GetHealth(ctx, bearer(&obs.GetHealthRequest{}, n.access))
+	instance, err := apitypes.ParseIntegrationInstanceName(n.config.Instance)
+	if err != nil {
+		return sample, ErrSample
+	}
+	parent := instance.Home().String()
+	health, err := n.observation.GetHealth(ctx, bearer(&api.GetHealthRequest{Name: parent + "/health"}, n.access))
 	if err != nil {
 		return sample, n.reject(err)
 	}
@@ -184,11 +212,14 @@ func (n *NativeSource) Read(ctx context.Context, lastLog uint64) (Sample, error)
 	if err != nil {
 		return sample, err
 	}
-	if health.Msg.GetHealth().GetServer().GetReadiness() != obs.ServerReadiness_SERVER_READINESS_READY {
+	if health.Msg.Name != parent+"/health" {
+		return sample, ErrSample
+	}
+	if health.Msg.GetServer().GetReadiness() != api.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY {
 		return sample, &ReadError{Code: "server_unready"}
 	}
-	sample.ConfigRevision = health.Msg.GetHealth().GetServer().GetGeneration().GetPresent().GetValue()
-	sample.Epoch = hex.EncodeToString(health.Msg.GetHealth().GetProcessEpoch().GetValue())
+	sample.ConfigRevision = health.Msg.GetServer().GetGeneration().GetPresent().GetValue()
+	sample.Epoch = hex.EncodeToString(health.Msg.GetProcessEpoch().GetValue())
 	if sample.Epoch == "" || sample.ConfigRevision == 0 {
 		return sample, ErrSample
 	}
@@ -196,7 +227,7 @@ func (n *NativeSource) Read(ctx context.Context, lastLog uint64) (Sample, error)
 	sample.ServerCPUMicroseconds = headerUint(health.Header(), "Homeward-Process-CPU-Microseconds")
 	sample.ResourceSource = "server_process:/proc/self/statm,getrusage; missing values are unmeasured"
 	sample.HAComparison = "unavailable"
-	metrics, err := n.observation.GetMetrics(ctx, bearer(&obs.GetMetricsRequest{}, n.access))
+	metrics, err := n.observation.GetMetrics(ctx, bearer(&api.GetMetricsRequest{Name: parent + "/metrics"}, n.access))
 	if err != nil {
 		return sample, n.reject(err)
 	}
@@ -204,12 +235,15 @@ func (n *NativeSource) Read(ctx context.Context, lastLog uint64) (Sample, error)
 	if err != nil {
 		return sample, err
 	}
-	if !bytes.Equal(metrics.Msg.GetMetrics().GetProcessEpoch().GetValue(), health.Msg.GetHealth().GetProcessEpoch().GetValue()) {
+	if metrics.Msg.Name != parent+"/metrics" || !bytes.Equal(metrics.Msg.GetProcessEpoch().GetValue(), health.Msg.GetProcessEpoch().GetValue()) {
 		return sample, ErrSample
 	}
-	integration, err := n.observation.GetIntegrationHealth(ctx, bearer(&obs.GetIntegrationHealthRequest{IntegrationInstanceId: n.config.Instance}, n.access))
+	integration, err := n.observation.GetIntegrationHealth(ctx, bearer(&api.GetIntegrationHealthRequest{Name: n.config.Instance + "/health"}, n.access))
 	if err != nil {
 		return sample, n.reject(err)
+	}
+	if integration.Msg.Name != n.config.Instance+"/health" {
+		return sample, ErrSample
 	}
 	sample.PilotAttempts = integration.Msg.GetSupervision().GetSupervised().GetAttempts()
 	sample.Integration, err = safeJSON(integration.Msg)
@@ -227,11 +261,11 @@ func (n *NativeSource) Read(ctx context.Context, lastLog uint64) (Sample, error)
 		return sample, err
 	}
 
-	closing, err := n.observation.GetHealth(ctx, bearer(&obs.GetHealthRequest{}, n.access))
+	closing, err := n.observation.GetHealth(ctx, bearer(&api.GetHealthRequest{Name: parent + "/health"}, n.access))
 	if err != nil {
 		return sample, n.reject(err)
 	}
-	if contracts.AdmitObservabilityResponse(closing.Msg) != nil || closing.Msg.GetHealth().GetServer().GetReadiness() != obs.ServerReadiness_SERVER_READINESS_READY || !bytes.Equal(closing.Msg.GetHealth().GetProcessEpoch().GetValue(), health.Msg.GetHealth().GetProcessEpoch().GetValue()) || closing.Msg.GetHealth().GetServer().GetGeneration().GetPresent().GetValue() != sample.ConfigRevision {
+	if contracts.AdmitObservationResponse(closing.Msg) != nil || closing.Msg.GetServer().GetReadiness() != api.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_READY || !bytes.Equal(closing.Msg.GetProcessEpoch().GetValue(), health.Msg.GetProcessEpoch().GetValue()) || closing.Msg.GetServer().GetGeneration().GetPresent().GetValue() != sample.ConfigRevision {
 		return sample, ErrSample
 	}
 	if closing.Header().Get("Homeward-Observation-Profile") != sample.Binding.Profile || closing.Header().Get("Homeward-Executable-SHA256") != sample.Binding.Executable || closing.Header().Get("Homeward-Manifest-SHA256") != sample.Binding.Manifest || closing.Header().Get("Homeward-Source-SHA256") != sample.Binding.Source {
@@ -258,83 +292,136 @@ func headerUint(header http.Header, key string) *uint64 {
 	return &v
 }
 func (n *NativeSource) readStates(ctx context.Context, sample *Sample) error {
-	first, err := n.states.OpenView(ctx, bearer(&state.OpenViewRequest{Filter: &state.ViewFilter{}, PageSize: 100}, n.access))
+	homes, err := n.homes.ListHomes(ctx, bearer(&api.ListHomesRequest{PageSize: 10}, n.access))
 	if err != nil {
 		return n.reject(err)
 	}
-	page := first.Msg
+	if len(homes.Msg.GetHomes()) != 1 || homes.Msg.GetHomes()[0].GetName() == "" {
+		return ErrSample
+	}
+	created, err := n.views.CreateEntityView(ctx, bearer(&api.CreateEntityViewRequest{Parent: homes.Msg.GetHomes()[0].GetName(), EntityView: &api.EntityView{}}, n.access))
+	if err != nil {
+		return n.reject(err)
+	}
+	viewName := created.Msg.GetName()
+	if viewName == "" {
+		return ErrSample
+	}
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		defer cancel()
+		_, _ = n.views.DeleteEntityView(releaseCtx, bearer(&api.DeleteEntityViewRequest{Name: viewName}, n.access))
+	}()
+	var pageToken string
 	for pages := 0; ; pages++ {
-		if pages >= 1024 || page == nil || page.Cursor == nil || page.Cursor.ConfigRevision != sample.ConfigRevision || len(page.States) > 100 || len(page.Entities) > 100 {
+		if pages >= 1024 {
 			return ErrSample
 		}
-		// The server's entity capture may carry state either inside entities or in
-		// the legacy states field. Count each once, never persist values/aliases.
-		if len(page.Entities) > 0 {
-			for _, entity := range page.Entities {
-				summarizeState(&sample.States, entity.GetState())
-			}
-		} else {
-			for _, value := range page.States {
-				summarizeState(&sample.States, value)
-			}
+		response, err := n.views.QueryEntityView(ctx, bearer(&api.QueryEntityViewRequest{Name: viewName, PageSize: 100, PageToken: pageToken}, n.access))
+		if err != nil {
+			return n.reject(err)
+		}
+		page := response.Msg
+		if page == nil || len(page.Entries) > 100 {
+			return ErrSample
+		}
+		for _, entry := range page.Entries {
+			summarizeEntry(&sample.States, entry)
 		}
 		if page.NextPageToken == "" {
 			break
 		}
-		response, err := n.states.ReadPage(ctx, bearer(&state.ReadPageRequest{SnapshotToken: page.SnapshotToken, PageToken: page.NextPageToken}, n.access))
-		if err != nil {
-			return n.reject(err)
-		}
-		page = response.Msg.Page
+		pageToken = page.NextPageToken
 	}
 	return nil
 }
-func summarizeState(summary *StateSummary, value *state.ObservedState) {
+func capabilityObservation(capability *api.Capability) (*api.ObservationQuality, *timestamppb.Timestamp) {
+	if capability == nil {
+		return nil, nil
+	}
+	message := capability.ProtoReflect()
+	field := message.WhichOneof(message.Descriptor().Oneofs().ByName("trait"))
+	if field == nil {
+		return nil, nil
+	}
+	trait := message.Get(field).Message()
+	if !trait.IsValid() {
+		return nil, nil
+	}
+	obsField := trait.Descriptor().Fields().ByName("observation")
+	if obsField == nil || obsField.Kind() != protoreflect.MessageKind || !trait.Has(obsField) {
+		return nil, nil
+	}
+	reading := trait.Get(obsField).Message()
+	var quality *api.ObservationQuality
+	if qField := reading.Descriptor().Fields().ByName("quality"); qField != nil && qField.Kind() == protoreflect.MessageKind && reading.Has(qField) {
+		quality, _ = reading.Get(qField).Message().Interface().(*api.ObservationQuality)
+	}
+	var observed *timestamppb.Timestamp
+	if tField := reading.Descriptor().Fields().ByName("observed_time"); tField != nil && tField.Kind() == protoreflect.MessageKind && reading.Has(tField) {
+		observed, _ = reading.Get(tField).Message().Interface().(*timestamppb.Timestamp)
+	}
+	return quality, observed
+}
+func summarizeEntry(summary *StateSummary, entry *api.EntityViewEntry) {
 	summary.Total++
-	if value == nil {
+	var quality *api.ObservationQuality
+	var observed *timestamppb.Timestamp
+	for _, capability := range entry.GetCapabilities() {
+		q, t := capabilityObservation(capability)
+		if q != nil || t != nil {
+			quality, observed = q, t
+			break
+		}
+	}
+	if quality == nil && observed == nil {
 		summary.Unknown++
 		summary.MissingTimestamp++
 		return
 	}
-	switch value.GetQuality().GetAvailability() {
-	case state.Availability_AVAILABILITY_AVAILABLE:
+	switch quality.GetAvailability() {
+	case api.Availability_AVAILABILITY_AVAILABLE:
 		summary.Available++
-	case state.Availability_AVAILABILITY_UNAVAILABLE:
+	case api.Availability_AVAILABILITY_UNAVAILABLE:
 		summary.Unavailable++
 	default:
 		summary.Unknown++
 	}
-	switch value.GetQuality().GetFreshness() {
-	case state.Freshness_FRESHNESS_FRESH:
+	switch quality.GetFreshness() {
+	case api.Freshness_FRESHNESS_CURRENT:
 		summary.Fresh++
-	case state.Freshness_FRESHNESS_STALE:
+	case api.Freshness_FRESHNESS_STALE:
 		summary.Stale++
 	}
-	if value.ReceivedAt == nil || value.ReceivedAt.CheckValid() != nil {
+	if observed == nil || observed.CheckValid() != nil {
 		summary.MissingTimestamp++
 		return
 	}
-	age := time.Since(value.ReceivedAt.AsTime()).Seconds()
+	age := time.Since(observed.AsTime()).Seconds()
 	if age > summary.OldestReceivedAgeSeconds {
 		summary.OldestReceivedAgeSeconds = age
 	}
 }
 func (n *NativeSource) readLogs(ctx context.Context, last uint64, sample *Sample) error {
-	var token *string
+	var token string
 	var upper uint64
 	for pages := 0; ; pages++ {
 		if pages > 11 {
 			return ErrSample
 		}
-		size := uint32(100)
-		response, err := n.observation.QueryRuntimeLogs(ctx, bearer(&obs.QueryRuntimeLogsRequest{PageSize: &size, PageToken: token}, n.access))
+		instance, err := apitypes.ParseIntegrationInstanceName(n.config.Instance)
+		if err != nil {
+			return ErrSample
+		}
+		size := int32(100)
+		response, err := n.observation.QueryRuntimeLogs(ctx, bearer(&api.QueryRuntimeLogsRequest{Parent: instance.Home().String(), PageSize: size, PageToken: token}, n.access))
 		if err != nil {
 			return n.reject(err)
 		}
-		if contracts.AdmitObservabilityResponse(response.Msg) != nil {
+		if contracts.AdmitObservationResponse(response.Msg) != nil {
 			return ErrSample
 		}
-		page := response.Msg.GetPage()
+		page := response.Msg
 		if page == nil {
 			sample.JournalGap = true
 			return nil
@@ -359,11 +446,11 @@ func (n *NativeSource) readLogs(ctx context.Context, last uint64, sample *Sample
 				sample.Logs = append(sample.Logs, raw)
 			}
 		}
-		next := page.GetContinuation().GetNextPageToken()
+		next := page.GetNextPageToken()
 		if next == "" {
 			break
 		}
-		token = &next
+		token = next
 	}
 	sample.LogUpper = upper
 	if last > 0 && (upper < last || (sample.LogFirst > last+1)) {
@@ -374,7 +461,7 @@ func (n *NativeSource) readLogs(ctx context.Context, last uint64, sample *Sample
 
 // Runtime authors may contain a real human account ID. Durable qualification
 // evidence needs only finite code/level/component/time and its epoch cursor.
-func sanitizedRuntimeLog(row *obs.RuntimeLogRow) (json.RawMessage, error) {
+func sanitizedRuntimeLog(row *api.ObservationRuntimeLogRow) (json.RawMessage, error) {
 	return json.Marshal(struct {
 		Sequence   uint64 `json:"sequence"`
 		Code       string `json:"code"`

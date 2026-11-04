@@ -17,15 +17,19 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	"github.com/damione1/Homeward/internal/accounts"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -107,7 +111,6 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 	dataDir := shortPrivateDataDir(t)
 	roots := nha181CertificateFixture(t, dataDir)
 	settings := nha049Config(t, cluster.Port, dataDir)
-	identity := &nha049Identity{}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	ready := make(chan net.Addr, 1)
@@ -115,7 +118,7 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 	var listen net.ListenConfig
 	go func() {
 		done <- RunWithStartupFactory(ctx, settings.startup, listen.Listen, func(addr net.Addr) { ready <- addr }, func(_ context.Context, store *storage.Store) (RuntimePlan, error) {
-			plan, err := NewPublicPlan(identity, nha049AllowRoute{}, accountTransportAudit{store: store})
+			plan, err := NewPublicPlan(nil, nil, accountTransportAudit{store: store})
 			return RuntimePlan{Identity: unconfiguredIdentity{}, Public: plan}, err
 		})
 	}()
@@ -140,11 +143,11 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 		var dial net.Dialer
 		return dial.DialContext(ctx, "unix", socket)
 	}}}
-	operator := authv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
+	operator := operatorv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
 	publicHTTP := nha181Client(roots)
 	defer publicHTTP.CloseIdleConnections()
 	publicURL := "https://" + address.String()
-	accountClient := authv1connect.NewAccountServiceClient(publicHTTP, publicURL)
+	accountClient := apiv2connect.NewAccountServiceClient(publicHTTP, publicURL)
 	defer func() {
 		cancel()
 		select {
@@ -160,13 +163,13 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 		}
 	}()
 
-	// The production public plan has no trusted header identity. This fixture
-	// supplies a test authenticator; a missing credential still fails closed.
-	_, err = accountClient.CreateAccount(ctx, nha049Request(&authv1.CreateAccountRequest{LoginName: "prebootstrap", DisplayName: "Prebootstrap", Role: authv1.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: "NHA049 prebootstrap password"}, ""))
+	// The production public plan admits actual native sessions. Anonymous
+	// requests fail before validating their deliberately missing parent.
+	_, err = accountClient.CreateAccount(ctx, nha142RunBearer(&api.CreateAccountRequest{Account: &api.Account{LoginName: "prebootstrap", DisplayName: "Prebootstrap", Role: api.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: "NHA049 prebootstrap password"}}, ""))
 	nha049Code(t, err, connect.CodeUnauthenticated)
 	bootstrap := []*connect.Request[authv1.BootstrapAdminRequest]{
-		nha049Request(&authv1.BootstrapAdminRequest{LoginName: "Admin One", DisplayName: "Admin One", Password: "NHA049 admin one password"}, ""),
-		nha049Request(&authv1.BootstrapAdminRequest{LoginName: "Admin Two", DisplayName: "Admin Two", Password: "NHA049 admin two password"}, ""),
+		nha142RunBearer(&authv1.BootstrapAdminRequest{LoginName: "Admin One", DisplayName: "Admin One", Password: "NHA049 admin one password"}, ""),
+		nha142RunBearer(&authv1.BootstrapAdminRequest{LoginName: "Admin Two", DisplayName: "Admin Two", Password: "NHA049 admin two password"}, ""),
 	}
 	var wait sync.WaitGroup
 	responses := make([]*connect.Response[authv1.BootstrapAdminResponse], 2)
@@ -181,10 +184,12 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 	wait.Wait()
 	winners, denied := 0, 0
 	var first *authv1.Account
+	var firstPassword string
 	for i, err := range errorsSeen {
 		if err == nil {
 			winners++
 			first = responses[i].Msg.Account
+			firstPassword = bootstrap[i].Msg.Password
 		} else if connect.CodeOf(err) == connect.CodeFailedPrecondition {
 			denied++
 		} else {
@@ -194,51 +199,89 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 	if winners != 1 || denied != 1 || first == nil || first.Role != authv1.AccountRole_ACCOUNT_ROLE_ADMIN {
 		t.Fatalf("bootstrap winners=%d denied=%d", winners, denied)
 	}
-	identity.set(first.Id.Value, "")
-	_, err = operator.BootstrapAdmin(ctx, bootstrap[0])
-	nha049Code(t, err, connect.CodeFailedPrecondition)
-	_, err = accountClient.DeleteAccount(ctx, nha049Request(&authv1.DeleteAccountRequest{AccountId: first.Id}, "admin"))
-	nha049Code(t, err, connect.CodeFailedPrecondition)
-
-	user, err := accountClient.CreateAccount(ctx, nha049Request(&authv1.CreateAccountRequest{LoginName: "Ordinary User", DisplayName: "Ordinary User", Role: authv1.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: passwordCanary}, "admin"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	nha049NoCanaries(t, "create-account response", nha049Wire(t, user.Msg), passwordCanary)
-	_, err = accountClient.CreateAccount(ctx, nha049Request(&authv1.CreateAccountRequest{LoginName: "Ordinary User", DisplayName: "Ordinary User", Role: authv1.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: passwordCanary}, "admin"))
-	nha049Code(t, err, connect.CodeAlreadyExists)
-	nha049NoCanaries(t, "duplicate-account error", err.Error(), passwordCanary)
-	identity.set(first.Id.Value, user.Msg.Account.Id.Value)
-	elevation := authv1.AccountRole_ACCOUNT_ROLE_ADMIN
-	_, err = accountClient.UpdateAccount(ctx, nha049Request(&authv1.UpdateAccountRequest{AccountId: user.Msg.Account.Id, Role: &elevation}, "user"))
-	nha049Code(t, err, connect.CodePermissionDenied)
-	_, err = accountClient.DeleteAccount(ctx, nha049Request(&authv1.DeleteAccountRequest{AccountId: first.Id}, "user"))
-	nha049Code(t, err, connect.CodePermissionDenied)
-
-	invitation, err := accountClient.CreateInvitation(ctx, nha049Request(&authv1.CreateInvitationRequest{LoginName: "Invited Admin", Role: authv1.AccountRole_ACCOUNT_ROLE_ADMIN, ExpiresAt: timestamppb.New(time.Now().Add(time.Hour))}, "admin"))
-	if err != nil || invitation.Msg.InvitationToken == "" || invitation.Msg.Invitation.Role != authv1.AccountRole_ACCOUNT_ROLE_ADMIN {
-		t.Fatalf("admin invitation: %v", err)
-	}
-	nha049NoCanaries(t, "create-invitation response", nha049Wire(t, invitation.Msg), passwordCanary)
-	accepted, err := accountClient.AcceptInvitation(ctx, nha049Request(&authv1.AcceptInvitationRequest{InvitationToken: invitation.Msg.InvitationToken, Password: "NHA049 invited admin password", DisplayName: "Invited Admin"}, ""))
-	if err != nil || accepted.Msg.Account.Role != authv1.AccountRole_ACCOUNT_ROLE_ADMIN {
-		t.Fatalf("invitation acceptance: %v", err)
-	}
-	nha049NoCanaries(t, "accept-invitation response", nha049Wire(t, accepted.Msg), invitation.Msg.InvitationToken, passwordCanary)
-	_, err = accountClient.AcceptInvitation(ctx, nha049Request(&authv1.AcceptInvitationRequest{InvitationToken: invitation.Msg.InvitationToken, Password: "NHA049 invited admin password", DisplayName: "Invited Admin"}, ""))
-	nha049Code(t, err, connect.CodeFailedPrecondition)
-	nha049NoCanaries(t, "reused-invitation error", err.Error(), invitation.Msg.InvitationToken, passwordCanary)
-	unknown, _ := accounts.NewInvitationToken()
-	unknownText, _ := unknown.Text()
-	_, err = accountClient.AcceptInvitation(ctx, nha049Request(&authv1.AcceptInvitationRequest{InvitationToken: unknownText, Password: "NHA049 unknown token password", DisplayName: "Unknown"}, ""))
-	nha049Code(t, err, connect.CodeNotFound)
-
 	storeSettings, _ := settings.PostgresSettings()
 	store, err := storage.Open(ctx, storeSettings)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
+	authClient := apiv2connect.NewAuthServiceClient(publicHTTP, publicURL)
+	loginNative := func(login, password string) *api.SessionTokens {
+		t.Helper()
+		response, err := authClient.StartLogin(ctx, connect.NewRequest(&api.StartLoginRequest{LoginName: login, Password: password}))
+		if err != nil || response == nil || response.Msg.Decision.GetAuthenticated() == nil {
+			t.Fatal("native login", err)
+		}
+		return response.Msg.Decision.GetAuthenticated()
+	}
+	firstTokens := loginNative(first.LoginName, firstPassword)
+	adminToken := firstTokens.AccessToken
+	firstName := nha203SessionAccount(t, firstTokens.Session)
+	home := firstName.Home().String()
+	firstPublic, err := accountClient.GetAccount(ctx, nha142RunBearer(&api.GetAccountRequest{Name: firstName.String()}, adminToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nativeAccountText := func(name string) string {
+		t.Helper()
+		id := nha203NativeAccount(t, ctx, store, name)
+		value, err := id.Value()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	nativeInvitationText := func(name string) string {
+		t.Helper()
+		parsed, err := apitypes.ParseInvitationName(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		identity, err := store.ResolveAPIResourceIdentity(ctx, storage.APIInvitations, parsed.ResourceID())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return identity.NativeKey()
+	}
+
+	_, err = operator.BootstrapAdmin(ctx, bootstrap[0])
+	nha049Code(t, err, connect.CodeFailedPrecondition)
+	_, err = accountClient.DeleteAccount(ctx, nha142RunBearer(&api.DeleteAccountRequest{Name: firstPublic.Msg.Name, Etag: firstPublic.Msg.Etag}, adminToken))
+	nha049Code(t, err, connect.CodeFailedPrecondition)
+
+	user, err := accountClient.CreateAccount(ctx, nha142RunBearer(&api.CreateAccountRequest{Parent: home, Account: &api.Account{LoginName: "Ordinary User", DisplayName: "Ordinary User", Role: api.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: passwordCanary}}, adminToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nha049NoCanaries(t, "create-account response", nha049Wire(t, user.Msg), passwordCanary)
+	_, err = accountClient.CreateAccount(ctx, nha142RunBearer(&api.CreateAccountRequest{Parent: home, Account: &api.Account{LoginName: "Ordinary User", DisplayName: "Ordinary User", Role: api.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: passwordCanary}}, adminToken))
+	nha049Code(t, err, connect.CodeAlreadyExists)
+	nha049NoCanaries(t, "duplicate-account error", err.Error(), passwordCanary)
+	userTokens := loginNative("Ordinary User", passwordCanary)
+	userToken := userTokens.AccessToken
+	_, err = accountClient.UpdateAccount(ctx, nha142RunBearer(&api.UpdateAccountRequest{Account: &api.Account{Name: user.Msg.Name, Etag: user.Msg.Etag, Role: api.AccountRole_ACCOUNT_ROLE_ADMIN}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"role"}}}, userToken))
+	nha049Code(t, err, connect.CodePermissionDenied)
+	_, err = accountClient.DeleteAccount(ctx, nha142RunBearer(&api.DeleteAccountRequest{Name: firstPublic.Msg.Name, Etag: firstPublic.Msg.Etag}, userToken))
+	nha049Code(t, err, connect.CodePermissionDenied)
+
+	invitation, err := accountClient.IssueInvitation(ctx, nha142RunBearer(&api.IssueInvitationRequest{Parent: home, LoginName: "Invited Admin", Role: api.AccountRole_ACCOUNT_ROLE_ADMIN, ExpireTime: timestamppb.New(time.Now().Add(time.Hour))}, adminToken))
+	if err != nil || invitation.Msg.InvitationToken == "" || invitation.Msg.Invitation.Role != api.AccountRole_ACCOUNT_ROLE_ADMIN {
+		t.Fatalf("admin invitation: %v", err)
+	}
+	nha049NoCanaries(t, "create-invitation response", nha049Wire(t, invitation.Msg), passwordCanary)
+	accepted, err := accountClient.AcceptInvitation(ctx, nha142RunBearer(&api.AcceptInvitationRequest{InvitationToken: invitation.Msg.InvitationToken, Password: "NHA049 invited admin password", DisplayName: "Invited Admin"}, ""))
+	if err != nil || accepted.Msg.Account.Role != api.AccountRole_ACCOUNT_ROLE_ADMIN {
+		t.Fatalf("invitation acceptance: %v", err)
+	}
+	nha049NoCanaries(t, "accept-invitation response", nha049Wire(t, accepted.Msg), invitation.Msg.InvitationToken, passwordCanary)
+	_, err = accountClient.AcceptInvitation(ctx, nha142RunBearer(&api.AcceptInvitationRequest{InvitationToken: invitation.Msg.InvitationToken, Password: "NHA049 invited admin password", DisplayName: "Invited Admin"}, ""))
+	nha049Code(t, err, connect.CodeFailedPrecondition)
+	nha049NoCanaries(t, "reused-invitation error", err.Error(), invitation.Msg.InvitationToken, passwordCanary)
+	unknown, _ := accounts.NewInvitationToken()
+	unknownText, _ := unknown.Text()
+	_, err = accountClient.AcceptInvitation(ctx, nha142RunBearer(&api.AcceptInvitationRequest{InvitationToken: unknownText, Password: "NHA049 unknown token password", DisplayName: "Unknown"}, ""))
+	nha049Code(t, err, connect.CodeNotFound)
+
 	tokenValue, err := accounts.ParseInvitationToken(invitation.Msg.InvitationToken)
 	if err != nil {
 		t.Fatal(err)
@@ -249,7 +292,7 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 	}
 	var persistedDigest []byte
 	if err := store.InTransaction(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `SELECT token_digest FROM public.auth_invitations WHERE id=$1`, invitation.Msg.Invitation.Id.Value).Scan(&persistedDigest)
+		return tx.QueryRow(ctx, `SELECT token_digest FROM public.auth_invitations WHERE id=$1`, nativeInvitationText(invitation.Msg.Invitation.Name)).Scan(&persistedDigest)
 	}); err != nil || !bytes.Equal(persistedDigest, tokenDigest[:]) {
 		t.Fatalf("invitation digest persistence: %v", err)
 	}
@@ -260,34 +303,49 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 		{login: "Expired Invite"},
 		{login: "Revoked Invite", revoke: true},
 	} {
-		created, err := accountClient.CreateInvitation(ctx, nha049Request(&authv1.CreateInvitationRequest{LoginName: fixture.login, Role: authv1.AccountRole_ACCOUNT_ROLE_USER, ExpiresAt: timestamppb.New(time.Now().Add(time.Hour))}, "admin"))
+		created, err := accountClient.IssueInvitation(ctx, nha142RunBearer(&api.IssueInvitationRequest{Parent: home, LoginName: fixture.login, Role: api.AccountRole_ACCOUNT_ROLE_USER, ExpireTime: timestamppb.New(time.Now().Add(time.Hour))}, adminToken))
 		if err != nil {
 			t.Fatal(err)
 		}
 		if fixture.revoke {
-			_, err = accountClient.RevokeInvitation(ctx, nha049Request(&authv1.RevokeInvitationRequest{InvitationId: created.Msg.Invitation.Id}, "admin"))
+			_, err = accountClient.RevokeInvitation(ctx, nha142RunBearer(&api.RevokeInvitationRequest{Name: created.Msg.Invitation.Name}, adminToken))
 		} else {
 			err = store.InTransaction(ctx, func(tx pgx.Tx) error {
-				_, err := tx.Exec(ctx, `UPDATE public.auth_invitations SET expires_at=created_at+interval '1 microsecond' WHERE id=$1`, created.Msg.Invitation.Id.Value)
+				_, err := tx.Exec(ctx, `UPDATE public.auth_invitations SET expires_at=created_at+interval '1 microsecond' WHERE id=$1`, nativeInvitationText(created.Msg.Invitation.Name))
 				return err
 			})
 		}
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = accountClient.AcceptInvitation(ctx, nha049Request(&authv1.AcceptInvitationRequest{InvitationToken: created.Msg.InvitationToken, Password: "NHA049 rejected invitation password", DisplayName: fixture.login}, ""))
+		_, err = accountClient.AcceptInvitation(ctx, nha142RunBearer(&api.AcceptInvitationRequest{InvitationToken: created.Msg.InvitationToken, Password: "NHA049 rejected invitation password", DisplayName: fixture.login}, ""))
 		nha049Code(t, err, connect.CodeFailedPrecondition)
 	}
-	listed, err := accountClient.ListInvitations(ctx, nha049Request(&authv1.ListInvitationsRequest{}, "admin"))
+	listed, err := accountClient.ListInvitations(ctx, nha142RunBearer(&api.ListInvitationsRequest{Parent: home}, adminToken))
 	if err != nil {
 		t.Fatalf("invitation list disclosed token: %v", err)
 	}
 	nha049NoCanaries(t, "list-invitations response", nha049Wire(t, listed.Msg), invitation.Msg.InvitationToken, passwordCanary)
-	accountsListed, err := accountClient.ListAccounts(ctx, nha049Request(&authv1.ListAccountsRequest{}, "admin"))
+	accountsListed, err := accountClient.ListAccounts(ctx, nha142RunBearer(&api.ListAccountsRequest{Parent: home}, adminToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	nha049NoCanaries(t, "list-accounts response", nha049Wire(t, accountsListed.Msg), invitation.Msg.InvitationToken, passwordCanary)
+	// The final administrator invariant is checked through actual native sessions.
+	invitedTokens := loginNative("Invited Admin", "NHA049 invited admin password")
+	_, err = accountClient.UpdateAccount(ctx, nha142RunBearer(&api.UpdateAccountRequest{
+		Account: &api.Account{Name: firstPublic.Msg.Name, Etag: firstPublic.Msg.Etag, Role: api.AccountRole_ACCOUNT_ROLE_USER}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"role"}},
+	}, adminToken))
+	if err != nil {
+		t.Fatalf("demote first administrator: %v", err)
+	}
+	adminToken = invitedTokens.AccessToken
+	_, err = accountClient.UpdateAccount(ctx, nha142RunBearer(&api.UpdateAccountRequest{
+		Account: &api.Account{Name: accepted.Msg.Account.Name, Etag: accepted.Msg.Account.Etag, Role: api.AccountRole_ACCOUNT_ROLE_USER}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"role"}},
+	}, adminToken))
+	nha049Code(t, err, connect.CodeFailedPrecondition)
+	_, err = accountClient.GetAccount(ctx, nha142RunBearer(&api.GetAccountRequest{Name: firstPublic.Msg.Name}, userToken))
+	nha049Code(t, err, connect.CodePermissionDenied)
 	login, _ := accounts.ParseLoginName("Invited Admin")
 	beforeRecord, err := store.CredentialByLogin(ctx, login)
 	if err != nil {
@@ -295,13 +353,13 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 	}
 	before, _ := beforeRecord.Revision()
 	if err := store.InTransaction(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `UPDATE public.auth_accounts SET second_factor_enabled=true WHERE id=$1`, accepted.Msg.Account.Id.Value)
+		_, err := tx.Exec(ctx, `UPDATE public.auth_accounts SET second_factor_enabled=true WHERE id=$1`, nativeAccountText(accepted.Msg.Account.Name))
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
-	recovered, err := operator.RecoverAccount(ctx, nha049Request(&authv1.RecoverAccountRequest{AccountId: accepted.Msg.Account.Id, ReplacementPassword: recoveryCanary}, ""))
-	if err != nil || recovered.Msg.Account.Id.Value != accepted.Msg.Account.Id.Value || !recovered.Msg.Account.SecondFactorEnabled {
+	recovered, err := operator.RecoverAccount(ctx, nha142RunBearer(&authv1.RecoverAccountRequest{AccountId: &authv1.AccountId{Value: nativeAccountText(accepted.Msg.Account.Name)}, ReplacementPassword: recoveryCanary}, ""))
+	if err != nil || recovered.Msg.Account.Id.Value != nativeAccountText(accepted.Msg.Account.Name) || !recovered.Msg.Account.SecondFactorEnabled {
 		t.Fatalf("operator recovery: %v", err)
 	}
 	nha049NoCanaries(t, "recovery response", nha049Wire(t, recovered.Msg), invitation.Msg.InvitationToken, passwordCanary, recoveryCanary)
@@ -339,7 +397,7 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 	}
 	nha049NoCanaries(t, "persisted account/invitation/claim/audit rows", persisted,
 		invitation.Msg.InvitationToken, passwordCanary, recoveryCanary)
-	publicRecovery, err := publicHTTP.Post(publicURL+authv1connect.OperatorAccountServiceRecoverAccountProcedure, "application/json", nil)
+	publicRecovery, err := publicHTTP.Post(publicURL+operatorv1connect.OperatorAccountServiceRecoverAccountProcedure, "application/json", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,20 +406,6 @@ func TestNHA049RunConnectUnixAccounts(t *testing.T) {
 		t.Fatalf("operator RPC public status=%d", publicRecovery.StatusCode)
 	}
 
-	// The second active administrator may demote the first, but not itself.
-	demotion := authv1.AccountRole_ACCOUNT_ROLE_USER
-	_, err = accountClient.UpdateAccount(ctx, nha049Request(&authv1.UpdateAccountRequest{AccountId: first.Id, Role: &demotion}, "admin"))
-	if err != nil {
-		t.Fatalf("demote first administrator: %v", err)
-	}
-	identity.set(accepted.Msg.Account.Id.Value, user.Msg.Account.Id.Value)
-	_, err = accountClient.UpdateAccount(ctx, nha049Request(&authv1.UpdateAccountRequest{AccountId: accepted.Msg.Account.Id, Role: &demotion}, "admin"))
-	nha049Code(t, err, connect.CodeFailedPrecondition)
-	_, err = accountClient.GetAccount(ctx, nha049Request(&authv1.GetAccountRequest{AccountId: first.Id}, "user"))
-	nha049Code(t, err, connect.CodePermissionDenied)
-	if _, err := contracts.ParseAccountID(accepted.Msg.Account.Id.Value); err != nil {
-		t.Fatal(err)
-	}
 	var auditDenied, audited int
 	if err := store.InTransaction(ctx, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `SELECT count(*),count(*) FILTER (WHERE outcome=2) FROM public.auth_audit`).Scan(&audited, &auditDenied)
@@ -430,8 +474,8 @@ func TestNHA049DefaultRunSocketRestartAndFailClosed(t *testing.T) {
 	}
 	publicHTTP := nha181Client(roots)
 	defer publicHTTP.CloseIdleConnections()
-	public := authv1connect.NewAccountServiceClient(publicHTTP, "https://"+address.String())
-	_, err = public.CreateAccount(context.Background(), nha049Request(&authv1.CreateAccountRequest{LoginName: "Closed Route", DisplayName: "Closed Route", Role: authv1.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: "NHA049 closed route password"}, "admin"))
+	public := apiv2connect.NewAccountServiceClient(publicHTTP, "https://"+address.String())
+	_, err = public.CreateAccount(context.Background(), nha049Request(&api.CreateAccountRequest{Account: &api.Account{LoginName: "Closed Route", DisplayName: "Closed Route", Role: api.AccountRole_ACCOUNT_ROLE_USER, InitialPassword: "NHA049 closed route password"}}, "admin"))
 	nha049Code(t, err, connect.CodeUnauthenticated)
 	storeSettings, _ := settings.PostgresSettings()
 	store, err := storage.Open(context.Background(), storeSettings)
@@ -450,7 +494,7 @@ func TestNHA049DefaultRunSocketRestartAndFailClosed(t *testing.T) {
 		var dial net.Dialer
 		return dial.DialContext(ctx, "unix", socket)
 	}}}
-	operator := authv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
+	operator := operatorv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
 	if _, err := operator.BootstrapAdmin(context.Background(), nha049Request(&authv1.BootstrapAdminRequest{LoginName: "Persistent Admin", DisplayName: "Persistent Admin", Password: "NHA049 persistent admin password"}, "")); err != nil {
 		t.Fatal(err)
 	}

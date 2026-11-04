@@ -1,359 +1,269 @@
 package dashboard
 
-// Native projection is pure data conversion. The caller supplies the authorized
-// entity view, negotiated support, and optional snapshot-scoped navigation index.
 import (
-	"fmt"
-	"strings"
-
-	dashboardv1 "github.com/damione1/Homeward/gen/home/dashboard/v1"
-	"github.com/damione1/Homeward/internal/domain"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func nativeDimension(value Dimension, present bool) *dashboardv1.LayoutDimension {
+func nativeDimension(value Dimension, present bool) *api.DashboardLayoutDimension {
 	if !present {
 		return nil
 	}
 	switch value.Kind() {
 	case DimensionCount:
 		count, _ := value.Count()
-		return &dashboardv1.LayoutDimension{Kind: dashboardv1.LayoutDimensionKind_LAYOUT_DIMENSION_KIND_COUNT, Count: uint32(count)}
+		return &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Count{Count: uint32(count)}}
 	case DimensionFull:
-		return &dashboardv1.LayoutDimension{Kind: dashboardv1.LayoutDimensionKind_LAYOUT_DIMENSION_KIND_FULL}
+		return &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Full{Full: &emptypb.Empty{}}}
 	case DimensionAuto:
-		return &dashboardv1.LayoutDimension{Kind: dashboardv1.LayoutDimensionKind_LAYOUT_DIMENSION_KIND_AUTO}
-	case DimensionInvalid:
-		return nil
+		return &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Auto{Auto: &emptypb.Empty{}}}
 	}
 	return nil
 }
-
-func nativeLayoutKind(value ElementKind) (dashboardv1.LayoutKind, string) {
-	switch value {
-	case ElementSectionsView:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_VIEW, "sections"
-	case ElementGridSection:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_SECTION, "grid"
-	case ElementGridCard:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_GRID, "grid"
-	case ElementHorizontalStackCard:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_HORIZONTAL_STACK, "horizontal-stack"
-	case ElementHeadingCard:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_HEADING, "heading"
-	case ElementTileCard:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_TILE, "tile"
-	case ElementRecipeCard:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_RECIPE, "recipe"
-	case ElementVerticalStackCard:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_VERTICAL_STACK, "vertical-stack"
-	case ElementPopupCard:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_POPUP, "custom:bubble-card"
-	case ElementChipGroup:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_CHIP_GROUP, "custom:mushroom-chips-card"
-	case ElementWidgetCard:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_WIDGET, "widget"
-	case ElementInvalid:
-		return dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED, "unknown"
-	}
-	return dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED, "unknown"
+func inertNode(node *api.DashboardLayoutNode) {
+	node.Visibility = nil
+	node.Content = &api.DashboardLayoutNode_Unsupported{Unsupported: &api.DashboardUnsupportedNode{Diagnostic: "Élément ou liaison non disponible dans cette vue autorisée."}}
 }
 
-type LayoutProjection struct {
-	Support    *dashboardv1.ClientLayoutSupport
-	Entity     func(domain.HAAlias) (domain.EntityID, bool)
-	Navigation *NavigationIndex
-}
-
-func ProjectNativeLayout(result Result, options LayoutProjection) (*dashboardv1.NativeLayout, error) {
-	support, resolve := options.Support, options.Entity
-	definition, present := result.Definition()
-	if !present || result.Status() == StatusFatal || resolve == nil {
+// ProjectDashboardDefinition converts the admitted compiler IR directly to v2.
+// Unsupported source remains inert; no protocol negotiation or v1 adapter exists.
+func ProjectDashboardDefinition(def Definition, options APIProjection) (*api.DashboardLayout, error) {
+	if !options.Home.Valid() || options.Entity == nil || options.Capabilities == nil {
 		return nil, ErrInvalidInput
 	}
-	layout := &dashboardv1.NativeLayout{Version: uint32(definition.Requirements().Version())}
-	if layout.Version != 1 && layout.Version != 2 && layout.Version != 3 {
-		return nil, ErrInvalidInput
-	}
-	navigation := options.Navigation
-	if navigation == nil && layout.Version >= 2 {
-		index, err := NewNavigationIndex([]Definition{definition})
+	if options.Navigation == nil {
+		index, err := NewNavigationIndex([]Definition{def})
 		if err != nil {
 			return nil, err
 		}
-		navigation = &index
+		options.Navigation = &index
 	}
-	if layout.Version >= 2 && !navigation.matches(definition) {
+	if !options.Navigation.matches(def) {
 		return nil, ErrInvalidInput
 	}
-	allowed := map[dashboardv1.LayoutKind]bool{}
-	// Old clients did not negotiate a tree. Keep their overview readable; their
-	// generated decoder ignores this additive projection. New clients negotiate.
-	if support == nil && layout.Version == 1 {
-		for _, kind := range []dashboardv1.LayoutKind{dashboardv1.LayoutKind_LAYOUT_KIND_VIEW, dashboardv1.LayoutKind_LAYOUT_KIND_SECTION,
-			dashboardv1.LayoutKind_LAYOUT_KIND_GRID, dashboardv1.LayoutKind_LAYOUT_KIND_HORIZONTAL_STACK,
-			dashboardv1.LayoutKind_LAYOUT_KIND_HEADING, dashboardv1.LayoutKind_LAYOUT_KIND_TILE} {
-			allowed[kind] = true
-		}
-	} else if support != nil && ((support.Profile == definition.Profile() && support.Version == layout.Version) ||
-		// The recipe renderer includes the Basic vocabulary. A v2 client can
-		// consume a server's Basic tree without enabling recipes in that tree.
-		(definition.Profile() == Profile && layout.Version == 1 && support.Profile == RecipesProfile && support.Version == 2) ||
-		(support.Profile == DashboardProfile && support.Version == 3 && layout.Version <= 3)) {
-		for _, kind := range support.Kinds {
-			allowed[kind] = true
-		}
-	}
-	unsupported := result.Unsupported()
-	diagnostics := result.Diagnostics()
-	makeNode := func(id string, kind ElementKind, status Status, location Location,
-		visibility []Visibility, blocked bool) *dashboardv1.LayoutNode {
-		wireKind, variant := nativeLayoutKind(kind)
-		node := &dashboardv1.LayoutNode{Id: id, Kind: wireKind, Source: nativeSource(location, variant)}
-		for _, item := range unsupported {
-			if item.Location().Path() != location.Path() {
-				continue
-			}
-			if name, present := item.Node().Lookup("type"); present {
-				if scalar, present := name.Scalar(); present {
-					node.Source.Variant = scalar.Text()
-				}
-			}
-		}
-		if blocked || status != StatusSupported || (layout.Version == 1 && len(visibility) != 0) || !allowed[wireKind] {
-			node.Kind = dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED
-			node.Diagnostic = "Élément non pris en charge par le profil négocié."
-			if blocked {
-				node.Diagnostic = "Élément inactif : son parent n’est pas pris en charge."
-			} else if len(visibility) != 0 {
-				node.Diagnostic = "Condition de visibilité non évaluée par ce client."
-			}
-			for _, diagnostic := range diagnostics {
-				if diagnostic.Location().Path() == location.Path() || strings.HasPrefix(diagnostic.Location().Path(), location.Path()+".") {
-					node.Diagnostic = diagnostic.Reason()
-					break
-				}
-			}
-		}
-		if node.Kind != dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED {
-			screen, valid := nativeScreenVisibility(visibility)
-			if !valid || (screen != nil && (layout.Version != 3 || support == nil || !support.ScreenVisibility)) {
-				node.Kind = dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED
-				node.Diagnostic = "Screen visibility is unsupported by this client or has contradictory bounds."
-			} else {
-				node.ScreenVisibility = screen
-			}
-		}
+	p := &apiProjector{options: options, definition: def}
+	layout := &api.DashboardLayout{}
+	add := func(location Location, status Status, visibility []Visibility, blocked bool, view Location) *api.DashboardLayoutNode {
+		node := &api.DashboardLayoutNode{Id: location.Path(), Source: nativeSource(location, "")}
 		layout.Nodes = append(layout.Nodes, node)
+		screen, ok := nativeScreenVisibility(visibility)
+		node.ScreenVisibility = screen
+		if blocked || status != StatusSupported || !ok {
+			inertNode(node)
+			return node
+		}
+		recipes, err := projectRecipes(location, nil, visibility, p, view)
+		if err != nil {
+			inertNode(node)
+		} else {
+			node.Visibility = recipes.Visibility
+		}
 		return node
 	}
-	applyRecipes := func(node *dashboardv1.LayoutNode, owner Location, actions []Action, visibility []Visibility, view Location) {
-		if layout.Version < 2 || node.Kind == dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED {
-			return
-		}
-		resolver := RecipeResolver{Entity: resolve}
-		if navigation != nil {
-			resolver.Destination = func(path string) (*dashboardv1.NativeDestination, bool) {
-				return navigation.Resolve(definition.Source().ID(), view, path)
-			}
-		}
-		recipes, err := ProjectNativeRecipes(owner, actions, visibility, resolver)
-		if err != nil {
-			node.Kind, node.EntityId, node.Diagnostic = dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED, "", "Recette, cible ou destination non disponible dans la vue autorisée."
-			return
-		}
-		node.Recipes = recipes
-	}
-	var cards func([]Card, *dashboardv1.LayoutNode, int, Location) error
-	cards = func(values []Card, parent *dashboardv1.LayoutNode, depth int, view Location) error {
+	var cards func([]Card, bool, int, Location) ([]string, error)
+	cards = func(values []Card, blocked bool, depth int, view Location) ([]string, error) {
 		if depth > 16 {
-			return fmt.Errorf("dashboard card depth exceeds importer profile")
+			return nil, ErrInvalidInput
 		}
+		ids := []string{}
 		for _, card := range values {
-			node := makeNode(card.Location().Path(), card.Kind(), card.Status(), card.Location(), card.Visibility(), parent.Kind == dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED)
-			if card.Variant() != "" {
-				node.Source.Variant = card.Variant()
+			node := add(card.Location(), card.Status(), card.Visibility(), blocked, view)
+			ids = append(ids, node.Id)
+			node.Source.Variant = card.Variant()
+			node.DisplayName, _ = card.Name()
+			if title, ok := card.Title(); ok {
+				node.DisplayName = title
 			}
-			applyRecipes(node, card.Location(), card.Actions(), card.Visibility(), view)
-			if layout.Version >= 3 && card.icon != "" {
-				node.Icon = nativeCardIcon(card.icon)
-			}
-			node.MinimumColumnWidth, node.Gap = card.minimumColumnWidth, card.gap
-			node.ControlPresentation = card.controlPresentation
+			node.Icon = nativeCardIcon(card.icon)
+			node.Placement = &api.DashboardPlacement{ColumnSpan: nativeDimension(card.GridOptions().Columns()), RowSpan: nativeDimension(card.GridOptions().Rows())}
 			for _, span := range card.grid.responsiveSpans {
-				node.ResponsiveSpans = append(node.ResponsiveSpans, &dashboardv1.NativeResponsiveSpan{Columns: span.Columns, Span: span.Span})
+				node.Placement.ResponsiveSpans = append(node.Placement.ResponsiveSpans, &api.DashboardResponsiveSpan{Columns: span.Columns, Span: span.Span})
 			}
-			if node.Kind == dashboardv1.LayoutKind_LAYOUT_KIND_WIDGET {
-				widget, ok := projectWidget(card, resolve, func(path string) (*dashboardv1.NativeDestination, bool) {
-					if navigation == nil {
-						return nil, false
+			recipes, err := projectRecipes(card.Location(), card.Actions(), card.Visibility(), p, view)
+			if err != nil {
+				inertNode(node)
+			}
+			if node.GetUnsupported() == nil {
+				interactions := &api.DashboardInteractions{Interactions: recipes.Interactions}
+				node.Visibility = recipes.Visibility
+				children := &api.DashboardChildren{Gap: card.gap}
+				presentation := api.DashboardControlPresentation_DASHBOARD_CONTROL_PRESENTATION_CONTROLS
+				if card.controlPresentation == controlsSummary {
+					presentation = api.DashboardControlPresentation_DASHBOARD_CONTROL_PRESENTATION_SUMMARY
+				}
+				switch card.Kind() {
+				case ElementGridCard:
+					grid := &api.DashboardGridNode{Children: children, Columns: uint32(card.columns), MinimumColumnWidth: card.minimumColumnWidth, Interactions: interactions}
+					if value, ok := card.Square(); ok {
+						grid.Square = &value
 					}
-					return navigation.Resolve(definition.Source().ID(), view, path)
-				})
-				if !ok {
-					node.Kind = dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED
-					node.Recipes = nil
-					node.Diagnostic = "Liaison ou destination non disponible dans la vue autorisée."
-				} else {
-					node.Widget = widget
+					node.Content = &api.DashboardLayoutNode_Grid{Grid: grid}
+				case ElementHorizontalStackCard:
+					node.Content = &api.DashboardLayoutNode_HorizontalStack{HorizontalStack: &api.DashboardStackNode{Children: children, Interactions: interactions}}
+				case ElementVerticalStackCard:
+					node.Content = &api.DashboardLayoutNode_VerticalStack{VerticalStack: &api.DashboardStackNode{Children: children, Interactions: interactions}}
+				case ElementHeadingCard:
+					node.DisplayName = card.Heading()
+					style := api.DashboardHeadingStyle_DASHBOARD_HEADING_STYLE_DEFAULT
+					if card.HeadingStyle() == HeadingStyleTitle {
+						style = api.DashboardHeadingStyle_DASHBOARD_HEADING_STYLE_TITLE
+					} else if card.HeadingStyle() == HeadingStyleSubtitle {
+						style = api.DashboardHeadingStyle_DASHBOARD_HEADING_STYLE_SUBTITLE
+					}
+					node.Content = &api.DashboardLayoutNode_Heading{Heading: &api.DashboardHeadingNode{Style: style, Interactions: interactions}}
+				case ElementPopupCard:
+					node.Content = &api.DashboardLayoutNode_Popup{Popup: &api.DashboardPopupNode{Children: children, Interactions: interactions}}
+				case ElementChipGroup:
+					node.Content = &api.DashboardLayoutNode_ChipGroup{ChipGroup: &api.DashboardChipGroupNode{Children: children, Interactions: interactions}}
+				case ElementTileCard, ElementRecipeCard:
+					capability, features, err := p.cardBinding(card)
+					if err != nil {
+						inertNode(node)
+						break
+					}
+					if card.Kind() == ElementTileCard {
+						tile := &api.DashboardTileNode{Capability: capability, Features: features, Presentation: presentation, Interactions: interactions}
+						if value, ok := card.Vertical(); ok {
+							tile.Vertical = &value
+						}
+						if value, ok := card.HideState(); ok {
+							tile.HideObservation = &value
+						}
+						node.Content = &api.DashboardLayoutNode_Tile{Tile: tile}
+					} else {
+						node.Content = &api.DashboardLayoutNode_Recipe{Recipe: &api.DashboardRecipeNode{Kind: nativeRecipeKind(card.Recipe()), Capability: capability, Features: features, Secondary: card.Secondary(), Presentation: presentation, Interactions: interactions}}
+					}
+				case ElementWidgetCard:
+					widget, err := p.widget(card, view)
+					if err != nil {
+						inertNode(node)
+					} else {
+						widget.Interactions = interactions
+						node.Content = &api.DashboardLayoutNode_Widget{Widget: widget}
+					}
+				default:
+					inertNode(node)
 				}
 			}
-			parent.Children = append(parent.Children, node.Id)
-			node.Title, _ = card.Name()
-			if card.Kind() == ElementHeadingCard {
-				node.Title = card.Heading()
-				switch card.HeadingStyle() {
-				case HeadingStyleDefault:
-					node.HeadingStyle = dashboardv1.NativeHeadingStyle_NATIVE_HEADING_STYLE_DEFAULT
-				case HeadingStyleTitle:
-					node.HeadingStyle = dashboardv1.NativeHeadingStyle_NATIVE_HEADING_STYLE_TITLE
-				case HeadingStyleSubtitle:
-					node.HeadingStyle = dashboardv1.NativeHeadingStyle_NATIVE_HEADING_STYLE_SUBTITLE
-				case HeadingStyleInvalid:
-				}
-			}
-			if title, present := card.Title(); present {
-				node.Title = title
-			}
-			if alias, present := card.Entity(); present && (node.Kind == dashboardv1.LayoutKind_LAYOUT_KIND_TILE || node.Kind == dashboardv1.LayoutKind_LAYOUT_KIND_RECIPE) {
-				if id, known := resolve(alias); known {
-					node.EntityId, _ = id.Value()
-				}
-				if node.EntityId == "" {
-					node.Kind = dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED
-					node.Recipes = nil
-					node.Diagnostic = "Entité non disponible dans la vue autorisée."
-				}
-			}
-			if layout.Version >= 2 && node.Kind != dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED {
-				node.RecipeKind = nativeRecipeKind(card.Recipe())
-				node.Secondary = card.Secondary()
-				for _, feature := range card.Features() {
-					node.Features = append(node.Features, nativeFeatureKind(feature.Kind()))
-				}
-			}
-			if count, present := card.Columns(); present {
-				node.Columns = uint32(count)
-			}
-			node.ColumnSpan = nativeDimension(card.GridOptions().Columns())
-			node.RowSpan = nativeDimension(card.GridOptions().Rows())
-			if value, present := card.Square(); present {
-				node.Square = &value
-			}
-			if value, present := card.Vertical(); present {
-				node.Vertical = &value
-			}
-			if value, present := card.HideState(); present {
-				node.HideState = &value
-			}
-			if len(card.Children()) != 0 {
-				if err := cards(card.Children(), node, depth+1, view); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-	for _, view := range definition.Views() {
-		node := makeNode(view.Location().Path(), view.Kind(), view.Status(), view.Location(), view.Visibility(), false)
-		applyRecipes(node, view.Location(), nil, view.Visibility(), view.Location())
-		node.Title = view.Title()
-		node.MinimumColumnWidth, node.Gap = view.minimumColumnWidth, view.gap
-		node.Route = view.NativeRoute()
-		if columns, present := view.MaxColumns(); present {
-			node.Columns = uint32(columns)
-		}
-		layout.Views = append(layout.Views, node.Id)
-		for _, section := range view.Sections() {
-			child := makeNode(section.Location().Path(), section.Kind(), section.Status(), section.Location(), section.Visibility(), node.Kind == dashboardv1.LayoutKind_LAYOUT_KIND_UNSUPPORTED)
-			applyRecipes(child, section.Location(), nil, section.Visibility(), view.Location())
-			node.Children = append(node.Children, child.Id)
-			child.MinimumColumnWidth, child.Gap = section.minimumColumnWidth, section.gap
-			if count, present := section.ColumnSpan(); present {
-				child.ColumnSpan = &dashboardv1.LayoutDimension{Kind: dashboardv1.LayoutDimensionKind_LAYOUT_DIMENSION_KIND_COUNT, Count: uint32(count)}
-			}
-			if count, present := section.RowSpan(); present {
-				child.RowSpan = &dashboardv1.LayoutDimension{Kind: dashboardv1.LayoutDimensionKind_LAYOUT_DIMENSION_KIND_COUNT, Count: uint32(count)}
-			}
-			if err := cards(section.Cards(), child, 0, view.Location()); err != nil {
+			descendants, err := cards(card.Children(), node.GetUnsupported() != nil, depth+1, view)
+			if err != nil {
 				return nil, err
 			}
-		}
-	}
-	// Runtime strategies have no views in the importer. Retain a sourced inert
-	// diagnostic as the only view instead of inventing an executable layout.
-	if len(layout.Views) == 0 {
-		for _, item := range unsupported {
-			if strings.Contains(item.Location().Path(), "strategy") {
-				node := makeNode(item.Location().Path(), ElementInvalid, StatusUnsupported, item.Location(), nil, false)
-				node.Source.Variant = "strategy"
-				if name, present := item.Node().Lookup("type"); present {
-					if scalar, present := name.Scalar(); present {
-						node.Source.Variant = scalar.Text()
-					}
+			switch content := node.Content.(type) {
+			case *api.DashboardLayoutNode_Grid:
+				content.Grid.Children.Children = descendants
+			case *api.DashboardLayoutNode_HorizontalStack:
+				content.HorizontalStack.Children.Children = descendants
+			case *api.DashboardLayoutNode_VerticalStack:
+				content.VerticalStack.Children.Children = descendants
+			case *api.DashboardLayoutNode_Popup:
+				content.Popup.Children.Children = descendants
+			case *api.DashboardLayoutNode_ChipGroup:
+				content.ChipGroup.Children.Children = descendants
+			case *api.DashboardLayoutNode_Unsupported:
+				content.Unsupported.Children = descendants
+			default:
+				if len(descendants) > 0 {
+					return nil, ErrInvalidInput
 				}
-				node.Title = "Stratégie non prise en charge"
-				layout.Views = append(layout.Views, node.Id)
+			}
+			if len(layout.Nodes) > 2432 {
+				return nil, ErrInvalidInput
 			}
 		}
+		return ids, nil
 	}
-	if len(layout.Nodes) > 128+256+2048 || (len(layout.Views) == 0 && layout.Version < 3) {
+	for _, view := range def.Views() {
+		node := add(view.Location(), view.Status(), view.Visibility(), false, view.Location())
+		node.DisplayName = view.Title()
+		layout.Views = append(layout.Views, node.Id)
+		children := &api.DashboardChildren{Gap: view.gap}
+		if node.GetUnsupported() == nil {
+			columns, _ := view.MaxColumns()
+			node.Content = &api.DashboardLayoutNode_View{View: &api.DashboardViewNode{Route: view.NativeRoute(), Children: children, MaximumColumns: uint32(columns), MinimumColumnWidth: view.minimumColumnWidth}}
+		}
+		for _, section := range view.Sections() {
+			child := add(section.Location(), section.Status(), section.Visibility(), node.GetUnsupported() != nil, view.Location())
+			children.Children = append(children.Children, child.Id)
+			child.Placement = &api.DashboardPlacement{}
+			if count, ok := section.ColumnSpan(); ok {
+				child.Placement.ColumnSpan = &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Count{Count: uint32(count)}}
+			}
+			if count, ok := section.RowSpan(); ok {
+				child.Placement.RowSpan = &api.DashboardLayoutDimension{Size: &api.DashboardLayoutDimension_Count{Count: uint32(count)}}
+			}
+			ids, err := cards(section.Cards(), child.GetUnsupported() != nil, 0, view.Location())
+			if err != nil {
+				return nil, err
+			}
+			if child.GetUnsupported() != nil {
+				child.GetUnsupported().Children = ids
+			} else {
+				child.Content = &api.DashboardLayoutNode_Section{Section: &api.DashboardSectionNode{Children: &api.DashboardChildren{Children: ids, Gap: section.gap}, MinimumColumnWidth: section.minimumColumnWidth}}
+			}
+		}
+		if node.GetUnsupported() != nil {
+			node.GetUnsupported().Children = children.Children
+		}
+	}
+	if len(layout.Views) > 128 || len(layout.Nodes) > 2432 {
 		return nil, ErrInvalidInput
 	}
 	return layout, nil
 }
 
-func nativeRecipeKind(kind RecipeKind) dashboardv1.NativeRecipeKind {
+func nativeRecipeKind(kind RecipeKind) api.DashboardRecipeKind {
 	switch kind {
 	case RecipeTemplate:
-		return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_TEMPLATE
+		return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_TEMPLATE
 	case RecipeSelect:
-		return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_SELECT
+		return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_SELECT
 	case RecipeAlarm:
-		return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_ALARM
+		return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_ALARM
 	case RecipeBubbleButton:
-		return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_BUBBLE_BUTTON
+		return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_BUBBLE_BUTTON
 	case RecipeBubblePopup:
-		return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_BUBBLE_POPUP
+		return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_BUBBLE_POPUP
 	case RecipeChips:
-		return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_CHIPS
+		return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_CHIPS
 	case RecipeTemplateChip:
-		return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_TEMPLATE_CHIP
+		return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_TEMPLATE_CHIP
 	case RecipeButton:
-		return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_BUTTON
+		return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_BUTTON
 	case RecipeEntity:
-		return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_ENTITY
+		return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_ENTITY
 	case RecipeText:
-		return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_TEXT
+		return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_TEXT
 	case RecipeInvalid:
-		return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_UNSPECIFIED
+		return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_UNSPECIFIED
 	}
-	return dashboardv1.NativeRecipeKind_NATIVE_RECIPE_KIND_UNSPECIFIED
+	return api.DashboardRecipeKind_DASHBOARD_RECIPE_KIND_UNSPECIFIED
 }
 
-func nativeFeatureKind(kind FeatureKind) dashboardv1.NativeFeatureKind {
+func nativeFeatureKind(kind FeatureKind) api.DashboardFeatureKind {
 	switch kind {
 	case FeatureToggle:
-		return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_TOGGLE
+		return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_TOGGLE
 	case FeatureBrightness:
-		return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_BRIGHTNESS
+		return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_BRIGHTNESS
 	case FeatureColorTemperature:
-		return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_COLOR_TEMPERATURE
+		return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_COLOR_TEMPERATURE
 	case FeatureTargetTemperature:
-		return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_TARGET_TEMPERATURE
+		return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_TARGET_TEMPERATURE
 	case FeatureClimateModes:
-		return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_CLIMATE_MODES
+		return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_CLIMATE_MODES
 	case FeatureFanSpeed:
-		return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_FAN_SPEED
+		return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_FAN_SPEED
 	case FeatureNumericInput:
-		return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_NUMERIC_INPUT
+		return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_NUMERIC_INPUT
 	case FeatureCoverOpenClose:
-		return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_COVER_OPEN_CLOSE
+		return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_COVER_OPEN_CLOSE
 	case FeatureCoverPosition:
-		return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_COVER_POSITION
+		return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_COVER_POSITION
 	case FeatureAlarmModes:
-		return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_ALARM_MODES
+		return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_ALARM_MODES
 	case FeatureInvalid:
-		return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_UNSPECIFIED
+		return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_UNSPECIFIED
 	}
-	return dashboardv1.NativeFeatureKind_NATIVE_FEATURE_KIND_UNSPECIFIED
+	return api.DashboardFeatureKind_DASHBOARD_FEATURE_KIND_UNSPECIFIED
 }

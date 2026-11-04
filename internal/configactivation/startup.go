@@ -218,6 +218,17 @@ func ReconcileStartup(ctx context.Context, store *storage.Store, startup config.
 	if err := startup.ConfirmBootstrapSource(); err != nil {
 		return AdmittedGeneration{}, StartupDispositionUnknown, err
 	}
+	operational, err := admitted.OperationalConfig()
+	if err != nil {
+		return AdmittedGeneration{}, StartupDispositionUnknown, err
+	}
+	ids, err := operational.DeclaredIntegrationInstances()
+	if err != nil {
+		return AdmittedGeneration{}, StartupDispositionUnknown, err
+	}
+	if err := store.ReconcileIntegrationResourceIdentities(ctx, admitted.Revision(), admitted.ManifestSHA256(), ids); err != nil {
+		return AdmittedGeneration{}, StartupDispositionUnknown, err
+	}
 	return admitted, disposition, nil
 }
 
@@ -371,6 +382,9 @@ func activateInitialOrUpgrade(ctx context.Context, store *storage.Store, replay 
 		refs := append(append([]storage.ConfigVersionRef(nil), legacyRefs...), operationalRef)
 		target, err = tx.RegisterCompiledGeneration(entry, compiled, refs)
 		if err != nil {
+			return err
+		}
+		if err := recordIntegrationResources(tx, source); err != nil {
 			return err
 		}
 		if err := tx.ActivateGeneration(expected, target); err != nil {

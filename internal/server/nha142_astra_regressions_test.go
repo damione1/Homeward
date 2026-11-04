@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	"github.com/damione1/Homeward/internal/authmfa"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/storage"
@@ -51,22 +53,22 @@ func nha142AstraEnrollmentSnapshot(t *testing.T, rig *nha142ServerRig) nha142Ast
 func TestNHA142AstraFirstEnrollmentRequiresRecentOriginalAuthentication(t *testing.T) {
 	rig := nha142NewServerRig(t)
 	plain := rig.start(t).GetAuthenticated()
-	if plain == nil || plain.Session == nil || plain.Session.Id == nil || plain.Session.AuthenticatedAt == nil ||
-		plain.Session.AuthenticationSatisfaction != authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY {
+	if plain == nil || plain.Session == nil || plain.Session.Name == "" || plain.Session.AuthenticationTime == nil ||
+		plain.Session.AuthenticationSatisfaction != api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY {
 		t.Fatal("false policy did not issue typed password-only original authentication")
 	}
-	original := plain.Session.AuthenticatedAt.AsTime()
+	original := plain.Session.AuthenticationTime.AsTime()
 	rig.clock.Advance(original.Add(4*time.Minute + 30*time.Second))
 	key := nha142NewAuthenticator(t)
-	begin := connect.NewRequest(&authv1.BeginFactorEnrollmentRequest{Kind: authv1.FactorKind_FACTOR_KIND_FIDO2})
+	begin := connect.NewRequest(&api.BeginFactorEnrollmentRequest{Parent: rig.accountName.String(), Kind: api.FactorKind_FACTOR_KIND_FIDO2})
 	begin.Header().Set("Authorization", "Bearer "+plain.AccessToken)
 	begun, err := rig.handler.BeginFactorEnrollment(rig.tlsContext(), begin)
 	if err != nil || begun == nil || begun.Msg == nil || begun.Msg.Challenge == nil ||
-		begun.Msg.Challenge.Id == nil || begun.Msg.Challenge.Fido2 == nil || begun.Msg.Challenge.ExpiresAt == nil {
+		begun.Msg.Challenge.ChallengeId == "" || begun.Msg.Challenge.Fido2 == nil || begun.Msg.Challenge.ExpireTime == nil {
 		t.Fatalf("recent password-only session could not begin first real enrollment: %v", err)
 	}
 	staleAt := original.Add(authmfa.RecentAuthenticationLifetime + time.Second)
-	if !staleAt.Before(begun.Msg.Challenge.ExpiresAt.AsTime()) {
+	if !staleAt.Before(begun.Msg.Challenge.ExpireTime.AsTime()) {
 		t.Fatal("setup expired the ceremony before original authentication became stale")
 	}
 	before := nha142AstraEnrollmentSnapshot(t, rig)
@@ -74,8 +76,8 @@ func TestNHA142AstraFirstEnrollmentRequiresRecentOriginalAuthentication(t *testi
 		t.Fatalf("setup has factor, recovery batch, or revoked session: %+v", before)
 	}
 	rig.clock.Advance(staleAt)
-	complete := connect.NewRequest(&authv1.CompleteFactorEnrollmentRequest{
-		ChallengeId: begun.Msg.Challenge.Id,
+	complete := connect.NewRequest(&api.CompleteFactorEnrollmentRequest{Parent: rig.accountName.String(),
+		ChallengeId: begun.Msg.Challenge.ChallengeId,
 		Attestation: key.attestation(t, begun.Msg.Challenge),
 	})
 	complete.Header().Set("Authorization", "Bearer "+plain.AccessToken)
@@ -90,13 +92,13 @@ func TestNHA142AstraFirstEnrollmentRequiresRecentOriginalAuthentication(t *testi
 func TestNHA142AstraFirstEnrollmentStaleBeginRefused(t *testing.T) {
 	rig := nha142NewServerRig(t)
 	plain := rig.start(t).GetAuthenticated()
-	if plain == nil || plain.Session == nil || plain.Session.AuthenticatedAt == nil ||
-		plain.Session.AuthenticationSatisfaction != authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY {
+	if plain == nil || plain.Session == nil || plain.Session.AuthenticationTime == nil ||
+		plain.Session.AuthenticationSatisfaction != api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY {
 		t.Fatal("false policy did not issue original password-only evidence")
 	}
 	before := nha142AstraEnrollmentSnapshot(t, rig)
-	rig.clock.Advance(plain.Session.AuthenticatedAt.AsTime().Add(authmfa.RecentAuthenticationLifetime + time.Second))
-	staleBegin := connect.NewRequest(&authv1.BeginFactorEnrollmentRequest{Kind: authv1.FactorKind_FACTOR_KIND_FIDO2})
+	rig.clock.Advance(plain.Session.AuthenticationTime.AsTime().Add(authmfa.RecentAuthenticationLifetime + time.Second))
+	staleBegin := connect.NewRequest(&api.BeginFactorEnrollmentRequest{Parent: rig.accountName.String(), Kind: api.FactorKind_FACTOR_KIND_FIDO2})
 	staleBegin.Header().Set("Authorization", "Bearer "+plain.AccessToken)
 	if _, err := rig.handler.BeginFactorEnrollment(rig.tlsContext(), staleBegin); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Errorf("standalone stale original password login began first enrollment: code=%v err=%v", connect.CodeOf(err), err)
@@ -109,14 +111,18 @@ func TestNHA142AstraFirstEnrollmentStaleBeginRefused(t *testing.T) {
 func TestNHA142AstraLegacySessionCannotAuthorizeFirstEnrollment(t *testing.T) {
 	rig := nha142NewServerRig(t)
 	plain := rig.start(t).GetAuthenticated()
-	if plain == nil || plain.Session == nil || plain.Session.Id == nil {
+	if plain == nil || plain.Session == nil || plain.Session.Name == "" {
 		t.Fatal("false policy did not issue a password session for legacy-row fixture")
 	}
 	// Migration 18 intentionally admits old, still-current sessions with no
 	// original-authentication evidence. Only this database row is converted to
 	// that real legacy shape; the bearer and session admission stay genuine.
-	sessionID := plain.Session.Id.Value
-	err := rig.store.InTransaction(rig.ctx, func(tx pgx.Tx) error {
+	nativeSession := nha203NativeSession(t, rig.ctx, rig.store, plain.Session.Name)
+	sessionID, err := nativeSession.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = rig.store.InTransaction(rig.ctx, func(tx pgx.Tx) error {
 		_, err := tx.Exec(rig.ctx, `UPDATE public.auth_sessions SET satisfaction=0,authenticated_at=NULL
 			WHERE id=$1 AND satisfaction=1 AND authenticated_at=created_at`, sessionID)
 		return err
@@ -139,7 +145,7 @@ func TestNHA142AstraLegacySessionCannotAuthorizeFirstEnrollment(t *testing.T) {
 	}
 	release()
 	before := nha142AstraEnrollmentSnapshot(t, rig)
-	begin := connect.NewRequest(&authv1.BeginFactorEnrollmentRequest{Kind: authv1.FactorKind_FACTOR_KIND_FIDO2})
+	begin := connect.NewRequest(&api.BeginFactorEnrollmentRequest{Parent: rig.accountName.String(), Kind: api.FactorKind_FACTOR_KIND_FIDO2})
 	begin.Header().Set("Authorization", "Bearer "+plain.AccessToken)
 	if _, err := rig.handler.BeginFactorEnrollment(rig.tlsContext(), begin); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Errorf("legacy session without original evidence began enrollment: code=%v err=%v", connect.CodeOf(err), err)
@@ -150,7 +156,7 @@ func TestNHA142AstraLegacySessionCannotAuthorizeFirstEnrollment(t *testing.T) {
 }
 
 type nha142AstraPolicyState struct {
-	policy                                             *authv1.SecondFactorPolicy
+	policy                                             *api.SecondFactorPolicy
 	revision                                           int64
 	sessions, revokedSessions, audits, salts, versions int
 }
@@ -161,7 +167,7 @@ func nha142AstraPolicySnapshot(t *testing.T, store *storage.Store, ctx context.C
 	if err != nil {
 		t.Fatal(err)
 	}
-	wire, err := policyWire(policy)
+	wire, err := (authResourceNames{nha203AuthFixtureNames(store)}).secondFactorPolicyResource(ctx, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +246,7 @@ func TestNHA142AstraPolicyEnableRequiresCurrentReadyRPAfterRestart(t *testing.T)
 		return dialer.DialContext(ctx, "unix", filepath.Join(dataDir, operatorSocketName))
 	}}
 	operatorHTTP := &http.Client{Timeout: 10 * time.Second, Transport: operatorTransport}
-	operator := authv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
+	operator := operatorv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
 	callCtx, cancelCalls := context.WithTimeout(context.Background(), 70*time.Second)
 	defer cancelCalls()
 	created, err := operator.BootstrapAdmin(callCtx, connect.NewRequest(&authv1.BootstrapAdminRequest{
@@ -288,25 +294,29 @@ func TestNHA142AstraPolicyEnableRequiresCurrentReadyRPAfterRestart(t *testing.T)
 		return dialer.DialContext(ctx, "tcp", address.String())
 	}
 	t.Cleanup(publicHTTP.CloseIdleConnections)
-	auth := authv1connect.NewAuthServiceClient(publicHTTP, origin)
-	accounts := authv1connect.NewAccountServiceClient(publicHTTP, origin)
-	started, err := auth.StartLogin(callCtx, connect.NewRequest(&authv1.StartLoginRequest{LoginName: login, Password: password}))
+	auth := apiv2connect.NewAuthServiceClient(publicHTTP, origin)
+	accounts := apiv2connect.NewAccountServiceClient(publicHTTP, origin)
+	started, err := auth.StartLogin(callCtx, connect.NewRequest(&api.StartLoginRequest{LoginName: login, Password: password}))
 	if err != nil || started == nil || started.Msg == nil || started.Msg.Decision == nil {
 		t.Fatal("password login failed after TLS restart without canonical RP:", err)
 	}
 	plain := started.Msg.Decision.GetAuthenticated()
-	if plain == nil || plain.Session == nil || plain.Session.AuthenticationSatisfaction != authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY {
+	if plain == nil || plain.Session == nil || plain.Session.AuthenticationSatisfaction != api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY {
 		t.Fatal("unenrolled admin lost native password admission after RP-less restart")
 	}
-	if _, err := auth.ListSessions(callCtx, nha142RunBearer(&authv1.ListSessionsRequest{AccountId: created.Msg.Account.Id}, plain.AccessToken)); err != nil {
+	if _, err := auth.ListSessions(callCtx, nha142RunBearer(&api.ListSessionsRequest{Parent: nha203SessionAccount(t, plain.Session).String()}, plain.AccessToken)); err != nil {
 		t.Fatal("native password bearer not admitted after RP-less restart:", err)
 	}
 	before := nha142AstraPolicySnapshot(t, probe, callCtx, account)
-	if before.policy.RequireAdminFactor || before.policy.Version == nil || before.policy.UpdatedAt == nil || before.revokedSessions != 0 {
+	if before.policy.RequireAdminFactor || before.policy.Etag == "" || before.policy.UpdateTime == nil || before.revokedSessions != 0 {
 		t.Fatalf("unexpected policy/session state before enable: %+v", before)
 	}
-	_, err = accounts.SetSecondFactorPolicy(callCtx, nha142RunBearer(&authv1.SetSecondFactorPolicyRequest{
-		Expected: before.policy.Version, RequireAdminFactor: true,
+	currentPolicy, err := accounts.GetSecondFactorPolicy(callCtx, nha142RunBearer(&api.GetSecondFactorPolicyRequest{Name: nha203SessionAccount(t, plain.Session).Home().String() + "/secondFactorPolicy"}, plain.AccessToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = accounts.ChangeSecondFactorPolicy(callCtx, nha142RunBearer(&api.ChangeSecondFactorPolicyRequest{
+		Name: currentPolicy.Msg.Name, Etag: currentPolicy.Msg.Etag, RequireAdminFactor: true,
 	}, plain.AccessToken))
 	if connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Errorf("policy enable without a ready RP returned code=%v err=%v, want unavailable", connect.CodeOf(err), err)
@@ -317,7 +327,7 @@ func TestNHA142AstraPolicyEnableRequiresCurrentReadyRPAfterRestart(t *testing.T)
 	if !proto.Equal(before.policy, after.policy) || beforeMetadata != afterMetadata {
 		t.Errorf("refused enable changed policy/SQL state: before=%+v after=%+v", before, after)
 	}
-	if _, err := auth.ListSessions(callCtx, nha142RunBearer(&authv1.ListSessionsRequest{AccountId: created.Msg.Account.Id}, plain.AccessToken)); err != nil {
+	if _, err := auth.ListSessions(callCtx, nha142RunBearer(&api.ListSessionsRequest{Parent: nha203SessionAccount(t, plain.Session).String()}, plain.AccessToken)); err != nil {
 		t.Errorf("refused enable revoked still-valid password session: %v", err)
 	}
 }

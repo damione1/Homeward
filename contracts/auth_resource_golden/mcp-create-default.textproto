@@ -1,0 +1,3 @@
+parent: "homes/home-a/accounts/account-a"
+client_name: "synthetic-mcp-client"
+scopes { family: SCOPE_FAMILY_ACTIONS operation: SCOPE_OPERATION_WRITE }

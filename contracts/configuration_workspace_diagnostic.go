@@ -3,7 +3,7 @@ package contracts
 import (
 	"bytes"
 
-	wire "github.com/damione1/Homeward/gen/home/configuration/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 )
 
 func configurationWorkspaceDiagnostic(document *wire.DocumentId, workspace *wire.WorkspaceObservation) bool {
@@ -15,11 +15,11 @@ func configurationWorkspaceDiagnostic(document *wire.DocumentId, workspace *wire
 		return false
 	}
 	switch diagnostic.Code {
-	case wire.DiagnosticCode_DIAGNOSTIC_CODE_CANDIDATE_REJECTED:
+	case wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_CANDIDATE_REJECTED:
 		return workspace.Dirty == wire.DirtyState_DIRTY_STATE_REJECTED || workspace.Dirty == wire.DirtyState_DIRTY_STATE_RECONCILING
-	case wire.DiagnosticCode_DIAGNOSTIC_CODE_WORKSPACE_CHANGED, wire.DiagnosticCode_DIAGNOSTIC_CODE_RECONCILIATION_REQUIRED, wire.DiagnosticCode_DIAGNOSTIC_CODE_ACTIVATION_UNAVAILABLE:
+	case wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_WORKSPACE_CHANGED, wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_RECONCILIATION_REQUIRED, wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_ACTIVATION_UNAVAILABLE:
 		return true
-	case wire.DiagnosticCode_DIAGNOSTIC_CODE_UNSPECIFIED:
+	case wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_UNSPECIFIED:
 		return false
 	default:
 		return false

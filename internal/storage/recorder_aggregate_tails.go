@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"github.com/damione1/Homeward/internal/recorderevidence"
 	"time"
 
 	"github.com/damione1/Homeward/internal/domain"
@@ -29,8 +31,8 @@ func projectRecorderTails(ctx context.Context, tx pgx.Tx, epoch RecorderEpoch, r
 		return false, err
 	}
 	text, _ := epoch.Hex()
-	limit := recordermaintenance.MaxPrefixRows - *updates
-	rows, err := tx.Query(ctx, `SELECT entity_id,entity_digest,point,baseline_pending,high_water_seconds,high_water_nanos,covered_through,analytical_refusal FROM public.recorder_numeric_continuations WHERE point->>'Epoch'=$1 AND ($2::bytea IS NULL OR entity_digest>$2) ORDER BY entity_digest LIMIT $3`, text, after, limit+1)
+	limit := min(recordermaintenance.MaxPrefixRows-*updates, recordermaintenance.MaxInputBytes/(2*recorderevidence.MaxBytes+8192))
+	rows, err := tx.Query(ctx, `SELECT entity_id,entity_digest,point,baseline_pending,high_water_seconds,high_water_nanos,covered_through,analytical_refusal,admission_evidence FROM public.recorder_numeric_continuations WHERE point->>'Epoch'=$1 AND ($2::bytea IS NULL OR entity_digest>$2) ORDER BY entity_digest LIMIT $3`, text, after, limit+1)
 	if err != nil {
 		return false, err
 	}
@@ -47,13 +49,25 @@ func projectRecorderTails(ctx context.Context, tx pgx.Tx, epoch RecorderEpoch, r
 			break
 		}
 		var t tail
-		var data []byte
+		var data, evidence []byte
 		var entity *string
 		var highSeconds int64
 		var highNanos int32
-		if err = rows.Scan(&entity, &t.row.digest, &data, &t.pending, &highSeconds, &highNanos, &t.covered, &t.row.refused); err != nil {
+		if err = rows.Scan(&entity, &t.row.digest, &data, &t.pending, &highSeconds, &highNanos, &t.covered, &t.row.refused, &evidence); err != nil {
 			rows.Close()
 			return false, err
+		}
+		if evidence != nil {
+			t.row.evidence, err = recorderevidence.Parse(evidence)
+			if err != nil {
+				rows.Close()
+				return false, recordermaintenance.ErrIntegrity
+			}
+			name, _ := t.row.evidence.Entity().Value()
+			if !bytes.Equal(hashEntity(name), t.row.digest) {
+				rows.Close()
+				return false, recordermaintenance.ErrIntegrity
+			}
 		}
 		if t.row.refused && (entity != nil || t.pending) || !t.row.refused && entity == nil {
 			rows.Close()

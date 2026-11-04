@@ -5,49 +5,40 @@ import (
 	"strings"
 	"unicode"
 
-	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/domain"
 )
 
 var ErrUnprojectableRecipe = errors.New("dashboard recipe cannot be projected by the admitted native profile")
 
-// RecipeResolver binds only identities available in the caller's authorized
-// dashboard/entity view. It never resolves aliases by name fragments and never
-// performs I/O, authorization, template evaluation or a device command itself.
-type RecipeResolver struct {
-	Entity      func(domain.HAAlias) (domain.EntityID, bool)
-	Destination func(string) (*wire.NativeDestination, bool)
+type projectedRecipes struct {
+	Interactions []*wire.DashboardInteraction
+	Visibility   *wire.DashboardPredicate
 }
 
-func nativeSource(location Location, variant string) *wire.LayoutSource {
+func nativeSource(location Location, variant string) *wire.DashboardLayoutSource {
 	at := location.Position()
-	return &wire.LayoutSource{File: at.File, Line: uint32(max(0, at.Line)), Column: uint32(max(0, at.Column)), Path: location.Path(), Variant: variant}
+	return &wire.DashboardLayoutSource{File: at.File, Line: uint32(max(0, at.Line)), Column: uint32(max(0, at.Column)), Path: location.Path(), Variant: variant}
 }
 
-func nativeEntity(alias domain.HAAlias, resolver RecipeResolver) (string, error) {
-	if resolver.Entity == nil {
+func nativeEntity(alias domain.HAAlias, resolver *apiProjector) (string, error) {
+	if resolver.options.Entity == nil {
 		return "", ErrUnprojectableRecipe
 	}
-	id, ok := resolver.Entity(alias)
-	if !ok {
+	name, ok := resolver.options.Entity(alias)
+	if !ok || !name.Valid() || name.Home() != resolver.options.Home {
 		return "", ErrUnprojectableRecipe
 	}
-	value, err := id.Value()
-	if err != nil || !nativeIdentity(value) {
-		return "", ErrUnprojectableRecipe
-	}
-	return value, nil
+	return name.String(), nil
 }
 
-// ProjectNativeRecipes projects the already admitted importer IR to inert versioned
-// wire data. Failure is all-or-nothing: a caller must mark that node inert, never
-// omit an unsupported action/condition and expose a more permissive default.
-// This function does not claim that a client negotiated or can render recipes.
-func ProjectNativeRecipes(owner Location, actions []Action, visibility []Visibility, resolver RecipeResolver) (*wire.NativeRecipes, error) {
+// Project admitted source semantics directly into the closed v2 alternatives.
+// Failure makes the complete node inert, never a more permissive default.
+func projectRecipes(owner Location, actions []Action, visibility []Visibility, resolver *apiProjector, view Location) (*projectedRecipes, error) {
 	if len(actions) > 3 || len(visibility) > 63 {
 		return nil, ErrUnprojectableRecipe
 	}
-	recipes := &wire.NativeRecipes{Version: 1}
+	recipes := &projectedRecipes{}
 	seen := map[Gesture]bool{}
 	for _, action := range actions {
 		if action.Status() != StatusSupported {
@@ -57,49 +48,43 @@ func ProjectNativeRecipes(owner Location, actions []Action, visibility []Visibil
 			return nil, ErrUnprojectableRecipe
 		}
 		seen[action.Gesture()] = true
-		var gesture wire.NativeGesture
+		var gesture wire.DashboardGesture
 		switch action.Gesture() {
 		case GestureTap:
-			gesture = wire.NativeGesture_NATIVE_GESTURE_TAP
+			gesture = wire.DashboardGesture_DASHBOARD_GESTURE_TAP
 		case GestureHold:
-			gesture = wire.NativeGesture_NATIVE_GESTURE_HOLD
+			gesture = wire.DashboardGesture_DASHBOARD_GESTURE_HOLD
 		case GestureDoubleTap:
-			gesture = wire.NativeGesture_NATIVE_GESTURE_DOUBLE_TAP
+			gesture = wire.DashboardGesture_DASHBOARD_GESTURE_DOUBLE_TAP
 		case GestureInvalid:
 			return nil, ErrUnprojectableRecipe
 		}
-		if gesture == wire.NativeGesture_NATIVE_GESTURE_UNSPECIFIED {
+		if gesture == wire.DashboardGesture_DASHBOARD_GESTURE_UNSPECIFIED {
 			return nil, ErrUnprojectableRecipe
 		}
 		if action.Kind() == ActionAbsent {
 			continue
 		}
-		interaction := &wire.NativeInteraction{Gesture: gesture, Source: nativeSource(action.Location(), "action")}
+		interaction := &wire.DashboardInteraction{Gesture: gesture, Source: nativeSource(action.Location(), "action")}
 		if text, present := action.Confirmation(); present {
-			interaction.Confirmation = &wire.NativeConfirmation{Text: text}
+			interaction.Confirmation = &wire.DashboardConfirmation{Text: text}
 		}
 		switch action.Kind() {
 		case ActionNone:
 			if interaction.Confirmation != nil {
 				return nil, ErrUnprojectableRecipe
 			}
-			interaction.Intention = &wire.NativeInteraction_None{None: &wire.NativeNoAction{}}
+			interaction.Intention = &wire.DashboardInteraction_None{None: &wire.DashboardNoAction{}}
 		case ActionNavigate:
 			path, present := action.Navigation()
-			if !present || resolver.Destination == nil {
+			if !present {
 				return nil, ErrUnprojectableRecipe
 			}
-			target, ok := resolver.Destination(path)
-			if !ok || target == nil || target.DashboardId == nil || target.DashboardId.Value == "" || target.NodeId == "" ||
-				(target.Presentation != wire.NativePresentation_NATIVE_PRESENTATION_PAGE && target.Presentation != wire.NativePresentation_NATIVE_PRESENTATION_POPUP) {
+			target, ok := resolver.destination(view, path)
+			if !ok {
 				return nil, ErrUnprojectableRecipe
 			}
-			if len(target.ProtoReflect().GetUnknown()) != 0 || len(target.DashboardId.ProtoReflect().GetUnknown()) != 0 ||
-				!nativeIdentity(target.NodeId) || !nativeIdentity(target.DashboardId.Value) {
-				return nil, ErrUnprojectableRecipe
-			}
-			interaction.Intention = &wire.NativeInteraction_Navigate{Navigate: &wire.NativeDestination{
-				DashboardId: &wire.DashboardId{Value: target.DashboardId.Value}, NodeId: target.NodeId, Presentation: target.Presentation}}
+			interaction.Intention = &wire.DashboardInteraction_Navigate{Navigate: target}
 		case ActionMoreInfo, ActionToggle, ActionPerform:
 			alias, present := action.Entity()
 			if !present {
@@ -110,10 +95,10 @@ func ProjectNativeRecipes(owner Location, actions []Action, visibility []Visibil
 				return nil, err
 			}
 			if action.Kind() == ActionMoreInfo {
-				interaction.Intention = &wire.NativeInteraction_MoreInfo{MoreInfo: &wire.NativeEntityTarget{EntityId: entity}}
+				interaction.Intention = &wire.DashboardInteraction_MoreInfo{MoreInfo: &wire.DashboardEntityTarget{Entity: entity}}
 				break
 			}
-			kind := wire.NativeCommandKind_NATIVE_COMMAND_KIND_TOGGLE
+			kind := wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_TOGGLE
 			if action.Kind() == ActionPerform {
 				service, present := action.Service()
 				if !present {
@@ -133,11 +118,15 @@ func ProjectNativeRecipes(owner Location, actions []Action, visibility []Visibil
 					return nil, ErrUnprojectableRecipe
 				}
 				kind = nativeService(value)
-				if kind == wire.NativeCommandKind_NATIVE_COMMAND_KIND_UNSPECIFIED {
+				if kind == wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_UNSPECIFIED {
 					return nil, ErrUnprojectableRecipe
 				}
 			}
-			interaction.Intention = &wire.NativeInteraction_Command{Command: &wire.NativeCommand{EntityId: entity, Kind: kind}}
+			capability, err := resolver.command(alias, kind)
+			if err != nil {
+				return nil, err
+			}
+			interaction.Intention = &wire.DashboardInteraction_Command{Command: &wire.DashboardCommand{Capability: capability, Kind: kind}}
 		case ActionInvalid, ActionAbsent:
 			return nil, ErrUnprojectableRecipe
 		}
@@ -147,7 +136,7 @@ func ProjectNativeRecipes(owner Location, actions []Action, visibility []Visibil
 		recipes.Interactions = append(recipes.Interactions, interaction)
 	}
 	if len(visibility) != 0 {
-		list := &wire.NativePredicateList{}
+		list := &wire.DashboardPredicateList{}
 		remaining := 63 // the enclosing conjunction consumes the first node
 		for _, value := range visibility {
 			if value.Kind() == VisibilityScreen {
@@ -163,7 +152,7 @@ func ProjectNativeRecipes(owner Location, actions []Action, visibility []Visibil
 			list.Conditions = append(list.Conditions, predicate)
 		}
 		if len(list.Conditions) != 0 {
-			recipes.Visibility = &wire.NativePredicate{Source: nativeSource(owner, "visibility"), Condition: &wire.NativePredicate_All{All: list}}
+			recipes.Visibility = &wire.DashboardPredicate{Source: nativeSource(owner, "visibility"), Condition: &wire.DashboardPredicate_All{All: list}}
 		}
 	}
 	if len(recipes.Interactions) == 0 && recipes.Visibility == nil {
@@ -172,43 +161,44 @@ func ProjectNativeRecipes(owner Location, actions []Action, visibility []Visibil
 	return recipes, nil
 }
 
-func projectNativePredicate(value Visibility, resolver RecipeResolver, depth int, remaining *int) (*wire.NativePredicate, error) {
+func projectNativePredicate(value Visibility, resolver *apiProjector, depth int, remaining *int) (*wire.DashboardPredicate, error) {
 	if value.Status() != StatusSupported || depth > 8 || *remaining <= 0 {
 		return nil, ErrUnprojectableRecipe
 	}
 	*remaining--
-	predicate := &wire.NativePredicate{Source: nativeSource(value.Location(), "visibility")}
+	predicate := &wire.DashboardPredicate{Source: nativeSource(value.Location(), "visibility")}
 	switch value.Kind() {
 	case VisibilityFlag:
 		flag, present := value.Flag()
 		if !present {
 			return nil, ErrUnprojectableRecipe
 		}
-		predicate.Condition = &wire.NativePredicate_Constant{Constant: flag}
+		predicate.Condition = &wire.DashboardPredicate_Constant{Constant: flag}
 	case VisibilityState:
 		alias, present := value.Entity()
 		if !present {
 			return nil, ErrUnprojectableRecipe
 		}
-		entity, err := nativeEntity(alias, resolver)
-		if err != nil {
-			return nil, err
-		}
+
 		state, not, present := value.State()
 		if !present || strings.ContainsRune(state, '\x00') {
 			return nil, ErrUnprojectableRecipe
 		}
-		comparison := wire.NativeComparison_NATIVE_COMPARISON_EQUAL
+		comparison := wire.DashboardComparison_DASHBOARD_COMPARISON_EQUAL
 		if not {
-			comparison = wire.NativeComparison_NATIVE_COMPARISON_NOT_EQUAL
+			comparison = wire.DashboardComparison_DASHBOARD_COMPARISON_NOT_EQUAL
 		}
-		predicate.Condition = &wire.NativePredicate_State{State: &wire.NativeStatePredicate{EntityId: entity, State: state, Comparison: comparison}}
+		field, literal, err := resolver.literalField(alias, "state", state)
+		if err != nil {
+			return nil, err
+		}
+		predicate.Condition = &wire.DashboardPredicate_State{State: &wire.DashboardStatePredicate{Field: field, Expected: literal, Comparison: comparison}}
 	case VisibilityAll, VisibilityAny:
 		children := value.Children()
 		if len(children) == 0 || len(children) > *remaining {
 			return nil, ErrUnprojectableRecipe
 		}
-		list := &wire.NativePredicateList{}
+		list := &wire.DashboardPredicateList{}
 		for _, child := range children {
 			nested, err := projectNativePredicate(child, resolver, depth+1, remaining)
 			if err != nil {
@@ -217,9 +207,9 @@ func projectNativePredicate(value Visibility, resolver RecipeResolver, depth int
 			list.Conditions = append(list.Conditions, nested)
 		}
 		if value.Kind() == VisibilityAll {
-			predicate.Condition = &wire.NativePredicate_All{All: list}
+			predicate.Condition = &wire.DashboardPredicate_All{All: list}
 		} else {
-			predicate.Condition = &wire.NativePredicate_Any{Any: list}
+			predicate.Condition = &wire.DashboardPredicate_Any{Any: list}
 		}
 	case VisibilityInvalid, VisibilityHAUser:
 		return nil, ErrUnprojectableRecipe
@@ -235,33 +225,33 @@ func nativeIdentity(value string) bool {
 }
 
 // Parse the open HA service name once into the closed native command vocabulary.
-// Unlisted services/data never become an arbitrary ActionService invocation.
-func nativeService(value string) wire.NativeCommandKind {
+// Unlisted services/data never become an arbitrary physical invocation.
+func nativeService(value string) wire.DashboardCommandKind {
 	switch value {
 	case "switch.toggle", "light.toggle", "fan.toggle", "input_boolean.toggle":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_TOGGLE
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_TOGGLE
 	case "switch.turn_on", "light.turn_on", "fan.turn_on", "input_boolean.turn_on":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_TURN_ON
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_TURN_ON
 	case "switch.turn_off", "light.turn_off", "fan.turn_off", "input_boolean.turn_off":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_TURN_OFF
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_TURN_OFF
 	case "button.press", "input_button.press", "scene.turn_on", "script.turn_on":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_ACTIVATE
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ACTIVATE
 	case "cover.open_cover":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_COVER_OPEN
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_COVER_OPEN
 	case "cover.close_cover":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_COVER_CLOSE
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_COVER_CLOSE
 	case "cover.stop_cover":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_COVER_STOP
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_COVER_STOP
 	case "lock.lock":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_LOCK
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_LOCK
 	case "lock.unlock":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_UNLOCK
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_UNLOCK
 	case "alarm_control_panel.alarm_arm_home":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_ALARM_ARM_HOME
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_ARM_HOME
 	case "alarm_control_panel.alarm_arm_away":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_ALARM_ARM_AWAY
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_ARM_AWAY
 	case "alarm_control_panel.alarm_disarm":
-		return wire.NativeCommandKind_NATIVE_COMMAND_KIND_ALARM_DISARM
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_DISARM
 	}
-	return wire.NativeCommandKind_NATIVE_COMMAND_KIND_UNSPECIFIED
+	return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_UNSPECIFIED
 }

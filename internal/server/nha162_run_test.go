@@ -18,6 +18,7 @@ import (
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	listsv1 "github.com/damione1/Homeward/gen/home/lists/v1"
 	"github.com/damione1/Homeward/gen/home/lists/v1/listsv1connect"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
@@ -114,7 +115,7 @@ func nha162RunBootstrap(t *testing.T, ctx context.Context, dataDir, name, passwo
 		return (&net.Dialer{}).DialContext(ctx, "unix", filepath.Join(dataDir, operatorSocketName))
 	}}
 	t.Cleanup(transport.CloseIdleConnections)
-	operator := authv1connect.NewOperatorAccountServiceClient(&http.Client{Transport: transport, Timeout: 10 * time.Second}, "http://operator")
+	operator := operatorv1connect.NewOperatorAccountServiceClient(&http.Client{Transport: transport, Timeout: 10 * time.Second}, "http://operator")
 	response, err := operator.BootstrapAdmin(ctx, connect.NewRequest(&authv1.BootstrapAdminRequest{LoginName: name, DisplayName: name, Password: password}))
 	if err != nil || response == nil || response.Msg.Account == nil || response.Msg.Account.Id == nil {
 		t.Fatal("Run Unix bootstrap:", err)

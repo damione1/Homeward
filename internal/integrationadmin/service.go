@@ -166,6 +166,7 @@ const (
 	mutationUpdate
 	mutationDelete
 	mutationEnable
+	mutationPatch
 )
 
 type mutation struct {
@@ -173,6 +174,7 @@ type mutation struct {
 	typ, id       string
 	configuration *wire.PublicConfiguration
 	desired       wire.DesiredState
+	selection     UpdateSelection
 }
 type MutationResult struct {
 	Activation  configactivation.Result
@@ -270,6 +272,33 @@ func (s *Service) change(ctx context.Context, m mutation, expected configdocumen
 			}
 			setField(root, d.id, node)
 			if m.kind == mutationCreate {
+				off[m.id] = m.desired == wire.DesiredState_DESIRED_STATE_DISABLED
+			}
+		case mutationPatch:
+			if found == nil {
+				return nil, ErrNotFound
+			}
+			if !m.selection.Valid() || m.selection == UpdateNothing {
+				return nil, ErrInvalid
+			}
+			if m.selection.configuration() {
+				if found.typ != m.typ {
+					return nil, ErrInvalid
+				}
+				d, err := findDescriptor(found.typ)
+				if err != nil {
+					return nil, err
+				}
+				node, err := privateFragment(d, m.id, m.configuration)
+				if err != nil {
+					return nil, err
+				}
+				setField(root, d.id, node)
+			}
+			if m.selection.desired() {
+				if m.desired != wire.DesiredState_DESIRED_STATE_ENABLED && m.desired != wire.DesiredState_DESIRED_STATE_DISABLED {
+					return nil, ErrInvalid
+				}
 				off[m.id] = m.desired == wire.DesiredState_DESIRED_STATE_DISABLED
 			}
 		case mutationDelete:

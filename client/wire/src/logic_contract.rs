@@ -1,7 +1,7 @@
 //! Provisional synthetic logic representation, never execution or authority.
 use crate::home::{
-    configuration::v1 as config, configurationplan::v1 as plan, history::v1 as history,
-    logic::v1 as wire, observability::v1 as obs,
+    api::v2 as config, api::v2 as plan, api::v2 as history, testing::logic::v1 as wire,
+    observability::v1 as obs,
 };
 use buffa::{EnumValue, Message};
 use buffa_types::google::protobuf::{Empty, Timestamp};
@@ -126,7 +126,7 @@ known!(
 );
 known!(
     command_outcome,
-    history::CommandOutcome,
+    history::HistoryCommandOutcome,
     Accepted,
     Dispatched,
     Acknowledged,
@@ -135,19 +135,21 @@ known!(
     Refused,
     NotAttempted
 );
-fn family(value: EnumValue<plan::SourceFamily>) -> bool {
+fn family(value: EnumValue<plan::ConfigurationPlanSourceFamily>) -> bool {
     match value {
         EnumValue::Known(
-            plan::SourceFamily::Automation | plan::SourceFamily::Script | plan::SourceFamily::Scene,
+            plan::ConfigurationPlanSourceFamily::Automation
+            | plan::ConfigurationPlanSourceFamily::Script
+            | plan::ConfigurationPlanSourceFamily::Scene,
         ) => true,
         EnumValue::Known(
-            plan::SourceFamily::Unspecified
-            | plan::SourceFamily::Operational
-            | plan::SourceFamily::DeclarativeV1
-            | plan::SourceFamily::DeclarativeV2
-            | plan::SourceFamily::Authorization
-            | plan::SourceFamily::Ownership
-            | plan::SourceFamily::Dashboard,
+            plan::ConfigurationPlanSourceFamily::Unspecified
+            | plan::ConfigurationPlanSourceFamily::Operational
+            | plan::ConfigurationPlanSourceFamily::DeclarativeV1
+            | plan::ConfigurationPlanSourceFamily::DeclarativeV2
+            | plan::ConfigurationPlanSourceFamily::Authorization
+            | plan::ConfigurationPlanSourceFamily::Ownership
+            | plan::ConfigurationPlanSourceFamily::Dashboard,
         )
         | EnumValue::Unknown(_) => false,
     }

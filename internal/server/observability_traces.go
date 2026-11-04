@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 
-	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
@@ -14,17 +13,17 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func (h *observationHandler) ReadRunTrace(ctx context.Context, r *connect.Request[obs.ReadRunTraceRequest]) (*connect.Response[obs.ReadRunTraceResponse], error) {
-	if r == nil || contracts.AdmitObservabilityRequest(r.Msg) != nil {
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+func (h *observationReader) ReadRunTrace(ctx context.Context, r *obs.ReadRunTraceRequest) (*obs.ReadRunTraceResponse, error) {
+	if r == nil || contracts.AdmitObservabilityRequest(r) != nil {
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
-	requested, err := observability.ParseControllerHandle(r.Msg.Controller)
+	requested, err := observability.ParseControllerHandle(r.Controller)
 	if err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
-	size, err := observability.PageSizeFromOptional(r.Msg.PageSize)
+	size, err := observability.PageSizeFromOptional(r.PageSize)
 	if err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
 	var response *obs.ReadRunTraceResponse
 	err = h.withCurrent(ctx, auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, nil, func(binding observability.ReadBinding) error {
@@ -32,7 +31,7 @@ func (h *observationHandler) ReadRunTrace(ctx context.Context, r *connect.Reques
 		if err != nil {
 			return err
 		}
-		if !bytes.Equal(r.Msg.Controller.Value[:16], process.Value) {
+		if !bytes.Equal(r.Controller.Value[:16], process.Value) {
 			response = &obs.ReadRunTraceResponse{Result: &obs.ReadRunTraceResponse_StaleCursor{StaleCursor: &emptypb.Empty{}}}
 			return nil
 		}
@@ -49,8 +48,8 @@ func (h *observationHandler) ReadRunTrace(ctx context.Context, r *connect.Reques
 			return nil
 		}
 		var request observability.TracePageRequest
-		if r.Msg.PageToken != nil {
-			cursor, err := h.runtime.codec.DecodeTrace(*r.Msg.PageToken, binding, requested, r.Msg.RunId)
+		if r.PageToken != nil {
+			cursor, err := h.runtime.codec.DecodeTrace(*r.PageToken, binding, requested, r.RunId)
 			if err != nil {
 				response = &obs.ReadRunTraceResponse{Result: &obs.ReadRunTraceResponse_StaleCursor{StaleCursor: &emptypb.Empty{}}}
 				return nil
@@ -62,12 +61,12 @@ func (h *observationHandler) ReadRunTrace(ctx context.Context, r *connect.Reques
 		} else {
 			// Reserve the entire physical image allowance before even the safe native
 			// projection allocates its first row. Copies share this one private state.
-			reservation, err := h.runtime.captures.Reserve(binding, requested, r.Msg.RunId)
+			reservation, err := h.runtime.captures.Reserve(binding, requested, r.RunId)
 			if err != nil {
 				return err
 			}
 			defer reservation.Release()
-			rows, cuts, truncated, err := h.runtime.runs.ObservationTrace(automationruns.RunID(r.Msg.RunId))
+			rows, cuts, truncated, err := h.runtime.runs.ObservationTrace(automationruns.RunID(r.RunId))
 			if err != nil {
 				reservation.Release()
 				return err
@@ -113,7 +112,7 @@ func (h *observationHandler) ReadRunTrace(ctx context.Context, r *connect.Reques
 		return err
 	})
 	if err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
 	return observationResponse(response)
 }

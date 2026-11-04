@@ -1,42 +1,7 @@
 //! Data-only dashboard intentions. These types confer no authority to dispatch.
-use crate::EntityId;
+pub use crate::api::DashboardName;
+use crate::api::{CapabilityName, EntityName, Finite, Power, TemperatureMode};
 use std::collections::{BTreeMap, BTreeSet};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Profile {
-    Basic,
-    Recipes,
-    Widgets,
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct UnsupportedProfile;
-impl Profile {
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Basic => "homeward-dashboard-1",
-            Self::Recipes => "homeward-dashboard-2",
-            Self::Widgets => "homeward-dashboard-3",
-        }
-    }
-    pub const fn layout_version(self) -> u32 {
-        match self {
-            Self::Basic => 1,
-            Self::Recipes => 2,
-            Self::Widgets => 3,
-        }
-    }
-}
-impl TryFrom<&str> for Profile {
-    type Error = UnsupportedProfile;
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "homeward-dashboard-1" => Ok(Self::Basic),
-            "homeward-dashboard-2" => Ok(Self::Recipes),
-            "homeward-dashboard-3" => Ok(Self::Widgets),
-            _ => Err(UnsupportedProfile),
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Gesture {
@@ -68,8 +33,6 @@ pub enum CommandKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DashboardId(String);
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NodeId(String);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InvalidIdentity {
@@ -83,14 +46,6 @@ fn identity(value: &str) -> Result<String, InvalidIdentity> {
         Ok(value.to_owned())
     }
 }
-impl DashboardId {
-    pub fn parse(value: &str) -> Result<Self, InvalidIdentity> {
-        identity(value).map(Self)
-    }
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
 impl NodeId {
     pub fn parse(value: &str) -> Result<Self, InvalidIdentity> {
         identity(value).map(Self)
@@ -102,16 +57,19 @@ impl NodeId {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Destination {
-    pub dashboard: DashboardId,
+    pub dashboard: DashboardName,
     pub node: NodeId,
     pub presentation: Presentation,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Intention {
     None,
-    MoreInfo(EntityId),
+    MoreInfo(EntityName),
     Navigate(Destination),
-    Command { entity: EntityId, kind: CommandKind },
+    Command {
+        capability: CapabilityName,
+        kind: CommandKind,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Source {
@@ -133,12 +91,165 @@ pub enum Comparison {
     Equal,
     NotEqual,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FieldKey {
+    State,
+    Value,
+    CurrentTemperature,
+    Setpoint,
+    Measurement,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FieldBinding {
+    pub capability: CapabilityName,
+    pub field: FieldKey,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextLiteral(String);
+impl TryFrom<&str> for TextLiteral {
+    type Error = InvalidIdentity;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value.len() > 256 || value.contains('\0') {
+            return Err(InvalidIdentity::Representation);
+        }
+        Ok(Self(value.to_owned()))
+    }
+}
+impl TextLiteral {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecimalLiteral(String);
+impl TryFrom<&str> for DecimalLiteral {
+    type Error = InvalidIdentity;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value.len() > 256 {
+            return Err(InvalidIdentity::Representation);
+        }
+        let unsigned = value.strip_prefix('-').unwrap_or(value);
+        let (integer, fraction) = unsigned
+            .split_once('.')
+            .map_or((unsigned, None), |(integer, fraction)| {
+                (integer, Some(fraction))
+            });
+        if integer.is_empty()
+            || !integer.bytes().all(|v| v.is_ascii_digit())
+            || (integer.len() > 1 && integer.starts_with('0'))
+            || fraction.is_some_and(|v| v.is_empty() || !v.bytes().all(|b| b.is_ascii_digit()))
+        {
+            return Err(InvalidIdentity::Representation);
+        }
+        Ok(Self(value.to_owned()))
+    }
+}
+impl DecimalLiteral {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoverState {
+    Open,
+    Closed,
+    Opening,
+    Closing,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LockState {
+    Locked,
+    Unlocked,
+    Locking,
+    Unlocking,
+    Jammed,
+    Opening,
+    Open,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AlarmState {
+    Disarmed,
+    ArmedHome,
+    ArmedAway,
+    ArmedNight,
+    ArmedVacation,
+    ArmedCustomBypass,
+    Pending,
+    Arming,
+    Disarming,
+    Triggered,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FanSpeed {
+    Off,
+    Low,
+    Medium,
+    MediumHigh,
+    High,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WeatherCondition {
+    Unknown,
+    ClearDay,
+    ClearNight,
+    Cloudy,
+    PartlyCloudy,
+    Rainy,
+    Pouring,
+    Snowy,
+    SnowyRainy,
+    Hail,
+    Lightning,
+    LightningRainy,
+    Windy,
+    WindyVariant,
+    Fog,
+    Exceptional,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Residence {
+    Home,
+    Away,
+    Unknown,
+}
+
+/// Typed observation values. Only the native projector interprets source
+/// syntax; UI comparisons never coerce text, enum states or numeric families.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Literal {
+    Boolean(bool),
+    Integer(i64),
+    Number(Finite),
+    Text(TextLiteral),
+    Decimal(DecimalLiteral),
+    Power(Power),
+    Cover(CoverState),
+    Lock(LockState),
+    Alarm(AlarmState),
+    TemperatureMode(TemperatureMode),
+    FanSpeed(FanSpeed),
+    WeatherCondition(WeatherCondition),
+    Residence(Residence),
+}
+// Finite excludes NaN, so its equality is reflexive; the other alternatives
+// already implement Eq. This does not equate unlike literal alternatives.
+impl Eq for Literal {}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Predicate {
     Constant(bool),
     State {
-        entity: EntityId,
-        expected: String,
+        field: FieldBinding,
+        expected: Literal,
         comparison: Comparison,
     },
     All(Vec<Predicate>),
@@ -151,30 +262,38 @@ pub enum Visibility {
     Unavailable,
 }
 impl Predicate {
-    pub fn dependencies(&self) -> BTreeSet<&EntityId> {
+    pub fn dependencies(&self) -> BTreeSet<&FieldBinding> {
         match self {
             Self::Constant(_) => BTreeSet::new(),
-            Self::State { entity, .. } => BTreeSet::from([entity]),
+            Self::State { field, .. } => BTreeSet::from([field]),
             Self::All(children) | Self::Any(children) => {
                 children.iter().flat_map(Self::dependencies).collect()
             }
         }
     }
     /// The caller supplies only authorized, fresh, representable observations.
-    /// Missing values cannot satisfy even a negative comparison. No HA template
-    /// is evaluated and an exact empty string remains a present observation.
-    pub fn evaluate<'a>(&self, state: &impl Fn(&EntityId) -> Option<&'a str>) -> Visibility {
+    /// Missing values cannot satisfy even a negative comparison. No source syntax
+    /// is evaluated and an exact empty text remains a present observation.
+    pub fn evaluate<'a>(
+        &self,
+        state: &impl Fn(&FieldBinding) -> Option<&'a Literal>,
+    ) -> Visibility {
         match self {
             Self::Constant(true) => Visibility::Visible,
             Self::Constant(false) => Visibility::Hidden,
             Self::State {
-                entity,
+                field,
                 expected,
                 comparison,
             } => {
-                let Some(actual) = state(entity) else {
+                let Some(actual) = state(field) else {
                     return Visibility::Unavailable;
                 };
+                // A different typed family is unavailable evidence, not an
+                // unequal value that could make a visibility guard succeed.
+                if std::mem::discriminant(actual) != std::mem::discriminant(expected) {
+                    return Visibility::Unavailable;
+                }
                 let matches = match comparison {
                     Comparison::Equal => actual == expected,
                     Comparison::NotEqual => actual != expected,

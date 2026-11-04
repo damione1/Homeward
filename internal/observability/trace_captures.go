@@ -10,8 +10,8 @@ import (
 	"unsafe"
 
 	"github.com/damione1/Homeward/contracts"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -249,13 +249,13 @@ func (c *CursorCodec) EncodeTrace(cursor TraceCursor) (string, error) {
 	payload = appendNumber(payload, cursor.handle.run)
 	payload = append(payload, cursor.handle.id[:]...)
 	payload = appendNumber(payload, uint64(cursor.next))
-	return c.seal(observabilityv1connect.ObservabilityServiceReadRunTraceProcedure, payload)
+	return c.seal(apiv2connect.ObservabilityServiceQueryRunTraceProcedure, payload)
 }
 func (c *CursorCodec) DecodeTrace(token string, binding ReadBinding, controller ControllerHandle, run uint64) (TraceCursor, error) {
 	if !c.valid() || !controller.in(c.epoch) || run == 0 {
 		return TraceCursor{}, stale()
 	}
-	payload, err := c.open(observabilityv1connect.ObservabilityServiceReadRunTraceProcedure, token)
+	payload, err := c.open(apiv2connect.ObservabilityServiceQueryRunTraceProcedure, token)
 	if err != nil || len(payload) != 128 {
 		return TraceCursor{}, stale()
 	}

@@ -2,11 +2,8 @@ package server
 
 import (
 	"context"
-	"errors"
-	"strconv"
 	"time"
 
-	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
@@ -19,42 +16,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type observationHandler struct{ runtime *observationRuntime }
+type observationReader struct{ runtime *observationRuntime }
 
-func observationRPCError(err error) error {
-	code, field, status := obs.ObservabilityErrorCode_OBSERVABILITY_ERROR_CODE_UNAVAILABLE, obs.ObservabilityField_OBSERVABILITY_FIELD_NONE, connect.CodeUnavailable
-	var admitted *observability.Error
-	switch {
-	case errors.As(err, &admitted):
-		code, field = admitted.Code(), admitted.Wire().Field
-	case errors.Is(err, context.DeadlineExceeded):
-		code = obs.ObservabilityErrorCode_OBSERVABILITY_ERROR_CODE_DEADLINE_EXCEEDED
-	case errors.Is(err, authorization.ErrDenied):
-		code = obs.ObservabilityErrorCode_OBSERVABILITY_ERROR_CODE_DENIED
-	case errors.Is(err, contracts.ErrInvalidObservabilityContract):
-		code = obs.ObservabilityErrorCode_OBSERVABILITY_ERROR_CODE_INVALID_ARGUMENT
-	}
-	switch code {
-	case obs.ObservabilityErrorCode_OBSERVABILITY_ERROR_CODE_INVALID_ARGUMENT:
-		status = connect.CodeInvalidArgument
-	case obs.ObservabilityErrorCode_OBSERVABILITY_ERROR_CODE_DENIED:
-		status = connect.CodePermissionDenied
-	case obs.ObservabilityErrorCode_OBSERVABILITY_ERROR_CODE_UNAUTHENTICATED:
-		status = connect.CodeUnauthenticated
-	case obs.ObservabilityErrorCode_OBSERVABILITY_ERROR_CODE_CAPACITY:
-		status = connect.CodeResourceExhausted
-	case obs.ObservabilityErrorCode_OBSERVABILITY_ERROR_CODE_STALE_CURSOR:
-		status = connect.CodeFailedPrecondition
-	case obs.ObservabilityErrorCode_OBSERVABILITY_ERROR_CODE_DEADLINE_EXCEEDED:
-		status = connect.CodeDeadlineExceeded
-	}
-	result := connect.NewError(status, errors.New("observability request rejected"))
-	if detail, err := connect.NewErrorDetail(&obs.ObservabilityError{Code: code, Field: field}); err == nil {
-		result.AddDetail(detail)
-	}
-	return result
-}
-func (h *observationHandler) withCurrent(ctx context.Context, family auth.ScopeFamily, expected *observability.ReadBinding, fn func(observability.ReadBinding) error) error {
+func (h *observationReader) withCurrent(ctx context.Context, family auth.ScopeFamily, expected *observability.ReadBinding, fn func(observability.ReadBinding) error) error {
 	if h == nil || h.runtime == nil || h.runtime.authority == nil || ctx == nil {
 		return authorization.ErrUnavailable
 	}
@@ -96,16 +60,16 @@ func (h *observationHandler) withCurrent(ctx context.Context, family auth.ScopeF
 		return fn(binding)
 	})
 }
-func observationResponse[T any](message *T) (*connect.Response[T], error) {
+func observationResponse[T any](message *T) (*T, error) {
 	value, ok := any(message).(proto.Message)
 	if !ok || contracts.AdmitObservabilityResponse(value) != nil {
-		return nil, observationRPCError(authorization.ErrUnavailable)
+		return nil, authorization.ErrUnavailable
 	}
-	return connect.NewResponse(message), nil
+	return message, nil
 }
-func (h *observationHandler) GetHealth(ctx context.Context, r *connect.Request[obs.GetHealthRequest]) (*connect.Response[obs.GetHealthResponse], error) {
-	if r == nil || contracts.AdmitObservabilityRequest(r.Msg) != nil {
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+func (h *observationReader) GetHealth(ctx context.Context, r *obs.GetHealthRequest) (*obs.GetHealthResponse, error) {
+	if r == nil || contracts.AdmitObservabilityRequest(r) != nil {
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
 	var result *obs.GetHealthResponse
 	err := h.withCurrent(ctx, auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, nil, func(observability.ReadBinding) error {
@@ -114,18 +78,13 @@ func (h *observationHandler) GetHealth(ctx context.Context, r *connect.Request[o
 		return err
 	})
 	if err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
-	response, err := observationResponse(result)
-	if err == nil && h.runtime.readOnly != nil {
-		h.runtime.readOnly.headers(response.Header())
-		response.Header().Set("Homeward-Command-Driver-Entries", strconv.FormatUint(h.runtime.host.CommandDriverEntries(), 10))
-	}
-	return response, err
+	return observationResponse(result)
 }
-func (h *observationHandler) GetMetrics(ctx context.Context, r *connect.Request[obs.GetMetricsRequest]) (*connect.Response[obs.GetMetricsResponse], error) {
-	if r == nil || contracts.AdmitObservabilityRequest(r.Msg) != nil {
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+func (h *observationReader) GetMetrics(ctx context.Context, r *obs.GetMetricsRequest) (*obs.GetMetricsResponse, error) {
+	if r == nil || contracts.AdmitObservabilityRequest(r) != nil {
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
 	var result *obs.GetMetricsResponse
 	err := h.withCurrent(ctx, auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, nil, func(observability.ReadBinding) error {
@@ -134,17 +93,17 @@ func (h *observationHandler) GetMetrics(ctx context.Context, r *connect.Request[
 		return err
 	})
 	if err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
 	return observationResponse(result)
 }
-func (h *observationHandler) GetIntegrationHealth(ctx context.Context, r *connect.Request[obs.GetIntegrationHealthRequest]) (*connect.Response[obs.GetIntegrationHealthResponse], error) {
-	if r == nil || contracts.AdmitObservabilityRequest(r.Msg) != nil {
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+func (h *observationReader) GetIntegrationHealth(ctx context.Context, r *obs.GetIntegrationHealthRequest) (*obs.GetIntegrationHealthResponse, error) {
+	if r == nil || contracts.AdmitObservabilityRequest(r) != nil {
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
-	instance, err := domain.ParseIntegrationInstanceID(r.Msg.IntegrationInstanceId)
+	instance, err := domain.ParseIntegrationInstanceID(r.IntegrationInstanceId)
 	if err != nil {
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
 	result := &obs.GetIntegrationHealthResponse{}
 	err = h.withCurrent(ctx, auth.ScopeFamily_SCOPE_FAMILY_INTEGRATIONS, nil, func(observability.ReadBinding) error {
@@ -157,24 +116,24 @@ func (h *observationHandler) GetIntegrationHealth(ctx context.Context, r *connec
 		return err
 	})
 	if err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
 	return observationResponse(result)
 }
-func (h *observationHandler) QueryRuntimeLogs(ctx context.Context, r *connect.Request[obs.QueryRuntimeLogsRequest]) (*connect.Response[obs.QueryRuntimeLogsResponse], error) {
-	if r == nil || contracts.AdmitObservabilityRequest(r.Msg) != nil {
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+func (h *observationReader) QueryRuntimeLogs(ctx context.Context, r *obs.QueryRuntimeLogsRequest) (*obs.QueryRuntimeLogsResponse, error) {
+	if r == nil || contracts.AdmitObservabilityRequest(r) != nil {
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
-	size, err := observability.PageSizeFromOptional(r.Msg.PageSize)
+	size, err := observability.PageSizeFromOptional(r.PageSize)
 	if err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
 	var result *obs.QueryRuntimeLogsResponse
 	err = h.withCurrent(ctx, auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, nil, func(binding observability.ReadBinding) error {
 		var cursor observability.LogCursor
-		if r.Msg.PageToken != nil {
+		if r.PageToken != nil {
 			var err error
-			cursor, err = h.runtime.codec.DecodeLogs(*r.Msg.PageToken, binding)
+			cursor, err = h.runtime.codec.DecodeLogs(*r.PageToken, binding)
 			if err != nil {
 				result = &obs.QueryRuntimeLogsResponse{Result: &obs.QueryRuntimeLogsResponse_StaleCursor{StaleCursor: &emptypb.Empty{}}}
 				return nil
@@ -208,11 +167,11 @@ func (h *observationHandler) QueryRuntimeLogs(ctx context.Context, r *connect.Re
 		return err
 	})
 	if err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
 	return observationResponse(result)
 }
-func (h *observationHandler) auditRoute(raw string, present bool) *obs.AuditRoute {
+func (h *observationReader) auditRoute(raw string, present bool) *obs.AuditRoute {
 	if !present {
 		return &obs.AuditRoute{Result: &obs.AuditRoute_NotRecorded{NotRecorded: &emptypb.Empty{}}}
 	}
@@ -226,52 +185,52 @@ func (h *observationHandler) auditRoute(raw string, present bool) *obs.AuditRout
 func auditEnd() *obs.PageContinuation {
 	return &obs.PageContinuation{Result: &obs.PageContinuation_End{End: &emptypb.Empty{}}}
 }
-func (h *observationHandler) QueryAudits(ctx context.Context, r *connect.Request[obs.QueryAuditsRequest]) (*connect.Response[obs.QueryAuditsResponse], error) {
-	if r == nil || contracts.AdmitObservabilityRequest(r.Msg) != nil {
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+func (h *observationReader) QueryAudits(ctx context.Context, r *obs.QueryAuditsRequest) (*obs.QueryAuditsResponse, error) {
+	if r == nil || contracts.AdmitObservabilityRequest(r) != nil {
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
-	size, err := observability.PageSizeFromOptional(r.Msg.PageSize)
+	size, err := observability.PageSizeFromOptional(r.PageSize)
 	if err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
 	var binding observability.ReadBinding
 	if err = h.withCurrent(ctx, auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, nil, func(value observability.ReadBinding) error { binding = value; return nil }); err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
 	position := storage.FirstAuditPosition()
 	var cursor observability.AuditCursor
-	if r.Msg.PageToken != nil {
-		cursor, err = h.runtime.codec.DecodeAudits(*r.Msg.PageToken, binding, r.Msg.Source)
+	if r.PageToken != nil {
+		cursor, err = h.runtime.codec.DecodeAudits(*r.PageToken, binding, r.Source)
 		if err != nil {
 			return observationResponse(&obs.QueryAuditsResponse{Result: &obs.QueryAuditsResponse_StaleCursor{StaleCursor: &emptypb.Empty{}}})
 		}
 		upper, before, err := cursor.Position()
 		if err != nil {
-			return nil, observationRPCError(err)
+			return nil, err
 		}
 		position, err = storage.AuditPositionAfter(upper, before)
 		if err != nil {
-			return nil, observationRPCError(err)
+			return nil, err
 		}
 	}
 	bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	page := &obs.AuditPage{Source: r.Msg.Source, Continuation: auditEnd()}
+	page := &obs.AuditPage{Source: r.Source, Continuation: auditEnd()}
 	var next storage.AuditPosition
 	var more bool
-	switch r.Msg.Source {
+	switch r.Source {
 	case obs.AuditSource_AUDIT_SOURCE_AUTHENTICATION:
 		request, err := storage.NewAuthenticationAuditRead(size, position)
 		if err != nil {
-			return nil, observationRPCError(err)
+			return nil, err
 		}
 		stored, err := h.runtime.store.ReadAuthenticationAudits(bounded, request)
 		if err != nil {
-			return nil, observationRPCError(err)
+			return nil, err
 		}
 		page.UpperId, err = stored.Upper()
 		if err != nil {
-			return nil, observationRPCError(err)
+			return nil, err
 		}
 		for _, row := range stored.Rows() {
 			value := &obs.AuditRow{Id: row.ID()}
@@ -280,13 +239,13 @@ func (h *observationHandler) QueryAudits(ctx context.Context, r *connect.Request
 			} else {
 				at, present := row.At()
 				if !present {
-					return nil, observationRPCError(authorization.ErrUnavailable)
+					return nil, authorization.ErrUnavailable
 				}
 				author := &obs.AuditAuthor{Result: &obs.AuditAuthor_NotRecorded{NotRecorded: &emptypb.Empty{}}}
 				if account, present := row.Actor(); present {
 					text, err := account.Value()
 					if err != nil {
-						return nil, observationRPCError(err)
+						return nil, err
 					}
 					author.Result = &obs.AuditAuthor_HumanAccount{HumanAccount: &auth.AccountId{Value: text}}
 				}
@@ -299,15 +258,15 @@ func (h *observationHandler) QueryAudits(ctx context.Context, r *connect.Request
 	case obs.AuditSource_AUDIT_SOURCE_SECRET_ACCESS:
 		request, err := storage.NewSecretAccessAuditRead(size, position)
 		if err != nil {
-			return nil, observationRPCError(err)
+			return nil, err
 		}
 		stored, err := h.runtime.store.ReadSecretAccessAudits(bounded, request)
 		if err != nil {
-			return nil, observationRPCError(err)
+			return nil, err
 		}
 		page.UpperId, err = stored.Upper()
 		if err != nil {
-			return nil, observationRPCError(err)
+			return nil, err
 		}
 		for _, row := range stored.Rows() {
 			value := &obs.AuditRow{Id: row.ID()}
@@ -316,19 +275,19 @@ func (h *observationHandler) QueryAudits(ctx context.Context, r *connect.Request
 			} else {
 				at, present := row.At()
 				if !present {
-					return nil, observationRPCError(authorization.ErrUnavailable)
+					return nil, authorization.ErrUnavailable
 				}
 				requester, present := row.Requester()
 				if !present {
-					return nil, observationRPCError(authorization.ErrUnavailable)
+					return nil, authorization.ErrUnavailable
 				}
 				reference, err := h.runtime.codec.IntegrationReference(requester)
 				if err != nil {
-					return nil, observationRPCError(err)
+					return nil, err
 				}
 				opaque, err := reference.Wire()
 				if err != nil {
-					return nil, observationRPCError(err)
+					return nil, err
 				}
 				value.Result = &obs.AuditRow_SecretAccess{SecretAccess: &obs.SecretAccessAudit{OccurredAt: timestamppb.New(at), Reason: row.Reason(), Author: &obs.AuditAuthor{Result: &obs.AuditAuthor_InternalIntegration{InternalIntegration: opaque}}}}
 			}
@@ -336,33 +295,33 @@ func (h *observationHandler) QueryAudits(ctx context.Context, r *connect.Request
 		}
 		next, more = stored.Next()
 	default:
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
 	if more {
-		if r.Msg.PageToken == nil {
-			cursor, err = h.runtime.codec.BeginAudits(binding, r.Msg.Source, page.UpperId)
+		if r.PageToken == nil {
+			cursor, err = h.runtime.codec.BeginAudits(binding, r.Source, page.UpperId)
 			if err != nil {
-				return nil, observationRPCError(err)
+				return nil, err
 			}
 		}
 		_, before, _, err := next.Values()
 		if err != nil {
-			return nil, observationRPCError(err)
+			return nil, err
 		}
 		cursor, err = cursor.After(before)
 		if err != nil {
-			return nil, observationRPCError(err)
+			return nil, err
 		}
 		token, err := h.runtime.codec.EncodeAudits(cursor)
 		if err != nil {
-			return nil, observationRPCError(err)
+			return nil, err
 		}
 		page.Continuation = &obs.PageContinuation{Result: &obs.PageContinuation_NextPageToken{NextPageToken: token}}
 	}
 	response := &obs.QueryAuditsResponse{Result: &obs.QueryAuditsResponse_Page{Page: page}}
 	err = h.withCurrent(ctx, auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, &binding, func(observability.ReadBinding) error { return contracts.AdmitObservabilityResponse(response) })
 	if err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
 	return observationResponse(response)
 }

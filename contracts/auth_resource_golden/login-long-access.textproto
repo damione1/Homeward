@@ -1,0 +1,12 @@
+authenticated {
+  session {
+    name: "homes/home-a/accounts/account-a/sessions/session-a"
+    authentication_satisfaction: AUTHENTICATION_SATISFACTION_NOT_RECORDED
+    create_time { seconds: 1792310000 }
+    expire_time { seconds: 1794900000 }
+  }
+  audience: CREDENTIAL_AUDIENCE_INTERACTIVE
+  access_token: "synthetic-access"
+  access_expire_time { seconds: 1792314900 nanos: 1 }
+  refresh_token: "synthetic-refresh"
+}

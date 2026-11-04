@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"github.com/damione1/Homeward/internal/recorderevidence"
 	"time"
 
-	"github.com/damione1/Homeward/contracts"
-	history "github.com/damione1/Homeward/gen/home/history/v1"
-	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	state "github.com/damione1/Homeward/gen/home/state/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/historyquery"
@@ -22,7 +20,7 @@ import (
 func verifyHistoricalRecord(ctx context.Context, tx pgx.Tx, epoch RecorderEpoch, sequence uint64, wire *state.ObservedState, payload []byte) (*recordermaintenance.NumericInput, error) {
 	var row RecorderRecord
 	var o recorderObserved
-	var storedDigest []byte
+	var storedDigest, evidence []byte
 	var revision string
 	var sourceSeq *string
 	var source string
@@ -30,12 +28,23 @@ func verifyHistoricalRecord(ctx context.Context, tx pgx.Tx, epoch RecorderEpoch,
 	var received, changed, updated, reported time.Time
 	var seconds int64
 	var nanos int32
-	err := tx.QueryRow(ctx, `SELECT instance_id,admitted_unix_seconds,admitted_nanos,causation_id,correlation_id,record_digest,revision::text,source_session,source_sequence::text,observed_at,received_at,last_changed,last_updated,last_reported,availability,freshness,provenance,value_kind,measurement_value,measurement_unit,measurement_canonical_unit,measurement_scale,measurement_offset,measurement_dimension,measurement_precision,measurement_semantic,measurement_aggregation FROM public.state_history WHERE epoch=$1 AND sequence=$2::numeric`, epoch.data(), decimalUint(sequence)).Scan(&row.instance, &seconds, &nanos, &row.causation, &row.correlation, &storedDigest, &revision, &source, &sourceSeq, &observed, &received, &changed, &updated, &reported, &o.availability, &o.freshness, &o.provenance, &o.valueKind, &o.measurementValue, &o.measurementUnit, &o.measurementCanonical, &o.measurementScale, &o.measurementOffset, &o.measurementDimension, &o.measurementPrecision, &o.measurementSemantic, &o.measurementAggregation)
+	err := tx.QueryRow(ctx, `SELECT instance_id,admitted_unix_seconds,admitted_nanos,causation_id,correlation_id,record_digest,revision::text,source_session,source_sequence::text,observed_at,received_at,last_changed,last_updated,last_reported,availability,freshness,provenance,value_kind,measurement_value,measurement_unit,measurement_canonical_unit,measurement_scale,measurement_offset,measurement_dimension,measurement_precision,measurement_semantic,measurement_aggregation,admission_evidence FROM public.state_history WHERE epoch=$1 AND sequence=$2::numeric`, epoch.data(), decimalUint(sequence)).Scan(&row.instance, &seconds, &nanos, &row.causation, &row.correlation, &storedDigest, &revision, &source, &sourceSeq, &observed, &received, &changed, &updated, &reported, &o.availability, &o.freshness, &o.provenance, &o.valueKind, &o.measurementValue, &o.measurementUnit, &o.measurementCanonical, &o.measurementScale, &o.measurementOffset, &o.measurementDimension, &o.measurementPrecision, &o.measurementSemantic, &o.measurementAggregation, &evidence)
 	if err != nil {
 		return nil, historyFailure(historyquery.ErrUnavailable, err)
 	}
 	if nanos < 0 || nanos > 999999999 || len(storedDigest) != 32 {
 		return nil, historyquery.ErrIntegrity
+	}
+	if evidence != nil {
+		row.evidence, err = recorderevidence.Parse(evidence)
+		if err != nil {
+			return nil, historyquery.ErrIntegrity
+		}
+		entity, _ := row.evidence.Entity().Value()
+		instance, _ := row.evidence.Instance().Value()
+		if entity != wire.Entity.GetEntityId() || instance != row.instance {
+			return nil, historyquery.ErrIntegrity
+		}
 	}
 	row.sequence = sequence
 	row.admittedAt = time.Unix(seconds, int64(nanos)).UTC()
@@ -79,11 +88,10 @@ func verifyHistoricalRecord(ctx context.Context, tx pgx.Tx, epoch RecorderEpoch,
 		if !fieldsPresent || *o.measurementDimension < 1 || *o.measurementDimension > 6 || *o.measurementSemantic < 1 || *o.measurementSemantic > 3 || *o.measurementAggregation < 1 || *o.measurementAggregation > 3 {
 			return nil, historyquery.ErrIntegrity
 		}
-		wireDescriptor := &history.NumericDescriptor{Unit: *o.measurementUnit, CanonicalUnit: *o.measurementCanonical, Scale: *o.measurementScale, Offset: *o.measurementOffset, Dimension: history.Dimension(*o.measurementDimension), Precision: int32(*o.measurementPrecision), Semantic: registry.MeasurementSemantic(*o.measurementSemantic), Aggregation: registry.MeasurementAggregation(*o.measurementAggregation)}
-		if contracts.AdmitHistoryNumericDescriptor(wireDescriptor) != nil || wire.GetMeasurement().Unit != *o.measurementUnit || wire.GetMeasurement().Value != *o.measurementValue {
+		descriptor = &recordermaintenance.NumericInput{Value: *o.measurementValue, Unit: *o.measurementUnit, CanonicalUnit: *o.measurementCanonical, Scale: *o.measurementScale, Offset: *o.measurementOffset, Dimension: domain.Dimension(*o.measurementDimension), Precision: int(*o.measurementPrecision), Semantic: domain.SemanticClass(*o.measurementSemantic), Aggregation: domain.AggregationKind(*o.measurementAggregation)}
+		if !historicalNumericDescriptorValid(*descriptor) || wire.GetMeasurement().Unit != *o.measurementUnit || wire.GetMeasurement().Value != *o.measurementValue {
 			return nil, historyquery.ErrIntegrity
 		}
-		descriptor = &recordermaintenance.NumericInput{Value: *o.measurementValue, Unit: *o.measurementUnit, CanonicalUnit: *o.measurementCanonical, Scale: *o.measurementScale, Offset: *o.measurementOffset, Dimension: domain.Dimension(*o.measurementDimension), Precision: int(*o.measurementPrecision), Semantic: domain.SemanticClass(*o.measurementSemantic), Aggregation: domain.AggregationKind(*o.measurementAggregation)}
 	} else if !fieldsAbsent {
 		return nil, historyquery.ErrIntegrity
 	}

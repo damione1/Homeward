@@ -28,6 +28,18 @@ func (s *Service) ReadOperationalSource(ctx context.Context) (Snapshot, storage.
 	return after, source, nil
 }
 
+// ReadOperationalSourceForMutation captures the active operational source under
+// the same mutation gate used by 149 publications so a concurrent writer cannot
+// exhaust Read's coherent-cut retries and mask a CAS conflict as unavailable.
+func (s *Service) ReadOperationalSourceForMutation(ctx context.Context) (Snapshot, storage.ConfigProtectedSource, error) {
+	release, err := s.acquireMutation(ctx)
+	if err != nil {
+		return Snapshot{}, storage.ConfigProtectedSource{}, err
+	}
+	defer release()
+	return s.ReadOperationalSource(ctx)
+}
+
 // ReadOperationalWorkspace prepares a source-bound transformation outside the
 // mutation callback. Full operational admission may stat a declared executable;
 // that I/O must not happen in the bounded callback under the149 mutation lock.

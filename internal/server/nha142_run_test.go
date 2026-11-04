@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	"github.com/damione1/Homeward/internal/authmfa"
 	"github.com/damione1/Homeward/internal/testpg"
 )
@@ -77,7 +79,7 @@ func TestNHA142DefaultRunTLSMFAAndAdminEnrollmentBoundary(t *testing.T) {
 	}}
 	operatorHTTP := &http.Client{Timeout: 10 * time.Second, Transport: operatorTransport}
 	t.Cleanup(operatorTransport.CloseIdleConnections)
-	operator := authv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
+	operator := operatorv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
 	publicHTTP := nha181Client(roots)
 	publicHTTP.Timeout = 10 * time.Second
 	publicTransport := publicHTTP.Transport.(*http.Transport)
@@ -86,8 +88,8 @@ func TestNHA142DefaultRunTLSMFAAndAdminEnrollmentBoundary(t *testing.T) {
 		return dialer.DialContext(ctx, "tcp", address.String())
 	}
 	t.Cleanup(publicHTTP.CloseIdleConnections)
-	auth := authv1connect.NewAuthServiceClient(publicHTTP, origin)
-	accounts := authv1connect.NewAccountServiceClient(publicHTTP, origin)
+	auth := apiv2connect.NewAuthServiceClient(publicHTTP, origin)
+	accounts := apiv2connect.NewAccountServiceClient(publicHTTP, origin)
 	callCtx, stopCalls := context.WithTimeout(context.Background(), 70*time.Second)
 	defer stopCalls()
 
@@ -98,9 +100,9 @@ func TestNHA142DefaultRunTLSMFAAndAdminEnrollmentBoundary(t *testing.T) {
 		t.Fatal("Unix operator bootstrap failed:", err)
 	}
 	adminID := bootstrap.Msg.Account.Id
-	login := func(name, password string) *authv1.LoginDecision {
+	login := func(name, password string) *api.LoginDecision {
 		t.Helper()
-		response, err := auth.StartLogin(callCtx, connect.NewRequest(&authv1.StartLoginRequest{LoginName: name, Password: password}))
+		response, err := auth.StartLogin(callCtx, connect.NewRequest(&api.StartLoginRequest{LoginName: name, Password: password}))
 		if err != nil || response == nil || response.Msg.Decision == nil {
 			t.Fatal("TLS password login failed:", err)
 		}
@@ -110,37 +112,39 @@ func TestNHA142DefaultRunTLSMFAAndAdminEnrollmentBoundary(t *testing.T) {
 	if plain == nil {
 		t.Fatal("default false policy did not admit password login")
 	}
-	policy, err := accounts.GetSecondFactorPolicy(callCtx, nha142RunBearer(&authv1.GetSecondFactorPolicyRequest{}, plain.AccessToken))
-	if err != nil || policy == nil || policy.Msg.Policy == nil || policy.Msg.Policy.Version == nil || policy.Msg.Policy.RequireAdminFactor {
+	adminAccount := nha203SessionAccount(t, plain.Session)
+	policyName := adminAccount.Home().String() + "/secondFactorPolicy"
+	policy, err := accounts.GetSecondFactorPolicy(callCtx, nha142RunBearer(&api.GetSecondFactorPolicyRequest{Name: policyName}, plain.AccessToken))
+	if err != nil || policy == nil || policy.Msg == nil || policy.Msg.Etag == "" || policy.Msg.RequireAdminFactor {
 		t.Fatal("default Run did not bootstrap a disabled, versioned MFA policy:", err)
 	}
 
 	authenticator := nha142NewAuthenticator(t)
-	begun, err := auth.BeginFactorEnrollment(callCtx, nha142RunBearer(&authv1.BeginFactorEnrollmentRequest{Kind: authv1.FactorKind_FACTOR_KIND_FIDO2}, plain.AccessToken))
+	begun, err := auth.BeginFactorEnrollment(callCtx, nha142RunBearer(&api.BeginFactorEnrollmentRequest{Parent: adminAccount.String(), Kind: api.FactorKind_FACTOR_KIND_FIDO2}, plain.AccessToken))
 	if err != nil || begun == nil || begun.Msg.Challenge == nil || begun.Msg.Challenge.Fido2 == nil {
 		t.Fatal("TLS bearer enrollment did not yield FIDO2 options:", err)
 	}
 	if begun.Msg.Challenge.Fido2.Origin != origin {
 		t.Fatal("enrollment did not use the configured canonical HTTPS origin")
 	}
-	activated, err := auth.CompleteFactorEnrollment(callCtx, nha142RunBearer(&authv1.CompleteFactorEnrollmentRequest{
-		ChallengeId: begun.Msg.Challenge.Id,
+	activated, err := auth.CompleteFactorEnrollment(callCtx, nha142RunBearer(&api.CompleteFactorEnrollmentRequest{Parent: adminAccount.String(),
+		ChallengeId: begun.Msg.Challenge.ChallengeId,
 		Attestation: authenticator.attestation(t, begun.Msg.Challenge),
 	}, plain.AccessToken))
-	if err != nil || activated == nil || activated.Msg.Factor == nil || len(activated.Msg.RecoveryCodes) != authmfa.RecoveryCodeCount {
+	if err != nil || activated == nil || activated.Msg.FactorCredential == nil || len(activated.Msg.RecoveryCodes) != authmfa.RecoveryCodeCount {
 		t.Fatal("TLS enrollment did not activate a credential and one-time recovery batch:", err)
 	}
 	listWith := func(token string) error {
-		_, err := auth.ListSessions(callCtx, nha142RunBearer(&authv1.ListSessionsRequest{AccountId: adminID}, token))
+		_, err := auth.ListSessions(callCtx, nha142RunBearer(&api.ListSessionsRequest{Parent: adminAccount.String()}, token))
 		return err
 	}
-	if _, err := auth.ListSessions(callCtx, connect.NewRequest(&authv1.ListSessionsRequest{AccountId: adminID})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := auth.ListSessions(callCtx, connect.NewRequest(&api.ListSessionsRequest{Parent: adminAccount.String()})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatal("protected session route admitted an anonymous caller:", connect.CodeOf(err))
 	}
 	if code := connect.CodeOf(listWith(plain.AccessToken)); code != connect.CodeUnauthenticated {
 		t.Fatal("old password access survived enrollment:", code)
 	}
-	if _, err := auth.RefreshSession(callCtx, connect.NewRequest(&authv1.RefreshSessionRequest{RefreshToken: plain.RefreshToken})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := auth.RefreshSession(callCtx, connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: plain.RefreshToken, RenewalKey: []byte("nha198-saved-operation-secret-001")})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatal("old password refresh survived enrollment:", connect.CodeOf(err))
 	}
 
@@ -149,54 +153,54 @@ func TestNHA142DefaultRunTLSMFAAndAdminEnrollmentBoundary(t *testing.T) {
 		t.Fatal("enrolled account did not receive a challenge over TLS")
 	}
 	withoutUV := authenticator.assertion(t, challenge, 0x01)
-	if _, err := auth.CompleteLogin(callCtx, connect.NewRequest(&authv1.CompleteLoginRequest{ChallengeId: challenge.Id, Proof: withoutUV})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := auth.CompleteLogin(callCtx, connect.NewRequest(&api.CompleteLoginRequest{ChallengeId: challenge.ChallengeId, Proof: withoutUV})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatal("presence without user verification was admitted:", connect.CodeOf(err))
 	}
 	withUV := authenticator.assertion(t, challenge, 0x05)
-	completed, err := auth.CompleteLogin(callCtx, connect.NewRequest(&authv1.CompleteLoginRequest{ChallengeId: challenge.Id, Proof: withUV}))
+	completed, err := auth.CompleteLogin(callCtx, connect.NewRequest(&api.CompleteLoginRequest{ChallengeId: challenge.ChallengeId, Proof: withUV}))
 	if err != nil || completed == nil || completed.Msg.Decision.GetAuthenticated() == nil {
 		t.Fatal("valid signed assertion failed on the same challenge:", err)
 	}
 	mfaTokens := completed.Msg.Decision.GetAuthenticated()
-	if mfaTokens.Session == nil || mfaTokens.Session.AuthenticationSatisfaction != authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 {
+	if mfaTokens.Session == nil || mfaTokens.Session.AuthenticationSatisfaction != api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 {
 		t.Fatal("signed assertion did not issue FIDO2 provenance")
 	}
-	if _, err := auth.CompleteLogin(callCtx, connect.NewRequest(&authv1.CompleteLoginRequest{ChallengeId: challenge.Id, Proof: withUV})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := auth.CompleteLogin(callCtx, connect.NewRequest(&api.CompleteLoginRequest{ChallengeId: challenge.ChallengeId, Proof: withUV})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatal("consumed assertion challenge replayed:", connect.CodeOf(err))
 	}
-	listed, err := auth.ListFactors(callCtx, nha142RunBearer(&authv1.ListFactorsRequest{AccountId: adminID}, mfaTokens.AccessToken))
-	if err != nil || listed == nil || len(listed.Msg.Factors) != 1 || listed.Msg.Factors[0].Id.Value != activated.Msg.Factor.Id.Value || listed.Msg.Factors[0].Kind != authv1.FactorKind_FACTOR_KIND_FIDO2 {
-		t.Fatal("TLS ListFactors lost the activated credential metadata:", err)
+	listed, err := auth.ListFactorCredentials(callCtx, nha142RunBearer(&api.ListFactorCredentialsRequest{Parent: adminAccount.String()}, mfaTokens.AccessToken))
+	if err != nil || listed == nil || len(listed.Msg.FactorCredentials) != 1 || listed.Msg.FactorCredentials[0].Name != activated.Msg.FactorCredential.Name || listed.Msg.FactorCredentials[0].Kind != api.FactorKind_FACTOR_KIND_FIDO2 {
+		t.Fatal("TLS ListFactorCredentials lost the activated credential metadata:", err)
 	}
 
-	second, err := accounts.CreateAccount(callCtx, nha142RunBearer(&authv1.CreateAccountRequest{
-		LoginName: secondName, DisplayName: secondName, Role: authv1.AccountRole_ACCOUNT_ROLE_ADMIN, InitialPassword: secondPassword,
-	}, mfaTokens.AccessToken))
-	if err != nil || second == nil || second.Msg.Account == nil || second.Msg.Account.Id == nil {
+	second, err := accounts.CreateAccount(callCtx, nha142RunBearer(&api.CreateAccountRequest{Parent: adminAccount.Home().String(), Account: &api.Account{
+		LoginName: secondName, DisplayName: secondName, Role: api.AccountRole_ACCOUNT_ROLE_ADMIN, InitialPassword: secondPassword,
+	}}, mfaTokens.AccessToken))
+	if err != nil || second == nil || second.Msg == nil || second.Msg.Name == "" {
 		t.Fatal("could not prepare an unenrolled admin for policy admission:", err)
 	}
-	current, err := accounts.GetSecondFactorPolicy(callCtx, nha142RunBearer(&authv1.GetSecondFactorPolicyRequest{}, mfaTokens.AccessToken))
-	if err != nil || current == nil || current.Msg.Policy == nil || current.Msg.Policy.Version == nil {
+	current, err := accounts.GetSecondFactorPolicy(callCtx, nha142RunBearer(&api.GetSecondFactorPolicyRequest{Name: policyName}, mfaTokens.AccessToken))
+	if err != nil || current == nil || current.Msg == nil || current.Msg.Etag == "" {
 		t.Fatal("could not read current MFA policy for CAS:", err)
 	}
-	updated, err := accounts.SetSecondFactorPolicy(callCtx, nha142RunBearer(&authv1.SetSecondFactorPolicyRequest{
-		Expected: current.Msg.Policy.Version, RequireAdminFactor: true,
+	updated, err := accounts.ChangeSecondFactorPolicy(callCtx, nha142RunBearer(&api.ChangeSecondFactorPolicyRequest{
+		Name: current.Msg.Name, Etag: current.Msg.Etag, RequireAdminFactor: true,
 	}, mfaTokens.AccessToken))
 	if err != nil || updated == nil || updated.Msg.Policy == nil || !updated.Msg.Policy.RequireAdminFactor {
 		t.Fatal("TLS policy activation failed:", err)
 	}
 	grant := login(secondName, secondPassword).GetEnrollmentRequired()
-	if grant == nil || grant.AccountId == nil || grant.AccountId.Value != second.Msg.Account.Id.Value {
+	if grant == nil || grant.Account == "" || grant.Account != second.Msg.Name {
 		t.Fatal("unenrolled required admin received privileged access instead of enrollment grant")
 	}
 	if code := connect.CodeOf(listWith(grant.EnrollmentToken)); code != connect.CodeUnauthenticated {
 		t.Fatal("enrollment grant crossed protected access admission:", code)
 	}
-	if _, err := accounts.ListAccounts(callCtx, nha142RunBearer(&authv1.ListAccountsRequest{}, grant.EnrollmentToken)); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := accounts.ListAccounts(callCtx, nha142RunBearer(&api.ListAccountsRequest{Parent: adminAccount.Home().String()}, grant.EnrollmentToken)); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatal("enrollment grant crossed privileged account admission:", connect.CodeOf(err))
 	}
 
-	replacement, err := auth.ReplaceRecoveryCodes(callCtx, nha142RunBearer(&authv1.ReplaceRecoveryCodesRequest{AccountId: adminID}, mfaTokens.AccessToken))
+	replacement, err := auth.ReplaceRecoveryCodes(callCtx, nha142RunBearer(&api.ReplaceRecoveryCodesRequest{Name: adminAccount.String()}, mfaTokens.AccessToken))
 	if err != nil || replacement == nil || len(replacement.Msg.RecoveryCodes) != authmfa.RecoveryCodeCount {
 		t.Fatal("recent FIDO2 authentication could not rotate recovery codes:", err)
 	}
@@ -208,11 +212,11 @@ func TestNHA142DefaultRunTLSMFAAndAdminEnrollmentBoundary(t *testing.T) {
 	// session through the actual TLS password and FIDO2 assertion flow before
 	// probing the public operator route.
 	freshChallenge := login(adminName, adminPassword).GetChallenge()
-	if freshChallenge == nil || freshChallenge.Id == nil {
+	if freshChallenge == nil || freshChallenge.ChallengeId == "" {
 		t.Fatal("enrolled admin did not receive a fresh factor challenge")
 	}
-	freshCompleted, err := auth.CompleteLogin(callCtx, connect.NewRequest(&authv1.CompleteLoginRequest{
-		ChallengeId: freshChallenge.Id,
+	freshCompleted, err := auth.CompleteLogin(callCtx, connect.NewRequest(&api.CompleteLoginRequest{
+		ChallengeId: freshChallenge.ChallengeId,
 		Proof:       authenticator.assertion(t, freshChallenge, 0x05),
 	}))
 	if err != nil || freshCompleted == nil || freshCompleted.Msg == nil || freshCompleted.Msg.Decision == nil {
@@ -220,21 +224,21 @@ func TestNHA142DefaultRunTLSMFAAndAdminEnrollmentBoundary(t *testing.T) {
 	}
 	freshTokens := freshCompleted.Msg.Decision.GetAuthenticated()
 	if freshTokens == nil || freshTokens.Session == nil ||
-		freshTokens.Session.AuthenticationSatisfaction != authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 {
+		freshTokens.Session.AuthenticationSatisfaction != api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 {
 		t.Fatal("fresh signed assertion did not issue FIDO2 provenance")
 	}
 
-	publicOperator := authv1connect.NewOperatorAccountServiceClient(publicHTTP, origin)
+	publicOperator := operatorv1connect.NewOperatorAccountServiceClient(publicHTTP, origin)
 	if _, err := publicOperator.ResetSecondFactor(callCtx, connect.NewRequest(&authv1.ResetSecondFactorRequest{
 		AccountId: adminID,
 	})); connect.CodeOf(err) != connect.CodeUnimplemented {
 		t.Fatal("public TLS routed Unix-only factor reset:", connect.CodeOf(err))
 	}
-	still, err := auth.ListFactors(callCtx, nha142RunBearer(&authv1.ListFactorsRequest{
-		AccountId: adminID,
+	still, err := auth.ListFactorCredentials(callCtx, nha142RunBearer(&api.ListFactorCredentialsRequest{
+		Parent: adminAccount.String(),
 	}, freshTokens.AccessToken))
-	if err != nil || still == nil || still.Msg == nil || len(still.Msg.Factors) != 1 ||
-		still.Msg.Factors[0].Id == nil || still.Msg.Factors[0].Id.Value != activated.Msg.Factor.Id.Value {
+	if err != nil || still == nil || still.Msg == nil || len(still.Msg.FactorCredentials) != 1 ||
+		still.Msg.FactorCredentials[0].Name == "" || still.Msg.FactorCredentials[0].Name != activated.Msg.FactorCredential.Name {
 		t.Fatal("public reset probe changed factor state or invalidated the caller:", err)
 	}
 
@@ -249,13 +253,13 @@ func TestNHA142DefaultRunTLSMFAAndAdminEnrollmentBoundary(t *testing.T) {
 	if code := connect.CodeOf(listWith(freshTokens.AccessToken)); code != connect.CodeUnauthenticated {
 		t.Fatal("Unix factor reset did not revoke the FIDO2 access:", code)
 	}
-	if _, err := auth.RefreshSession(callCtx, connect.NewRequest(&authv1.RefreshSessionRequest{
-		RefreshToken: freshTokens.RefreshToken,
+	if _, err := auth.RefreshSession(callCtx, connect.NewRequest(&api.RefreshSessionRequest{
+		RefreshToken: freshTokens.RefreshToken, RenewalKey: []byte("nha198-saved-operation-secret-001"),
 	})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatal("Unix factor reset did not revoke the FIDO2 refresh:", connect.CodeOf(err))
 	}
 	required := login(adminName, adminPassword).GetEnrollmentRequired()
-	if required == nil || required.AccountId == nil || required.AccountId.Value != adminID.Value ||
+	if required == nil || required.Account == "" || required.Account != adminAccount.String() ||
 		required.EnrollmentToken == "" {
 		t.Fatal("required admin did not return to restricted enrollment after Unix reset")
 	}

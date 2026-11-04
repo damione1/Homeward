@@ -13,14 +13,17 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	"github.com/damione1/Homeward/internal/accounts"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/recorder"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/jackc/pgx/v5"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 func TestNHA141FactoryProtectedRouteCannotWeakenSessionTLS(t *testing.T) {
@@ -43,7 +46,7 @@ func TestNHA141FactoryProtectedRouteCannotWeakenSessionTLS(t *testing.T) {
 		RouteTransportOptionalTLS, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("weakened route reached handler") })); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registerAuthRoutes(plan, store, coordinator, nil); err != nil {
+	if _, err := registerAuthRoutes(plan, store, coordinator, nil, nha203AuthFixtureNames(store)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := compilePublicPlan(plan, public); !errors.Is(err, ErrInvalidPublicPlan) {
@@ -74,10 +77,10 @@ func TestNHA141CredentialRoutesRejectH2CBeforeBody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registerAuthRoutes(plan, store, coordinator, nil); err != nil {
+	if _, err := registerAuthRoutes(plan, store, coordinator, nil, nha203AuthFixtureNames(store)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registerAccountRoutes(plan, store, coordinator); err != nil {
+	if _, err := registerAccountRoutes(plan, store, coordinator, nha203AuthFixtureNames(store)); err != nil {
 		t.Fatal(err)
 	}
 	compiled, err := compilePublicPlan(plan, public)
@@ -87,18 +90,18 @@ func TestNHA141CredentialRoutesRejectH2CBeforeBody(t *testing.T) {
 	handler := compiled.handler(public, newPublicAdmissions())
 	const canary = "NHA141 plaintext credential canary"
 	for _, path := range []string{
-		authv1connect.AuthServiceStartLoginProcedure,
-		authv1connect.AuthServiceCompleteLoginProcedure,
-		authv1connect.AuthServiceRefreshSessionProcedure,
-		authv1connect.AuthServiceListSessionsProcedure,
-		authv1connect.AuthServiceRevokeSessionProcedure,
-		authv1connect.AuthServiceBeginFactorEnrollmentProcedure,
-		authv1connect.AuthServiceCompleteFactorEnrollmentProcedure,
-		authv1connect.AuthServiceListFactorsProcedure,
-		authv1connect.AuthServiceRemoveFactorProcedure,
-		authv1connect.AuthServiceReplaceRecoveryCodesProcedure,
-		authv1connect.AccountServiceGetSecondFactorPolicyProcedure,
-		authv1connect.AccountServiceSetSecondFactorPolicyProcedure,
+		apiv2connect.AuthServiceStartLoginProcedure,
+		apiv2connect.AuthServiceCompleteLoginProcedure,
+		apiv2connect.AuthServiceRefreshSessionProcedure,
+		apiv2connect.AuthServiceListSessionsProcedure,
+		apiv2connect.AuthServiceRevokeSessionProcedure,
+		apiv2connect.AuthServiceBeginFactorEnrollmentProcedure,
+		apiv2connect.AuthServiceCompleteFactorEnrollmentProcedure,
+		apiv2connect.AuthServiceListFactorCredentialsProcedure,
+		apiv2connect.AuthServiceRemoveFactorCredentialProcedure,
+		apiv2connect.AuthServiceReplaceRecoveryCodesProcedure,
+		apiv2connect.AccountServiceGetSecondFactorPolicyProcedure,
+		apiv2connect.AccountServiceChangeSecondFactorPolicyProcedure,
 	} {
 		request := httptest.NewRequest(http.MethodPost, path, nha181UnreadBody{t})
 		request.Header.Set("Authorization", "Bearer "+canary)
@@ -283,20 +286,21 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 		var dial net.Dialer
 		return dial.DialContext(ctx, "unix", filepath.Join(dataDir, operatorSocketName))
 	}}}
-	operator := authv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
+	operator := operatorv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
 	publicHTTP := nha181Client(roots)
 	publicHTTP.Timeout = 10 * time.Second
 	defer publicHTTP.CloseIdleConnections()
 	url := "https://" + address.String()
-	auth := authv1connect.NewAuthServiceClient(publicHTTP, url)
+	auth := apiv2connect.NewAuthServiceClient(publicHTTP, url)
 	admin, err := operator.BootstrapAdmin(context.Background(), connect.NewRequest(&authv1.BootstrapAdminRequest{
 		LoginName: "NHA141 Admin", DisplayName: "NHA141 Admin", Password: firstPassword}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	loginAs := func(name, password string) *authv1.SessionTokens {
+	var currentAccount string
+	loginAs := func(name, password string) *api.SessionTokens {
 		t.Helper()
-		response, err := auth.StartLogin(context.Background(), connect.NewRequest(&authv1.StartLoginRequest{LoginName: name, Password: password}))
+		response, err := auth.StartLogin(context.Background(), connect.NewRequest(&api.StartLoginRequest{LoginName: name, Password: password}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -304,12 +308,15 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 		if tokens == nil {
 			t.Fatal("password login did not authenticate")
 		}
+		if name == "NHA141 Admin" {
+			currentAccount = nha203SessionAccount(t, tokens.Session).String()
+		}
 		return tokens
 	}
-	login := func(password string) *authv1.SessionTokens { return loginAs("NHA141 Admin", password) }
+	login := func(password string) *api.SessionTokens { return loginAs("NHA141 Admin", password) }
 	listWith := func(access string) error {
 		t.Helper()
-		request := connect.NewRequest(&authv1.ListSessionsRequest{AccountId: admin.Msg.Account.Id})
+		request := connect.NewRequest(&api.ListSessionsRequest{Parent: currentAccount})
 		request.Header().Set("Authorization", "Bearer "+access)
 		_, err := auth.ListSessions(context.Background(), request)
 		return err
@@ -336,9 +343,9 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 		return response
 	}
 	const wrongPassword = "NHA141 synthetic wrong password canary"
-	_, knownDenial := auth.StartLogin(context.Background(), connect.NewRequest(&authv1.StartLoginRequest{
+	_, knownDenial := auth.StartLogin(context.Background(), connect.NewRequest(&api.StartLoginRequest{
 		LoginName: "NHA141 Admin", Password: wrongPassword}))
-	_, unknownDenial := auth.StartLogin(context.Background(), connect.NewRequest(&authv1.StartLoginRequest{
+	_, unknownDenial := auth.StartLogin(context.Background(), connect.NewRequest(&api.StartLoginRequest{
 		LoginName: "NHA141 Unknown", Password: wrongPassword}))
 	nha049Code(t, knownDenial, connect.CodeUnauthenticated)
 	nha049Code(t, unknownDenial, connect.CodeUnauthenticated)
@@ -347,11 +354,11 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	}
 	nha049NoCanaries(t, "login denial", knownDenial.Error(), firstPassword, wrongPassword)
 	first := login(firstPassword)
-	if first.Session == nil || first.AccessExpiresAt == nil {
+	if first.Session == nil || first.AccessExpireTime == nil {
 		t.Fatal("login omitted session metadata")
 	}
-	if !first.AccessExpiresAt.AsTime().Equal(fakeClock.Now().Add(15*time.Minute)) ||
-		!first.Session.ExpiresAt.AsTime().Equal(fakeClock.Now().Add(7*24*time.Hour)) {
+	if !first.AccessExpireTime.AsTime().Equal(fakeClock.Now().Add(15*time.Minute)) ||
+		!first.Session.ExpireTime.AsTime().Equal(fakeClock.Now().Add(7*24*time.Hour)) {
 		t.Fatal("login lifetimes changed")
 	}
 	if err := listWith(first.AccessToken); err != nil {
@@ -366,37 +373,37 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = auth.RefreshSession(context.Background(), connect.NewRequest(&authv1.RefreshSessionRequest{RefreshToken: unknownRefreshText}))
+	_, err = auth.RefreshSession(context.Background(), connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: unknownRefreshText, RenewalKey: []byte("0123456789abcdef0123456789abcdef")}))
 	nha049Code(t, err, connect.CodeUnauthenticated)
 	if err := listWith(first.AccessToken); err != nil {
 		t.Fatalf("unknown refresh revoked another session: %v", err)
 	}
 	fakeClock.Advance(fakeClock.Now().Add(time.Minute))
-	refresh, err := auth.RefreshSession(context.Background(), connect.NewRequest(&authv1.RefreshSessionRequest{RefreshToken: first.RefreshToken}))
+	refresh, err := auth.RefreshSession(context.Background(), connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: first.RefreshToken, RenewalKey: []byte("0123456789abcdef0123456789abcdef")}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	second := refresh.Msg.Tokens
-	if second == nil || !second.Session.ExpiresAt.AsTime().Equal(fakeClock.Now().Add(7*24*time.Hour)) {
+	if second == nil || !second.Session.ExpireTime.AsTime().Equal(fakeClock.Now().Add(7*24*time.Hour)) {
 		t.Fatal("refresh did not extend inactivity expiry")
 	}
 	nha049Code(t, listWith(first.AccessToken), connect.CodeUnauthenticated)
-	_, err = auth.RefreshSession(context.Background(), connect.NewRequest(&authv1.RefreshSessionRequest{RefreshToken: first.RefreshToken}))
+	_, err = auth.RefreshSession(context.Background(), connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: first.RefreshToken, RenewalKey: []byte("abcdef0123456789abcdef0123456789")}))
 	nha049Code(t, err, connect.CodeUnauthenticated)
 	nha049Code(t, listWith(second.AccessToken), connect.CodeUnauthenticated)
 	// A saved renewal operation may recover its committed successor after
 	// losing the reply, including after its initial access has expired.
 	recoverable := login(firstPassword)
-	operationKey := []byte("nha198-saved-operation-secret-01")
+	operationKey := []byte("nha198-saved-operation-secret-001")
 	if len(operationKey) != 32 {
 		t.Fatal("invalid synthetic operation key")
 	}
-	savedRequest := &authv1.RefreshSessionRequest{RefreshToken: recoverable.RefreshToken, RenewalKey: operationKey}
+	savedRequest := &api.RefreshSessionRequest{RefreshToken: recoverable.RefreshToken, RenewalKey: operationKey}
 	initialRenewal, err := auth.RefreshSession(context.Background(), connect.NewRequest(savedRequest))
 	if err != nil {
 		t.Fatal(err)
 	}
-	fakeClock.Advance(initialRenewal.Msg.Tokens.AccessExpiresAt.AsTime().Add(time.Minute))
+	fakeClock.Advance(initialRenewal.Msg.Tokens.AccessExpireTime.AsTime().Add(time.Minute))
 	recoveredRenewal, err := auth.RefreshSession(context.Background(), connect.NewRequest(savedRequest))
 	if err != nil {
 		t.Fatalf("lost refresh reply could not recover over TLS: %v", err)
@@ -407,20 +414,20 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	if err := listWith(recoveredRenewal.Msg.Tokens.AccessToken); err != nil {
 		t.Fatalf("recovered access denied: %v", err)
 	}
-	malformed := &authv1.RefreshSessionRequest{RefreshToken: recoveredRenewal.Msg.Tokens.RefreshToken, RenewalKey: []byte{1}}
+	malformed := &api.RefreshSessionRequest{RefreshToken: recoveredRenewal.Msg.Tokens.RefreshToken, RenewalKey: []byte{1}}
 	_, err = auth.RefreshSession(context.Background(), connect.NewRequest(malformed))
-	nha049Code(t, err, connect.CodeInvalidArgument)
+	nha049Code(t, err, connect.CodeUnauthenticated)
 	if err := listWith(recoveredRenewal.Msg.Tokens.AccessToken); err != nil {
 		t.Fatalf("invalid operation shape changed session: %v", err)
 	}
 	wrongKey := append([]byte(nil), operationKey...)
 	wrongKey[0] ^= 1
-	_, err = auth.RefreshSession(context.Background(), connect.NewRequest(&authv1.RefreshSessionRequest{RefreshToken: recoverable.RefreshToken, RenewalKey: wrongKey}))
+	_, err = auth.RefreshSession(context.Background(), connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: recoverable.RefreshToken, RenewalKey: wrongKey}))
 	nha049Code(t, err, connect.CodeUnauthenticated)
 	nha049Code(t, listWith(recoveredRenewal.Msg.Tokens.AccessToken), connect.CodeUnauthenticated)
 	third := login(firstPassword)
 	stream := openStream(third.AccessToken)
-	fakeClock.Advance(third.AccessExpiresAt.AsTime())
+	fakeClock.Advance(third.AccessExpireTime.AsTime())
 	select {
 	case <-streamCanceled:
 	case <-time.After(3 * time.Second):
@@ -442,12 +449,12 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	}
 	stream.Body.Close()
 	nha049Code(t, listWith(fourth.AccessToken), connect.CodeUnauthenticated)
-	_, err = auth.StartLogin(context.Background(), connect.NewRequest(&authv1.StartLoginRequest{LoginName: "NHA141 Admin", Password: firstPassword}))
+	_, err = auth.StartLogin(context.Background(), connect.NewRequest(&api.StartLoginRequest{LoginName: "NHA141 Admin", Password: firstPassword}))
 	nha049Code(t, err, connect.CodeUnauthenticated)
 	adminAfterRecovery := login(replacementPassword)
 	secondAdminSession := login(replacementPassword)
 	stream = openStream(adminAfterRecovery.AccessToken)
-	_, err = auth.RevokeSession(context.Background(), nha141BearerRequest(&authv1.RevokeSessionRequest{SessionId: adminAfterRecovery.Session.Id}, secondAdminSession.AccessToken))
+	_, err = auth.RevokeSession(context.Background(), nha141BearerRequest(&api.RevokeSessionRequest{Name: adminAfterRecovery.Session.Name}, secondAdminSession.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,19 +468,18 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	if err := listWith(secondAdminSession.AccessToken); err != nil {
 		t.Fatalf("individual revocation canceled the other session: %v", err)
 	}
-	accountsClient := authv1connect.NewAccountServiceClient(publicHTTP, url)
+	accountsClient := apiv2connect.NewAccountServiceClient(publicHTTP, url)
 	const userPassword = "NHA141 synthetic user password canary"
-	user, err := accountsClient.CreateAccount(context.Background(), nha141BearerRequest(&authv1.CreateAccountRequest{
-		LoginName: "NHA141 User", DisplayName: "NHA141 User", Role: authv1.AccountRole_ACCOUNT_ROLE_USER,
-		InitialPassword: userPassword}, secondAdminSession.AccessToken))
+	user, err := accountsClient.CreateAccount(context.Background(), nha141BearerRequest(&api.CreateAccountRequest{
+		Parent:  nha203SessionAccount(t, secondAdminSession.Session).Home().String(),
+		Account: &api.Account{LoginName: "NHA141 User", DisplayName: "NHA141 User", Role: api.AccountRole_ACCOUNT_ROLE_USER, State: api.AccountState_ACCOUNT_STATE_ACTIVE, InitialPassword: userPassword}}, secondAdminSession.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	userSession := loginAs("NHA141 User", userPassword)
 	stream = openStream(userSession.AccessToken)
-	elevated := authv1.AccountRole_ACCOUNT_ROLE_ADMIN
-	_, err = accountsClient.UpdateAccount(context.Background(), nha141BearerRequest(&authv1.UpdateAccountRequest{
-		AccountId: user.Msg.Account.Id, Role: &elevated}, secondAdminSession.AccessToken))
+	user, err = accountsClient.UpdateAccount(context.Background(), nha141BearerRequest(&api.UpdateAccountRequest{
+		Account: &api.Account{Name: user.Msg.Name, Etag: user.Msg.Etag, Role: api.AccountRole_ACCOUNT_ROLE_ADMIN}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"role"}}}, secondAdminSession.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -486,9 +492,8 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	nha049Code(t, listWith(userSession.AccessToken), connect.CodeUnauthenticated)
 	userSession = loginAs("NHA141 User", userPassword)
 	stream = openStream(userSession.AccessToken)
-	disabled := authv1.AccountStatus_ACCOUNT_STATUS_DISABLED
-	_, err = accountsClient.UpdateAccount(context.Background(), nha141BearerRequest(&authv1.UpdateAccountRequest{
-		AccountId: user.Msg.Account.Id, Status: &disabled}, secondAdminSession.AccessToken))
+	user, err = accountsClient.UpdateAccount(context.Background(), nha141BearerRequest(&api.UpdateAccountRequest{
+		Account: &api.Account{Name: user.Msg.Name, Etag: user.Msg.Etag, State: api.AccountState_ACCOUNT_STATE_DISABLED}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"state"}}}, secondAdminSession.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -499,18 +504,17 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	}
 	stream.Body.Close()
 	nha049Code(t, listWith(userSession.AccessToken), connect.CodeUnauthenticated)
-	_, err = auth.StartLogin(context.Background(), connect.NewRequest(&authv1.StartLoginRequest{LoginName: "NHA141 User", Password: userPassword}))
+	_, err = auth.StartLogin(context.Background(), connect.NewRequest(&api.StartLoginRequest{LoginName: "NHA141 User", Password: userPassword}))
 	nha049Code(t, err, connect.CodeUnauthenticated)
-	active := authv1.AccountStatus_ACCOUNT_STATUS_ACTIVE
-	_, err = accountsClient.UpdateAccount(context.Background(), nha141BearerRequest(&authv1.UpdateAccountRequest{
-		AccountId: user.Msg.Account.Id, Status: &active}, secondAdminSession.AccessToken))
+	user, err = accountsClient.UpdateAccount(context.Background(), nha141BearerRequest(&api.UpdateAccountRequest{
+		Account: &api.Account{Name: user.Msg.Name, Etag: user.Msg.Etag, State: api.AccountState_ACCOUNT_STATE_ACTIVE}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"state"}}}, secondAdminSession.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
 	userSession = loginAs("NHA141 User", userPassword)
 	stream = openStream(userSession.AccessToken)
-	_, err = accountsClient.DeleteAccount(context.Background(), nha141BearerRequest(&authv1.DeleteAccountRequest{
-		AccountId: user.Msg.Account.Id}, secondAdminSession.AccessToken))
+	_, err = accountsClient.DeleteAccount(context.Background(), nha141BearerRequest(&api.DeleteAccountRequest{
+		Name: user.Msg.Name, Etag: user.Msg.Etag}, secondAdminSession.AccessToken))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -524,15 +528,15 @@ func TestNHA141RunTLSLoginRefreshExpiryAndOperatorRecovery(t *testing.T) {
 	concurrent := login(replacementPassword)
 	var refreshWait sync.WaitGroup
 	refreshStart := make(chan struct{})
-	refreshResults := make([]*authv1.SessionTokens, 2)
+	refreshResults := make([]*api.SessionTokens, 2)
 	refreshErrors := make([]error, 2)
 	for i := range refreshResults {
 		refreshWait.Add(1)
 		go func(i int) {
 			defer refreshWait.Done()
 			<-refreshStart
-			response, err := auth.RefreshSession(context.Background(), connect.NewRequest(&authv1.RefreshSessionRequest{
-				RefreshToken: concurrent.RefreshToken}))
+			response, err := auth.RefreshSession(context.Background(), connect.NewRequest(&api.RefreshSessionRequest{
+				RefreshToken: concurrent.RefreshToken, RenewalKey: append([]byte{byte(i + 1)}, make([]byte, 31)...)}))
 			refreshErrors[i] = err
 			if err == nil {
 				refreshResults[i] = response.Msg.Tokens
@@ -644,9 +648,9 @@ func TestNHA141DefaultRunComposesSessionProvider(t *testing.T) {
 		var dial net.Dialer
 		return dial.DialContext(ctx, "unix", filepath.Join(dataDir, operatorSocketName))
 	}}}
-	operator := authv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
+	operator := operatorv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
 	const password = "NHA141 synthetic default Run password"
-	admin, err := operator.BootstrapAdmin(context.Background(), connect.NewRequest(&authv1.BootstrapAdminRequest{
+	_, err := operator.BootstrapAdmin(context.Background(), connect.NewRequest(&authv1.BootstrapAdminRequest{
 		LoginName: "NHA141 Default Admin", DisplayName: "NHA141 Default Admin", Password: password}))
 	if err != nil {
 		t.Fatal(err)
@@ -654,14 +658,14 @@ func TestNHA141DefaultRunComposesSessionProvider(t *testing.T) {
 	publicHTTP := nha181Client(roots)
 	defer publicHTTP.CloseIdleConnections()
 	url := "https://" + address.String()
-	auth := authv1connect.NewAuthServiceClient(publicHTTP, url)
-	login, err := auth.StartLogin(context.Background(), connect.NewRequest(&authv1.StartLoginRequest{
+	auth := apiv2connect.NewAuthServiceClient(publicHTTP, url)
+	login, err := auth.StartLogin(context.Background(), connect.NewRequest(&api.StartLoginRequest{
 		LoginName: "NHA141 Default Admin", Password: password}))
 	if err != nil || login == nil || login.Msg.Decision.GetAuthenticated() == nil {
 		t.Fatalf("default Run session provider did not authenticate: %v", err)
 	}
-	_, err = auth.ListSessions(context.Background(), nha141BearerRequest(&authv1.ListSessionsRequest{
-		AccountId: admin.Msg.Account.Id}, login.Msg.Decision.GetAuthenticated().AccessToken))
+	_, err = auth.ListSessions(context.Background(), nha141BearerRequest(&api.ListSessionsRequest{
+		Parent: nha203SessionAccount(t, login.Msg.Decision.GetAuthenticated().Session).String()}, login.Msg.Decision.GetAuthenticated().AccessToken))
 	if err != nil {
 		t.Fatalf("default Run did not admit issued access: %v", err)
 	}

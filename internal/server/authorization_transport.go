@@ -1,9 +1,8 @@
 package server
 
 import (
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/authorization"
 )
 
@@ -46,15 +45,17 @@ func nativeRoutePermission(route RouteKey) (authorization.Permission, bool, bool
 	family := authv1.ScopeFamily_SCOPE_FAMILY_ACCOUNTS
 	var operation authv1.ScopeOperation
 	switch route.Path() {
-	case authv1connect.McpKeyServiceCreateMcpKeyProcedure, authv1connect.McpKeyServiceListMcpKeysProcedure, authv1connect.McpKeyServiceRevokeMcpKeyProcedure, authv1connect.AuthServiceListSessionsProcedure, authv1connect.AuthServiceRevokeSessionProcedure, authv1connect.AuthServiceListFactorsProcedure, authv1connect.AuthServiceRemoveFactorProcedure, authv1connect.AuthServiceReplaceRecoveryCodesProcedure:
+	case apiv2connect.HomeServiceGetHomeProcedure, apiv2connect.HomeServiceListHomesProcedure:
+		return authorization.Permission{}, true, true
+	case apiv2connect.McpKeyServiceIssueMcpKeyProcedure, apiv2connect.McpKeyServiceListMcpKeysProcedure, apiv2connect.McpKeyServiceRevokeMcpKeyProcedure, apiv2connect.AuthServiceListSessionsProcedure, apiv2connect.AuthServiceRevokeSessionProcedure, apiv2connect.AuthServiceListFactorCredentialsProcedure, apiv2connect.AuthServiceRemoveFactorCredentialProcedure, apiv2connect.AuthServiceReplaceRecoveryCodesProcedure:
 		return authorization.Permission{}, true, true // self ownership is rechecked by the session service/SQL
-	case authv1connect.AccountServiceGetAccountProcedure, authv1connect.AccountServiceListAccountsProcedure, authv1connect.AccountServiceListInvitationsProcedure, authv1connect.AuthorizationPolicyServiceGetPolicyProcedure, authv1connect.AccountServiceGetSecondFactorPolicyProcedure:
+	case apiv2connect.AccountServiceGetAccountProcedure, apiv2connect.AccountServiceListAccountsProcedure, apiv2connect.AccountServiceListInvitationsProcedure, apiv2connect.AuthorizationPolicyServiceGetAuthorizationPolicyProcedure, apiv2connect.AccountServiceGetSecondFactorPolicyProcedure:
 		operation = authv1.ScopeOperation_SCOPE_OPERATION_READ
-	case authv1connect.AccountServiceCreateAccountProcedure, authv1connect.AccountServiceCreateInvitationProcedure, authv1connect.AccountServiceRevokeInvitationProcedure:
+	case apiv2connect.AccountServiceCreateAccountProcedure, apiv2connect.AccountServiceIssueInvitationProcedure, apiv2connect.AccountServiceRevokeInvitationProcedure:
 		operation = authv1.ScopeOperation_SCOPE_OPERATION_WRITE
-	case authv1connect.AccountServiceUpdateAccountProcedure, authv1connect.AccountServiceDeleteAccountProcedure, authv1connect.AuthorizationPolicyServiceReplacePolicyProcedure, authv1connect.AccountServiceSetSecondFactorPolicyProcedure:
+	case apiv2connect.AccountServiceUpdateAccountProcedure, apiv2connect.AccountServiceDeleteAccountProcedure, apiv2connect.AuthorizationPolicyServiceReplaceAuthorizationPolicyProcedure, apiv2connect.AccountServiceChangeSecondFactorPolicyProcedure:
 		operation = authv1.ScopeOperation_SCOPE_OPERATION_ADMINISTER
-	case statev1connect.StateServiceOpenViewProcedure, statev1connect.StateServiceReadPageProcedure, statev1connect.StateServiceReleaseViewProcedure, statev1connect.StateServiceWatchViewProcedure:
+	case apiv2connect.EntityViewServiceCreateEntityViewProcedure, apiv2connect.EntityViewServiceGetEntityViewProcedure, apiv2connect.EntityViewServiceListEntityViewsProcedure, apiv2connect.EntityViewServiceDeleteEntityViewProcedure, apiv2connect.EntityViewServiceQueryEntityViewProcedure, apiv2connect.EntityViewServiceWatchEntityViewProcedure:
 		family = authv1.ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY
 		operation = authv1.ScopeOperation_SCOPE_OPERATION_READ
 	default:

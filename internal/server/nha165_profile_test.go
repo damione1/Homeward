@@ -33,11 +33,12 @@ import (
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	reg "github.com/damione1/Homeward/gen/home/registry/v1"
-	state "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
@@ -258,7 +259,6 @@ type nha165ClientSummary struct {
 	Refreshes        [nha165Clients]int `json:"native_session_refreshes"`
 	CommandRotations int                `json:"command_session_rotations"`
 	Counts           [nha165Clients]int
-	Sessions         [nha165Clients]string
 	SnapshotEntities [nha165Clients]int
 	Commands         int
 }
@@ -430,7 +430,14 @@ func TestNHA165CoreHelper(t *testing.T) {
 	}
 	candidates := make([]integrations.Candidate, nha165Entities)
 	for i, key := range keys {
-		candidates[i], e = integrations.NewCandidate(key, []*reg.CapabilityDescription{{SchemaId: contracts.SwitchSchema, Major: 1, Endpoint: "relay", DisplayName: "NHA165 fake relay", Constraints: &reg.CapabilityDescription_Switch{Switch: &reg.SwitchConstraints{SetOn: true}}}})
+		// The public v2 API deliberately omits native source sequence/session IDs.
+		// A typed synthetic request counter supplies the latency join instead.
+		// This changes the fixture shape (two capabilities per entity); results
+		// from the retired one-capability v1 fixture are not comparable.
+		candidates[i], e = integrations.NewCandidate(key, []*reg.CapabilityDescription{
+			{SchemaId: contracts.SwitchSchema, Major: 1, Endpoint: "relay", DisplayName: "NHA165 fake relay", Constraints: &reg.CapabilityDescription_Switch{Switch: &reg.SwitchConstraints{SetOn: true}}},
+			{SchemaId: contracts.MeasurementSchema, Major: 1, Endpoint: "requests", DisplayName: "NHA165 synthetic request counter", Constraints: &reg.CapabilityDescription_Measurement{Measurement: &reg.MeasurementConstraints{Unit: "{request}", Precision: 0, Semantic: reg.MeasurementSemantic_MEASUREMENT_SEMANTIC_TOTAL_INCREASING, Aggregation: reg.MeasurementAggregation_MEASUREMENT_AGGREGATION_CURRENT}}},
+		})
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -448,9 +455,21 @@ func TestNHA165CoreHelper(t *testing.T) {
 		t.Fatal(e)
 	}
 	quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
-	publish := func(index int, on bool, seq uint64) (int64, error) {
-		v, at := domain.NewSwitchValue(on), time.Now().UTC()
-		o, e := integrations.NewStateObservation("relay", quality, &v, &at, at, &seq)
+	unit, e := domain.NewUnitCatalog().Parse("{request}")
+	if e != nil {
+		t.Fatal(e)
+	}
+	publish := func(index int, _ bool, seq uint64) (int64, error) {
+		measurement, err := domain.NewMeasurement(float64(seq), unit, 0, domain.SemanticTotalIncreasing, domain.AggregationCurrent)
+		if err != nil {
+			return 0, err
+		}
+		v, err := domain.NewMeasurementValue(measurement)
+		if err != nil {
+			return 0, err
+		}
+		at := time.Now().UTC()
+		o, e := integrations.NewStateObservation("requests", quality, &v, &at, at, &seq)
 		if e != nil {
 			return 0, e
 		}
@@ -471,7 +490,7 @@ func TestNHA165CoreHelper(t *testing.T) {
 	}}}
 	defer opHTTP.CloseIdleConnections()
 	password := "NHA165 synthetic device-free native password"
-	admin, e := authv1connect.NewOperatorAccountServiceClient(opHTTP, "http://operator").BootstrapAdmin(ctx, connect.NewRequest(&auth.BootstrapAdminRequest{LoginName: "NHA165 Admin", DisplayName: "NHA165", Password: password}))
+	admin, e := operatorv1connect.NewOperatorAccountServiceClient(opHTTP, "http://operator").BootstrapAdmin(ctx, connect.NewRequest(&auth.BootstrapAdminRequest{LoginName: "NHA165 Admin", DisplayName: "NHA165", Password: password}))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -514,7 +533,7 @@ func TestNHA165CoreHelper(t *testing.T) {
 		t.Fatal(e)
 	}
 	// SubscribeEdge returns cursor separately; the dedicated edge helper below
-	// performs exact accounting without conflating state WatchView with events.
+	// performs exact accounting without conflating public EntityViews with events.
 	nha165RunIngress(t, ctx, p, proof, log, sequence, session, bindings, publish, driver)
 	if e := nha165WaitFile(ctx, filepath.Join(proof, "clients-done.json")); e != nil {
 		t.Fatal(e)
@@ -851,146 +870,286 @@ func (r *nha165StreamRotation) planned(err error) bool {
 	return planned
 }
 
+// A synthetic observable count is data, never a command-confirmation proof.
+func nha165PublicSequence(entry *api.EntityViewEntry) (uint64, error) {
+	var sequence uint64
+	for _, capability := range entry.GetCapabilities() {
+		measurement := capability.GetNumericMeasurement()
+		if measurement == nil {
+			continue
+		}
+		observation := measurement.GetObservation()
+		if measurement.Unit != "{request}" || measurement.Precision != 0 || measurement.Semantic != api.MeasurementSemantic_MEASUREMENT_SEMANTIC_TOTAL_INCREASING || measurement.Aggregation != api.MeasurementAggregation_MEASUREMENT_AGGREGATION_CURRENT || observation == nil || observation.Value == nil || observation.GetQuality().GetFreshness() != api.Freshness_FRESHNESS_CURRENT || observation.GetQuality().GetAvailability() != api.Availability_AVAILABILITY_AVAILABLE || observation.GetQuality().GetProvenance() != api.Provenance_PROVENANCE_OBSERVED {
+			return 0, errors.New("synthetic counter absent or unqualified")
+		}
+		value := observation.GetValue()
+		if math.IsNaN(value) || math.IsInf(value, 0) || value < 1 || value > 1<<53 || math.Trunc(value) != value || sequence != 0 {
+			return 0, errors.New("synthetic count is not one exact positive integer")
+		}
+		sequence = uint64(value)
+	}
+	if sequence == 0 {
+		return 0, errors.New("synthetic counter not advertised")
+	}
+	return sequence, nil
+}
+
+type nha165EntityCapture struct {
+	view     *api.EntityView
+	resume   string
+	through  uint64
+	entities int
+}
+type nha165ViewDelivery struct {
+	entry *api.EntityViewEntry
+	err   error
+}
+type nha165ViewReader struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+	events chan nha165ViewDelivery
+}
+
 func nha165ReadClient(ctx context.Context, t *testing.T, id int, p nha165Profile, proof string, ready nha165Ready, tokens *auth.SessionTokens, snapshots *sync.Mutex, fast *nha165Log, summary *nha165ClientSummary, readyCount *atomic.Int32) error {
 	client := nha181Client(nha165LoadRoots(t, ready.Data))
 	client.Timeout = 0
 	defer client.CloseIdleConnections()
-	api := statev1connect.NewStateServiceClient(client, ready.Base)
-	// OpenView admits only MaxPreparations=2 simultaneous captures. Serialize
-	// bootstrap snapshot+all850pages locally; release before WatchView blocks.
-	// All ten independent native streams remain concurrent during measurement.
-	var cursor *state.ViewCursor
-	bootstrapErr := func() error {
+	apiViews := apiv2connect.NewEntityViewServiceClient(client, ready.Base)
+	listed, err := apiv2connect.NewHomeServiceClient(client, ready.Base).ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{}, tokens.AccessToken))
+	if err != nil {
+		return err
+	}
+	if len(listed.Msg.Homes) != 1 {
+		return errors.New("one native installation required")
+	}
+	parent := listed.Msg.Homes[0].Name
+	work, stop := context.WithCancel(ctx)
+	var prepare sync.WaitGroup
+	readers := make(map[*nha165ViewReader]struct{})
+	defer func() {
+		stop()
+		for reader := range readers {
+			reader.cancel()
+		}
+		prepare.Wait()
+		for reader := range readers {
+			<-reader.done
+		}
+	}()
+	capture := func(token string) (nha165EntityCapture, error) {
 		snapshots.Lock()
 		defer snapshots.Unlock()
-		open, e := api.OpenView(ctx, nha141BearerRequest(&state.OpenViewRequest{PageSize: 100, Filter: &state.ViewFilter{}}, tokens.AccessToken))
-		if e != nil {
-			return e
+		result := nha165EntityCapture{}
+		created, err := apiViews.CreateEntityView(work, nha141BearerRequest(&api.CreateEntityViewRequest{Parent: parent, EntityView: &api.EntityView{}}, token))
+		if err != nil {
+			return result, err
 		}
-		page := open.Msg
-		cursor = proto.Clone(page.Cursor).(*state.ViewCursor)
+		result.view = created.Msg
+		pageToken := ""
 		seen := make(map[string]bool, nha165Entities)
 		for {
-			for _, entity := range page.Entities {
-				if entity.EntityId == "" || seen[entity.EntityId] {
-					return errors.New("snapshot duplicate/empty entity")
-				}
-				seen[entity.EntityId] = true
+			page, err := apiViews.QueryEntityView(work, nha141BearerRequest(&api.QueryEntityViewRequest{Name: created.Msg.Name, PageSize: 100, PageToken: pageToken}, token))
+			if err != nil {
+				return result, err
 			}
-			if page.NextPageToken == "" {
+			for _, entry := range page.Msg.Entries {
+				name := entry.Entity.GetName()
+				if name == "" || seen[name] {
+					return result, errors.New("snapshot duplicate/empty entity")
+				}
+				seen[name] = true
+				sequence, err := nha165PublicSequence(entry)
+				if err != nil {
+					return result, err
+				}
+				result.through = max(result.through, sequence)
+			}
+			pageToken = page.Msg.NextPageToken
+			if pageToken == "" {
+				result.resume = page.Msg.ResumeToken
 				break
 			}
-			next, e := api.ReadPage(ctx, nha141BearerRequest(&state.ReadPageRequest{SnapshotToken: page.SnapshotToken, PageToken: page.NextPageToken}, tokens.AccessToken))
-			if e != nil {
-				return e
+			if page.Msg.ResumeToken != "" {
+				return result, errors.New("partial snapshot checkpoint")
 			}
-			page = next.Msg.Page
 		}
-		if len(seen) != nha165Entities {
-			return fmt.Errorf("snapshot %d entities", len(seen))
+		result.entities = len(seen)
+		if result.entities != nha165Entities || result.resume == "" {
+			return result, errors.New("incomplete entity capture")
 		}
-		summary.SnapshotEntities[id] = len(seen)
-		return nil
-	}()
-	if bootstrapErr != nil {
-		return bootstrapErr
+		return result, nil
 	}
-
+	begin := func(capture nha165EntityCapture, token string) *nha165ViewReader {
+		readCtx, cancel := context.WithCancel(work)
+		reader := &nha165ViewReader{cancel: cancel, done: make(chan struct{}), events: make(chan nha165ViewDelivery, 1)}
+		readers[reader] = struct{}{}
+		go func() {
+			defer close(reader.done)
+			// Each capture has its real 60s lifetime. This owned timer is a failure
+			// bound, not an extension and not an RPC deadline exported to the server.
+			rotation := nha165NewStreamRotation(readCtx, time.Until(capture.view.ExpireTime.AsTime())-time.Second)
+			defer rotation.close()
+			deliver := func(item nha165ViewDelivery) bool {
+				select {
+				case reader.events <- item:
+					return true
+				case <-rotation.ctx.Done():
+					return false
+				}
+			}
+			stream, err := apiViews.WatchEntityView(rotation.ctx, nha141BearerRequest(&api.WatchEntityViewRequest{Name: capture.view.Name, ResumeToken: capture.resume}, token))
+			if err == nil {
+				defer stream.Close()
+				for stream.Receive() {
+					frame := stream.Msg()
+					if frame.ResumeToken == "" || frame.GetUpsert() == nil {
+						err = errors.New("unexpected entity removal/absent checkpoint")
+						break
+					}
+					if !deliver(nha165ViewDelivery{entry: proto.Clone(frame.GetUpsert()).(*api.EntityViewEntry)}) {
+						return
+					}
+				}
+				if err == nil {
+					err = stream.Err()
+				}
+			}
+			if err == nil {
+				err = errors.New("entity reader ended before completion")
+			}
+			if errors.Is(context.Cause(rotation.ctx), nha165RotateStream) {
+				err = errors.New("overlapping handoff failed before actual capture expiry")
+			}
+			// A parent cancellation joins without requiring an error consumer.
+			select {
+			case reader.events <- nha165ViewDelivery{err: err}:
+			case <-readCtx.Done():
+			}
+		}()
+		return reader
+	}
+	retire := func(reader *nha165ViewReader, capture nha165EntityCapture, token string) {
+		reader.cancel()
+		<-reader.done
+		delete(readers, reader)
+		_, _ = apiViews.DeleteEntityView(work, nha141BearerRequest(&api.DeleteEntityViewRequest{Name: capture.view.Name}, token))
+	}
+	current, err := capture(tokens.AccessToken)
+	if err != nil {
+		return err
+	}
+	summary.SnapshotEntities[id] = current.entities
+	reader := begin(current, tokens.AccessToken)
 	if readyCount.Add(1) == nha165Clients {
-		if e := nha165WriteJSON(filepath.Join(proof, "clients-ready.json"), map[string]int{"active_readers": nha165Clients}); e != nil {
-			return e
+		if err := nha165WriteJSON(filepath.Join(proof, "clients-ready.json"), map[string]int{"active_readers": nha165Clients}); err != nil {
+			return err
 		}
 	}
-	// Access leases last 15m. Rotate at 4m through native RefreshSession and
-	// reopen from the LAST delivered public cursor: no snapshot reset or ignored
-	// frames; all sequences across every rotation remain strictly contiguous.
-	expected := nha165FirstSequence
-	var source string
+	// Before expiration, capture B while still consuming A. Drain A through B's
+	// exact synthetic cut, then consume B's retained suffix. Any overlap is checked
+	// contiguously before deduplication; no snapshot reset can hide a missing frame.
+	type preparedCapture struct {
+		capture nha165EntityCapture
+		tokens  *auth.SessionTokens
+		err     error
+	}
+	prepared := make(chan preparedCapture, 1)
+	var pending *preparedCapture
+	var nextReader *nha165ViewReader
+	timer := time.NewTimer(time.Until(current.view.CreateTime.AsTime().Add(40 * time.Second)))
+	defer timer.Stop()
+	refreshingAt := time.Now().Add(4 * time.Minute)
+	expected, wireExpected := nha165FirstSequence, nha165FirstSequence
 	received := 0
-	pendingRotation := false
+	preparing := false
 	for received < p.count() {
-		rotation := nha165NewStreamRotation(ctx, 4*time.Minute)
-		stream, e := api.WatchView(rotation.ctx, nha141BearerRequest(&state.WatchViewRequest{Cursor: cursor, Filter: &state.ViewFilter{}}, tokens.AccessToken))
-		if e == nil {
-			for stream.Receive() {
-				at := nha165Mono()
-				frame := stream.Msg()
-				if frame.GetResyncRequired() != nil {
-					rotation.close()
-					stream.Close()
-					return fmt.Errorf("unexpected resync: %v", frame.GetResyncRequired().Reason)
+		select {
+		case <-work.Done():
+			return work.Err()
+		case <-timer.C:
+			if preparing || pending != nil {
+				return errors.New("overlapping handoff did not finish")
+			}
+			preparing = true
+			oldTokens := tokens
+			refresh := time.Now().After(refreshingAt)
+			prepare.Add(1)
+			go func() {
+				defer prepare.Done()
+				result := preparedCapture{tokens: oldTokens}
+				if refresh {
+					response, err := authv1connect.NewAuthServiceClient(client, ready.Base).RefreshSession(work, connect.NewRequest(&auth.RefreshSessionRequest{RefreshToken: oldTokens.RefreshToken}))
+					if err != nil {
+						result.err = err
+					} else if response.Msg.Tokens == nil {
+						result.err = errors.New("native refresh missing tokens")
+					} else {
+						result.tokens = response.Msg.Tokens
+					}
 				}
-				if frame.Cursor == nil {
-					rotation.close()
-					stream.Close()
-					return errors.New("frame cursor missing")
+				if result.err == nil {
+					result.capture, result.err = capture(result.tokens.AccessToken)
 				}
-				cursor = proto.Clone(frame.Cursor).(*state.ViewCursor)
-				for _, value := range frame.GetDelta().GetStates() {
-					if value.SourceSeq == nil || *value.SourceSeq < nha165FirstSequence {
-						continue
-					}
-					seq := *value.SourceSeq
-					if seq != expected {
-						rotation.close()
-						stream.Close()
-						return fmt.Errorf("silent loss or duplicate: expected=%d got=%d", expected, seq)
-					}
-					if source == "" {
-						source = value.SourceSession
-					}
-					if source == "" || source != value.SourceSession {
-						rotation.close()
-						stream.Close()
-						return errors.New("source session changed")
-					}
+				select {
+				case prepared <- result:
+				case <-work.Done():
+				}
+			}()
+		case result := <-prepared:
+			preparing = false
+			if result.err != nil {
+				return result.err
+			}
+			pending = &result
+			nextReader = begin(result.capture, result.tokens.AccessToken)
+		case delivery := <-reader.events:
+			if delivery.err != nil {
+				return delivery.err
+			}
+			at := nha165Mono()
+			sequence, err := nha165PublicSequence(delivery.entry)
+			if err != nil {
+				return err
+			}
+			// A fresh handoff reader starts exactly after its own immutable cut.
+			if sequence != wireExpected {
+				return fmt.Errorf("wire suffix lost/duplicated count: expected=%d got=%d", wireExpected, sequence)
+			}
+			wireExpected++
+			if sequence >= nha165FirstSequence {
+				if sequence > expected {
+					return fmt.Errorf("silent loss: expected=%d got=%d", expected, sequence)
+				}
+				if sequence == expected {
 					if id == 0 {
-						fast.put(nha165Record{Kind: "received", At: at, Sequence: seq, Session: source})
-					}
-					if pendingRotation {
-						summary.Rotations[id]++
-						pendingRotation = false
+						fast.put(nha165Record{Kind: "received", At: at, Sequence: sequence})
 					}
 					expected++
 					received++
 					if received%100 == 0 {
-						fast.put(nha165Record{Kind: "client_progress", Client: id, At: at, Sequence: seq, Session: source})
+						fast.put(nha165Record{Kind: "client_progress", Client: id, At: at, Sequence: sequence})
 					}
-					if received > p.count() {
-						rotation.close()
-						stream.Close()
-						return errors.New("unexpected extra observation")
-					}
-				}
-				if received == p.count() {
-					break
 				}
 			}
-			e = stream.Err()
 		}
-		planned := rotation.planned(e)
-		if stream != nil {
-			stream.Close()
+		if pending != nil && expected-1 >= pending.capture.through {
+			retire(reader, current, tokens.AccessToken)
+			current = pending.capture
+			reader = nextReader
+			wireExpected = current.through + 1
+			if pending.tokens != tokens {
+				summary.Refreshes[id]++
+				refreshingAt = time.Now().Add(4 * time.Minute)
+			}
+			tokens = pending.tokens
+			pending = nil
+			nextReader = nil
+			summary.Rotations[id]++
+			timer.Reset(time.Until(current.view.CreateTime.AsTime().Add(40 * time.Second)))
 		}
-		if received == p.count() {
-			break
-		}
-		if !planned {
-			return fmt.Errorf("stream stopped before all frames %d/%d: %w", received, p.count(), e)
-		}
-		refresh, e := authv1connect.NewAuthServiceClient(client, ready.Base).RefreshSession(ctx, connect.NewRequest(&auth.RefreshSessionRequest{RefreshToken: tokens.RefreshToken}))
-		if e != nil {
-			return e
-		}
-		tokens = refresh.Msg.Tokens
-		if tokens == nil {
-			return errors.New("native refresh missing tokens")
-		}
-		summary.Refreshes[id]++
-		pendingRotation = true
 	}
+	retire(reader, current, tokens.AccessToken)
 	summary.Counts[id] = received
-	summary.Sessions[id] = source
 	return nil
 }
 func nha165CommandsClient(ctx context.Context, t *testing.T, p nha165Profile, proof string, ready nha165Ready, tokens *auth.SessionTokens, summary *nha165ClientSummary) error {
@@ -1182,8 +1341,8 @@ func nha165Merge(proof string, p nha165Profile, externalRSS uint64) (nha165Repor
 		if v.Kind != "received" {
 			return errors.New("unexpected client record")
 		}
-		if v.Session != r.SourceSession {
-			return errors.New("client/Host source session mismatch")
+		if v.Session != "" {
+			return errors.New("public v2 latency evidence must not claim a native source-session identifier")
 		}
 		o, ok := obs[v.Sequence]
 		if !ok || received[v.Sequence] {
@@ -1204,10 +1363,10 @@ func nha165Merge(proof string, p nha165Profile, externalRSS uint64) (nha165Repor
 		r.Failure = append(r.Failure, "scheduled/admitted/received observation count mismatch")
 	}
 	for i := 0; i < nha165Clients; i++ {
-		if r.Clients.Counts[i] != p.count() || r.Clients.SnapshotEntities[i] != nha165Entities || r.Clients.Sessions[i] != r.SourceSession {
+		if r.Clients.Counts[i] != p.count() || r.Clients.SnapshotEntities[i] != nha165Entities {
 			r.Failure = append(r.Failure, fmt.Sprintf("client%d incomplete", i))
 		}
-		if p.seconds() > 240 && (r.Clients.Refreshes[i] < 1 || r.Clients.Rotations[i] < 1 || r.Clients.Refreshes[i] != r.Clients.Rotations[i]) {
+		if p.seconds() > 280 && (r.Clients.Refreshes[i] < 1 || r.Clients.Rotations[i] < 1) {
 			r.Failure = append(r.Failure, fmt.Sprintf("client%d native refresh/cursor resume not demonstrated", i))
 		}
 	}
@@ -1459,7 +1618,6 @@ func TestNHA165MeasurementRejectsOmissionAndUsesExactRank(t *testing.T) {
 	var clients nha165ClientSummary
 	for i := 0; i < nha165Clients; i++ {
 		clients.Counts[i] = 2
-		clients.Sessions[i] = "fixture"
 		clients.SnapshotEntities[i] = 850
 	}
 	clients.Commands = 2
@@ -1479,9 +1637,9 @@ func TestNHA165MeasurementRejectsOmissionAndUsesExactRank(t *testing.T) {
 		t.Fatal(e)
 	}
 	fast := nha165NewLog(t, filepath.Join(proof, "fast-client.jsonl"))
-	first := nha165Record{Kind: "received", Sequence: nha165FirstSequence, Session: "fixture", At: 3}
+	first := nha165Record{Kind: "received", Sequence: nha165FirstSequence, At: 3}
 	fast.put(first)
-	fast.put(nha165Record{Kind: "received", Sequence: nha165FirstSequence + 1, Session: "fixture", At: int64(time.Second) + 3})
+	fast.put(nha165Record{Kind: "received", Sequence: nha165FirstSequence + 1, At: int64(time.Second) + 3})
 	if e := fast.close(); e != nil {
 		t.Fatal(e)
 	}

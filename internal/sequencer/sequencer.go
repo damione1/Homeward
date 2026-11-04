@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"github.com/damione1/Homeward/internal/recorderevidence"
 	"math"
 	"reflect"
 	"sync"
@@ -98,23 +99,24 @@ const (
 // Entry is an immutable value returned from the journal. Only the matching
 // accessor succeeds for its kind; the payload cannot be mutated by a reader.
 type Entry struct {
-	cursor          Cursor
-	kind            Kind
-	instance        domain.IntegrationInstanceID
-	entity          domain.EntityID
-	source          domain.SourceStamp
-	causality       domain.Causality
-	receivedAt      time.Time
-	admittedTick    time.Duration
-	estimatedBytes  int
-	state           domain.ObservedState
-	transition      domain.StateTransition
-	event           integrations.DeviceEvent
-	health          integrations.HealthReport
-	registry        []integrations.RegistryRecord
-	registryRemoved []domain.EntityID
-	capabilities    []integrations.DiscoveryDeclaration
-	nativeMQTTEdge  integrations.NativeMQTTEdge
+	cursor           Cursor
+	kind             Kind
+	instance         domain.IntegrationInstanceID
+	entity           domain.EntityID
+	source           domain.SourceStamp
+	causality        domain.Causality
+	receivedAt       time.Time
+	admittedTick     time.Duration
+	estimatedBytes   int
+	state            domain.ObservedState
+	recorderEvidence recorderevidence.Evidence
+	transition       domain.StateTransition
+	event            integrations.DeviceEvent
+	health           integrations.HealthReport
+	registry         []integrations.RegistryRecord
+	registryRemoved  []domain.EntityID
+	capabilities     []integrations.DiscoveryDeclaration
+	nativeMQTTEdge   integrations.NativeMQTTEdge
 }
 
 func (e Entry) Cursor() Cursor { return e.cursor }
@@ -138,6 +140,10 @@ func (e Entry) Origin() (domain.IntegrationInstanceID, domain.SourceStamp, domai
 		return domain.IntegrationInstanceID{}, domain.SourceStamp{}, domain.Causality{}, false
 	}
 }
+
+// RecorderEvidence belongs to this exact state admission, never to a later catalogue.
+func (e Entry) RecorderEvidence() recorderevidence.Evidence { return e.recorderEvidence }
+
 func (e Entry) State() (domain.EntityID, domain.ObservedState, domain.StateTransition, bool) {
 	return e.entity, e.state, e.transition, e.kind == KindState
 }
@@ -187,20 +193,23 @@ type Snapshot struct {
 }
 
 type Sequencer struct {
-	observationHealth        *observability.HealthCell
-	observation              *observability.Cells
-	mu                       sync.Mutex
-	clock                    Clock
-	started                  time.Time
-	lastTick                 time.Duration
-	epoch                    [16]byte
-	seq                      uint64
-	catalogueSequence        uint64
-	journal                  []Entry
-	journalSizes             []int
-	journalBytes             int
-	count                    int
-	states                   map[domain.EntityID]domain.ObservedState
+	observationHealth *observability.HealthCell
+	observation       *observability.Cells
+	mu                sync.Mutex
+	clock             Clock
+	started           time.Time
+	lastTick          time.Duration
+	epoch             [16]byte
+	seq               uint64
+	catalogueSequence uint64
+	journal           []Entry
+	journalSizes      []int
+	journalBytes      int
+	count             int
+	states            map[domain.EntityID]domain.ObservedState
+	// One digest per existing state, at most MaxProjectedEntities (4096).
+	// No full declarations, extra identity catalogue, or history is retained.
+	stateEvidence            map[domain.EntityID][32]byte
 	health                   map[domain.IntegrationInstanceID]integrations.HealthReport
 	registry                 map[domain.EntityID]integrations.RegistryRecord
 	capabilities             map[domain.EntityID][]*wireregistry.CapabilityDescription
@@ -242,7 +251,7 @@ func NewWithObservation(clock Clock, journalCapacity int, limits QueueLimits, ce
 			return nil, ErrInvalidInput
 		}
 	}
-	s := &Sequencer{observation: cells, clock: clock, started: time.Now(), journal: make([]Entry, journalCapacity), journalSizes: make([]int, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport), registry: make(map[domain.EntityID]integrations.RegistryRecord), capabilities: make(map[domain.EntityID][]*wireregistry.CapabilityDescription), commandRoutes: make(map[commandRouteSlot]map[domain.EntityID]struct{}), commandAliases: make(map[domain.HAAlias]domain.EntityID), limits: limits, subs: make(map[*Subscription]struct{})}
+	s := &Sequencer{observation: cells, clock: clock, started: time.Now(), journal: make([]Entry, journalCapacity), journalSizes: make([]int, journalCapacity), states: make(map[domain.EntityID]domain.ObservedState), stateEvidence: make(map[domain.EntityID][32]byte), health: make(map[domain.IntegrationInstanceID]integrations.HealthReport), registry: make(map[domain.EntityID]integrations.RegistryRecord), capabilities: make(map[domain.EntityID][]*wireregistry.CapabilityDescription), commandRoutes: make(map[commandRouteSlot]map[domain.EntityID]struct{}), commandAliases: make(map[domain.HAAlias]domain.EntityID), limits: limits, subs: make(map[*Subscription]struct{})}
 	if _, err := rand.Read(s.epoch[:]); err != nil {
 		return nil, err
 	}
@@ -341,6 +350,7 @@ func retainedBytes(entry Entry) int {
 	}
 	switch entry.kind {
 	case KindState:
+		size = retainedCharge(size, entry.recorderEvidence.RetainedBytes())
 		id, state, _, _ := entry.State()
 		name, _ := id.Value()
 		size = retainedCharge(size, len(name))
@@ -589,8 +599,35 @@ func (s *Sequencer) AcceptStateWithActionReceipt(ctx context.Context, entity dom
 	if err != nil {
 		return integrations.ActionReceipt{}, err
 	}
+	// Freeze only facts available at this publication cut. Retirement and
+	// detached native harness admissions remain explicitly without provenance;
+	// neither may borrow a replacement entity's declarations.
+	var evidence recorderevidence.Evidence
+	if !accepted.Retirement() && s.registryState == registryReady {
+		if record, found := s.registry[entity]; found && !record.Retired() && len(s.capabilities[entity]) != 0 {
+			evidence, err = integrations.NewRecorderEvidence(record, s.capabilities[entity])
+			if errors.Is(err, recorderevidence.ErrBudget) {
+				// Preserve the native state even when its identity cannot fit a
+				// historical proof. Missing provenance is never publicly readable.
+				evidence = recorderevidence.Evidence{}
+			} else if err != nil || evidence.Entity() != entity || evidence.Instance() != instance {
+				return integrations.ActionReceipt{}, ErrIdentityConflict
+			}
+		}
+	}
+	if evidence.Present() && exists && !transition.ValueChanged && s.stateEvidence[entity] != evidence.Digest() {
+		// Unchanged values may inherit LastChanged/LastUpdated and ObservedAt.
+		// Without a proof for that exact contributing scope, preserve the native
+		// state but exclude this historical record. Never relabel A metadata as B.
+		evidence = recorderevidence.Evidence{}
+	}
+	var evidenceDigest [32]byte
+	if evidence.Present() {
+		evidenceDigest = evidence.Digest()
+	}
+	s.stateEvidence[entity] = evidenceDigest
 	s.states[entity] = next
-	entry := s.append(Entry{kind: KindState, instance: instance, entity: entity, source: source, causality: causality, receivedAt: at, state: next, transition: transition})
+	entry := s.append(Entry{kind: KindState, recorderEvidence: evidence, instance: instance, entity: entity, source: source, causality: causality, receivedAt: at, state: next, transition: transition})
 	s.publish(entry)
 	point, _ := integrations.NewActionPoint(entry.cursor.seq, revision, entry.admittedTick)
 	return integrations.NewActionReceipt(point, next, instance, source, causality)

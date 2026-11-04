@@ -8,7 +8,10 @@ use std::{
 
 use buffa_types::google::protobuf::Timestamp;
 use home_client_transport::{AccessToken, AuthTransport, Failure, FailureKind};
-use home_wire_contract::{auth_contract, home::auth::v1 as auth};
+use home_wire_contract::{
+    auth_contract,
+    home::{api::v2 as auth, auth::v1 as native},
+};
 use tokio::sync::{Mutex, RwLock, RwLockReadGuard, watch};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use zeroize::{Zeroize, Zeroizing};
@@ -356,7 +359,7 @@ impl SessionCoordinator {
                 .api
                 .complete_login(
                     auth::CompleteLoginRequest {
-                        challenge_id: challenge.id,
+                        challenge_id: challenge.challenge_id,
                         proof: auth::FactorProof {
                             proof: Some(auth::factor_proof::Proof::RecoveryCode(code.to_string())),
                             ..Default::default()
@@ -511,12 +514,15 @@ impl SessionCoordinator {
                         cancellation: self.token_for(generation)?,
                         token: AccessToken::parse(&record.tokens.access_token)
                             .map_err(|_| SessionFailure::InvalidResponse)?,
-                        account: auth_contract::AccountId::try_from(
-                            &*record.tokens.session.account_id,
+                        account: auth_contract::SessionName::try_from(
+                            record.tokens.session.name.as_str(),
+                        )
+                        .map_err(|_| SessionFailure::InvalidResponse)?
+                        .account(),
+                        session: auth_contract::SessionName::try_from(
+                            record.tokens.session.name.as_str(),
                         )
                         .map_err(|_| SessionFailure::InvalidResponse)?,
-                        session: auth_contract::SessionId::try_from(&*record.tokens.session.id)
-                            .map_err(|_| SessionFailure::InvalidResponse)?,
                     });
                 }
                 let generation = self.advance();
@@ -553,7 +559,14 @@ impl SessionCoordinator {
                     .api
                     .preflight_refresh(
                         auth::ListSessionsRequest {
-                            account_id: previous.tokens.session.account_id.clone(),
+                            parent: auth_contract::SessionName::try_from(
+                                previous.tokens.session.name.as_str(),
+                            )
+                            .map_err(|_| SessionFailure::InvalidResponse)?
+                            .account()
+                            .as_str()
+                            .to_owned(),
+                            page_size: 1,
                             ..Default::default()
                         },
                         &access,
@@ -568,7 +581,8 @@ impl SessionCoordinator {
                     && match error.authorization_termination() {
                         Ok(None) => true,
                         Ok(Some(detail)) => {
-                            detail.reason == auth::AuthorizationTerminationReason::CredentialExpired
+                            detail.reason
+                                == native::AuthorizationTerminationReason::CredentialExpired
                         }
                         Err(_) => false,
                     };
@@ -651,15 +665,14 @@ impl SessionCoordinator {
                 .tokens
                 .into_option()
                 .ok_or(SessionFailure::InvalidResponse)?;
-            if tokens.session.id != previous.tokens.session.id
-                || tokens.session.account_id != previous.tokens.session.account_id
+            if tokens.session.name != previous.tokens.session.name
                 || !same_persisted_instant(
-                    tokens.session.created_at.as_option(),
-                    previous.tokens.session.created_at.as_option(),
+                    tokens.session.create_time.as_option(),
+                    previous.tokens.session.create_time.as_option(),
                 )
                 || !same_persisted_instant(
-                    tokens.session.authenticated_at.as_option(),
-                    previous.tokens.session.authenticated_at.as_option(),
+                    tokens.session.authentication_time.as_option(),
+                    previous.tokens.session.authentication_time.as_option(),
                 )
                 || tokens.session.authentication_satisfaction
                     != previous.tokens.session.authentication_satisfaction
@@ -777,7 +790,7 @@ impl SessionCoordinator {
                     .api
                     .revoke(
                         auth::RevokeSessionRequest {
-                            session_id: previous.tokens.session.id.clone(),
+                            name: previous.tokens.session.name.clone(),
                             ..Default::default()
                         },
                         &token,
@@ -817,27 +830,13 @@ impl SessionCoordinator {
         generation: Generation,
         failure: &Failure,
     ) -> Result<SessionReaction, SessionFailure> {
-        use auth::AuthorizationTerminationReason as Reason;
-        let access_expired = if let Some(detail) = failure
-            .auth_error()
-            .map_err(|_| SessionFailure::InvalidResponse)?
-        {
-            let admitted =
-                auth_contract::admit_error(&detail).map_err(|_| SessionFailure::InvalidResponse)?;
-            if matches!(renewal_failure(failure)?, RenewalFailure::Reauthenticate) {
-                if !self.is_current(generation) {
-                    return Ok(SessionReaction::IgnoredOldGeneration);
-                }
-                self.reject_session(generation).await?;
-                return Ok(SessionReaction::CredentialsDiscarded);
-            }
-            matches!(&admitted.wire().detail,
-                Some(auth::auth_error::Detail::Expired(value)) if *value == auth::ExpiredResource::AccessToken)
-        } else {
-            false
-        };
-        let access_expired = access_expired
-            || matches!(failure.authorization_termination(),
+        use native::AuthorizationTerminationReason as Reason;
+        // On an ordinary RPC, an access refusal does not prove the refresh
+        // family invalid. Only the renewal boundary can make that decision.
+        failure
+            .api_failure()
+            .map_err(|_| SessionFailure::InvalidResponse)?;
+        let access_expired = matches!(failure.authorization_termination(),
             Ok(Some(detail)) if detail.reason == Reason::CredentialExpired);
         // A stream expires with its access lease too. Only RefreshSession's
         // Expired(Session) proves that the independent session is unusable.
@@ -845,8 +844,7 @@ impl SessionCoordinator {
         // refresh credential. Fence this view and ask the session authority.
         if access_expired
             || (failure.kind() == FailureKind::Rpc(home_client_transport::RpcCode::Unauthenticated)
-                && matches!(failure.authorization_termination(), Ok(None))
-                && matches!(failure.auth_error(), Ok(None)))
+                && matches!(failure.authorization_termination(), Ok(None)))
         {
             let mut state = self.inner.state.lock().await;
             if !self.is_current(generation) {
@@ -988,44 +986,14 @@ enum RenewalFailure {
     Stop,
 }
 fn renewal_failure(failure: &Failure) -> Result<RenewalFailure, SessionFailure> {
-    use auth::{
-        AuthenticationFailure as Authentication, ExpiredResource as Expired,
-        PermissionFailure as Permission, auth_error::Detail,
-    };
-    if let Some(detail) = failure
-        .auth_error()
-        .map_err(|_| SessionFailure::InvalidResponse)?
-    {
-        let admitted =
-            auth_contract::admit_error(&detail).map_err(|_| SessionFailure::InvalidResponse)?;
-        return Ok(match &admitted.wire().detail {
-            Some(Detail::Authentication(value))
-                if matches!(
-                    value.as_known(),
-                    Some(
-                        Authentication::InvalidCredential
-                            | Authentication::Revoked
-                            | Authentication::FactorRequired
-                    )
-                ) =>
-            {
-                RenewalFailure::Reauthenticate
-            }
-            Some(Detail::Expired(value)) if *value == Expired::Session => {
-                RenewalFailure::Reauthenticate
-            }
-            Some(Detail::Permission(value)) if *value == Permission::AccountDisabled => {
-                RenewalFailure::Reauthenticate
-            }
-            Some(Detail::RetryAt(_)) if failure.may_recover_renewal() => RenewalFailure::Retry,
-            Some(Detail::Authentication(_))
-            | Some(Detail::Expired(_))
-            | Some(Detail::Permission(_))
-            | Some(Detail::RetryAt(_))
-            | Some(Detail::InvalidField(_))
-            | Some(Detail::Conflict(_))
-            | None => RenewalFailure::Stop,
-        });
+    let canonical = failure
+        .api_failure()
+        .map_err(|_| SessionFailure::InvalidResponse)?;
+    if canonical.is_some_and(|detail| {
+        detail.reason() == auth::ApiErrorReason::AuthenticationRequired
+            || detail.reason() == auth::ApiErrorReason::AccessDenied
+    }) {
+        return Ok(RenewalFailure::Reauthenticate);
     }
     Ok(if failure.may_recover_renewal() {
         RenewalFailure::Retry

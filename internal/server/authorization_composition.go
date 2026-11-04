@@ -18,7 +18,7 @@ import (
 // exact adapter, sharing the session, policy-edit and command authority.
 type AuthorizationComposition interface {
 	ViewAuthorizer() view.Authorizer
-	NewViewService(view.Configuration, sequencer.Clock) (*view.Service, error)
+	NewViewService(view.Configuration, sequencer.Clock, ...view.CapabilityProjector) (*view.Service, error)
 }
 type runtimeAuthorizationComposition struct {
 	views         *policyViewAuthorizer
@@ -26,14 +26,14 @@ type runtimeAuthorizationComposition struct {
 }
 
 func (c runtimeAuthorizationComposition) ViewAuthorizer() view.Authorizer { return c.views }
-func (c runtimeAuthorizationComposition) NewViewService(config view.Configuration, clock sequencer.Clock) (*view.Service, error) {
+func (c runtimeAuthorizationComposition) NewViewService(config view.Configuration, clock sequencer.Clock, projectors ...view.CapabilityProjector) (*view.Service, error) {
 	if c.views == nil {
 		return nil, authorization.ErrInvalid
 	}
 	if !nilReactiveInterface(c.configuration) {
 		config = c.configuration
 	}
-	return view.NewService(c.views.source, c.views, config, clock)
+	return view.NewService(c.views.source, c.views, config, clock, projectors...)
 }
 func authorizationComposition(ctx context.Context, c *sessionCoordinator, source *sequencer.Sequencer, identity integrations.IdentityAuthority, configuration ...view.Configuration) (AuthorizationComposition, error) {
 	if c == nil || c.authority == nil || source == nil {

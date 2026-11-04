@@ -351,7 +351,7 @@ func (s *Store) OpenRecorderEpoch(ctx context.Context, epoch RecorderEpoch, star
 			previous.Checkpoint, previous.CleanClose, previous.Present = value, oldClean, true
 			oldEpochArg, oldCheckpointArg, oldCleanArg = oldEpoch, oldCheckpoint, oldClean
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO public.recorder_epochs(epoch, started_at, previous_epoch, previous_checkpoint, previous_clean_close) VALUES ($1,$2,$3,$4::numeric,$5)`, epoch.data(), started.UTC(), oldEpochArg, oldCheckpointArg, oldCleanArg)
+		_, err = tx.Exec(ctx, `INSERT INTO public.recorder_epochs(epoch, started_at, previous_epoch, previous_checkpoint, previous_clean_close,evidence_version) VALUES ($1,$2,$3,$4::numeric,$5,1)`, epoch.data(), started.UTC(), oldEpochArg, oldCheckpointArg, oldCleanArg)
 		return err
 	})
 	if outcome != TransactionCommitted || err != nil {
@@ -497,12 +497,12 @@ func (s *Store) CloseRecorderEpoch(ctx context.Context, epoch RecorderEpoch, che
 
 func insertRecorderState(ctx context.Context, tx pgx.Tx, epoch RecorderEpoch, row RecorderRecord) error {
 	o := row.observed
-	tag, err := tx.Exec(ctx, `INSERT INTO public.state_history(epoch,sequence,entity_id,instance_id,admitted_at,admitted_unix_seconds,admitted_nanos,revision,observed_at,received_at,last_changed,last_updated,last_reported,source_session,source_sequence,causation_id,correlation_id,availability,freshness,provenance,value_kind,measurement_value,measurement_unit,measurement_canonical_unit,measurement_scale,measurement_offset,measurement_dimension,measurement_precision,measurement_semantic,measurement_aggregation,payload,payload_digest,record_digest,entity_digest)
-	VALUES ($1,$2::numeric,$3,$4,$5,$6,$7,$8::numeric,$9,$10,$11,$12,$13,$14,$15::numeric,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34) ON CONFLICT (epoch,sequence) DO NOTHING`,
+	tag, err := tx.Exec(ctx, `INSERT INTO public.state_history(epoch,sequence,entity_id,instance_id,admitted_at,admitted_unix_seconds,admitted_nanos,revision,observed_at,received_at,last_changed,last_updated,last_reported,source_session,source_sequence,causation_id,correlation_id,availability,freshness,provenance,value_kind,measurement_value,measurement_unit,measurement_canonical_unit,measurement_scale,measurement_offset,measurement_dimension,measurement_precision,measurement_semantic,measurement_aggregation,payload,payload_digest,record_digest,entity_digest,admission_evidence)
+	VALUES ($1,$2::numeric,$3,$4,$5,$6,$7,$8::numeric,$9,$10,$11,$12,$13,$14,$15::numeric,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35) ON CONFLICT (epoch,sequence) DO NOTHING`,
 		epoch.data(), decimalUint(row.sequence), o.entity, row.instance, row.admittedAt, row.admittedAt.Unix(), row.admittedAt.Nanosecond(), decimalUint(o.revision), o.observedAt, o.receivedAt, o.lastChanged, o.lastUpdated, o.lastReported,
 		o.sourceSession, optionalDecimal(o.sourceSequence), row.causation, row.correlation, o.availability, o.freshness, o.provenance, o.valueKind,
 		o.measurementValue, o.measurementUnit, o.measurementCanonical, o.measurementScale, o.measurementOffset, o.measurementDimension, o.measurementPrecision, o.measurementSemantic, o.measurementAggregation,
-		o.payload, o.payloadDigest[:], row.digest[:], o.entityDigest[:])
+		o.payload, o.payloadDigest[:], row.digest[:], o.entityDigest[:], recorderEvidenceBytes(row.evidence))
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"github.com/damione1/Homeward/internal/recorderevidence"
 	"time"
 
 	"github.com/damione1/Homeward/internal/domain"
@@ -18,9 +19,10 @@ import (
 // Oversized historical metadata is classified in SQL before driver allocation.
 // Its exact digest is verified against the stored identity without copying the
 // large chains into the bounded owner. The raw payload is never selected.
-const recorderNumericColumns = `h.epoch,h.sequence::text,e.run_id,CASE WHEN octet_length(h.entity_id)<=1024 THEN h.entity_id ELSE '' END,h.entity_digest,h.admitted_unix_seconds,h.admitted_nanos,h.availability,h.freshness,h.provenance,h.value_kind,h.measurement_value,CASE WHEN octet_length(h.measurement_unit)<=256 THEN h.measurement_unit ELSE NULL END,CASE WHEN octet_length(h.measurement_canonical_unit)<=256 THEN h.measurement_canonical_unit ELSE NULL END,h.measurement_scale,h.measurement_offset,h.measurement_dimension,h.measurement_precision,h.measurement_semantic,h.measurement_aggregation,(octet_length(h.entity_id)>1024 OR COALESCE(octet_length(h.measurement_unit)>256,false) OR COALESCE(octet_length(h.measurement_canonical_unit)>256,false)),h.entity_digest=sha256(convert_to(h.entity_id,'UTF8'))`
+const recorderNumericColumns = `h.epoch,h.sequence::text,e.run_id,CASE WHEN octet_length(h.entity_id)<=1024 THEN h.entity_id ELSE '' END,h.entity_digest,h.admitted_unix_seconds,h.admitted_nanos,h.availability,h.freshness,h.provenance,h.value_kind,h.measurement_value,CASE WHEN octet_length(h.measurement_unit)<=256 THEN h.measurement_unit ELSE NULL END,CASE WHEN octet_length(h.measurement_canonical_unit)<=256 THEN h.measurement_canonical_unit ELSE NULL END,h.measurement_scale,h.measurement_offset,h.measurement_dimension,h.measurement_precision,h.measurement_semantic,h.measurement_aggregation,(octet_length(h.entity_id)>1024 OR COALESCE(octet_length(h.measurement_unit)>256,false) OR COALESCE(octet_length(h.measurement_canonical_unit)>256,false)),h.entity_digest=sha256(convert_to(h.entity_id,'UTF8')),h.admission_evidence`
 
 type numericRow struct {
+	evidence recorderevidence.Evidence
 	epoch    RecorderEpoch
 	sequence uint64
 	runID    int64
@@ -46,7 +48,7 @@ func numericSourceCharge(entityBytes, unitBytes, canonicalBytes int64) (int, err
 
 func scanNumericRow(row pgx.Row) (numericRow, error) {
 	var out numericRow
-	var raw []byte
+	var raw, evidence []byte
 	var seq string
 	var seconds int64
 	var nanos int32
@@ -55,10 +57,20 @@ func scanNumericRow(row pgx.Row) (numericRow, error) {
 	var value, scale, offset *float64
 	var unit, canonical *string
 	var digestMatches bool
-	if err := row.Scan(&raw, &seq, &out.runID, &out.entity, &out.digest, &seconds, &nanos, &availability, &freshness, &provenance, &kind, &value, &unit, &canonical, &scale, &offset, &dimension, &precision, &semantic, &aggregation, &out.refused, &digestMatches); err != nil {
+	if err := row.Scan(&raw, &seq, &out.runID, &out.entity, &out.digest, &seconds, &nanos, &availability, &freshness, &provenance, &kind, &value, &unit, &canonical, &scale, &offset, &dimension, &precision, &semantic, &aggregation, &out.refused, &digestMatches, &evidence); err != nil {
 		return out, err
 	}
 	var err error
+	if evidence != nil {
+		out.evidence, err = recorderevidence.Parse(evidence)
+		if err != nil {
+			return out, recordermaintenance.ErrIntegrity
+		}
+		entity, _ := out.evidence.Entity().Value()
+		if !bytes.Equal(hashEntity(entity), out.digest) {
+			return out, recordermaintenance.ErrIntegrity
+		}
+	}
 	if out.epoch, err = coverageEpoch(raw); err != nil {
 		return out, err
 	}
@@ -235,16 +247,21 @@ type numericContinuation struct {
 
 func loadContinuation(ctx context.Context, tx pgx.Tx, row numericRow) (*numericContinuation, error) {
 	var entity *string
-	var data []byte
+	var data, evidence []byte
 	var out numericContinuation
 	var highSeconds int64
 	var highNanos int32
-	err := tx.QueryRow(ctx, `SELECT entity_id,point,baseline_pending,high_water_seconds,high_water_nanos,covered_through,analytical_refusal FROM public.recorder_numeric_continuations WHERE entity_digest=$1`, row.digest).Scan(&entity, &data, &out.pending, &highSeconds, &highNanos, &out.coveredThrough, &out.refused)
+	err := tx.QueryRow(ctx, `SELECT entity_id,point,baseline_pending,high_water_seconds,high_water_nanos,covered_through,analytical_refusal,admission_evidence FROM public.recorder_numeric_continuations WHERE entity_digest=$1`, row.digest).Scan(&entity, &data, &out.pending, &highSeconds, &highNanos, &out.coveredThrough, &out.refused, &evidence)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+	// A different frozen scope begins a new analytical baseline. Never carry
+	// duration, extrema or counter contributions across that boundary.
+	if !bytes.Equal(evidence, recorderEvidenceBytes(row.evidence)) {
+		return nil, nil
 	}
 	out.coveredThrough = out.coveredThrough.UTC()
 	if out.refused && (entity != nil || out.pending) || !out.refused && (entity == nil || !row.refused && *entity != row.entity) {
@@ -276,7 +293,7 @@ func saveContinuation(ctx context.Context, tx pgx.Tx, row numericRow, pending bo
 	if row.refused {
 		entity = nil
 	}
-	tag, err := tx.Exec(ctx, `INSERT INTO public.recorder_numeric_continuations(entity_digest,entity_id,point,baseline_pending,last_observation_at,high_water_seconds,high_water_nanos,covered_through,analytical_refusal) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(entity_digest) DO UPDATE SET entity_id=EXCLUDED.entity_id,point=EXCLUDED.point,baseline_pending=EXCLUDED.baseline_pending,last_observation_at=GREATEST(recorder_numeric_continuations.last_observation_at,EXCLUDED.last_observation_at),high_water_seconds=EXCLUDED.high_water_seconds,high_water_nanos=EXCLUDED.high_water_nanos,covered_through=EXCLUDED.covered_through,analytical_refusal=EXCLUDED.analytical_refusal WHERE recorder_numeric_continuations.entity_id=EXCLUDED.entity_id OR recorder_numeric_continuations.analytical_refusal OR EXCLUDED.analytical_refusal`, row.digest, entity, data, pending, in.At, highWater.Unix(), highWater.Nanosecond(), coveredThrough, row.refused)
+	tag, err := tx.Exec(ctx, `INSERT INTO public.recorder_numeric_continuations(entity_digest,entity_id,point,baseline_pending,last_observation_at,high_water_seconds,high_water_nanos,covered_through,analytical_refusal,admission_evidence) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(entity_digest) DO UPDATE SET entity_id=EXCLUDED.entity_id,point=EXCLUDED.point,baseline_pending=EXCLUDED.baseline_pending,last_observation_at=GREATEST(recorder_numeric_continuations.last_observation_at,EXCLUDED.last_observation_at),high_water_seconds=EXCLUDED.high_water_seconds,high_water_nanos=EXCLUDED.high_water_nanos,covered_through=EXCLUDED.covered_through,analytical_refusal=EXCLUDED.analytical_refusal,admission_evidence=EXCLUDED.admission_evidence WHERE recorder_numeric_continuations.entity_id=EXCLUDED.entity_id OR recorder_numeric_continuations.analytical_refusal OR EXCLUDED.analytical_refusal`, row.digest, entity, data, pending, in.At, highWater.Unix(), highWater.Nanosecond(), coveredThrough, row.refused, recorderEvidenceBytes(row.evidence))
 	if err == nil && tag.RowsAffected() != 1 {
 		return recordermaintenance.ErrIntegrity
 	}

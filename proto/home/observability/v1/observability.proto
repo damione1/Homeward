@@ -8,6 +8,7 @@ import "home/integrations/v1/host.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/observability/v1;observabilityv1";
 
+// Private native owner projections; this package declares no network service.
 // These are read projections, never command authority or an event bus. Enum
 // zero, unknown operational enums, absent required oneofs, and unknown input
 // fields are rejected at admission. Generated codecs retain wire unknowns.
@@ -1048,21 +1049,4 @@ message ReadRecorderCoverageResponse {
     google.protobuf.Empty not_retained = 3;
     ReadUnavailable unavailable = 4;
   }
-}
-
-// All procedures use the existing common PublicPlan and verified TLS listener:
-// protected, unary, TLSRequired. GLOBAL_CONFIGURATION/READ except targeted
-// integration health, which uses INTEGRATIONS/READ. Active admin only under
-// current admin/user policy; equipment grants do not permit these reads.
-// The handler verifies the actor/principal and current administrative object.
-// SQL is outside WithCurrent, then the binding is reauthorized before output.
-// No MCP, extra listener, wildcard path, debug prefix, or auth/audit bypass.
-service ObservabilityService {
-  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
-  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
-  rpc GetIntegrationHealth(GetIntegrationHealthRequest) returns (GetIntegrationHealthResponse);
-  rpc QueryRuntimeLogs(QueryRuntimeLogsRequest) returns (QueryRuntimeLogsResponse);
-  rpc QueryAudits(QueryAuditsRequest) returns (QueryAuditsResponse);
-  rpc ReadRunTrace(ReadRunTraceRequest) returns (ReadRunTraceResponse);
-  rpc ReadRecorderCoverage(ReadRecorderCoverageRequest) returns (ReadRecorderCoverageResponse);
 }

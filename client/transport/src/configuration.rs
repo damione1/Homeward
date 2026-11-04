@@ -4,12 +4,11 @@ use std::time::Duration;
 
 use connectrpc::client::{ClientTransport, HttpClient, ServerStream};
 use home_wire_contract::home::{
-    configuration::v1 as document, configurationapply::v1 as activation,
-    configurationplan::v1 as plan, configurationsimulation::v1 as simulation,
+    api::v2 as document, api::v2 as activation, api::v2 as plan, api::v2 as simulation,
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{AccessToken, Failure, StateTransport, services::home};
+use crate::{AccessToken, Failure, services::home};
 
 macro_rules! unary {
     ($name:ident, $method:ident, $request:ty, $response:ty) => {
@@ -20,7 +19,7 @@ macro_rules! unary {
             timeout: Duration,
             cancel: &CancellationToken,
         ) -> Result<$response, Failure> {
-            let options = StateTransport::options(token, timeout)?;
+            let options = token.options(timeout)?;
             tokio::select! { biased;
                 () = cancel.cancelled() => Err(Failure::cancelled()),
                 response = self.client.$method(request, options) => {
@@ -33,50 +32,50 @@ macro_rules! unary {
 
 #[derive(Clone)]
 pub struct ConfigurationTransport {
-    pub(crate) client: home::configuration::v1::ConfigurationServiceClient<HttpClient>,
+    pub(crate) client: home::api::v2::ConfigurationServiceClient<HttpClient>,
 }
 impl ConfigurationTransport {
     unary!(
         read_document,
-        read_document_with_options,
-        document::ReadDocumentRequest,
-        document::ReadDocumentResponse
+        get_configuration_document_with_options,
+        document::GetConfigurationDocumentRequest,
+        document::ConfigurationDocument
     );
     unary!(
         list_documents,
-        list_documents_with_options,
-        document::ListDocumentsRequest,
-        document::ListDocumentsResponse
+        list_configuration_documents_with_options,
+        document::ListConfigurationDocumentsRequest,
+        document::ListConfigurationDocumentsResponse
     );
     unary!(
         list_versions,
-        list_versions_with_options,
-        document::ListVersionsRequest,
-        document::ListVersionsResponse
+        list_configuration_revisions_with_options,
+        document::ListConfigurationRevisionsRequest,
+        document::ListConfigurationRevisionsResponse
     );
     unary!(
         list_generations,
-        list_generations_with_options,
-        document::ListGenerationsRequest,
-        document::ListGenerationsResponse
+        list_configuration_generations_with_options,
+        document::ListConfigurationGenerationsRequest,
+        document::ListConfigurationGenerationsResponse
     );
     unary!(
         list_schemas,
-        list_schemas_with_options,
-        document::ListSchemasRequest,
-        document::ListSchemasResponse
+        list_configuration_schemas_with_options,
+        document::ListConfigurationSchemasRequest,
+        document::ListConfigurationSchemasResponse
     );
     unary!(
         write_document,
-        write_document_with_options,
-        document::WriteDocumentRequest,
-        document::WriteDocumentResponse
+        publish_configuration_document_with_options,
+        document::PublishConfigurationDocumentRequest,
+        home_wire_contract::google::longrunning::Operation
     );
     unary!(
         restore_document,
-        restore_document_with_options,
-        document::RestoreDocumentRequest,
-        document::RestoreDocumentResponse
+        rollback_configuration_document_with_options,
+        document::RollbackConfigurationDocumentRequest,
+        home_wire_contract::google::longrunning::Operation
     );
 
     pub async fn watch(
@@ -86,7 +85,7 @@ impl ConfigurationTransport {
         timeout: Duration,
         cancel: &CancellationToken,
     ) -> Result<ConfigurationWatch, Failure> {
-        let options = StateTransport::options(token, timeout)?;
+        let options = token.options(timeout)?;
         tokio::select! { biased;
             () = cancel.cancelled() => Err(Failure::cancelled()),
             response = self.client.watch_configuration_with_options(request, options) => {
@@ -132,52 +131,63 @@ impl Drop for ConfigurationWatch {
 
 #[derive(Clone)]
 pub struct ConfigurationPlanTransport {
-    pub(crate) client: home::configurationplan::v1::ConfigurationPlanServiceClient<HttpClient>,
+    pub(crate) client: home::api::v2::ConfigurationPlanServiceClient<HttpClient>,
 }
 impl ConfigurationPlanTransport {
     unary!(
+        get_plan,
+        get_configuration_plan_with_options,
+        plan::GetConfigurationPlanRequest,
+        plan::ConfigurationPlan
+    );
+    unary!(
+        list_plans,
+        list_configuration_plans_with_options,
+        plan::ListConfigurationPlansRequest,
+        plan::ListConfigurationPlansResponse
+    );
+    unary!(
         build_plan,
-        build_plan_with_options,
-        plan::BuildPlanRequest,
-        plan::BuildPlanResponse
+        create_configuration_plan_with_options,
+        plan::CreateConfigurationPlanRequest,
+        plan::ConfigurationPlan
     );
     unary!(
         revalidate_plan,
-        revalidate_plan_with_options,
-        plan::RevalidatePlanRequest,
-        plan::RevalidatePlanResponse
+        revalidate_configuration_plan_with_options,
+        plan::RevalidateConfigurationPlanRequest,
+        plan::ConfigurationPlan
     );
 }
 
 #[derive(Clone)]
 pub struct ConfigurationSimulationTransport {
-    pub(crate) client:
-        home::configurationsimulation::v1::ConfigurationSimulationServiceClient<HttpClient>,
+    pub(crate) client: home::api::v2::ConfigurationSimulationServiceClient<HttpClient>,
 }
 impl ConfigurationSimulationTransport {
     unary!(
         simulate_plan,
-        simulate_plan_with_options,
-        simulation::SimulatePlanRequest,
-        simulation::SimulatePlanResponse
+        simulate_configuration_plan_with_options,
+        simulation::SimulateConfigurationPlanRequest,
+        simulation::SimulateConfigurationPlanResponse
     );
 }
 
 #[derive(Clone)]
 pub struct ConfigurationApplyTransport {
-    pub(crate) client: home::configurationapply::v1::ConfigurationApplyServiceClient<HttpClient>,
+    pub(crate) client: home::api::v2::ConfigurationApplyServiceClient<HttpClient>,
 }
 impl ConfigurationApplyTransport {
     unary!(
         apply,
-        apply_with_options,
-        activation::ApplyRequest,
-        activation::ApplyResponse
+        apply_configuration_plan_with_options,
+        activation::ApplyConfigurationPlanRequest,
+        home_wire_contract::google::longrunning::Operation
     );
     unary!(
         rollback,
-        rollback_with_options,
-        activation::RollbackRequest,
-        activation::RollbackResponse
+        rollback_configuration_with_options,
+        activation::RollbackConfigurationRequest,
+        home_wire_contract::google::longrunning::Operation
     );
 }

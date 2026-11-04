@@ -1,7 +1,7 @@
 package contracts
 
 import (
-	wire "github.com/damione1/Homeward/gen/home/configuration/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -45,7 +45,7 @@ func configurationSchema(kind wire.DocumentKind, schema, profile string) bool {
 		return false
 	}
 }
-func configurationObservableDocument(document *wire.Document) bool {
+func configurationObservableDocument(document *wire.ConfigurationDocument) bool {
 	if document == nil || document.Id == nil {
 		return false
 	}
@@ -63,12 +63,12 @@ func configurationObservableDocument(document *wire.Document) bool {
 		return false
 	}
 }
-func configurationDocument(d *wire.Document) bool {
-	if d == nil || !configurationID(d.Id) || !configurationVersion(d.Version) || !configurationSchema(d.Kind, d.SchemaVersion, d.SyntaxProfile) || !configurationTime(d.UpdatedAt) || !configurationHash(d.ProtectedSourceReference) {
+func configurationDocument(d *wire.ConfigurationDocument) bool {
+	if d == nil || !configurationResourceName(d.Name, "configurationDocuments") || !planLabel(d.Etag, 256) || !configurationID(d.Id) || !configurationVersion(d.Version) || !configurationSchema(d.Kind, d.SchemaVersion, d.SyntaxProfile) || !configurationTime(d.UpdatedAt) || !configurationHash(d.ProtectedSourceReference) {
 		return false
 	}
 	switch state := d.WorkspaceState.(type) {
-	case *wire.Document_Workspace:
+	case *wire.ConfigurationDocument_Workspace:
 		if state == nil || state.Workspace == nil {
 			return false
 		}
@@ -82,7 +82,7 @@ func configurationDocument(d *wire.Document) bool {
 		if workspace.Dirty == wire.DirtyState_DIRTY_STATE_CLEAN && string(d.Version.SourceSha256) != string(workspace.SourceSha256) {
 			return false
 		}
-	case *wire.Document_WorkspaceUnobserved:
+	case *wire.ConfigurationDocument_WorkspaceUnobserved:
 		if state == nil || state.WorkspaceUnobserved == nil {
 			return false
 		}
@@ -107,24 +107,10 @@ func configurationDocument(d *wire.Document) bool {
 	}
 	return true
 }
-func configurationRead(r *wire.ReadDocumentResponse) bool {
-	return r != nil && configurationDocument(r.Document) && configurationGeneration(r.ActiveGeneration) && len(r.ResumeToken) == 118
+func configurationRead(r *wire.ConfigurationDocument) bool {
+	return r != nil && configurationDocument(r) && configurationGeneration(r.ActiveGeneration) && len(r.ResumeToken) == 118
 }
-func configurationContinuation(c *wire.PageContinuation) bool {
-	if c == nil {
-		return false
-	}
-	switch value := c.Result.(type) {
-	case *wire.PageContinuation_Complete:
-		return value != nil && value.Complete != nil
-	case *wire.PageContinuation_NextPageToken:
-		return value != nil && len(value.NextPageToken) > 0 && len(value.NextPageToken) <= 1200
-	case nil:
-		return false
-	default:
-		return false
-	}
-}
+
 func configurationActivation(a *wire.ActivationResult) bool {
 	if a == nil || a.GenerationRevision != nil && *a.GenerationRevision < 1 || len(a.Diagnostics) > 4 {
 		return false
@@ -163,15 +149,15 @@ func configurationActivation(a *wire.ActivationResult) bool {
 	default:
 		return false
 	}
-	seen := make(map[wire.DiagnosticCode]bool, len(a.Diagnostics))
+	seen := make(map[wire.ConfigurationDiagnosticCode]bool, len(a.Diagnostics))
 	for _, code := range a.Diagnostics {
 		if seen[code] {
 			return false
 		}
 		seen[code] = true
 		switch code {
-		case wire.DiagnosticCode_DIAGNOSTIC_CODE_CANDIDATE_REJECTED, wire.DiagnosticCode_DIAGNOSTIC_CODE_WORKSPACE_CHANGED, wire.DiagnosticCode_DIAGNOSTIC_CODE_RECONCILIATION_REQUIRED, wire.DiagnosticCode_DIAGNOSTIC_CODE_ACTIVATION_UNAVAILABLE:
-		case wire.DiagnosticCode_DIAGNOSTIC_CODE_UNSPECIFIED:
+		case wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_CANDIDATE_REJECTED, wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_WORKSPACE_CHANGED, wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_RECONCILIATION_REQUIRED, wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_ACTIVATION_UNAVAILABLE:
+		case wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_UNSPECIFIED:
 			return false
 		default:
 			return false
@@ -203,7 +189,7 @@ func configurationWatch(w *wire.WatchConfigurationResponse) bool {
 			return false
 		}
 		for _, change := range value.Changes.Changes {
-			if change == nil || !configurationID(change.Id) || !configurationVersion(change.Version) || !configurationDirty(change.Dirty) {
+			if change == nil || !configurationResourceName(change.Name, "configurationDocuments") || !configurationVersion(change.Version) || !configurationDirty(change.Dirty) {
 				return false
 			}
 			if change.ObservedWorkspaceSha256 != nil {
@@ -227,10 +213,10 @@ func AdmitConfigurationResponse(message proto.Message) error {
 	}
 	valid := false
 	switch value := message.(type) {
-	case *wire.ReadDocumentResponse:
+	case *wire.ConfigurationDocument:
 		valid = configurationRead(value)
-	case *wire.ListDocumentsResponse:
-		valid = value != nil && len(value.Documents) <= 100 && configurationContinuation(value.Continuation)
+	case *wire.ListConfigurationDocumentsResponse:
+		valid = value != nil && len(value.Documents) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
 			for _, document := range value.Documents {
 				if !configurationDocument(document) {
@@ -239,8 +225,8 @@ func AdmitConfigurationResponse(message proto.Message) error {
 				}
 			}
 		}
-	case *wire.ListVersionsResponse:
-		valid = value != nil && len(value.Versions) <= 100 && configurationContinuation(value.Continuation)
+	case *wire.ListConfigurationRevisionsResponse:
+		valid = value != nil && len(value.Versions) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
 			for _, version := range value.Versions {
 				if version == nil || !configurationID(version.Id) || !configurationVersion(version.Version) {
@@ -262,11 +248,11 @@ func AdmitConfigurationResponse(message proto.Message) error {
 				}
 			}
 		}
-	case *wire.ListGenerationsResponse:
-		valid = value != nil && len(value.Generations) <= 100 && configurationContinuation(value.Continuation)
+	case *wire.ListConfigurationGenerationsResponse:
+		valid = value != nil && len(value.Generations) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
 			for _, generation := range value.Generations {
-				if generation == nil || !configurationGeneration(generation.Generation) || !configurationTime(generation.CreatedAt) {
+				if generation == nil || !configurationResourceName(generation.Name, "configurationGenerations") || !configurationGeneration(generation.Generation) || !configurationTime(generation.CreatedAt) {
 					valid = false
 					break
 				}
@@ -282,20 +268,16 @@ func AdmitConfigurationResponse(message proto.Message) error {
 				}
 			}
 		}
-	case *wire.ListSchemasResponse:
-		valid = value != nil && len(value.Schemas) <= 100 && configurationContinuation(value.Continuation)
+	case *wire.ListConfigurationSchemasResponse:
+		valid = value != nil && len(value.Schemas) <= 100 && len(value.NextPageToken) <= 1200
 		if valid {
 			for _, schema := range value.Schemas {
-				if schema == nil || !configurationSchema(schema.Kind, schema.SchemaVersion, schema.SyntaxProfile) || schema.EditableOperationalWorkspace != (schema.Kind == wire.DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML) {
+				if schema == nil || !configurationResourceName(schema.Name, "configurationSchemas") || !configurationSchema(schema.Kind, schema.SchemaVersion, schema.SyntaxProfile) || schema.EditableOperationalWorkspace != (schema.Kind == wire.DocumentKind_DOCUMENT_KIND_OPERATIONAL_YAML) {
 					valid = false
 					break
 				}
 			}
 		}
-	case *wire.WriteDocumentResponse:
-		valid = value != nil && configurationActivation(value.Activation) && (value.Current == nil || configurationRead(value.Current))
-	case *wire.RestoreDocumentResponse:
-		valid = value != nil && configurationActivation(value.Activation) && (value.Current == nil || configurationRead(value.Current))
 	case *wire.WatchConfigurationResponse:
 		valid = configurationWatch(value)
 	default:

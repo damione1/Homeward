@@ -87,6 +87,7 @@ type activationTransfer struct {
 	admitted              AdmittedGeneration
 	forwardingPaused      bool
 	runsPublished         bool
+	apiOutcome            *apiOutcomeBinding
 }
 
 // Owner serializes the actual prepare/write/transfer/publication path. A
@@ -221,7 +222,7 @@ func (o *Owner) closeSubscriptionsLocked() {
 	}
 }
 
-func (o *Owner) operation(ctx context.Context, reconcile bool) (context.Context, func(), error) {
+func (o *Owner) operation(ctx context.Context, reconcile bool, author storage.ConfigAuthor) (context.Context, func(), error) {
 	if o == nil || absentPort(ctx) {
 		return nil, nil, ErrInvalidStartup
 	}
@@ -236,22 +237,41 @@ func (o *Owner) operation(ctx context.Context, reconcile bool) (context.Context,
 		o.mu.Unlock()
 		return nil, nil, ErrActivationUnavailable
 	}
-	if o.active || (!reconcile && o.pending != nil) || (reconcile && o.pending == nil) {
-		o.mu.Unlock()
-		return nil, nil, ErrActivationBusy
-	}
-	o.active = true
+	// Reservations participate in Close's existing lifetime accounting, but
+	// precede the execution guard so concurrent duplicates can read one ID.
 	o.wg.Add(1)
 	o.mu.Unlock()
 	bounded, cancel := context.WithTimeout(ctx, o.input.Timeout)
 	stop := context.AfterFunc(o.ctx, cancel)
+	cleanup := func() { stop(); cancel(); o.wg.Done() }
+	if !reconcile {
+		guarded, err := o.input.Store.BeginConfigurationAPIContext(bounded, author)
+		if err != nil {
+			cleanup()
+			return nil, nil, err
+		}
+		bounded = guarded
+	}
+	o.mu.Lock()
+	var admissionErr error
+	if o.phase == ownerClosed || !o.attached {
+		admissionErr = ErrActivationUnavailable
+	} else if o.active || (!reconcile && o.pending != nil) || (reconcile && o.pending == nil) {
+		admissionErr = ErrActivationBusy
+	}
+	if admissionErr != nil {
+		o.mu.Unlock()
+		o.finalizeAPIContext(bounded, Result{outcome: RejectedBeforeCommit, transaction: storage.TransactionNotCommitted}, admissionErr)
+		cleanup()
+		return bounded, nil, admissionErr
+	}
+	o.active = true
+	o.mu.Unlock()
 	finish := func() {
-		stop()
-		cancel()
 		o.mu.Lock()
 		o.active = false
 		o.mu.Unlock()
-		o.wg.Done()
+		cleanup()
 	}
 	return bounded, finish, nil
 }
@@ -260,12 +280,13 @@ func (o *Owner) Activate(ctx context.Context, request Request) (Result, error) {
 	if !request.admitted {
 		return Result{outcome: RejectedBeforeCommit}, ErrInvalidStartup
 	}
-	bounded, finish, err := o.operation(ctx, false)
+	bounded, finish, err := o.operation(ctx, false, request.author)
 	if err != nil {
-		return Result{outcome: RejectedBeforeCommit}, err
+		return withAPIExecution(bounded, Result{outcome: RejectedBeforeCommit}), err
 	}
 	defer finish()
-	return o.activate(ctx, bounded, request)
+	result, err := o.activate(ctx, bounded, request)
+	return o.finalizeAPIContext(bounded, result, err), err
 }
 
 func (o *Owner) activate(ctx, bounded context.Context, request Request) (Result, error) {
@@ -306,7 +327,7 @@ func (o *Owner) activate(ctx, bounded context.Context, request Request) (Result,
 	if err := request.confirmWorkspacePrecondition(current, prepared); err != nil {
 		return Result{outcome: RejectedBeforeCommit, transaction: storage.TransactionNotCommitted}, err
 	}
-	t := &activationTransfer{prepared: prepared, request: request, outcome: storage.TransactionNotCommitted, basis: operationalBasis{current.operational, current.legacy}}
+	t := &activationTransfer{prepared: prepared, request: request, outcome: storage.TransactionNotCommitted, basis: operationalBasis{current.operational, current.legacy}, apiOutcome: captureAPIOutcome(bounded)}
 	o.adoptSourceContextReservations(t, request)
 	if err = o.reserve(bounded, t); err != nil {
 		o.releaseUnwritten(t)
@@ -556,7 +577,7 @@ func (o *Owner) reserve(ctx context.Context, t *activationTransfer) error {
 }
 
 func (o *Owner) Reconcile(ctx context.Context) (Result, error) {
-	bounded, finish, err := o.operation(ctx, true)
+	bounded, finish, err := o.operation(ctx, true, storage.ConfigAuthor{})
 	if err != nil {
 		return Result{outcome: CommitUnknown}, err
 	}
@@ -564,7 +585,8 @@ func (o *Owner) Reconcile(ctx context.Context) (Result, error) {
 	o.mu.RLock()
 	t := o.pending
 	o.mu.RUnlock()
-	return o.reconcile(bounded, t)
+	result, reconcileErr := o.reconcile(bounded, t)
+	return o.finalizeAPIOutcome(t.apiOutcome, result, reconcileErr), reconcileErr
 }
 
 // ReconcileWithProgram supplies the immutable 042/115 IR seam for an exact
@@ -573,7 +595,7 @@ func (o *Owner) ReconcileWithProgram(ctx context.Context, revision storage.Confi
 	if !revision.Valid() || manifest == ([32]byte{}) || !image.admitted {
 		return Result{outcome: CommitUnknown}, ErrInvalidStartup
 	}
-	bounded, finish, err := o.operation(ctx, true)
+	bounded, finish, err := o.operation(ctx, true, storage.ConfigAuthor{})
 	if err != nil {
 		return Result{outcome: CommitUnknown}, err
 	}
@@ -586,7 +608,8 @@ func (o *Owner) ReconcileWithProgram(ctx context.Context, revision storage.Confi
 	t := o.pending
 	o.mu.RUnlock()
 	t.resolution = &programResolution{revision: revision, manifest: manifest, image: image}
-	return o.reconcile(bounded, t)
+	result, reconcileErr := o.reconcile(bounded, t)
+	return o.finalizeAPIOutcome(t.apiOutcome, result, reconcileErr), reconcileErr
 }
 
 func (o *Owner) retarget(ctx context.Context, before *activationTransfer, target AdmittedGeneration) (*activationTransfer, error) {
@@ -685,7 +708,7 @@ func (o *Owner) retarget(ctx context.Context, before *activationTransfer, target
 	}
 	request := before.request
 	request.program = program
-	next := &activationTransfer{declarations: before.declarations, prepared: before.prepared, request: request, old: before.old,
+	next := &activationTransfer{apiOutcome: before.apiOutcome, declarations: before.declarations, prepared: before.prepared, request: request, old: before.old,
 		basis: basis, target: target, admitted: target, forced: before.forced, cohort: cohort,
 		reconciling: true, registry: before.registry, pause: before.pause, cut: before.cut,
 		outcome: before.outcome, forwardingPaused: before.forwardingPaused, resolution: before.resolution}

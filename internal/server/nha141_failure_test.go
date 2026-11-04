@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
@@ -51,19 +52,20 @@ func TestNHA141UnknownIssuanceAndAuditFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := newAuthHandler(store, coordinator, nil)
+	handler, err := nha203AuthHandler(store, coordinator, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	login := func() (*connect.Response[authv1.StartLoginResponse], error) {
-		return handler.StartLogin(ctx, connect.NewRequest(&authv1.StartLoginRequest{LoginName: "NHA141 Failure Admin", Password: password}))
+	login := func() (*connect.Response[api.StartLoginResponse], error) {
+		return handler.StartLogin(ctx, connect.NewRequest(&api.StartLoginRequest{LoginName: "NHA141 Failure Admin", Password: password}))
 	}
 	first, err := login()
 	if err != nil || first == nil || first.Msg.GetDecision().GetAuthenticated() == nil {
 		t.Fatalf("baseline login did not issue a session: %v", err)
 	}
 	tokens := first.Msg.GetDecision().GetAuthenticated()
-	sessionID := tokens.GetSession().GetId().GetValue()
+	nativeSession := nha203NativeSession(t, ctx, store, tokens.GetSession().GetName())
+	sessionID, _ := nativeSession.Value()
 	access := tokens.GetAccessToken()
 	refresh := tokens.GetRefreshToken()
 	if sessionID == "" || access == "" || refresh == "" {
@@ -144,7 +146,7 @@ func TestNHA141UnknownIssuanceAndAuditFailure(t *testing.T) {
 	defer release()
 	ddl(`CREATE FUNCTION public.nha141_refuse_session_update() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic unknown session refresh'; END $$;
 		CREATE CONSTRAINT TRIGGER nha141_refuse_session_update AFTER UPDATE ON public.auth_sessions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.nha141_refuse_session_update()`)
-	rotated, err := handler.RefreshSession(ctx, connect.NewRequest(&authv1.RefreshSessionRequest{RefreshToken: refresh}))
+	rotated, err := handler.RefreshSession(ctx, connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: refresh, RenewalKey: []byte("0123456789abcdef0123456789abcdef")}))
 	if rotated != nil || connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("unknown refresh commit exposed a response or bearer: responsePresent=%t error=%v", rotated != nil, err)
 	}
@@ -169,7 +171,7 @@ func TestNHA141UnknownIssuanceAndAuditFailure(t *testing.T) {
 		t.Fatalf("audit failure exposed login bearer: responsePresent=%t error=%v", issued != nil, err)
 	}
 	assertState("audit failure during login")
-	rotated, err = handler.RefreshSession(ctx, connect.NewRequest(&authv1.RefreshSessionRequest{RefreshToken: refresh}))
+	rotated, err = handler.RefreshSession(ctx, connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: refresh, RenewalKey: []byte("0123456789abcdef0123456789abcdef")}))
 	if rotated != nil || connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("audit failure exposed refreshed bearer: responsePresent=%t error=%v", rotated != nil, err)
 	}
@@ -181,7 +183,7 @@ func TestNHA141UnknownIssuanceAndAuditFailure(t *testing.T) {
 	} else {
 		after()
 	}
-	rotated, err = handler.RefreshSession(ctx, connect.NewRequest(&authv1.RefreshSessionRequest{RefreshToken: refresh}))
+	rotated, err = handler.RefreshSession(ctx, connect.NewRequest(&api.RefreshSessionRequest{RefreshToken: refresh, RenewalKey: []byte("0123456789abcdef0123456789abcdef")}))
 	if err != nil || rotated == nil || rotated.Msg.GetTokens() == nil {
 		t.Fatalf("original refresh was consumed by failed audit: %v", err)
 	}

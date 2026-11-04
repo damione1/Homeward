@@ -20,8 +20,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/storage"
@@ -74,14 +74,14 @@ func (a *nha139Auditor) snapshot() []AuditEvent {
 }
 
 type nha139StateFixture struct {
-	statev1connect.UnimplementedStateServiceHandler
+	apiv2connect.UnimplementedEntityViewServiceHandler
 	streamEnded chan struct{}
 	streamFail  *atomic.Bool
 	delay       *atomic.Bool
 	openCalls   *atomic.Int32
 }
 
-func (s nha139StateFixture) OpenView(ctx context.Context, _ *connect.Request[statev1.OpenViewRequest]) (*connect.Response[statev1.OpenViewResponse], error) {
+func (s nha139StateFixture) CreateEntityView(ctx context.Context, _ *connect.Request[api.CreateEntityViewRequest]) (*connect.Response[api.EntityView], error) {
 	s.openCalls.Add(1)
 	if _, ok := ActorFromContext(ctx); !ok {
 		return nil, errors.New("transport did not admit actor")
@@ -90,17 +90,17 @@ func (s nha139StateFixture) OpenView(ctx context.Context, _ *connect.Request[sta
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
-	return connect.NewResponse(&statev1.OpenViewResponse{}), nil
+	return connect.NewResponse(&api.EntityView{}), nil
 }
-func (nha139StateFixture) ReadPage(context.Context, *connect.Request[statev1.ReadPageRequest]) (*connect.Response[statev1.ReadPageResponse], error) {
-	return connect.NewResponse(&statev1.ReadPageResponse{}), nil
+func (nha139StateFixture) QueryEntityView(context.Context, *connect.Request[api.QueryEntityViewRequest]) (*connect.Response[api.QueryEntityViewResponse], error) {
+	return connect.NewResponse(&api.QueryEntityViewResponse{}), nil
 }
-func (s nha139StateFixture) WatchView(ctx context.Context, _ *connect.Request[statev1.WatchViewRequest], stream *connect.ServerStream[statev1.WatchViewResponse]) error {
+func (s nha139StateFixture) WatchEntityView(ctx context.Context, _ *connect.Request[api.WatchEntityViewRequest], stream *connect.ServerStream[api.WatchEntityViewResponse]) error {
 	defer func() { s.streamEnded <- struct{}{} }()
 	if _, ok := ActorFromContext(ctx); !ok {
 		return errors.New("transport did not admit stream actor")
 	}
-	if err := stream.Send(&statev1.WatchViewResponse{StreamSequence: 1}); err != nil {
+	if err := stream.Send(&api.WatchEntityViewResponse{ResumeToken: "1"}); err != nil {
 		return err
 	}
 	if s.streamFail.Load() {
@@ -207,16 +207,16 @@ func nha139Stream(t *testing.T, client *http.Client, base string, grpc bool, end
 	if grpc {
 		opts = append(opts, connect.WithGRPC())
 	}
-	state := statev1connect.NewStateServiceClient(client, base, opts...)
+	state := apiv2connect.NewEntityViewServiceClient(client, base, opts...)
 	ctx, cancel := context.WithCancel(context.Background())
-	request := connect.NewRequest(&statev1.WatchViewRequest{})
+	request := connect.NewRequest(&api.WatchEntityViewRequest{})
 	request.Header().Set("Authorization", "Bearer fixture")
-	stream, err := state.WatchView(ctx, request)
+	stream, err := state.WatchEntityView(ctx, request)
 	if err != nil {
 		cancel()
 		t.Fatal(err)
 	}
-	if !stream.Receive() || stream.Msg().GetStreamSequence() != 1 {
+	if !stream.Receive() || stream.Msg().GetResumeToken() != "1" {
 		cancel()
 		t.Fatalf("first stream frame grpc=%t: %v", grpc, stream.Err())
 	}
@@ -251,12 +251,12 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 	holdRelease := make(chan struct{})
 	if err := plan.RegisterConnect(
 		func(opts ...connect.HandlerOption) (string, http.Handler) {
-			return statev1connect.NewStateServiceHandler(
+			return apiv2connect.NewEntityViewServiceHandler(
 				nha139StateFixture{streamEnded: streamEnded, streamFail: streamFail, delay: delayRPC, openCalls: openCalls}, opts...,
 			)
 		},
-		ConnectProcedure{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
-		ConnectProcedure{Path: statev1connect.StateServiceWatchViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream, Transport: RouteTransportOptionalTLS},
+		ConnectProcedure{Path: apiv2connect.EntityViewServiceCreateEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
+		ConnectProcedure{Path: apiv2connect.EntityViewServiceWatchEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream, Transport: RouteTransportOptionalTLS},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -396,35 +396,35 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 		{http.MethodGet, "/mcp/anonymous", "", "", 200, "anonymous"},
 		{http.MethodPost, "/mcp/test", "Bearer fixture", "ok", 200, "mcp"},
 		{http.MethodGet, "/media/test", "Bearer fixture", "", 200, "media"},
-		{http.MethodGet, "/home.auth.v1.OperatorAccountService/BootstrapAdmin", "Bearer fixture", "", 404, ""},
+		{http.MethodGet, "/home.operator.v1.OperatorAccountService/BootstrapAdmin", "Bearer fixture", "", 404, ""},
 	} {
 		status, body, major := nha139Raw(t, direct, item.method, base+item.path, item.token, item.body)
 		if status != item.wantStatus || !strings.Contains(body, item.wantBody) || major != 2 {
 			t.Fatalf("%s: status=%d body=%q HTTP/%d", item.path, status, body, major)
 		}
 	}
-	state := statev1connect.NewStateServiceClient(direct, base)
-	grpc := statev1connect.NewStateServiceClient(direct, base, connect.WithGRPC())
-	for _, client := range []statev1connect.StateServiceClient{state, grpc} {
-		request := connect.NewRequest(&statev1.OpenViewRequest{})
+	state := apiv2connect.NewEntityViewServiceClient(direct, base)
+	grpc := apiv2connect.NewEntityViewServiceClient(direct, base, connect.WithGRPC())
+	for _, client := range []apiv2connect.EntityViewServiceClient{state, grpc} {
+		request := connect.NewRequest(&api.CreateEntityViewRequest{})
 		request.Header().Set("Authorization", "Bearer fixture")
-		if _, err := client.OpenView(context.Background(), request); err != nil {
+		if _, err := client.CreateEntityView(context.Background(), request); err != nil {
 			t.Fatalf("generated unary client: %v", err)
 		}
-		request = connect.NewRequest(&statev1.OpenViewRequest{})
-		if _, err := client.OpenView(context.Background(), request); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		request = connect.NewRequest(&api.CreateEntityViewRequest{})
+		if _, err := client.CreateEntityView(context.Background(), request); connect.CodeOf(err) != connect.CodeUnauthenticated {
 			t.Fatalf("missing identity: %v", err)
 		}
 	}
 	streamFail.Store(true)
-	for _, client := range []statev1connect.StateServiceClient{state, grpc} {
-		request := connect.NewRequest(&statev1.WatchViewRequest{})
+	for _, client := range []apiv2connect.EntityViewServiceClient{state, grpc} {
+		request := connect.NewRequest(&api.WatchEntityViewRequest{})
 		request.Header().Set("Authorization", "Bearer fixture")
-		stream, err := client.WatchView(context.Background(), request)
+		stream, err := client.WatchEntityView(context.Background(), request)
 		if err != nil {
 			t.Fatalf("stream error setup: %v", err)
 		}
-		if !stream.Receive() || stream.Msg().GetStreamSequence() != 1 || stream.Receive() ||
+		if !stream.Receive() || stream.Msg().GetResumeToken() != "1" || stream.Receive() ||
 			connect.CodeOf(stream.Err()) != connect.CodePermissionDenied {
 			t.Fatalf("stream protocol error/trailer: %v", stream.Err())
 		}
@@ -436,30 +436,30 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 	}
 	streamFail.Store(false)
 	authz.deny.Store(true)
-	denied := connect.NewRequest(&statev1.OpenViewRequest{})
+	denied := connect.NewRequest(&api.CreateEntityViewRequest{})
 	denied.Header().Set("Authorization", "Bearer fixture")
-	if _, err := state.OpenView(context.Background(), denied); connect.CodeOf(err) != connect.CodePermissionDenied {
+	if _, err := state.CreateEntityView(context.Background(), denied); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("authorization denial: %v", err)
 	}
 	authz.deny.Store(false)
 	authn.zero.Store(true)
-	zero := connect.NewRequest(&statev1.OpenViewRequest{})
+	zero := connect.NewRequest(&api.CreateEntityViewRequest{})
 	zero.Header().Set("Authorization", "Bearer fixture")
-	if _, err := state.OpenView(context.Background(), zero); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := state.CreateEntityView(context.Background(), zero); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("zero actor admitted: %v", err)
 	}
 	authn.zero.Store(false)
 	audit.fail.Store(true)
-	noAudit := connect.NewRequest(&statev1.OpenViewRequest{})
+	noAudit := connect.NewRequest(&api.CreateEntityViewRequest{})
 	noAudit.Header().Set("Authorization", "Bearer fixture")
-	if _, err := state.OpenView(context.Background(), noAudit); connect.CodeOf(err) != connect.CodeUnavailable {
+	if _, err := state.CreateEntityView(context.Background(), noAudit); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("audit failure admitted: %v", err)
 	}
 	audit.fail.Store(false)
-	for _, client := range []statev1connect.StateServiceClient{state, grpc} {
-		oversized := connect.NewRequest(&statev1.OpenViewRequest{Filter: &statev1.ViewFilter{EntityIds: []string{strings.Repeat("x", 512)}}})
+	for _, client := range []apiv2connect.EntityViewServiceClient{state, grpc} {
+		oversized := connect.NewRequest(&api.CreateEntityViewRequest{Parent: strings.Repeat("x", 512)})
 		oversized.Header().Set("Authorization", "Bearer fixture")
-		if _, err := client.OpenView(context.Background(), oversized); connect.CodeOf(err) != connect.CodeResourceExhausted {
+		if _, err := client.CreateEntityView(context.Background(), oversized); connect.CodeOf(err) != connect.CodeResourceExhausted {
 			t.Fatalf("generated oversized RPC: %v", err)
 		}
 	}
@@ -474,20 +474,20 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 		if protocol.grpc {
 			opts = append(opts, connect.WithGRPC())
 		}
-		compressed := statev1connect.NewStateServiceClient(client, base, opts...)
+		compressed := apiv2connect.NewEntityViewServiceClient(client, base, opts...)
 		before := openCalls.Load()
-		under := connect.NewRequest(&statev1.OpenViewRequest{Filter: &statev1.ViewFilter{EntityIds: []string{strings.Repeat("x", 20)}}})
+		under := connect.NewRequest(&api.CreateEntityViewRequest{Parent: strings.Repeat("x", 20)})
 		under.Header().Set("Authorization", "Bearer fixture")
-		if _, err := compressed.OpenView(context.Background(), under); err != nil {
+		if _, err := compressed.CreateEntityView(context.Background(), under); err != nil {
 			t.Fatalf("compressed under bound grpc=%t: %v", protocol.grpc, err)
 		}
 		if openCalls.Load() != before+1 {
 			t.Fatalf("compressed under bound did not invoke handler grpc=%t", protocol.grpc)
 		}
 		before = openCalls.Load()
-		over := connect.NewRequest(&statev1.OpenViewRequest{Filter: &statev1.ViewFilter{EntityIds: []string{strings.Repeat("x", 512)}}})
+		over := connect.NewRequest(&api.CreateEntityViewRequest{Parent: strings.Repeat("x", 512)})
 		over.Header().Set("Authorization", "Bearer fixture")
-		if _, err := compressed.OpenView(context.Background(), over); connect.CodeOf(err) != connect.CodeResourceExhausted {
+		if _, err := compressed.CreateEntityView(context.Background(), over); connect.CodeOf(err) != connect.CodeResourceExhausted {
 			t.Fatalf("decompressed over bound grpc=%t: %v", protocol.grpc, err)
 		}
 		if openCalls.Load() != before || bounded.requests.Load() != 2 {
@@ -495,11 +495,11 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 		}
 	}
 	delayRPC.Store(true)
-	for _, client := range []statev1connect.StateServiceClient{state, grpc} {
-		request := connect.NewRequest(&statev1.OpenViewRequest{})
+	for _, client := range []apiv2connect.EntityViewServiceClient{state, grpc} {
+		request := connect.NewRequest(&api.CreateEntityViewRequest{})
 		request.Header().Set("Authorization", "Bearer fixture")
 		started := time.Now()
-		if _, err := client.OpenView(context.Background(), request); connect.CodeOf(err) != connect.CodeDeadlineExceeded {
+		if _, err := client.CreateEntityView(context.Background(), request); connect.CodeOf(err) != connect.CodeDeadlineExceeded {
 			t.Fatalf("generated RPC deadline: %v", err)
 		}
 		if time.Since(started) > time.Second {
@@ -601,17 +601,17 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 	if status != 200 || body != "media" || major != 2 {
 		t.Fatalf("TLS media HTTP/%d status=%d body=%s", major, status, body)
 	}
-	status, _, major = nha139Raw(t, secure, http.MethodGet, proxy.URL+"/home.auth.v1.OperatorAccountService/BootstrapAdmin", "Bearer fixture", "")
+	status, _, major = nha139Raw(t, secure, http.MethodGet, proxy.URL+"/home.operator.v1.OperatorAccountService/BootstrapAdmin", "Bearer fixture", "")
 	if status != http.StatusNotFound || major != 2 {
 		t.Fatalf("proxy/client headers granted operator authority: HTTP/%d status=%d", major, status)
 	}
-	for _, client := range []statev1connect.StateServiceClient{
-		statev1connect.NewStateServiceClient(secure, proxy.URL),
-		statev1connect.NewStateServiceClient(secure, proxy.URL, connect.WithGRPC()),
+	for _, client := range []apiv2connect.EntityViewServiceClient{
+		apiv2connect.NewEntityViewServiceClient(secure, proxy.URL),
+		apiv2connect.NewEntityViewServiceClient(secure, proxy.URL, connect.WithGRPC()),
 	} {
-		request := connect.NewRequest(&statev1.OpenViewRequest{})
+		request := connect.NewRequest(&api.CreateEntityViewRequest{})
 		request.Header().Set("Authorization", "Bearer fixture")
-		if _, err := client.OpenView(context.Background(), request); err != nil {
+		if _, err := client.CreateEntityView(context.Background(), request); err != nil {
 			t.Fatalf("TLS generated RPC: %v", err)
 		}
 	}
@@ -652,9 +652,9 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 	if _, err := io.ReadFull(idleConn, frameHeader); err != nil || frameHeader[3] != 4 {
 		t.Fatalf("idle h2c SETTINGS exchange: %x %v", frameHeader, err)
 	}
-	ending := connect.NewRequest(&statev1.WatchViewRequest{})
+	ending := connect.NewRequest(&api.WatchEntityViewRequest{})
 	ending.Header().Set("Authorization", "Bearer fixture")
-	active, err := state.WatchView(context.Background(), ending)
+	active, err := state.WatchEntityView(context.Background(), ending)
 	if err != nil {
 		t.Fatalf("shutdown stream start: %v", err)
 	}
@@ -708,7 +708,7 @@ func TestNHA139RealRunSharedTransportLimitsTLSAndShutdown(t *testing.T) {
 			actor, err := event.Actor.Value()
 			protectedAdmitted = err == nil && actor == "nha139-test-actor"
 		}
-		if event.Route.Path() == statev1connect.StateServiceOpenViewProcedure && event.Outcome == AuditOutcomeDenied {
+		if event.Route.Path() == apiv2connect.EntityViewServiceCreateEntityViewProcedure && event.Outcome == AuditOutcomeDenied {
 			deniedRecorded = true
 		}
 	}
@@ -739,9 +739,9 @@ func TestNHA139PlanAdmissionAndMissingProviderCloseRoutes(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { handlerCalls.Add(1); w.WriteHeader(200) })
 	if err := plan.RegisterConnect(
 		func(...connect.HandlerOption) (string, http.Handler) {
-			return "/home.auth.v1.OperatorAccountService/", handler
+			return "/home.operator.v1.OperatorAccountService/", handler
 		},
-		ConnectProcedure{Path: "/home.auth.v1.OperatorAccountService/BootstrapAdmin", Access: RouteAccessAnonymous, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
+		ConnectProcedure{Path: "/home.operator.v1.OperatorAccountService/BootstrapAdmin", Access: RouteAccessAnonymous, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
 	); !errors.Is(err, ErrInvalidPublicPlan) {
 		t.Fatalf("public operator service registration: %v", err)
 	}
@@ -757,19 +757,21 @@ func TestNHA139PlanAdmissionAndMissingProviderCloseRoutes(t *testing.T) {
 	if err := (&PublicPlan{}).Register(RouteKindMCP, RouteMethodGet, "/mcp/zero", RouteAccessAnonymous, RouteFlowUnary, RouteTransportOptionalTLS, handler); !errors.Is(err, ErrInvalidPublicPlan) {
 		t.Fatalf("zero plan registered route: %v", err)
 	}
-	if err := plan.Register(RouteKindConnect, RouteMethodPost, statev1connect.StateServiceOpenViewProcedure, RouteAccessProtected, RouteFlowUnary, RouteTransportOptionalTLS, handler); !errors.Is(err, ErrInvalidPublicPlan) {
+	if err := plan.Register(RouteKindConnect, RouteMethodPost, apiv2connect.EntityViewServiceCreateEntityViewProcedure, RouteAccessProtected, RouteFlowUnary, RouteTransportOptionalTLS, handler); !errors.Is(err, ErrInvalidPublicPlan) {
 		t.Fatalf("opaque Connect handler bypassed common read bound: %v", err)
 	}
 	collision, err := NewPublicPlan(nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := collision.Register(RouteKindMCP, RouteMethodPost, statev1connect.StateServiceOpenViewProcedure, RouteAccessAnonymous, RouteFlowUnary, RouteTransportOptionalTLS, handler); err != nil {
+	if err := collision.Register(RouteKindMCP, RouteMethodPost, apiv2connect.EntityViewServiceCreateEntityViewProcedure, RouteAccessAnonymous, RouteFlowUnary, RouteTransportOptionalTLS, handler); err != nil {
 		t.Fatal(err)
 	}
 	if err := collision.RegisterConnect(
-		func(...connect.HandlerOption) (string, http.Handler) { return "/home.state.v1.StateService/", handler },
-		ConnectProcedure{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
+		func(...connect.HandlerOption) (string, http.Handler) {
+			return "/home.api.v2.EntityViewService/", handler
+		},
+		ConnectProcedure{Path: apiv2connect.EntityViewServiceCreateEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
 	); !errors.Is(err, ErrPublicRouteConflict) {
 		t.Fatalf("Connect procedure route collision: %v", err)
 	}
@@ -781,7 +783,7 @@ func TestNHA139PlanAdmissionAndMissingProviderCloseRoutes(t *testing.T) {
 	}
 	if err := badPrefix.RegisterConnect(
 		func(...connect.HandlerOption) (string, http.Handler) { return "/other.Service/", handler },
-		ConnectProcedure{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
+		ConnectProcedure{Path: apiv2connect.EntityViewServiceCreateEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportOptionalTLS},
 	); err != nil {
 		t.Fatal(err)
 	}

@@ -18,29 +18,31 @@ import (
 
 type historyReader interface {
 	WithHistoryReadReservation(context.Context, func(context.Context) error) error
-	ReadHistoricalRecorderPageAt(context.Context, historyquery.Query, *storage.RecorderQueryCursor, *storage.RecorderLiveHigh) (storage.RecorderQueryPage, error)
+	ReadHistoricalRecorderPageAt(context.Context, historyquery.Query, *storage.RecorderQueryCursor, *storage.RecorderLiveHigh, storage.RecorderScopeAuthorizer) (storage.RecorderQueryPage, error)
 	ReadExecutionHistoryPage(context.Context, storage.HistoryPageQuery) (storage.HistoryPage, error)
 }
 type historyRuntime struct {
 	reader        historyReader
+	names         historyNameOwner
 	authority     *authorization.Authority
 	sequence      *sequencer.Sequencer
 	currentConfig func(context.Context) (view.ConfigStamp, error)
 	codec         *historyquery.CursorCodec
 }
 
-func newHistoryRuntime(store *storage.Store, authority *authorization.Authority, sequence *sequencer.Sequencer, currentConfig func(context.Context) (view.ConfigStamp, error)) (*historyRuntime, error) {
-	if store == nil || authority == nil || sequence == nil || currentConfig == nil {
+func newHistoryRuntime(store *storage.Store, names historyNameOwner, authority *authorization.Authority, sequence *sequencer.Sequencer, currentConfig func(context.Context) (view.ConfigStamp, error)) (*historyRuntime, error) {
+	if store == nil || nilReactiveInterface(names) || authority == nil || sequence == nil || currentConfig == nil {
 		return nil, historyquery.ErrInvalid
 	}
 	codec, err := historyquery.NewCursorCodec()
 	if err != nil {
 		return nil, err
 	}
-	return &historyRuntime{reader: store, authority: authority, sequence: sequence, currentConfig: currentConfig, codec: codec}, nil
+	return &historyRuntime{reader: store, names: names, authority: authority, sequence: sequence, currentConfig: currentConfig, codec: codec}, nil
 }
 
 type historyAdmission struct {
+	ready      func() bool
 	principal  authorization.Principal
 	permission authorization.Permission
 	objects    []authorization.Object
@@ -161,17 +163,21 @@ func (h *historyHandler) capture(ctx context.Context, q historyquery.Query, expe
 					return authorization.ErrUnavailable
 				}
 				seen[slot] = struct{}{}
-				object, err := authorization.EntityObject(q.Entity(), slot)
-				if err != nil {
-					return err
-				}
-				objects = append(objects, object)
 				wire, err := (proto.MarshalOptions{Deterministic: true}).Marshal(description)
 				if err != nil {
 					return authorization.ErrUnavailable
 				}
 				encoded = append(encoded, wire)
 			}
+			first, err := authorization.NewCapabilitySlot(descriptions[0].SchemaId, descriptions[0].Endpoint)
+			if err != nil {
+				return authorization.ErrUnavailable
+			}
+			witness, err := current.HistoryEntityWitness(q.Entity(), first)
+			if err != nil {
+				return err
+			}
+			objects = append(objects, witness)
 			sort.Slice(encoded, func(i, j int) bool { return string(encoded[i]) < string(encoded[j]) })
 			identity, _ := q.Entity().Value()
 			hash.Write([]byte(identity))
@@ -212,13 +218,31 @@ func (h *historyHandler) begin(ctx context.Context, q historyquery.Query) (conte
 	if err != nil {
 		return nil, admitted, nil, err
 	}
+	subscription, err := h.runtime.authority.Subscribe(ctx, admitted.principal)
+	if err != nil {
+		return nil, admitted, nil, err
+	}
+	fenced, cancelFence := context.WithCancelCause(ctx)
+	joined := make(chan struct{})
+	go func() {
+		defer close(joined)
+		select {
+		case <-subscription.Changes():
+			cancelFence(authorization.ErrDenied)
+		case <-fenced.Done():
+		}
+	}()
 	permits := make([]*authorization.Permit, 0, len(admitted.objects))
 	release := func() {
+		// Stop and join the native binding watcher before releasing permits.
+		subscription.Close()
+		cancelFence(context.Canceled)
+		<-joined
 		for i := len(permits) - 1; i >= 0; i-- {
 			permits[i].Release()
 		}
 	}
-	current := ctx
+	current := fenced
 	for _, object := range admitted.objects {
 		permit, err := h.runtime.authority.Permit(current, admitted.principal, admitted.permission, object)
 		if err != nil {
@@ -234,6 +258,18 @@ func (h *historyHandler) begin(ctx context.Context, q historyquery.Query) (conte
 	if _, err = h.capture(current, q, &admitted.binding); err != nil {
 		release()
 		return nil, admitted, nil, err
+	}
+	admitted.ready = func() bool {
+		for _, permit := range permits {
+			if !permit.Ready() {
+				return false
+			}
+		}
+		if current.Err() != nil {
+			return false
+		}
+		_, err := h.capture(current, q, &admitted.binding)
+		return err == nil
 	}
 	return current, admitted, release, nil
 }

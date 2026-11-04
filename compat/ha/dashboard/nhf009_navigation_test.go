@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
 )
 
 func TestNHF009NativeNavigationResolvesConfiguredPagesAndViewScopedPopups(t *testing.T) {
@@ -22,14 +21,14 @@ func TestNHF009NativeNavigationResolvesConfiguredPagesAndViewScopedPopups(t *tes
 	popup := views[0].Sections()[0].Cards()[1]
 	for _, path := range []string{"#synthetic-room", "/lovelace#synthetic-room", "/lovelace/0#synthetic-room"} {
 		destination, ok := index.Resolve(from, views[0].Location(), path)
-		if !ok || destination.Presentation != wire.NativePresentation_NATIVE_PRESENTATION_POPUP || destination.NodeId != popup.Location().Path() {
+		if !ok || destination.presentation != navigationPopup || destination.node != popup.Location().Path() {
 			t.Fatalf("unresolved/misrouted popup %s: %+v", path, destination)
 		}
-		destination.NodeId = "changed-copy"
+		destination.node = "changed-copy"
 	}
 	for _, path := range []string{"/lovelace/second", "/lovelace/1"} {
 		destination, ok := index.Resolve(from, views[0].Location(), path)
-		if !ok || destination.Presentation != wire.NativePresentation_NATIVE_PRESENTATION_PAGE || destination.NodeId != views[1].Location().Path() {
+		if !ok || destination.presentation != navigationPage || destination.node != views[1].Location().Path() {
 			t.Fatalf("unresolved page %s", path)
 		}
 	}
@@ -87,7 +86,7 @@ func TestNHF009CorpusNavigationUsesAllThirteenConfiguredPopupBodies(t *testing.T
 					continue
 				}
 				links++
-				if destination, ok := index.Resolve(definition.Source().ID(), view.Location(), path); !ok || destination.Presentation != wire.NativePresentation_NATIVE_PRESENTATION_POPUP {
+				if destination, ok := index.Resolve(definition.Source().ID(), view.Location(), path); !ok || destination.presentation != navigationPopup {
 					t.Fatalf("configured popup link lost: %s", path)
 				}
 			}

@@ -1,0 +1,155 @@
+syntax = "proto3";
+
+package home.api.v2;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "RecorderEvidenceProto";
+option java_package = "com.home.api.v2";
+
+// Closed recorder evidence shared by historical and diagnostic read projections.
+// Positions prove ordering only: a gap has no inferred UTC duration and a
+// position interval is never a count of missing observations. These identifiers
+// confer no authority and never select an entity, credential or native command.
+message AdmissionPosition {
+  bytes epoch = 1;
+  uint64 sequence = 2;
+}
+
+message KnownLost {
+  oneof result {
+    // A strictly positive measured lower bound; never an interval's width.
+    uint64 lower_bound = 1;
+    google.protobuf.Empty not_known = 2;
+  }
+}
+
+enum GapReason {
+  GAP_REASON_UNSPECIFIED = 0;
+  GAP_REASON_OVERFLOW = 1;
+  GAP_REASON_RECONCILIATION = 2;
+  GAP_REASON_ABANDONED = 3;
+}
+
+enum RecorderTraceDecision {
+  RECORDER_TRACE_DECISION_UNSPECIFIED = 0;
+  RECORDER_TRACE_DECISION_PREPARING = 1;
+  RECORDER_TRACE_DECISION_ADMITTED = 2;
+  RECORDER_TRACE_DECISION_QUEUED = 3;
+  RECORDER_TRACE_DECISION_RESTART_PENDING = 4;
+  RECORDER_TRACE_DECISION_SINGLE_BUSY = 5;
+  RECORDER_TRACE_DECISION_MAX_EXCEEDED = 6;
+  RECORDER_TRACE_DECISION_PREPARATION_SATURATED = 7;
+  RECORDER_TRACE_DECISION_MEMORY_SATURATED = 8;
+  RECORDER_TRACE_DECISION_CONDITION_FALSE = 9;
+  RECORDER_TRACE_DECISION_PREPARATION_ERROR = 10;
+  RECORDER_TRACE_DECISION_EXECUTION_ERROR = 11;
+  RECORDER_TRACE_DECISION_FINISHED = 12;
+  RECORDER_TRACE_DECISION_CANCELLED = 13;
+  RECORDER_TRACE_DECISION_SUPERSEDED = 14;
+  RECORDER_TRACE_DECISION_CLOSED = 15;
+  RECORDER_TRACE_DECISION_UNKNOWN_AUTOMATION = 16;
+  RECORDER_TRACE_DECISION_TRIGGER_MISSED = 17;
+  RECORDER_TRACE_DECISION_TRIGGER_DEGRADED = 18;
+}
+
+enum RecorderTraceActionKind {
+  RECORDER_TRACE_ACTION_KIND_UNSPECIFIED = 0;
+  RECORDER_TRACE_ACTION_KIND_VARIABLES = 1;
+  RECORDER_TRACE_ACTION_KIND_SEQUENCE = 2;
+  RECORDER_TRACE_ACTION_KIND_CHOOSE = 3;
+  RECORDER_TRACE_ACTION_KIND_IF = 4;
+  RECORDER_TRACE_ACTION_KIND_REPEAT = 5;
+  RECORDER_TRACE_ACTION_KIND_PARALLEL = 6;
+  RECORDER_TRACE_ACTION_KIND_WAIT = 7;
+  RECORDER_TRACE_ACTION_KIND_STOP = 8;
+  RECORDER_TRACE_ACTION_KIND_CALL = 9;
+  RECORDER_TRACE_ACTION_KIND_DELAY = 10;
+  RECORDER_TRACE_ACTION_KIND_WAIT_TEMPLATE = 11;
+}
+
+enum RecorderTraceNodeStage {
+  RECORDER_TRACE_NODE_STAGE_UNSPECIFIED = 0;
+  RECORDER_TRACE_NODE_STAGE_ENTERED = 1;
+  RECORDER_TRACE_NODE_STAGE_COMPLETED = 2;
+  RECORDER_TRACE_NODE_STAGE_STOPPED = 3;
+  RECORDER_TRACE_NODE_STAGE_CANCELLED = 4;
+  RECORDER_TRACE_NODE_STAGE_FAILED = 5;
+  RECORDER_TRACE_NODE_STAGE_WAITING = 6;
+}
+
+enum RecorderTraceExecutionErrorKind {
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_UNSPECIFIED = 0;
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_INVALID_PROGRAM = 1;
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_WORK_BUDGET = 2;
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_RECURSION = 3;
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_WAIT_TIMEOUT = 4;
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_SOURCE_UNAVAILABLE = 5;
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_CONDITION_ERROR = 6;
+  RECORDER_TRACE_EXECUTION_ERROR_KIND_COMMAND_ERROR = 7;
+}
+
+message RecorderEpochIdentity {
+  // Existing storage.RecorderEpoch represented as exactly 16 nonzero bytes.
+  bytes value = 1;
+}
+
+enum RecorderReconciliationState {
+  RECORDER_RECONCILIATION_STATE_UNSPECIFIED = 0;
+  RECORDER_RECONCILIATION_STATE_COMPLETE = 1;
+  RECORDER_RECONCILIATION_STATE_INCOMPLETE = 2;
+}
+
+message PreviousRecorderEpoch {
+  RecorderEpochIdentity epoch = 1;
+  uint64 checkpoint = 2;
+  bool clean_close = 3;
+}
+
+message RecorderEpochCoverage {
+  RecorderEpochIdentity epoch = 1;
+  uint64 checkpoint = 2;
+  uint64 policy_excluded = 3;
+  google.protobuf.Timestamp started_at = 4;
+  oneof close_time {
+    google.protobuf.Timestamp closed_at = 5;
+    google.protobuf.Empty not_recorded = 6;
+  }
+  bool clean_close = 7;
+  RecorderReconciliationState reconciliation = 8;
+  oneof predecessor {
+    PreviousRecorderEpoch previous = 9;
+    google.protobuf.Empty no_previous = 10;
+  }
+}
+
+enum GapEnvelope {
+  GAP_ENVELOPE_UNSPECIFIED = 0;
+  GAP_ENVELOPE_EXACT_POSITIONS = 1;
+  GAP_ENVELOPE_UNCERTAIN_ENVELOPE = 2;
+}
+
+message RecorderCoverageGap {
+  RecorderEpochIdentity epoch = 1;
+  // Positive inclusive source positions, not a count of lost states or time.
+  uint64 from_sequence = 2;
+  uint64 through_sequence = 3;
+  GapReason reason = 4;
+  KnownLost known_lost = 5;
+  GapEnvelope envelope = 6;
+  // 031 stores positional gaps without measured UTC bounds. Do not invent a
+  // duration or reinterpret epoch start/close dates as a gap's UTC interval.
+  oneof utc_bounds {
+    google.protobuf.Empty unknown_utc = 7;
+  }
+}
+
+message RecorderCoverageSnapshot {
+  AdmissionPosition from = 1;
+  AdmissionPosition through = 2;
+  repeated RecorderEpochCoverage epochs = 3;
+  repeated RecorderCoverageGap gaps = 4;
+}

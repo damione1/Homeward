@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
+	"github.com/damione1/Homeward/internal/domain"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -66,10 +68,52 @@ func (c *ConfigTx) RecordActivationAttempt(id ActivationAttemptID, metadata Conf
 	default:
 		return &Error{kind: ConfigInvalid}
 	}
+	var apiID, apiMethod, apiCreated any
+	if execution, present := ConfigurationAPIExecutionFromContext(c.ctx); present {
+		if execution.record.attempt != id || execution.record.account != execution.request.account {
+			return configRequestError(ConfigurationRequestIntegrity)
+		}
+		actor, actorErr := execution.record.account.Value()
+		if actorErr != nil || actor != metadata.author.author {
+			return authorization.ErrDenied
+		}
+		apiID, apiMethod, apiCreated = configurationRequestUUID(execution.record.requestID), int16(execution.record.method), execution.record.accepted
+	} else {
+		// Native random IDs must not claim a concurrently reserved API ID.
+		// This MVCC lookup takes no request-row lock after native lock 151.
+		var reserved bool
+		if err := c.tx.QueryRow(c.ctx, `SELECT EXISTS(SELECT 1 FROM public.config_api_requests WHERE attempt_id=$1)`, id.value[:]).Scan(&reserved); err != nil {
+			return err
+		}
+		if reserved {
+			return configRequestError(ConfigurationRequestIntegrity)
+		}
+	}
+	var integrationMethod, integrationInstance, integrationCredentialKind, integrationCredentialID any
+	integrationTarget, hasIntegrationTarget := configurationIntegrationTargetFromContext(c.ctx)
+	if hasIntegrationTarget {
+		key, _ := integrationTarget.instance.Value()
+		integrationMethod, integrationInstance = int16(integrationTarget.method), key
+	}
+	if execution, present := ConfigurationAPIExecutionFromContext(c.ctx); present {
+		switch execution.record.method {
+		case ConfigurationCreateIntegration, ConfigurationUpdateIntegration, ConfigurationDeleteIntegration:
+			if !hasIntegrationTarget || integrationTarget != execution.record.target || !execution.record.credential.valid() {
+				return configRequestError(ConfigurationRequestIntegrity)
+			}
+			integrationCredentialKind, integrationCredentialID = execution.record.credential.sqlKind(), execution.record.credential.sqlID()
+		default:
+			if hasIntegrationTarget {
+				return configRequestError(ConfigurationRequestIntegrity)
+			}
+		}
+	} else if hasIntegrationTarget {
+		return configRequestError(ConfigurationRequestInvalid)
+	}
 	_, err = c.tx.Exec(c.ctx, `INSERT INTO public.config_activation_attempts
-		(attempt_id,expected_generation,expected_manifest_hash,target_generation,target_manifest_hash,author,source)
-		VALUES($1,$2,$3,$4,$5,$6,$7)`, id.value[:], expectedRevision, expectedHash,
-		c.activation.target.generation, c.activation.manifest[:], metadata.author.author, metadata.source.source)
+		(attempt_id,expected_generation,expected_manifest_hash,target_generation,target_manifest_hash,author,source,api_request_id,api_request_method,api_request_create_time,api_integration_method,api_integration_instance_key,api_integration_credential_kind,api_integration_credential_id)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8::uuid,$9,$10,$11,$12,$13,$14)`, id.value[:], expectedRevision, expectedHash,
+		c.activation.target.generation, c.activation.manifest[:], metadata.author.author, metadata.source.source, apiID, apiMethod, apiCreated, integrationMethod, integrationInstance, integrationCredentialKind, integrationCredentialID)
 	if err != nil {
 		return configWriteError(err)
 	}
@@ -131,13 +175,18 @@ func (c *ConfigTx) RecordActivationPolicyChange(id ActivationAttemptID, account 
 }
 
 type ConfigActivationAttempt struct {
-	id        ActivationAttemptID
-	expected  ExpectedConfigActive
-	target    ConfigGenerationRevision
-	manifest  [sha256.Size]byte
-	author    ConfigAuthor
-	source    ConfigSource
-	committed time.Time
+	id                    ActivationAttemptID
+	expected              ExpectedConfigActive
+	target                ConfigGenerationRevision
+	manifest              [sha256.Size]byte
+	author                ConfigAuthor
+	source                ConfigSource
+	committed             time.Time
+	apiRequest            apitypes.RequestID
+	apiMethod             ConfigurationAPIMethod
+	apiCreated            time.Time
+	integrationTarget     ConfigurationIntegrationTarget
+	integrationCredential configurationIntegrationCredential
 }
 
 func (a ConfigActivationAttempt) ID() ActivationAttemptID           { return a.id }
@@ -147,6 +196,19 @@ func (a ConfigActivationAttempt) ManifestSHA256() [sha256.Size]byte { return a.m
 func (a ConfigActivationAttempt) CommittedAt() time.Time            { return a.committed }
 func (a ConfigActivationAttempt) Author() ConfigAuthor              { return a.author }
 func (a ConfigActivationAttempt) Source() ConfigSource              { return a.source }
+func (a ConfigActivationAttempt) CreateTime() time.Time {
+	if a.apiMethod.Valid() {
+		return a.apiCreated
+	}
+	return a.committed
+}
+func (a ConfigActivationAttempt) APIRequestID() (apitypes.RequestID, bool) {
+	return a.apiRequest, a.apiRequest.Valid()
+}
+
+func (a ConfigActivationAttempt) IntegrationTarget() (ConfigurationIntegrationTarget, bool) {
+	return a.integrationTarget, a.integrationTarget.Valid()
+}
 
 // ReadActivationAttempt leases an independent SQL connection after an
 // indeterminate commit. The caller must still reconcile/publish the active
@@ -185,9 +247,15 @@ func (s *Store) ReadActivationAttempt(ctx context.Context, id ActivationAttemptI
 	var target int64
 	var author, source string
 	var committed time.Time
+	var apiID *string
+	var apiMethod *int16
+	var apiCreated *time.Time
+	var integrationMethod *int16
+	var integrationInstance, integrationCredentialID *string
+	var integrationCredentialKind *int16
 	err = tx.QueryRow(ctx, `SELECT expected_generation,expected_manifest_hash,target_generation,
-		target_manifest_hash,author,source,committed_at FROM public.config_activation_attempts WHERE attempt_id=$1`,
-		id.value[:]).Scan(&expectedRevision, &expectedHash, &target, &manifest, &author, &source, &committed)
+		target_manifest_hash,author,source,committed_at,api_request_id::text,api_request_method,api_request_create_time,api_integration_method,api_integration_instance_key,api_integration_credential_kind,api_integration_credential_id FROM public.config_activation_attempts WHERE attempt_id=$1`,
+		id.value[:]).Scan(&expectedRevision, &expectedHash, &target, &manifest, &author, &source, &committed, &apiID, &apiMethod, &apiCreated, &integrationMethod, &integrationInstance, &integrationCredentialKind, &integrationCredentialID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ConfigActivationAttempt{}, false, nil
 	}
@@ -195,6 +263,53 @@ func (s *Store) ReadActivationAttempt(ctx context.Context, id ActivationAttemptI
 		return ConfigActivationAttempt{}, false, &Error{kind: Unavailable}
 	}
 	result := ConfigActivationAttempt{id: id, committed: committed}
+	if apiID != nil || apiMethod != nil || apiCreated != nil {
+		if apiMethod == nil || apiCreated == nil || *apiMethod < 1 || *apiMethod > 255 || apiCreated.IsZero() {
+			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+		}
+		if apiID != nil {
+			result.apiRequest, err = apitypes.ParseRequestID(*apiID)
+			if err != nil {
+				return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+			}
+		} else if !integrationAPIMethod(ConfigurationAPIMethod(*apiMethod)) {
+			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+		}
+		result.apiMethod = ConfigurationAPIMethod(*apiMethod)
+		result.apiCreated = *apiCreated
+		if !result.apiMethod.Valid() {
+			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+		}
+	}
+	if integrationMethod != nil || integrationInstance != nil {
+		if integrationMethod == nil || integrationInstance == nil || *integrationMethod < 5 || *integrationMethod > 7 {
+			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+		}
+		instance, parseErr := domain.ParseIntegrationInstanceID(*integrationInstance)
+		if parseErr != nil {
+			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+		}
+		result.integrationTarget, err = NewConfigurationIntegrationTarget(ConfigurationAPIMethod(*integrationMethod), instance)
+		if err != nil || (result.apiMethod.Valid() && result.apiMethod != result.integrationTarget.method) {
+			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+		}
+	} else if result.apiMethod.Valid() {
+		switch result.apiMethod {
+		case ConfigurationCreateIntegration, ConfigurationUpdateIntegration, ConfigurationDeleteIntegration:
+			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+		}
+	}
+	if integrationCredentialKind != nil || integrationCredentialID != nil {
+		if integrationCredentialKind == nil || integrationCredentialID == nil {
+			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+		}
+		result.integrationCredential = configurationIntegrationCredential{kind: authorization.IntegrationCredentialKind(*integrationCredentialKind), id: *integrationCredentialID}
+		if !result.integrationCredential.valid() || !result.integrationTarget.Valid() || !result.apiMethod.Valid() {
+			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+		}
+	} else if result.integrationTarget.Valid() {
+		return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+	}
 	result.target, err = NewConfigGenerationRevision(target)
 	if err != nil || len(manifest) != sha256.Size || committed.IsZero() {
 		return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}

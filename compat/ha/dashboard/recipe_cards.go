@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/damione1/Homeward/compat/ha/parser"
-	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
 	"github.com/damione1/Homeward/internal/domain"
 )
 
@@ -290,7 +289,7 @@ func (c *compiler) cardExtension(card *Card, entry parser.Entry) (bool, bool) {
 			return true, true
 		}
 		if value == "summary" {
-			card.controlPresentation = wire.NativeControlPresentation_NATIVE_CONTROL_PRESENTATION_SUMMARY
+			card.controlPresentation = controlsSummary
 		}
 		return true, false
 	case "features":

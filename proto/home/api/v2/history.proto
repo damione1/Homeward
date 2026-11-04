@@ -1,0 +1,340 @@
+syntax = "proto3";
+
+package home.api.v2;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "home/api/v2/extended_traits.proto";
+import "home/api/v2/recorder_evidence.proto";
+import "home/api/v2/traits.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "HistoryProto";
+option java_package = "com.home.api.v2";
+
+// Correlation references are resolved by membership in the epoch returned by
+// QueryExecutionTraces. They identify persisted rows/relations, not separately
+// indexed mutable resources and confer no right to read another query.
+option (google.api.resource_definition) = {
+  type: "homeward.damiengoehrig.ca/HistoricalExecutionRun"
+  pattern: "homes/{home}/executionEpochs/{execution_epoch}/runs/{run}"
+};
+option (google.api.resource_definition) = {
+  type: "homeward.damiengoehrig.ca/HistoricalExecutionController"
+  pattern: "homes/{home}/executionEpochs/{execution_epoch}/controllers/{controller}"
+};
+
+// Read-only bounded analytical queries over the existing native recorder.
+// Query is custom because retained windows and coverage are part of the result,
+// rather than a mutable resource collection. No command or replay is admitted.
+service HistoryService {
+  option (google.api.default_host) = "homeward.damiengoehrig.ca";
+  // Reads recorded values with HISTORY READ on every trusted entity slot.
+  rpc QueryObservations(QueryObservationsRequest) returns (QueryObservationsResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*/entities/*}:queryObservations"};
+    option (google.api.method_signature) = "parent,period";
+  }
+  // Reads hourly aggregates without inferring missing data as zero.
+  rpc QueryAggregates(QueryAggregatesRequest) returns (QueryAggregatesResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*/entities/*}:queryAggregates"};
+    option (google.api.method_signature) = "parent,period";
+  }
+  // Reads persisted traces under the native GLOBAL_CONFIGURATION READ gate.
+  rpc QueryExecutionTraces(QueryExecutionTracesRequest) returns (QueryExecutionTracesResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}:queryExecutionTraces"};
+    option (google.api.method_signature) = "parent,period";
+  }
+}
+
+message QueryObservationsRequest {
+  // Canonical entity name; aliases and native entity IDs are not accepted.
+  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"];
+  HistoryPeriod period = 2 [(google.api.field_behavior) = REQUIRED];
+  // Zero uses the native default; positive values are capped to its page bound.
+  int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
+  // Opaque continuation bound to query, credential and current native authority.
+  string page_token = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+message QueryAggregatesRequest {
+  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Entity"];
+  HistoryPeriod period = 2 [(google.api.field_behavior) = REQUIRED];
+  int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
+  string page_token = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+message QueryExecutionTracesRequest {
+  string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"];
+  HistoryPeriod period = 2 [(google.api.field_behavior) = REQUIRED];
+  // Empty selects the currently persisted epoch. Otherwise a returned opaque
+  // epoch token selects retained history; it conveys no authority.
+  string execution_epoch = 3 [(google.api.field_behavior) = OPTIONAL];
+  int32 page_size = 4 [(google.api.field_behavior) = OPTIONAL];
+  string page_token = 5 [(google.api.field_behavior) = OPTIONAL];
+}
+message QueryObservationsResponse {
+  repeated HistoryObservation observations = 1;
+  // A nonempty token can accompany an empty bounded scan page.
+  string next_page_token = 2;
+  HistoryReadScope scope = 3;
+  HistoryCoverage coverage = 4;
+}
+message QueryAggregatesResponse {
+  repeated HistoryAggregate aggregates = 1;
+  string next_page_token = 2;
+  HistoryReadScope scope = 3;
+  HistoryCoverage coverage = 4;
+}
+message QueryExecutionTracesResponse {
+  repeated HistoryExecutionTrace execution_traces = 1;
+  string next_page_token = 2;
+  HistoryReadScope scope = 3;
+  string execution_epoch = 4;
+  string previous_execution_epoch = 5;
+  bool interrupted_predecessor = 6;
+  bool epoch_interrupted = 7;
+  bool scope_reduced = 8;
+  uint64 checkpoint = 9;
+  uint64 commit_high = 10;
+  repeated HistoryTraceLoss losses = 11;
+}
+
+// A recorded value is independent of today's capability definitions. The
+// enclosing query identifies the entity; no native source/session ID escapes.
+message HistoricalState {
+  ObservationQuality quality = 1;
+  google.protobuf.Timestamp observed_time = 2;
+  google.protobuf.Timestamp receive_time = 3;
+  google.protobuf.Timestamp last_change_time = 4;
+  google.protobuf.Timestamp last_update_time = 5;
+  google.protobuf.Timestamp last_report_time = 6;
+  oneof value {
+    bool switch_on = 11;
+    HistoricalMeasurement measurement = 12;
+    HistoricalLight light = 13;
+    FanSpeed fan_speed = 14;
+    HistoricalTemperatureControl temperature_control = 15;
+    HelperValue helper = 16;
+    SolarValue solar = 17;
+    SolarEventValue solar_event = 18;
+    CoverValue cover = 19;
+    LockValue lock = 20;
+    AlarmValue alarm = 21;
+    WeatherValue weather = 22;
+    PresenceValue presence = 23;
+    PresenceDetailsValue presence_details = 24;
+  }
+}
+message HistoricalMeasurement {
+  double value = 1;
+  string unit = 2;
+  // Preserves decimal cost precision; never interpreted as float currency.
+  optional string decimal_value = 3;
+}
+message HistoricalLight {
+  optional bool on = 1;
+  optional double brightness_percent = 2;
+  optional uint32 color_temp_mireds = 3;
+}
+message HistoricalTemperatureControl {
+  optional double current_temperature_celsius = 1;
+  oneof setpoint {
+    double setpoint_celsius = 2;
+    TemperatureRange setpoint_range_celsius = 3;
+  }
+  optional TemperatureMode mode = 4;
+  optional TemperatureActivity activity = 5;
+  optional bool fan_active = 6;
+  optional double humidity_percent = 7;
+  optional TemperatureFanTarget fan_target = 8;
+}
+
+enum HistoryResolution {
+  HISTORY_RESOLUTION_UNSPECIFIED = 0;
+  HISTORY_RESOLUTION_RAW = 1;
+  HISTORY_RESOLUTION_HOUR = 2;
+}
+
+// UTC half-open [start,end). Observations use received_at, aggregates local
+// admission buckets, execution traces emission_time. Source observed_at remains
+// optional and is never substituted for received_at or used for retention.
+message HistoryPeriod {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+message HistoryLimits {
+  uint32 max_points = 1;
+  uint32 max_response_bytes = 2;
+  uint32 max_token_bytes = 3;
+  uint32 query_timeout_millis = 4;
+  uint32 max_readers = 5;
+  uint32 max_period_hours = 6;
+}
+
+message HistoryReadScope {
+  HistoryPeriod requested = 1;
+  HistoryPeriod retained = 2;
+  google.protobuf.Timestamp retention_cutoff = 3;
+  google.protobuf.Timestamp as_of = 4;
+  HistoryResolution resolution = 5;
+  HistoryLimits limits = 6;
+  // A clipped prefix is absent due to retention; never synthesized as zero.
+  optional HistoryPeriod not_retained_prefix = 7;
+}
+// A next token may accompany zero points after a bounded candidate scan. That
+// page is progress, not a complete empty history; only end terminates the scan.
+
+// Historical entity reads never disclose global Recorder positions, queue
+// sizes, policy-excluded counts or loss envelopes. The diagnostic service owns
+// those separately authorized facts.
+enum HistoryCoverageVerdict {
+  HISTORY_COVERAGE_VERDICT_UNSPECIFIED = 0;
+  HISTORY_COVERAGE_VERDICT_NOT_PROVEN = 1;
+}
+message HistoryCoverage {
+  // Filtering by the recorded authorization scope cannot prove completeness.
+  HistoryCoverageVerdict verdict = 1;
+  // Native epoch activation of frozen admission provenance, independent of
+  // whether this entity has any rows. This is not a receive-time cutoff:
+  // observation clocks may regress. Missing means no proven activation yet.
+  optional google.protobuf.Timestamp provenance_started_at = 2;
+}
+message HistoryObservation {
+  // Opaque identity stable within the server incarnation for duplicate detection, never an ordinal or a
+  // cursor. The returned list preserves native admission order; do not sort
+  // observations by receive_time when clocks regress.
+  string observation_id = 1;
+  HistoricalState state = 2;
+  // Historical interpretation is carried separately from current capabilities.
+  optional HistoryNumericDescriptor descriptor = 3;
+}
+enum HistoryDimension {
+  HISTORY_DIMENSION_UNSPECIFIED = 0;
+  HISTORY_DIMENSION_POWER = 1;
+  HISTORY_DIMENSION_ENERGY = 2;
+  HISTORY_DIMENSION_TEMPERATURE = 3;
+  HISTORY_DIMENSION_RATIO = 4;
+  HISTORY_DIMENSION_ILLUMINANCE = 5;
+  HISTORY_DIMENSION_COUNT = 6;
+}
+message HistoryNumericDescriptor {
+  string unit = 1;
+  string canonical_unit = 2;
+  double scale = 3;
+  double offset = 4;
+  HistoryDimension dimension = 5;
+  sint32 precision = 6;
+  MeasurementSemantic semantic = 7;
+  MeasurementAggregation aggregation = 8;
+}
+enum HistoryReset {
+  HISTORY_RESET_UNSPECIFIED = 0;
+  HISTORY_RESET_NOT_APPLICABLE = 1;
+  HISTORY_RESET_UNKNOWN = 2;
+  HISTORY_RESET_NOT_DETECTED = 3;
+  HISTORY_RESET_INFERRED = 4;
+}
+enum HistoryAggregateReason {
+  HISTORY_AGGREGATE_REASON_UNSPECIFIED = 0;
+  HISTORY_AGGREGATE_REASON_GAP = 1;
+  HISTORY_AGGREGATE_REASON_EPOCH_BOUNDARY = 2;
+  HISTORY_AGGREGATE_REASON_RETENTION_PRUNED = 3;
+  HISTORY_AGGREGATE_REASON_QUALITY_BREAK = 4;
+  HISTORY_AGGREGATE_REASON_UNIT_BREAK = 5;
+  HISTORY_AGGREGATE_REASON_CLOCK_REGRESSION = 6;
+  HISTORY_AGGREGATE_REASON_COUNTER_DIP = 7;
+  HISTORY_AGGREGATE_REASON_UNKNOWN_BASELINE = 8;
+  HISTORY_AGGREGATE_REASON_BUDGET_LIMIT = 9;
+  HISTORY_AGGREGATE_REASON_UNPROVEN_TAIL = 10;
+  HISTORY_AGGREGATE_REASON_NON_NUMERIC = 11;
+  HISTORY_AGGREGATE_REASON_UNSUPPORTED_NUMERIC = 12;
+}
+message HistoryAggregate {
+  HistoryPeriod bucket = 1;
+  HistoryNumericDescriptor descriptor = 2;
+  ObservationQuality quality = 3;
+  uint64 duration_nanos = 4;
+  optional double minimum = 5;
+  optional double maximum = 6;
+  optional double mean = 7;
+  optional double contribution = 8;
+  HistoryReset reset = 9;
+  repeated HistoryAggregateReason reasons = 10;
+  // Opaque bucket/group identity; distinct admission scopes are never merged.
+  string aggregate_id = 11;
+}
+
+// Persisted trace variants extend the 056 in-memory trace projection without
+// exposing payloads, frame data, source arguments, causes or free-form errors.
+enum HistorySceneMemberOutcome {
+  HISTORY_SCENE_MEMBER_OUTCOME_UNSPECIFIED = 0;
+  HISTORY_SCENE_MEMBER_OUTCOME_PREPARED = 1;
+  HISTORY_SCENE_MEMBER_OUTCOME_ALREADY_SATISFIED = 2;
+  HISTORY_SCENE_MEMBER_OUTCOME_REFUSED = 3;
+  HISTORY_SCENE_MEMBER_OUTCOME_ACCEPTED = 4;
+  HISTORY_SCENE_MEMBER_OUTCOME_DISPATCHED = 5;
+  HISTORY_SCENE_MEMBER_OUTCOME_ACKNOWLEDGED = 6;
+  HISTORY_SCENE_MEMBER_OUTCOME_CONFIRMED = 7;
+  HISTORY_SCENE_MEMBER_OUTCOME_INDETERMINATE = 8;
+}
+enum HistorySceneOutcome {
+  HISTORY_SCENE_OUTCOME_UNSPECIFIED = 0;
+  HISTORY_SCENE_OUTCOME_COMPLETE = 1;
+  HISTORY_SCENE_OUTCOME_PARTIAL = 2;
+  HISTORY_SCENE_OUTCOME_NONE = 3;
+  HISTORY_SCENE_OUTCOME_INDETERMINATE = 4;
+  HISTORY_SCENE_OUTCOME_NOT_ATTEMPTED = 5;
+}
+enum HistoryScriptMode {
+  HISTORY_SCRIPT_MODE_UNSPECIFIED = 0;
+  HISTORY_SCRIPT_MODE_WAIT = 1;
+  HISTORY_SCRIPT_MODE_DETACHED = 2;
+}
+enum HistoryCommandOutcome {
+  HISTORY_COMMAND_OUTCOME_UNSPECIFIED = 0;
+  HISTORY_COMMAND_OUTCOME_ACCEPTED = 1;
+  HISTORY_COMMAND_OUTCOME_DISPATCHED = 2;
+  HISTORY_COMMAND_OUTCOME_ACKNOWLEDGED = 3;
+  HISTORY_COMMAND_OUTCOME_CONFIRMED = 4;
+  HISTORY_COMMAND_OUTCOME_INDETERMINATE = 5;
+  HISTORY_COMMAND_OUTCOME_REFUSED = 6;
+  HISTORY_COMMAND_OUTCOME_NOT_ATTEMPTED = 7;
+}
+message HistoryExecutionTrace {
+  uint64 ordinal = 1;
+  google.protobuf.Timestamp emission_time = 2;
+  oneof outcome {
+    RecorderTraceDecision decision = 3;
+    RecorderTraceNodeStage node_stage = 4;
+    HistoryCommandOutcome command_outcome = 5;
+    HistorySceneMemberOutcome scene_member_outcome = 6;
+    HistorySceneOutcome scene_outcome = 7;
+    HistoryScriptMode script_mode = 8;
+  }
+  // Same canonical reference joins rows from this run within the retained epoch.
+  optional string run = 9 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/HistoricalExecutionRun"];
+  // A causal link, possibly outside the retained/time-filtered rows.
+  optional string parent_run = 10 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/HistoricalExecutionRun"];
+  // Identifies the native controller generation within the same persisted epoch.
+  optional string controller = 11 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/HistoricalExecutionController"];
+  optional string configuration_generation = 12;
+  optional bytes manifest_sha256 = 13;
+  optional RecorderTraceActionKind action_kind = 14;
+  optional RecorderTraceExecutionErrorKind failure_kind = 15;
+}
+enum HistoryTraceLossReason {
+  HISTORY_TRACE_LOSS_REASON_UNSPECIFIED = 0;
+  HISTORY_TRACE_LOSS_REASON_QUEUE_FULL = 1;
+  HISTORY_TRACE_LOSS_REASON_TOO_LARGE = 2;
+  HISTORY_TRACE_LOSS_REASON_CONTENTION = 3;
+  HISTORY_TRACE_LOSS_REASON_INVALID_METADATA = 4;
+}
+message HistoryTraceLoss {
+  HistoryTraceLossReason reason = 1;
+  uint64 known_count = 2;
+  google.protobuf.Timestamp from = 3;
+  google.protobuf.Timestamp through = 4;
+  bool uncertain_envelope = 5;
+}

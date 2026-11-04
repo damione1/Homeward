@@ -2,372 +2,323 @@ package server
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
-	"errors"
-	"fmt"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
-	"sort"
+	"time"
 
 	"connectrpc.com/connect"
-	imported "github.com/damione1/Homeward/compat/ha/dashboard"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
-	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
-	"github.com/damione1/Homeward/gen/home/dashboard/v1/dashboardv1connect"
+	"github.com/damione1/Homeward/internal/apierrors"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/configactivation"
-	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/sequencer"
+	"github.com/damione1/Homeward/internal/view"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Dashboard reads use only published, validated configuration. Raw source
-// bytes belong to the separately authorized ConfigurationService.
+const maxDashboardResourceBytes = 1 << 20
+const maxDashboardPageBytes = 2 << 20
+const maxDashboardCatalogueBytes = 16 << 20
+
+// Borrow existing native owners. This adapter retains no catalogue or effect
+// ledger; its only private state is an ephemeral representation secret.
 type dashboardHandler struct {
-	dashboardv1connect.UnimplementedDashboardServiceHandler
+	apiv2connect.UnimplementedDashboardServiceHandler
 	owner     *configactivation.Owner
 	authority *authorization.Authority
 	sequence  *sequencer.Sequencer
-	epoch     [16]byte
+	home      *homeResourceHandler
+	profiles  view.DisplayProfileSource
+	secret    [32]byte
+}
+type dashboardCheckpoint struct {
+	Digest  string
+	Offset  int
+	Expires int64
 }
 
-type dashboardCapture struct {
-	documents []*wire.Dashboard
-	token     string
-	permits   []*authorization.Permit
+func (h *dashboardHandler) sealCheckpoint(value dashboardCheckpoint, binding []byte) (string, error) {
+	plain, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, h.home.pages.NonceSize())
+	if _, err = rand.Read(nonce); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(h.home.pages.Seal(nonce, nonce, plain, binding)), nil
 }
-
-func (c *dashboardCapture) release() {
-	for _, permit := range c.permits {
-		permit.Release()
+func (h *dashboardHandler) openCheckpoint(raw string, binding []byte) (dashboardCheckpoint, error) {
+	var value dashboardCheckpoint
+	if len(raw) == 0 || len(raw) > 8192 {
+		return value, view.ErrPageToken
 	}
-	c.permits = nil
+	data, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil || len(data) < h.home.pages.NonceSize()+h.home.pages.Overhead() {
+		return value, view.ErrPageToken
+	}
+	plain, err := h.home.pages.Open(nil, data[:h.home.pages.NonceSize()], data[h.home.pages.NonceSize():], binding)
+	if err != nil || json.Unmarshal(plain, &value) != nil || value.Expires <= time.Now().UnixNano() || len(value.Digest) != 43 || value.Offset < 0 || value.Offset > 128 {
+		return dashboardCheckpoint{}, view.ErrViewChanged
+	}
+	return value, nil
 }
-func (c *dashboardCapture) ready() bool {
-	for _, permit := range c.permits {
-		if !permit.Ready() {
-			return false
-		}
+func (h *dashboardHandler) opaque(parts ...[]byte) string {
+	digest := hmac.New(sha256.New, h.secret[:])
+	for _, part := range parts {
+		_ = json.NewEncoder(digest).Encode(base64.RawURLEncoding.EncodeToString(part))
 	}
-	return true
+	return base64.RawURLEncoding.EncodeToString(digest.Sum(nil))
 }
-
-func (h *dashboardHandler) capture(ctx context.Context, support *wire.ClientLayoutSupport) (result dashboardCapture, err error) {
-	defer func() {
-		if err != nil {
-			result.release()
-		}
-	}()
-	principal, err := authorization.PrincipalFromContext(ctx)
-	if err != nil {
-		return result, coreRPCError(ctx, err)
-	}
-	grant, err := h.authority.Current(principal)
-	if err != nil {
-		return result, coreRPCError(ctx, err)
-	}
-	rights, rightsHash, err := grant.Binding()
-	if err != nil {
-		return result, coreRPCError(ctx, err)
-	}
-	definitions, stamp, err := h.owner.CurrentDashboards(ctx)
-	if err != nil {
-		return result, coreRPCError(ctx, err)
-	}
-	revision, configHash, err := stamp.Components()
-	if err != nil {
-		return result, coreRPCError(ctx, err)
-	}
-	versions, err := h.owner.DashboardSourceVersions(ctx, stamp)
-	if err != nil {
-		return result, coreRPCError(ctx, err)
-	}
-	if len(definitions) > 128 {
-		return result, coreRPCError(ctx, authorization.ErrCapacity)
-	}
+func dashboardPermission() authorization.Permission {
 	permission, _ := authorization.NewPermission(auth.ScopeFamily_SCOPE_FAMILY_DASHBOARDS, auth.ScopeOperation_SCOPE_OPERATION_READ)
-	authorized := make([]imported.Definition, 0, len(definitions))
-	for _, definition := range definitions {
-		// Only source-authored ownership is authoritative. Legacy unowned
-		// documents cannot become owned by the account making this request.
-		owner, present := definition.Owner()
-		if !present {
-			continue
-		}
-		object, objectErr := authorization.DashboardObject(definition.Source().ID(), owner)
-		if objectErr != nil {
-			return result, coreRPCError(ctx, objectErr)
-		}
-		permit, permitErr := h.authority.Permit(ctx, principal, permission, object)
-		if errors.Is(permitErr, authorization.ErrDenied) {
-			continue
-		}
-		if permitErr != nil {
-			return result, coreRPCError(ctx, permitErr)
-		}
-		result.permits = append(result.permits, permit)
-		authorized = append(authorized, definition)
+	return permission
+}
+func (h *dashboardHandler) parent(ctx context.Context, message proto.Message, raw string) (apitypes.HomeName, error) {
+	permission := dashboardPermission()
+	if _, _, err := h.home.current(ctx, &permission); err != nil {
+		return apitypes.HomeName{}, err
 	}
-	index, err := imported.NewNavigationIndex(authorized)
+	name, err := apitypes.ParseHomeName(raw)
 	if err != nil {
-		return result, coreRPCError(ctx, err)
+		return name, homeValidation(message, "parent", api.ValidationReason_VALIDATION_REASON_INVALID_NAME)
 	}
-	projection, err := h.sequence.CaptureBounded(8 << 20)
+	home, err := h.home.owner.HomeName(ctx)
 	if err != nil {
-		return result, coreRPCError(ctx, err)
+		return name, err
 	}
-	bindings := make(map[string]domain.EntityID)
-	statePermission, _ := authorization.NewPermission(auth.ScopeFamily_SCOPE_FAMILY_STATE_REGISTRY, auth.ScopeOperation_SCOPE_OPERATION_READ)
-	for entity, record := range projection.Registry {
-		if record.Retired() {
-			continue
-		}
-		allowed := false
-		for _, capability := range projection.Capabilities[entity] {
-			slot, slotErr := authorization.NewCapabilitySlot(capability.SchemaId, capability.Endpoint)
-			if slotErr != nil {
-				return result, coreRPCError(ctx, slotErr)
-			}
-			object, objectErr := authorization.EntityObject(entity, slot)
-			if objectErr != nil {
-				return result, coreRPCError(ctx, objectErr)
-			}
-			if grant.Authorize(statePermission, object) == nil {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
-			continue
-		}
-		_, _, aliases, aliasErr := record.Aliases()
-		if aliasErr != nil {
-			return result, coreRPCError(ctx, aliasErr)
-		}
-		for _, alias := range aliases {
-			text, aliasErr := alias.Value()
-			if aliasErr != nil {
-				return result, coreRPCError(ctx, aliasErr)
-			}
-			if previous, exists := bindings[text]; exists && previous != entity {
-				return result, coreRPCError(ctx, authorization.ErrUnavailable)
-			}
-			bindings[text] = entity
-		}
+	if name != home {
+		return name, authorization.ErrDenied
 	}
-	resolve := func(alias domain.HAAlias) (domain.EntityID, bool) {
-		text, err := alias.Value()
-		entity, ok := bindings[text]
-		return entity, err == nil && ok
+	return name, nil
+}
+func (h *dashboardHandler) name(ctx context.Context, message proto.Message, raw string) (apitypes.DashboardName, error) {
+	permission := dashboardPermission()
+	if _, _, err := h.home.current(ctx, &permission); err != nil {
+		return apitypes.DashboardName{}, err
 	}
-	token := sha256.New()
-	token.Write(h.epoch[:])
-	token.Write(rightsHash[:])
-	token.Write(configHash[:])
-	fmt.Fprintf(token, ":%d:%d:", revision, rights)
-	aliases := make([]string, 0, len(bindings))
-	for alias := range bindings {
-		aliases = append(aliases, alias)
+	name, err := apitypes.ParseDashboardName(raw)
+	if err != nil {
+		return name, homeValidation(message, "name", api.ValidationReason_VALIDATION_REASON_INVALID_NAME)
 	}
-	sort.Strings(aliases)
-	for _, alias := range aliases {
-		entity, _ := bindings[alias].Value()
-		fmt.Fprintf(token, "%d:%s%d:%s", len(alias), alias, len(entity), entity)
+	home, err := h.home.owner.HomeName(ctx)
+	if err != nil {
+		return name, err
 	}
-	for _, definition := range authorized {
-		version, present := versions[definition.Source().ID()]
-		if !present {
-			return result, coreRPCError(ctx, authorization.ErrUnavailable)
-		}
-		id, _ := definition.Source().ID().Value()
-		owner, _ := definition.Owner()
-		ownerText, _ := owner.Value()
-		digest := definition.SHA256()
-		title := "Dashboard"
-		if views := definition.Views(); len(views) != 0 && views[0].Title() != "" {
-			title = views[0].Title()
-		}
-		metadata := &wire.Metadata{Id: &wire.DashboardId{Value: id}, Owner: &auth.AccountId{Value: ownerText}, Profile: definition.Profile(), Title: title,
-			Version: &configuration.DocumentVersion{Revision: version.Revision, SourceSha256: version.SourceSHA256[:]}, UpdatedAt: timestamppb.New(version.UpdatedAt)}
-		document := &wire.Dashboard{Metadata: metadata, NativeOverview: &wire.NativeOverview{Version: 1, ConfigRevision: revision, ConfigSha256: configHash[:], Title: title, Mode: wire.ServingMode_SERVING_MODE_CONFIGURED, AuthorizationRevision: rights}}
-		// List and Get have the same replay identity regardless of negotiation.
-		// The tree may contain inert unsupported nodes for an older client.
-		document.NativeLayout, err = imported.ProjectNativeDefinition(definition, imported.LayoutProjection{Support: support, Entity: resolve, Navigation: &index})
+	if name.Home() != home {
+		return name, authorization.ErrDenied
+	}
+	return name, nil
+}
+func (h *dashboardHandler) GetDashboard(ctx context.Context, request *connect.Request[api.GetDashboardRequest]) (*connect.Response[api.Dashboard], error) {
+	r := new(api.GetDashboardRequest)
+	if request != nil && request.Msg != nil {
+		r = request.Msg
+	}
+	name, err := h.name(ctx, r, r.Name)
+	if err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	capture, err := h.capture(ctx, name.Home(), &name, nil)
+	if err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	defer capture.close()
+	if len(capture.documents) != 1 {
+		return nil, apiRPCError(ctx, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_RESOURCE_NOT_FOUND))
+	}
+	if err = capture.retain(ctx); err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	return connect.NewResponse(capture.documents[0]), nil
+}
+func (h *dashboardHandler) ListDashboards(ctx context.Context, request *connect.Request[api.ListDashboardsRequest]) (*connect.Response[api.ListDashboardsResponse], error) {
+	r := new(api.ListDashboardsRequest)
+	if request != nil && request.Msg != nil {
+		r = request.Msg
+	}
+	home, err := h.parent(ctx, r, r.Parent)
+	if err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	if r.PageSize < 0 {
+		return nil, apiRPCError(ctx, homeValidation(r, "page_size", api.ValidationReason_VALIDATION_REASON_OUT_OF_RANGE))
+	}
+	size := int(r.PageSize)
+	if size == 0 {
+		size = 20
+	}
+	if size > 100 {
+		size = 100
+	}
+	capture, err := h.capture(ctx, home, nil, nil)
+	if err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	defer capture.close()
+	binding, err := homePageBinding(capture.current, home.String(), "", "ListDashboards")
+	if err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	token := dashboardCheckpoint{Digest: capture.digest, Expires: time.Now().Add(view.SnapshotTTL).UnixNano()}
+	if r.PageToken != "" {
+		token, err = h.openCheckpoint(r.PageToken, binding)
 		if err != nil {
-			return result, coreRPCError(ctx, err)
+			return nil, apiRPCError(ctx, err)
 		}
-		encoded, marshalErr := proto.MarshalOptions{Deterministic: true}.Marshal(metadata)
-		if marshalErr != nil {
-			return result, coreRPCError(ctx, marshalErr)
+		if token.Digest != capture.digest || token.Offset >= len(capture.documents) {
+			return nil, apiRPCError(ctx, view.ErrViewChanged)
 		}
-		fmt.Fprintf(token, "%d:", len(encoded))
-		token.Write(encoded)
-		token.Write(digest[:])
-		result.documents = append(result.documents, document)
 	}
-	after, err := h.owner.CurrentConfig(ctx)
-	if err != nil || after != stamp {
-		return result, coreRPCError(ctx, authorization.ErrUnavailable)
+	out := new(api.ListDashboardsResponse)
+	// Stop before an overflowing candidate and resume at that exact candidate.
+	for token.Offset < len(capture.documents) && len(out.Dashboards) < size {
+		out.Dashboards = append(out.Dashboards, capture.documents[token.Offset])
+		if proto.Size(out) > maxDashboardPageBytes-8192 {
+			out.Dashboards = out.Dashboards[:len(out.Dashboards)-1]
+			break
+		}
+		token.Offset++
 	}
-	afterGrant, err := h.authority.Current(principal)
+	if token.Offset < len(capture.documents) {
+		if len(out.Dashboards) == 0 {
+			return nil, apiRPCError(ctx, view.ErrResourceExhausted)
+		}
+		out.NextPageToken, err = h.sealCheckpoint(token, binding)
+	} else {
+		token.Offset = 0
+		binding, err = homePageBinding(capture.current, home.String(), "", "WatchDashboards")
+		if err == nil {
+			out.ResumeToken, err = h.sealCheckpoint(token, binding)
+		}
+	}
 	if err != nil {
-		return result, coreRPCError(ctx, err)
+		return nil, apiRPCError(ctx, err)
 	}
-	afterRights, afterHash, err := afterGrant.Binding()
-	if err != nil || rights != afterRights || rightsHash != afterHash || !result.ready() {
-		return result, coreRPCError(ctx, authorization.ErrDenied)
+	if proto.Size(out) > maxDashboardPageBytes {
+		return nil, apiRPCError(ctx, view.ErrResourceExhausted)
 	}
-	result.token = hex.EncodeToString(token.Sum(nil))
-	return result, nil
+	if err = capture.retain(ctx); err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	return connect.NewResponse(out), nil
 }
-
-func (h *dashboardHandler) ListDashboards(ctx context.Context, request *connect.Request[wire.ListDashboardsRequest]) (*connect.Response[wire.ListDashboardsResponse], error) {
-	capture, err := h.capture(ctx, request.Msg.Support)
+func (h *dashboardHandler) WatchDashboards(ctx context.Context, request *connect.Request[api.WatchDashboardsRequest], stream *connect.ServerStream[api.WatchDashboardsResponse]) error {
+	r := new(api.WatchDashboardsRequest)
+	if request != nil && request.Msg != nil {
+		r = request.Msg
+	}
+	home, err := h.parent(ctx, r, r.Parent)
 	if err != nil {
-		return nil, err
+		return apiRPCError(ctx, err)
 	}
-	defer capture.release()
-	response := &wire.ListDashboardsResponse{ResumeToken: capture.token}
-	for _, document := range capture.documents {
-		response.Dashboards = append(response.Dashboards, document.Metadata)
-	}
-	if !capture.ready() {
-		return nil, coreRPCError(ctx, authorization.ErrDenied)
-	}
-	return connect.NewResponse(response), nil
-}
-func (h *dashboardHandler) GetDashboard(ctx context.Context, request *connect.Request[wire.GetDashboardRequest]) (*connect.Response[wire.GetDashboardResponse], error) {
-	if _, err := authorization.ParseDashboardID(request.Msg.GetId().GetValue()); err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid dashboard identity"))
-	}
-	capture, err := h.capture(ctx, request.Msg.Support)
+	capture, err := h.capture(ctx, home, nil, nil)
 	if err != nil {
-		return nil, err
+		return apiRPCError(ctx, err)
 	}
-	defer capture.release()
-	if !capture.ready() {
-		return nil, coreRPCError(ctx, authorization.ErrDenied)
+	binding, err := homePageBinding(capture.current, home.String(), "", "WatchDashboards")
+	if err != nil {
+		capture.close()
+		return apiRPCError(ctx, err)
 	}
-	for _, document := range capture.documents {
-		if document.Metadata.Id.Value == request.Msg.Id.Value {
-			return connect.NewResponse(&wire.GetDashboardResponse{Dashboard: document, ResumeToken: capture.token}), nil
+	token, err := h.openCheckpoint(r.ResumeToken, binding)
+	if err != nil || token.Offset != 0 || token.Digest != capture.digest {
+		capture.close()
+		if err == nil {
+			err = view.ErrViewChanged
 		}
+		return apiRPCError(ctx, err)
 	}
-	return nil, connect.NewError(connect.CodeNotFound, errors.New("dashboard not found"))
-}
-func (h *dashboardHandler) WatchDashboards(ctx context.Context, request *connect.Request[wire.WatchDashboardsRequest], stream *connect.ServerStream[wire.WatchDashboardsResponse]) error {
-	if len(request.Msg.ResumeToken) > 4096 {
-		return connect.NewError(connect.CodeInvalidArgument, errors.New("invalid dashboard cursor"))
-	}
-	principal, err := authorization.PrincipalFromContext(ctx)
-	if err != nil {
-		return coreRPCError(ctx, err)
-	}
-	configChanged, cancelConfig, err := h.owner.SubscribeConfigChanges(ctx)
-	if err != nil {
-		if errors.Is(err, configactivation.ErrActivationUnavailable) {
-			return stream.Send(&wire.WatchDashboardsResponse{Result: &wire.WatchDashboardsResponse_ResyncRequired{ResyncRequired: &configuration.ResyncRequired{Reason: configuration.ResyncReason_RESYNC_REASON_ACTIVATION_SIGNAL}}})
-		}
-		return coreRPCError(ctx, err)
-	}
-	defer cancelConfig()
-	rightsChanged, err := h.authority.Subscribe(ctx, principal)
-	if err != nil {
-		if errors.Is(err, authorization.ErrUnavailable) {
-			return stream.Send(&wire.WatchDashboardsResponse{Result: &wire.WatchDashboardsResponse_ResyncRequired{ResyncRequired: &configuration.ResyncRequired{Reason: configuration.ResyncReason_RESYNC_REASON_AUTHORITY_CHANGED}}})
-		}
-		return coreRPCError(ctx, err)
-	}
-	defer rightsChanged.Close()
-	initial, err := h.sequence.CaptureBounded(8 << 20)
-	if err != nil {
-		return stream.Send(&wire.WatchDashboardsResponse{Result: &wire.WatchDashboardsResponse_ResyncRequired{ResyncRequired: &configuration.ResyncRequired{Reason: configuration.ResyncReason_RESYNC_REASON_ACTIVATION_SIGNAL}}})
-	}
-	registryChanged, _, _, err := h.sequence.SubscribeViewAfter(initial.Cursor, 1024)
-	if err != nil {
-		return stream.Send(&wire.WatchDashboardsResponse{Result: &wire.WatchDashboardsResponse_ResyncRequired{ResyncRequired: &configuration.ResyncRequired{Reason: configuration.ResyncReason_RESYNC_REASON_HISTORY_LOST}}})
-	}
-	defer registryChanged.Close()
 	for {
-		capture, captureErr := h.capture(ctx, nil)
-		if captureErr != nil {
-			if connect.CodeOf(captureErr) == connect.CodeUnavailable {
-				return stream.Send(&wire.WatchDashboardsResponse{Result: &wire.WatchDashboardsResponse_ResyncRequired{ResyncRequired: &configuration.ResyncRequired{Reason: configuration.ResyncReason_RESYNC_REASON_ACTIVATION_SIGNAL}}})
-			}
-			return captureErr
-		}
-		if capture.token != request.Msg.ResumeToken {
-			response := &wire.ListDashboardsResponse{ResumeToken: capture.token}
-			for _, document := range capture.documents {
-				response.Dashboards = append(response.Dashboards, document.Metadata)
-			}
-			if !capture.ready() {
-				capture.release()
-				return coreRPCError(ctx, authorization.ErrDenied)
-			}
-			err = stream.Send(&wire.WatchDashboardsResponse{Result: &wire.WatchDashboardsResponse_Snapshot{Snapshot: response}})
-			capture.release()
-			return err
-		}
-		capture.release()
-		// Drain the bounded mailbox before sleeping. State-only notifications
-		// do not change the layout token; registry binding changes do.
-		var wake <-chan struct{}
-		drained := false
-		for wake == nil {
-			_, wake, err = registryChanged.Poll()
-			if err != nil {
-				return coreRPCError(ctx, authorization.ErrUnavailable)
-			}
-			if wake == nil {
-				drained = true
-			}
-		}
-		if drained {
-			continue
-		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		case <-configChanged:
-		case <-rightsChanged.Changes():
-		case <-wake:
+			capture.close()
+			return apiRPCError(ctx, ctx.Err())
+		case <-capture.ctx.Done():
 		}
+		capture.close()
+		capture, err = h.capture(ctx, home, nil, nil)
+		if err != nil {
+			return apiRPCError(ctx, err)
+		}
+		after, bindErr := homePageBinding(capture.current, home.String(), "", "WatchDashboards")
+		if bindErr != nil || !hmac.Equal(binding, after) {
+			capture.close()
+			return apiRPCError(ctx, authorization.ErrDenied)
+		}
+		if capture.digest == token.Digest {
+			continue
+		}
+		defer capture.close()
+		defer interruptCoreRPCWriteOnCancel(ctx, capture.ctx)()
+		if !capture.ready() {
+			return apiRPCError(ctx, view.ErrViewChanged)
+		}
+		return stream.Send(&api.WatchDashboardsResponse{Invalidated: true})
 	}
 }
-
-func registerDashboardRoutes(plan *PublicPlan, owner *configactivation.Owner, authority *authorization.Authority, sequence *sequencer.Sequencer) error {
-	if plan == nil || owner == nil || authority == nil || sequence == nil {
+func (h *dashboardHandler) QueryDashboard(ctx context.Context, request *connect.Request[api.QueryDashboardRequest]) (*connect.Response[api.QueryDashboardResponse], error) {
+	r := new(api.QueryDashboardRequest)
+	if request != nil && request.Msg != nil {
+		r = request.Msg
+	}
+	name, err := h.name(ctx, r, r.Name)
+	if err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	joined, err := h.captureBindings(ctx, r)
+	if err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	defer joined.close()
+	capture, err := h.capture(ctx, name.Home(), &name, joined)
+	if err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	defer capture.close()
+	if len(capture.documents) != 1 {
+		return nil, apiRPCError(ctx, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_RESOURCE_NOT_FOUND))
+	}
+	if err = joined.retain(ctx); err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	if err = capture.retain(ctx); err != nil {
+		return nil, apiRPCError(ctx, err)
+	}
+	out := &api.QueryDashboardResponse{Dashboard: capture.documents[0], EntityView: r.EntityView, ResumeToken: r.ResumeToken, ExpireTime: timestamppb.New(joined.descriptor.ExpireTime)}
+	_, rights, _ := capture.current.Binding()
+	out.Binding = h.opaque([]byte("DashboardCapture/v2"), rights[:], []byte(out.Dashboard.Name), []byte(out.Dashboard.Etag), []byte(joined.descriptor.SnapshotToken), []byte(r.ResumeToken))
+	return connect.NewResponse(out), nil
+}
+func registerDashboardRoutes(plan *PublicPlan, owner *configactivation.Owner, authority *authorization.Authority, sequence *sequencer.Sequencer, home *homeResourceHandler, profiles view.DisplayProfileSource) error {
+	if plan == nil || owner == nil || authority == nil || sequence == nil || home == nil {
 		return ErrInvalidPublicPlan
 	}
-	// Explicit custom RuntimePlan routes remain available to isolated transport
-	// tests. Default Run always installs this production implementation.
-	plan.mu.Lock()
-	_, custom := plan.routes[routeLookup{method: http.MethodPost, path: dashboardv1connect.DashboardServiceListDashboardsProcedure}]
-	plan.mu.Unlock()
-	if custom {
-		return nil
-	}
-	h := &dashboardHandler{owner: owner, authority: authority, sequence: sequence}
-	if _, err := rand.Read(h.epoch[:]); err != nil {
+	h := &dashboardHandler{owner: owner, authority: authority, sequence: sequence, home: home, profiles: profiles}
+	if _, err := rand.Read(h.secret[:]); err != nil {
 		return err
 	}
 	routes := []ConnectProcedure{
-		{Path: dashboardv1connect.DashboardServiceListDashboardsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		{Path: dashboardv1connect.DashboardServiceGetDashboardProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		{Path: dashboardv1connect.DashboardServiceWatchDashboardsProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream, Transport: RouteTransportTLSRequired},
+		{Path: apiv2connect.DashboardServiceListDashboardsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		{Path: apiv2connect.DashboardServiceGetDashboardProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		{Path: apiv2connect.DashboardServiceQueryDashboardProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		{Path: apiv2connect.DashboardServiceWatchDashboardsProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream, Transport: RouteTransportTLSRequired},
 	}
 	if err := plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {
-		return dashboardv1connect.NewDashboardServiceHandler(h, options...)
+		return apiv2connect.NewDashboardServiceHandler(h, options...)
 	}, routes...); err != nil {
 		return err
 	}
-	permission, _ := authorization.NewPermission(auth.ScopeFamily_SCOPE_FAMILY_DASHBOARDS, auth.ScopeOperation_SCOPE_OPERATION_READ)
 	for _, route := range routes {
-		if err := plan.BindPermission(RouteKindConnect, RouteMethodPost, route.Path, permission); err != nil {
+		if err := plan.BindPermission(RouteKindConnect, RouteMethodPost, route.Path, dashboardPermission()); err != nil {
 			return err
 		}
 	}

@@ -1,0 +1,6 @@
+name: "homes/home-a/accounts/account-a"
+login_name: "synthetic-admin"
+state: ACCOUNT_STATE_ACTIVE
+create_time { seconds: 1792310000 }
+update_time { seconds: 1792310000 }
+etag: "opaque-cas"

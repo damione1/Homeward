@@ -1,0 +1,17 @@
+syntax = "proto3";
+package home.operator.v1;
+
+import "home/auth/v1/auth.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/operator/v1;operatorv1";
+
+// OperatorAccountService uses the existing native account owner and is registered
+// exclusively on its protected local Unix socket. It is never a public API.
+service OperatorAccountService {
+  // BootstrapAdmin creates the first native administrator.
+  rpc BootstrapAdmin(home.auth.v1.BootstrapAdminRequest) returns (home.auth.v1.BootstrapAdminResponse);
+  // RecoverAccount replaces a native account password through local recovery.
+  rpc RecoverAccount(home.auth.v1.RecoverAccountRequest) returns (home.auth.v1.RecoverAccountResponse);
+  // ResetSecondFactor resets enrollment through the same local recovery owner.
+  rpc ResetSecondFactor(home.auth.v1.ResetSecondFactorRequest) returns (home.auth.v1.ResetSecondFactorResponse);
+}

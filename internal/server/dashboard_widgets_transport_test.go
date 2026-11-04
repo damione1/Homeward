@@ -9,6 +9,8 @@ import (
 
 	"connectrpc.com/connect"
 	imported "github.com/damione1/Homeward/compat/ha/dashboard"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
@@ -16,8 +18,6 @@ import (
 	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
 	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
 	"github.com/damione1/Homeward/gen/home/dashboard/v1/dashboardv1connect"
-	statewire "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 )
 
 func dashboardWidgetsSupport() *wire.ClientLayoutSupport {
@@ -82,7 +82,13 @@ func TestDashboardWidgetsProductionPublicationWatchAndSourcePrivacy(t *testing.T
 	if !widget {
 		t.Fatal("configured widget missing")
 	}
-	stateAPI := statev1connect.NewStateServiceClient(httpClient, "https://"+f.run.address.String())
+	homeAPI := apiv2connect.NewHomeServiceClient(httpClient, "https://"+f.run.address.String())
+	viewAPI := apiv2connect.NewEntityViewServiceClient(httpClient, "https://"+f.run.address.String())
+	homes, err := homeAPI.ListHomes(f.ctx, nha056SessionRequest(&api.ListHomesRequest{PageSize: 10}, f.token))
+	if err != nil || len(homes.Msg.GetHomes()) != 1 {
+		t.Fatal("authorized home discovery before publication loop", err)
+	}
+	homeName := homes.Msg.GetHomes()[0].GetName()
 	latest := get.Msg
 	for _, label := range []string{"Configuration A", "Configuration B"} {
 		before := latest
@@ -128,15 +134,15 @@ func TestDashboardWidgetsProductionPublicationWatchAndSourcePrivacy(t *testing.T
 			if sameSource != (label == "Configuration A") {
 				t.Fatal("source byte identity differs from repeated-A/replacement-B publication", label)
 			}
-			page, err := stateAPI.OpenView(f.ctx, nha056SessionRequest(&statewire.OpenViewRequest{Filter: &statewire.ViewFilter{}, PageSize: 16}, f.token))
+			createdView, err := viewAPI.CreateEntityView(f.ctx, nha056SessionRequest(&api.CreateEntityViewRequest{Parent: homeName, EntityView: &api.EntityView{}}, f.token))
 			if err != nil {
-				t.Fatal("authorized state snapshot after publication", err)
+				t.Fatal("authorized entity view capture after publication", err)
 			}
-			cursor, overview := page.Msg.Cursor, latest.Dashboard.NativeOverview
-			if cursor == nil || cursor.ConfigRevision != overview.ConfigRevision || !bytes.Equal(cursor.ConfigSha256, overview.ConfigSha256) || cursor.AuthorizationRevision != overview.AuthorizationRevision {
-				t.Fatal("dashboard and state snapshot cohorts diverged", label)
+			page, err := viewAPI.QueryEntityView(f.ctx, nha056SessionRequest(&api.QueryEntityViewRequest{Name: createdView.Msg.GetName(), PageSize: 16}, f.token))
+			if err != nil || page.Msg.GetResumeToken() == "" {
+				t.Fatal("authorized entity view query after publication", err)
 			}
-			if _, err = stateAPI.ReleaseView(f.ctx, nha056SessionRequest(&statewire.ReleaseViewRequest{SnapshotToken: page.Msg.SnapshotToken}, f.token)); err != nil {
+			if _, err = viewAPI.DeleteEntityView(f.ctx, nha056SessionRequest(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, f.token)); err != nil {
 				t.Fatal(err)
 			}
 		case err := <-watchError:

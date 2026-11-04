@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"net"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -17,11 +19,13 @@ import (
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
 	statewire "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -37,35 +41,38 @@ import (
 )
 
 // This is a fixture façade over the existing view.Service, composed through
-// Run's real port. NHA-050 does not add the future public façade147 to product.
+// Run's real port.
 type nha050StateHandler struct {
-	statev1connect.UnimplementedStateServiceHandler
+	apiv2connect.UnimplementedEntityViewServiceHandler
 	service *view.Service
 	entered chan struct{}
 }
 
-func (h *nha050StateHandler) OpenView(ctx context.Context, r *connect.Request[statewire.OpenViewRequest]) (*connect.Response[statewire.OpenViewResponse], error) {
+func (h *nha050StateHandler) QueryEntityView(ctx context.Context, r *connect.Request[api.QueryEntityViewRequest]) (*connect.Response[api.QueryEntityViewResponse], error) {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("missing actor"))
 	}
-	filter := view.All()
-	if r.Msg.Filter != nil && len(r.Msg.Filter.EntityIds) > 0 {
-		ids := make([]domain.EntityID, 0, len(r.Msg.Filter.EntityIds))
-		for _, text := range r.Msg.Filter.EntityIds {
-			id, err := domain.ParseEntityID(text)
-			if err != nil {
-				return nil, err
-			}
-			ids = append(ids, id)
+	if r.Msg.PageToken != "" {
+		parts := strings.SplitN(r.Msg.PageToken, "|", 2)
+		if len(parts) != 2 {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("new snapshot required"))
 		}
-		var err error
-		filter, err = view.Only(ids)
+		page, err := h.service.ReadPage(ctx, actor, parts[0], parts[1])
+		if err != nil {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("new snapshot required"))
+		}
+		wire, err := view.EncodePage(page)
 		if err != nil {
 			return nil, err
 		}
+		entries := make([]*api.EntityViewEntry, 0, len(wire.Entities))
+		for _, e := range wire.Entities {
+			entries = append(entries, &api.EntityViewEntry{Entity: &api.Entity{Name: e.EntityId}})
+		}
+		return connect.NewResponse(&api.QueryEntityViewResponse{Entries: entries}), nil
 	}
-	page, err := h.service.OpenView(ctx, actor, filter, int(r.Msg.PageSize))
+	page, err := h.service.OpenView(ctx, actor, view.All(), int(r.Msg.PageSize))
 	if err != nil {
 		return nil, err
 	}
@@ -73,29 +80,39 @@ func (h *nha050StateHandler) OpenView(ctx context.Context, r *connect.Request[st
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(wire), nil
-}
-func (h *nha050StateHandler) ReadPage(ctx context.Context, r *connect.Request[statewire.ReadPageRequest]) (*connect.Response[statewire.ReadPageResponse], error) {
-	actor, ok := ActorFromContext(ctx)
-	if !ok {
-		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("missing actor"))
+	entries := make([]*api.EntityViewEntry, 0, len(wire.Entities))
+	for _, e := range wire.Entities {
+		entries = append(entries, &api.EntityViewEntry{Entity: &api.Entity{Name: e.EntityId}})
 	}
-	page, err := h.service.ReadPage(ctx, actor, r.Msg.SnapshotToken, r.Msg.PageToken)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("new snapshot required"))
-	}
-	wire, err := view.EncodePage(page)
+	cursorBytes, err := proto.Marshal(wire.Cursor)
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&statewire.ReadPageResponse{Page: wire}), nil
+	nextToken := ""
+	if wire.NextPageToken != "" {
+		nextToken = wire.SnapshotToken + "|" + wire.NextPageToken
+	}
+	return connect.NewResponse(&api.QueryEntityViewResponse{
+		Entries:       entries,
+		NextPageToken: nextToken,
+		ResumeToken:   hex.EncodeToString(cursorBytes),
+	}), nil
 }
-func (h *nha050StateHandler) WatchView(ctx context.Context, r *connect.Request[statewire.WatchViewRequest], stream *connect.ServerStream[statewire.WatchViewResponse]) error {
+
+func (h *nha050StateHandler) WatchEntityView(ctx context.Context, r *connect.Request[api.WatchEntityViewRequest], stream *connect.ServerStream[api.WatchEntityViewResponse]) error {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
 		return connect.NewError(connect.CodeUnauthenticated, errors.New("missing actor"))
 	}
-	watch, err := h.service.WatchView(ctx, actor, r.Msg)
+	cursorBytes, err := hex.DecodeString(r.Msg.ResumeToken)
+	if err != nil {
+		return err
+	}
+	cursor := new(statewire.ViewCursor)
+	if err := proto.Unmarshal(cursorBytes, cursor); err != nil {
+		return err
+	}
+	watch, err := h.service.WatchView(ctx, actor, &statewire.WatchViewRequest{Cursor: cursor, Filter: &statewire.ViewFilter{}})
 	if err != nil {
 		return err
 	}
@@ -109,7 +126,14 @@ func (h *nha050StateHandler) WatchView(ctx context.Context, r *connect.Request[s
 		if err != nil {
 			return err
 		}
-		if err := stream.Send(frame); err != nil {
+		out := &api.WatchEntityViewResponse{}
+		if frame.GetDelta() != nil && len(frame.GetDelta().States) > 0 {
+			out.ResumeToken = "delta"
+			out.Change = &api.WatchEntityViewResponse_Upsert{Upsert: &api.EntityViewEntry{Entity: &api.Entity{Name: frame.GetDelta().States[0].GetEntity().GetEntityId()}}}
+		} else if frame.GetResyncRequired() != nil {
+			out.ResumeToken = frame.GetResyncRequired().GetReason().String()
+		}
+		if err := stream.Send(out); err != nil {
 			return err
 		}
 	}
@@ -187,11 +211,10 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 			return RuntimePlan{}, err
 		}
 		err = plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {
-			return statev1connect.NewStateServiceHandler(fixture.state, options...)
+			return apiv2connect.NewEntityViewServiceHandler(fixture.state, options...)
 		},
-			ConnectProcedure{Path: statev1connect.StateServiceOpenViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-			ConnectProcedure{Path: statev1connect.StateServiceReadPageProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-			ConnectProcedure{Path: statev1connect.StateServiceWatchViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream, Transport: RouteTransportTLSRequired})
+			ConnectProcedure{Path: apiv2connect.EntityViewServiceQueryEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+			ConnectProcedure{Path: apiv2connect.EntityViewServiceWatchEntityViewProcedure, Access: RouteAccessProtected, Flow: RouteFlowServerStream, Transport: RouteTransportTLSRequired})
 		if err != nil {
 			return RuntimePlan{}, err
 		}
@@ -317,7 +340,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 		return d.DialContext(ctx, "unix", filepath.Join(dataDir, operatorSocketName))
 	}}}
 	defer operatorHTTP.CloseIdleConnections()
-	operator := authv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
+	operator := operatorv1connect.NewOperatorAccountServiceClient(operatorHTTP, "http://operator")
 	const password = "NHA050 synthetic native policy password"
 	admin, err := operator.BootstrapAdmin(ctx, connect.NewRequest(&authv1.BootstrapAdminRequest{LoginName: "NHA050 Admin", DisplayName: "NHA050 Admin", Password: password}))
 	if err != nil {
@@ -336,7 +359,9 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 		return authv1connect.NewAuthorizationPolicyServiceClient(client, url())
 	}
 	accountsClient := func() authv1connect.AccountServiceClient { return authv1connect.NewAccountServiceClient(client, url()) }
-	stateClient := func() statev1connect.StateServiceClient { return statev1connect.NewStateServiceClient(client, url()) }
+	stateClient := func() apiv2connect.EntityViewServiceClient {
+		return apiv2connect.NewEntityViewServiceClient(client, url())
+	}
 	dispatch := func(access, id string, wantStatus int, wantEmitted int32) {
 		t.Helper()
 		epoch, err := fixture.identity.Sequence().CurrentAdmissionEpoch()
@@ -445,18 +470,18 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatal("user policy administration admitted", err)
 	}
-	open := func(access string) *statewire.OpenViewResponse {
+	open := func(access string) *api.QueryEntityViewResponse {
 		t.Helper()
-		response, err := stateClient().OpenView(ctx, nha141BearerRequest(&statewire.OpenViewRequest{PageSize: 1}, access))
+		response, err := stateClient().QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{PageSize: 1}, access))
 		if err != nil {
 			t.Fatal("native view", err)
 		}
 		return response.Msg
 	}
-	if initial := open(userTokens.AccessToken); len(initial.Entities) != 0 {
+	if initial := open(userTokens.AccessToken); len(initial.Entries) != 0 {
 		t.Fatal("empty user seed exposed equipment")
 	}
-	if initial := open(adminTokens.AccessToken); len(initial.Entities) != 0 {
+	if initial := open(adminTokens.AccessToken); len(initial.Entries) != 0 {
 		t.Fatal("intrinsic admin rules exposed equipment")
 	}
 	dispatch(userTokens.AccessToken, "nha050-run-empty-user", http.StatusForbidden, 0)
@@ -496,14 +521,14 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 		t.Fatal("real pagination not available")
 	}
 	watchDone := make(chan error, 1)
-	frames := make(chan *statewire.WatchViewResponse, 4)
-	watch := func(page *statewire.OpenViewResponse) {
+	frames := make(chan *api.WatchEntityViewResponse, 4)
+	watch := func(page *api.QueryEntityViewResponse) {
 		t.Helper()
 		go func() {
-			stream, err := stateClient().WatchView(ctx, nha141BearerRequest(&statewire.WatchViewRequest{Cursor: page.Cursor, Filter: &statewire.ViewFilter{}}, userTokens.AccessToken))
+			stream, err := stateClient().WatchEntityView(ctx, nha141BearerRequest(&api.WatchEntityViewRequest{ResumeToken: page.ResumeToken}, userTokens.AccessToken))
 			if err == nil {
 				for stream.Receive() {
-					frames <- proto.Clone(stream.Msg()).(*statewire.WatchViewResponse)
+					frames <- proto.Clone(stream.Msg()).(*api.WatchEntityViewResponse)
 				}
 				err = stream.Err()
 			}
@@ -525,7 +550,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	publish(true)
 	select {
 	case frame := <-frames:
-		if frame.GetDelta() == nil || len(frame.GetDelta().States) != 1 {
+		if frame.GetUpsert() == nil || frame.ResumeToken != "delta" {
 			t.Fatal("no-op terminated active view", frame)
 		}
 	case err := <-watchDone:
@@ -542,7 +567,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	watchFinished := false
 	select {
 	case frame := <-frames:
-		if frame.GetResyncRequired().GetReason() != statewire.ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED {
+		if frame.ResumeToken != statewire.ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED.String() {
 			t.Fatal("idle stream not invalidated", frame)
 		}
 	case err := <-watchDone:
@@ -554,7 +579,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 		// channels can already be ready when select runs after the CAS response.
 		select {
 		case frame := <-frames:
-			if frame.GetResyncRequired().GetReason() != statewire.ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED {
+			if frame.ResumeToken != statewire.ResyncReason_RESYNC_REASON_AUTHORIZATION_CHANGED.String() {
 				t.Fatal("idle stream not invalidated", frame)
 			}
 		default:
@@ -568,11 +593,11 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	_, err = stateClient().ReadPage(ctx, nha141BearerRequest(&statewire.ReadPageRequest{SnapshotToken: page.SnapshotToken, PageToken: page.NextPageToken}, userTokens.AccessToken))
+	_, err = stateClient().QueryEntityView(ctx, nha141BearerRequest(&api.QueryEntityViewRequest{PageToken: page.NextPageToken}, userTokens.AccessToken))
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatal("old page survived rights withdrawal", err)
 	}
-	if len(open(userTokens.AccessToken).Entities) != 0 {
+	if len(open(userTokens.AccessToken).Entries) != 0 {
 		t.Fatal("new empty view exposed retired rights")
 	}
 	dispatch(userTokens.AccessToken, "nha050-run-withdrawn", http.StatusForbidden, 1)
@@ -619,7 +644,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	}
 	// A later admission reconciles the settled PG policy rather than retrying
 	// the unknown write or keeping a stale projection permanently quarantined.
-	if len(open(userTokens.AccessToken).Entities) != 1 {
+	if len(open(userTokens.AccessToken).Entries) != 1 {
 		t.Fatal("settled policy not reconciled")
 	}
 	beforeRestart := getPolicy()
@@ -629,7 +654,7 @@ func TestNHA050RunNativePolicyCASViewIdleRevocationAndRestart(t *testing.T) {
 	if got := getPolicy(); !proto.Equal(got.Version, beforeRestart.Version) || string(got.YamlSource) != string(beforeRestart.YamlSource) {
 		t.Fatal("restart changed persisted policy")
 	}
-	if len(open(userTokens.AccessToken).Entities) != 1 {
+	if len(open(userTokens.AccessToken).Entries) != 1 {
 		t.Fatal("Run restart did not hydrate policy for persistent native access")
 	}
 	publish(false)

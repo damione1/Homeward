@@ -125,7 +125,10 @@ func (s *Store) UpdateAccountWithOutcome(ctx context.Context, actor, target cont
 	if err != nil {
 		return AccountUpdateOutcome{}, err
 	}
-	if changes.Display == nil && changes.Role == nil && changes.Status == nil {
+	if changes.Expected != nil && !changes.Expected.valid {
+		return AccountUpdateOutcome{}, ErrAccountInvalid
+	}
+	if changes.Expected == nil && changes.Display == nil && changes.Role == nil && changes.Status == nil {
 		return AccountUpdateOutcome{}, ErrAccountInvalid
 	}
 	return accountTransaction(s, ctx, accountAudit{actor: &actor, target: &target, action: authActionUpdateAccount}, func(tx pgx.Tx) (AccountUpdateOutcome, error) {
@@ -138,6 +141,11 @@ func (s *Store) UpdateAccountWithOutcome(ctx context.Context, actor, target cont
 		current, err := accountByID(ctx, tx, target)
 		if err != nil {
 			return AccountUpdateOutcome{}, err
+		}
+		// lockAuthSingleton includes the native MFA policy lock, also taken by
+		// factor mutations. Check the metadata CAS inside that same transaction.
+		if changes.Expected != nil && !changes.Expected.matches(current) {
+			return AccountUpdateOutcome{}, ErrAccountVersionConflict
 		}
 		display, err := current.display.Value()
 		if err != nil {
@@ -164,6 +172,10 @@ func (s *Store) UpdateAccountWithOutcome(ctx context.Context, actor, target cont
 		statusSQL, err := sqlStatus(status)
 		if err != nil {
 			return AccountUpdateOutcome{}, err
+		}
+		currentDisplay, _ := current.display.Value()
+		if display == currentDisplay && role == current.role && status == current.status {
+			return AccountUpdateOutcome{record: current, valid: true}, nil
 		}
 		if current.role == authv1.AccountRole_ACCOUNT_ROLE_ADMIN && current.status == authv1.AccountStatus_ACCOUNT_STATUS_ACTIVE &&
 			(role != current.role || status != current.status) {
@@ -193,6 +205,19 @@ func (s *Store) UpdateAccountWithOutcome(ctx context.Context, actor, target cont
 }
 
 func (s *Store) DeleteAccount(ctx context.Context, actor, target contracts.AccountID) error {
+	return s.deleteAccount(ctx, actor, target, nil)
+}
+
+// DeleteAccountIfCurrent checks the public metadata CAS under the existing
+// owner locks; it cannot race a role, display-name or MFA metadata mutation.
+func (s *Store) DeleteAccountIfCurrent(ctx context.Context, actor, target contracts.AccountID, expected AccountVersion) error {
+	if !expected.valid {
+		return ErrAccountInvalid
+	}
+	return s.deleteAccount(ctx, actor, target, &expected)
+}
+
+func (s *Store) deleteAccount(ctx context.Context, actor, target contracts.AccountID, expected *AccountVersion) error {
 	targetValue, err := sqlAccountID(target)
 	if err != nil {
 		return err
@@ -207,6 +232,9 @@ func (s *Store) DeleteAccount(ctx context.Context, actor, target contracts.Accou
 		current, err := accountByID(ctx, tx, target)
 		if err != nil {
 			return struct{}{}, err
+		}
+		if expected != nil && !expected.matches(current) {
+			return struct{}{}, ErrAccountVersionConflict
 		}
 		if current.role == authv1.AccountRole_ACCOUNT_ROLE_ADMIN && current.status == authv1.AccountStatus_ACCOUNT_STATUS_ACTIVE {
 			count, err := activeAdminCount(ctx, tx)
@@ -261,6 +289,9 @@ func (s *Store) CreateInvitation(ctx context.Context, actor contracts.AccountID,
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO public.auth_invitations(id,login_name,login_key,role,token_digest,expires_at)
             VALUES($1,$2,$3,$4,$5,$6)`, id, loginName, key, role, input.Digest[:], input.ExpiresAt); err != nil {
+			return InvitationRecord{}, err
+		}
+		if _, err := EnsureAPIResourceIdentityTx(ctx, tx, APIInvitations, id); err != nil {
 			return InvitationRecord{}, err
 		}
 		return scanInvitation(tx.QueryRow(ctx, `SELECT `+invitationColumns+` FROM public.auth_invitations WHERE id=$1`, id))

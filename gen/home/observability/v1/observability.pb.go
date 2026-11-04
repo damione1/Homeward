@@ -9237,16 +9237,7 @@ const file_home_observability_v1_observability_proto_rawDesc = "" +
 	"&COVERAGE_TRUNCATION_REASON_EPOCH_LIMIT\x10\x01\x12(\n" +
 	"$COVERAGE_TRUNCATION_REASON_GAP_LIMIT\x10\x02\x12)\n" +
 	"%COVERAGE_TRUNCATION_REASON_BYTE_LIMIT\x10\x03\x12-\n" +
-	")COVERAGE_TRUNCATION_REASON_DURATION_LIMIT\x10\x042\x9f\x06\n" +
-	"\x14ObservabilityService\x12^\n" +
-	"\tGetHealth\x12'.home.observability.v1.GetHealthRequest\x1a(.home.observability.v1.GetHealthResponse\x12a\n" +
-	"\n" +
-	"GetMetrics\x12(.home.observability.v1.GetMetricsRequest\x1a).home.observability.v1.GetMetricsResponse\x12\x7f\n" +
-	"\x14GetIntegrationHealth\x122.home.observability.v1.GetIntegrationHealthRequest\x1a3.home.observability.v1.GetIntegrationHealthResponse\x12s\n" +
-	"\x10QueryRuntimeLogs\x12..home.observability.v1.QueryRuntimeLogsRequest\x1a/.home.observability.v1.QueryRuntimeLogsResponse\x12d\n" +
-	"\vQueryAudits\x12).home.observability.v1.QueryAuditsRequest\x1a*.home.observability.v1.QueryAuditsResponse\x12g\n" +
-	"\fReadRunTrace\x12*.home.observability.v1.ReadRunTraceRequest\x1a+.home.observability.v1.ReadRunTraceResponse\x12\x7f\n" +
-	"\x14ReadRecorderCoverage\x122.home.observability.v1.ReadRecorderCoverageRequest\x1a3.home.observability.v1.ReadRecorderCoverageResponseBHZFgithub.com/damione1/Homeward/gen/home/observability/v1;observabilityv1b\x06proto3"
+	")COVERAGE_TRUNCATION_REASON_DURATION_LIMIT\x10\x04BHZFgithub.com/damione1/Homeward/gen/home/observability/v1;observabilityv1b\x06proto3"
 
 var (
 	file_home_observability_v1_observability_proto_rawDescOnce sync.Once
@@ -9604,22 +9595,8 @@ var file_home_observability_v1_observability_proto_depIdxs = []int32{
 	113, // 217: home.observability.v1.ReadRecorderCoverageResponse.truncated:type_name -> home.observability.v1.TruncatedRecorderCoverage
 	115, // 218: home.observability.v1.ReadRecorderCoverageResponse.not_retained:type_name -> google.protobuf.Empty
 	37,  // 219: home.observability.v1.ReadRecorderCoverageResponse.unavailable:type_name -> home.observability.v1.ReadUnavailable
-	47,  // 220: home.observability.v1.ObservabilityService.GetHealth:input_type -> home.observability.v1.GetHealthRequest
-	77,  // 221: home.observability.v1.ObservabilityService.GetMetrics:input_type -> home.observability.v1.GetMetricsRequest
-	49,  // 222: home.observability.v1.ObservabilityService.GetIntegrationHealth:input_type -> home.observability.v1.GetIntegrationHealthRequest
-	85,  // 223: home.observability.v1.ObservabilityService.QueryRuntimeLogs:input_type -> home.observability.v1.QueryRuntimeLogsRequest
-	95,  // 224: home.observability.v1.ObservabilityService.QueryAudits:input_type -> home.observability.v1.QueryAuditsRequest
-	105, // 225: home.observability.v1.ObservabilityService.ReadRunTrace:input_type -> home.observability.v1.ReadRunTraceRequest
-	108, // 226: home.observability.v1.ObservabilityService.ReadRecorderCoverage:input_type -> home.observability.v1.ReadRecorderCoverageRequest
-	48,  // 227: home.observability.v1.ObservabilityService.GetHealth:output_type -> home.observability.v1.GetHealthResponse
-	78,  // 228: home.observability.v1.ObservabilityService.GetMetrics:output_type -> home.observability.v1.GetMetricsResponse
-	54,  // 229: home.observability.v1.ObservabilityService.GetIntegrationHealth:output_type -> home.observability.v1.GetIntegrationHealthResponse
-	86,  // 230: home.observability.v1.ObservabilityService.QueryRuntimeLogs:output_type -> home.observability.v1.QueryRuntimeLogsResponse
-	96,  // 231: home.observability.v1.ObservabilityService.QueryAudits:output_type -> home.observability.v1.QueryAuditsResponse
-	106, // 232: home.observability.v1.ObservabilityService.ReadRunTrace:output_type -> home.observability.v1.ReadRunTraceResponse
-	114, // 233: home.observability.v1.ObservabilityService.ReadRecorderCoverage:output_type -> home.observability.v1.ReadRecorderCoverageResponse
-	227, // [227:234] is the sub-list for method output_type
-	220, // [220:227] is the sub-list for method input_type
+	220, // [220:220] is the sub-list for method output_type
+	220, // [220:220] is the sub-list for method input_type
 	220, // [220:220] is the sub-list for extension type_name
 	220, // [220:220] is the sub-list for extension extendee
 	0,   // [0:220] is the sub-list for field type_name
@@ -9795,7 +9772,7 @@ func file_home_observability_v1_observability_proto_init() {
 			NumEnums:      34,
 			NumMessages:   81,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   0,
 		},
 		GoTypes:           file_home_observability_v1_observability_proto_goTypes,
 		DependencyIndexes: file_home_observability_v1_observability_proto_depIdxs,

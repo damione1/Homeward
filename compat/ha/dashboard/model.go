@@ -9,10 +9,8 @@ import (
 
 	"github.com/damione1/Homeward/compat/ha/parser"
 	"github.com/damione1/Homeward/contracts"
-	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
-	"google.golang.org/protobuf/proto"
 )
 
 const Profile = "homeward-dashboard-1"
@@ -377,8 +375,8 @@ func (v Visibility) clone() Visibility {
 }
 
 type Card struct {
-	controlPresentation     wire.NativeControlPresentation
-	widget                  *wire.NativeWidget
+	controlPresentation     controlPresentation
+	widget                  *widgetIR
 	widgetAction            string
 	widgetNavigation        string
 	minimumColumnWidth, gap uint32
@@ -466,7 +464,7 @@ func (c Card) Visibility() []Visibility {
 func (c Card) clone() Card {
 	c.grid.responsiveSpans = c.grid.ResponsiveSpans()
 	if c.widget != nil {
-		c.widget = proto.Clone(c.widget).(*wire.NativeWidget)
+		c.widget = cloneWidget(c.widget)
 	}
 	c.location = c.location.clone()
 	c.children = c.Children()

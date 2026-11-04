@@ -12,11 +12,13 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/alecthomas/kong"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	integration "github.com/damione1/Homeward/gen/home/integrationadmin/v1"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/apierrors"
 	"golang.org/x/sys/unix"
+	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // Exit codes are stable: 0 success/help, 1 local/I/O, 2 usage, 3 authentication,
@@ -134,6 +136,7 @@ func Run(ctx context.Context, argv []string, out, diagnostics io.Writer, termina
 
 func writeFailure(out io.Writer, err error) int {
 	code, exit := "local_operation_failed", ExitLocal
+	operation := ""
 	var local *failure
 	if errors.As(err, &local) {
 		code, exit = local.code, local.exit
@@ -155,33 +158,45 @@ func writeFailure(out io.Writer, err error) int {
 			default:
 				exit = ExitLocal
 			}
-			// Only known typed details are emitted, never remote.Message().
-			for _, detail := range remote.Details() {
-				value, decodeErr := detail.Value()
-				if decodeErr != nil {
-					continue
+			// Only admitted canonical details are emitted, never remote.Message().
+			if fault, admitted := admitRemoteAPIFailure(remote); admitted {
+				code = fault.Reason().String()
+				if fault.Reason() == api.ApiErrorReason_API_ERROR_REASON_COMMIT_OUTCOME_UNKNOWN || fault.Reason() == api.ApiErrorReason_API_ERROR_REASON_EFFECT_OUTCOME_UNKNOWN {
+					code, exit = "mutation_commit_unknown_do_not_retry", ExitMutationUnknown
 				}
-				switch typed := value.(type) {
-				case *auth.AuthError:
-					if name, ok := auth.AuthErrorCode_name[int32(typed.Code)]; ok && typed.Code != 0 {
-						code += ":" + name
-					}
-				case *integration.IntegrationError:
-					if name, ok := integration.ErrorCode_name[int32(typed.Code)]; ok && typed.Code != 0 {
-						code += ":" + name
-					}
+				if name, present := fault.Operation(); present {
+					operation = name.String()
 				}
 			}
 		}
 	}
 	_ = json.NewEncoder(out).Encode(struct {
 		Error struct {
-			Code string `json:"code"`
+			Code      string `json:"code"`
+			Operation string `json:"operation,omitempty"`
 		} `json:"error"`
 	}{Error: struct {
-		Code string `json:"code"`
-	}{Code: code}})
+		Code      string `json:"code"`
+		Operation string `json:"operation,omitempty"`
+	}{Code: code, Operation: operation}})
 	return exit
+}
+
+func admitRemoteAPIFailure(remote *connect.Error) (apierrors.Fault, bool) {
+	raw := &statuspb.Status{Code: int32(remote.Code()), Message: remote.Message()}
+	for _, detail := range remote.Details() {
+		value, err := detail.Value()
+		if err != nil {
+			return apierrors.Fault{}, false
+		}
+		packed, err := anypb.New(value)
+		if err != nil {
+			return apierrors.Fault{}, false
+		}
+		raw.Details = append(raw.Details, packed)
+	}
+	fault, err := apierrors.AdmitStatus(raw)
+	return fault, err == nil
 }
 
 func (v *invocation) directory() (*privateDirectory, error) {

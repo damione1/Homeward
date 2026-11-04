@@ -1,0 +1,4 @@
+challenge {
+  challenge_id: "challenge-a"
+  expire_time { seconds: 1792314300 }
+}

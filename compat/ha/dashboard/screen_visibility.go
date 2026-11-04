@@ -1,7 +1,7 @@
 package dashboard
 
 import (
-	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"regexp"
 	"strconv"
 )
@@ -37,8 +37,8 @@ func parseScreenMediaQuery(query string) (uint32, uint32, bool) {
 	}
 	return minimum, maximum, maximum == 0 || minimum <= maximum
 }
-func nativeScreenVisibility(values []Visibility) (*wire.NativeScreenVisibility, bool) {
-	var result *wire.NativeScreenVisibility
+func nativeScreenVisibility(values []Visibility) (*wire.DashboardScreenVisibility, bool) {
+	var result *wire.DashboardScreenVisibility
 	for _, value := range values {
 		if value.Kind() != VisibilityScreen {
 			continue
@@ -48,7 +48,7 @@ func nativeScreenVisibility(values []Visibility) (*wire.NativeScreenVisibility, 
 			return nil, false
 		}
 		if result == nil {
-			result = &wire.NativeScreenVisibility{}
+			result = &wire.DashboardScreenVisibility{}
 		}
 		if minimum > result.MinWidth {
 			result.MinWidth = minimum

@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 
-	wire "github.com/damione1/Homeward/gen/home/configuration/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/configdocuments"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -48,16 +48,16 @@ func startConfigurationWatcher(ctx context.Context, service *configdocuments.Ser
 }
 
 func configWorkspaceDiagnostic(diagnostic configdocuments.WorkspaceDiagnostic) *wire.WorkspaceDiagnostic {
-	var code wire.DiagnosticCode
+	var code wire.ConfigurationDiagnosticCode
 	switch diagnostic.Kind() {
 	case configdocuments.CandidateRejected:
-		code = wire.DiagnosticCode_DIAGNOSTIC_CODE_CANDIDATE_REJECTED
+		code = wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_CANDIDATE_REJECTED
 	case configdocuments.WorkspaceChanged:
-		code = wire.DiagnosticCode_DIAGNOSTIC_CODE_WORKSPACE_CHANGED
+		code = wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_WORKSPACE_CHANGED
 	case configdocuments.WorkspaceReconciling:
-		code = wire.DiagnosticCode_DIAGNOSTIC_CODE_RECONCILIATION_REQUIRED
+		code = wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_RECONCILIATION_REQUIRED
 	case configdocuments.ActivationUnavailable:
-		code = wire.DiagnosticCode_DIAGNOSTIC_CODE_ACTIVATION_UNAVAILABLE
+		code = wire.ConfigurationDiagnosticCode_CONFIGURATION_DIAGNOSTIC_CODE_ACTIVATION_UNAVAILABLE
 	case configdocuments.DiagnosticUnknown:
 		return nil
 	default:

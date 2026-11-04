@@ -1,9 +1,12 @@
 use buffa::MessageName;
 use connectrpc::{ConnectError, ErrorDetail};
 use home_client_transport::{DetailFailure, Failure};
-use home_wire_contract::home::{
-    auth::v1 as auth, configuration::v1::DocumentVersion, integrationadmin::v1 as integration,
-    observability::v1 as observation,
+use home_wire_contract::{
+    google::rpc::ErrorInfo,
+    home::{
+        api::v2::ApiErrorReason, configuration::v1::DocumentVersion,
+        integrationadmin::v1 as integration, observability::v1 as observation,
+    },
 };
 
 #[test]
@@ -40,36 +43,19 @@ fn integration_conflict_preserves_exact_version_and_rejects_ambiguous_details() 
 
 #[test]
 fn policy_and_factor_errors_remain_distinct_from_native_session_revocation() {
-    let policy = auth::AuthorizationPolicyError {
-        code: auth::AuthorizationPolicyErrorCode::VersionConflict.into(),
-        ..Default::default()
-    };
-    let factor = auth::SecondFactorPolicyError {
-        code: 999.into(),
-        ..Default::default()
-    };
-    let account = auth::AuthError {
-        code: 999.into(),
+    let policy = ErrorInfo {
+        reason: "ETAG_MISMATCH".into(),
+        domain: "homeward.damiengoehrig.ca".into(),
         ..Default::default()
     };
     let failure = Failure::from(
-        ConnectError::permission_denied("private")
-            .with_detail(ErrorDetail::from_message(
-                auth::AuthorizationPolicyError::FULL_NAME,
-                &policy,
-            ))
-            .with_detail(ErrorDetail::from_message(
-                auth::SecondFactorPolicyError::FULL_NAME,
-                &factor,
-            ))
-            .with_detail(ErrorDetail::from_message(
-                auth::AuthError::FULL_NAME,
-                &account,
-            )),
+        ConnectError::aborted("private policy source")
+            .with_detail(ErrorDetail::from_message(ErrorInfo::FULL_NAME, &policy)),
     );
-    assert_eq!(failure.authorization_policy_error(), Ok(Some(policy)));
-    assert_eq!(failure.second_factor_policy_error(), Ok(Some(factor)));
-    assert_eq!(failure.auth_error(), Ok(Some(account)));
+    assert_eq!(
+        failure.api_failure().map(|v| v.map(|f| f.reason())),
+        Ok(Some(ApiErrorReason::EtagMismatch))
+    );
     assert_eq!(failure.authorization_termination(), Ok(None));
 }
 

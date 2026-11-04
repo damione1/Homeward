@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use home_client_transport::{AccessToken, AuthTransport, Failure};
-use home_wire_contract::home::auth::v1 as auth;
+use home_wire_contract::home::api::v2 as auth;
 use tokio_util::sync::CancellationToken;
 
 #[async_trait]

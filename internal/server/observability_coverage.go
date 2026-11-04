@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 
-	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
@@ -134,17 +133,17 @@ func observationCoverage(snapshot storage.RecorderCoverageSnapshot) (*obs.ReadRe
 	}
 	return &obs.ReadRecorderCoverageResponse{Result: &obs.ReadRecorderCoverageResponse_Complete{Complete: value}}, nil
 }
-func (h *observationHandler) ReadRecorderCoverage(ctx context.Context, r *connect.Request[obs.ReadRecorderCoverageRequest]) (*connect.Response[obs.ReadRecorderCoverageResponse], error) {
-	if r == nil || contracts.AdmitObservabilityRequest(r.Msg) != nil {
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+func (h *observationReader) ReadRecorderCoverage(ctx context.Context, r *obs.ReadRecorderCoverageRequest) (*obs.ReadRecorderCoverageResponse, error) {
+	if r == nil || contracts.AdmitObservabilityRequest(r) != nil {
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
-	fromEpoch, err := storage.ParseRecorderEpoch(hex.EncodeToString(r.Msg.From.Epoch))
+	fromEpoch, err := storage.ParseRecorderEpoch(hex.EncodeToString(r.From.Epoch))
 	if err != nil {
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
 	var endEpoch storage.RecorderEpoch
 	var end *uint64
-	switch through := r.Msg.Through.(type) {
+	switch through := r.Through.(type) {
 	case *obs.ReadRecorderCoverageRequest_Position:
 		endEpoch, err = storage.ParseRecorderEpoch(hex.EncodeToString(through.Position.Epoch))
 		sequence := through.Position.Sequence
@@ -152,22 +151,22 @@ func (h *observationHandler) ReadRecorderCoverage(ctx context.Context, r *connec
 	case *obs.ReadRecorderCoverageRequest_LatestInEpoch:
 		endEpoch, err = storage.ParseRecorderEpoch(hex.EncodeToString(through.LatestInEpoch.Value))
 	default:
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
 	if err != nil {
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
-	request, err := storage.NewRecorderCoverageRequest(fromEpoch, r.Msg.From.Sequence, endEpoch, end)
+	request, err := storage.NewRecorderCoverageRequest(fromEpoch, r.From.Sequence, endEpoch, end)
 	if err != nil {
-		return nil, observationRPCError(contracts.ErrInvalidObservabilityContract)
+		return nil, contracts.ErrInvalidObservabilityContract
 	}
 	var binding observability.ReadBinding
 	if err = h.withCurrent(ctx, auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, nil, func(value observability.ReadBinding) error { binding = value; return nil }); err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
 	snapshot, readErr := h.runtime.store.ReadRecorderCoverage(ctx, request)
 	if readErr != nil && !errors.Is(readErr, storage.ErrRecorderCoverageNotFound) {
-		return nil, observationRPCError(readErr)
+		return nil, readErr
 	}
 	var response *obs.ReadRecorderCoverageResponse
 	err = h.withCurrent(ctx, auth.ScopeFamily_SCOPE_FAMILY_GLOBAL_CONFIGURATION, &binding, func(observability.ReadBinding) error {
@@ -183,7 +182,7 @@ func (h *observationHandler) ReadRecorderCoverage(ctx context.Context, r *connec
 		return contracts.AdmitObservabilityResponse(response)
 	})
 	if err != nil {
-		return nil, observationRPCError(err)
+		return nil, err
 	}
 	return observationResponse(response)
 }

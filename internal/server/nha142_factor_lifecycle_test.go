@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/authmfa"
 	"github.com/jackc/pgx/v5"
@@ -23,14 +24,14 @@ func nha142LifecycleAccountID(t *testing.T, rig *nha142ServerRig) *authv1.Accoun
 	return &authv1.AccountId{Value: id}
 }
 
-func nha142LifecycleFIDOLogin(t *testing.T, rig *nha142ServerRig, key *nha142Authenticator) *authv1.SessionTokens {
+func nha142LifecycleFIDOLogin(t *testing.T, rig *nha142ServerRig, key *nha142Authenticator) *api.SessionTokens {
 	t.Helper()
 	challenge := rig.start(t).GetChallenge()
-	if challenge == nil || challenge.Id == nil {
+	if challenge == nil || challenge.ChallengeId == "" {
 		t.Fatal("enrolled account did not receive a factor challenge")
 	}
-	result, err := rig.handler.CompleteLogin(rig.ctx, connect.NewRequest(&authv1.CompleteLoginRequest{
-		ChallengeId: challenge.Id,
+	result, err := rig.handler.CompleteLogin(rig.ctx, connect.NewRequest(&api.CompleteLoginRequest{
+		ChallengeId: challenge.ChallengeId,
 		Proof:       key.assertion(t, challenge, 0x05),
 	}))
 	if err != nil {
@@ -40,17 +41,17 @@ func nha142LifecycleFIDOLogin(t *testing.T, rig *nha142ServerRig, key *nha142Aut
 		t.Fatal("FIDO2 completion returned no decision")
 	}
 	tokens := result.Msg.Decision.GetAuthenticated()
-	if tokens == nil || tokens.Session == nil || tokens.Session.Id == nil ||
-		tokens.Session.CreatedAt == nil || tokens.Session.AuthenticatedAt == nil ||
+	if tokens == nil || tokens.Session == nil || tokens.Session.Name == "" ||
+		tokens.Session.CreateTime == nil || tokens.Session.AuthenticationTime == nil ||
 		tokens.AccessToken == "" || tokens.RefreshToken == "" ||
-		tokens.Session.AuthenticationSatisfaction != authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 ||
-		!tokens.Session.CreatedAt.AsTime().Equal(tokens.Session.AuthenticatedAt.AsTime()) {
+		tokens.Session.AuthenticationSatisfaction != api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 ||
+		!tokens.Session.CreateTime.AsTime().Equal(tokens.Session.AuthenticationTime.AsTime()) {
 		t.Fatal("actual FIDO2 proof did not produce typed original authentication")
 	}
 	return tokens
 }
 
-func nha142LifecycleExpectAccessRevoked(t *testing.T, rig *nha142ServerRig, tokens *authv1.SessionTokens) {
+func nha142LifecycleExpectAccessRevoked(t *testing.T, rig *nha142ServerRig, tokens *api.SessionTokens) {
 	t.Helper()
 	if tokens == nil || tokens.AccessToken == "" {
 		t.Fatal("missing access token for revocation assertion")
@@ -67,14 +68,14 @@ func nha142LifecycleExpectAccessRevoked(t *testing.T, rig *nha142ServerRig, toke
 	}
 }
 
-func nha142LifecycleExpectRevoked(t *testing.T, rig *nha142ServerRig, tokens *authv1.SessionTokens) {
+func nha142LifecycleExpectRevoked(t *testing.T, rig *nha142ServerRig, tokens *api.SessionTokens) {
 	t.Helper()
 	nha142LifecycleExpectAccessRevoked(t, rig, tokens)
 	if tokens.RefreshToken == "" {
 		t.Fatal("missing refresh token for revocation assertion")
 	}
-	if _, err := rig.handler.RefreshSession(rig.ctx, connect.NewRequest(&authv1.RefreshSessionRequest{
-		RefreshToken: tokens.RefreshToken,
+	if _, err := rig.handler.RefreshSession(rig.ctx, connect.NewRequest(&api.RefreshSessionRequest{
+		RefreshToken: tokens.RefreshToken, RenewalKey: []byte("nha198-saved-operation-secret-001"),
 	})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("revoked refresh token returned %v, want unauthenticated", connect.CodeOf(err))
 	}
@@ -118,29 +119,28 @@ func TestNHA142FactorLifecycleReplaceAndRemove(t *testing.T) {
 	}
 	key := nha142NewAuthenticator(t)
 	activated := rig.enroll(t, key, plain.AccessToken, "")
-	if activated.Factor == nil || activated.Factor.Id == nil {
+	if activated.FactorCredential == nil || activated.FactorCredential.Name == "" {
 		t.Fatal("activation returned no factor metadata")
 	}
 	nha142LifecycleExpectRevoked(t, rig, plain)
 
 	fido := nha142LifecycleFIDOLogin(t, rig, key)
 	ctx, release := rig.session(t, fido)
-	listed, err := rig.handler.ListFactors(ctx, connect.NewRequest(&authv1.ListFactorsRequest{
-		AccountId: nha142LifecycleAccountID(t, rig),
+	listed, err := rig.handler.ListFactorCredentials(ctx, connect.NewRequest(&api.ListFactorCredentialsRequest{
+		Parent: rig.accountName.String(),
 	}))
 	release()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if listed == nil || listed.Msg == nil || len(listed.Msg.Factors) != 1 {
+	if listed == nil || listed.Msg == nil || len(listed.Msg.FactorCredentials) != 1 {
 		t.Fatal("self factor listing did not return exactly one credential")
 	}
-	factor := listed.Msg.Factors[0]
-	if factor.Id == nil || factor.AccountId == nil ||
-		factor.Id.Value != activated.Factor.Id.Value ||
-		factor.AccountId.Value != activated.Factor.AccountId.Value ||
-		factor.Kind != authv1.FactorKind_FACTOR_KIND_FIDO2 ||
-		factor.CreatedAt == nil || factor.LastUsedAt == nil {
+	factor := listed.Msg.FactorCredentials[0]
+	if factor.Name == "" ||
+		factor.Name != activated.FactorCredential.Name ||
+		factor.Kind != api.FactorKind_FACTOR_KIND_FIDO2 ||
+		factor.CreateTime == nil || factor.LastUseTime == nil {
 		t.Fatal("self listing lost FIDO2 metadata or last-use time")
 	}
 	// The public metadata has no field for a COSE key, attestation, or codes.
@@ -150,8 +150,8 @@ func TestNHA142FactorLifecycleReplaceAndRemove(t *testing.T) {
 
 	before, _ := nha142LifecycleAudit(t, rig)
 	ctx, release = rig.session(t, fido)
-	replaced, err := rig.handler.ReplaceRecoveryCodes(ctx, connect.NewRequest(&authv1.ReplaceRecoveryCodesRequest{
-		AccountId: nha142LifecycleAccountID(t, rig),
+	replaced, err := rig.handler.ReplaceRecoveryCodes(ctx, connect.NewRequest(&api.ReplaceRecoveryCodesRequest{
+		Name: rig.accountName.String(),
 	}))
 	release()
 	if err != nil {
@@ -175,7 +175,7 @@ func TestNHA142FactorLifecycleReplaceAndRemove(t *testing.T) {
 			t.Fatal("replacement reused an old code")
 		}
 	}
-	privateValues := append([]string{factor.Id.Value}, activated.RecoveryCodes...)
+	privateValues := append([]string{factor.Name}, activated.RecoveryCodes...)
 	privateValues = append(privateValues, replaced.Msg.RecoveryCodes...)
 	nha142LifecycleAssertAudit(t, rig, before, privateValues...)
 	nha142LifecycleExpectRevoked(t, rig, fido)
@@ -193,13 +193,13 @@ func TestNHA142FactorLifecycleReplaceAndRemove(t *testing.T) {
 	}
 	recovery := recovered.Msg.Decision.GetAuthenticated()
 	if recovery == nil || recovery.Session == nil ||
-		recovery.Session.AuthenticationSatisfaction != authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE {
+		recovery.Session.AuthenticationSatisfaction != api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE {
 		t.Fatal("replacement code lost typed recovery provenance")
 	}
 
 	before, _ = nha142LifecycleAudit(t, rig)
 	ctx, release = rig.session(t, recovery)
-	_, err = rig.handler.RemoveFactor(ctx, connect.NewRequest(&authv1.RemoveFactorRequest{FactorId: factor.Id}))
+	_, err = rig.handler.RemoveFactorCredential(ctx, connect.NewRequest(&api.RemoveFactorCredentialRequest{Name: factor.Name}))
 	release()
 	if err != nil {
 		t.Fatal(err)
@@ -209,15 +209,15 @@ func TestNHA142FactorLifecycleReplaceAndRemove(t *testing.T) {
 
 	afterRemoval := rig.start(t).GetAuthenticated()
 	if afterRemoval == nil || afterRemoval.Session == nil ||
-		afterRemoval.Session.AuthenticationSatisfaction != authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY {
+		afterRemoval.Session.AuthenticationSatisfaction != api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY {
 		t.Fatal("removing the last factor under false policy did not restore password login")
 	}
 	ctx, release = rig.session(t, afterRemoval)
-	empty, err := rig.handler.ListFactors(ctx, connect.NewRequest(&authv1.ListFactorsRequest{
-		AccountId: nha142LifecycleAccountID(t, rig),
+	empty, err := rig.handler.ListFactorCredentials(ctx, connect.NewRequest(&api.ListFactorCredentialsRequest{
+		Parent: rig.accountName.String(),
 	}))
 	release()
-	if err != nil || empty == nil || empty.Msg == nil || len(empty.Msg.Factors) != 0 {
+	if err != nil || empty == nil || empty.Msg == nil || len(empty.Msg.FactorCredentials) != 0 {
 		t.Fatalf("removed factor remained in self listing: %v", err)
 	}
 }
@@ -230,15 +230,15 @@ func TestNHA142RefreshDoesNotRenewFactorRecency(t *testing.T) {
 	}
 	key := nha142NewAuthenticator(t)
 	activated := rig.enroll(t, key, plain.AccessToken, "")
-	if activated.Factor == nil || activated.Factor.Id == nil {
+	if activated.FactorCredential == nil || activated.FactorCredential.Name == "" {
 		t.Fatal("activation returned no factor metadata")
 	}
 	fido := nha142LifecycleFIDOLogin(t, rig, key)
-	original := fido.Session.AuthenticatedAt.AsTime()
+	original := fido.Session.AuthenticationTime.AsTime()
 	rig.clock.Advance(original.Add(authmfa.RecentAuthenticationLifetime + time.Second))
 
-	rotated, err := rig.handler.RefreshSession(rig.ctx, connect.NewRequest(&authv1.RefreshSessionRequest{
-		RefreshToken: fido.RefreshToken,
+	rotated, err := rig.handler.RefreshSession(rig.ctx, connect.NewRequest(&api.RefreshSessionRequest{
+		RefreshToken: fido.RefreshToken, RenewalKey: []byte("nha198-saved-operation-secret-001"),
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -247,10 +247,10 @@ func TestNHA142RefreshDoesNotRenewFactorRecency(t *testing.T) {
 		t.Fatal("refresh returned no session")
 	}
 	refreshed := rotated.Msg.Tokens
-	if refreshed.Session.AuthenticatedAt == nil ||
-		!refreshed.Session.AuthenticatedAt.AsTime().Equal(original) ||
-		refreshed.Session.AuthenticationSatisfaction != authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 ||
-		refreshed.Session.Id.Value != fido.Session.Id.Value {
+	if refreshed.Session.AuthenticationTime == nil ||
+		!refreshed.Session.AuthenticationTime.AsTime().Equal(original) ||
+		refreshed.Session.AuthenticationSatisfaction != api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2 ||
+		refreshed.Session.Name != fido.Session.Name {
 		t.Fatal("refresh changed original typed authentication evidence")
 	}
 	// Replaying a consumed refresh token revokes its active family, so inspect
@@ -258,11 +258,11 @@ func TestNHA142RefreshDoesNotRenewFactorRecency(t *testing.T) {
 	nha142LifecycleExpectAccessRevoked(t, rig, fido)
 
 	ctx, release := rig.session(t, refreshed)
-	_, replaceErr := rig.handler.ReplaceRecoveryCodes(ctx, connect.NewRequest(&authv1.ReplaceRecoveryCodesRequest{
-		AccountId: nha142LifecycleAccountID(t, rig),
+	_, replaceErr := rig.handler.ReplaceRecoveryCodes(ctx, connect.NewRequest(&api.ReplaceRecoveryCodesRequest{
+		Name: rig.accountName.String(),
 	}))
-	_, removeErr := rig.handler.RemoveFactor(ctx, connect.NewRequest(&authv1.RemoveFactorRequest{
-		FactorId: activated.Factor.Id,
+	_, removeErr := rig.handler.RemoveFactorCredential(ctx, connect.NewRequest(&api.RemoveFactorCredentialRequest{
+		Name: activated.FactorCredential.Name,
 	}))
 	release()
 	if connect.CodeOf(replaceErr) != connect.CodeUnauthenticated || connect.CodeOf(removeErr) != connect.CodeUnauthenticated {
@@ -270,19 +270,19 @@ func TestNHA142RefreshDoesNotRenewFactorRecency(t *testing.T) {
 	}
 
 	fresh := nha142LifecycleFIDOLogin(t, rig, key)
-	if !fresh.Session.AuthenticatedAt.AsTime().After(original) {
+	if !fresh.Session.AuthenticationTime.AsTime().After(original) {
 		t.Fatal("new FIDO2 login did not establish fresh authentication")
 	}
 	before, _ := nha142LifecycleAudit(t, rig)
 	ctx, release = rig.session(t, fresh)
-	_, err = rig.handler.RemoveFactor(ctx, connect.NewRequest(&authv1.RemoveFactorRequest{
-		FactorId: activated.Factor.Id,
+	_, err = rig.handler.RemoveFactorCredential(ctx, connect.NewRequest(&api.RemoveFactorCredentialRequest{
+		Name: activated.FactorCredential.Name,
 	}))
 	release()
 	if err != nil {
 		t.Fatal(err)
 	}
-	nha142LifecycleAssertAudit(t, rig, before, activated.Factor.Id.Value)
+	nha142LifecycleAssertAudit(t, rig, before, activated.FactorCredential.Name)
 	nha142LifecycleExpectRevoked(t, rig, fresh)
 	nha142LifecycleExpectRevoked(t, rig, refreshed)
 }
@@ -300,7 +300,7 @@ func TestNHA142OperatorResetDistinctFromPasswordRecovery(t *testing.T) {
 	}
 	key := nha142NewAuthenticator(t)
 	activated := rig.enroll(t, key, "", grant.EnrollmentToken)
-	if activated.Factor == nil || activated.Factor.Id == nil {
+	if activated.FactorCredential == nil || activated.FactorCredential.Name == "" {
 		t.Fatal("activation returned no factor metadata")
 	}
 	fido := nha142LifecycleFIDOLogin(t, rig, key)
@@ -334,7 +334,7 @@ func TestNHA142OperatorResetDistinctFromPasswordRecovery(t *testing.T) {
 	if reset.Msg.Account.SecondFactorEnabled {
 		t.Fatal("operator factor reset left the account protected")
 	}
-	secrets := append([]string{activated.Factor.Id.Value}, activated.RecoveryCodes...)
+	secrets := append([]string{activated.FactorCredential.Name}, activated.RecoveryCodes...)
 	nha142LifecycleAssertAudit(t, rig, before, secrets...)
 	nha142LifecycleExpectRevoked(t, rig, fresh)
 	if rig.start(t).GetEnrollmentRequired() == nil {

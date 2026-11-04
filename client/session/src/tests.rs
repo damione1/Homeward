@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use buffa_types::google::protobuf::Timestamp;
 use connectrpc::ConnectError;
 use home_client_transport::Failure;
-use home_wire_contract::home::auth::v1 as auth;
+use home_wire_contract::home::{api::v2 as auth, auth::v1 as native};
 use tokio::sync::{Notify, Semaphore};
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
@@ -64,7 +64,7 @@ struct TestApi {
     store: Arc<MemoryStore>,
     refresh_calls: AtomicUsize,
     renewal_keys: Mutex<Vec<Vec<u8>>>,
-    refresh_error: Mutex<Option<auth::AuthError>>,
+    refresh_error: Mutex<Option<auth::ApiErrorReason>>,
     bare_refresh_unauthenticated: AtomicBool,
     started: Notify,
     release: Semaphore,
@@ -78,7 +78,7 @@ struct TestApi {
     refused_connect: AtomicBool,
     gateway_offline: AtomicBool,
     bare_preflight_unauthenticated: AtomicBool,
-    preflight_reason: Mutex<Option<auth::AuthorizationTerminationReason>>,
+    preflight_reason: Mutex<Option<native::AuthorizationTerminationReason>>,
     block_preflight: AtomicBool,
     preflight_started: Notify,
     preflight_cancelled: Notify,
@@ -100,20 +100,11 @@ impl TestApi {
         };
         auth::SessionTokens {
             session: auth::Session {
-                id: auth::SessionId {
-                    value: format!("session-{account}"),
-                    ..Default::default()
-                }
-                .into(),
-                account_id: auth::AccountId {
-                    value: format!("account-{account}"),
-                    ..Default::default()
-                }
-                .into(),
-                created_at: precise(BASE - 1 + offset).into(),
-                expires_at: precise(now + 3600).into(),
+                name: format!("homes/test/accounts/account-{account}/sessions/session-{account}"),
+                create_time: precise(BASE - 1 + offset).into(),
+                expire_time: precise(now + 3600).into(),
                 authentication_satisfaction: auth::AuthenticationSatisfaction::PasswordOnly.into(),
-                authenticated_at: precise(BASE - 1 + offset).into(),
+                authentication_time: precise(BASE - 1 + offset).into(),
                 ..Default::default()
             }
             .into(),
@@ -130,7 +121,7 @@ impl TestApi {
                 "refresh-initial"
             }
             .into(),
-            access_expires_at: timestamp(now + self.access_lifetime.load(Ordering::SeqCst)).into(),
+            access_expire_time: timestamp(now + self.access_lifetime.load(Ordering::SeqCst)).into(),
             ..Default::default()
         }
     }
@@ -246,15 +237,7 @@ impl AuthApi for TestApi {
             return Err(ConnectError::unavailable("synthetic lost reply").into());
         }
         if let Some(detail) = self.refresh_error.lock().unwrap().clone() {
-            use buffa::MessageName;
-            return Err(
-                ConnectError::permission_denied("synthetic terminal renewal refusal")
-                    .with_detail(connectrpc::ErrorDetail::from_message(
-                        auth::AuthError::FULL_NAME,
-                        &detail,
-                    ))
-                    .into(),
-            );
+            return Err(canonical_auth_failure(detail));
         }
         if self.bare_refresh_unauthenticated.load(Ordering::SeqCst) {
             return Err(ConnectError::unauthenticated("synthetic untyped proxy refusal").into());
@@ -310,12 +293,12 @@ fn fixture() -> (
     )
 }
 
-fn termination(reason: auth::AuthorizationTerminationReason) -> Failure {
+fn termination(reason: native::AuthorizationTerminationReason) -> Failure {
     use buffa::MessageName;
     ConnectError::unauthenticated("synthetic termination")
         .with_detail(connectrpc::ErrorDetail::from_message(
-            auth::AuthorizationTermination::FULL_NAME,
-            &auth::AuthorizationTermination {
+            native::AuthorizationTermination::FULL_NAME,
+            &native::AuthorizationTermination {
                 reason: reason.into(),
                 ..Default::default()
             },
@@ -411,7 +394,7 @@ async fn network_failure_keeps_session_authority_failure_suspends_and_revocation
         owner
             .observe_failure(
                 initial.generation,
-                &termination(auth::AuthorizationTerminationReason::AuthorityUnavailable)
+                &termination(native::AuthorizationTerminationReason::AuthorityUnavailable)
             )
             .await
             .unwrap(),
@@ -429,7 +412,7 @@ async fn network_failure_keeps_session_authority_failure_suspends_and_revocation
         owner
             .observe_failure(
                 initial.generation,
-                &termination(auth::AuthorizationTerminationReason::CredentialRevoked)
+                &termination(native::AuthorizationTerminationReason::CredentialRevoked)
             )
             .await
             .unwrap(),
@@ -440,7 +423,7 @@ async fn network_failure_keeps_session_authority_failure_suspends_and_revocation
         owner
             .observe_failure(
                 resumed.generation,
-                &termination(auth::AuthorizationTerminationReason::CredentialRevoked)
+                &termination(native::AuthorizationTerminationReason::CredentialRevoked)
             )
             .await
             .unwrap(),
@@ -464,7 +447,7 @@ async fn rights_change_resets_the_view_without_revoking_the_native_session() {
         owner
             .observe_failure(
                 initial.generation,
-                &termination(auth::AuthorizationTerminationReason::RightsChanged)
+                &termination(native::AuthorizationTerminationReason::RightsChanged)
             )
             .await
             .unwrap(),
@@ -613,8 +596,14 @@ async fn late_refresh_cannot_restore_the_previous_account_after_logout_and_login
         .await
         .unwrap();
     let alice = owner.access(&CancellationToken::new()).await.unwrap();
-    assert_eq!(alice.account_id().as_str(), "account-alice");
-    assert_eq!(alice.session_id().as_str(), "session-alice");
+    assert_eq!(
+        alice.account_name().as_str(),
+        "homes/test/accounts/account-alice"
+    );
+    assert_eq!(
+        alice.session_name().as_str(),
+        "homes/test/accounts/account-alice/sessions/session-alice"
+    );
     clock.0.store(BASE + 121, Ordering::SeqCst);
     api.ignore_cancel.store(true, Ordering::SeqCst);
     let waiter = {
@@ -639,11 +628,20 @@ async fn late_refresh_cannot_restore_the_previous_account_after_logout_and_login
     assert_eq!(owner.generation(), generation);
     assert!(alice.cancellation.is_cancelled());
     let bob = owner.access(&CancellationToken::new()).await.unwrap();
-    assert_eq!(bob.account_id().as_str(), "account-bob");
-    assert_eq!(bob.session_id().as_str(), "session-bob");
+    assert_eq!(
+        bob.account_name().as_str(),
+        "homes/test/accounts/account-bob"
+    );
+    assert_eq!(
+        bob.session_name().as_str(),
+        "homes/test/accounts/account-bob/sessions/session-bob"
+    );
     let saved = store.load().unwrap().unwrap();
     let current = SecretRecord::decode(&saved, &clock.now().unwrap()).unwrap();
-    assert_eq!(current.tokens.session.account_id.value, "account-bob");
+    assert_eq!(
+        current.tokens.session.name,
+        "homes/test/accounts/account-bob/sessions/session-bob"
+    );
     owner.close().await;
 }
 
@@ -849,7 +847,7 @@ async fn closing_during_blocked_preflight_joins_without_operation_lock_deadlock(
 
 #[tokio::test]
 async fn preflight_distinguishes_expired_access_from_revocation_and_unavailable_authority() {
-    use auth::AuthorizationTerminationReason as Reason;
+    use native::AuthorizationTerminationReason as Reason;
     for reason in [
         Reason::CredentialExpired,
         Reason::CredentialRevoked,
@@ -931,30 +929,9 @@ async fn pending_renewal_survives_multiple_outages_and_saved_expiry_without_pref
 
 #[tokio::test]
 async fn typed_definitive_renewal_failures_clear_credentials_instead_of_retrying() {
-    use auth::{
-        AuthErrorCode, AuthenticationFailure, ExpiredResource, PermissionFailure,
-        auth_error::Detail,
-    };
     for detail in [
-        auth::AuthError {
-            code: AuthErrorCode::Unauthenticated.into(),
-            detail: Some(Detail::Authentication(
-                AuthenticationFailure::Revoked.into(),
-            )),
-            ..Default::default()
-        },
-        auth::AuthError {
-            code: AuthErrorCode::Expired.into(),
-            detail: Some(Detail::Expired(ExpiredResource::Session.into())),
-            ..Default::default()
-        },
-        auth::AuthError {
-            code: AuthErrorCode::PermissionDenied.into(),
-            detail: Some(Detail::Permission(
-                PermissionFailure::AccountDisabled.into(),
-            )),
-            ..Default::default()
-        },
+        auth::ApiErrorReason::AuthenticationRequired,
+        auth::ApiErrorReason::AccessDenied,
     ] {
         let (owner, api, clock, store) = fixture();
         owner
@@ -1036,8 +1013,6 @@ async fn untyped_refusal_preserves_the_session_and_recovers_the_same_pending_ren
 
 #[tokio::test]
 async fn failed_secure_clear_publishes_storage_failure_under_the_new_generation() {
-    use auth::{AuthErrorCode, AuthenticationFailure, auth_error::Detail};
-    use buffa::MessageName;
     for during_refresh in [true, false] {
         let (owner, api, clock, store) = fixture();
         owner
@@ -1045,13 +1020,7 @@ async fn failed_secure_clear_publishes_storage_failure_under_the_new_generation(
             .await
             .unwrap();
         let lease = owner.access(&CancellationToken::new()).await.unwrap();
-        let detail = auth::AuthError {
-            code: AuthErrorCode::Unauthenticated.into(),
-            detail: Some(Detail::Authentication(
-                AuthenticationFailure::Revoked.into(),
-            )),
-            ..Default::default()
-        };
+        let detail = auth::ApiErrorReason::AuthenticationRequired;
         store.fail_clear.store(true, Ordering::SeqCst);
         if during_refresh {
             clock.0.store(BASE + 121, Ordering::SeqCst);
@@ -1064,11 +1033,7 @@ async fn failed_secure_clear_publishes_storage_failure_under_the_new_generation(
             .await;
             assert!(result.unwrap().is_err());
         } else {
-            let error = Failure::from(
-                ConnectError::unauthenticated("synthetic terminal refusal").with_detail(
-                    connectrpc::ErrorDetail::from_message(auth::AuthError::FULL_NAME, &detail),
-                ),
-            );
+            let error = termination(native::AuthorizationTerminationReason::CredentialRevoked);
             assert_eq!(
                 owner.observe_failure(lease.generation, &error).await,
                 Err(SessionFailure::Store(StoreFailure::Unavailable))
@@ -1097,7 +1062,7 @@ async fn an_expired_stream_access_lease_renews_the_session_instead_of_signing_ou
         .await
         .unwrap();
     let lease = owner.access(&CancellationToken::new()).await.unwrap();
-    let expired_access = termination(auth::AuthorizationTerminationReason::CredentialExpired);
+    let expired_access = termination(native::AuthorizationTerminationReason::CredentialExpired);
     assert_eq!(
         owner
             .observe_failure(lease.generation, &expired_access)
@@ -1118,4 +1083,28 @@ async fn an_expired_stream_access_lease_renews_the_session_instead_of_signing_ou
         "only initial login cleared storage"
     );
     owner.close().await;
+}
+
+fn canonical_auth_failure(reason: auth::ApiErrorReason) -> Failure {
+    use buffa::{Enumeration, MessageName};
+    let code = if reason == auth::ApiErrorReason::AuthenticationRequired {
+        connectrpc::ErrorCode::Unauthenticated
+    } else {
+        connectrpc::ErrorCode::PermissionDenied
+    };
+    let detail = home_wire_contract::google::rpc::ErrorInfo {
+        reason: reason
+            .proto_name()
+            .strip_prefix("API_ERROR_REASON_")
+            .expect("canonical reason")
+            .into(),
+        domain: "homeward.damiengoehrig.ca".into(),
+        ..Default::default()
+    };
+    ConnectError::new(code, "synthetic refusal")
+        .with_detail(connectrpc::ErrorDetail::from_message(
+            home_wire_contract::google::rpc::ErrorInfo::FULL_NAME,
+            &detail,
+        ))
+        .into()
 }

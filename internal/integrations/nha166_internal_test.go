@@ -12,7 +12,7 @@ import (
 func TestNHA166CommonPolicyAndTransportBackstopsRefuseBeforeEffects(t *testing.T) {
 	old, _ := domain.ParseCommandID("nha166-existing-policy")
 	fresh, _ := domain.ParseCommandID("nha166-new-policy")
-	host := &Manager{mqttReadOnlyObservation: true, admission: admissionOpen, commandPolicies: map[domain.CommandID]commandPolicy{old: commandPolicyVolatile}}
+	host := &Manager{mqttReadOnlyObservation: true, admission: admissionOpen, commandPolicies: map[domain.CommandID]commandPolicyClaim{old: {policy: commandPolicyVolatile}}}
 	for _, policy := range []commandPolicy{commandPolicyVolatile, commandPolicyDurable} {
 		for _, id := range []domain.CommandID{old, fresh} {
 			if err := host.claimCommandPolicy(id, policy); !errors.Is(err, ErrCommandAuthorizationDenied) {
@@ -20,7 +20,7 @@ func TestNHA166CommonPolicyAndTransportBackstopsRefuseBeforeEffects(t *testing.T
 			}
 		}
 	}
-	if len(host.commandPolicies) != 1 || host.commandPolicies[old] != commandPolicyVolatile {
+	if len(host.commandPolicies) != 1 || host.commandPolicies[old].policy != commandPolicyVolatile {
 		t.Fatal("read-only claim mutated existing ledger")
 	}
 	// A router with no authority, projection, clock or driver is a tripwire:

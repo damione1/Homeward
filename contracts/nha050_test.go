@@ -2,20 +2,20 @@ package contracts
 
 import (
 	"bytes"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestNHA050PolicyCrossLanguageFixtures(t *testing.T) {
+func TestNHA050NativeTerminationCrossLanguageFixtures(t *testing.T) {
 	index, err := os.ReadFile(filepath.Join("authorization_golden", "index.tsv"))
 	if err != nil {
 		t.Fatal(err)
@@ -25,41 +25,25 @@ func TestNHA050PolicyCrossLanguageFixtures(t *testing.T) {
 		if len(parts) != 3 {
 			t.Fatal("invalid fixture index")
 		}
+		// Only termination is still a current native protocol. Retired policy
+		// bytes are checked by the historical SHA manifest, without a decoder.
+		if parts[1] != "AuthorizationTermination" {
+			continue
+		}
 		t.Run(parts[0], func(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join("authorization_golden", parts[0]+".bin"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			var value proto.Message
-			switch parts[1] {
-			case "ReplacePolicyRequest":
-				value = new(auth.ReplacePolicyRequest)
-			case "GetPolicyResponse":
-				value = new(auth.GetPolicyResponse)
-			case "AuthorizationTermination":
-				value = new(auth.AuthorizationTermination)
-			case "AuthorizationPolicyError":
-				value = new(auth.AuthorizationPolicyError)
-			default:
-				t.Fatal("unhandled fixture")
-			}
+			value := new(auth.AuthorizationTermination)
 			if err := proto.Unmarshal(data, value); err != nil {
 				t.Fatal(err)
 			}
 			out, err := (proto.MarshalOptions{Deterministic: true}).Marshal(value)
 			if err != nil || !bytes.Equal(data, out) {
-				t.Fatal("fixture wire drift", err)
+				t.Fatal("native fixture wire drift", err)
 			}
-			switch v := value.(type) {
-			case *auth.ReplacePolicyRequest:
-				err = AdmitReplacePolicyRequest(v)
-			case *auth.GetPolicyResponse:
-				_, err = AdmitGetPolicyResponse(v)
-			case *auth.AuthorizationTermination:
-				_, err = AdmitAuthorizationTermination(v)
-			case *auth.AuthorizationPolicyError:
-				_, err = AuthorizationPolicyErrorConnectCode(v)
-			}
+			_, err = AdmitAuthorizationTermination(value)
 			if (err == nil) != (parts[2] == "true") {
 				t.Fatal("cross-language admission disagrees", err)
 			}
@@ -68,80 +52,88 @@ func TestNHA050PolicyCrossLanguageFixtures(t *testing.T) {
 }
 
 func TestNHA050PolicyWireCASPresenceAndCopies(t *testing.T) {
-	account := &auth.AccountId{Value: "account"}
-	version := &auth.PolicyVersion{Revision: 1, SourceSha256: bytes.Repeat([]byte{1}, 32)}
-	request := &auth.ReplacePolicyRequest{AccountId: account, YamlSource: []byte("source"), Precondition: &auth.ReplacePolicyRequest_Expected{Expected: version}}
-	if err := AdmitReplacePolicyRequest(request); err != nil {
+	name := "homes/home-a/accounts/account-a/authorizationPolicy"
+	request := &api.ReplaceAuthorizationPolicyRequest{Name: name, YamlSource: []byte("exact source\n"), Precondition: &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: `W/"opaque-native-version"`}}
+	if err := AdmitAPIReplaceAuthorizationPolicy(request); err != nil {
 		t.Fatal(err)
 	}
-	for _, mutate := range []func(*auth.ReplacePolicyRequest){
-		func(v *auth.ReplacePolicyRequest) { v.Precondition = nil },
-		func(v *auth.ReplacePolicyRequest) { v.Precondition = (*auth.ReplacePolicyRequest_Expected)(nil) },
-		func(v *auth.ReplacePolicyRequest) { v.Precondition = &auth.ReplacePolicyRequest_ExpectAbsent{} },
-		func(v *auth.ReplacePolicyRequest) { v.GetExpected().Revision = 0 },
-		func(v *auth.ReplacePolicyRequest) { v.GetExpected().Revision = math.MaxInt64 + 1 },
-		func(v *auth.ReplacePolicyRequest) { v.GetExpected().SourceSha256 = make([]byte, 32) },
-		func(v *auth.ReplacePolicyRequest) { v.GetExpected().SourceSha256 = []byte{1} },
-		func(v *auth.ReplacePolicyRequest) { v.YamlSource = []byte{0xff} },
-		func(v *auth.ReplacePolicyRequest) { v.YamlSource = make([]byte, MaxAuthorizationPolicySourceBytes+1) },
-		func(v *auth.ReplacePolicyRequest) { v.GetExpected().ProtoReflect().SetUnknown([]byte{0x18, 1}) },
+	for _, mutate := range []func(*api.ReplaceAuthorizationPolicyRequest){
+		func(v *api.ReplaceAuthorizationPolicyRequest) { v.Precondition = nil },
+		func(v *api.ReplaceAuthorizationPolicyRequest) {
+			v.Precondition = (*api.ReplaceAuthorizationPolicyRequest_ExpectedEtag)(nil)
+		},
+		func(v *api.ReplaceAuthorizationPolicyRequest) {
+			v.Precondition = &api.ReplaceAuthorizationPolicyRequest_ExpectAbsent{}
+		},
+		func(v *api.ReplaceAuthorizationPolicyRequest) {
+			v.Precondition = &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{}
+		},
+		func(v *api.ReplaceAuthorizationPolicyRequest) {
+			v.Precondition = &api.ReplaceAuthorizationPolicyRequest_ExpectedEtag{ExpectedEtag: strings.Repeat("x", 129)}
+		},
+		func(v *api.ReplaceAuthorizationPolicyRequest) { v.Name = "account-a" },
+		func(v *api.ReplaceAuthorizationPolicyRequest) { v.YamlSource = []byte{0xff} },
+		func(v *api.ReplaceAuthorizationPolicyRequest) {
+			v.YamlSource = make([]byte, MaxAuthorizationPolicySourceBytes+1)
+		},
+		func(v *api.ReplaceAuthorizationPolicyRequest) { v.ProtoReflect().SetUnknown([]byte{0x98, 0x06, 1}) },
 	} {
-		v := proto.Clone(request).(*auth.ReplacePolicyRequest)
-		mutate(v)
-		if err := AdmitReplacePolicyRequest(v); err == nil {
+		value := proto.Clone(request).(*api.ReplaceAuthorizationPolicyRequest)
+		mutate(value)
+		if err := AdmitAPIReplaceAuthorizationPolicy(value); err == nil {
 			t.Fatal("invalid policy CAS admitted")
 		}
 	}
-	request.Precondition = &auth.ReplacePolicyRequest_ExpectAbsent{ExpectAbsent: &emptypb.Empty{}}
+	request.Precondition = &api.ReplaceAuthorizationPolicyRequest_ExpectAbsent{ExpectAbsent: &emptypb.Empty{}}
 	request.YamlSource = bytes.Repeat([]byte{'x'}, MaxAuthorizationPolicySourceBytes)
-	if err := AdmitReplacePolicyRequest(request); err != nil {
+	if err := AdmitAPIReplaceAuthorizationPolicy(request); err != nil {
 		t.Fatal("explicit absence or exact source limit rejected", err)
 	}
-	response := &auth.GetPolicyResponse{Result: &auth.GetPolicyResponse_Present{Present: &auth.PolicySnapshot{AccountId: account, YamlSource: []byte("source"), Schema: AuthorizationPolicySchema, SyntaxProfile: AuthorizationPolicySyntaxProfile, Version: version, UpdatedAt: timestamppb.New(time.Unix(1, 0))}}}
-	admitted, err := AdmitGetPolicyResponse(response)
+	response := &api.AuthorizationPolicy{Name: name, YamlSource: []byte("exact source\n"), Schema: AuthorizationPolicySchema, SyntaxProfile: AuthorizationPolicySyntaxProfile, Origin: api.AuthorizationPolicyOrigin_AUTHORIZATION_POLICY_ORIGIN_STORED, Etag: `W/"version"`, UpdateTime: timestamppb.New(time.Unix(1, 0))}
+	admitted, err := AdmitAPIAuthorizationPolicy(response)
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.GetPresent().YamlSource[0] = 'X'
+	response.YamlSource[0] = 'X'
 	copy, err := admitted.Snapshot()
-	if err != nil || string(copy.GetPresent().YamlSource) != "source" {
+	if err != nil || string(copy.YamlSource) != "exact source\n" {
 		t.Fatal("source alias", err)
 	}
-	copy.GetPresent().Version.SourceSha256[0] = 8
+	copy.YamlSource[0] = 'Y'
 	again, _ := admitted.Snapshot()
-	if again.GetPresent().Version.SourceSha256[0] != 1 {
-		t.Fatal("hash alias")
+	if string(again.YamlSource) != "exact source\n" {
+		t.Fatal("returned source alias")
 	}
-	if _, err := AdmitGetPolicyResponse(&auth.GetPolicyResponse{}); err == nil {
-		t.Fatal("missing result admitted")
+	defaultPolicy := proto.Clone(again).(*api.AuthorizationPolicy)
+	defaultPolicy.Origin = api.AuthorizationPolicyOrigin_AUTHORIZATION_POLICY_ORIGIN_DEFAULT
+	defaultPolicy.Etag = ""
+	defaultPolicy.UpdateTime = nil
+	if _, err := AdmitAPIAuthorizationPolicy(defaultPolicy); err != nil {
+		t.Fatal("effective default rejected", err)
 	}
-	if _, err := AdmitGetPolicyResponse(&auth.GetPolicyResponse{Result: (*auth.GetPolicyResponse_Present)(nil)}); err == nil {
-		t.Fatal("typed nil result admitted")
-	}
-	if _, err := AdmitGetPolicyResponse(&auth.GetPolicyResponse{Result: &auth.GetPolicyResponse_Absent{Absent: &emptypb.Empty{}}}); err != nil {
-		t.Fatal(err)
+	for _, mutate := range []func(*api.AuthorizationPolicy){
+		func(v *api.AuthorizationPolicy) { v.Etag = "fabricated" },
+		func(v *api.AuthorizationPolicy) { v.UpdateTime = timestamppb.Now() },
+		func(v *api.AuthorizationPolicy) {
+			v.Origin = api.AuthorizationPolicyOrigin_AUTHORIZATION_POLICY_ORIGIN_STORED
+		},
+		func(v *api.AuthorizationPolicy) { v.Origin = 0 },
+		func(v *api.AuthorizationPolicy) { v.Origin = 99 },
+		func(v *api.AuthorizationPolicy) { v.YamlSource = nil },
+	} {
+		value := proto.Clone(defaultPolicy).(*api.AuthorizationPolicy)
+		mutate(value)
+		if _, err := AdmitAPIAuthorizationPolicy(value); err == nil {
+			t.Fatal("invalid default metadata admitted")
+		}
 	}
 }
 
-func TestNHA050ClosedPolicyErrorsAndTermination(t *testing.T) {
-	for _, n := range auth.AuthorizationPolicyErrorCode_name {
-		code := auth.AuthorizationPolicyErrorCode(auth.AuthorizationPolicyErrorCode_value[n])
-		path := ""
-		if code == auth.AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE || code == auth.AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_INVALID_VERSION {
-			path = "grants[0].scope"
-		}
-		_, err := AuthorizationPolicyErrorConnectCode(&auth.AuthorizationPolicyError{Code: code, FieldPath: path})
-		if (err == nil) != (code != 0) {
-			t.Fatalf("code %v: %v", code, err)
-		}
-	}
+func TestNHA050ClosedNativeTermination(t *testing.T) {
 	for _, reason := range []auth.AuthorizationTerminationReason{0, 1, 2, 3, 4, 5, 999} {
 		_, err := AdmitAuthorizationTermination(&auth.AuthorizationTermination{Reason: reason})
 		if (err == nil) != (reason > 0 && reason <= 5) {
 			t.Fatalf("termination %v: %v", reason, err)
 		}
-	}
-	if _, err := AuthorizationPolicyErrorConnectCode(&auth.AuthorizationPolicyError{Code: auth.AuthorizationPolicyErrorCode_AUTHORIZATION_POLICY_ERROR_CODE_INVALID_SOURCE, FieldPath: "grants[0].private-user-id/secret"}); err == nil {
-		t.Fatal("unsafe field path admitted")
 	}
 }

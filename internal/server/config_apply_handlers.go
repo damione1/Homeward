@@ -5,30 +5,32 @@ import (
 	"errors"
 	"strings"
 
+	longrunningpb "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	configuration "github.com/damione1/Homeward/gen/home/api/v2"
+	planwire "github.com/damione1/Homeward/gen/home/api/v2"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	configurationapplyv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
-	wire "github.com/damione1/Homeward/gen/home/configurationapply/v1"
-	"github.com/damione1/Homeward/gen/home/configurationapply/v1/configurationapplyv1connect"
-	planwire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
-	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/configdocuments"
 	"github.com/damione1/Homeward/internal/configplans"
 	"github.com/damione1/Homeward/internal/storage"
-	"google.golang.org/protobuf/proto"
 )
 
 type configApplyHandler struct {
-	service   *configplans.Service
-	documents *configDocumentsHandler
+	service    *configplans.Service
+	documents  *configDocumentsHandler
+	catalog    *configurationPlanCatalog
+	operations *configurationOperationProvider
 }
 
 var _ configurationapplyv1connect.ConfigurationApplyServiceHandler = (*configApplyHandler)(nil)
 
-func configApplyRPCError(err error, current *configuration.DocumentVersion) error {
+func configApplyRPCError(ctx context.Context, err error, current *configuration.DocumentVersion) error {
 	switch {
 	case errors.Is(err, configplans.ErrStale), errors.Is(err, authorization.ErrConflict):
 		err = configactivation.ErrWorkspacePreconditionConflict
@@ -37,18 +39,10 @@ func configApplyRPCError(err error, current *configuration.DocumentVersion) erro
 	case errors.Is(err, configplans.ErrInvalid), errors.Is(err, contracts.ErrInvalidConfigurationApplyContract):
 		err = contracts.ErrInvalidConfigurationContract
 	}
-	return configDocumentsRPCError(err, current)
+	return configDocumentsRPCError(ctx, err, current)
 }
 
-func configApplyResponse[T any](value *T) (*connect.Response[T], error) {
-	message, ok := any(value).(proto.Message)
-	if !ok || contracts.AdmitConfigurationApplyResponse(message) != nil {
-		return nil, configApplyRPCError(configplans.ErrUnavailable, nil)
-	}
-	return connect.NewResponse(value), nil
-}
-
-func configApplySourceExpected(values []*wire.SourcePrecondition, family planwire.SourceFamily) ([]configdocuments.ExpectedSource, error) {
+func configApplySourceExpected(values []*wire.SourcePrecondition, family planwire.ConfigurationPlanSourceFamily) ([]configdocuments.ExpectedSource, error) {
 	result := make([]configdocuments.ExpectedSource, 0, len(values))
 	for _, value := range values {
 		if value == nil || value.Id == nil {
@@ -59,7 +53,7 @@ func configApplySourceExpected(values []*wire.SourcePrecondition, family planwir
 			return nil, configplans.ErrInvalid
 		}
 		var binding storage.ConfigDocumentBinding
-		if family == planwire.SourceFamily_SOURCE_FAMILY_OWNERSHIP && strings.HasSuffix(value.LogicalPath, ".json") {
+		if family == planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OWNERSHIP && strings.HasSuffix(value.LogicalPath, ".json") {
 			binding, err = storage.NewJSONConfigDocumentBinding(id, value.LogicalPath)
 		} else {
 			binding, err = storage.NewConfigDocumentBinding(id, value.LogicalPath)
@@ -95,47 +89,51 @@ func configApplySourceExpected(values []*wire.SourcePrecondition, family planwir
 	return result, nil
 }
 
-func (h *configApplyHandler) mutate(ctx context.Context, id *configuration.DocumentId, expected *configuration.DocumentVersion, workspace []byte, candidate configplans.Candidate, receipt string, sources []configdocuments.ExpectedSource, historical *configuration.ActiveGeneration, historicalIdentity string, historicalPolicyVersion *configuration.DocumentVersion, historicalFamily configplans.Family) (*configuration.ActivationResult, *configuration.ReadDocumentResponse, error) {
-	if h == nil || h.service == nil || h.documents == nil {
-		return nil, nil, authorization.ErrUnavailable
+func (h *configApplyHandler) mutate(ctx context.Context, id *configuration.DocumentId, expected *configuration.DocumentVersion, workspace []byte, candidate configplans.Candidate, application configurationPlanApplication, sources []configdocuments.ExpectedSource, historical *configuration.ActiveGeneration, historicalIdentity string, historicalPolicyVersion *configuration.DocumentVersion, historicalFamily configplans.Family) (*longrunningpb.Operation, error) {
+	if h == nil || h.service == nil || h.documents == nil || h.operations == nil {
+		return nil, authorization.ErrUnavailable
 	}
 	binding, err := h.documents.admit(ctx, auth.ScopeOperation_SCOPE_OPERATION_ADMINISTER, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	base, err := configExpected(id, expected, workspace)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	account, err := binding.account.Value()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	author, err := storage.NewConfigAuthor(account)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	permit, err := h.documents.mutationPermit(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer permit.Release()
 	if !permit.Ready() {
-		return nil, nil, authorization.ErrDenied
+		return nil, authorization.ErrDenied
 	}
 	var result configactivation.Result
 	if historicalPolicyVersion != nil {
 		if historical != nil || historicalIdentity == "" || historicalFamily != configplans.Authorization {
-			return nil, nil, configplans.ErrInvalid
+			return nil, configplans.ErrInvalid
 		}
 		var hash [32]byte
 		copy(hash[:], historicalPolicyVersion.SourceSha256)
 		version, versionErr := authorization.NewVersion(uint64(historicalPolicyVersion.Revision), hash)
 		if versionErr != nil {
-			return nil, nil, configplans.ErrInvalid
+			return nil, configplans.ErrInvalid
 		}
 		result, err = h.service.RollbackAuthorizationVersion(permit.Context(), historicalIdentity, base, sources, version, author)
 	} else if historical == nil {
+		receipt, receiptErr := application.nativeReceipt(candidate, binding)
+		if receiptErr != nil {
+			return nil, receiptErr
+		}
 		switch candidate.Family() {
 		case configplans.Operational:
 			result, err = h.service.Apply(permit.Context(), candidate, receipt, base, author)
@@ -146,7 +144,7 @@ func (h *configApplyHandler) mutate(ctx context.Context, id *configuration.Docum
 		case configplans.Dashboard, configplans.Automation, configplans.Script, configplans.Scene, configplans.Ownership:
 			result, err = h.service.ApplySources(permit.Context(), candidate, receipt, base, sources, author)
 		default:
-			return nil, nil, configplans.ErrUnavailable
+			return nil, configplans.ErrUnavailable
 		}
 	} else {
 		generation, _ := storage.NewConfigGenerationRevision(historical.Revision)
@@ -162,7 +160,7 @@ func (h *configApplyHandler) mutate(ctx context.Context, id *configuration.Docum
 		case configplans.Operational:
 			result, err = h.service.Rollback(permit.Context(), base, generation, manifest, author)
 		default:
-			return nil, nil, configplans.ErrUnavailable
+			return nil, configplans.ErrUnavailable
 		}
 	}
 	selfPolicy := candidate.Family() == configplans.Authorization && candidate.Identity() == account
@@ -175,11 +173,10 @@ func (h *configApplyHandler) mutate(ctx context.Context, id *configuration.Docum
 			// The owner retains this account's policy barrier while reconciling.
 			// Re-entering authorization here would wait on our own reservation.
 			// Return only this admitted attempt's outcome, without a new snapshot.
-			activation := configActivationResult(result, err)
-			if activation == nil {
-				return nil, nil, authorization.ErrUnavailable
+			if result.Outcome() == configactivation.CommitUnknown || result.AttemptOutcome() == storage.TransactionIndeterminate {
+				return nil, configactivation.ErrCommitIndeterminate
 			}
-			return activation, nil, nil
+			return h.operations.fromAdmittedPending(ctx, result, binding)
 		}
 	}
 	expectedAdmission := &binding
@@ -188,33 +185,18 @@ func (h *configApplyHandler) mutate(ctx context.Context, id *configuration.Docum
 		// rights binding. Recheck the same principal and current permission,
 		// rather than requiring the policy digest we just replaced.
 		if !permit.Ready() {
-			return nil, nil, authorization.ErrDenied
+			return nil, authorization.ErrDenied
 		}
 		expectedAdmission = nil
 	}
 	currentBinding, admissionErr := h.documents.admit(ctx, auth.ScopeOperation_SCOPE_OPERATION_ADMINISTER, expectedAdmission)
 	if admissionErr != nil {
-		return nil, nil, admissionErr
+		return nil, admissionErr
 	}
 	if currentBinding.account != binding.account {
-		return nil, nil, authorization.ErrDenied
+		return nil, authorization.ErrDenied
 	}
-	current, readErr := h.documents.service.Read(ctx, configApplyOperationalID())
-	var currentWire *configuration.ReadDocumentResponse
-	var version *configuration.DocumentVersion
-	if readErr == nil {
-		currentWire = h.documents.snapshotWire(current)
-		version = currentWire.Document.Version
-	}
-	var workspaceError *configdocuments.Error
-	if result.Outcome() == configactivation.OutcomeInvalid || result.AttemptOutcome() == storage.TransactionNotCommitted && (errors.Is(err, configactivation.ErrWorkspacePreconditionConflict) || errors.Is(err, authorization.ErrConflict) || errors.Is(err, config.ErrStartupSourceChanged) || errors.As(err, &workspaceError)) {
-		return nil, nil, configApplyRPCError(err, version)
-	}
-	activation := configActivationResult(result, err)
-	if activation == nil {
-		return nil, nil, authorization.ErrUnavailable
-	}
-	return activation, currentWire, nil
+	return h.operations.FromActivation(ctx, result, err)
 }
 
 func configApplyOperationalID() storage.ConfigDocumentID {
@@ -222,52 +204,94 @@ func configApplyOperationalID() storage.ConfigDocumentID {
 	return id
 }
 
-func (h *configApplyHandler) Apply(ctx context.Context, request *connect.Request[wire.ApplyRequest]) (*connect.Response[wire.ApplyResponse], error) {
+func (h *configApplyHandler) ApplyConfigurationPlan(ctx context.Context, request *connect.Request[wire.ApplyConfigurationPlanRequest]) (*connect.Response[longrunningpb.Operation], error) {
+	if h == nil || h.documents == nil {
+		return nil, configApplyRPCError(ctx, authorization.ErrUnavailable, nil)
+	}
+	binding, err := h.documents.admit(ctx, auth.ScopeOperation_SCOPE_OPERATION_ADMINISTER, nil)
+	if err != nil {
+		return nil, configApplyRPCError(ctx, err, nil)
+	}
 	if request == nil || contracts.AdmitConfigurationApplyRequest(request.Msg) != nil {
-		return nil, configApplyRPCError(contracts.ErrInvalidConfigurationApplyContract, nil)
+		return nil, configApplyRPCError(ctx, contracts.ErrInvalidConfigurationApplyContract, nil)
+	}
+	ctx, replay, err := h.documents.prepareConfigurationRequest(ctx, storage.ConfigurationApplyPlan, request.Msg.RequestId, request.Msg)
+	if err != nil {
+		return nil, configApplyRPCError(ctx, err, nil)
+	}
+	if replay != nil {
+		return connect.NewResponse(replay), nil
+	}
+	name, err := apitypes.ParseConfigurationPlanName(request.Msg.Name)
+	if err != nil {
+		return nil, configApplyRPCError(ctx, configplans.ErrInvalid, nil)
+	}
+	if err := h.documents.names.parent(ctx, name.Home().String()); err != nil {
+		return nil, configApplyRPCError(ctx, err, nil)
+	}
+	application, err := h.catalog.forApplication(name, binding, request.Msg.Etag)
+	if err != nil {
+		return nil, configApplyRPCError(ctx, err, nil)
 	}
 	candidate, err := configPlanCandidate(request.Msg.Candidate)
 	if err != nil {
-		return nil, configApplyRPCError(err, nil)
+		return nil, configApplyRPCError(ctx, err, nil)
 	}
 	sources, err := configApplySourceExpected(request.Msg.Sources, request.Msg.Candidate.Family)
 	if err != nil {
-		return nil, configApplyRPCError(err, nil)
+		return nil, configApplyRPCError(ctx, err, nil)
 	}
-	activation, current, err := h.mutate(ctx, &configuration.DocumentId{Value: "operational.main"}, request.Msg.Expected, request.Msg.ExpectedWorkspaceSha256, candidate, request.Msg.GetReceipt(), sources, nil, "", nil, candidate.Family())
+	operation, err := h.mutate(ctx, &configuration.DocumentId{Value: "operational.main"}, request.Msg.Expected, request.Msg.ExpectedWorkspaceSha256, candidate, application, sources, nil, "", nil, candidate.Family())
 	if err != nil {
 		var rpc *connect.Error
 		if errors.As(err, &rpc) {
 			return nil, rpc
 		}
-		return nil, configApplyRPCError(err, nil)
+		return nil, configApplyRPCError(ctx, err, nil)
 	}
-	return configApplyResponse(&wire.ApplyResponse{Activation: activation, Current: current})
+	return connect.NewResponse(operation), nil
 }
 
-func (h *configApplyHandler) Rollback(ctx context.Context, request *connect.Request[wire.RollbackRequest]) (*connect.Response[wire.RollbackResponse], error) {
+func (h *configApplyHandler) RollbackConfiguration(ctx context.Context, request *connect.Request[wire.RollbackConfigurationRequest]) (*connect.Response[longrunningpb.Operation], error) {
+	if h == nil || h.documents == nil {
+		return nil, configApplyRPCError(ctx, authorization.ErrUnavailable, nil)
+	}
+	if _, err := h.documents.admit(ctx, auth.ScopeOperation_SCOPE_OPERATION_ADMINISTER, nil); err != nil {
+		return nil, configApplyRPCError(ctx, err, nil)
+	}
 	if request == nil || contracts.AdmitConfigurationApplyRequest(request.Msg) != nil {
-		return nil, configApplyRPCError(contracts.ErrInvalidConfigurationApplyContract, nil)
+		return nil, configApplyRPCError(ctx, contracts.ErrInvalidConfigurationApplyContract, nil)
+	}
+	ctx, replay, err := h.documents.prepareConfigurationRequest(ctx, storage.ConfigurationRollback, request.Msg.RequestId, request.Msg)
+	if err != nil {
+		return nil, configApplyRPCError(ctx, err, nil)
+	}
+	if replay != nil {
+		return connect.NewResponse(replay), nil
 	}
 	historicalFamily := configplans.Operational
-	if request.Msg.Family != planwire.SourceFamily_SOURCE_FAMILY_UNSPECIFIED {
+	if request.Msg.Family != planwire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_UNSPECIFIED {
 		var err error
 		historicalFamily, err = configPlanFamily(request.Msg.Family)
 		if err != nil {
-			return nil, configApplyRPCError(err, nil)
+			return nil, configApplyRPCError(ctx, err, nil)
 		}
 	}
 	sources, err := configApplySourceExpected(request.Msg.Sources, request.Msg.Family)
 	if err != nil {
-		return nil, configApplyRPCError(err, nil)
+		return nil, configApplyRPCError(ctx, err, nil)
 	}
-	activation, current, err := h.mutate(ctx, request.Msg.Id, request.Msg.Expected, request.Msg.ExpectedWorkspaceSha256, configplans.Candidate{}, "", sources, request.Msg.Historical, request.Msg.Identity, request.Msg.HistoricalPolicyVersion, historicalFamily)
+	nativeKey, err := h.documents.names.resolve(ctx, storage.APIConfigurationDocuments, request.Msg.Name)
+	if err != nil {
+		return nil, configApplyRPCError(ctx, err, nil)
+	}
+	operation, err := h.mutate(ctx, &configuration.DocumentId{Value: nativeKey}, request.Msg.Expected, request.Msg.ExpectedWorkspaceSha256, configplans.Candidate{}, configurationPlanApplication{}, sources, request.Msg.Historical, request.Msg.Identity, request.Msg.HistoricalPolicyVersion, historicalFamily)
 	if err != nil {
 		var rpc *connect.Error
 		if errors.As(err, &rpc) {
 			return nil, rpc
 		}
-		return nil, configApplyRPCError(err, nil)
+		return nil, configApplyRPCError(ctx, err, nil)
 	}
-	return configApplyResponse(&wire.RollbackResponse{Activation: activation, Current: current})
+	return connect.NewResponse(operation), nil
 }

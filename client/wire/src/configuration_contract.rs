@@ -1,5 +1,5 @@
 //! Configuration protocol admission. No transport, UI, credentials or source log.
-use crate::home::configuration::v1 as wire;
+use crate::home::api::v2 as wire;
 use buffa::EnumValue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8,13 +8,13 @@ pub enum ConfigurationAdmissionError {
 }
 
 pub enum ConfigurationRequest<'a> {
-    Read(&'a wire::ReadDocumentRequest),
-    Documents(&'a wire::ListDocumentsRequest),
-    Versions(&'a wire::ListVersionsRequest),
-    Generations(&'a wire::ListGenerationsRequest),
-    Schemas(&'a wire::ListSchemasRequest),
-    Write(&'a wire::WriteDocumentRequest),
-    Restore(&'a wire::RestoreDocumentRequest),
+    Read(&'a wire::GetConfigurationDocumentRequest),
+    Documents(&'a wire::ListConfigurationDocumentsRequest),
+    Versions(&'a wire::ListConfigurationRevisionsRequest),
+    Generations(&'a wire::ListConfigurationGenerationsRequest),
+    Schemas(&'a wire::ListConfigurationSchemasRequest),
+    Write(&'a wire::PublishConfigurationDocumentRequest),
+    Restore(&'a wire::RollbackConfigurationDocumentRequest),
     Watch(&'a wire::WatchConfigurationRequest),
 }
 
@@ -42,13 +42,31 @@ pub(crate) fn version(value: &wire::DocumentVersion) -> bool {
 pub(crate) fn generation(value: &wire::ActiveGeneration) -> bool {
     value.__buffa_unknown_fields.is_empty() && value.revision > 0 && hash(&value.manifest_sha256)
 }
-fn page(value: &wire::PageRequest) -> bool {
-    value.__buffa_unknown_fields.is_empty()
-        && (1..=100).contains(&value.page_size)
+fn page(size: i32, token: &str) -> bool {
+    size >= 0 && token.len() <= 1200
+}
+pub fn home_name(value: &str) -> bool {
+    let parts: Vec<_> = value.split('/').collect();
+    parts.len() == 2 && parts[0] == "homes" && resource_id(parts[1])
+}
+fn resource_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 63
+        && !value.starts_with('-')
+        && !value.ends_with('-')
         && value
-            .page_token
-            .as_ref()
-            .is_none_or(|token| !token.is_empty() && token.len() <= 1200)
+            .bytes()
+            .all(|v| v.is_ascii_lowercase() || v.is_ascii_digit() || v == b'-')
+}
+pub(crate) fn resource_name(value: &str, collection: &str) -> bool {
+    let segment = format!("/{collection}/");
+    let Some((parent, id)) = value.split_once(&segment) else {
+        return false;
+    };
+    home_name(parent) && resource_id(id)
+}
+pub fn document_name(value: &str) -> bool {
+    resource_name(value, "configurationDocuments")
 }
 
 pub fn admit_configuration_request(
@@ -56,42 +74,50 @@ pub fn admit_configuration_request(
 ) -> Result<AdmittedConfigurationRequest<'_>, ConfigurationAdmissionError> {
     let valid = match &value {
         ConfigurationRequest::Read(v) => {
-            v.__buffa_unknown_fields.is_empty() && v.id.as_option().is_some_and(id)
+            v.__buffa_unknown_fields.is_empty() && document_name(&v.name)
         }
         ConfigurationRequest::Documents(v) => {
-            v.__buffa_unknown_fields.is_empty() && v.page.as_option().is_some_and(page)
+            v.__buffa_unknown_fields.is_empty()
+                && page(v.page_size, &v.page_token)
+                && home_name(&v.parent)
         }
         ConfigurationRequest::Versions(v) => {
             v.__buffa_unknown_fields.is_empty()
-                && v.id.as_option().is_some_and(id)
-                && v.page.as_option().is_some_and(page)
+                && document_name(&v.parent)
+                && page(v.page_size, &v.page_token)
         }
         ConfigurationRequest::Generations(v) => {
-            v.__buffa_unknown_fields.is_empty() && v.page.as_option().is_some_and(page)
+            v.__buffa_unknown_fields.is_empty()
+                && page(v.page_size, &v.page_token)
+                && home_name(&v.parent)
         }
         ConfigurationRequest::Schemas(v) => {
-            v.__buffa_unknown_fields.is_empty() && v.page.as_option().is_some_and(page)
+            v.__buffa_unknown_fields.is_empty()
+                && page(v.page_size, &v.page_token)
+                && home_name(&v.parent)
         }
         ConfigurationRequest::Write(v) => {
             v.__buffa_unknown_fields.is_empty()
-                && v.id
-                    .as_option()
-                    .is_some_and(|value| id(value) && value.value == "operational.main")
+                && (v.request_id.is_empty()
+                    || home_client_model::api::RequestId::try_from(v.request_id.as_str()).is_ok())
+                && document_name(&v.name)
                 && v.expected.as_option().is_some_and(version)
                 && hash(&v.expected_workspace_sha256)
                 && (1..=1_048_576).contains(&v.exact_yaml_source.len())
         }
         ConfigurationRequest::Restore(v) => {
             v.__buffa_unknown_fields.is_empty()
-                && v.id
-                    .as_option()
-                    .is_some_and(|value| id(value) && value.value == "operational.main")
+                && (v.request_id.is_empty()
+                    || home_client_model::api::RequestId::try_from(v.request_id.as_str()).is_ok())
+                && document_name(&v.name)
                 && v.expected.as_option().is_some_and(version)
                 && hash(&v.expected_workspace_sha256)
                 && v.historical.as_option().is_some_and(generation)
         }
         ConfigurationRequest::Watch(v) => {
-            v.__buffa_unknown_fields.is_empty() && v.resume_token.len() == 118
+            v.__buffa_unknown_fields.is_empty()
+                && home_name(&v.parent)
+                && v.resume_token.len() == 118
         }
     };
     if valid {
@@ -113,13 +139,16 @@ fn dirty(value: EnumValue<wire::DirtyState>) -> bool {
         EnumValue::Known(wire::DirtyState::Unspecified) | EnumValue::Unknown(_) => false,
     }
 }
-pub(crate) fn timestamp(value: &buffa_types::google::protobuf::Timestamp) -> bool {
+pub fn timestamp(value: &buffa_types::google::protobuf::Timestamp) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && (-62_135_596_800..=253_402_300_799).contains(&value.seconds)
         && (0..1_000_000_000).contains(&value.nanos)
         && (value.seconds != -62_135_596_800 || value.nanos != 0)
 }
-fn workspace_diagnostic(document: &wire::Document, workspace: &wire::WorkspaceObservation) -> bool {
+fn workspace_diagnostic(
+    document: &wire::ConfigurationDocument,
+    workspace: &wire::WorkspaceObservation,
+) -> bool {
     let Some(diagnostic) = workspace.diagnostic.as_option() else {
         return true;
     };
@@ -135,20 +164,21 @@ fn workspace_diagnostic(document: &wire::Document, workspace: &wire::WorkspaceOb
         return false;
     }
     match diagnostic.code {
-        EnumValue::Known(wire::DiagnosticCode::CandidateRejected) => matches!(
+        EnumValue::Known(wire::ConfigurationDiagnosticCode::CandidateRejected) => matches!(
             workspace.dirty,
             EnumValue::Known(wire::DirtyState::Rejected | wire::DirtyState::Reconciling)
         ),
         EnumValue::Known(
-            wire::DiagnosticCode::WorkspaceChanged
-            | wire::DiagnosticCode::ReconciliationRequired
-            | wire::DiagnosticCode::ActivationUnavailable,
+            wire::ConfigurationDiagnosticCode::WorkspaceChanged
+            | wire::ConfigurationDiagnosticCode::ReconciliationRequired
+            | wire::ConfigurationDiagnosticCode::ActivationUnavailable,
         ) => true,
-        EnumValue::Known(wire::DiagnosticCode::Unspecified) | EnumValue::Unknown(_) => false,
+        EnumValue::Known(wire::ConfigurationDiagnosticCode::Unspecified)
+        | EnumValue::Unknown(_) => false,
     }
 }
 
-fn schema(value: &wire::Document) -> bool {
+fn schema(value: &wire::ConfigurationDocument) -> bool {
     match value.kind {
         EnumValue::Known(wire::DocumentKind::YamlSource) => {
             value.schema_version == "ha-declarative-1"
@@ -189,7 +219,7 @@ fn schema(value: &wire::Document) -> bool {
         EnumValue::Known(wire::DocumentKind::Unspecified) | EnumValue::Unknown(_) => false,
     }
 }
-fn observable_document(document: &wire::Document) -> bool {
+fn observable_document(document: &wire::ConfigurationDocument) -> bool {
     match document.kind {
         EnumValue::Known(wire::DocumentKind::OperationalYaml) => {
             document.id.value == "operational.main"
@@ -211,8 +241,13 @@ fn observable_document(document: &wire::Document) -> bool {
         | EnumValue::Unknown(_) => false,
     }
 }
-fn admit_document(document: &wire::Document) -> Result<(), ConfigurationAdmissionError> {
-    if !document.__buffa_unknown_fields.is_empty()
+fn admit_document(
+    document: &wire::ConfigurationDocument,
+) -> Result<(), ConfigurationAdmissionError> {
+    if !document_name(&document.name)
+        || document.etag.is_empty()
+        || document.etag.len() > 256
+        || !document.__buffa_unknown_fields.is_empty()
         || !document.id.as_option().is_some_and(id)
         || !document.version.as_option().is_some_and(version)
         || !document.updated_at.as_option().is_some_and(timestamp)
@@ -221,7 +256,7 @@ fn admit_document(document: &wire::Document) -> Result<(), ConfigurationAdmissio
     {
         return Err(ConfigurationAdmissionError::Invalid);
     }
-    use wire::document::WorkspaceState;
+    use wire::configuration_document::WorkspaceState;
     match &document.workspace_state {
         Some(WorkspaceState::Workspace(workspace)) => {
             if !workspace.__buffa_unknown_fields.is_empty()
@@ -259,47 +294,31 @@ fn admit_document(document: &wire::Document) -> Result<(), ConfigurationAdmissio
     Ok(())
 }
 pub fn admit_configuration_read(
-    value: &wire::ReadDocumentResponse,
+    value: &wire::ConfigurationDocument,
 ) -> Result<(), ConfigurationAdmissionError> {
-    if !value.__buffa_unknown_fields.is_empty()
+    if !document_name(&value.name)
+        || value.etag.is_empty()
+        || value.etag.len() > 256
+        || !value.__buffa_unknown_fields.is_empty()
         || value.resume_token.len() != 118
         || !value.active_generation.as_option().is_some_and(generation)
     {
         return Err(ConfigurationAdmissionError::Invalid);
     }
-    admit_document(
-        value
-            .document
-            .as_option()
-            .ok_or(ConfigurationAdmissionError::Invalid)?,
-    )
+    admit_document(value)
 }
 
 pub enum ConfigurationResponse<'a> {
-    Read(&'a wire::ReadDocumentResponse),
-    Documents(&'a wire::ListDocumentsResponse),
-    Versions(&'a wire::ListVersionsResponse),
-    Generations(&'a wire::ListGenerationsResponse),
-    Schemas(&'a wire::ListSchemasResponse),
-    Write(&'a wire::WriteDocumentResponse),
-    Restore(&'a wire::RestoreDocumentResponse),
+    Read(&'a wire::ConfigurationDocument),
+    Documents(&'a wire::ListConfigurationDocumentsResponse),
+    Versions(&'a wire::ListConfigurationRevisionsResponse),
+    Generations(&'a wire::ListConfigurationGenerationsResponse),
+    Schemas(&'a wire::ListConfigurationSchemasResponse),
+    Write(&'a crate::google::longrunning::Operation),
+    Restore(&'a crate::google::longrunning::Operation),
     Watch(&'a wire::WatchConfigurationResponse),
 }
 
-fn continuation(value: &wire::PageContinuation) -> bool {
-    value.__buffa_unknown_fields.is_empty()
-        && match &value.result {
-            Some(wire::page_continuation::Result::NextPageToken(value)) => {
-                !value.is_empty() && value.len() <= 1200
-            }
-            Some(wire::page_continuation::Result::Complete(value)) => {
-                value.__buffa_unknown_fields.is_empty()
-            }
-            None => false,
-        }
-}
-
-/// Bounded metadata admission. A document projection contains no editable source.
 pub fn admit_configuration_response(
     value: ConfigurationResponse<'_>,
 ) -> Result<(), ConfigurationAdmissionError> {
@@ -309,7 +328,7 @@ pub fn admit_configuration_response(
         ConfigurationResponse::Documents(value) => {
             value.__buffa_unknown_fields.is_empty()
                 && value.documents.len() <= 100
-                && value.continuation.as_option().is_some_and(continuation)
+                && value.next_page_token.len() <= 1200
                 && value
                     .documents
                     .iter()
@@ -318,7 +337,7 @@ pub fn admit_configuration_response(
         ConfigurationResponse::Versions(value) => {
             value.__buffa_unknown_fields.is_empty()
                 && value.versions.len() <= 100
-                && value.continuation.as_option().is_some_and(continuation)
+                && value.next_page_token.len() <= 1200
                 && value.versions.iter().all(|value| {
                     value.__buffa_unknown_fields.is_empty()
                         && value.id.as_option().is_some_and(id)
@@ -340,9 +359,10 @@ pub fn admit_configuration_response(
         ConfigurationResponse::Generations(value) => {
             value.__buffa_unknown_fields.is_empty()
                 && value.generations.len() <= 100
-                && value.continuation.as_option().is_some_and(continuation)
+                && value.next_page_token.len() <= 1200
                 && value.generations.iter().all(|value| {
                     value.__buffa_unknown_fields.is_empty()
+                        && resource_name(&value.name, "configurationGenerations")
                         && value.generation.as_option().is_some_and(generation)
                         && value.created_at.as_option().is_some_and(timestamp)
                         && match value.availability {
@@ -358,10 +378,11 @@ pub fn admit_configuration_response(
         ConfigurationResponse::Schemas(value) => {
             value.__buffa_unknown_fields.is_empty()
                 && value.schemas.len() <= 100
-                && value.continuation.as_option().is_some_and(continuation)
+                && value.next_page_token.len() <= 1200
                 && value.schemas.iter().all(|value| {
                     value.__buffa_unknown_fields.is_empty()
-                        && schema(&wire::Document {
+                        && resource_name(&value.name, "configurationSchemas")
+                        && schema(&wire::ConfigurationDocument {
                             kind: value.kind,
                             schema_version: value.schema_version.clone(),
                             syntax_profile: value.syntax_profile.clone(),
@@ -371,27 +392,8 @@ pub fn admit_configuration_response(
                             == (value.kind == wire::DocumentKind::OperationalYaml)
                 })
         }
-        ConfigurationResponse::Write(value) => {
-            value.__buffa_unknown_fields.is_empty()
-                && value
-                    .activation
-                    .as_option()
-                    .is_some_and(|value| admit_configuration_activation(value).is_ok())
-                && value
-                    .current
-                    .as_option()
-                    .is_none_or(|value| admit_configuration_read(value).is_ok())
-        }
-        ConfigurationResponse::Restore(value) => {
-            value.__buffa_unknown_fields.is_empty()
-                && value
-                    .activation
-                    .as_option()
-                    .is_some_and(|value| admit_configuration_activation(value).is_ok())
-                && value
-                    .current
-                    .as_option()
-                    .is_none_or(|value| admit_configuration_read(value).is_ok())
+        ConfigurationResponse::Write(value) | ConfigurationResponse::Restore(value) => {
+            crate::configuration_operations_contract::admit_response(value).is_ok()
         }
     };
     if valid {
@@ -455,12 +457,13 @@ pub fn admit_configuration_activation(
         }
         let known = match code {
             EnumValue::Known(
-                wire::DiagnosticCode::CandidateRejected
-                | wire::DiagnosticCode::WorkspaceChanged
-                | wire::DiagnosticCode::ReconciliationRequired
-                | wire::DiagnosticCode::ActivationUnavailable,
+                wire::ConfigurationDiagnosticCode::CandidateRejected
+                | wire::ConfigurationDiagnosticCode::WorkspaceChanged
+                | wire::ConfigurationDiagnosticCode::ReconciliationRequired
+                | wire::ConfigurationDiagnosticCode::ActivationUnavailable,
             ) => true,
-            EnumValue::Known(wire::DiagnosticCode::Unspecified) | EnumValue::Unknown(_) => false,
+            EnumValue::Known(wire::ConfigurationDiagnosticCode::Unspecified)
+            | EnumValue::Unknown(_) => false,
         };
         if !known {
             return Err(ConfigurationAdmissionError::Invalid);
@@ -502,7 +505,7 @@ pub fn admit_configuration_watch(
                 && (1..=256).contains(&batch.changes.len())
                 && batch.changes.iter().all(|change| {
                     change.__buffa_unknown_fields.is_empty()
-                        && change.id.as_option().is_some_and(id)
+                        && document_name(&change.name)
                         && change.version.as_option().is_some_and(version)
                         && dirty(change.dirty)
                         && match &change.observed_workspace_sha256 {

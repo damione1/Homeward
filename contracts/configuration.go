@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	wire "github.com/damione1/Homeward/gen/home/configuration/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -56,9 +56,7 @@ func configurationVersion(v *wire.DocumentVersion) bool {
 func configurationGeneration(g *wire.ActiveGeneration) bool {
 	return g != nil && g.Revision > 0 && configurationHash(g.ManifestSha256)
 }
-func configurationPage(p *wire.PageRequest) bool {
-	return p != nil && p.PageSize >= 1 && p.PageSize <= 100 && (p.PageToken == nil || len(*p.PageToken) > 0 && len(*p.PageToken) <= 1200)
-}
+func configurationPage(size int32, token string) bool { return size >= 0 && len(token) <= 1200 }
 
 // AdmitConfigurationRequest is operational admission, not merely successful
 // Protobuf decoding. Future enum/unknown fields and Go zero requests fail closed.
@@ -68,22 +66,23 @@ func AdmitConfigurationRequest(message proto.Message) error {
 	}
 	valid := false
 	switch value := message.(type) {
-	case *wire.ReadDocumentRequest:
-		valid = value != nil && configurationID(value.Id)
-	case *wire.ListDocumentsRequest:
-		valid = value != nil && configurationPage(value.Page)
-	case *wire.ListVersionsRequest:
-		valid = value != nil && configurationID(value.Id) && configurationPage(value.Page)
-	case *wire.ListGenerationsRequest:
-		valid = value != nil && configurationPage(value.Page)
-	case *wire.ListSchemasRequest:
-		valid = value != nil && configurationPage(value.Page)
-	case *wire.WriteDocumentRequest:
-		valid = value != nil && configurationID(value.Id) && value.Id.Value == "operational.main" && configurationVersion(value.Expected) && configurationHash(value.ExpectedWorkspaceSha256) && len(value.ExactYamlSource) >= 1 && len(value.ExactYamlSource) <= 1<<20
-	case *wire.RestoreDocumentRequest:
-		valid = value != nil && configurationID(value.Id) && value.Id.Value == "operational.main" && configurationVersion(value.Expected) && configurationHash(value.ExpectedWorkspaceSha256) && configurationGeneration(value.Historical)
+	case *wire.GetConfigurationDocumentRequest:
+		_, err := ParseGetConfigurationDocument(value)
+		valid = err == nil
+	case *wire.ListConfigurationDocumentsRequest:
+		valid = value != nil && configurationPage(value.PageSize, value.PageToken) && configurationHomeName(value.Parent)
+	case *wire.ListConfigurationRevisionsRequest:
+		valid = value != nil && configurationResourceName(value.Parent, "configurationDocuments") && configurationPage(value.PageSize, value.PageToken)
+	case *wire.ListConfigurationGenerationsRequest:
+		valid = value != nil && configurationPage(value.PageSize, value.PageToken) && configurationHomeName(value.Parent)
+	case *wire.ListConfigurationSchemasRequest:
+		valid = value != nil && configurationPage(value.PageSize, value.PageToken) && configurationHomeName(value.Parent)
+	case *wire.PublishConfigurationDocumentRequest:
+		valid = value != nil && configurationResourceName(value.Name, "configurationDocuments") && configurationVersion(value.Expected) && configurationHash(value.ExpectedWorkspaceSha256) && len(value.ExactYamlSource) >= 1 && len(value.ExactYamlSource) <= 1<<20
+	case *wire.RollbackConfigurationDocumentRequest:
+		valid = value != nil && configurationResourceName(value.Name, "configurationDocuments") && configurationVersion(value.Expected) && configurationHash(value.ExpectedWorkspaceSha256) && configurationGeneration(value.Historical)
 	case *wire.WatchConfigurationRequest:
-		valid = value != nil && len(value.ResumeToken) == 118
+		valid = value != nil && configurationHomeName(value.Parent) && len(value.ResumeToken) == 118
 	default:
 		return ErrInvalidConfigurationContract
 	}

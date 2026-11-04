@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
-	"github.com/damione1/Homeward/gen/home/actions/v1/actionsv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	"github.com/damione1/Homeward/internal/storage"
@@ -215,7 +215,7 @@ func TestNHF032SessionRecoveryServer(t *testing.T) {
 		return nil
 	}
 	outer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/"+actionsv1connect.ActionServiceName+"/") {
+		if strings.HasPrefix(r.URL.Path, "/"+apiv2connect.CapabilityServiceName+"/") || strings.HasPrefix(r.URL.Path, "/"+apiv2connect.DeviceServiceName+"/") {
 			observed.actionRequests.Add(1)
 			w.WriteHeader(http.StatusForbidden)
 			return

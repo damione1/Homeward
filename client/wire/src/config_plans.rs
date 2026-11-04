@@ -1,6 +1,6 @@
 //! Optional inert configuration plans: representation admission only. A receipt
 //! does not authenticate its holder or grant activation/physical authority.
-use crate::home::configurationplan::v1 as wire;
+use crate::home::api::v2 as wire;
 use buffa::EnumValue;
 use std::collections::BTreeSet;
 
@@ -10,12 +10,16 @@ pub enum PlanAdmissionError {
 }
 
 pub enum PlanRequest<'a> {
-    Build(&'a wire::BuildPlanRequest),
-    Revalidate(&'a wire::RevalidatePlanRequest),
+    Build(&'a wire::CreateConfigurationPlanRequest),
+    Revalidate(&'a wire::RevalidateConfigurationPlanRequest),
+    Get(&'a wire::GetConfigurationPlanRequest),
+    List(&'a wire::ListConfigurationPlansRequest),
 }
 pub enum PlanResponse<'a> {
-    Build(&'a wire::BuildPlanResponse),
-    Revalidate(&'a wire::RevalidatePlanResponse),
+    Build(&'a wire::ConfigurationPlan),
+    Revalidate(&'a wire::ConfigurationPlan),
+    Get(&'a wire::ConfigurationPlan),
+    List(&'a wire::ListConfigurationPlansResponse),
 }
 pub struct AdmittedPlanRequest<'a>(PlanRequest<'a>);
 pub struct AdmittedPlanResponse<'a>(PlanResponse<'a>);
@@ -38,23 +42,26 @@ pub(crate) fn label(value: &str, max: usize) -> bool {
 fn hash(value: &[u8]) -> bool {
     value.len() == 32 && value.iter().any(|byte| *byte != 0)
 }
-pub(crate) fn family(value: EnumValue<wire::SourceFamily>) -> Option<wire::SourceFamily> {
+pub(crate) fn family(
+    value: EnumValue<wire::ConfigurationPlanSourceFamily>,
+) -> Option<wire::ConfigurationPlanSourceFamily> {
     match value {
         EnumValue::Known(
-            value @ (wire::SourceFamily::Operational
-            | wire::SourceFamily::DeclarativeV1
-            | wire::SourceFamily::DeclarativeV2
-            | wire::SourceFamily::Authorization
-            | wire::SourceFamily::Ownership
-            | wire::SourceFamily::Dashboard
-            | wire::SourceFamily::Automation
-            | wire::SourceFamily::Script
-            | wire::SourceFamily::Scene),
+            value @ (wire::ConfigurationPlanSourceFamily::Operational
+            | wire::ConfigurationPlanSourceFamily::DeclarativeV1
+            | wire::ConfigurationPlanSourceFamily::DeclarativeV2
+            | wire::ConfigurationPlanSourceFamily::Authorization
+            | wire::ConfigurationPlanSourceFamily::Ownership
+            | wire::ConfigurationPlanSourceFamily::Dashboard
+            | wire::ConfigurationPlanSourceFamily::Automation
+            | wire::ConfigurationPlanSourceFamily::Script
+            | wire::ConfigurationPlanSourceFamily::Scene),
         ) => Some(value),
-        EnumValue::Known(wire::SourceFamily::Unspecified) | EnumValue::Unknown(_) => None,
+        EnumValue::Known(wire::ConfigurationPlanSourceFamily::Unspecified)
+        | EnumValue::Unknown(_) => None,
     }
 }
-pub(crate) fn candidate(value: &wire::Candidate) -> bool {
+pub(crate) fn candidate(value: &wire::ConfigurationPlanCandidate) -> bool {
     if !value.__buffa_unknown_fields.is_empty()
         || family(value.family).is_none()
         || !label(&value.identity, 255)
@@ -85,12 +92,30 @@ pub fn admit_plan_request(
 ) -> Result<AdmittedPlanRequest<'_>, PlanAdmissionError> {
     let valid = match &value {
         PlanRequest::Build(v) => {
-            v.__buffa_unknown_fields.is_empty() && v.candidate.as_option().is_some_and(candidate)
+            v.__buffa_unknown_fields.is_empty()
+                && (v.request_id.is_empty()
+                    || home_client_model::api::RequestId::try_from(v.request_id.as_str()).is_ok())
+                && crate::configuration_contract::home_name(&v.parent)
+                && v.configuration_plan.as_option().is_some_and(|plan| {
+                    plan.__buffa_unknown_fields.is_empty()
+                        && plan.candidate.as_option().is_some_and(candidate)
+                })
+        }
+        PlanRequest::Get(v) => v.__buffa_unknown_fields.is_empty() && plan_name(&v.name),
+        PlanRequest::List(v) => {
+            v.__buffa_unknown_fields.is_empty()
+                && crate::configuration_contract::home_name(&v.parent)
+                && v.page_size >= 0
+                && v.page_token.len() <= 1200
         }
         PlanRequest::Revalidate(v) => {
             v.__buffa_unknown_fields.is_empty()
+                && (v.request_id.is_empty()
+                    || home_client_model::api::RequestId::try_from(v.request_id.as_str()).is_ok())
                 && v.candidate.as_option().is_some_and(candidate)
-                && (44..=4200).contains(&v.receipt.len())
+                && plan_name(&v.name)
+                && !v.etag.is_empty()
+                && v.etag.len() <= 128
         }
     };
     if valid {
@@ -99,57 +124,72 @@ pub fn admit_plan_request(
         Err(PlanAdmissionError::Invalid)
     }
 }
-fn schema(family: wire::SourceFamily, value: &str) -> bool {
+fn schema(family: wire::ConfigurationPlanSourceFamily, value: &str) -> bool {
     match family {
-        wire::SourceFamily::Operational => value == "homeward.operational/1",
-        wire::SourceFamily::DeclarativeV1 => value == "ha-declarative-1",
-        wire::SourceFamily::DeclarativeV2 => value == "ha-declarative-2",
-        wire::SourceFamily::Authorization => value == "homeward.authorization/1",
-        wire::SourceFamily::Ownership => value == "homeward.heating-ownership/1",
-        wire::SourceFamily::Dashboard => value == "homeward-dashboard-1",
-        wire::SourceFamily::Automation | wire::SourceFamily::Script => value == "ha-logic-1",
-        wire::SourceFamily::Scene => value == "ha-scene-1",
-        wire::SourceFamily::Unspecified => false,
+        wire::ConfigurationPlanSourceFamily::Operational => value == "homeward.operational/1",
+        wire::ConfigurationPlanSourceFamily::DeclarativeV1 => value == "ha-declarative-1",
+        wire::ConfigurationPlanSourceFamily::DeclarativeV2 => value == "ha-declarative-2",
+        wire::ConfigurationPlanSourceFamily::Authorization => value == "homeward.authorization/1",
+        wire::ConfigurationPlanSourceFamily::Ownership => value == "homeward.heating-ownership/1",
+        wire::ConfigurationPlanSourceFamily::Dashboard => value == "homeward-dashboard-1",
+        wire::ConfigurationPlanSourceFamily::Automation
+        | wire::ConfigurationPlanSourceFamily::Script => value == "ha-logic-1",
+        wire::ConfigurationPlanSourceFamily::Scene => value == "ha-scene-1",
+        wire::ConfigurationPlanSourceFamily::Unspecified => false,
     }
 }
-fn effect(family: wire::SourceFamily, value: EnumValue<wire::Effect>) -> bool {
+fn effect(
+    family: wire::ConfigurationPlanSourceFamily,
+    value: EnumValue<wire::ConfigurationPlanEffect>,
+) -> bool {
     match value {
-        EnumValue::Known(wire::Effect::None) => true,
-        EnumValue::Known(wire::Effect::Configuration) => matches!(
+        EnumValue::Known(wire::ConfigurationPlanEffect::None) => true,
+        EnumValue::Known(wire::ConfigurationPlanEffect::Configuration) => matches!(
             family,
-            wire::SourceFamily::Operational
-                | wire::SourceFamily::DeclarativeV1
-                | wire::SourceFamily::DeclarativeV2
+            wire::ConfigurationPlanSourceFamily::Operational
+                | wire::ConfigurationPlanSourceFamily::DeclarativeV1
+                | wire::ConfigurationPlanSourceFamily::DeclarativeV2
         ),
-        EnumValue::Known(wire::Effect::HumanRights) => family == wire::SourceFamily::Authorization,
-        EnumValue::Known(wire::Effect::TechnicalOwnership) => matches!(
+        EnumValue::Known(wire::ConfigurationPlanEffect::HumanRights) => {
+            family == wire::ConfigurationPlanSourceFamily::Authorization
+        }
+        EnumValue::Known(wire::ConfigurationPlanEffect::TechnicalOwnership) => matches!(
             family,
-            wire::SourceFamily::Ownership | wire::SourceFamily::Operational
+            wire::ConfigurationPlanSourceFamily::Ownership
+                | wire::ConfigurationPlanSourceFamily::Operational
         ),
-        EnumValue::Known(wire::Effect::Dashboard) => family == wire::SourceFamily::Dashboard,
-        EnumValue::Known(wire::Effect::RunTargets) => matches!(
+        EnumValue::Known(wire::ConfigurationPlanEffect::Dashboard) => {
+            family == wire::ConfigurationPlanSourceFamily::Dashboard
+        }
+        EnumValue::Known(wire::ConfigurationPlanEffect::RunTargets) => matches!(
             family,
-            wire::SourceFamily::Automation | wire::SourceFamily::Script | wire::SourceFamily::Scene
+            wire::ConfigurationPlanSourceFamily::Automation
+                | wire::ConfigurationPlanSourceFamily::Script
+                | wire::ConfigurationPlanSourceFamily::Scene
         ),
-        EnumValue::Known(wire::Effect::Unspecified) | EnumValue::Unknown(_) => false,
+        EnumValue::Known(wire::ConfigurationPlanEffect::Unspecified) | EnumValue::Unknown(_) => {
+            false
+        }
     }
 }
-fn base(value: &wire::Base) -> bool {
+fn base(value: &wire::ConfigurationPlanBase) -> bool {
     if !value.__buffa_unknown_fields.is_empty() {
         return false;
     }
     match value.kind {
-        EnumValue::Known(wire::BaseKind::ActiveSql) => {
+        EnumValue::Known(wire::ConfigurationPlanBaseKind::ActiveSql) => {
             value.revision.is_some_and(|v| v > 0)
                 && value.source_sha256.as_ref().is_some_and(|v| hash(v))
         }
-        EnumValue::Known(wire::BaseKind::ImmutableReference) => {
+        EnumValue::Known(wire::ConfigurationPlanBaseKind::ImmutableReference) => {
             value.revision.is_none() && value.source_sha256.as_ref().is_some_and(|v| hash(v))
         }
-        EnumValue::Known(wire::BaseKind::NoActiveDocument) => {
+        EnumValue::Known(wire::ConfigurationPlanBaseKind::NoActiveDocument) => {
             value.revision.is_none() && value.source_sha256.is_none()
         }
-        EnumValue::Known(wire::BaseKind::Unspecified) | EnumValue::Unknown(_) => false,
+        EnumValue::Known(wire::ConfigurationPlanBaseKind::Unspecified) | EnumValue::Unknown(_) => {
+            false
+        }
     }
 }
 fn field(value: &str) -> bool {
@@ -194,24 +234,68 @@ fn field(value: &str) -> bool {
             | "definition"
     )
 }
-fn diagnostic(value: EnumValue<wire::DiagnosticCode>) -> bool {
+fn diagnostic(value: EnumValue<wire::ConfigurationPlanDiagnosticCode>) -> bool {
     match value {
         EnumValue::Known(
-            wire::DiagnosticCode::InvalidSchema
-            | wire::DiagnosticCode::ExcludedReference
-            | wire::DiagnosticCode::UnsupportedSource
-            | wire::DiagnosticCode::Capacity
-            | wire::DiagnosticCode::BaseUnavailable,
+            wire::ConfigurationPlanDiagnosticCode::InvalidSchema
+            | wire::ConfigurationPlanDiagnosticCode::ExcludedReference
+            | wire::ConfigurationPlanDiagnosticCode::UnsupportedSource
+            | wire::ConfigurationPlanDiagnosticCode::Capacity
+            | wire::ConfigurationPlanDiagnosticCode::BaseUnavailable,
         ) => true,
-        EnumValue::Known(wire::DiagnosticCode::Unspecified) | EnumValue::Unknown(_) => false,
+        EnumValue::Known(wire::ConfigurationPlanDiagnosticCode::Unspecified)
+        | EnumValue::Unknown(_) => false,
     }
 }
-fn plan(value: &wire::Plan) -> bool {
+fn plan_name(value: &str) -> bool {
+    let Some((parent, id)) = value.split_once("/configurationPlans/") else {
+        return false;
+    };
+    crate::configuration_contract::home_name(parent)
+        && !id.is_empty()
+        && id.len() <= 63
+        && !id.starts_with('-')
+        && !id.ends_with('-')
+        && id
+            .bytes()
+            .all(|v| v.is_ascii_lowercase() || v.is_ascii_digit() || v == b'-')
+}
+fn plan(value: &wire::ConfigurationPlan) -> bool {
+    let Some(created) = value.create_time.as_option() else {
+        return false;
+    };
+    let Some(updated) = value.update_time.as_option() else {
+        return false;
+    };
+    let Some(expires) = value.expire_time.as_option() else {
+        return false;
+    };
+    if (updated.seconds, updated.nanos) < (created.seconds, created.nanos)
+        || (expires.seconds, expires.nanos) <= (created.seconds, created.nanos)
+        || (updated.seconds, updated.nanos) > (expires.seconds, expires.nanos)
+    {
+        return false;
+    }
     let Some(family) = family(value.family) else {
         return false;
     };
     if !value.__buffa_unknown_fields.is_empty()
-        || !label(&value.author, 255)
+        || !plan_name(&value.name)
+        || !label(&value.etag, 256)
+        || value.candidate.is_set()
+        || !value
+            .create_time
+            .as_option()
+            .is_some_and(crate::configuration_contract::timestamp)
+        || !value
+            .update_time
+            .as_option()
+            .is_some_and(crate::configuration_contract::timestamp)
+        || !value
+            .expire_time
+            .as_option()
+            .is_some_and(crate::configuration_contract::timestamp)
+        || home_client_model::auth::AccountName::try_from(value.author.as_str()).is_err()
         || !label(&value.identity, 255)
         || !schema(family, &value.schema_version)
         || !hash(&value.source_sha256)
@@ -228,7 +312,8 @@ fn plan(value: &wire::Plan) -> bool {
         return false;
     }
     let mut previous = "";
-    let mut maximum: EnumValue<wire::Effect> = wire::Effect::None.into();
+    let mut maximum: EnumValue<wire::ConfigurationPlanEffect> =
+        wire::ConfigurationPlanEffect::None.into();
     for change in &value.changes {
         if !change.__buffa_unknown_fields.is_empty()
             || !field(&change.field)
@@ -236,10 +321,10 @@ fn plan(value: &wire::Plan) -> bool {
                 || change.field == "ecobee"
                 || change.field == "remote_calendar"
                 || change.field == "disabled_integrations")
-                && family != wire::SourceFamily::Operational)
+                && family != wire::ConfigurationPlanSourceFamily::Operational)
             || change.field.as_str() <= previous
             || !effect(family, change.effect)
-            || change.effect == wire::Effect::None
+            || change.effect == wire::ConfigurationPlanEffect::None
             || change.effect.to_i32() > value.effect.to_i32()
             || change.references_added > 4096
             || change.references_removed > 4096
@@ -252,11 +337,12 @@ fn plan(value: &wire::Plan) -> bool {
         }
         match change.operation {
             EnumValue::Known(
-                wire::ChangeOperation::Added
-                | wire::ChangeOperation::Removed
-                | wire::ChangeOperation::Replaced,
+                wire::ConfigurationPlanChangeOperation::Added
+                | wire::ConfigurationPlanChangeOperation::Removed
+                | wire::ConfigurationPlanChangeOperation::Replaced,
             ) => {}
-            EnumValue::Known(wire::ChangeOperation::Unspecified) | EnumValue::Unknown(_) => {
+            EnumValue::Known(wire::ConfigurationPlanChangeOperation::Unspecified)
+            | EnumValue::Unknown(_) => {
                 return false;
             }
         }
@@ -265,26 +351,29 @@ fn plan(value: &wire::Plan) -> bool {
         return false;
     }
     match value.state {
-        EnumValue::Known(wire::PlanState::Admitted) => {
+        EnumValue::Known(wire::ConfigurationPlanState::Admitted) => {
             value.semantic_sha256.as_ref().is_some_and(|v| hash(v))
                 && value.diagnostics.is_empty()
                 && (44..=4200).contains(&value.receipt.len())
-                && (value.changes.is_empty() == (value.effect == wire::Effect::None))
+                && (value.changes.is_empty()
+                    == (value.effect == wire::ConfigurationPlanEffect::None))
         }
-        EnumValue::Known(wire::PlanState::Rejected) => {
+        EnumValue::Known(wire::ConfigurationPlanState::Rejected) => {
             value.semantic_sha256.is_none()
                 && value.changes.is_empty()
                 && !value.diagnostics.is_empty()
-                && value.effect != wire::Effect::None
+                && value.effect != wire::ConfigurationPlanEffect::None
                 && (44..=4200).contains(&value.receipt.len())
         }
-        EnumValue::Known(wire::PlanState::Stale) => {
+        EnumValue::Known(wire::ConfigurationPlanState::Stale) => {
             value.receipt.is_empty()
                 && ((value.semantic_sha256.as_ref().is_some_and(|v| hash(v))
                     && value.diagnostics.is_empty())
                     || (value.semantic_sha256.is_none() && !value.diagnostics.is_empty()))
         }
-        EnumValue::Known(wire::PlanState::Unspecified) | EnumValue::Unknown(_) => false,
+        EnumValue::Known(wire::ConfigurationPlanState::Unspecified) | EnumValue::Unknown(_) => {
+            false
+        }
     }
 }
 pub fn admit_plan_response(
@@ -293,12 +382,17 @@ pub fn admit_plan_response(
     let valid = match &value {
         PlanResponse::Build(v) => {
             v.__buffa_unknown_fields.is_empty()
-                && v.plan
-                    .as_option()
-                    .is_some_and(|p| plan(p) && p.state != wire::PlanState::Stale)
+                && plan(v)
+                && v.state != wire::ConfigurationPlanState::Stale
         }
-        PlanResponse::Revalidate(v) => {
-            v.__buffa_unknown_fields.is_empty() && v.plan.as_option().is_some_and(plan)
+        PlanResponse::Revalidate(v) | PlanResponse::Get(v) => {
+            v.__buffa_unknown_fields.is_empty() && plan(v)
+        }
+        PlanResponse::List(v) => {
+            v.__buffa_unknown_fields.is_empty()
+                && v.configuration_plans.len() <= 100
+                && v.next_page_token.len() <= 1200
+                && v.configuration_plans.iter().all(plan)
         }
     };
     if valid {
@@ -313,35 +407,47 @@ mod tests {
     use super::*;
     #[test]
     fn nha053_future_values_and_nested_fields_are_not_operational() {
-        let candidate = wire::Candidate {
-            family: wire::SourceFamily::Dashboard.into(),
+        let candidate = wire::ConfigurationPlanCandidate {
+            family: wire::ConfigurationPlanSourceFamily::Dashboard.into(),
             identity: "dashboard.preview".into(),
             entry: "candidate.yaml".into(),
-            files: vec![wire::SourceFile {
+            files: vec![wire::ConfigurationPlanSourceFile {
                 logical_path: "candidate.yaml".into(),
                 exact_source: b"views: []".to_vec(),
                 ..Default::default()
             }],
             ..Default::default()
         };
-        let mut request = wire::BuildPlanRequest {
-            candidate: candidate.into(),
+        let mut request = wire::CreateConfigurationPlanRequest {
+            parent: "homes/synthetic".into(),
+            configuration_plan: wire::ConfigurationPlan {
+                candidate: candidate.into(),
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         };
         assert!(admit_plan_request(PlanRequest::Build(&request)).is_ok());
-        request.candidate.as_option_mut().unwrap().family = EnumValue::Unknown(999);
+        request
+            .configuration_plan
+            .as_option_mut()
+            .unwrap()
+            .candidate
+            .as_option_mut()
+            .unwrap()
+            .family = EnumValue::Unknown(999);
         assert!(admit_plan_request(PlanRequest::Build(&request)).is_err());
     }
     #[test]
     fn nha053_absent_revision_is_not_zero_or_invented_active() {
-        let mut value = wire::Base {
-            kind: wire::BaseKind::NoActiveDocument.into(),
+        let mut value = wire::ConfigurationPlanBase {
+            kind: wire::ConfigurationPlanBaseKind::NoActiveDocument.into(),
             ..Default::default()
         };
         assert!(base(&value));
         value.revision = Some(0);
         assert!(!base(&value));
-        value.kind = wire::BaseKind::ActiveSql.into();
+        value.kind = wire::ConfigurationPlanBaseKind::ActiveSql.into();
         value.source_sha256 = Some(vec![1; 32]);
         assert!(!base(&value));
         value.revision = Some(1);
@@ -350,19 +456,19 @@ mod tests {
     #[test]
     fn nha053_effect_families_never_collapse() {
         assert!(effect(
-            wire::SourceFamily::Authorization,
-            wire::Effect::HumanRights.into()
+            wire::ConfigurationPlanSourceFamily::Authorization,
+            wire::ConfigurationPlanEffect::HumanRights.into()
         ));
         assert!(!effect(
-            wire::SourceFamily::Dashboard,
-            wire::Effect::HumanRights.into()
+            wire::ConfigurationPlanSourceFamily::Dashboard,
+            wire::ConfigurationPlanEffect::HumanRights.into()
         ));
         assert!(!effect(
-            wire::SourceFamily::Automation,
-            wire::Effect::Dashboard.into()
+            wire::ConfigurationPlanSourceFamily::Automation,
+            wire::ConfigurationPlanEffect::Dashboard.into()
         ));
         assert!(!effect(
-            wire::SourceFamily::Ownership,
+            wire::ConfigurationPlanSourceFamily::Ownership,
             EnumValue::Unknown(999)
         ));
     }
@@ -374,26 +480,44 @@ mod remote_calendar_tests {
 
     #[test]
     fn nha053_remote_calendar_response_refuses_private_paths_and_layout_effect() {
-        let plan = wire::Plan {
-            state: wire::PlanState::Admitted.into(),
-            author: "server-admitted-admin".into(),
-            family: wire::SourceFamily::Operational.into(),
+        let plan = wire::ConfigurationPlan {
+            name: "homes/synthetic/configurationPlans/p-synthetic".into(),
+            etag: "synthetic-plan-etag".into(),
+            create_time: buffa_types::google::protobuf::Timestamp {
+                seconds: 1700000000,
+                ..Default::default()
+            }
+            .into(),
+            update_time: buffa_types::google::protobuf::Timestamp {
+                seconds: 1700000000,
+                ..Default::default()
+            }
+            .into(),
+            expire_time: buffa_types::google::protobuf::Timestamp {
+                seconds: 1700000600,
+                ..Default::default()
+            }
+            .into(),
+
+            state: wire::ConfigurationPlanState::Admitted.into(),
+            author: "homes/test/accounts/admin".into(),
+            family: wire::ConfigurationPlanSourceFamily::Operational.into(),
             identity: "operational.main".into(),
             schema_version: "homeward.operational/1".into(),
             source_sha256: vec![1; 32],
             semantic_sha256: Some(vec![2; 32]),
-            base: wire::Base {
-                kind: wire::BaseKind::NoActiveDocument.into(),
+            base: wire::ConfigurationPlanBase {
+                kind: wire::ConfigurationPlanBaseKind::NoActiveDocument.into(),
                 ..Default::default()
             }
             .into(),
             generation_revision: 1,
             manifest_sha256: vec![3; 32],
             observed_workspace_sha256: vec![4; 32],
-            effect: wire::Effect::Configuration.into(),
-            changes: vec![wire::Change {
-                effect: wire::Effect::Configuration.into(),
-                operation: wire::ChangeOperation::Added.into(),
+            effect: wire::ConfigurationPlanEffect::Configuration.into(),
+            changes: vec![wire::ConfigurationPlanChange {
+                effect: wire::ConfigurationPlanEffect::Configuration.into(),
+                operation: wire::ConfigurationPlanChangeOperation::Added.into(),
                 field: "remote_calendar".into(),
                 references_added: 1,
                 ..Default::default()
@@ -401,32 +525,34 @@ mod remote_calendar_tests {
             receipt: "a".repeat(80),
             ..Default::default()
         };
-        let mut response = wire::BuildPlanResponse {
-            plan: plan.into(),
-            ..Default::default()
-        };
+        let mut response = plan;
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_ok());
-        response.plan.as_option_mut().unwrap().changes[0].field = "remote_calendar.url".into();
+        let admitted_author = response.author.clone();
+        for invalid_author in ["server-admitted-admin", "homes/test/sessions/admin", " homes/test/accounts/admin"] {
+            response.author = invalid_author.into();
+            assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
+        }
+        response.author = admitted_author;
+        response.changes[0].field = "remote_calendar.url".into();
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        response.plan.as_option_mut().unwrap().changes[0].field =
-            "remote_calendar.auth.bearer_secret".into();
+        response.changes[0].field = "remote_calendar.auth.bearer_secret".into();
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        let plan = response.plan.as_option_mut().unwrap();
+        let plan = &mut response;
         plan.changes[0].field = "remote_calendar".into();
-        plan.changes[0].effect = wire::Effect::Dashboard.into();
-        plan.effect = wire::Effect::Dashboard.into();
+        plan.changes[0].effect = wire::ConfigurationPlanEffect::Dashboard.into();
+        plan.effect = wire::ConfigurationPlanEffect::Dashboard.into();
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        let plan = response.plan.as_option_mut().unwrap();
-        plan.family = wire::SourceFamily::Dashboard.into();
+        let plan = &mut response;
+        plan.family = wire::ConfigurationPlanSourceFamily::Dashboard.into();
         plan.identity = "dashboard.preview".into();
         plan.schema_version = "homeward-dashboard-1".into();
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        let plan = response.plan.as_option_mut().unwrap();
-        plan.family = wire::SourceFamily::Operational.into();
+        let plan = &mut response;
+        plan.family = wire::ConfigurationPlanSourceFamily::Operational.into();
         plan.identity = "operational.main".into();
         plan.schema_version = "homeward.operational/1".into();
-        plan.changes[0].effect = wire::Effect::Configuration.into();
-        plan.effect = wire::Effect::Configuration.into();
+        plan.changes[0].effect = wire::ConfigurationPlanEffect::Configuration.into();
+        plan.effect = wire::ConfigurationPlanEffect::Configuration.into();
         plan.application_available = true;
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
     }
@@ -438,26 +564,44 @@ mod integration_selection_tests {
 
     #[test]
     fn nha053_integration_selection_response_refuses_private_instances_and_cross_family_effect() {
-        let plan = wire::Plan {
-            state: wire::PlanState::Admitted.into(),
-            author: "server-admitted-admin".into(),
-            family: wire::SourceFamily::Operational.into(),
+        let plan = wire::ConfigurationPlan {
+            name: "homes/synthetic/configurationPlans/p-synthetic".into(),
+            etag: "synthetic-plan-etag".into(),
+            create_time: buffa_types::google::protobuf::Timestamp {
+                seconds: 1700000000,
+                ..Default::default()
+            }
+            .into(),
+            update_time: buffa_types::google::protobuf::Timestamp {
+                seconds: 1700000000,
+                ..Default::default()
+            }
+            .into(),
+            expire_time: buffa_types::google::protobuf::Timestamp {
+                seconds: 1700000600,
+                ..Default::default()
+            }
+            .into(),
+
+            state: wire::ConfigurationPlanState::Admitted.into(),
+            author: "homes/test/accounts/admin".into(),
+            family: wire::ConfigurationPlanSourceFamily::Operational.into(),
             identity: "operational.main".into(),
             schema_version: "homeward.operational/1".into(),
             source_sha256: vec![1; 32],
             semantic_sha256: Some(vec![2; 32]),
-            base: wire::Base {
-                kind: wire::BaseKind::NoActiveDocument.into(),
+            base: wire::ConfigurationPlanBase {
+                kind: wire::ConfigurationPlanBaseKind::NoActiveDocument.into(),
                 ..Default::default()
             }
             .into(),
             generation_revision: 1,
             manifest_sha256: vec![3; 32],
             observed_workspace_sha256: vec![4; 32],
-            effect: wire::Effect::Configuration.into(),
-            changes: vec![wire::Change {
-                effect: wire::Effect::Configuration.into(),
-                operation: wire::ChangeOperation::Added.into(),
+            effect: wire::ConfigurationPlanEffect::Configuration.into(),
+            changes: vec![wire::ConfigurationPlanChange {
+                effect: wire::ConfigurationPlanEffect::Configuration.into(),
+                operation: wire::ConfigurationPlanChangeOperation::Added.into(),
                 field: "disabled_integrations".into(),
                 references_added: 1,
                 ..Default::default()
@@ -465,52 +609,49 @@ mod integration_selection_tests {
             receipt: "a".repeat(80),
             ..Default::default()
         };
-        let mut response = wire::BuildPlanResponse {
-            plan: plan.into(),
-            ..Default::default()
-        };
+        let mut response = plan;
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_ok());
-        let baseline = response.plan.as_option().unwrap().clone();
+        let baseline = response.clone();
         for (family, schema, effect) in [
             (
-                wire::SourceFamily::DeclarativeV1,
+                wire::ConfigurationPlanSourceFamily::DeclarativeV1,
                 "ha-declarative-1",
-                wire::Effect::Configuration,
+                wire::ConfigurationPlanEffect::Configuration,
             ),
             (
-                wire::SourceFamily::DeclarativeV2,
+                wire::ConfigurationPlanSourceFamily::DeclarativeV2,
                 "ha-declarative-2",
-                wire::Effect::Configuration,
+                wire::ConfigurationPlanEffect::Configuration,
             ),
             (
-                wire::SourceFamily::Authorization,
+                wire::ConfigurationPlanSourceFamily::Authorization,
                 "homeward.authorization/1",
-                wire::Effect::HumanRights,
+                wire::ConfigurationPlanEffect::HumanRights,
             ),
             (
-                wire::SourceFamily::Ownership,
+                wire::ConfigurationPlanSourceFamily::Ownership,
                 "homeward.heating-ownership/1",
-                wire::Effect::TechnicalOwnership,
+                wire::ConfigurationPlanEffect::TechnicalOwnership,
             ),
             (
-                wire::SourceFamily::Dashboard,
+                wire::ConfigurationPlanSourceFamily::Dashboard,
                 "homeward-dashboard-1",
-                wire::Effect::Dashboard,
+                wire::ConfigurationPlanEffect::Dashboard,
             ),
             (
-                wire::SourceFamily::Automation,
+                wire::ConfigurationPlanSourceFamily::Automation,
                 "ha-logic-1",
-                wire::Effect::RunTargets,
+                wire::ConfigurationPlanEffect::RunTargets,
             ),
             (
-                wire::SourceFamily::Script,
+                wire::ConfigurationPlanSourceFamily::Script,
                 "ha-logic-1",
-                wire::Effect::RunTargets,
+                wire::ConfigurationPlanEffect::RunTargets,
             ),
             (
-                wire::SourceFamily::Scene,
+                wire::ConfigurationPlanSourceFamily::Scene,
                 "ha-scene-1",
-                wire::Effect::RunTargets,
+                wire::ConfigurationPlanEffect::RunTargets,
             ),
         ] {
             let mut candidate = baseline.clone();
@@ -518,34 +659,30 @@ mod integration_selection_tests {
             candidate.schema_version = schema.into();
             candidate.effect = effect.into();
             candidate.changes[0].effect = effect.into();
-            let other = wire::BuildPlanResponse {
-                plan: candidate.into(),
-                ..Default::default()
-            };
+            let other = candidate;
             assert!(admit_plan_response(PlanResponse::Build(&other)).is_err());
         }
 
-        response.plan.as_option_mut().unwrap().changes[0].field = "disabled_integrations[0]".into();
+        response.changes[0].field = "disabled_integrations[0]".into();
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        response.plan.as_option_mut().unwrap().changes[0].field =
-            "disabled_integrations.nha053-private-selection-worker".into();
+        response.changes[0].field = "disabled_integrations.nha053-private-selection-worker".into();
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        let plan = response.plan.as_option_mut().unwrap();
+        let plan = &mut response;
         plan.changes[0].field = "disabled_integrations".into();
-        plan.changes[0].effect = wire::Effect::Dashboard.into();
-        plan.effect = wire::Effect::Dashboard.into();
+        plan.changes[0].effect = wire::ConfigurationPlanEffect::Dashboard.into();
+        plan.effect = wire::ConfigurationPlanEffect::Dashboard.into();
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        let plan = response.plan.as_option_mut().unwrap();
-        plan.family = wire::SourceFamily::Dashboard.into();
+        let plan = &mut response;
+        plan.family = wire::ConfigurationPlanSourceFamily::Dashboard.into();
         plan.identity = "dashboard.preview".into();
         plan.schema_version = "homeward-dashboard-1".into();
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-        let plan = response.plan.as_option_mut().unwrap();
-        plan.family = wire::SourceFamily::Operational.into();
+        let plan = &mut response;
+        plan.family = wire::ConfigurationPlanSourceFamily::Operational.into();
         plan.identity = "operational.main".into();
         plan.schema_version = "homeward.operational/1".into();
-        plan.changes[0].effect = wire::Effect::Configuration.into();
-        plan.effect = wire::Effect::Configuration.into();
+        plan.changes[0].effect = wire::ConfigurationPlanEffect::Configuration.into();
+        plan.effect = wire::ConfigurationPlanEffect::Configuration.into();
         plan.application_available = true;
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
     }
@@ -558,26 +695,44 @@ mod ecobee_tests {
     #[test]
     fn native_integration_response_refuses_private_settings_and_cross_family_effect() {
         for native_field in ["ecobee", "sonos", "android_tv"] {
-            let plan = wire::Plan {
-                state: wire::PlanState::Admitted.into(),
-                author: "server-admitted-admin".into(),
-                family: wire::SourceFamily::Operational.into(),
+            let plan = wire::ConfigurationPlan {
+                name: "homes/synthetic/configurationPlans/p-synthetic".into(),
+                etag: "synthetic-plan-etag".into(),
+                create_time: buffa_types::google::protobuf::Timestamp {
+                    seconds: 1700000000,
+                    ..Default::default()
+                }
+                .into(),
+                update_time: buffa_types::google::protobuf::Timestamp {
+                    seconds: 1700000000,
+                    ..Default::default()
+                }
+                .into(),
+                expire_time: buffa_types::google::protobuf::Timestamp {
+                    seconds: 1700000600,
+                    ..Default::default()
+                }
+                .into(),
+
+                state: wire::ConfigurationPlanState::Admitted.into(),
+                author: "homes/test/accounts/admin".into(),
+                family: wire::ConfigurationPlanSourceFamily::Operational.into(),
                 identity: "operational.main".into(),
                 schema_version: "homeward.operational/1".into(),
                 source_sha256: vec![1; 32],
                 semantic_sha256: Some(vec![2; 32]),
-                base: wire::Base {
-                    kind: wire::BaseKind::NoActiveDocument.into(),
+                base: wire::ConfigurationPlanBase {
+                    kind: wire::ConfigurationPlanBaseKind::NoActiveDocument.into(),
                     ..Default::default()
                 }
                 .into(),
                 generation_revision: 1,
                 manifest_sha256: vec![3; 32],
                 observed_workspace_sha256: vec![4; 32],
-                effect: wire::Effect::Configuration.into(),
-                changes: vec![wire::Change {
-                    effect: wire::Effect::Configuration.into(),
-                    operation: wire::ChangeOperation::Added.into(),
+                effect: wire::ConfigurationPlanEffect::Configuration.into(),
+                changes: vec![wire::ConfigurationPlanChange {
+                    effect: wire::ConfigurationPlanEffect::Configuration.into(),
+                    operation: wire::ConfigurationPlanChangeOperation::Added.into(),
                     field: native_field.into(),
                     references_added: 1,
                     ..Default::default()
@@ -585,52 +740,49 @@ mod ecobee_tests {
                 receipt: "a".repeat(80),
                 ..Default::default()
             };
-            let mut response = wire::BuildPlanResponse {
-                plan: plan.into(),
-                ..Default::default()
-            };
+            let mut response = plan;
             assert!(admit_plan_response(PlanResponse::Build(&response)).is_ok());
-            let baseline = response.plan.as_option().unwrap().clone();
+            let baseline = response.clone();
             for (family, schema, effect) in [
                 (
-                    wire::SourceFamily::DeclarativeV1,
+                    wire::ConfigurationPlanSourceFamily::DeclarativeV1,
                     "ha-declarative-1",
-                    wire::Effect::Configuration,
+                    wire::ConfigurationPlanEffect::Configuration,
                 ),
                 (
-                    wire::SourceFamily::DeclarativeV2,
+                    wire::ConfigurationPlanSourceFamily::DeclarativeV2,
                     "ha-declarative-2",
-                    wire::Effect::Configuration,
+                    wire::ConfigurationPlanEffect::Configuration,
                 ),
                 (
-                    wire::SourceFamily::Authorization,
+                    wire::ConfigurationPlanSourceFamily::Authorization,
                     "homeward.authorization/1",
-                    wire::Effect::HumanRights,
+                    wire::ConfigurationPlanEffect::HumanRights,
                 ),
                 (
-                    wire::SourceFamily::Ownership,
+                    wire::ConfigurationPlanSourceFamily::Ownership,
                     "homeward.heating-ownership/1",
-                    wire::Effect::TechnicalOwnership,
+                    wire::ConfigurationPlanEffect::TechnicalOwnership,
                 ),
                 (
-                    wire::SourceFamily::Dashboard,
+                    wire::ConfigurationPlanSourceFamily::Dashboard,
                     "homeward-dashboard-1",
-                    wire::Effect::Dashboard,
+                    wire::ConfigurationPlanEffect::Dashboard,
                 ),
                 (
-                    wire::SourceFamily::Automation,
+                    wire::ConfigurationPlanSourceFamily::Automation,
                     "ha-logic-1",
-                    wire::Effect::RunTargets,
+                    wire::ConfigurationPlanEffect::RunTargets,
                 ),
                 (
-                    wire::SourceFamily::Script,
+                    wire::ConfigurationPlanSourceFamily::Script,
                     "ha-logic-1",
-                    wire::Effect::RunTargets,
+                    wire::ConfigurationPlanEffect::RunTargets,
                 ),
                 (
-                    wire::SourceFamily::Scene,
+                    wire::ConfigurationPlanSourceFamily::Scene,
                     "ha-scene-1",
-                    wire::Effect::RunTargets,
+                    wire::ConfigurationPlanEffect::RunTargets,
                 ),
             ] {
                 let mut candidate = baseline.clone();
@@ -638,35 +790,30 @@ mod ecobee_tests {
                 candidate.schema_version = schema.into();
                 candidate.effect = effect.into();
                 candidate.changes[0].effect = effect.into();
-                let other = wire::BuildPlanResponse {
-                    plan: candidate.into(),
-                    ..Default::default()
-                };
+                let other = candidate;
                 assert!(admit_plan_response(PlanResponse::Build(&other)).is_err());
             }
 
-            response.plan.as_option_mut().unwrap().changes[0].field =
-                "ecobee.credential_secret".into();
+            response.changes[0].field = "ecobee.credential_secret".into();
             assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-            response.plan.as_option_mut().unwrap().changes[0].field =
-                format!("{native_field}.address");
+            response.changes[0].field = format!("{native_field}.address");
             assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-            let plan = response.plan.as_option_mut().unwrap();
+            let plan = &mut response;
             plan.changes[0].field = native_field.into();
-            plan.changes[0].effect = wire::Effect::Dashboard.into();
-            plan.effect = wire::Effect::Dashboard.into();
+            plan.changes[0].effect = wire::ConfigurationPlanEffect::Dashboard.into();
+            plan.effect = wire::ConfigurationPlanEffect::Dashboard.into();
             assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-            let plan = response.plan.as_option_mut().unwrap();
-            plan.family = wire::SourceFamily::Dashboard.into();
+            let plan = &mut response;
+            plan.family = wire::ConfigurationPlanSourceFamily::Dashboard.into();
             plan.identity = "dashboard.preview".into();
             plan.schema_version = "homeward-dashboard-1".into();
             assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
-            let plan = response.plan.as_option_mut().unwrap();
-            plan.family = wire::SourceFamily::Operational.into();
+            let plan = &mut response;
+            plan.family = wire::ConfigurationPlanSourceFamily::Operational.into();
             plan.identity = "operational.main".into();
             plan.schema_version = "homeward.operational/1".into();
-            plan.changes[0].effect = wire::Effect::Configuration.into();
-            plan.effect = wire::Effect::Configuration.into();
+            plan.changes[0].effect = wire::ConfigurationPlanEffect::Configuration.into();
+            plan.effect = wire::ConfigurationPlanEffect::Configuration.into();
             plan.application_available = true;
             assert!(admit_plan_response(PlanResponse::Build(&response)).is_err());
         }

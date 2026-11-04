@@ -1,88 +1,64 @@
-//! Read-only dashboard facade over the same verified TLS pool as State/Auth.
-use crate::{AccessToken, Failure, StateTransport, services::home::dashboard::v1 as service};
+//! Single-attempt Dashboard v2 reads over the verified TLS pool.
+//! Query binds configuration to a capture; it never dispatches a command.
+use crate::{AccessToken, Failure, services::home::api::v2 as service};
 use connectrpc::client::{ClientTransport, HttpClient, ServerStream};
-use home_wire_contract::home::dashboard::v1 as wire;
+use home_wire_contract::home::api::v2 as wire;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 pub struct DashboardTransport {
+    pub(crate) homes: crate::HomeTransport,
     pub(crate) client: service::DashboardServiceClient<HttpClient>,
 }
-impl DashboardTransport {
-    fn support() -> wire::ClientLayoutSupport {
-        wire::ClientLayoutSupport {
-            profile: home_client_model::dashboard::Profile::Widgets.name().into(),
-            version: home_client_model::dashboard::Profile::Widgets.layout_version(),
-            screen_visibility: true,
-            kinds: [
-                wire::LayoutKind::View,
-                wire::LayoutKind::Section,
-                wire::LayoutKind::Grid,
-                wire::LayoutKind::HorizontalStack,
-                wire::LayoutKind::VerticalStack,
-                wire::LayoutKind::Recipe,
-                wire::LayoutKind::Popup,
-                wire::LayoutKind::ChipGroup,
-                wire::LayoutKind::Heading,
-                wire::LayoutKind::Tile,
-                wire::LayoutKind::Unsupported,
-                wire::LayoutKind::Widget,
-            ]
-            .into_iter()
-            .map(Into::into)
-            .collect(),
-            ..Default::default()
-        }
-    }
-    pub async fn list(
-        &self,
-        token: &AccessToken,
-        timeout: Duration,
-        cancel: &CancellationToken,
-    ) -> Result<wire::ListDashboardsResponse, Failure> {
-        let options = StateTransport::options(token, timeout)?;
-        tokio::select! { biased;
-            () = cancel.cancelled() => Err(Failure::cancelled()),
-            result = self.client.list_dashboards_with_options(wire::ListDashboardsRequest { support: Self::support().into(), ..Default::default() }, options) =>
-                result.map(|value| value.into_owned()).map_err(Failure::from),
-        }
-    }
-    pub async fn get(
-        &self,
-        id: String,
-        token: &AccessToken,
-        timeout: Duration,
-        cancel: &CancellationToken,
-    ) -> Result<wire::GetDashboardResponse, Failure> {
-        let options = StateTransport::options(token, timeout)?;
-        let request = wire::GetDashboardRequest {
-            support: Self::support().into(),
-            id: wire::DashboardId {
-                value: id,
-                ..Default::default()
+macro_rules! unary {
+    ($name:ident, $method:ident, $request:ident, $response:ident) => {
+        pub async fn $name(
+            &self,
+            request: wire::$request,
+            token: &AccessToken,
+            timeout: Duration,
+            cancel: &CancellationToken,
+        ) -> Result<wire::$response, Failure> {
+            let options = token.options(timeout)?;
+            tokio::select! { biased;
+                () = cancel.cancelled() => Err(Failure::cancelled()),
+                result = self.client.$method(request, options) =>
+                    result.map(|value| value.into_owned()).map_err(Failure::from),
             }
-            .into(),
-            ..Default::default()
-        };
-        tokio::select! { biased;
-            () = cancel.cancelled() => Err(Failure::cancelled()),
-            result = self.client.get_dashboard_with_options(request, options) =>
-                result.map(|value| value.into_owned()).map_err(Failure::from),
         }
+    };
+}
+impl DashboardTransport {
+    pub fn home(&self) -> &crate::HomeTransport {
+        &self.homes
     }
-    pub async fn watch(
+    unary!(
+        get_dashboard,
+        get_dashboard_with_options,
+        GetDashboardRequest,
+        Dashboard
+    );
+    unary!(
+        list_dashboards,
+        list_dashboards_with_options,
+        ListDashboardsRequest,
+        ListDashboardsResponse
+    );
+    unary!(
+        query_dashboard,
+        query_dashboard_with_options,
+        QueryDashboardRequest,
+        QueryDashboardResponse
+    );
+    pub async fn watch_dashboards(
         &self,
-        resume_token: String,
+        request: wire::WatchDashboardsRequest,
         token: &AccessToken,
         timeout: Duration,
         cancel: &CancellationToken,
     ) -> Result<DashboardWatch, Failure> {
-        let options = StateTransport::options(token, timeout)?;
-        let request = wire::WatchDashboardsRequest {
-            resume_token,
-            ..Default::default()
-        };
+        let options = token.options(timeout)?;
         tokio::select! { biased;
             () = cancel.cancelled() => Err(Failure::cancelled()),
             result = self.client.watch_dashboards_with_options(request, options) =>

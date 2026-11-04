@@ -1,0 +1,184 @@
+syntax = "proto3";
+package home.api.v2;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "home/api/v2/configuration_plans.proto";
+import "home/api/v2/traits.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "ConfigurationSimulationProto";
+option java_package = "com.home.api.v2";
+
+enum ConfigurationSimulationSupport {
+  CONFIGURATION_SIMULATION_SUPPORT_UNSPECIFIED = 0;
+  CONFIGURATION_SIMULATION_SUPPORT_OBSERVE_STATE = 1;
+  CONFIGURATION_SIMULATION_SUPPORT_CLIMATE_SETPOINT = 2;
+  CONFIGURATION_SIMULATION_SUPPORT_SWITCH_TURN_ON = 3;
+  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_ON = 4;
+  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_OFF = 5;
+  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_ABSOLUTE = 6;
+  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_RELATIVE = 7;
+  CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TRANSITION = 8;
+  CONFIGURATION_SIMULATION_SUPPORT_SCENE_TURN_ON = 9;
+  CONFIGURATION_SIMULATION_SUPPORT_SCENE_TRANSITION = 10;
+}
+message ConfigurationSimulationAttribute {
+  string name = 1;
+  oneof value {
+    string text = 2;
+    bool boolean = 3;
+    int64 integer = 4;
+    double number = 5;
+    bool null_value = 6;
+  }
+}
+message Fixture {
+  string alias = 1;
+  // Absence means unobserved; "unknown" and "unavailable" are observations.
+  optional string state = 2;
+  repeated ConfigurationSimulationAttribute attributes = 3;
+  repeated ConfigurationSimulationSupport supports = 4;
+  // A synthetic refusal tests failure propagation, never a device response.
+  bool refuse_intent = 5;
+}
+message SimulateConfigurationPlanRequest {
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Home"
+  ];
+  home.api.v2.ConfigurationPlanCandidate candidate = 2 [(google.api.field_behavior) = REQUIRED];
+  repeated Fixture fixtures = 3;
+  repeated string event_types = 4;
+  google.protobuf.Timestamp now = 5;
+  string time_zone = 6;
+  uint64 virtual_limit_millis = 7;
+}
+enum ConfigurationSimulationStatus {
+  CONFIGURATION_SIMULATION_STATUS_UNSPECIFIED = 0;
+  CONFIGURATION_SIMULATION_STATUS_COMPLETED = 1;
+  CONFIGURATION_SIMULATION_STATUS_PARTIAL = 2;
+  CONFIGURATION_SIMULATION_STATUS_FAILED = 3;
+}
+enum ConfigurationSimulationDiagnosticCode {
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSPECIFIED = 0;
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_EXTENSION = 1;
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_CONCURRENCY = 2;
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_WAIT = 3;
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_INVALID_SOURCE = 4;
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_MISSING_FIXTURE = 5;
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_FIXTURE_REFUSED = 6;
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_EXECUTION_FAILED = 7;
+  CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_CAPACITY_EXCEEDED = 8;
+}
+message ConfigurationSimulationPosition {
+  string file = 1;
+  string path = 2;
+  uint32 line = 3;
+  uint32 column = 4;
+}
+message ConfigurationSimulationDiagnostic {
+  ConfigurationSimulationDiagnosticCode code = 1;
+  ConfigurationSimulationPosition position = 2;
+}
+enum IntentOutcome {
+  INTENT_OUTCOME_UNSPECIFIED = 0;
+  INTENT_OUTCOME_RECORDED = 1;
+  INTENT_OUTCOME_REFUSED = 2;
+}
+message SwitchIntent {
+  bool on = 1;
+}
+message LightIntent {
+  optional bool on = 1;
+  optional double brightness_percent = 2;
+  optional double brightness_step_percent = 3;
+  optional uint32 brightness_255 = 4;
+  optional uint32 color_temp_mireds = 5;
+  optional double transition_seconds = 6;
+}
+message ClimateIntent {
+  optional double temperature_celsius = 1;
+  optional TemperatureMode mode = 2;
+  optional double humidity_percent = 3;
+  optional string fan_mode = 4;
+  optional string preset_mode = 5;
+}
+message FanIntent {
+  bool on = 1;
+  uint32 percentage = 2;
+}
+message ConfigurationSimulationIntent {
+  string alias = 1;
+  ConfigurationSimulationPosition position = 2;
+  IntentOutcome outcome = 3;
+  google.protobuf.Timestamp at = 4;
+  oneof parameters {
+    SwitchIntent switch = 5;
+    LightIntent light = 6;
+    ClimateIntent climate = 7;
+    FanIntent fan = 8;
+  }
+}
+enum ConfigurationSimulationActionKind {
+  CONFIGURATION_SIMULATION_ACTION_KIND_UNSPECIFIED = 0;
+  CONFIGURATION_SIMULATION_ACTION_KIND_VARIABLES = 1;
+  CONFIGURATION_SIMULATION_ACTION_KIND_SEQUENCE = 2;
+  CONFIGURATION_SIMULATION_ACTION_KIND_CHOOSE = 3;
+  CONFIGURATION_SIMULATION_ACTION_KIND_IF = 4;
+  CONFIGURATION_SIMULATION_ACTION_KIND_REPEAT = 5;
+  CONFIGURATION_SIMULATION_ACTION_KIND_PARALLEL = 6;
+  CONFIGURATION_SIMULATION_ACTION_KIND_WAIT = 7;
+  CONFIGURATION_SIMULATION_ACTION_KIND_STOP = 8;
+  CONFIGURATION_SIMULATION_ACTION_KIND_CALL = 9;
+  CONFIGURATION_SIMULATION_ACTION_KIND_DELAY = 10;
+  CONFIGURATION_SIMULATION_ACTION_KIND_WAIT_TEMPLATE = 11;
+}
+enum ConfigurationSimulationNodeStage {
+  CONFIGURATION_SIMULATION_NODE_STAGE_UNSPECIFIED = 0;
+  CONFIGURATION_SIMULATION_NODE_STAGE_ENTERED = 1;
+  CONFIGURATION_SIMULATION_NODE_STAGE_COMPLETED = 2;
+  CONFIGURATION_SIMULATION_NODE_STAGE_STOPPED = 3;
+  CONFIGURATION_SIMULATION_NODE_STAGE_CANCELLED = 4;
+  CONFIGURATION_SIMULATION_NODE_STAGE_FAILED = 5;
+  CONFIGURATION_SIMULATION_NODE_STAGE_WAITING = 6;
+}
+message ConfigurationSimulationNodeTrace {
+  ConfigurationSimulationPosition position = 1;
+  ConfigurationSimulationActionKind action = 2;
+  ConfigurationSimulationNodeStage stage = 3;
+  google.protobuf.Timestamp at = 4;
+  repeated uint32 branches = 5;
+  repeated uint32 iterations = 6;
+}
+message ConfigurationSimulationReport {
+  bool simulated = 1;
+  bool hardware_validated = 2;
+  ConfigurationSimulationStatus status = 3;
+  repeated ConfigurationSimulationIntent intents = 4;
+  repeated ConfigurationSimulationNodeTrace nodes = 5;
+  repeated ConfigurationSimulationDiagnostic diagnostics = 6;
+  uint64 elapsed_millis = 7;
+  repeated string limitations = 8;
+}
+message SimulateConfigurationPlanResponse {
+  ConfigurationSimulationReport report = 1;
+}
+
+// Human admin and current GLOBAL_CONFIGURATION/ADMINISTER on the common TLS
+// listener. Fixture declarations convey no production capability or authority.
+service ConfigurationSimulationService {
+  // This diagnostic action is on Home because an invalid candidate must still
+  // be simulatable. It does not require an accepted plan or allocate a writer.
+  rpc SimulateConfigurationPlan(SimulateConfigurationPlanRequest) returns (SimulateConfigurationPlanResponse) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*}:simulateConfigurationPlan"
+      body: "*"
+    };
+    option (google.api.method_signature) = "name,candidate";
+  }
+}

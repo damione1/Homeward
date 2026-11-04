@@ -2,9 +2,9 @@
 //! receipt admission. Native permission and resource authority stay with their
 //! actual OS/server owners; no URI is an actionable notification target.
 use crate::{
-    auth_contract::{AccountId, SessionId},
     companion_contract::{DeviceId, Epoch, InstallationId},
-    home::{companion::v1 as companion, notifications::v1 as wire},
+    home::{testing::companion::v1 as companion, testing::notifications::v1 as wire},
+    qualification_identity::{AccountId, SessionId},
 };
 use buffa::{EnumValue, Message};
 use buffa_types::google::protobuf::Timestamp;

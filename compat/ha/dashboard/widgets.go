@@ -10,9 +10,7 @@ import (
 
 	"github.com/damione1/Homeward/compat/ha/parser"
 	"github.com/damione1/Homeward/contracts"
-	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
 	"github.com/damione1/Homeward/internal/domain"
-	"google.golang.org/protobuf/proto"
 )
 
 func RestoreConfigured(source Source, files []parser.SourceFile) (Result, error) {
@@ -112,7 +110,7 @@ func widgetStrings(node parser.Node, key string, required bool, max int, alias b
 	}
 	return result, true
 }
-func widgetField(node parser.Node, key string, required bool) (*wire.NativeFieldBinding, bool) {
+func widgetField(node parser.Node, key string, required bool) (*sourceField, bool) {
 	value, present := node.Lookup(key)
 	if !present {
 		return nil, !required
@@ -128,7 +126,7 @@ func widgetField(node parser.Node, key string, required bool) (*wire.NativeField
 	entity, a := widgetAlias(value, "entity", true)
 	field, b := widgetText(value, "field", true)
 	allowed := field == "state" || field == "value" || field == "current_temperature_celsius" || field == "setpoint_celsius" || field == "measurement"
-	return &wire.NativeFieldBinding{EntityId: entity, FieldKey: field}, a && b && allowed
+	return &sourceField{EntityId: entity, FieldKey: field}, a && b && allowed
 }
 func timezone(node parser.Node) (string, bool) {
 	text, ok := widgetText(node, "timezone", true)
@@ -146,7 +144,7 @@ func widgetNumber(node parser.Node, key string, min, max uint32) (uint32, bool) 
 	return boundedUint(value, min, max)
 }
 func (c *compiler) widgetCard(node parser.Node, variant string) Card {
-	card := Card{kind: ElementWidgetCard, variant: variant, status: StatusSupported, location: locate(node), widget: &wire.NativeWidget{}}
+	card := Card{kind: ElementWidgetCard, variant: variant, status: StatusSupported, location: locate(node), widget: &widgetIR{}}
 	allowed := map[string]bool{"type": true, "title": true, "grid_options": true, "visibility": true, "action": true, "action_label": true, "empty_label": true, "tap_action": true, "icon": true}
 	allow := func(keys ...string) {
 		for _, key := range keys {
@@ -161,7 +159,7 @@ func (c *compiler) widgetCard(node parser.Node, variant string) Card {
 		zone, a := timezone(node)
 		entity, b := widgetAlias(node, "weather_entity", false)
 		valid = a && b
-		w.Content = &wire.NativeWidget_ClockWeather{ClockWeather: &wire.NativeClockWeatherWidget{Timezone: zone, WeatherEntityId: entity}}
+		w.Content = &sourceClockWeather{Timezone: zone, WeatherEntityId: entity}
 	case "room":
 		allow("room_id", "temperature", "activity_entities", "active_states")
 		id, a := widgetText(node, "room_id", true)
@@ -169,7 +167,7 @@ func (c *compiler) widgetCard(node parser.Node, variant string) Card {
 		entities, d := widgetStrings(node, "activity_entities", false, 4096, true)
 		states, e := widgetStrings(node, "active_states", false, 64, false)
 		valid = a && validSegment(id, 128) && b && d && e && (len(entities) == 0 || len(states) > 0) && (field == nil || field.FieldKey == "measurement" || field.FieldKey == "current_temperature_celsius")
-		w.Content = &wire.NativeWidget_Room{Room: &wire.NativeRoomWidget{RoomId: id, Temperature: field, ActivityEntityIds: entities, ActiveStates: states}}
+		w.Content = &sourceRoom{RoomId: id, Temperature: field, ActivityEntityIds: entities, ActiveStates: states}
 	case "thermostat":
 		allow("entity", "current_temperature", "target_temperature", "presentation")
 		entity, a := widgetAlias(node, "entity", true)
@@ -178,14 +176,14 @@ func (c *compiler) widgetCard(node parser.Node, variant string) Card {
 		valid = a && b && d && target != nil && current != nil && target.EntityId == entity && current.EntityId == entity && target.FieldKey == "setpoint_celsius" && current.FieldKey == "current_temperature_celsius"
 		presentation, ok := widgetText(node, "presentation", false)
 		valid = valid && ok && (presentation == "" || presentation == "compact" || presentation == "detail" || presentation == "summary")
-		style := wire.NativeThermostatPresentation_NATIVE_THERMOSTAT_PRESENTATION_COMPACT
+		style := thermostatCompact
 		if presentation == "detail" {
-			style = wire.NativeThermostatPresentation_NATIVE_THERMOSTAT_PRESENTATION_DETAIL
+			style = thermostatDetail
 		}
 		if presentation == "summary" {
-			style = wire.NativeThermostatPresentation_NATIVE_THERMOSTAT_PRESENTATION_SUMMARY
+			style = thermostatSummary
 		}
-		w.Content = &wire.NativeWidget_Thermostat{Thermostat: &wire.NativeThermostatWidget{EntityId: entity, CurrentTemperature: current, TargetTemperature: target, Presentation: style}}
+		w.Content = &sourceThermostat{EntityId: entity, CurrentTemperature: current, TargetTemperature: target, Presentation: style}
 	case "agenda":
 		allow("calendar_id", "timezone", "window_seconds", "limit")
 		id, a := widgetText(node, "calendar_id", true)
@@ -194,7 +192,7 @@ func (c *compiler) widgetCard(node parser.Node, variant string) Card {
 		limit, e := widgetNumber(node, "limit", 1, 1000)
 		_, idErr := domain.ParseEntityID(id)
 		valid = a && b && d && e && idErr == nil
-		w.Content = &wire.NativeWidget_Agenda{Agenda: &wire.NativeAgendaWidget{CalendarId: id, Timezone: zone, WindowSeconds: window, Limit: limit}}
+		w.Content = &sourceAgenda{CalendarId: id, Timezone: zone, WindowSeconds: window, Limit: limit}
 	case "tasks":
 		allow("list_id", "limit", "presentation")
 		id, a := widgetText(node, "list_id", true)
@@ -202,21 +200,21 @@ func (c *compiler) widgetCard(node parser.Node, variant string) Card {
 		limit, b := widgetNumber(node, "limit", 1, 1000)
 		presentation, ok := widgetText(node, "presentation", false)
 		valid = a && b && err == nil && ok && (presentation == "" || presentation == "preview" || presentation == "shopping")
-		style := wire.NativeTasksPresentation_NATIVE_TASKS_PRESENTATION_PREVIEW
+		style := tasksPreview
 		if presentation == "shopping" {
-			style = wire.NativeTasksPresentation_NATIVE_TASKS_PRESENTATION_SHOPPING
+			style = tasksShopping
 		}
-		w.Content = &wire.NativeWidget_Tasks{Tasks: &wire.NativeTasksWidget{ListId: id, Limit: limit, Presentation: style}}
+		w.Content = &sourceTasks{ListId: id, Limit: limit, Presentation: style}
 	case "security":
 		allow("entities")
 		entities, a := widgetStrings(node, "entities", true, 64, true)
 		valid = a
-		w.Content = &wire.NativeWidget_Security{Security: &wire.NativeSecurityWidget{EntityIds: entities}}
+		w.Content = &sourceSecurity{EntityIds: entities}
 	case "observations":
 		allow("items")
 		items, present := node.Lookup("items")
 		valid = present && items.Kind() == parser.KindSequence && len(items.Items()) <= 64
-		observations := &wire.NativeObservationsWidget{}
+		observations := &sourceObservations{}
 		if valid {
 			for _, item := range items.Items() {
 				if item.Kind() != parser.KindMapping {
@@ -234,16 +232,16 @@ func (c *compiler) widgetCard(node parser.Node, variant string) Card {
 				valid = valid && a && b && d
 				icon, iconOK := widgetText(item, "icon", false)
 				valid = valid && iconOK
-				observations.Items = append(observations.Items, &wire.NativeObservationBinding{Field: field, Label: label, ActiveStates: states, Icon: nativeCardIcon(icon)})
+				observations.Items = append(observations.Items, &sourceObservation{Field: field, Label: label, ActiveStates: states, Icon: icon})
 			}
 		}
-		w.Content = &wire.NativeWidget_Observations{Observations: observations}
+		w.Content = observations
 	case "navigation":
 		allow("destination")
 		path, a := widgetText(node, "destination", true)
 		valid = a && validNavigation(path)
 		card.widgetNavigation = path
-		w.Content = &wire.NativeWidget_Navigation{Navigation: &wire.NativeNavigationWidget{}}
+		w.Content = &sourceNavigation{}
 	default:
 		valid = false
 	}
@@ -287,7 +285,7 @@ func (c *compiler) widgetCard(node parser.Node, variant string) Card {
 	}
 	// A navigation leaf has no other content: derive its button label only
 	// from the configured title, never from a client-side literal.
-	if _, navigation := w.Content.(*wire.NativeWidget_Navigation); navigation {
+	if _, navigation := w.Content.(*sourceNavigation); navigation {
 		if w.ActionLabel == "" {
 			w.ActionLabel = card.title
 		}
@@ -312,7 +310,7 @@ func (c *compiler) widgetCard(node parser.Node, variant string) Card {
 	if valid {
 		c.widgetBindings += len(card.WidgetEntities())
 		switch card.widget.Content.(type) {
-		case *wire.NativeWidget_Agenda, *wire.NativeWidget_Tasks:
+		case *sourceAgenda, *sourceTasks:
 			c.resourceWidgets++
 			c.widgetBindings++
 		}
@@ -333,27 +331,27 @@ func (c Card) WidgetEntities() []domain.HAAlias {
 		return nil
 	}
 	var values []string
-	field := func(f *wire.NativeFieldBinding) {
+	field := func(f *sourceField) {
 		if f != nil {
 			values = append(values, f.EntityId)
 		}
 	}
 	switch value := c.widget.Content.(type) {
-	case *wire.NativeWidget_ClockWeather:
-		if value.ClockWeather.WeatherEntityId != "" {
-			values = append(values, value.ClockWeather.WeatherEntityId)
+	case *sourceClockWeather:
+		if value.WeatherEntityId != "" {
+			values = append(values, value.WeatherEntityId)
 		}
-	case *wire.NativeWidget_Room:
-		field(value.Room.Temperature)
-		values = append(values, value.Room.ActivityEntityIds...)
-	case *wire.NativeWidget_Thermostat:
-		values = append(values, value.Thermostat.EntityId)
-		field(value.Thermostat.CurrentTemperature)
-		field(value.Thermostat.TargetTemperature)
-	case *wire.NativeWidget_Security:
-		values = append(values, value.Security.EntityIds...)
-	case *wire.NativeWidget_Observations:
-		for _, item := range value.Observations.Items {
+	case *sourceRoom:
+		field(value.Temperature)
+		values = append(values, value.ActivityEntityIds...)
+	case *sourceThermostat:
+		values = append(values, value.EntityId)
+		field(value.CurrentTemperature)
+		field(value.TargetTemperature)
+	case *sourceSecurity:
+		values = append(values, value.EntityIds...)
+	case *sourceObservations:
+		for _, item := range value.Items {
 			field(item.Field)
 		}
 	}
@@ -365,79 +363,4 @@ func (c Card) WidgetEntities() []domain.HAAlias {
 		}
 	}
 	return result
-}
-func projectWidget(card Card, resolve func(domain.HAAlias) (domain.EntityID, bool), destination func(string) (*wire.NativeDestination, bool)) (*wire.NativeWidget, bool) {
-	if card.widget == nil {
-		return nil, false
-	}
-	w := proto.Clone(card.widget).(*wire.NativeWidget)
-	valid := true
-	entity := func(text *string) {
-		alias, err := domain.ParseHAAlias(*text)
-		if err != nil {
-			valid = false
-			return
-		}
-		id, ok := resolve(alias)
-		if !ok {
-			valid = false
-			return
-		}
-		*text, err = id.Value()
-		valid = valid && err == nil
-	}
-	field := func(f *wire.NativeFieldBinding) {
-		if f != nil {
-			entity(&f.EntityId)
-		}
-	}
-	switch value := w.Content.(type) {
-	case *wire.NativeWidget_ClockWeather:
-		if value.ClockWeather.WeatherEntityId != "" {
-			entity(&value.ClockWeather.WeatherEntityId)
-		}
-	case *wire.NativeWidget_Room:
-		field(value.Room.Temperature)
-		for i := range value.Room.ActivityEntityIds {
-			entity(&value.Room.ActivityEntityIds[i])
-		}
-	case *wire.NativeWidget_Thermostat:
-		entity(&value.Thermostat.EntityId)
-		field(value.Thermostat.CurrentTemperature)
-		field(value.Thermostat.TargetTemperature)
-	case *wire.NativeWidget_Security:
-		for i := range value.Security.EntityIds {
-			entity(&value.Security.EntityIds[i])
-		}
-	case *wire.NativeWidget_Observations:
-		for _, item := range value.Observations.Items {
-			field(item.Field)
-		}
-	case *wire.NativeWidget_Agenda, *wire.NativeWidget_Tasks:
-	// Collection identities are exact opaque server configuration, not aliases.
-	case *wire.NativeWidget_Navigation:
-		if destination == nil {
-			return nil, false
-		}
-		var ok bool
-		value.Navigation.Destination, ok = destination(card.widgetNavigation)
-		valid = valid && ok
-	default:
-		valid = false
-	}
-	if card.widgetAction != "" {
-		if destination == nil {
-			return nil, false
-		}
-		var ok bool
-		w.Action, ok = destination(card.widgetAction)
-		valid = valid && ok
-	}
-	return w, valid
-}
-
-// ProjectNativeDefinition projects the already-published immutable source
-// compilation. It never reopens mutable source files or creates a catalogue.
-func ProjectNativeDefinition(definition Definition, options LayoutProjection) (*wire.NativeLayout, error) {
-	return ProjectNativeLayout(Result{status: StatusSupported, definition: definition, hasDefinition: true}, options)
 }

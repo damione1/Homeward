@@ -12,12 +12,14 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/accounts"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/storage"
 	"github.com/damione1/Homeward/internal/testpg"
 	"github.com/jackc/pgx/v5"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 // waitForNHA141GateWaiter observes the actual account gate. The timeout only
@@ -76,7 +78,8 @@ func TestNHA141AccountGateCommitOrderRollbackAndUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateAccount(ctx, admin.ID, user); err != nil {
+	userRecord, err := store.CreateAccount(ctx, admin.ID, user)
+	if err != nil {
 		t.Fatal(err)
 	}
 	clock := newNHA141Clock(time.Now().UTC().Truncate(time.Microsecond))
@@ -111,7 +114,11 @@ func TestNHA141AccountGateCommitOrderRollbackAndUnknown(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.CreateSession(ctx, storage.SessionCreation{ID: id, Account: admin.ID, Revision: revision,
+		accountID, err := record.ID()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.CreateSession(ctx, storage.SessionCreation{ID: id, Account: accountID, Revision: revision,
 			AccessDigest: accessDigest, RefreshDigest: refreshDigest, Now: clock.Now()}); err != nil {
 			t.Fatal(err)
 		}
@@ -190,8 +197,12 @@ func TestNHA141AccountGateCommitOrderRollbackAndUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	adminContext := context.WithValue(ctx, actorContextKey{}, adminActor)
-	accountHandler := &accountHandler{store: store, coordinator: coordinator}
+	adminContext := context.WithValue(thirdLease, actorContextKey{}, adminActor)
+	accountHandler := nha203AccountHandler(store, coordinator)
+	currentAccount, err := accountHandler.names.accountResource(ctx, adminRecord)
+	if err != nil {
+		t.Fatal(err)
+	}
 	revision, err := adminRecord.Revision()
 	if err != nil {
 		t.Fatal(err)
@@ -218,30 +229,35 @@ func TestNHA141AccountGateCommitOrderRollbackAndUnknown(t *testing.T) {
 			t.Fatalf("%s changed revocation revision", label)
 		}
 	}
-	currentRole := authv1.AccountRole_ACCOUNT_ROLE_ADMIN
-	currentStatus := authv1.AccountStatus_ACCOUNT_STATUS_ACTIVE
-	if _, err := accountHandler.UpdateAccount(adminContext, connect.NewRequest(&authv1.UpdateAccountRequest{
-		AccountId: &authv1.AccountId{Value: adminText}, Role: &currentRole, Status: &currentStatus,
+	if _, err := accountHandler.UpdateAccount(adminContext, connect.NewRequest(&api.UpdateAccountRequest{
+		Account:    &api.Account{Name: currentAccount.Name, Etag: currentAccount.Etag, Role: api.AccountRole_ACCOUNT_ROLE_ADMIN, State: api.AccountState_ACCOUNT_STATE_ACTIVE},
+		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"role", "state"}},
 	})); err != nil {
-		t.Fatalf("no-op role/status update: %v", err)
+		t.Fatalf("no-op role/state update: %v", err)
 	}
-	assertStillAdmitted("no-op role/status update")
-	displayOnly := "NHA141 Gate Admin Renamed"
-	if _, err := accountHandler.UpdateAccount(adminContext, connect.NewRequest(&authv1.UpdateAccountRequest{
-		AccountId: &authv1.AccountId{Value: adminText}, DisplayName: &displayOnly,
-	})); err != nil {
+	assertStillAdmitted("no-op role/state update")
+	renamed, err := accountHandler.UpdateAccount(adminContext, connect.NewRequest(&api.UpdateAccountRequest{
+		Account:    &api.Account{Name: currentAccount.Name, Etag: currentAccount.Etag, DisplayName: "NHA141 Gate Admin Renamed"},
+		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"display_name"}},
+	}))
+	if err != nil {
 		t.Fatalf("display-only update: %v", err)
 	}
+	currentAccount = renamed.Msg
 	assertStillAdmitted("display-only update")
 	userText, _ := user.ID.Value()
 	userActor, err := domain.ParseActorID(userText)
 	if err != nil {
 		t.Fatal(err)
 	}
-	unauthorized := context.WithValue(ctx, actorContextKey{}, userActor)
-	demoted := authv1.AccountRole_ACCOUNT_ROLE_USER
+	userLease, userRelease, err := authenticate(issue(userRecord))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer userRelease()
+	unauthorized := context.WithValue(userLease, actorContextKey{}, userActor)
 	_, err = accountHandler.UpdateAccount(unauthorized,
-		connect.NewRequest(&authv1.UpdateAccountRequest{AccountId: &authv1.AccountId{Value: adminText}, Role: &demoted}))
+		connect.NewRequest(&api.UpdateAccountRequest{Account: &api.Account{Name: currentAccount.Name, Etag: currentAccount.Etag, Role: api.AccountRole_ACCOUNT_ROLE_USER}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"role"}}}))
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("unauthorized mutation did not roll back: %v", err)
 	}

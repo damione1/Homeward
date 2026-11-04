@@ -164,6 +164,9 @@ func (s *Store) CreateMCPKey(ctx context.Context, input MCPKeyCreation) (MCPKeyR
 		if err != nil {
 			return MCPKeyRecord{}, err
 		}
+		if _, err := EnsureAPIResourceIdentityTx(ctx, tx, APIMcpKeys, id); err != nil {
+			return MCPKeyRecord{}, err
+		}
 		return scanMCPKey(tx.QueryRow(ctx, `SELECT `+mcpKeyColumns+` FROM public.auth_mcp_keys k WHERE k.id=$1`, id))
 	})
 }

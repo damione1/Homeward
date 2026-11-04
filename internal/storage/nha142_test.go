@@ -18,7 +18,6 @@ import (
 	"github.com/damione1/Homeward/internal/authmfa"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestNHA142MFAEnvelopeDomainsAndRoundTrip(t *testing.T) {
@@ -134,33 +133,31 @@ func TestNHA142PolicySourceCASAndWireAdmission(t *testing.T) {
 		}
 	}
 	hash := bytes.Repeat([]byte{0x61}, 32)
-	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
 	for _, revision := range []uint64{0, uint64(math.MaxInt64) + 1} {
 		if _, err := authmfa.NewExpectedPolicyVersion(revision, hash); err == nil {
 			t.Fatal("invalid SQL revision admitted")
 		}
 	}
-	for _, request := range []*authv1.SetSecondFactorPolicyRequest{{}, {Expected: &authv1.PolicyVersion{Revision: 1, SourceSha256: hash[:31]}}, {Expected: &authv1.PolicyVersion{Revision: uint64(math.MaxInt64) + 1, SourceSha256: hash}}} {
-		if _, err := contracts.AdmitSetSecondFactorPolicy(request); err == nil {
-			t.Fatal("invalid CAS admitted")
+	for _, size := range []int{0, 31, 33} {
+		if _, err := authmfa.NewExpectedPolicyVersion(1, make([]byte, size)); err == nil {
+			t.Fatal("invalid native hash admitted")
 		}
 	}
-	request := &authv1.SetSecondFactorPolicyRequest{Expected: &authv1.PolicyVersion{Revision: 1, SourceSha256: hash}}
-	admitted, err := contracts.AdmitSetSecondFactorPolicy(request)
+	admitted, err := authmfa.NewExpectedPolicyVersion(1, hash)
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.Expected.SourceSha256[0] = 0
-	snapshot, _ := admitted.Snapshot()
-	if snapshot.Expected.SourceSha256[0] != 0x61 {
-		t.Fatal("CAS snapshot aliases input")
+	hash[0] = 0
+	revision, snapshot, err := admitted.Values()
+	if err != nil || revision != 1 || snapshot[0] != 0x61 {
+		t.Fatal("native CAS snapshot aliases input")
 	}
-	policy := &authv1.SecondFactorPolicy{Version: &authv1.PolicyVersion{Revision: 1, SourceSha256: bytes.Repeat([]byte{1}, 32)}, UpdatedAt: timestamppb.New(now)}
-	for _, continuation := range []authv1.SecondFactorSessionContinuation{authv1.SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED, authv1.SecondFactorSessionContinuation(99)} {
-		if _, err := contracts.AdmitSetSecondFactorPolicyResponse(&authv1.SetSecondFactorPolicyResponse{Policy: policy, Continuation: continuation}); err == nil {
-			t.Fatal("unknown continuation admitted")
-		}
+	snapshot[0] = 0
+	_, again, _ := admitted.Values()
+	if again[0] != 0x61 {
+		t.Fatal("native CAS aliases returned hash")
 	}
+
 }
 
 func TestNHA142PolicyBootstrapCASRetentionAndCorruption(t *testing.T) {

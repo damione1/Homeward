@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"connectrpc.com/connect"
+	configurationv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/configuration/v1/configurationv1connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/configactivation"
@@ -24,7 +24,7 @@ func prepareConfigDocuments(startup config.StartupInputs, store *storage.Store, 
 	return configdocuments.NewService(configdocuments.Input{Store: store, Owner: owner, Startup: startup, Secrets: secrets})
 }
 
-func registerConfigDocumentsRoutes(plan *PublicPlan, service *configdocuments.Service, coordinator *sessionCoordinator) error {
+func registerConfigDocumentsRoutes(plan *PublicPlan, service *configdocuments.Service, coordinator *sessionCoordinator, dependencies ...configurationRPCDependencies) error {
 	if service == nil {
 		return nil
 	}
@@ -37,13 +37,13 @@ func registerConfigDocumentsRoutes(plan *PublicPlan, service *configdocuments.Se
 		flow      RouteFlow
 	}
 	routes := []route{
-		{configurationv1connect.ConfigurationServiceReadDocumentProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
-		{configurationv1connect.ConfigurationServiceListDocumentsProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
-		{configurationv1connect.ConfigurationServiceListVersionsProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
-		{configurationv1connect.ConfigurationServiceListGenerationsProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
-		{configurationv1connect.ConfigurationServiceListSchemasProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
-		{configurationv1connect.ConfigurationServiceWriteDocumentProcedure, auth.ScopeOperation_SCOPE_OPERATION_ADMINISTER, RouteFlowUnary},
-		{configurationv1connect.ConfigurationServiceRestoreDocumentProcedure, auth.ScopeOperation_SCOPE_OPERATION_ADMINISTER, RouteFlowUnary},
+		{configurationv1connect.ConfigurationServiceGetConfigurationDocumentProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
+		{configurationv1connect.ConfigurationServiceListConfigurationDocumentsProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
+		{configurationv1connect.ConfigurationServiceListConfigurationRevisionsProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
+		{configurationv1connect.ConfigurationServiceListConfigurationGenerationsProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
+		{configurationv1connect.ConfigurationServiceListConfigurationSchemasProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowUnary},
+		{configurationv1connect.ConfigurationServicePublishConfigurationDocumentProcedure, auth.ScopeOperation_SCOPE_OPERATION_ADMINISTER, RouteFlowUnary},
+		{configurationv1connect.ConfigurationServiceRollbackConfigurationDocumentProcedure, auth.ScopeOperation_SCOPE_OPERATION_ADMINISTER, RouteFlowUnary},
 		{configurationv1connect.ConfigurationServiceWatchConfigurationProcedure, auth.ScopeOperation_SCOPE_OPERATION_READ, RouteFlowServerStream},
 	}
 	procedures := make([]ConnectProcedure, 0, len(routes))
@@ -51,7 +51,7 @@ func registerConfigDocumentsRoutes(plan *PublicPlan, service *configdocuments.Se
 		procedures = append(procedures, ConnectProcedure{Path: route.path, Access: RouteAccessProtected, Flow: route.flow, Transport: RouteTransportTLSRequired})
 	}
 	if err := plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {
-		return configurationv1connect.NewConfigurationServiceHandler(&configDocumentsHandler{service: service, authority: coordinator.authority}, options...)
+		return configurationv1connect.NewConfigurationServiceHandler(&configDocumentsHandler{service: service, authority: coordinator.authority, names: firstConfigurationRPC(dependencies).names, operations: firstConfigurationRPC(dependencies).operations}, options...)
 	}, procedures...); err != nil {
 		return err
 	}

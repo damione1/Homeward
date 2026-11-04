@@ -5,8 +5,9 @@ import (
 	"time"
 
 	"github.com/damione1/Homeward/contracts"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	auth "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/mcpkeys"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
@@ -31,7 +32,7 @@ func mcpKeyScope(text string) (*auth.Scope, error) {
 		return nil, fail("invalid_mcp_scope", ExitUsage)
 	}
 	value := &auth.Scope{Family: auth.ScopeFamily(family), Operation: auth.ScopeOperation(operation)}
-	if contracts.AdmitScope(value) != nil {
+	if contracts.AdmitAPIScope(value) != nil {
 		return nil, fail("invalid_mcp_scope", ExitUsage)
 	}
 	return value, nil
@@ -40,7 +41,7 @@ func (c *mcpKeysCreate) Run(v *invocation) error {
 	if _, err := mcpkeys.ParseClientName(c.Client); err != nil {
 		return fail("invalid_mcp_client_name", ExitUsage)
 	}
-	request := &auth.CreateMcpKeyRequest{ClientName: c.Client}
+	request := &auth.IssueMcpKeyRequest{ClientName: c.Client}
 	if c.Lifetime != "" {
 		lifetime, err := time.ParseDuration(c.Lifetime)
 		if err != nil {
@@ -55,25 +56,27 @@ func (c *mcpKeysCreate) Run(v *invocation) error {
 		}
 		request.Scopes = append(request.Scopes, scope)
 	}
-	if contracts.AdmitMcpKeyCreateRequest(request) != nil {
-		return fail("invalid_mcp_key_request", ExitUsage)
-	}
 	r, err := v.authenticated()
 	if err != nil {
 		return err
 	}
 	defer r.close()
-	response, err := authv1connect.NewMcpKeyServiceClient(r.client, r.base).CreateMcpKey(v.ctx, bearer(request, r.credential.Access))
+	request.Parent = r.credential.Account
+	if contracts.AdmitAPIMcpKeyIssue(request) != nil {
+		return fail("invalid_mcp_key_request", ExitUsage)
+	}
+	response, err := apiv2connect.NewMcpKeyServiceClient(r.client, r.base).IssueMcpKey(v.ctx, bearer(request, r.credential.Access))
 	if err != nil {
 		return err
 	}
-	if response.Msg == nil || response.Msg.Key == nil {
+	if response.Msg == nil || response.Msg.McpKey == nil {
 		return fail("invalid_mcp_key_response", ExitLocal)
 	}
-	if _, err := contracts.AdmitMcpKey(response.Msg.Key, time.Now()); err != nil {
+	if err := contracts.AdmitAPIMcpKey(response.Msg.McpKey, time.Now()); err != nil {
 		return fail("invalid_mcp_key_response", ExitLocal)
 	}
-	if response.Msg.Key.AccountId.Value != r.credential.Account {
+	name, parseErr := apitypes.ParseMcpKeyName(response.Msg.McpKey.Name)
+	if parseErr != nil || name.Account().String() != r.credential.Account {
 		return fail("invalid_mcp_key_response", ExitLocal)
 	}
 	if _, err := mcpkeys.ParseSecret(response.Msg.Secret); err != nil {
@@ -85,7 +88,9 @@ func (c *mcpKeysCreate) Run(v *invocation) error {
 }
 
 type mcpKeysList struct {
-	Account string `arg:"" optional:"" help:"Account ID; omitted means the signed-in account."`
+	PageSize  int32  `help:"Requested page size; zero selects default."`
+	PageToken string `help:"Opaque continuation from the same listing."`
+	Account   string `arg:"" optional:"" help:"Canonical account name; omitted means the signed-in account."`
 }
 
 func (c *mcpKeysList) Run(v *invocation) error {
@@ -94,11 +99,11 @@ func (c *mcpKeysList) Run(v *invocation) error {
 		return err
 	}
 	defer r.close()
-	request := &auth.ListMcpKeysRequest{}
+	request := &auth.ListMcpKeysRequest{Parent: r.credential.Account, PageSize: c.PageSize, PageToken: c.PageToken}
 	if c.Account != "" {
-		request.AccountId = &auth.AccountId{Value: c.Account}
+		request.Parent = c.Account
 	}
-	response, err := authv1connect.NewMcpKeyServiceClient(r.client, r.base).ListMcpKeys(v.ctx, bearer(request, r.credential.Access))
+	response, err := apiv2connect.NewMcpKeyServiceClient(r.client, r.base).ListMcpKeys(v.ctx, bearer(request, r.credential.Access))
 	if err != nil {
 		return err
 	}
@@ -106,7 +111,7 @@ func (c *mcpKeysList) Run(v *invocation) error {
 }
 
 type mcpKeysRevoke struct {
-	ID string `arg:"" help:"Stable key ID from keys list."`
+	ID string `arg:"" help:"Canonical key name from keys list."`
 }
 
 func (c *mcpKeysRevoke) Run(v *invocation) error {
@@ -115,7 +120,7 @@ func (c *mcpKeysRevoke) Run(v *invocation) error {
 		return err
 	}
 	defer r.close()
-	response, err := authv1connect.NewMcpKeyServiceClient(r.client, r.base).RevokeMcpKey(v.ctx, bearer(&auth.RevokeMcpKeyRequest{KeyId: &auth.McpKeyId{Value: c.ID}}, r.credential.Access))
+	response, err := apiv2connect.NewMcpKeyServiceClient(r.client, r.base).RevokeMcpKey(v.ctx, bearer(&auth.RevokeMcpKeyRequest{Name: c.ID}, r.credential.Access))
 	if err != nil {
 		return err
 	}

@@ -34,7 +34,7 @@ func historyReservedTransport(runtime *historyRuntime, next http.Handler) http.H
 			if cause := historyContextError(r.Context()); cause != nil {
 				err = cause
 			}
-			_ = writer.Write(w, r, historyRPCError(err))
+			_ = writer.Write(w, r, historyFault(err).Connect())
 		}
 	})
 }

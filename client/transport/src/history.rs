@@ -1,9 +1,9 @@
 //! Single-attempt read-only history calls on the shared verified TLS pool.
 //! The host owns query generations, bounded pagination and response admission;
-//! wire page/not-retained/stale-cursor/budget variants remain intact here.
-use crate::{AccessToken, Failure, StateTransport, services::home::history::v1 as service};
+//! canonical errors remain intact; the caller never retries a stale capture.
+use crate::{AccessToken, Failure, services::home::api::v2 as service};
 use connectrpc::client::HttpClient;
-use home_wire_contract::home::history::v1 as wire;
+use home_wire_contract::home::api::v2 as wire;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
@@ -21,7 +21,7 @@ macro_rules! query {
             timeout: Duration,
             cancel: &CancellationToken,
         ) -> Result<wire::$response, Failure> {
-            let options = StateTransport::options(token, timeout)?;
+            let options = token.options(timeout)?;
             tokio::select! { biased;
                 () = cancel.cancelled() => Err(Failure::cancelled()),
                 response = self.client.$method(request, options) =>

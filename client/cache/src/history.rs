@@ -2,10 +2,10 @@
 //! nanoseconds, logical positions and coverage) remain the source of truth.
 //! No provisional page is published, no stale cursor is retried automatically.
 use buffa::Message;
-use home_client_model::EntityId;
+use home_client_model::api::EntityName;
 use home_client_session::AccessLease;
 use home_client_transport::{Failure, HistoryTransport};
-use home_wire_contract::{history_contract as contract, home::history::v1 as wire};
+use home_wire_contract::{history_contract as contract, home::api::v2 as wire};
 use std::{collections::BTreeSet, time::Duration};
 use tokio_util::sync::CancellationToken;
 
@@ -24,26 +24,26 @@ pub enum Resolution {
     Hourly,
 }
 impl Resolution {
-    fn wire(self) -> wire::Resolution {
+    fn wire(self) -> wire::HistoryResolution {
         match self {
-            Self::Observations => wire::Resolution::Raw,
-            Self::Hourly => wire::Resolution::Hour,
+            Self::Observations => wire::HistoryResolution::Raw,
+            Self::Hourly => wire::HistoryResolution::Hour,
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Query {
-    entity: EntityId,
-    period: wire::Period,
+    entity: EntityName,
+    period: wire::HistoryPeriod,
     resolution: Resolution,
 }
 impl Query {
     /// Uses the delivered server contract: raw <=7 days, hourly <=500 hours
     /// with UTC hour boundaries. A rejected window requires an explicit edit.
     pub fn new(
-        entity: EntityId,
-        period: wire::Period,
+        entity: EntityName,
+        period: wire::HistoryPeriod,
         resolution: Resolution,
     ) -> Result<Self, ReadFailure> {
         let query = Self {
@@ -64,10 +64,10 @@ impl Query {
         }
         Ok(query)
     }
-    pub fn entity(&self) -> &EntityId {
+    pub fn entity(&self) -> &EntityName {
         &self.entity
     }
-    pub fn period(&self) -> &wire::Period {
+    pub fn period(&self) -> &wire::HistoryPeriod {
         &self.period
     }
     pub fn resolution(&self) -> Resolution {
@@ -75,20 +75,18 @@ impl Query {
     }
     fn observations(&self, token: String) -> wire::QueryObservationsRequest {
         wire::QueryObservationsRequest {
-            entity_id: self.entity.as_str().into(),
+            parent: self.entity.as_str().into(),
             period: self.period.clone().into(),
-            resolution: self.resolution.wire().into(),
-            page_size: Some(PAGE_SIZE),
+            page_size: PAGE_SIZE as i32,
             page_token: token,
             ..Default::default()
         }
     }
     fn aggregates(&self, token: String) -> wire::QueryAggregatesRequest {
         wire::QueryAggregatesRequest {
-            entity_id: self.entity.as_str().into(),
+            parent: self.entity.as_str().into(),
             period: self.period.clone().into(),
-            resolution: self.resolution.wire().into(),
-            page_size: Some(PAGE_SIZE),
+            page_size: PAGE_SIZE as i32,
             page_token: token,
             ..Default::default()
         }
@@ -110,7 +108,7 @@ pub enum ReadError {
     Cancelled,
     Deadline,
     StaleCursor,
-    ServerBudget(wire::BudgetReason),
+    ServerBudget,
 }
 impl From<ReadFailure> for ReadError {
     fn from(value: ReadFailure) -> Self {
@@ -121,12 +119,12 @@ impl From<ReadFailure> for ReadError {
 /// Coverage is retained per page; unknown UTC evidence never becomes a guessed
 /// time interval. The renderer must label incompleteness from every page.
 pub enum Pages {
-    Observations(Vec<wire::ObservationPage>),
-    Hourly(Vec<wire::AggregatePage>),
+    Observations(Vec<wire::QueryObservationsResponse>),
+    Hourly(Vec<wire::QueryAggregatesResponse>),
 }
 pub enum Content {
     Retained(Pages),
-    NotRetained(Box<wire::ReadScope>),
+    NotRetained(Box<wire::HistoryReadScope>),
 }
 pub struct Snapshot {
     pub query: Query,
@@ -140,26 +138,26 @@ enum Reply {
     Hourly(wire::QueryAggregatesResponse),
 }
 enum Page {
-    Observations(wire::ObservationPage),
-    Hourly(wire::AggregatePage),
+    Observations(wire::QueryObservationsResponse),
+    Hourly(wire::QueryAggregatesResponse),
 }
 impl Page {
-    fn scope(&self) -> &wire::ReadScope {
+    fn scope(&self) -> &wire::HistoryReadScope {
         match self {
             Self::Observations(p) => &p.scope,
             Self::Hourly(p) => &p.scope,
         }
     }
-    fn continuation(&self) -> &wire::Continuation {
+    fn next_token(&self) -> &str {
         match self {
-            Self::Observations(p) => &p.continuation,
-            Self::Hourly(p) => &p.continuation,
+            Self::Observations(p) => &p.next_page_token,
+            Self::Hourly(p) => &p.next_page_token,
         }
     }
     fn len(&self) -> usize {
         match self {
-            Self::Observations(p) => p.points.len(),
-            Self::Hourly(p) => p.points.len(),
+            Self::Observations(p) => p.observations.len(),
+            Self::Hourly(p) => p.aggregates.len(),
         }
     }
 }
@@ -167,10 +165,9 @@ impl Page {
 struct Capture {
     query: Query,
     pages: Pages,
-    scope: Option<wire::ReadScope>,
+    scope: Option<wire::HistoryReadScope>,
     tokens: BTreeSet<String>,
-    epochs: BTreeSet<Vec<u8>>,
-    last_position: Option<(Vec<u8>, u64)>,
+    observation_ids: BTreeSet<String>,
     aggregate_keys: BTreeSet<Vec<u8>>,
     last_bucket: Option<(i64, i32)>,
     bytes: usize,
@@ -188,8 +185,7 @@ impl Capture {
             pages,
             scope: None,
             tokens: BTreeSet::new(),
-            epochs: BTreeSet::new(),
-            last_position: None,
+            observation_ids: BTreeSet::new(),
             aggregate_keys: BTreeSet::new(),
             last_bucket: None,
             bytes: 0,
@@ -197,7 +193,7 @@ impl Capture {
             count: 0,
         }
     }
-    fn admit_scope(&mut self, scope: &wire::ReadScope) -> Result<(), ReadFailure> {
+    fn admit_scope(&mut self, scope: &wire::HistoryReadScope) -> Result<(), ReadFailure> {
         let hours = match self.query.resolution {
             Resolution::Observations => 168,
             Resolution::Hourly => 500,
@@ -228,28 +224,30 @@ impl Capture {
                 contract::admit_observations_response(&response)
                     .map_err(|_| ReadFailure::InvalidResponse)?;
                 let bytes = response.compute_size(&mut Default::default()) as usize;
-                use wire::query_observations_response::Result;
-                let page = match response.result {
-                    Some(Result::Page(p)) => Page::Observations(*p),
-                    Some(Result::NotRetained(scope)) => return self.not_retained(*scope),
-                    Some(Result::StaleCursor(_)) => return Err(ReadError::StaleCursor),
-                    Some(Result::Budget(b)) => return Err(server_budget(&b)),
-                    None => return Err(ReadFailure::InvalidResponse.into()),
-                };
+                if !response.scope.retained.is_set() {
+                    return self.not_retained(
+                        response
+                            .scope
+                            .into_option()
+                            .ok_or(ReadFailure::InvalidResponse)?,
+                    );
+                }
+                let page = Page::Observations(response);
                 (page, bytes)
             }
             Reply::Hourly(response) => {
                 contract::admit_aggregates_response(&response)
                     .map_err(|_| ReadFailure::InvalidResponse)?;
                 let bytes = response.compute_size(&mut Default::default()) as usize;
-                use wire::query_aggregates_response::Result;
-                let page = match response.result {
-                    Some(Result::Page(p)) => Page::Hourly(*p),
-                    Some(Result::NotRetained(scope)) => return self.not_retained(*scope),
-                    Some(Result::StaleCursor(_)) => return Err(ReadError::StaleCursor),
-                    Some(Result::Budget(b)) => return Err(server_budget(&b)),
-                    None => return Err(ReadFailure::InvalidResponse.into()),
-                };
+                if !response.scope.retained.is_set() {
+                    return self.not_retained(
+                        response
+                            .scope
+                            .into_option()
+                            .ok_or(ReadFailure::InvalidResponse)?,
+                    );
+                }
+                let page = Page::Hourly(response);
                 (page, bytes)
             }
         };
@@ -265,39 +263,29 @@ impl Capture {
         if self.bytes > MAX_ENCODED_BYTES || self.points > MAX_POINTS {
             return Err(ReadFailure::BudgetExceeded.into());
         }
-        let progress = match &page.continuation().result {
-            Some(wire::continuation::Result::End(_)) => Progress::Complete,
-            Some(wire::continuation::Result::NextPageToken(token)) => {
-                if !self.tokens.insert(token.clone()) {
-                    return Err(ReadFailure::DuplicateOrOutOfOrder.into());
-                }
-                Progress::Next(token.clone())
+        let progress = if page.next_token().is_empty() {
+            Progress::Complete
+        } else {
+            let token = page.next_token().to_owned();
+            if !self.tokens.insert(token.clone()) {
+                return Err(ReadFailure::DuplicateOrOutOfOrder.into());
             }
-            None => return Err(ReadFailure::InvalidResponse.into()),
+            Progress::Next(token)
         };
         match (&mut self.pages, page) {
             (Pages::Observations(pages), Page::Observations(page)) => {
-                for point in &page.points {
-                    use home_wire_contract::home::registry::v1::entity_ref::Reference;
-                    if !matches!(&point.state.entity.reference, Some(Reference::EntityId(id)) if id == self.query.entity.as_str())
-                        || !within(&self.query.period, &point.state.received_at)
-                    {
+                for point in &page.observations {
+                    if !within(&self.query.period, &point.state.receive_time) {
                         return Err(ReadFailure::InvalidResponse.into());
                     }
-                    let position = &point.position;
-                    if let Some((epoch, sequence)) = &self.last_position
-                        && ((epoch == &position.epoch && *sequence >= position.sequence)
-                            || (epoch != &position.epoch && self.epochs.contains(&position.epoch)))
-                    {
+                    if !self.observation_ids.insert(point.observation_id.clone()) {
                         return Err(ReadFailure::DuplicateOrOutOfOrder.into());
                     }
-                    self.epochs.insert(position.epoch.clone());
-                    self.last_position = Some((position.epoch.clone(), position.sequence));
                 }
                 pages.push(page);
             }
             (Pages::Hourly(pages), Page::Hourly(page)) => {
-                for point in &page.points {
+                for point in &page.aggregates {
                     let at = (point.bucket.start.seconds, point.bucket.start.nanos);
                     if self.last_bucket.is_some_and(|last| at < last)
                         || !within(&self.query.period, &point.bucket.start)
@@ -308,11 +296,7 @@ impl Capture {
                     }
                     // Several descriptor/quality groups in the same hour are
                     // distinct points, not duplicates or values to average.
-                    let mut key = point.bucket.encode_to_vec();
-                    let descriptor = point.descriptor.encode_to_vec();
-                    key.extend_from_slice(&(descriptor.len() as u32).to_be_bytes());
-                    key.extend(descriptor);
-                    key.extend(point.quality.encode_to_vec());
+                    let key = point.aggregate_id.as_bytes().to_vec();
                     if !self.aggregate_keys.insert(key) {
                         return Err(ReadFailure::DuplicateOrOutOfOrder.into());
                     }
@@ -327,7 +311,7 @@ impl Capture {
         }
         Ok(progress)
     }
-    fn not_retained(&mut self, scope: wire::ReadScope) -> Result<Progress, ReadError> {
+    fn not_retained(&mut self, scope: wire::HistoryReadScope) -> Result<Progress, ReadError> {
         if self.count != 1 {
             return Err(ReadFailure::ChangedScope.into());
         }
@@ -337,7 +321,7 @@ impl Capture {
         }
         Ok(Progress::NotRetained(Box::new(scope)))
     }
-    fn finish(self, content: Option<Box<wire::ReadScope>>) -> Snapshot {
+    fn finish(self, content: Option<Box<wire::HistoryReadScope>>) -> Snapshot {
         Snapshot {
             query: self.query,
             content: match content {
@@ -349,21 +333,27 @@ impl Capture {
         }
     }
 }
-fn within(period: &wire::Period, time: &buffa_types::google::protobuf::Timestamp) -> bool {
+fn within(period: &wire::HistoryPeriod, time: &buffa_types::google::protobuf::Timestamp) -> bool {
     let key = (time.seconds, time.nanos);
     (period.start.seconds, period.start.nanos) <= key
         && key < (period.end.seconds, period.end.nanos)
 }
-fn server_budget(budget: &wire::BudgetExceeded) -> ReadError {
-    match budget.reason {
-        buffa::EnumValue::Known(reason) => ReadError::ServerBudget(reason),
-        buffa::EnumValue::Unknown(_) => ReadFailure::InvalidResponse.into(),
+fn transport_error(failure: Failure) -> ReadError {
+    match failure.api_failure() {
+        Ok(Some(api)) if api.reason() == wire::ApiErrorReason::ResyncRequired => {
+            ReadError::StaleCursor
+        }
+        Ok(Some(api)) if api.reason() == wire::ApiErrorReason::QueryBudgetExceeded => {
+            ReadError::ServerBudget
+        }
+        Err(_) => ReadFailure::InvalidResponse.into(),
+        Ok(Some(_)) | Ok(None) => ReadError::Transport(failure),
     }
 }
 enum Progress {
     Next(String),
     Complete,
-    NotRetained(Box<wire::ReadScope>),
+    NotRetained(Box<wire::HistoryReadScope>),
 }
 
 #[cfg(test)]

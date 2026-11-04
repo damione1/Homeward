@@ -1,5 +1,5 @@
 use home_client_transport::{AccessToken, FailureKind};
-use home_wire_contract::auth_contract::{AccountId, SessionId};
+use home_wire_contract::auth_contract::{AccountName, SessionName};
 use tokio_util::sync::CancellationToken;
 
 use crate::StoreFailure;
@@ -89,8 +89,8 @@ pub struct AccessLease {
     pub generation: Generation,
     pub cancellation: CancellationToken,
     pub(crate) token: AccessToken,
-    pub(crate) account: AccountId,
-    pub(crate) session: SessionId,
+    pub(crate) account: AccountName,
+    pub(crate) session: SessionName,
 }
 impl AccessLease {
     pub fn token(&self) -> &AccessToken {
@@ -99,11 +99,11 @@ impl AccessLease {
 
     /// Identity admitted from the same session record as this credential.
     /// It is metadata, never a local authorization decision.
-    pub fn account_id(&self) -> &AccountId {
+    pub fn account_name(&self) -> &AccountName {
         &self.account
     }
 
-    pub fn session_id(&self) -> &SessionId {
+    pub fn session_name(&self) -> &SessionName {
         &self.session
     }
 }

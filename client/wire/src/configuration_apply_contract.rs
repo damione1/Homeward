@@ -4,20 +4,17 @@ use std::collections::BTreeSet;
 use crate::{
     config_plans,
     configuration_contract::{self as configuration, ConfigurationAdmissionError as Error},
-    home::{
-        configuration::v1 as document, configurationapply::v1 as wire,
-        configurationplan::v1 as plan,
-    },
+    home::{api::v2 as wire, api::v2 as plan},
 };
 use buffa::EnumValue;
 
 pub enum ActivationRequest<'a> {
-    Apply(&'a wire::ApplyRequest),
-    Rollback(&'a wire::RollbackRequest),
+    Apply(&'a wire::ApplyConfigurationPlanRequest),
+    Rollback(&'a wire::RollbackConfigurationRequest),
 }
 pub enum ActivationResponse<'a> {
-    Apply(&'a wire::ApplyResponse),
-    Rollback(&'a wire::RollbackResponse),
+    Apply(&'a crate::google::longrunning::Operation),
+    Rollback(&'a crate::google::longrunning::Operation),
 }
 
 fn sources(values: &[wire::SourcePrecondition]) -> bool {
@@ -50,8 +47,8 @@ fn sources(values: &[wire::SourcePrecondition]) -> bool {
                 }
         })
 }
-fn history(value: &wire::RollbackRequest) -> bool {
-    if value.family == plan::SourceFamily::Authorization {
+fn history(value: &wire::RollbackConfigurationRequest) -> bool {
+    if value.family == plan::ConfigurationPlanSourceFamily::Authorization {
         match (
             value.historical.as_option(),
             value.historical_policy_version.as_option(),
@@ -72,21 +69,23 @@ pub fn admit_activation_request(value: ActivationRequest<'_>) -> Result<(), Erro
     let valid = match value {
         ActivationRequest::Apply(value) => {
             value.__buffa_unknown_fields.is_empty()
+                && (value.request_id.is_empty()
+                    || home_client_model::api::RequestId::try_from(value.request_id.as_str())
+                        .is_ok())
+                && configuration::resource_name(&value.name, "configurationPlans")
+                && !value.etag.is_empty()
+                && value.etag.len() <= 128
                 && value
                     .candidate
                     .as_option()
                     .is_some_and(config_plans::candidate)
-                && value
-                    .receipt
-                    .as_ref()
-                    .is_none_or(|value| (44..=4200).contains(&value.len()))
                 && value
                     .expected
                     .as_option()
                     .is_some_and(configuration::version)
                 && configuration::hash(&value.expected_workspace_sha256)
                 && sources(&value.sources)
-                && if value.candidate.family == plan::SourceFamily::Operational {
+                && if value.candidate.family == plan::ConfigurationPlanSourceFamily::Operational {
                     value.sources.is_empty()
                 } else {
                     value.sources.len() == value.candidate.files.len()
@@ -94,7 +93,10 @@ pub fn admit_activation_request(value: ActivationRequest<'_>) -> Result<(), Erro
         }
         ActivationRequest::Rollback(value) => {
             value.__buffa_unknown_fields.is_empty()
-                && value.id.as_option().is_some_and(configuration::id)
+                && (value.request_id.is_empty()
+                    || home_client_model::api::RequestId::try_from(value.request_id.as_str())
+                        .is_ok())
+                && configuration::document_name(&value.name)
                 && value
                     .expected
                     .as_option()
@@ -103,21 +105,21 @@ pub fn admit_activation_request(value: ActivationRequest<'_>) -> Result<(), Erro
                 && history(value)
                 && sources(&value.sources)
                 && match value.family {
-                    EnumValue::Known(plan::SourceFamily::Unspecified) => {
+                    EnumValue::Known(plan::ConfigurationPlanSourceFamily::Unspecified) => {
                         value.sources.is_empty() && value.identity.is_empty()
                     }
-                    EnumValue::Known(plan::SourceFamily::Operational) => {
+                    EnumValue::Known(plan::ConfigurationPlanSourceFamily::Operational) => {
                         value.sources.is_empty() && value.identity == "operational.main"
                     }
                     EnumValue::Known(
-                        plan::SourceFamily::DeclarativeV1
-                        | plan::SourceFamily::DeclarativeV2
-                        | plan::SourceFamily::Authorization
-                        | plan::SourceFamily::Ownership
-                        | plan::SourceFamily::Dashboard
-                        | plan::SourceFamily::Automation
-                        | plan::SourceFamily::Script
-                        | plan::SourceFamily::Scene,
+                        plan::ConfigurationPlanSourceFamily::DeclarativeV1
+                        | plan::ConfigurationPlanSourceFamily::DeclarativeV2
+                        | plan::ConfigurationPlanSourceFamily::Authorization
+                        | plan::ConfigurationPlanSourceFamily::Ownership
+                        | plan::ConfigurationPlanSourceFamily::Dashboard
+                        | plan::ConfigurationPlanSourceFamily::Automation
+                        | plan::ConfigurationPlanSourceFamily::Script
+                        | plan::ConfigurationPlanSourceFamily::Scene,
                     ) => !value.sources.is_empty() && config_plans::label(&value.identity, 255),
                     EnumValue::Unknown(_) => false,
                 }
@@ -126,25 +128,8 @@ pub fn admit_activation_request(value: ActivationRequest<'_>) -> Result<(), Erro
     if valid { Ok(()) } else { Err(Error::Invalid) }
 }
 pub fn admit_activation_response(value: ActivationResponse<'_>) -> Result<(), Error> {
-    let (known, activation, current): (_, _, Option<&document::ReadDocumentResponse>) = match value
-    {
-        ActivationResponse::Apply(value) => (
-            value.__buffa_unknown_fields.is_empty(),
-            value.activation.as_option(),
-            value.current.as_option(),
-        ),
-        ActivationResponse::Rollback(value) => (
-            value.__buffa_unknown_fields.is_empty(),
-            value.activation.as_option(),
-            value.current.as_option(),
-        ),
-    };
-    if !known
-        || !activation
-            .is_some_and(|value| configuration::admit_configuration_activation(value).is_ok())
-        || !current.is_none_or(|value| configuration::admit_configuration_read(value).is_ok())
-    {
-        return Err(Error::Invalid);
-    }
-    Ok(())
+    let (ActivationResponse::Apply(value) | ActivationResponse::Rollback(value)) = value;
+    crate::configuration_operations_contract::admit_response(value)
+        .map(|_| ())
+        .map_err(|_| Error::Invalid)
 }

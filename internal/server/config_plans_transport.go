@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"connectrpc.com/connect"
+	configurationplanv1connect "github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/configurationplan/v1/configurationplanv1connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/configdocuments"
@@ -20,19 +20,19 @@ func prepareConfigPlans(documents *configdocuments.Service, owner *configactivat
 	}
 	return configplans.NewService(configplans.Input{Documents: documents, Owner: owner, Secrets: secrets, Manifest: manifest})
 }
-func registerConfigPlansRoutes(plan *PublicPlan, service *configplans.Service, documents *configdocuments.Service, coordinator *sessionCoordinator) error {
+func registerConfigPlansRoutes(plan *PublicPlan, service *configplans.Service, documents *configdocuments.Service, coordinator *sessionCoordinator, dependencies ...configurationRPCDependencies) error {
 	if service == nil {
 		return nil
 	}
 	if plan == nil || documents == nil || coordinator == nil || coordinator.authority == nil {
 		return ErrInvalidPublicPlan
 	}
-	paths := []string{configurationplanv1connect.ConfigurationPlanServiceBuildPlanProcedure, configurationplanv1connect.ConfigurationPlanServiceRevalidatePlanProcedure}
+	paths := []string{configurationplanv1connect.ConfigurationPlanServiceCreateConfigurationPlanProcedure, configurationplanv1connect.ConfigurationPlanServiceRevalidateConfigurationPlanProcedure, configurationplanv1connect.ConfigurationPlanServiceGetConfigurationPlanProcedure, configurationplanv1connect.ConfigurationPlanServiceListConfigurationPlansProcedure}
 	procedures := make([]ConnectProcedure, 0, len(paths))
 	for _, path := range paths {
 		procedures = append(procedures, ConnectProcedure{Path: path, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired})
 	}
-	handler := &configPlansHandler{service: service, documents: &configDocumentsHandler{service: documents, authority: coordinator.authority}}
+	handler := &configPlansHandler{service: service, catalog: firstConfigurationRPC(dependencies).plans, documents: &configDocumentsHandler{service: documents, authority: coordinator.authority, names: firstConfigurationRPC(dependencies).names}}
 	if e := plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {
 		return configurationplanv1connect.NewConfigurationPlanServiceHandler(handler, options...)
 	}, procedures...); e != nil {

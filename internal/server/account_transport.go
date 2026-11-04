@@ -7,7 +7,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/storage"
 )
 
@@ -32,8 +32,8 @@ func (a accountTransportAudit) Record(ctx context.Context, event AuditEvent) err
 	return a.store.RecordAuthTransportAudit(ctx, actor, event.Route.Path(), event.Outcome == AuditOutcomeAdmitted)
 }
 
-func registerAccountRoutes(plan *PublicPlan, store *storage.Store, coordinator *sessionCoordinator) (*PublicPlan, error) {
-	if store == nil || coordinator == nil {
+func registerAccountRoutes(plan *PublicPlan, store *storage.Store, coordinator *sessionCoordinator, names administrationNames) (*PublicPlan, error) {
+	if store == nil || coordinator == nil || nilReactiveInterface(names.home) || names.store != store {
 		return nil, ErrInvalidPublicPlan
 	}
 	var err error
@@ -43,21 +43,25 @@ func registerAccountRoutes(plan *PublicPlan, store *storage.Store, coordinator *
 			return nil, err
 		}
 	}
-	handler := &accountHandler{store: store, coordinator: coordinator}
+	pages, err := newAPIPageCipher()
+	if err != nil {
+		return nil, err
+	}
+	handler := &accountResourceHandler{accountHandler: &accountHandler{store: store, coordinator: coordinator}, names: authResourceNames{names}, pages: pages}
 	err = plan.RegisterConnect(func(options ...connect.HandlerOption) (string, http.Handler) {
-		return authv1connect.NewAccountServiceHandler(handler, options...)
+		return apiv2connect.NewAccountServiceHandler(handler, options...)
 	},
-		ConnectProcedure{Path: authv1connect.AccountServiceCreateAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		ConnectProcedure{Path: authv1connect.AccountServiceGetAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		ConnectProcedure{Path: authv1connect.AccountServiceListAccountsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		ConnectProcedure{Path: authv1connect.AccountServiceUpdateAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		ConnectProcedure{Path: authv1connect.AccountServiceDeleteAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		ConnectProcedure{Path: authv1connect.AccountServiceCreateInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		ConnectProcedure{Path: authv1connect.AccountServiceAcceptInvitationProcedure, Access: RouteAccessAnonymous, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		ConnectProcedure{Path: authv1connect.AccountServiceListInvitationsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		ConnectProcedure{Path: authv1connect.AccountServiceRevokeInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		ConnectProcedure{Path: authv1connect.AccountServiceGetSecondFactorPolicyProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
-		ConnectProcedure{Path: authv1connect.AccountServiceSetSecondFactorPolicyProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceCreateAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceGetAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceListAccountsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceUpdateAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceDeleteAccountProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceIssueInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceAcceptInvitationProcedure, Access: RouteAccessAnonymous, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceListInvitationsProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceRevokeInvitationProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceGetSecondFactorPolicyProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
+		ConnectProcedure{Path: apiv2connect.AccountServiceChangeSecondFactorPolicyProcedure, Access: RouteAccessProtected, Flow: RouteFlowUnary, Transport: RouteTransportTLSRequired},
 	)
 	return plan, err
 }

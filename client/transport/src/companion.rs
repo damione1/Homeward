@@ -1,8 +1,10 @@
 //! Provisional companion facade on the shared verified TLS connection.
 //! One attempt per explicit request; no publication retry or offline queue.
-use crate::{AccessToken, Failure, StateTransport, services::home::companion::v1 as service};
+use crate::{
+    AccessToken, Failure, services::home::testing::companion::v1 as service,
+};
 use connectrpc::client::HttpClient;
-use home_wire_contract::home::companion::v1 as wire;
+use home_wire_contract::home::testing::companion::v1 as wire;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
@@ -19,7 +21,7 @@ macro_rules! unary {
             timeout: Duration,
             cancel: &CancellationToken,
         ) -> Result<wire::$response, Failure> {
-            let options = StateTransport::options(token, timeout)?;
+            let options = token.options(timeout)?;
             tokio::select! { biased;
                 () = cancel.cancelled() => Err(Failure::cancelled()),
                 response = self.client.$method(request, options) =>

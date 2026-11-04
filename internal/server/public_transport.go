@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/domain"
@@ -304,7 +304,7 @@ func validPublicRoute(kind RouteKind, method RouteMethod, exactPath string, acce
 			return false
 		}
 	}
-	operatorService := "/" + authv1connect.OperatorAccountServiceName
+	operatorService := "/" + operatorv1connect.OperatorAccountServiceName
 	if exactPath == operatorService || strings.HasPrefix(exactPath, operatorService+"/") {
 		return false
 	}
@@ -596,6 +596,10 @@ func (p *compiledPublic) handler(settings config.PublicSettings, admissions *pub
 		// Readers borrow the same one-shot interrupt for permit/grant changes.
 		// The earliest invalidation wins; later callbacks cannot extend it.
 		r = r.WithContext(context.WithValue(r.Context(), publicWriteInterruptContextKey{}, interruptWrite))
+		responseContext, responseScope := newPublicResponseScope(r.Context(), interruptWrite)
+		defer responseScope.close()
+		ctx = responseContext
+		r = r.WithContext(responseContext)
 		writeInterruptDone := make(chan struct{})
 		stopWriteInterrupt := context.AfterFunc(r.Context(), func() {
 			defer close(writeInterruptDone)
@@ -611,6 +615,11 @@ func (p *compiledPublic) handler(settings config.PublicSettings, admissions *pub
 		if ctx.Err() != nil && !tracked.wrote {
 			p.sendError(w, r, route, contextErrorCode(ctx, PublicErrorDeadlineExceeded))
 		}
+		// A small unary response can still be buffered by net/http after the
+		// Connect handler returns. Flush while both the native response permits
+		// and credential lease are retained, with the write interrupt active.
+		// A failed/partial send cannot be rewritten into another HTTP response.
+		_ = controller.Flush()
 	}), settings.MaxRequestBytes())
 }
 

@@ -1,0 +1,5 @@
+enrollment_required {
+  account: "homes/home-a/accounts/account-a"
+  enrollment_token: "synthetic-enrollment"
+  expire_time { seconds: 1792314300 }
+}

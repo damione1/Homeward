@@ -8,22 +8,22 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	state "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 )
 
 type nha165RotationService struct {
-	statev1connect.UnimplementedStateServiceHandler
+	apiv2connect.UnimplementedEntityViewServiceHandler
 	remote   error
 	deadline chan bool
 	done     chan struct{}
 }
 
-func (s *nha165RotationService) WatchView(ctx context.Context, _ *connect.Request[state.WatchViewRequest], stream *connect.ServerStream[state.WatchViewResponse]) error {
+func (s *nha165RotationService) WatchEntityView(ctx context.Context, _ *connect.Request[api.WatchEntityViewRequest], stream *connect.ServerStream[api.WatchEntityViewResponse]) error {
 	defer close(s.done)
 	_, hasDeadline := ctx.Deadline()
 	s.deadline <- hasDeadline
-	if err := stream.Send(&state.WatchViewResponse{StreamSequence: 1}); err != nil {
+	if err := stream.Send(&api.WatchEntityViewResponse{ResumeToken: "1"}); err != nil {
 		return err
 	}
 	if s.remote != nil {
@@ -33,15 +33,15 @@ func (s *nha165RotationService) WatchView(ctx context.Context, _ *connect.Reques
 	return ctx.Err()
 }
 
-func nha165RotationRPC(t *testing.T, remote error) (statev1connect.StateServiceClient, *nha165RotationService) {
+func nha165RotationRPC(t *testing.T, remote error) (apiv2connect.EntityViewServiceClient, *nha165RotationService) {
 	t.Helper()
 	service := &nha165RotationService{remote: remote, deadline: make(chan bool, 1), done: make(chan struct{})}
-	_, handler := statev1connect.NewStateServiceHandler(service)
+	_, handler := apiv2connect.NewEntityViewServiceHandler(service)
 	server := httptest.NewTLSServer(handler)
 	t.Cleanup(server.Close)
 	client := server.Client() // trusts only this disposable TLS server
 	client.Timeout = 0        // same streaming transport policy as the real profile
-	return statev1connect.NewStateServiceClient(client, server.URL), service
+	return apiv2connect.NewEntityViewServiceClient(client, server.URL), service
 }
 
 func nha165RotationJoined(t *testing.T, service *nha165RotationService) {
@@ -54,16 +54,16 @@ func nha165RotationJoined(t *testing.T, service *nha165RotationService) {
 }
 
 func TestNHA165RotationOwnedTimerCancelsRealConnectWithoutRPCDeadline(t *testing.T) {
-	api, service := nha165RotationRPC(t, nil)
-	// Only this unit uses an accelerated timer; real integration keeps4min.
+	client, service := nha165RotationRPC(t, nil)
+	// Only this unit uses an accelerated timer; the real capture retains its actual 60s lifetime.
 	rotation := nha165NewStreamRotation(context.Background(), 500*time.Millisecond)
 	defer rotation.close()
-	stream, err := api.WatchView(rotation.ctx, connect.NewRequest(&state.WatchViewRequest{}))
+	stream, err := client.WatchEntityView(rotation.ctx, connect.NewRequest(&api.WatchEntityViewRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stream.Close()
-	if !stream.Receive() || stream.Msg().StreamSequence != 1 {
+	if !stream.Receive() || stream.Msg().ResumeToken != "1" {
 		t.Fatal("real TLS stream did not publish before rotation", stream.Err())
 	}
 	if <-service.deadline {
@@ -86,12 +86,12 @@ func TestNHA165RotationRemoteDeadlineAndParentCancellationStayFatal(t *testing.T
 			if mode == "remote_deadline" {
 				remote = connect.NewError(connect.CodeDeadlineExceeded, errors.New("early remote deadline"))
 			}
-			api, service := nha165RotationRPC(t, remote)
+			client, service := nha165RotationRPC(t, remote)
 			parent, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			rotation := nha165NewStreamRotation(parent, time.Hour)
 			defer rotation.close()
-			stream, err := api.WatchView(rotation.ctx, connect.NewRequest(&state.WatchViewRequest{}))
+			stream, err := client.WatchEntityView(rotation.ctx, connect.NewRequest(&api.WatchEntityViewRequest{}))
 			if err != nil {
 				t.Fatal(err)
 			}

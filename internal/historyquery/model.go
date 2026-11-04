@@ -127,15 +127,18 @@ func (q Query) Valid() bool {
 	admitted, err := NewQuery(q.kind, entity, q.start, q.end, q.limit, q.epoch)
 	return err == nil && admitted == q
 }
+
+// Digest binds the selection, not the requested page size. A continuation may
+// change the bounded size without changing its native snapshot or authority.
 func (q Query) Digest() ([32]byte, error) {
 	if !q.Valid() {
 		return [32]byte{}, ErrInvalid
 	}
 	h := sha256.New()
-	h.Write([]byte("homeward-history-query-v1"))
+	h.Write([]byte("homeward-history-query-v2"))
 	h.Write([]byte{byte(q.kind)})
 	var n [8]byte
-	for _, v := range []uint64{uint64(q.start.Unix()), uint64(q.start.Nanosecond()), uint64(q.end.Unix()), uint64(q.end.Nanosecond()), uint64(q.limit)} {
+	for _, v := range []uint64{uint64(q.start.Unix()), uint64(q.start.Nanosecond()), uint64(q.end.Unix()), uint64(q.end.Nanosecond())} {
 		binary.BigEndian.PutUint64(n[:], v)
 		h.Write(n[:])
 	}

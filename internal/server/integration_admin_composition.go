@@ -8,7 +8,15 @@ import (
 	"github.com/damione1/Homeward/internal/integrationadmin"
 )
 
-func newIntegrationAdminHandler(documents *configdocuments.Service, sessions *sessionCoordinator, runtime *observationRuntime) (*integrationAdminHandler, error) {
+// Private native composition shared by the v2 resources and the existing
+// integration owner. It has no RPC methods or legacy transport registration.
+type integrationProjection struct {
+	service   *integrationadmin.Service
+	documents *configdocuments.Service
+	names     administrationNames
+}
+
+func newIntegrationProjection(documents *configdocuments.Service, sessions *sessionCoordinator, runtime *observationRuntime, names ...administrationNames) (*integrationProjection, error) {
 	if documents == nil || sessions == nil || sessions.authority == nil || runtime == nil {
 		return nil, ErrInvalidPublicPlan
 	}
@@ -27,5 +35,5 @@ func newIntegrationAdminHandler(documents *configdocuments.Service, sessions *se
 	if err != nil {
 		return nil, err
 	}
-	return &integrationAdminHandler{service: service, documents: documents}, nil
+	return &integrationProjection{service: service, documents: documents, names: firstAdministrationNames(names)}, nil
 }

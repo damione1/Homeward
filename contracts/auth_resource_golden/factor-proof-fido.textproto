@@ -1,0 +1,7 @@
+fido2 {
+  credential_id: "synthetic-credential-id"
+  authenticator_data: "synthetic-authenticator-data"
+  client_data_json: "synthetic-client-data-json"
+  signature: "synthetic-signature"
+  client_data_hash: "01234567890123456789012345678901"
+}

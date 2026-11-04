@@ -212,6 +212,19 @@ func (s *Store) InConfigTransactionOutcome(ctx context.Context, fn func(*ConfigT
 		return TransactionNotCommitted, &Error{kind: ConfigInvalid}
 	}
 	return s.InTransactionOutcome(ctx, func(tx pgx.Tx) error {
+		if execution, present := ConfigurationAPIExecutionFromContext(ctx); present {
+			record, err := lockConfigurationExecution(ctx, tx, execution)
+			if err != nil {
+				return err
+			}
+			if len(record.failure) > 0 || len(record.noChange) > 0 {
+				return configRequestError(ConfigurationRequestIntegrity)
+			}
+		} else if ctx != nil {
+			if _, attached := ctx.Value(configurationAPIRequestKey{}).(ConfigurationAPIRequest); attached {
+				return configRequestError(ConfigurationRequestInvalid)
+			}
+		}
 		return withConfigTx(ctx, tx, func(c *ConfigTx) error {
 			c.store = s
 			return fn(c)
@@ -219,11 +232,16 @@ func (s *Store) InConfigTransactionOutcome(ctx context.Context, fn func(*ConfigT
 	})
 }
 
-// withConfigTx never opens another transaction. Account creation and policy
-// replacement acquire this lock before auth_bootstrap in their same pgx.Tx.
+// withConfigTx never opens another transaction. All configuration writers use
+// the native security coordination prefix before 151, including bootstrap and
+// account/MFA-policy writes. A public API request adds its current-rights fence
+// and locked request row between that prefix and the reentrant 151 section.
 func withConfigTx(ctx context.Context, tx pgx.Tx, fn func(*ConfigTx) error) error {
 	if fn == nil {
 		return &Error{kind: ConfigInvalid}
+	}
+	if err := lockConfigSecurityPrefix(ctx, tx); err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(481316, 151)`); err != nil {
 		return err
@@ -363,6 +381,9 @@ func (c *ConfigTx) saveAdmittedSource(binding ConfigDocumentBinding, format conf
 	}
 	if path != binding.path || storedKind != kind.String() {
 		return ConfigVersionRef{}, &Error{kind: ConfigConflict}
+	}
+	if _, err := EnsureAPIResourceIdentityTx(c.ctx, c.tx, APIConfigurationDocuments, binding.id.document); err != nil {
+		return ConfigVersionRef{}, err
 	}
 	var revision int64
 	if err := c.tx.QueryRow(c.ctx, `UPDATE public.config_documents SET last_revision=last_revision+1 WHERE id=$1 RETURNING last_revision`, binding.id.document).Scan(&revision); err != nil {

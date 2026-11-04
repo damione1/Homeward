@@ -3,9 +3,10 @@ package contracts
 import (
 	"errors"
 
-	configuration "github.com/damione1/Homeward/gen/home/configuration/v1"
-	wire "github.com/damione1/Homeward/gen/home/configurationapply/v1"
-	plan "github.com/damione1/Homeward/gen/home/configurationplan/v1"
+	longrunningpb "cloud.google.com/go/longrunning/autogen/longrunningpb"
+	plan "github.com/damione1/Homeward/gen/home/api/v2"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -51,11 +52,11 @@ func applySourcePreconditions(values []*wire.SourcePrecondition) bool {
 
 // Authorization supports either its legacy explicit generation delta or an
 // exact documentary policy version. Other families retain generation history.
-func configurationRollbackHistory(value *wire.RollbackRequest) bool {
+func configurationRollbackHistory(value *wire.RollbackConfigurationRequest) bool {
 	if value == nil {
 		return false
 	}
-	if value.Family == plan.SourceFamily_SOURCE_FAMILY_AUTHORIZATION {
+	if value.Family == plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTHORIZATION {
 		if (value.Historical == nil) == (value.HistoricalPolicyVersion == nil) {
 			return false
 		}
@@ -73,10 +74,10 @@ func AdmitConfigurationApplyRequest(message proto.Message) error {
 	}
 	valid := false
 	switch v := message.(type) {
-	case *wire.ApplyRequest:
-		valid = v != nil && planCandidate(v.Candidate) && (v.Receipt == nil || len(*v.Receipt) >= 44 && len(*v.Receipt) <= 4200) && configurationVersion(v.Expected) && configurationHash(v.ExpectedWorkspaceSha256) && applySourcePreconditions(v.Sources) && (v.Candidate.Family == plan.SourceFamily_SOURCE_FAMILY_OPERATIONAL && len(v.Sources) == 0 || v.Candidate.Family != plan.SourceFamily_SOURCE_FAMILY_OPERATIONAL && len(v.Sources) == len(v.Candidate.Files))
-	case *wire.RollbackRequest:
-		valid = v != nil && configurationID(v.Id) && configurationVersion(v.Expected) && configurationHash(v.ExpectedWorkspaceSha256) && configurationRollbackHistory(v) && applySourcePreconditions(v.Sources) && (v.Family == plan.SourceFamily_SOURCE_FAMILY_UNSPECIFIED && len(v.Sources) == 0 && v.Identity == "" || v.Family == plan.SourceFamily_SOURCE_FAMILY_OPERATIONAL && len(v.Sources) == 0 && v.Identity == "operational.main" || v.Family != plan.SourceFamily_SOURCE_FAMILY_OPERATIONAL && planFamily(v.Family) && len(v.Sources) > 0 && planLabel(v.Identity, 255))
+	case *wire.ApplyConfigurationPlanRequest:
+		valid = v != nil && configurationResourceName(v.Name, "configurationPlans") && len(v.Etag) > 0 && len(v.Etag) <= 128 && planCandidate(v.Candidate) && configurationVersion(v.Expected) && configurationHash(v.ExpectedWorkspaceSha256) && applySourcePreconditions(v.Sources) && (v.Candidate.Family == plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL && len(v.Sources) == 0 || v.Candidate.Family != plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL && len(v.Sources) == len(v.Candidate.Files))
+	case *wire.RollbackConfigurationRequest:
+		valid = v != nil && configurationResourceName(v.Name, "configurationDocuments") && configurationVersion(v.Expected) && configurationHash(v.ExpectedWorkspaceSha256) && configurationRollbackHistory(v) && applySourcePreconditions(v.Sources) && (v.Family == plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_UNSPECIFIED && len(v.Sources) == 0 && v.Identity == "" || v.Family == plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL && len(v.Sources) == 0 && v.Identity == "operational.main" || v.Family != plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL && planFamily(v.Family) && len(v.Sources) > 0 && planLabel(v.Identity, 255))
 	default:
 		return ErrInvalidConfigurationApplyContract
 	}
@@ -87,23 +88,12 @@ func AdmitConfigurationApplyRequest(message proto.Message) error {
 }
 
 func AdmitConfigurationApplyResponse(message proto.Message) error {
-	if message == nil || !configurationKnown(message.ProtoReflect()) {
+	operation, ok := message.(*longrunningpb.Operation)
+	if !ok || operation == nil {
 		return ErrInvalidConfigurationApplyContract
 	}
-	var response *configuration.WriteDocumentResponse
-	switch v := message.(type) {
-	case *wire.ApplyResponse:
-		if v != nil {
-			response = &configuration.WriteDocumentResponse{Activation: v.Activation, Current: v.Current}
-		}
-	case *wire.RollbackResponse:
-		if v != nil {
-			response = &configuration.WriteDocumentResponse{Activation: v.Activation, Current: v.Current}
-		}
-	default:
-		return ErrInvalidConfigurationApplyContract
-	}
-	if response == nil || AdmitConfigurationResponse(response) != nil {
+	name, err := apitypes.ParseOperationName(operation.Name)
+	if err != nil || AdmitConfigurationOperation(operation, name) != nil {
 		return ErrInvalidConfigurationApplyContract
 	}
 	return nil

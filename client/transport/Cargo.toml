@@ -4,6 +4,19 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
+[features]
+default = []
+# Explicit synthetic protocol qualification only; not a product service profile.
+private-qualification = ["home-wire-contract/private-qualification"]
+
+[[test]]
+name = "nhf021_companion_tls"
+required-features = ["private-qualification"]
+
+[[test]]
+name = "nhf022_notifications_tls"
+required-features = ["private-qualification"]
+
 [dependencies]
 home-client-model = { path = "../model" }
 home-wire-contract = { path = "../wire" }

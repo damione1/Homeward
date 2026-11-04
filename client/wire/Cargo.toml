@@ -4,6 +4,21 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
+[features]
+default = []
+# Synthetic qualification protocols never enter the normal product codec graph.
+private-qualification = []
+
+[[test]]
+name = "nhf020_logic"
+required-features = ["private-qualification"]
+[[test]]
+name = "nhf021_companion"
+required-features = ["private-qualification"]
+[[test]]
+name = "nhf022_notifications"
+required-features = ["private-qualification"]
+
 [dependencies]
 home-client-model = { path = "../model" }
 buffa = "=0.9.2"

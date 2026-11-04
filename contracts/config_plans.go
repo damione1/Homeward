@@ -5,7 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	wire "github.com/damione1/Homeward/gen/home/configurationplan/v1"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -14,17 +15,17 @@ var ErrInvalidConfigurationPlanContract = errors.New("invalid configuration plan
 func planLabel(s string, max int) bool {
 	return len(s) > 0 && len(s) <= max && utf8.ValidString(s) && strings.TrimSpace(s) == s && !strings.ContainsAny(s, "\x00\r\n")
 }
-func planFamily(f wire.SourceFamily) bool {
+func planFamily(f wire.ConfigurationPlanSourceFamily) bool {
 	switch f {
-	case wire.SourceFamily_SOURCE_FAMILY_OPERATIONAL, wire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V1, wire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V2, wire.SourceFamily_SOURCE_FAMILY_AUTHORIZATION, wire.SourceFamily_SOURCE_FAMILY_OWNERSHIP, wire.SourceFamily_SOURCE_FAMILY_DASHBOARD, wire.SourceFamily_SOURCE_FAMILY_AUTOMATION, wire.SourceFamily_SOURCE_FAMILY_SCRIPT, wire.SourceFamily_SOURCE_FAMILY_SCENE:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V1, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V2, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTHORIZATION, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OWNERSHIP, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE:
 		return true
-	case wire.SourceFamily_SOURCE_FAMILY_UNSPECIFIED:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_UNSPECIFIED:
 		return false
 	default:
 		return false
 	}
 }
-func planCandidate(v *wire.Candidate) bool {
+func planCandidate(v *wire.ConfigurationPlanCandidate) bool {
 	if v == nil || !planFamily(v.Family) || !planLabel(v.Identity, 255) || !planLabel(v.Entry, 4096) || len(v.Files) < 1 || len(v.Files) > 64 {
 		return false
 	}
@@ -48,10 +49,14 @@ func AdmitConfigurationPlanRequest(message proto.Message) error {
 	}
 	valid := false
 	switch v := message.(type) {
-	case *wire.BuildPlanRequest:
-		valid = v != nil && planCandidate(v.Candidate)
-	case *wire.RevalidatePlanRequest:
-		valid = v != nil && planCandidate(v.Candidate) && len(v.Receipt) >= 44 && len(v.Receipt) <= 4200
+	case *wire.CreateConfigurationPlanRequest:
+		valid = v != nil && configurationHomeName(v.Parent) && v.ConfigurationPlan != nil && planCandidate(v.ConfigurationPlan.Candidate)
+	case *wire.GetConfigurationPlanRequest:
+		valid = v != nil && configurationResourceName(v.Name, "configurationPlans")
+	case *wire.ListConfigurationPlansRequest:
+		valid = v != nil && configurationHomeName(v.Parent) && configurationPage(v.PageSize, v.PageToken)
+	case *wire.RevalidateConfigurationPlanRequest:
+		valid = v != nil && planCandidate(v.Candidate) && configurationResourceName(v.Name, "configurationPlans") && len(v.Etag) > 0 && len(v.Etag) <= 128
 	default:
 		return ErrInvalidConfigurationPlanContract
 	}
@@ -60,48 +65,48 @@ func AdmitConfigurationPlanRequest(message proto.Message) error {
 	}
 	return nil
 }
-func planSchema(f wire.SourceFamily, s string) bool {
+func planSchema(f wire.ConfigurationPlanSourceFamily, s string) bool {
 	switch f {
-	case wire.SourceFamily_SOURCE_FAMILY_OPERATIONAL:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL:
 		return s == "homeward.operational/1"
-	case wire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V1:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V1:
 		return s == "ha-declarative-1"
-	case wire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V2:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V2:
 		return s == "ha-declarative-2"
-	case wire.SourceFamily_SOURCE_FAMILY_AUTHORIZATION:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTHORIZATION:
 		return s == "homeward.authorization/1"
-	case wire.SourceFamily_SOURCE_FAMILY_OWNERSHIP:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OWNERSHIP:
 		return s == "homeward.heating-ownership/1"
-	case wire.SourceFamily_SOURCE_FAMILY_DASHBOARD:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD:
 		return s == "homeward-dashboard-1"
-	case wire.SourceFamily_SOURCE_FAMILY_AUTOMATION, wire.SourceFamily_SOURCE_FAMILY_SCRIPT:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT:
 		return s == "ha-logic-1"
-	case wire.SourceFamily_SOURCE_FAMILY_SCENE:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE:
 		return s == "ha-scene-1"
-	case wire.SourceFamily_SOURCE_FAMILY_UNSPECIFIED:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_UNSPECIFIED:
 		return false
 	default:
 		return false
 	}
 }
-func planEffect(f wire.SourceFamily, e wire.Effect) bool {
-	if e == wire.Effect_EFFECT_NONE {
+func planEffect(f wire.ConfigurationPlanSourceFamily, e wire.ConfigurationPlanEffect) bool {
+	if e == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE {
 		return true
 	}
 	switch f {
-	case wire.SourceFamily_SOURCE_FAMILY_OPERATIONAL:
-		return e == wire.Effect_EFFECT_CONFIGURATION || e == wire.Effect_EFFECT_TECHNICAL_OWNERSHIP
-	case wire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V1, wire.SourceFamily_SOURCE_FAMILY_DECLARATIVE_V2:
-		return e == wire.Effect_EFFECT_CONFIGURATION
-	case wire.SourceFamily_SOURCE_FAMILY_AUTHORIZATION:
-		return e == wire.Effect_EFFECT_HUMAN_RIGHTS
-	case wire.SourceFamily_SOURCE_FAMILY_OWNERSHIP:
-		return e == wire.Effect_EFFECT_TECHNICAL_OWNERSHIP
-	case wire.SourceFamily_SOURCE_FAMILY_DASHBOARD:
-		return e == wire.Effect_EFFECT_DASHBOARD
-	case wire.SourceFamily_SOURCE_FAMILY_AUTOMATION, wire.SourceFamily_SOURCE_FAMILY_SCRIPT, wire.SourceFamily_SOURCE_FAMILY_SCENE:
-		return e == wire.Effect_EFFECT_RUN_TARGETS
-	case wire.SourceFamily_SOURCE_FAMILY_UNSPECIFIED:
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL:
+		return e == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_CONFIGURATION || e == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_TECHNICAL_OWNERSHIP
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V1, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V2:
+		return e == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_CONFIGURATION
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTHORIZATION:
+		return e == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_HUMAN_RIGHTS
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OWNERSHIP:
+		return e == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_TECHNICAL_OWNERSHIP
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD:
+		return e == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_DASHBOARD
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT, wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE:
+		return e == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_RUN_TARGETS
+	case wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_UNSPECIFIED:
 		return false
 	default:
 		return false
@@ -115,40 +120,40 @@ func planField(s string) bool {
 		return false
 	}
 }
-func planBase(v *wire.Base) bool {
+func planBase(v *wire.ConfigurationPlanBase) bool {
 	if v == nil {
 		return false
 	}
 	switch v.Kind {
-	case wire.BaseKind_BASE_KIND_ACTIVE_SQL:
+	case wire.ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_ACTIVE_SQL:
 		return v.Revision != nil && *v.Revision > 0 && configurationHash(v.SourceSha256)
-	case wire.BaseKind_BASE_KIND_IMMUTABLE_REFERENCE:
+	case wire.ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_IMMUTABLE_REFERENCE:
 		return v.Revision == nil && configurationHash(v.SourceSha256)
-	case wire.BaseKind_BASE_KIND_NO_ACTIVE_DOCUMENT:
+	case wire.ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_NO_ACTIVE_DOCUMENT:
 		return v.Revision == nil && v.SourceSha256 == nil
-	case wire.BaseKind_BASE_KIND_UNSPECIFIED:
+	case wire.ConfigurationPlanBaseKind_CONFIGURATION_PLAN_BASE_KIND_UNSPECIFIED:
 		return false
 	default:
 		return false
 	}
 }
-func planResponse(v *wire.Plan) bool {
-	if v == nil || !planLabel(v.Author, 255) || !planFamily(v.Family) || !planLabel(v.Identity, 255) || !planSchema(v.Family, v.SchemaVersion) || !configurationHash(v.SourceSha256) || !planBase(v.Base) || v.GenerationRevision < 1 || !configurationHash(v.ManifestSha256) || !configurationHash(v.ObservedWorkspaceSha256) || !planEffect(v.Family, v.Effect) || v.ApplicationAvailable || len(v.Changes) > 64 || len(v.Diagnostics) > 5 {
+func planMetadata(v *wire.ConfigurationPlan) bool {
+	if v == nil || v.Candidate != nil || !planAuthor(v.Author) || !planFamily(v.Family) || !planLabel(v.Identity, 255) || !planSchema(v.Family, v.SchemaVersion) || !configurationHash(v.SourceSha256) || !planBase(v.Base) || v.GenerationRevision < 1 || !configurationHash(v.ManifestSha256) || !configurationHash(v.ObservedWorkspaceSha256) || !planEffect(v.Family, v.Effect) || v.ApplicationAvailable || len(v.Changes) > 64 || len(v.Diagnostics) > 5 {
 		return false
 	}
 	for _, diagnostic := range v.Diagnostics {
 		switch diagnostic {
-		case wire.DiagnosticCode_DIAGNOSTIC_CODE_INVALID_SCHEMA, wire.DiagnosticCode_DIAGNOSTIC_CODE_EXCLUDED_REFERENCE, wire.DiagnosticCode_DIAGNOSTIC_CODE_UNSUPPORTED_SOURCE, wire.DiagnosticCode_DIAGNOSTIC_CODE_CAPACITY, wire.DiagnosticCode_DIAGNOSTIC_CODE_BASE_UNAVAILABLE:
-		case wire.DiagnosticCode_DIAGNOSTIC_CODE_UNSPECIFIED:
+		case wire.ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_INVALID_SCHEMA, wire.ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_EXCLUDED_REFERENCE, wire.ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_UNSUPPORTED_SOURCE, wire.ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_CAPACITY, wire.ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_BASE_UNAVAILABLE:
+		case wire.ConfigurationPlanDiagnosticCode_CONFIGURATION_PLAN_DIAGNOSTIC_CODE_UNSPECIFIED:
 			return false
 		default:
 			return false
 		}
 	}
-	maximum := wire.Effect_EFFECT_NONE
+	maximum := wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE
 	previous := ""
 	for _, change := range v.Changes {
-		if change == nil || !planField(change.Field) || ((change.Field == "android_tv" || change.Field == "sonos" || change.Field == "ecobee" || change.Field == "remote_calendar" || change.Field == "disabled_integrations") && v.Family != wire.SourceFamily_SOURCE_FAMILY_OPERATIONAL) || change.Field <= previous || !planEffect(v.Family, change.Effect) || change.Effect == wire.Effect_EFFECT_NONE || change.Effect > v.Effect || change.ReferencesAdded > 4096 || change.ReferencesRemoved > 4096 {
+		if change == nil || !planField(change.Field) || ((change.Field == "android_tv" || change.Field == "sonos" || change.Field == "ecobee" || change.Field == "remote_calendar" || change.Field == "disabled_integrations") && v.Family != wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL) || change.Field <= previous || !planEffect(v.Family, change.Effect) || change.Effect == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE || change.Effect > v.Effect || change.ReferencesAdded > 4096 || change.ReferencesRemoved > 4096 {
 			return false
 		}
 		previous = change.Field
@@ -156,8 +161,8 @@ func planResponse(v *wire.Plan) bool {
 			maximum = change.Effect
 		}
 		switch change.Operation {
-		case wire.ChangeOperation_CHANGE_OPERATION_ADDED, wire.ChangeOperation_CHANGE_OPERATION_REMOVED, wire.ChangeOperation_CHANGE_OPERATION_REPLACED:
-		case wire.ChangeOperation_CHANGE_OPERATION_UNSPECIFIED:
+		case wire.ConfigurationPlanChangeOperation_CONFIGURATION_PLAN_CHANGE_OPERATION_ADDED, wire.ConfigurationPlanChangeOperation_CONFIGURATION_PLAN_CHANGE_OPERATION_REMOVED, wire.ConfigurationPlanChangeOperation_CONFIGURATION_PLAN_CHANGE_OPERATION_REPLACED:
+		case wire.ConfigurationPlanChangeOperation_CONFIGURATION_PLAN_CHANGE_OPERATION_UNSPECIFIED:
 			return false
 		default:
 			return false
@@ -167,17 +172,32 @@ func planResponse(v *wire.Plan) bool {
 		return false
 	}
 	switch v.State {
-	case wire.PlanState_PLAN_STATE_ADMITTED:
-		return configurationHash(v.SemanticSha256) && len(v.Diagnostics) == 0 && len(v.Receipt) >= 44 && len(v.Receipt) <= 4200 && ((len(v.Changes) == 0) == (v.Effect == wire.Effect_EFFECT_NONE))
-	case wire.PlanState_PLAN_STATE_REJECTED:
-		return v.SemanticSha256 == nil && len(v.Changes) == 0 && len(v.Diagnostics) > 0 && v.Effect != wire.Effect_EFFECT_NONE && len(v.Receipt) >= 44 && len(v.Receipt) <= 4200
-	case wire.PlanState_PLAN_STATE_STALE:
+	case wire.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_ADMITTED:
+		return configurationHash(v.SemanticSha256) && len(v.Diagnostics) == 0 && len(v.Receipt) >= 44 && len(v.Receipt) <= 4200 && ((len(v.Changes) == 0) == (v.Effect == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE))
+	case wire.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_REJECTED:
+		return v.SemanticSha256 == nil && len(v.Changes) == 0 && len(v.Diagnostics) > 0 && v.Effect != wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE && len(v.Receipt) >= 44 && len(v.Receipt) <= 4200
+	case wire.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_STALE:
 		return v.Receipt == "" && ((configurationHash(v.SemanticSha256) && len(v.Diagnostics) == 0) || (v.SemanticSha256 == nil && len(v.Diagnostics) > 0))
-	case wire.PlanState_PLAN_STATE_UNSPECIFIED:
+	case wire.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_UNSPECIFIED:
 		return false
 	default:
 		return false
 	}
+}
+func planResponse(v *wire.ConfigurationPlan) bool {
+	if v == nil || !configurationResourceName(v.Name, "configurationPlans") || !configurationTime(v.CreateTime) || !configurationTime(v.UpdateTime) || !configurationTime(v.ExpireTime) || v.UpdateTime.AsTime().Before(v.CreateTime.AsTime()) || v.UpdateTime.AsTime().After(v.ExpireTime.AsTime()) || !v.ExpireTime.AsTime().After(v.CreateTime.AsTime()) || !planLabel(v.Etag, 256) {
+		return false
+	}
+	return planMetadata(v)
+}
+
+// AdmitConfigurationPlanMetadata checks a native redacted summary before it
+// enters the process-lifetime catalogue. It rejects all candidate/source input.
+func AdmitConfigurationPlanMetadata(value *wire.ConfigurationPlan) error {
+	if value == nil || !configurationKnown(value.ProtoReflect()) || !planMetadata(value) {
+		return ErrInvalidConfigurationPlanContract
+	}
+	return nil
 }
 func AdmitConfigurationPlanResponse(message proto.Message) error {
 	if message == nil || !configurationKnown(message.ProtoReflect()) {
@@ -185,10 +205,18 @@ func AdmitConfigurationPlanResponse(message proto.Message) error {
 	}
 	valid := false
 	switch v := message.(type) {
-	case *wire.BuildPlanResponse:
-		valid = v != nil && planResponse(v.Plan) && v.Plan.State != wire.PlanState_PLAN_STATE_STALE
-	case *wire.RevalidatePlanResponse:
-		valid = v != nil && planResponse(v.Plan)
+	case *wire.ConfigurationPlan:
+		valid = v != nil && planResponse(v)
+	case *wire.ListConfigurationPlansResponse:
+		valid = v != nil && len(v.ConfigurationPlans) <= 100 && len(v.NextPageToken) <= 1200
+		if valid {
+			for _, plan := range v.ConfigurationPlans {
+				if !planResponse(plan) {
+					valid = false
+					break
+				}
+			}
+		}
 	default:
 		return ErrInvalidConfigurationPlanContract
 	}
@@ -196,4 +224,9 @@ func AdmitConfigurationPlanResponse(message proto.Message) error {
 		return ErrInvalidConfigurationPlanContract
 	}
 	return nil
+}
+
+func planAuthor(value string) bool {
+	_, err := apitypes.ParseAccountName(value)
+	return err == nil
 }

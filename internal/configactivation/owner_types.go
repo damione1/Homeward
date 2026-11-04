@@ -37,6 +37,7 @@ const (
 	CommittedReconciling
 	Published
 	RestartRequired
+	NoChange
 )
 
 // Result separates a durable COMMIT from successful coherent publication.
@@ -44,16 +45,46 @@ const (
 // independently reports this caller's transaction: a later winner can be
 // published even when this caller's attempt definitely did not commit.
 type Result struct {
-	outcome     Outcome
-	revision    storage.ConfigGenerationRevision
-	attempt     storage.ActivationAttemptID
-	transaction storage.TransactionOutcome
+	outcome      Outcome
+	revision     storage.ConfigGenerationRevision
+	attempt      storage.ActivationAttemptID
+	transaction  storage.TransactionOutcome
+	apiExecution storage.ConfigurationAPIExecution
+	noChange     NoChangeEvidence
 }
 
 func (r Result) Outcome() Outcome                           { return r.outcome }
 func (r Result) Revision() storage.ConfigGenerationRevision { return r.revision }
 func (r Result) Attempt() storage.ActivationAttemptID       { return r.attempt }
 func (r Result) AttemptOutcome() storage.TransactionOutcome { return r.transaction }
+
+func (r Result) APIRequest() (storage.ConfigurationAPIRequestRecord, bool) {
+	if proof, present := r.NoChangeEvidence(); present {
+		return proof.Record(), true
+	}
+	if !r.apiExecution.Valid() {
+		return storage.ConfigurationAPIRequestRecord{}, false
+	}
+	return r.apiExecution.Record(), true
+}
+
+func withAPIExecution(ctx context.Context, result Result) Result {
+	execution, present := storage.ConfigurationAPIExecutionFromContext(ctx)
+	if !present {
+		return result
+	}
+	return withExecution(execution, result)
+}
+func withExecution(execution storage.ConfigurationAPIExecution, result Result) Result {
+	result.apiExecution = execution
+	id := execution.Record().ID()
+	if result.attempt.Valid() && result.attempt != id {
+		result.outcome = CommitUnknown
+		result.transaction = storage.TransactionIndeterminate
+	}
+	result.attempt = id
+	return result
+}
 
 // ProgramImage is an immutable IR composition seam for 042/115. It does NOT
 // claim that Logic1 sources are in the durable manifest. NHA-115 must bind its

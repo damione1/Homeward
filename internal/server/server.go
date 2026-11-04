@@ -79,12 +79,14 @@ type RuntimePlan struct {
 	ConfigureAutomationTriggerResults func(context.Context, AutomationTriggerResults) error
 	AutomationRuns                    *AutomationRunsComposition
 	Public                            *PublicPlan
-	WorkdayCalendar                   workday.CalendarReader
-	ConfigureWorkdayCalendar          func(context.Context, workday.CalendarReader) error
-	ConfigureActivation               func(context.Context, *configactivation.Owner) error
-	SourceFactory                     configactivation.SourceRuntimeFactory
-	SourceCompiler                    *configactivation.SourceRuntimeCompiler
-	OperationalCompiler               configactivation.OperationalCompiler
+	// Explicit configured native content owners; empty means no content sources.
+	MediaSources             []MediaResourceSource
+	WorkdayCalendar          workday.CalendarReader
+	ConfigureWorkdayCalendar func(context.Context, workday.CalendarReader) error
+	ConfigureActivation      func(context.Context, *configactivation.Owner) error
+	SourceFactory            configactivation.SourceRuntimeFactory
+	SourceCompiler           *configactivation.SourceRuntimeCompiler
+	OperationalCompiler      configactivation.OperationalCompiler
 }
 
 // RuntimeFactory is trusted server composition. The default runtime has no
@@ -720,6 +722,8 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			})
 		}
 	}
+	homeIdentity, _ := plan.Identity.(administrationHomeIdentity)
+	adminNames := administrationNames{home: homeIdentity, store: store}
 	documents, err := prepareConfigDocuments(startup, store, activation, secrets)
 	if err != nil {
 		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
@@ -729,25 +733,53 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	if documents != nil {
 		defer documents.Close()
 	}
-	if err := registerConfigDocumentsRoutes(plan.Public, documents, sessions); err != nil {
-		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closeListPrepared(stopCtx, err, nil, triggerDone)
-		})
-	}
-	if err := registerIntegrationAdminRoutes(plan.Public, documents, sessions, observed); err != nil {
-		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
-			return closeListPrepared(stopCtx, err, nil, triggerDone)
-		})
-	}
 	configPreview, err := prepareConfigPlans(documents, activation, secrets, scopeManifest)
+	var planCatalogue *configurationPlanCatalog
+	if err == nil && configPreview != nil {
+		planCatalogue, err = newConfigurationPlanCatalog(func() time.Time { return time.Now().UTC() })
+	}
+	var configOperations *configurationOperationProvider
 	if err == nil {
-		err = registerConfigPlansRoutes(plan.Public, configPreview, documents, sessions)
+		configOperations, err = prepareConfigurationOperations(documents, activation, sessions, adminNames)
+	}
+	configDependencies := configurationRPCDependencies{names: adminNames, plans: planCatalogue, operations: configOperations}
+	if err != nil {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
+		})
+	}
+	if err := registerConfigDocumentsRoutes(plan.Public, documents, sessions, configDependencies); err != nil {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
+		})
+	}
+	if err := registerIntegrationRoutes(plan.Public, documents, sessions, observed, adminNames, configOperations); err != nil {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
+		})
+	}
+	if dependencies.observeIntegrationAdministration != nil && configOperations != nil {
+		dependencies.observeIntegrationAdministration(configOperations.integrations)
+	}
+
+	if err == nil {
+		err = registerConfigPlansRoutes(plan.Public, configPreview, documents, sessions, configDependencies)
 	}
 	if err == nil {
-		err = registerConfigSimulationRoutes(plan.Public, documents, sessions)
+		err = registerConfigSimulationRoutes(plan.Public, documents, sessions, configDependencies)
 	}
 	if err == nil {
-		err = registerConfigApplyRoutes(plan.Public, configPreview, documents, sessions)
+		err = registerConfigApplyRoutes(plan.Public, configPreview, documents, sessions, configDependencies)
+	}
+	if err != nil {
+		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+			return closeListPrepared(stopCtx, err, nil, triggerDone)
+		})
+	}
+	resources, err := newBusinessResourceRuntime(ctx, listRun, sessions.authority, remoteRuntime, plan.WorkdayCalendar, plan.MediaSources)
+	if err == nil {
+		listRun.resources = resources
+		err = resources.Register(plan.Public)
 	}
 	if err != nil {
 		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
@@ -759,7 +791,14 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
 	}
-	if err := registerObservationRoutes(plan.Public, observed); err != nil {
+	if home, ok := plan.Identity.(homeResourceOwner); ok {
+		if err := registerHomeDiscoveryRoutes(plan.Public, home, sessions.authority); err != nil {
+			return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+				return closeListPrepared(stopCtx, err, nil, triggerDone)
+			})
+		}
+	}
+	if err := registerObservationRoutes(plan.Public, observed, adminNames); err != nil {
 		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)
 		})
@@ -767,16 +806,28 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	if activation != nil {
 		core, coreErr := prepareCoreRPC(ctx, sessions, sequence, plan.Identity, activation, commands, plan.DisplayProfiles)
 		if coreErr == nil {
-			coreErr = registerCoreRPCRoutes(plan.Public, core)
+			core.media, coreErr = newNativeMediaProjector(plan.sonosRuntime, plan.androidTVRuntime, activation, sessions.authority, sequence)
+		}
+		if coreErr == nil && core.home != nil {
+			coreErr = registerHomeResourceRoutes(plan.Public, core.home)
+		}
+		if coreErr == nil && core.home != nil {
+			coreErr = registerCapabilityRoutes(plan.Public, core)
+		}
+		if coreErr == nil && core.home != nil {
+			coreErr = registerDeviceRoutes(plan.Public, core.home)
+		}
+		if coreErr == nil && core.home != nil {
+			coreErr = registerEntityViewRoutes(plan.Public, core.home)
+		}
+		if coreErr == nil && core.home != nil {
+			coreErr = registerOperationRoutes(plan.Public, core, configOperations, sessions.authority)
+		}
+		if coreErr == nil && core.home != nil {
+			coreErr = registerDashboardRoutes(plan.Public, activation, sessions.authority, sequence, core.home, plan.DisplayProfiles)
 		}
 		if coreErr == nil {
-			coreErr = registerDashboardRoutes(plan.Public, activation, sessions.authority, sequence)
-		}
-		if coreErr == nil {
-			coreErr = registerNativeMediaRoutes(plan.Public, plan.sonosRuntime, plan.androidTVRuntime, activation, sessions.authority, sequence)
-		}
-		if coreErr == nil {
-			coreErr = registerMCPReads(plan.Public, publicSettings.MCPEnabled(), core, documents, sessions, observed)
+			coreErr = registerMCPReads(plan.Public, publicSettings.MCPEnabled(), core, documents, sessions, observed, adminNames)
 		}
 		if coreErr != nil {
 			return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
@@ -784,7 +835,8 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			})
 		}
 	}
-	historyReads, historyReadErr := newHistoryRuntime(store, sessions.authority, sequence, activation.CurrentConfig)
+	historyNames, _ := plan.Identity.(historyNameOwner)
+	historyReads, historyReadErr := newHistoryRuntime(store, historyNames, sessions.authority, sequence, activation.CurrentConfig)
 	if historyReadErr == nil {
 		historyReadErr = registerHistoryRoutes(plan.Public, historyReads)
 	}
@@ -795,7 +847,8 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	}
 	// Preserve prepared owners until composition succeeds; errors return nil
 	// outputs, but cleanup must still drain the original MFA runtime.
-	composedPublic, composedSessions, err := composeSessionsWithCoordinator(plan.Public, store, sessions)
+	authHome, _ := plan.Identity.(administrationHomeIdentity)
+	composedPublic, composedSessions, err := composeSessionsWithCoordinator(plan.Public, store, sessions, administrationNames{home: authHome, store: store})
 	if err != nil {
 		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, runs, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeListPrepared(stopCtx, err, nil, triggerDone)

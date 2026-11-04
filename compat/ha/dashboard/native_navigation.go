@@ -5,15 +5,21 @@ import (
 	"strconv"
 	"strings"
 
-	wire "github.com/damione1/Homeward/gen/home/dashboard/v1"
 	"github.com/damione1/Homeward/internal/authorization"
+)
+
+type navigationPresentation uint8
+
+const (
+	navigationPage navigationPresentation = iota
+	navigationPopup
 )
 
 type navigationTarget struct {
 	dashboard    authorization.DashboardID
 	view         string
 	node         string
-	presentation wire.NativePresentation
+	presentation navigationPresentation
 }
 type popupKey struct {
 	dashboard authorization.DashboardID
@@ -59,7 +65,7 @@ func NewNavigationIndex(definitions []Definition) (NavigationIndex, error) {
 				continue
 			}
 			index.contexts[navigationContext{dashboard: definition.source.id, view: view.location.path}] = true
-			target := navigationTarget{dashboard: definition.source.id, view: view.location.path, node: view.location.path, presentation: wire.NativePresentation_NATIVE_PRESENTATION_PAGE}
+			target := navigationTarget{dashboard: definition.source.id, view: view.location.path, node: view.location.path, presentation: navigationPage}
 			routes := []string{"/" + definition.source.urlPath + "/" + strconv.Itoa(position)}
 			if position == 0 {
 				routes = append(routes, "/"+definition.source.urlPath)
@@ -84,7 +90,7 @@ func NewNavigationIndex(definitions []Definition) (NavigationIndex, error) {
 						if _, duplicate := index.popups[key]; duplicate {
 							return ErrInvalidInput
 						}
-						index.popups[key] = navigationTarget{dashboard: definition.source.id, view: view.location.path, node: card.location.path, presentation: wire.NativePresentation_NATIVE_PRESENTATION_POPUP}
+						index.popups[key] = navigationTarget{dashboard: definition.source.id, view: view.location.path, node: card.location.path, presentation: navigationPopup}
 					}
 					if err := visit(card.children); err != nil {
 						return err
@@ -110,19 +116,11 @@ func (i NavigationIndex) matches(definition Definition) bool {
 	return present && expected.source == definition.source && expected.digest == definition.digest && expected.profile == definition.profile
 }
 
-func (t navigationTarget) wire() *wire.NativeDestination {
-	value, err := t.dashboard.Value()
-	if err != nil {
-		return nil
-	}
-	return &wire.NativeDestination{DashboardId: &wire.DashboardId{Value: value}, NodeId: t.node, Presentation: t.presentation}
-}
-
 // Resolve accepts only the exact local routes captured from this snapshot.
 // Anchor lookup is scoped to its source view, including cross-dashboard links.
 // A missing/unsupported destination never falls back to a row, external browser
 // or action. Returned messages are detached from the immutable index.
-func (i NavigationIndex) Resolve(from authorization.DashboardID, view Location, path string) (*wire.NativeDestination, bool) {
+func (i NavigationIndex) Resolve(from authorization.DashboardID, view Location, path string) (*navigationTarget, bool) {
 	if !i.contexts[navigationContext{dashboard: from, view: view.path}] || !validNavigation(path) {
 		return nil, false
 	}
@@ -139,7 +137,7 @@ func (i NavigationIndex) Resolve(from authorization.DashboardID, view Location, 
 		if !present {
 			return nil, false
 		}
-		return target.wire(), true
+		return &target, true
 	}
 	target, present := i.pages[page]
 	if !present {
@@ -155,5 +153,5 @@ func (i NavigationIndex) Resolve(from authorization.DashboardID, view Location, 
 			return nil, false
 		}
 	}
-	return target.wire(), true
+	return &target, true
 }

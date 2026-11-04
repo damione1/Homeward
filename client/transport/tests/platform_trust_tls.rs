@@ -8,7 +8,7 @@ use std::{
 
 use connectrpc::ErrorCode;
 use home_client_transport::{Connection, FailureKind};
-use home_wire_contract::home::auth::v1::StartLoginRequest;
+use home_wire_contract::home::api::v2::StartLoginRequest;
 use tokio_util::sync::CancellationToken;
 
 const CA: &[u8] = include_bytes!("fixtures/synthetic-loopback-ca.pem");

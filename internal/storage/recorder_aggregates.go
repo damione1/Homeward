@@ -52,7 +52,7 @@ func (s *Store) AggregateRecorderPrefix(ctx context.Context, b recordermaintenan
 		if oldRun > highRun || (oldRun == highRun && oldSequence > high) {
 			return recordermaintenance.ErrIntegrity
 		}
-		rows, e := tx.Query(ctx, `SELECT h.epoch,h.sequence::text,octet_length(h.entity_id),COALESCE(octet_length(h.measurement_unit),0),COALESCE(octet_length(h.measurement_canonical_unit),0) FROM public.state_history h JOIN public.recorder_epochs e ON e.epoch=h.epoch WHERE (e.run_id>$1 OR (e.run_id=$1 AND h.sequence>$2::numeric)) AND (e.run_id<$3 OR (e.run_id=$3 AND h.sequence<=$4::numeric)) ORDER BY e.run_id,h.sequence LIMIT 501`, oldRun, decimalUint(oldSequence), highRun, decimalUint(high))
+		rows, e := tx.Query(ctx, `SELECT h.epoch,h.sequence::text,octet_length(h.entity_id),COALESCE(octet_length(h.measurement_unit),0),COALESCE(octet_length(h.measurement_canonical_unit),0),COALESCE(octet_length(h.admission_evidence),0) FROM public.state_history h JOIN public.recorder_epochs e ON e.epoch=h.epoch WHERE (e.run_id>$1 OR (e.run_id=$1 AND h.sequence>$2::numeric)) AND (e.run_id<$3 OR (e.run_id=$3 AND h.sequence<=$4::numeric)) ORDER BY e.run_id,h.sequence LIMIT 501`, oldRun, decimalUint(oldSequence), highRun, decimalUint(high))
 		if e != nil {
 			return e
 		}
@@ -68,8 +68,8 @@ func (s *Store) AggregateRecorderPrefix(ctx context.Context, b recordermaintenan
 				break
 			}
 			var key numericKey
-			var entityBytes, unitBytes, canonicalBytes int64
-			if e = rows.Scan(&key.epoch, &key.sequence, &entityBytes, &unitBytes, &canonicalBytes); e != nil {
+			var entityBytes, unitBytes, canonicalBytes, evidenceBytes int64
+			if e = rows.Scan(&key.epoch, &key.sequence, &entityBytes, &unitBytes, &canonicalBytes, &evidenceBytes); e != nil {
 				rows.Close()
 				return e
 			}
@@ -78,6 +78,11 @@ func (s *Store) AggregateRecorderPrefix(ctx context.Context, b recordermaintenan
 				rows.Close()
 				return e
 			}
+			if evidenceBytes < 0 || evidenceBytes > 40<<10 {
+				rows.Close()
+				return recordermaintenance.ErrIntegrity
+			}
+			cost += int(evidenceBytes)*2 + 4096
 			if cost > recordermaintenance.MaxInputBytes-charge {
 				more = true
 				break
@@ -357,16 +362,10 @@ func writeAggregate(ctx context.Context, tx pgx.Tx, row numericRow, quality reco
 	if err != nil || len(descriptor) > 2048 {
 		return recordermaintenance.ErrBudget
 	}
-	keyBytes, err := json.Marshal(struct {
-		N recordermaintenance.NumericInput
-		A domain.Availability
-		F domain.Freshness
-		P domain.Provenance
-	}{n, quality.Availability, quality.Freshness, quality.Provenance})
+	group, err := recorderAggregateGroup(n, quality.Availability, quality.Freshness, quality.Provenance, recorderEvidenceBytes(row.evidence))
 	if err != nil {
 		return err
 	}
-	group := sha256.Sum256(keyBytes)
 	start, end := w.Bounds()
 	var oldDescriptor []byte
 	var oldEntity string
@@ -416,7 +415,7 @@ func writeAggregate(ctx context.Context, tx pgx.Tx, row numericRow, quality reco
 	if input.HasContribution {
 		delta = input.Contribution
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO public.recorder_hourly_aggregates(entity_digest,entity_id,bucket_start,bucket_end,group_digest,descriptor,availability,freshness,provenance,duration_ns,weighted,minimum,maximum,contribution,reset_kind,reasons,from_epoch,from_sequence,through_epoch,through_sequence) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::numeric,$19,$20::numeric) ON CONFLICT(entity_digest,bucket_start,group_digest) DO UPDATE SET duration_ns=EXCLUDED.duration_ns,weighted=EXCLUDED.weighted,minimum=EXCLUDED.minimum,maximum=EXCLUDED.maximum,contribution=EXCLUDED.contribution,reset_kind=EXCLUDED.reset_kind,reasons=EXCLUDED.reasons,through_epoch=EXCLUDED.through_epoch,through_sequence=EXCLUDED.through_sequence`, row.digest, row.entity, start, end, group[:], descriptor, int16(quality.Availability), int16(quality.Freshness), int16(quality.Provenance), int64(input.Duration), input.Weighted, minValue, maxValue, delta, int16(input.Reset), int32(input.Reasons), fromEpoch.data(), decimalUint(fromSequence), row.epoch.data(), decimalUint(row.sequence))
+	_, err = tx.Exec(ctx, `INSERT INTO public.recorder_hourly_aggregates(entity_digest,entity_id,bucket_start,bucket_end,group_digest,descriptor,availability,freshness,provenance,duration_ns,weighted,minimum,maximum,contribution,reset_kind,reasons,from_epoch,from_sequence,through_epoch,through_sequence,admission_evidence) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::numeric,$19,$20::numeric,$21) ON CONFLICT(entity_digest,bucket_start,group_digest) DO UPDATE SET duration_ns=EXCLUDED.duration_ns,weighted=EXCLUDED.weighted,minimum=EXCLUDED.minimum,maximum=EXCLUDED.maximum,contribution=EXCLUDED.contribution,reset_kind=EXCLUDED.reset_kind,reasons=EXCLUDED.reasons,through_epoch=EXCLUDED.through_epoch,through_sequence=EXCLUDED.through_sequence`, row.digest, row.entity, start, end, group[:], descriptor, int16(quality.Availability), int16(quality.Freshness), int16(quality.Provenance), int64(input.Duration), input.Weighted, minValue, maxValue, delta, int16(input.Reset), int32(input.Reasons), fromEpoch.data(), decimalUint(fromSequence), row.epoch.data(), decimalUint(row.sequence), recorderEvidenceBytes(row.evidence))
 	return err
 }
 
@@ -448,6 +447,7 @@ func preserveExpiredNumeric(ctx context.Context, tx pgx.Tx, epoch RecorderEpoch,
 // ReadRecorderHourlyAggregate is an internal storage read, not public API164.
 // It returns fresh immutable numeric values and preserves incomplete evidence.
 type RecorderHourlyAggregate struct {
+	GroupDigest  [32]byte
 	Entity       string
 	Start, End   time.Time
 	Descriptor   recordermaintenance.NumericInput
@@ -564,4 +564,19 @@ func decodeAggregateDescriptor(data []byte) (recordermaintenance.NumericInput, e
 		return n, recordermaintenance.ErrIntegrity
 	}
 	return n, nil
+}
+
+func recorderAggregateGroup(n recordermaintenance.NumericInput, a domain.Availability, f domain.Freshness, p domain.Provenance, evidence []byte) ([32]byte, error) {
+	n.Value = 0
+	key, err := json.Marshal(struct {
+		N recordermaintenance.NumericInput
+		A domain.Availability
+		F domain.Freshness
+		P domain.Provenance
+		E []byte `json:"E,omitempty"`
+	}{n, a, f, p, evidence})
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return sha256.Sum256(key), nil
 }

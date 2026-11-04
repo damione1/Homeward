@@ -1,11 +1,17 @@
 //! Structural observation admission. These immutable copies grant no rights;
 //! the common server transport and current Authority remain authoritative.
 
-use crate::home::{auth::v1 as auth, integrations::v1 as integrations, observability::v1 as obs};
+use crate::home::api::v2 as obs;
 use buffa::{EnumValue, Message};
 use buffa_types::google::protobuf::{Empty, Timestamp};
+use home_client_model::api::HomeName;
+use home_client_model::api_observation::{RuntimeControllerName, RuntimeRunName};
+use home_client_model::auth::AccountName;
 
-pub type AdmissionError = obs::ObservabilityErrorCode;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmissionError {
+    InvalidArgument,
+}
 pub struct Admitted<T> {
     wire: T,
 }
@@ -18,7 +24,7 @@ fn admit<T: Clone>(wire: &T, valid: bool) -> Result<Admitted<T>, AdmissionError>
     if valid {
         Ok(Admitted { wire: wire.clone() })
     } else {
-        Err(obs::ObservabilityErrorCode::InvalidArgument)
+        Err(AdmissionError::InvalidArgument)
     }
 }
 fn text(value: &str, maximum: usize) -> bool {
@@ -38,12 +44,17 @@ fn timestamp(value: &Timestamp) -> bool {
 fn empty(value: &Empty) -> bool {
     value.__buffa_unknown_fields.is_empty()
 }
-fn account(value: &auth::AccountId) -> bool {
-    text(&value.value, 128) && value.__buffa_unknown_fields.is_empty()
+fn account(value: &str) -> bool {
+    AccountName::try_from(value).is_ok()
 }
-fn page(size: Option<u32>, token: &Option<String>) -> bool {
-    size.is_none_or(|size| (1..=100).contains(&size))
-        && token.as_ref().is_none_or(|token| text(token, 512))
+fn page(size: i32, token: &str) -> bool {
+    size >= 0 && token.len() <= 512
+}
+fn home(value: &str) -> bool {
+    HomeName::try_from(value).is_ok()
+}
+fn singleton(value: &str, suffix: &str) -> bool {
+    value.strip_suffix(suffix).is_some_and(home)
 }
 fn sized<T: Message>(value: &T, maximum: u32) -> bool {
     value.compute_size(&mut Default::default()) <= maximum
@@ -58,48 +69,70 @@ fn nonzero<E: Copy + PartialEq + buffa::Enumeration>(value: EnumValue<E>, zero: 
         EnumValue::Unknown(_) => false,
     }
 }
-fn source(value: EnumValue<obs::AuditSource>) -> bool {
+fn source(value: EnumValue<obs::ObservationAuditSource>) -> bool {
     match value {
-        EnumValue::Known(obs::AuditSource::Authentication | obs::AuditSource::SecretAccess) => true,
-        EnumValue::Known(obs::AuditSource::Unspecified) | EnumValue::Unknown(_) => false,
+        EnumValue::Known(
+            obs::ObservationAuditSource::Authentication | obs::ObservationAuditSource::SecretAccess,
+        ) => true,
+        EnumValue::Known(obs::ObservationAuditSource::Unspecified) | EnumValue::Unknown(_) => false,
     }
 }
 fn position(value: &obs::AdmissionPosition) -> bool {
     identity(&value.epoch, 16) && value.__buffa_unknown_fields.is_empty()
 }
-fn epoch(value: &obs::ProcessObservationEpoch) -> bool {
+fn epoch(value: &obs::ObservationProcessObservationEpoch) -> bool {
     identity(&value.value, 16) && value.__buffa_unknown_fields.is_empty()
 }
 fn recorder_epoch(value: &obs::RecorderEpochIdentity) -> bool {
     identity(&value.value, 16) && value.__buffa_unknown_fields.is_empty()
 }
-fn controller(value: &obs::ControllerHandle) -> bool {
-    value.value.len() == 32
-        && identity(&value.value[..16], 16)
-        && identity(&value.value[16..], 16)
-        && value.__buffa_unknown_fields.is_empty()
+fn controller(value: &str) -> bool {
+    RuntimeControllerName::try_from(value).is_ok()
 }
-fn unavailable(value: &obs::ReadUnavailable) -> bool {
-    nonzero(value.reason, obs::ReadUnavailableReason::Unspecified)
-        && value.__buffa_unknown_fields.is_empty()
+fn unavailable(value: &obs::ObservationReadUnavailable) -> bool {
+    nonzero(
+        value.reason,
+        obs::ObservationReadUnavailableReason::Unspecified,
+    ) && value.__buffa_unknown_fields.is_empty()
 }
 
 pub fn admit_get_health(
     value: &obs::GetHealthRequest,
 ) -> Result<Admitted<obs::GetHealthRequest>, AdmissionError> {
-    admit(value, value.__buffa_unknown_fields.is_empty())
+    admit(
+        value,
+        singleton(&value.name, "/health") && value.__buffa_unknown_fields.is_empty(),
+    )
 }
 pub fn admit_get_metrics(
     value: &obs::GetMetricsRequest,
 ) -> Result<Admitted<obs::GetMetricsRequest>, AdmissionError> {
-    admit(value, value.__buffa_unknown_fields.is_empty())
+    admit(
+        value,
+        singleton(&value.name, "/metrics") && value.__buffa_unknown_fields.is_empty(),
+    )
+}
+fn integration_health_name(value: &str) -> bool {
+    let Some(instance) = value.strip_suffix("/health") else {
+        return false;
+    };
+    let Some((parent, id)) = instance.split_once("/integrationInstances/") else {
+        return false;
+    };
+    home(parent)
+        && !id.is_empty()
+        && id.len() <= 63
+        && id.bytes().next().is_some_and(|b| b.is_ascii_lowercase())
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 pub fn admit_get_integration_health(
     value: &obs::GetIntegrationHealthRequest,
 ) -> Result<Admitted<obs::GetIntegrationHealthRequest>, AdmissionError> {
     admit(
         value,
-        text(&value.integration_instance_id, 256) && value.__buffa_unknown_fields.is_empty(),
+        integration_health_name(&value.name) && value.__buffa_unknown_fields.is_empty(),
     )
 }
 pub fn admit_query_runtime_logs(
@@ -107,7 +140,9 @@ pub fn admit_query_runtime_logs(
 ) -> Result<Admitted<obs::QueryRuntimeLogsRequest>, AdmissionError> {
     admit(
         value,
-        page(value.page_size, &value.page_token) && value.__buffa_unknown_fields.is_empty(),
+        home(&value.parent)
+            && page(value.page_size, &value.page_token)
+            && value.__buffa_unknown_fields.is_empty(),
     )
 }
 pub fn admit_query_audits(
@@ -116,25 +151,25 @@ pub fn admit_query_audits(
     admit(
         value,
         source(value.source)
+            && home(&value.parent)
             && page(value.page_size, &value.page_token)
             && value.__buffa_unknown_fields.is_empty(),
     )
 }
-pub fn admit_read_run_trace(
-    value: &obs::ReadRunTraceRequest,
-) -> Result<Admitted<obs::ReadRunTraceRequest>, AdmissionError> {
+pub fn admit_query_run_trace(
+    value: &obs::QueryRunTraceRequest,
+) -> Result<Admitted<obs::QueryRunTraceRequest>, AdmissionError> {
     admit(
         value,
-        value.run_id != 0
-            && value.controller.as_option().is_some_and(controller)
+        RuntimeRunName::try_from(value.parent.as_str()).is_ok()
             && page(value.page_size, &value.page_token)
             && value.__buffa_unknown_fields.is_empty(),
     )
 }
-pub fn admit_read_recorder_coverage(
-    value: &obs::ReadRecorderCoverageRequest,
-) -> Result<Admitted<obs::ReadRecorderCoverageRequest>, AdmissionError> {
-    use obs::read_recorder_coverage_request::Through;
+pub fn admit_query_recorder_coverage(
+    value: &obs::QueryRecorderCoverageRequest,
+) -> Result<Admitted<obs::QueryRecorderCoverageRequest>, AdmissionError> {
+    use obs::query_recorder_coverage_request::Through;
     let valid = value.from.as_option().is_some_and(|from| {
         position(from)
             && match &value.through {
@@ -146,11 +181,14 @@ pub fn admit_read_recorder_coverage(
                 None => false,
             }
     });
-    admit(value, valid && value.__buffa_unknown_fields.is_empty())
+    admit(
+        value,
+        valid && home(&value.parent) && value.__buffa_unknown_fields.is_empty(),
+    )
 }
 
-fn counter(value: &obs::CounterMeasurement) -> bool {
-    use obs::counter_measurement::Result;
+fn counter(value: &obs::ObservationCounterMeasurement) -> bool {
+    use obs::observation_counter_measurement::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Exact(_)) => true,
@@ -162,20 +200,20 @@ fn counter(value: &obs::CounterMeasurement) -> bool {
             None => false,
         }
 }
-fn positive_counter(value: &obs::CounterMeasurement) -> bool {
+fn positive_counter(value: &obs::ObservationCounterMeasurement) -> bool {
     counter(value)
         && match &value.result {
-            Some(obs::counter_measurement::Result::Exact(value)) => *value > 0,
-            Some(obs::counter_measurement::Result::Saturated(_)) => true,
+            Some(obs::observation_counter_measurement::Result::Exact(value)) => *value > 0,
+            Some(obs::observation_counter_measurement::Result::Saturated(_)) => true,
             Some(
-                obs::counter_measurement::Result::NotMeasured(_)
-                | obs::counter_measurement::Result::Unavailable(_),
+                obs::observation_counter_measurement::Result::NotMeasured(_)
+                | obs::observation_counter_measurement::Result::Unavailable(_),
             )
             | None => false,
         }
 }
-fn gauge(value: &obs::GaugeMeasurement) -> bool {
-    use obs::gauge_measurement::Result;
+fn gauge(value: &obs::ObservationGaugeMeasurement) -> bool {
+    use obs::observation_gauge_measurement::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Value(_)) => true,
@@ -184,16 +222,19 @@ fn gauge(value: &obs::GaugeMeasurement) -> bool {
             None => false,
         }
 }
-fn gauge_le(left: &obs::GaugeMeasurement, right: &obs::GaugeMeasurement) -> bool {
-    use obs::gauge_measurement::Result;
+fn gauge_le(
+    left: &obs::ObservationGaugeMeasurement,
+    right: &obs::ObservationGaugeMeasurement,
+) -> bool {
+    use obs::observation_gauge_measurement::Result;
     if let (Some(Result::Value(left)), Some(Result::Value(right))) = (&left.result, &right.result) {
         left <= right
     } else {
         true
     }
 }
-fn lag(value: &obs::LagMeasurement) -> bool {
-    use obs::lag_measurement::Result;
+fn lag(value: &obs::ObservationLagMeasurement) -> bool {
+    use obs::observation_lag_measurement::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::SameEpochPositions(_)) => true,
@@ -202,8 +243,8 @@ fn lag(value: &obs::LagMeasurement) -> bool {
             None => false,
         }
 }
-fn measured_position(value: &obs::PositionMeasurement) -> bool {
-    use obs::position_measurement::Result;
+fn measured_position(value: &obs::ObservationPositionMeasurement) -> bool {
+    use obs::observation_position_measurement::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Value(value)) => position(value),
@@ -220,8 +261,8 @@ fn known_lost(value: &obs::KnownLost) -> bool {
             None => false,
         }
 }
-fn runtime_author(value: &obs::RuntimeAuthor) -> bool {
-    use obs::runtime_author::Result;
+fn observation_runtime_author(value: &obs::ObservationRuntimeAuthor) -> bool {
+    use obs::observation_runtime_author::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(
@@ -233,8 +274,8 @@ fn runtime_author(value: &obs::RuntimeAuthor) -> bool {
             None => false,
         }
 }
-fn event(value: &obs::RuntimeEvent) -> bool {
-    use obs::{LogCode as C, LogComponent as P, LogLevel as L};
+fn event(value: &obs::ObservationRuntimeEvent) -> bool {
+    use obs::{ObservationLogCode as C, ObservationLogComponent as P, ObservationLogLevel as L};
     let pair = match value.code {
         EnumValue::Known(
             C::ProcessConfigReadFailed
@@ -289,35 +330,29 @@ fn event(value: &obs::RuntimeEvent) -> bool {
     };
     pair && value.__buffa_unknown_fields.is_empty()
         && value.occurred_at.as_option().is_some_and(timestamp)
-        && value.author.as_option().is_some_and(runtime_author)
+        && value
+            .author
+            .as_option()
+            .is_some_and(observation_runtime_author)
         && sized(value, 1024)
 }
 pub fn admit_runtime_event(
-    value: &obs::RuntimeEvent,
-) -> Result<Admitted<obs::RuntimeEvent>, AdmissionError> {
+    value: &obs::ObservationRuntimeEvent,
+) -> Result<Admitted<obs::ObservationRuntimeEvent>, AdmissionError> {
     admit(value, event(value))
 }
 pub fn admit_counter(
-    value: &obs::CounterMeasurement,
-) -> Result<Admitted<obs::CounterMeasurement>, AdmissionError> {
+    value: &obs::ObservationCounterMeasurement,
+) -> Result<Admitted<obs::ObservationCounterMeasurement>, AdmissionError> {
     admit(value, counter(value))
 }
 
-fn continuation(value: &obs::PageContinuation) -> bool {
-    use obs::page_continuation::Result;
-    value.__buffa_unknown_fields.is_empty()
-        && match &value.result {
-            Some(Result::NextPageToken(token)) => text(token, 512),
-            Some(Result::End(value)) => empty(value),
-            None => false,
-        }
-}
-fn runtime_page(value: &obs::RuntimeLogPage) -> bool {
+fn runtime_page(value: &obs::QueryRuntimeLogsResponse) -> bool {
     let mut previous = 0;
     value.rows.len() <= 100
+        && value.next_page_token.len() <= 512
         && value.__buffa_unknown_fields.is_empty()
         && value.process_epoch.as_option().is_some_and(epoch)
-        && value.continuation.as_option().is_some_and(continuation)
         && value.rows.iter().all(|row| {
             let valid = row.sequence > previous
                 && row.sequence <= value.upper_sequence
@@ -330,27 +365,11 @@ fn runtime_page(value: &obs::RuntimeLogPage) -> bool {
 pub fn admit_runtime_logs_response(
     value: &obs::QueryRuntimeLogsResponse,
 ) -> Result<Admitted<obs::QueryRuntimeLogsResponse>, AdmissionError> {
-    use obs::query_runtime_logs_response::Result;
-    let valid = value.__buffa_unknown_fields.is_empty()
-        && match &value.result {
-            Some(Result::Page(value)) => runtime_page(value),
-            Some(Result::CursorEvicted(value)) => {
-                value.retained_from > 0
-                    && value.__buffa_unknown_fields.is_empty()
-                    && value
-                        .evicted_total
-                        .as_option()
-                        .is_some_and(positive_counter)
-            }
-            Some(Result::StaleCursor(value)) => empty(value),
-            Some(Result::Unavailable(value)) => unavailable(value),
-            None => false,
-        };
-    admit(value, valid && sized(value, 256 << 10))
+    admit(value, runtime_page(value) && sized(value, 256 << 10))
 }
 
-fn generation(value: &obs::GenerationPresence) -> bool {
-    use obs::generation_presence::Result;
+fn generation(value: &obs::ObservationGenerationPresence) -> bool {
+    use obs::observation_generation_presence::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Present(value)) => {
@@ -362,48 +381,59 @@ fn generation(value: &obs::GenerationPresence) -> bool {
             None => false,
         }
 }
-fn server_health(value: &obs::ServerHealth) -> bool {
+fn observation_server_health(value: &obs::ObservationServerHealth) -> bool {
     let generation = value.generation.as_option().is_some_and(generation);
-    let ready = value.readiness == EnumValue::Known(obs::ServerReadiness::Ready);
-    let present = value
-        .generation
-        .as_option()
-        .is_some_and(|g| matches!(g.result, Some(obs::generation_presence::Result::Present(_))));
+    let ready = value.readiness == EnumValue::Known(obs::ObservationServerReadiness::Ready);
+    let present = value.generation.as_option().is_some_and(|g| {
+        matches!(
+            g.result,
+            Some(obs::observation_generation_presence::Result::Present(_))
+        )
+    });
     let mut seen = Vec::with_capacity(6);
     generation
-        && nonzero(value.readiness, obs::ServerReadiness::Unspecified)
+        && nonzero(
+            value.readiness,
+            obs::ObservationServerReadiness::Unspecified,
+        )
         && value.causes.len() <= 6
         && value.causes.iter().all(|cause| {
-            let valid = nonzero(*cause, obs::CoreCause::Unspecified) && !seen.contains(cause);
+            let valid =
+                nonzero(*cause, obs::ObservationCoreCause::Unspecified) && !seen.contains(cause);
             seen.push(*cause);
             valid
         })
         && (!ready || present && value.causes.is_empty())
         && value.__buffa_unknown_fields.is_empty()
 }
-fn durable_health(value: &obs::DurableHealth) -> bool {
-    use obs::durable_health::Evidence;
-    nonzero(value.availability, obs::DurableAvailability::Unspecified)
-        && value.__buffa_unknown_fields.is_empty()
+fn observation_durable_health(value: &obs::ObservationDurableHealth) -> bool {
+    use obs::observation_durable_health::Evidence;
+    nonzero(
+        value.availability,
+        obs::ObservationDurableAvailability::Unspecified,
+    ) && value.__buffa_unknown_fields.is_empty()
         && match &value.evidence {
             Some(Evidence::ObservedAt(at)) => {
-                value.availability != EnumValue::Known(obs::DurableAvailability::Unknown)
+                value.availability != EnumValue::Known(obs::ObservationDurableAvailability::Unknown)
                     && timestamp(at)
             }
             Some(Evidence::NotObserved(none)) => {
-                value.availability == EnumValue::Known(obs::DurableAvailability::Unknown)
+                value.availability == EnumValue::Known(obs::ObservationDurableAvailability::Unknown)
                     && empty(none)
             }
             None => false,
         }
 }
-fn recorder_health(value: &obs::RecorderHealth) -> bool {
-    use obs::recorder_health::Result;
+fn observation_recorder_health(value: &obs::ObservationRecorderHealth) -> bool {
+    use obs::observation_recorder_health::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Observed(value)) => {
-                nonzero(value.phase, obs::RecorderPhase::Unspecified)
-                    && nonzero(value.state, obs::RecorderHealthState::Unspecified)
+                nonzero(value.phase, obs::ObservationRecorderPhase::Unspecified)
+                    && nonzero(
+                        value.state,
+                        obs::ObservationRecorderHealthState::Unspecified,
+                    )
                     && value.observed_at.as_option().is_some_and(timestamp)
                     && value.__buffa_unknown_fields.is_empty()
             }
@@ -412,21 +442,29 @@ fn recorder_health(value: &obs::RecorderHealth) -> bool {
             None => false,
         }
 }
-pub fn admit_health_response(
-    value: &obs::GetHealthResponse,
-) -> Result<Admitted<obs::GetHealthResponse>, AdmissionError> {
-    let valid = value.health.as_option().is_some_and(|health| {
+pub fn admit_health_response(value: &obs::Health) -> Result<Admitted<obs::Health>, AdmissionError> {
+    let valid = singleton(&value.name, "/health") && {
+        let health = value;
         let mut seen = Vec::with_capacity(5);
         let mut total = 0u64;
         health.__buffa_unknown_fields.is_empty()
             && health.process_epoch.as_option().is_some_and(epoch)
-            && health.liveness == EnumValue::Known(obs::Liveness::Live)
-            && health.server.as_option().is_some_and(server_health)
-            && health.durable.as_option().is_some_and(durable_health)
-            && health.recorder.as_option().is_some_and(recorder_health)
+            && health.liveness == EnumValue::Known(obs::ObservationLiveness::Live)
+            && health
+                .server
+                .as_option()
+                .is_some_and(observation_server_health)
+            && health
+                .durable
+                .as_option()
+                .is_some_and(observation_durable_health)
+            && health
+                .recorder
+                .as_option()
+                .is_some_and(observation_recorder_health)
             && health.pilots.len() == 5
             && health.pilots.iter().all(|pilot| {
-                let valid = nonzero(pilot.phase, obs::PilotPhase::Unspecified)
+                let valid = nonzero(pilot.phase, obs::ObservationPilotPhase::Unspecified)
                     && pilot.instances <= 1024
                     && !seen.contains(&pilot.phase)
                     && pilot.__buffa_unknown_fields.is_empty();
@@ -435,25 +473,28 @@ pub fn admit_health_response(
                 valid
             })
             && total <= 1024
-    });
+    };
     admit(
         value,
         valid && value.__buffa_unknown_fields.is_empty() && sized(value, 16 << 10),
     )
 }
 pub fn admit_integration_health_response(
-    value: &obs::GetIntegrationHealthResponse,
-) -> Result<Admitted<obs::GetIntegrationHealthResponse>, AdmissionError> {
+    value: &obs::IntegrationHealth,
+) -> Result<Admitted<obs::IntegrationHealth>, AdmissionError> {
     use obs::{
-        integration_report::AdmissionTime, integration_report_presence::Result as R,
-        integration_supervision::Result as S,
+        observation_integration_report::AdmissionTime,
+        observation_integration_report_presence::Result as R,
+        observation_integration_supervision::Result as S,
     };
     let report = value.report.as_option().is_some_and(|report| {
         report.__buffa_unknown_fields.is_empty()
             && match &report.result {
                 Some(R::Present(value)) => {
-                    nonzero(value.status, integrations::HealthStatus::Unspecified)
-                        && value.__buffa_unknown_fields.is_empty()
+                    nonzero(
+                        value.status,
+                        obs::ObservationIntegrationHealthStatus::Unspecified,
+                    ) && value.__buffa_unknown_fields.is_empty()
                         && match &value.admission_time {
                             Some(AdmissionTime::AdmittedAt(at)) => timestamp(at),
                             Some(AdmissionTime::NotRecorded(value)) => empty(value),
@@ -468,7 +509,7 @@ pub fn admit_integration_health_response(
         supervision.__buffa_unknown_fields.is_empty()
             && match &supervision.result {
                 Some(S::Supervised(value)) => {
-                    nonzero(value.phase, obs::PilotPhase::Unspecified)
+                    nonzero(value.phase, obs::ObservationPilotPhase::Unspecified)
                         && value.attempts <= 17
                         && value.tasks <= 256
                         && value.__buffa_unknown_fields.is_empty()
@@ -479,11 +520,15 @@ pub fn admit_integration_health_response(
     });
     admit(
         value,
-        report && supervision && value.__buffa_unknown_fields.is_empty() && sized(value, 8 << 10),
+        integration_health_name(&value.name)
+            && report
+            && supervision
+            && value.__buffa_unknown_fields.is_empty()
+            && sized(value, 8 << 10),
     )
 }
 
-fn installed_queue(value: &obs::InstalledQueueMetrics) -> bool {
+fn installed_queue(value: &obs::ObservationInstalledQueueMetrics) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && value.active_queues.as_option().is_some_and(gauge)
         && value.queued_entries.as_option().is_some_and(gauge)
@@ -506,13 +551,15 @@ fn installed_queue(value: &obs::InstalledQueueMetrics) -> bool {
             &value.capacity_accounted_bytes,
         )
 }
-fn queue(value: &obs::QueueAggregate) -> bool {
-    use obs::queue_aggregate::Result;
-    nonzero(value.queue_class, obs::QueueClass::Unspecified)
-        && value.__buffa_unknown_fields.is_empty()
+fn queue(value: &obs::ObservationQueueAggregate) -> bool {
+    use obs::observation_queue_aggregate::Result;
+    nonzero(
+        value.queue_class,
+        obs::ObservationQueueClass::Unspecified,
+    ) && value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Installed(installed)) => {
-                use obs::gauge_measurement::Result as GaugeResult;
+                use obs::observation_gauge_measurement::Result as GaugeResult;
                 let inflight_unmeasured = matches!(
                     installed.in_flight_entries.result,
                     Some(GaugeResult::NotMeasured(_))
@@ -522,12 +569,12 @@ fn queue(value: &obs::QueueAggregate) -> bool {
                     Some(GaugeResult::NotMeasured(_))
                 );
                 let applicable = match value.queue_class {
-                    EnumValue::Known(obs::QueueClass::WorkerCommands) => {
+                    EnumValue::Known(obs::ObservationQueueClass::WorkerCommands) => {
                         !inflight_unmeasured
                             && !pending_unmeasured
                             && gauge_le(&installed.in_flight_entries, &installed.pending_entries)
                     }
-                    EnumValue::Known(obs::QueueClass::CloudRequests) => {
+                    EnumValue::Known(obs::ObservationQueueClass::CloudRequests) => {
                         !inflight_unmeasured && pending_unmeasured
                     }
                     EnumValue::Known(_) | EnumValue::Unknown(_) => {
@@ -541,15 +588,15 @@ fn queue(value: &obs::QueueAggregate) -> bool {
             None => false,
         }
 }
-fn queue_lag(value: &obs::QueueLag) -> bool {
-    use obs::queue_lag::Result;
+fn observation_queue_lag(value: &obs::ObservationQueueLag) -> bool {
+    use obs::observation_queue_lag::Result;
     matches!(
         value.queue_class,
         EnumValue::Known(
-            obs::QueueClass::Ui
-                | obs::QueueClass::Edge
-                | obs::QueueClass::Recorder
-                | obs::QueueClass::View
+            obs::ObservationQueueClass::Ui
+                | obs::ObservationQueueClass::Edge
+                | obs::ObservationQueueClass::Recorder
+                | obs::ObservationQueueClass::View
         )
     ) && value.__buffa_unknown_fields.is_empty()
         && match &value.result {
@@ -559,8 +606,8 @@ fn queue_lag(value: &obs::QueueLag) -> bool {
             None => false,
         }
 }
-fn active_coverage(value: &obs::ActiveCoverage) -> bool {
-    use obs::active_coverage::Result;
+fn observation_active_coverage(value: &obs::ObservationActiveCoverage) -> bool {
+    use obs::observation_active_coverage::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::AtRisk(value)) => {
@@ -586,8 +633,8 @@ fn active_coverage(value: &obs::ActiveCoverage) -> bool {
             None => false,
         }
 }
-fn recorder_metrics(value: &obs::RecorderMetrics) -> bool {
-    use obs::recorder_metrics::Result;
+fn observation_recorder_metrics(value: &obs::ObservationRecorderMetrics) -> bool {
+    use obs::observation_recorder_metrics::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Installed(value)) => {
@@ -607,7 +654,7 @@ fn recorder_metrics(value: &obs::RecorderMetrics) -> bool {
                     && value
                         .active_coverage
                         .as_option()
-                        .is_some_and(active_coverage)
+                        .is_some_and(observation_active_coverage)
                     && value.committed_gaps.len() == 3
                     && value.committed_gaps.iter().all(|gap| {
                         let valid = nonzero(gap.reason, obs::GapReason::Unspecified)
@@ -631,7 +678,7 @@ fn recorder_metrics(value: &obs::RecorderMetrics) -> bool {
             None => false,
         }
 }
-fn action_metrics(value: &obs::ActionMetrics) -> bool {
+fn observation_action_metrics(value: &obs::ObservationActionMetrics) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && value
             .progress_indeterminate_total
@@ -644,23 +691,23 @@ fn action_metrics(value: &obs::ActionMetrics) -> bool {
         && value.first_attempts.len() == 2
         && value.first_attempts[0].ledger != value.first_attempts[1].ledger
         && value.first_attempts.iter().all(|first| {
-            nonzero(first.ledger, obs::AttemptLedger::Unspecified)
+            nonzero(first.ledger, obs::ObservationAttemptLedger::Unspecified)
                 && first.indeterminate_total.as_option().is_some_and(counter)
                 && first.__buffa_unknown_fields.is_empty()
         })
 }
-fn run_metrics(value: &obs::RunMetrics) -> bool {
-    use obs::run_metrics::Result;
+fn observation_run_metrics(value: &obs::ObservationRunMetrics) -> bool {
+    use obs::observation_run_metrics::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Installed(value)) => {
                 value.__buffa_unknown_fields.is_empty()
                     && value.preparing.as_option().is_some_and(gauge)
-                    && value.controller.as_option().is_some_and(controller)
+                    && controller(&value.controller)
                     && value.kinds.len() == 2
                     && value.kinds[0].kind != value.kinds[1].kind
                     && value.kinds.iter().all(|kind| {
-                        nonzero(kind.kind, obs::RunKind::Unspecified)
+                        nonzero(kind.kind, obs::ObservationRunKind::Unspecified)
                             && kind.active.as_option().is_some_and(gauge)
                             && kind.pending.as_option().is_some_and(gauge)
                             && kind.cancelled_total.as_option().is_some_and(counter)
@@ -674,9 +721,10 @@ fn run_metrics(value: &obs::RunMetrics) -> bool {
         }
 }
 pub fn admit_metrics_response(
-    value: &obs::GetMetricsResponse,
-) -> Result<Admitted<obs::GetMetricsResponse>, AdmissionError> {
-    let valid = value.metrics.as_option().is_some_and(|metrics| {
+    value: &obs::Metrics,
+) -> Result<Admitted<obs::Metrics>, AdmissionError> {
+    let valid = singleton(&value.name, "/metrics") && {
+        let metrics = value;
         let mut queues = Vec::with_capacity(9);
         let mut lags = Vec::with_capacity(4);
         let mut cuts = Vec::with_capacity(8);
@@ -690,13 +738,22 @@ pub fn admit_metrics_response(
                 valid
             })
             && metrics.queue_lags.iter().all(|q| {
-                let valid = queue_lag(q) && !lags.contains(&q.queue_class);
+                let valid = observation_queue_lag(q) && !lags.contains(&q.queue_class);
                 lags.push(q.queue_class);
                 valid
             })
-            && metrics.recorder.as_option().is_some_and(recorder_metrics)
-            && metrics.actions.as_option().is_some_and(action_metrics)
-            && metrics.runs.as_option().is_some_and(run_metrics)
+            && metrics
+                .recorder
+                .as_option()
+                .is_some_and(observation_recorder_metrics)
+            && metrics
+                .actions
+                .as_option()
+                .is_some_and(observation_action_metrics)
+            && metrics
+                .runs
+                .as_option()
+                .is_some_and(observation_run_metrics)
             && metrics.journal.as_option().is_some_and(|journal| {
                 journal.retained_rows.as_option().is_some_and(gauge)
                     && journal.charged_bytes.as_option().is_some_and(gauge)
@@ -705,35 +762,35 @@ pub fn admit_metrics_response(
             })
             && metrics.cuts.len() <= 8
             && metrics.cuts.iter().all(|cut| {
-                let valid = nonzero(cut.owner, obs::MetricOwner::Unspecified)
+                let valid = nonzero(cut.owner, obs::ObservationMetricOwner::Unspecified)
                     && !cuts.contains(&cut.owner)
                     && cut.captured_at.as_option().is_some_and(timestamp)
                     && cut.__buffa_unknown_fields.is_empty();
                 cuts.push(cut.owner);
                 valid
             })
-    });
+    };
     admit(
         value,
         valid && value.__buffa_unknown_fields.is_empty() && sized(value, 32 << 10),
     )
 }
 
-fn integration_reference(value: &obs::IntegrationReference) -> bool {
+fn observation_integration_reference(value: &obs::ObservationIntegrationReference) -> bool {
     identity(&value.value, 16) && value.__buffa_unknown_fields.is_empty()
 }
-fn audit_author(value: &obs::AuditAuthor) -> bool {
-    use obs::audit_author::Result;
+fn observation_audit_author(value: &obs::ObservationAuditAuthor) -> bool {
+    use obs::observation_audit_author::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::HumanAccount(value)) => account(value),
-            Some(Result::InternalIntegration(value)) => integration_reference(value),
+            Some(Result::InternalIntegration(value)) => observation_integration_reference(value),
             Some(Result::NotRecorded(value)) => empty(value),
             None => false,
         }
 }
-fn audit_route(value: &obs::AuditRoute) -> bool {
-    use obs::audit_route::Result;
+fn observation_audit_route(value: &obs::ObservationAuditRoute) -> bool {
+    use obs::observation_audit_route::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::RegisteredProcedure(value)) => text(value, 256) && value.starts_with('/'),
@@ -741,42 +798,48 @@ fn audit_route(value: &obs::AuditRoute) -> bool {
             None => false,
         }
 }
-fn metadata_invalid(value: &obs::StoredMetadataInvalid) -> bool {
+fn metadata_invalid(value: &obs::ObservationStoredMetadataInvalid) -> bool {
     let mut seen = Vec::with_capacity(6);
     !value.fields.is_empty()
         && value.fields.len() <= 6
         && value.__buffa_unknown_fields.is_empty()
         && value.fields.iter().all(|field| {
-            let valid =
-                nonzero(*field, obs::StoredMetadataField::Unspecified) && !seen.contains(field);
+            let valid = nonzero(*field, obs::ObservationStoredMetadataField::Unspecified)
+                && !seen.contains(field);
             seen.push(*field);
             valid
         })
 }
-fn audit_row(value: &obs::AuditRow, source: EnumValue<obs::AuditSource>) -> bool {
-    use obs::{audit_author::Result as A, audit_row::Result};
+fn observation_audit_row(
+    value: &obs::ObservationAuditRow,
+    source: EnumValue<obs::ObservationAuditSource>,
+) -> bool {
+    use obs::{observation_audit_author::Result as A, observation_audit_row::Result};
     value.id > 0
         && value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Authentication(value)) => {
-                source == EnumValue::Known(obs::AuditSource::Authentication)
+                source == EnumValue::Known(obs::ObservationAuditSource::Authentication)
                     && value.__buffa_unknown_fields.is_empty()
                     && value.occurred_at.as_option().is_some_and(timestamp)
-                    && nonzero(value.action, obs::AuthAuditAction::Unspecified)
-                    && nonzero(value.outcome, obs::AuditOutcome::Unspecified)
+                    && nonzero(value.action, obs::ObservationAuthAuditAction::Unspecified)
+                    && nonzero(value.outcome, obs::ObservationAuditOutcome::Unspecified)
                     && value.author.as_option().is_some_and(|author| {
-                        audit_author(author)
+                        observation_audit_author(author)
                             && !matches!(author.result, Some(A::InternalIntegration(_)))
                     })
-                    && value.route.as_option().is_some_and(audit_route)
+                    && value.route.as_option().is_some_and(observation_audit_route)
             }
             Some(Result::SecretAccess(value)) => {
-                source == EnumValue::Known(obs::AuditSource::SecretAccess)
+                source == EnumValue::Known(obs::ObservationAuditSource::SecretAccess)
                     && value.__buffa_unknown_fields.is_empty()
                     && value.occurred_at.as_option().is_some_and(timestamp)
-                    && nonzero(value.reason, obs::SecretDenialReason::Unspecified)
+                    && nonzero(
+                        value.reason,
+                        obs::ObservationSecretDenialReason::Unspecified,
+                    )
                     && value.author.as_option().is_some_and(|author| {
-                        audit_author(author)
+                        observation_audit_author(author)
                             && matches!(author.result, Some(A::InternalIntegration(_)))
                     })
             }
@@ -784,17 +847,14 @@ fn audit_row(value: &obs::AuditRow, source: EnumValue<obs::AuditSource>) -> bool
             None => false,
         }
 }
-fn audit_page(value: &obs::AuditPage) -> bool {
+fn audit_page(value: &obs::QueryAuditsResponse) -> bool {
     let mut previous = None;
     source(value.source)
-        && value.upper_id >= 0
-        && (value.upper_id != 0 || value.rows.is_empty())
         && value.rows.len() <= 100
-        && value.continuation.as_option().is_some_and(continuation)
+        && value.next_page_token.len() <= 512
         && value.__buffa_unknown_fields.is_empty()
         && value.rows.iter().all(|row| {
-            let valid = audit_row(row, value.source)
-                && row.id <= value.upper_id
+            let valid = observation_audit_row(row, value.source)
                 && previous.is_none_or(|previous| row.id < previous);
             previous = Some(row.id);
             valid
@@ -803,18 +863,10 @@ fn audit_page(value: &obs::AuditPage) -> bool {
 pub fn admit_audits_response(
     value: &obs::QueryAuditsResponse,
 ) -> Result<Admitted<obs::QueryAuditsResponse>, AdmissionError> {
-    use obs::query_audits_response::Result;
-    let valid = value.__buffa_unknown_fields.is_empty()
-        && match &value.result {
-            Some(Result::Page(value)) => audit_page(value),
-            Some(Result::StaleCursor(value)) => empty(value),
-            Some(Result::Unavailable(value)) => unavailable(value),
-            None => false,
-        };
-    admit(value, valid && sized(value, 256 << 10))
+    admit(value, audit_page(value) && sized(value, 256 << 10))
 }
-fn trace_ordinal(value: &obs::TraceOrdinal) -> bool {
-    use obs::trace_ordinal::Result;
+fn observation_trace_ordinal(value: &obs::ObservationTraceOrdinal) -> bool {
+    use obs::observation_trace_ordinal::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Native(value)) => *value > 0 && *value < u64::MAX,
@@ -822,27 +874,30 @@ fn trace_ordinal(value: &obs::TraceOrdinal) -> bool {
             None => false,
         }
 }
-fn trace_failure(value: &obs::TraceFailure) -> bool {
-    use obs::trace_failure::Result;
+fn observation_trace_failure(value: &obs::ObservationTraceFailure) -> bool {
+    use obs::observation_trace_failure::Result;
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Known(value)) => {
-                nonzero(*value, obs::TraceExecutionErrorKind::Unspecified)
+                nonzero(*value, obs::ObservationTraceExecutionErrorKind::Unspecified)
             }
             Some(Result::NoFailure(value) | Result::NotRecorded(value)) => empty(value),
             None => false,
         }
 }
-fn trace_row(value: &obs::TraceRow) -> bool {
-    use obs::{controller_trace_record::MaxExceeded, trace_row::Record};
-    value.run_id > 0
+fn observation_trace_row(value: &obs::ObservationTraceRow) -> bool {
+    use obs::{observation_controller_trace_record::MaxExceeded, observation_trace_row::Record};
+    RuntimeRunName::try_from(value.run.as_str()).is_ok()
         && value.local_index < 512
-        && value.ordinal.as_option().is_some_and(trace_ordinal)
+        && value
+            .ordinal
+            .as_option()
+            .is_some_and(observation_trace_ordinal)
         && value.__buffa_unknown_fields.is_empty()
         && match &value.record {
             Some(Record::Controller(value)) => {
                 value.__buffa_unknown_fields.is_empty()
-                    && nonzero(value.decision, obs::TraceDecision::Unspecified)
+                    && nonzero(value.decision, obs::ObservationTraceDecision::Unspecified)
                     && value
                         .trigger_position
                         .as_option()
@@ -851,15 +906,15 @@ fn trace_row(value: &obs::TraceRow) -> bool {
                                 && matches!(
                                     value.decision,
                                     EnumValue::Known(
-                                        obs::TraceDecision::Admitted
-                                            | obs::TraceDecision::Queued
-                                            | obs::TraceDecision::RestartPending
+                                        obs::ObservationTraceDecision::Admitted
+                                            | obs::ObservationTraceDecision::Queued
+                                            | obs::ObservationTraceDecision::RestartPending
                                     )
                                 )
                         })
                     && match &value.max_exceeded {
                         Some(MaxExceeded::Mode(value)) => {
-                            nonzero(*value, obs::TraceMaxExceededMode::Unspecified)
+                            nonzero(*value, obs::ObservationTraceMaxExceededMode::Unspecified)
                         }
                         Some(MaxExceeded::NotApplicable(value)) => empty(value),
                         None => false,
@@ -867,17 +922,23 @@ fn trace_row(value: &obs::TraceRow) -> bool {
             }
             Some(Record::Node(value)) => {
                 value.__buffa_unknown_fields.is_empty()
-                    && nonzero(value.action_kind, obs::TraceActionKind::Unspecified)
-                    && nonzero(value.stage, obs::TraceNodeStage::Unspecified)
+                    && nonzero(
+                        value.action_kind,
+                        obs::ObservationTraceActionKind::Unspecified,
+                    )
+                    && nonzero(value.stage, obs::ObservationTraceNodeStage::Unspecified)
                     && value.occurred_at.as_option().is_some_and(timestamp)
-                    && value.failure.as_option().is_some_and(trace_failure)
+                    && value
+                        .failure
+                        .as_option()
+                        .is_some_and(observation_trace_failure)
             }
             None => false,
         }
 }
-fn trace_cuts(value: &obs::TraceCutMetadata) -> bool {
-    value.coherence == EnumValue::Known(obs::TraceCutCoherence::SeparateOwnerCuts)
-        && nonzero(value.order, obs::TraceOrderState::Unspecified)
+fn trace_cuts(value: &obs::ObservationTraceCutMetadata) -> bool {
+    value.coherence == EnumValue::Known(obs::ObservationTraceCutCoherence::SeparateOwnerCuts)
+        && nonzero(value.order, obs::ObservationTraceOrderState::Unspecified)
         && value
             .controller_captured_at
             .as_option()
@@ -885,47 +946,39 @@ fn trace_cuts(value: &obs::TraceCutMetadata) -> bool {
         && value.node_captured_at.as_option().is_some_and(timestamp)
         && value.__buffa_unknown_fields.is_empty()
 }
-fn trace_page(value: &obs::TracePage) -> bool {
+fn trace_page(value: &obs::QueryRunTraceResponse) -> bool {
     let mut previous = None;
-    value.run_id > 0
-        && value.controller.as_option().is_some_and(controller)
-        && value.cuts.as_option().is_some_and(trace_cuts)
+    let mut run = None;
+    RuntimeRunName::try_from(value.run.as_str()).is_ok()
         && value.rows.len() <= 100
-        && value.continuation.as_option().is_some_and(continuation)
+        && value.next_page_token.len() <= 512
+        && value.cuts.as_option().is_some_and(trace_cuts)
         && value.__buffa_unknown_fields.is_empty()
+        && value
+            .truncation_reason
+            .is_none_or(|r| nonzero(r, obs::ObservationTraceTruncationReason::Unspecified))
         && value.rows.iter().all(|row| {
-            let exhausted = row.ordinal.as_option().is_some_and(|ordinal| {
+            let exhausted = row.ordinal.as_option().is_some_and(|o| {
                 matches!(
-                    ordinal.result,
-                    Some(obs::trace_ordinal::Result::Exhausted(_))
+                    o.result,
+                    Some(obs::observation_trace_ordinal::Result::Exhausted(_))
                 )
             });
-            let valid = trace_row(row)
-                && row.run_id == value.run_id
-                && previous.is_none_or(|previous| row.local_index > previous)
+            let valid = observation_trace_row(row)
+                && previous.is_none_or(|p| row.local_index > p)
+                && run.is_none_or(|r| r == row.run.as_str())
                 && (!exhausted
-                    || value.cuts.order == EnumValue::Known(obs::TraceOrderState::Exhausted));
+                    || value.cuts.order
+                        == EnumValue::Known(obs::ObservationTraceOrderState::Exhausted));
             previous = Some(row.local_index);
+            run = Some(row.run.as_str());
             valid
         })
 }
 pub fn admit_trace_response(
-    value: &obs::ReadRunTraceResponse,
-) -> Result<Admitted<obs::ReadRunTraceResponse>, AdmissionError> {
-    use obs::read_run_trace_response::Result;
-    let valid = value.__buffa_unknown_fields.is_empty()
-        && match &value.result {
-            Some(Result::Page(value)) => trace_page(value),
-            Some(Result::Truncated(value)) => {
-                nonzero(value.reason, obs::TraceTruncationReason::Unspecified)
-                    && value.page.as_option().is_some_and(trace_page)
-                    && value.__buffa_unknown_fields.is_empty()
-            }
-            Some(Result::NotRetained(value) | Result::StaleCursor(value)) => empty(value),
-            Some(Result::Unavailable(value)) => unavailable(value),
-            None => false,
-        };
-    admit(value, valid && sized(value, 256 << 10))
+    value: &obs::QueryRunTraceResponse,
+) -> Result<Admitted<obs::QueryRunTraceResponse>, AdmissionError> {
+    admit(value, trace_page(value) && sized(value, 256 << 10))
 }
 fn coverage_epoch(value: &obs::RecorderEpochCoverage) -> bool {
     use obs::recorder_epoch_coverage::{CloseTime, Predecessor};
@@ -1014,19 +1067,12 @@ fn coverage(value: &obs::RecorderCoverageSnapshot) -> bool {
         && value.__buffa_unknown_fields.is_empty()
 }
 pub fn admit_coverage_response(
-    value: &obs::ReadRecorderCoverageResponse,
-) -> Result<Admitted<obs::ReadRecorderCoverageResponse>, AdmissionError> {
-    use obs::read_recorder_coverage_response::Result;
-    let valid = value.__buffa_unknown_fields.is_empty()
-        && match &value.result {
-            Some(Result::Complete(value)) => coverage(value),
-            Some(Result::Truncated(value)) => {
-                nonzero(value.reason, obs::CoverageTruncationReason::Unspecified)
-                    && value.__buffa_unknown_fields.is_empty()
-            }
-            Some(Result::NotRetained(value)) => empty(value),
-            Some(Result::Unavailable(value)) => unavailable(value),
-            None => false,
-        };
-    admit(value, valid && sized(value, 256 << 10))
+    value: &obs::QueryRecorderCoverageResponse,
+) -> Result<Admitted<obs::QueryRecorderCoverageResponse>, AdmissionError> {
+    admit(
+        value,
+        value.__buffa_unknown_fields.is_empty()
+            && value.coverage.as_option().is_some_and(coverage)
+            && sized(value, 256 << 10),
+    )
 }

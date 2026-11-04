@@ -1,6 +1,6 @@
 use connectrpc::ConnectError;
 use home_client_transport::{Connection, Failure};
-use home_wire_contract::home::auth::v1 as auth;
+use home_wire_contract::home::api::v2 as auth;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
@@ -15,6 +15,7 @@ async fn refused_connection_proves_no_refresh_was_sent_but_remote_errors_and_los
         .refresh_session(
             auth::RefreshSessionRequest {
                 refresh_token: "synthetic-only".into(),
+                renewal_key: vec![0x42; 32],
                 ..Default::default()
             },
             Duration::from_secs(2),

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"github.com/damione1/Homeward/internal/recorderevidence"
 	"hash"
 	"strconv"
 	"time"
@@ -68,6 +69,7 @@ type recorderObserved struct {
 }
 
 type RecorderRecord struct {
+	evidence               recorderevidence.Evidence
 	sequence               uint64
 	instance               string
 	admittedAt             time.Time
@@ -110,6 +112,25 @@ func NewRecorderRecord(sequence uint64, instance domain.IntegrationInstanceID, s
 	return record, nil
 }
 
+// WithEvidence binds native provenance to the record's existing integrity
+// digest. An absent proof is retained as absent, never reconstructed.
+func (r RecorderRecord) WithEvidence(e recorderevidence.Evidence) (RecorderRecord, error) {
+	if !e.Present() {
+		return r, nil
+	}
+	entity, err := e.Entity().Value()
+	if err != nil || entity != r.observed.entity {
+		return RecorderRecord{}, ErrRecorderInvalid
+	}
+	instance, err := e.Instance().Value()
+	if err != nil || instance != r.instance {
+		return RecorderRecord{}, ErrRecorderInvalid
+	}
+	r.evidence = e
+	r.digest = digestRecorderRecord(r)
+	return r, nil
+}
+
 func NewRecorderSnapshotRecord(state domain.ObservedState, maxPayload int) (RecorderSnapshotRecord, error) {
 	observed, err := encodeRecorderObserved(state, maxPayload)
 	if err != nil {
@@ -128,7 +149,7 @@ func (r RecorderSnapshotRecord) EncodedBytes() int { return len(r.observed.paylo
 // mailbox. Entry.EstimatedBytes remains the only charge for an Entry itself.
 func (r RecorderRecord) RetainedBytes() int {
 	const overBudget = 4<<20 + 1
-	size := int(unsafe.Sizeof(RecorderRecord{})) + 256
+	size := int(unsafe.Sizeof(RecorderRecord{})) + 256 + r.evidence.RetainedBytes()
 	for _, part := range []int{len(r.instance), len(r.observed.entity), len(r.observed.sourceSession), len(r.observed.payload)} {
 		if part > overBudget-size {
 			return overBudget
@@ -372,6 +393,10 @@ func digestRecorderRecord(r RecorderRecord) [32]byte {
 	writeRecorderOptional(h, r.causation)
 	writeRecorderOptional(h, r.correlation)
 	digestRecorderObserved(h, r.observed)
+	if r.evidence.Present() {
+		writeRecorderString(h, "native-recorder-evidence-v1")
+		writeRecorderString(h, string(r.evidence.Bytes()))
+	}
 	var result [32]byte
 	copy(result[:], h.Sum(nil))
 	return result
@@ -383,4 +408,11 @@ func digestRecorderSnapshot(r RecorderSnapshotRecord) [32]byte {
 	var result [32]byte
 	copy(result[:], h.Sum(nil))
 	return result
+}
+
+func recorderEvidenceBytes(e recorderevidence.Evidence) []byte {
+	if !e.Present() {
+		return nil
+	}
+	return e.Bytes()
 }

@@ -1,8 +1,8 @@
 //! Provisional logic facade on the same verified connection. Each explicit
 //! mutation has one attempt; lookup reads never retry a start or cancellation.
-use crate::{AccessToken, Failure, StateTransport, services::home::logic::v1 as service};
+use crate::{AccessToken, Failure, services::home::testing::logic::v1 as service};
 use connectrpc::client::HttpClient;
-use home_wire_contract::home::logic::v1 as wire;
+use home_wire_contract::home::testing::logic::v1 as wire;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
@@ -19,7 +19,7 @@ macro_rules! unary {
             timeout: Duration,
             cancel: &CancellationToken,
         ) -> Result<wire::$response, Failure> {
-            let options = StateTransport::options(token, timeout)?;
+            let options = token.options(timeout)?;
             tokio::select! { biased;
                 () = cancel.cancelled() => Err(Failure::cancelled()),
                 response = self.client.$method(request, options) =>

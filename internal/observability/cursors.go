@@ -11,8 +11,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
 )
 
 const cursorTTL = 60 * time.Second
@@ -169,10 +169,10 @@ func (c *CursorCodec) EncodeLogs(cursor LogCursor) (string, error) {
 	}
 	payload = appendNumber(payload, cursor.upper)
 	payload = appendNumber(payload, cursor.next)
-	return c.seal(observabilityv1connect.ObservabilityServiceQueryRuntimeLogsProcedure, payload)
+	return c.seal(apiv2connect.ObservabilityServiceQueryRuntimeLogsProcedure, payload)
 }
 func (c *CursorCodec) DecodeLogs(token string, binding ReadBinding) (LogCursor, error) {
-	payload, err := c.open(observabilityv1connect.ObservabilityServiceQueryRuntimeLogsProcedure, token)
+	payload, err := c.open(apiv2connect.ObservabilityServiceQueryRuntimeLogsProcedure, token)
 	if err != nil || len(payload) != 80 {
 		return LogCursor{}, stale()
 	}
@@ -238,13 +238,13 @@ func (c *CursorCodec) EncodeAudits(cursor AuditCursor) (string, error) {
 	payload = appendNumber(payload, uint64(cursor.source))
 	payload = appendNumber(payload, uint64(cursor.upper))
 	payload = appendNumber(payload, uint64(cursor.before))
-	return c.seal(observabilityv1connect.ObservabilityServiceQueryAuditsProcedure, payload)
+	return c.seal(apiv2connect.ObservabilityServiceQueryAuditsProcedure, payload)
 }
 func (c *CursorCodec) DecodeAudits(token string, binding ReadBinding, source obs.AuditSource) (AuditCursor, error) {
 	if !auditSource(source) {
 		return AuditCursor{}, stale()
 	}
-	payload, err := c.open(observabilityv1connect.ObservabilityServiceQueryAuditsProcedure, token)
+	payload, err := c.open(apiv2connect.ObservabilityServiceQueryAuditsProcedure, token)
 	if err != nil || len(payload) != 88 {
 		return AuditCursor{}, stale()
 	}

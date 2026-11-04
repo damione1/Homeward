@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -9,8 +10,12 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	"github.com/damione1/Homeward/contracts"
+	auth "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	nativeauth "github.com/damione1/Homeward/gen/home/auth/v1"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"golang.org/x/term"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -68,31 +73,45 @@ func (v *invocation) password(prompt string, confirm bool) (string, error) {
 }
 
 type credentials struct {
-	Origin  string    `json:"origin"`
-	Session string    `json:"session"`
-	Account string    `json:"account"`
-	Access  string    `json:"access_token"`
-	Refresh string    `json:"refresh_token"`
-	Expires time.Time `json:"access_expires_at"`
+	Origin     string    `json:"origin"`
+	Session    string    `json:"session"`
+	Account    string    `json:"account"`
+	Access     string    `json:"access_token"`
+	Refresh    string    `json:"refresh_token"`
+	Expires    time.Time `json:"access_expires_at"`
+	RenewalKey []byte    `json:"renewal_key,omitempty"`
 }
 
 func (credentials) String() string   { return "[REDACTED CREDENTIALS]" }
 func (credentials) GoString() string { return "[REDACTED CREDENTIALS]" }
 
 func admitTokens(origin string, tokens *auth.SessionTokens) (credentials, error) {
-	if tokens == nil || tokens.Session == nil || tokens.Session.Id == nil || tokens.Session.Id.Value == "" || tokens.Session.AccountId == nil || tokens.Session.AccountId.Value == "" || tokens.Audience != auth.CredentialAudience_CREDENTIAL_AUDIENCE_INTERACTIVE || tokens.AccessToken == "" || tokens.RefreshToken == "" || tokens.AccessExpiresAt == nil || tokens.AccessExpiresAt.CheckValid() != nil || !tokens.AccessExpiresAt.AsTime().After(time.Now()) {
+	if contracts.AdmitAPISessionTokens(tokens, time.Now()) != nil {
 		return credentials{}, fail("invalid_session_response", ExitAuthentication)
 	}
-	return credentials{Origin: origin, Session: tokens.Session.Id.Value, Account: tokens.Session.AccountId.Value, Access: tokens.AccessToken, Refresh: tokens.RefreshToken, Expires: tokens.AccessExpiresAt.AsTime()}, nil
+
+	session, err := apitypes.ParseSessionName(tokens.Session.Name)
+	if err != nil {
+		return credentials{}, fail("invalid_session_response", ExitAuthentication)
+	}
+	return credentials{Origin: origin, Session: session.String(), Account: session.Account().String(), Access: tokens.AccessToken, Refresh: tokens.RefreshToken, Expires: tokens.AccessExpireTime.AsTime()}, nil
 }
 
 type remote struct {
 	client     *http.Client
 	base       string
-	auth       authv1connect.AuthServiceClient
-	accounts   authv1connect.AccountServiceClient
+	auth       apiv2connect.AuthServiceClient
+	accounts   apiv2connect.AccountServiceClient
 	credential credentials
 	name       profileName
+}
+
+func (r *remote) authHome() string {
+	name, err := apitypes.ParseAccountName(r.credential.Account)
+	if err != nil {
+		return ""
+	}
+	return name.Home().String()
 }
 
 func (r *remote) close() { r.client.CloseIdleConnections() }
@@ -119,12 +138,17 @@ func (v *invocation) authenticated() (*remote, error) {
 	if credential.Origin != p.URL || credential.Session == "" || credential.Account == "" || credential.Access == "" || credential.Refresh == "" || credential.Expires.IsZero() {
 		return nil, fail("invalid_profile_credentials", ExitAuthentication)
 	}
+	accountName, accountErr := apitypes.ParseAccountName(credential.Account)
+	sessionName, sessionErr := apitypes.ParseSessionName(credential.Session)
+	if accountErr != nil || sessionErr != nil || sessionName.Account() != accountName {
+		return nil, fail("invalid_profile_credentials", ExitAuthentication)
+	}
 	client, base, err := p.client()
 	if err != nil {
 		return nil, err
 	}
-	r := &remote{client: client, base: base, auth: authv1connect.NewAuthServiceClient(client, base), accounts: authv1connect.NewAccountServiceClient(client, base), credential: credential, name: name}
-	if !credential.Expires.After(time.Now().Add(30 * time.Second)) {
+	r := &remote{client: client, base: base, auth: apiv2connect.NewAuthServiceClient(client, base), accounts: apiv2connect.NewAccountServiceClient(client, base), credential: credential, name: name}
+	if len(credential.RenewalKey) != 0 || !credential.Expires.After(time.Now().Add(30*time.Second)) {
 		if err := v.refresh(r); err != nil {
 			r.close()
 			return nil, err
@@ -133,12 +157,30 @@ func (v *invocation) authenticated() (*remote, error) {
 	return r, nil
 }
 
-// Only a definitive Unauthenticated refresh from the selected verified origin
-// retires credentials. Transport/TLS/timeouts preserve them for later revocation.
+// Only an admitted canonical credential refusal at the renewal boundary
+// retires the session. Bare proxy statuses preserve the saved renewal operation.
 func (v *invocation) refresh(r *remote) error {
-	response, err := r.auth.RefreshSession(v.ctx, connect.NewRequest(&auth.RefreshSessionRequest{RefreshToken: r.credential.Refresh}))
+	if len(r.credential.RenewalKey) == 0 {
+		r.credential.RenewalKey = make([]byte, 32)
+		if _, err := rand.Read(r.credential.RenewalKey); err != nil {
+			return fail("renewal_entropy_unavailable", ExitLocal)
+		}
+		if err := v.dir.write(r.name.value+".credentials.json", r.credential, true); err != nil {
+			return err
+		}
+	}
+	if len(r.credential.RenewalKey) != 32 {
+		return fail("invalid_pending_renewal", ExitLocal)
+	}
+	response, err := r.auth.RefreshSession(v.ctx, connect.NewRequest(&auth.RefreshSessionRequest{RefreshToken: r.credential.Refresh, RenewalKey: r.credential.RenewalKey}))
 	if err != nil {
-		if connect.CodeOf(err) == connect.CodeUnauthenticated {
+		var remote *connect.Error
+		definitive := false
+		if errors.As(err, &remote) {
+			fault, known := admitRemoteAPIFailure(remote)
+			definitive = known && (fault.Reason() == auth.ApiErrorReason_API_ERROR_REASON_AUTHENTICATION_REQUIRED || fault.Reason() == auth.ApiErrorReason_API_ERROR_REASON_ACCESS_DENIED)
+		}
+		if definitive {
 			if removeErr := v.dir.remove(r.name.value + ".credentials.json"); removeErr != nil {
 				return removeErr
 			}
@@ -189,7 +231,7 @@ func (c *loginCommand) Run(v *invocation) error {
 		return err
 	}
 	request := &auth.StartLoginRequest{LoginName: c.Login, Password: password}
-	response, err := authv1connect.NewAuthServiceClient(client, base).StartLogin(v.ctx, connect.NewRequest(request))
+	response, err := apiv2connect.NewAuthServiceClient(client, base).StartLogin(v.ctx, connect.NewRequest(request))
 	request.Password = ""
 	password = ""
 	if err != nil {
@@ -207,7 +249,7 @@ func (c *loginCommand) Run(v *invocation) error {
 		}
 		if err := v.dir.write(name.value+".credentials.json", credential, false); err != nil {
 			// Do not leave an issued session live after failed persistence.
-			_, _ = authv1connect.NewAuthServiceClient(client, base).RevokeSession(v.ctx, bearer(&auth.RevokeSessionRequest{SessionId: &auth.SessionId{Value: credential.Session}}, credential.Access))
+			_, _ = apiv2connect.NewAuthServiceClient(client, base).RevokeSession(v.ctx, bearer(&auth.RevokeSessionRequest{Name: credential.Session}, credential.Access))
 			return err
 		}
 		return v.emit(outcome.Authenticated.Session)
@@ -244,7 +286,7 @@ func (c *logoutCommand) Run(v *invocation) error {
 	}
 	defer r.close()
 	revoke := func() error {
-		_, err := r.auth.RevokeSession(v.ctx, bearer(&auth.RevokeSessionRequest{SessionId: &auth.SessionId{Value: r.credential.Session}}, r.credential.Access))
+		_, err := r.auth.RevokeSession(v.ctx, bearer(&auth.RevokeSessionRequest{Name: r.credential.Session}, r.credential.Access))
 		return err
 	}
 	err = revoke()
@@ -266,7 +308,9 @@ func (c *logoutCommand) Run(v *invocation) error {
 }
 
 type sessionsList struct {
-	Account string `arg:"" optional:"" help:"Account ID; omitted means the signed-in account."`
+	PageSize  int32  `help:"Requested page size; zero selects the default."`
+	PageToken string `help:"Opaque continuation from the same listing."`
+	Account   string `arg:"" optional:"" help:"Canonical account name; omitted means the signed-in account."`
 }
 
 func (c *sessionsList) Run(v *invocation) error {
@@ -279,7 +323,7 @@ func (c *sessionsList) Run(v *invocation) error {
 	if account == "" {
 		account = r.credential.Account
 	}
-	response, err := r.auth.ListSessions(v.ctx, bearer(&auth.ListSessionsRequest{AccountId: &auth.AccountId{Value: account}}, r.credential.Access))
+	response, err := r.auth.ListSessions(v.ctx, bearer(&auth.ListSessionsRequest{Parent: account, PageSize: c.PageSize, PageToken: c.PageToken}, r.credential.Access))
 	if err != nil {
 		return err
 	}
@@ -296,7 +340,7 @@ func (c *sessionsRevoke) Run(v *invocation) error {
 		return err
 	}
 	defer r.close()
-	response, err := r.auth.RevokeSession(v.ctx, bearer(&auth.RevokeSessionRequest{SessionId: &auth.SessionId{Value: c.ID}}, r.credential.Access))
+	response, err := r.auth.RevokeSession(v.ctx, bearer(&auth.RevokeSessionRequest{Name: c.ID}, r.credential.Access))
 	if err != nil {
 		return err
 	}
@@ -308,15 +352,18 @@ func (c *sessionsRevoke) Run(v *invocation) error {
 	return v.emit(response.Msg)
 }
 
-type accountsList struct{}
+type accountsList struct {
+	PageSize  int32  `help:"Requested page size; zero selects the default."`
+	PageToken string `help:"Opaque continuation from the same listing."`
+}
 
-func (*accountsList) Run(v *invocation) error {
+func (c *accountsList) Run(v *invocation) error {
 	r, err := v.authenticated()
 	if err != nil {
 		return err
 	}
 	defer r.close()
-	response, err := r.accounts.ListAccounts(v.ctx, bearer(&auth.ListAccountsRequest{}, r.credential.Access))
+	response, err := r.accounts.ListAccounts(v.ctx, bearer(&auth.ListAccountsRequest{Parent: r.authHome(), PageSize: c.PageSize, PageToken: c.PageToken}, r.credential.Access))
 	if err != nil {
 		return err
 	}
@@ -333,7 +380,7 @@ func (c *accountsGet) Run(v *invocation) error {
 		return err
 	}
 	defer r.close()
-	response, err := r.accounts.GetAccount(v.ctx, bearer(&auth.GetAccountRequest{AccountId: &auth.AccountId{Value: c.ID}}, r.credential.Access))
+	response, err := r.accounts.GetAccount(v.ctx, bearer(&auth.GetAccountRequest{Name: c.ID}, r.credential.Access))
 	if err != nil {
 		return err
 	}
@@ -373,9 +420,9 @@ func (c *accountsCreate) Run(v *invocation) error {
 	if err != nil {
 		return err
 	}
-	request := &auth.CreateAccountRequest{LoginName: c.Login, DisplayName: c.DisplayName, Role: role, InitialPassword: password}
+	request := &auth.CreateAccountRequest{Parent: r.authHome(), Account: &auth.Account{LoginName: c.Login, DisplayName: c.DisplayName, Role: role, InitialPassword: password}}
 	response, err := r.accounts.CreateAccount(v.ctx, bearer(request, r.credential.Access))
-	request.InitialPassword, password = "", ""
+	request.Account.InitialPassword, password = "", ""
 	if err != nil {
 		return err
 	}
@@ -412,17 +459,17 @@ func (c *accountsInvite) Run(v *invocation) error {
 	if err := v.dir.read(filename, &existing); !errors.Is(err, os.ErrNotExist) {
 		return fail("token_file_already_exists_or_unsafe", ExitConflict)
 	}
-	response, err := r.accounts.CreateInvitation(v.ctx, bearer(&auth.CreateInvitationRequest{LoginName: c.Login, Role: role, ExpiresAt: timestamppb.New(expires)}, r.credential.Access))
+	response, err := r.accounts.IssueInvitation(v.ctx, bearer(&auth.IssueInvitationRequest{Parent: r.authHome(), LoginName: c.Login, Role: role, ExpireTime: timestamppb.New(expires)}, r.credential.Access))
 	if err != nil {
 		return err
 	}
-	if response.Msg.Invitation == nil || response.Msg.Invitation.Id == nil || response.Msg.InvitationToken == "" {
+	if response.Msg.Invitation == nil || response.Msg.Invitation.Name == "" || response.Msg.InvitationToken == "" {
 		return fail("invalid_invitation_response", ExitLocal)
 	}
 	if err := v.dir.write(filename, struct {
 		Token string `json:"invitation_token"`
 	}{response.Msg.InvitationToken}, false); err != nil {
-		_, _ = r.accounts.RevokeInvitation(v.ctx, bearer(&auth.RevokeInvitationRequest{InvitationId: response.Msg.Invitation.Id}, r.credential.Access))
+		_, _ = r.accounts.RevokeInvitation(v.ctx, bearer(&auth.RevokeInvitationRequest{Name: response.Msg.Invitation.Name}, r.credential.Access))
 		return err
 	}
 	return v.emitJSON(struct {
@@ -439,7 +486,7 @@ type recoverCommand struct {
 	Account string `arg:""`
 }
 
-func (v *invocation) operator() (*http.Client, authv1connect.OperatorAccountServiceClient, error) {
+func (v *invocation) operator() (*http.Client, operatorv1connect.OperatorAccountServiceClient, error) {
 	_, p, err := v.selected()
 	if err != nil {
 		return nil, nil, err
@@ -451,7 +498,7 @@ func (v *invocation) operator() (*http.Client, authv1connect.OperatorAccountServ
 	if err != nil {
 		return nil, nil, err
 	}
-	return client, authv1connect.NewOperatorAccountServiceClient(client, base), nil
+	return client, operatorv1connect.NewOperatorAccountServiceClient(client, base), nil
 }
 func (c *bootstrapCommand) Run(v *invocation) error {
 	client, operator, err := v.operator()
@@ -463,7 +510,7 @@ func (c *bootstrapCommand) Run(v *invocation) error {
 	if err != nil {
 		return err
 	}
-	request := &auth.BootstrapAdminRequest{LoginName: c.Login, DisplayName: c.DisplayName, Password: password}
+	request := &nativeauth.BootstrapAdminRequest{LoginName: c.Login, DisplayName: c.DisplayName, Password: password}
 	response, err := operator.BootstrapAdmin(v.ctx, connect.NewRequest(request))
 	request.Password, password = "", ""
 	if err != nil {
@@ -481,7 +528,7 @@ func (c *recoverCommand) Run(v *invocation) error {
 	if err != nil {
 		return err
 	}
-	request := &auth.RecoverAccountRequest{AccountId: &auth.AccountId{Value: c.Account}, ReplacementPassword: password}
+	request := &nativeauth.RecoverAccountRequest{AccountId: &nativeauth.AccountId{Value: c.Account}, ReplacementPassword: password}
 	response, err := operator.RecoverAccount(v.ctx, connect.NewRequest(request))
 	request.ReplacementPassword, password = "", ""
 	if err != nil {

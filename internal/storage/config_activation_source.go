@@ -148,6 +148,9 @@ func (c *ConfigTx) SaveProtectedOperationalSource(replay *ConfigReplayRepository
 	if path != binding.path || storedKind != ConfigDocumentKindOperationalYAML.String() {
 		return ConfigVersionRef{}, &Error{kind: ConfigConflict}
 	}
+	if _, err := EnsureAPIResourceIdentityTx(c.ctx, c.tx, APIConfigurationDocuments, binding.id.document); err != nil {
+		return ConfigVersionRef{}, err
+	}
 	var revision int64
 	if err := c.tx.QueryRow(c.ctx, `UPDATE public.config_documents SET last_revision=last_revision+1 WHERE id=$1 RETURNING last_revision`, binding.id.document).Scan(&revision); err != nil {
 		return ConfigVersionRef{}, err

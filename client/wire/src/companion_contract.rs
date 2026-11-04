@@ -1,8 +1,8 @@
 //! Bounded representation and identity binding for the provisional companion
 //! API. Authority, consent and freshness remain server/owner responsibilities.
 use crate::{
-    auth_contract::{AccountId, SessionId},
-    home::companion::v1 as wire,
+    home::testing::companion::v1 as wire,
+    qualification_identity::{AccountId, SessionId},
 };
 use buffa::{EnumValue, Message};
 use buffa_types::google::protobuf::Timestamp;
@@ -489,6 +489,17 @@ pub fn admit_response(v: Response<'_>) -> Result<(), Invalid> {
             r.__buffa_unknown_fields.is_empty()
                 && r.encoded_len() <= MAX_BYTES
                 && r.context.as_option().is_some_and(context)
+                && r.synthetic_identity.as_option().is_some_and(|identity| {
+                    identity.__buffa_unknown_fields.is_empty()
+                        && identity
+                            .account_id
+                            .as_option()
+                            .is_some_and(|v| AccountId::try_from(v).is_ok())
+                        && identity
+                            .session_id
+                            .as_option()
+                            .is_some_and(|v| SessionId::try_from(v).is_ok())
+                })
         }
         Response::Register(r) => valid!(r),
         Response::Get(r) => valid!(r),

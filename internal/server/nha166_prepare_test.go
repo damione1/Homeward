@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
-	state "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/accounts"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/config"
@@ -454,24 +454,38 @@ func TestNHA166PreparationRealGuardedTLSLoginAndCanaryState(t *testing.T) {
 	if err != nil || health.Header().Get("Homeward-Observation-Profile") != "mqtt-passive-readonly-v1" || health.Header().Get("Homeward-Command-Driver-Entries") != "0" {
 		t.Fatal("prepared login/guard attestation failed", err)
 	}
-	api := statev1connect.NewStateServiceClient(client, base)
+	homeAPI := apiv2connect.NewHomeServiceClient(client, base)
+	viewAPI := apiv2connect.NewEntityViewServiceClient(client, base)
+	homes, err := homeAPI.ListHomes(ctx, nha056SessionRequest(&api.ListHomesRequest{PageSize: 10}, tokens.AccessToken))
+	if err != nil || len(homes.Msg.GetHomes()) != 1 {
+		t.Fatal("prepared home discovery unavailable", err)
+	}
+	homeName := homes.Msg.GetHomes()[0].GetName()
 	deadline := time.Now().Add(8 * time.Second)
 	for {
 		broker.Publish(t, "zigbee2mqtt/IKEA-SW-01/battery", []byte("7"), false)
-		page, err := api.OpenView(ctx, nha056SessionRequest(&state.OpenViewRequest{PageSize: 100, Filter: &state.ViewFilter{}}, tokens.AccessToken))
+		created, err := viewAPI.CreateEntityView(ctx, nha056SessionRequest(&api.CreateEntityViewRequest{Parent: homeName, EntityView: &api.EntityView{}}, tokens.AccessToken))
 		if err != nil {
 			t.Fatal("prepared READ grant unavailable", err)
 		}
-		for _, entity := range page.Msg.Entities {
-			if entity.CurrentAlias == "sensor.ikea_sw_01_battery" && entity.State.GetMeasurement() != nil && entity.State.GetMeasurement().Value == 7 {
-				if err := PrepareMQTTReadOnlyObservation(ctx, startup, input); !errors.Is(err, ErrMQTTObservationPreparationConflict) {
-					t.Fatal("preparation admitted alongside serving runtime", err)
+		page, err := viewAPI.QueryEntityView(ctx, nha056SessionRequest(&api.QueryEntityViewRequest{Name: created.Msg.GetName(), PageSize: 100}, tokens.AccessToken))
+		_, _ = viewAPI.DeleteEntityView(ctx, nha056SessionRequest(&api.DeleteEntityViewRequest{Name: created.Msg.GetName()}, tokens.AccessToken))
+		if err != nil {
+			t.Fatal("prepared READ query unavailable", err)
+		}
+		for _, entry := range page.Msg.GetEntries() {
+			for _, capability := range entry.GetCapabilities() {
+				obsValue := capability.GetNumericMeasurement().GetObservation()
+				if obsValue != nil && obsValue.Value != nil && *obsValue.Value == 7 {
+					if err := PrepareMQTTReadOnlyObservation(ctx, startup, input); !errors.Is(err, ErrMQTTObservationPreparationConflict) {
+						t.Fatal("preparation admitted alongside serving runtime", err)
+					}
+					final, err := observabilityv1connect.NewObservabilityServiceClient(client, base).GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, tokens.AccessToken))
+					if err != nil || final.Header().Get("Homeward-Command-Driver-Entries") != "0" {
+						t.Fatal("prepared run entered a command driver", err)
+					}
+					return
 				}
-				final, err := observabilityv1connect.NewObservabilityServiceClient(client, base).GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, tokens.AccessToken))
-				if err != nil || final.Header().Get("Homeward-Command-Driver-Entries") != "0" {
-					t.Fatal("prepared run entered a command driver", err)
-				}
-				return
 			}
 		}
 		if time.Now().After(deadline) {

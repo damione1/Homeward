@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/damione1/Homeward/contracts"
-	actions "github.com/damione1/Homeward/gen/home/actions/v1"
-	"github.com/damione1/Homeward/gen/home/actions/v1/actionsv1connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	registry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"os"
@@ -47,10 +45,10 @@ func TestNHA166TLSAttestationRequiresReadAuthorizationAndCollectorUsesOnlyReads(
 	running := nha162StartDefaultRun(t, cfg.startup.WithMQTTReadOnlyObservation())
 	client := nha162RunClient(t, roots, running.address)
 	base := "https://" + running.address.String()
-	api := observabilityv1connect.NewObservabilityServiceClient(client, base)
+	observationAPI := observabilityv1connect.NewObservabilityServiceClient(client, base)
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	denied, err := api.GetHealth(ctx, connect.NewRequest(&obs.GetHealthRequest{}))
+	denied, err := observationAPI.GetHealth(ctx, connect.NewRequest(&obs.GetHealthRequest{}))
 	if err == nil || denied != nil {
 		t.Fatal("anonymous attestation read admitted")
 	}
@@ -65,7 +63,7 @@ func TestNHA166TLSAttestationRequiresReadAuthorizationAndCollectorUsesOnlyReads(
 	nha162RunPolicy(t, ctx, authv1connect.NewAuthorizationPolicyServiceClient(client, base), admin, tokens.AccessToken, `  - scope: {family: state_registry, operation: read}
     objects: {entities: {all: {capabilities: {all: {}}}}}
 `)
-	health, err := api.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, tokens.AccessToken))
+	health, err := observationAPI.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, tokens.AccessToken))
 	if err != nil {
 		t.Fatal("authorized health read", err)
 	}
@@ -95,12 +93,12 @@ func TestNHA166TLSAttestationRequiresReadAuthorizationAndCollectorUsesOnlyReads(
 		t.Fatal("collector lost evidence or retained private payload")
 	}
 
-	// Negative action and MCP attempts target only this loopback broker/runtime.
-	// SubmitAction uses a structurally valid request. Durable gate precedes any
+	// Negative capability and MCP attempts target only this loopback broker/runtime.
+	// ExecuteCapability uses a structurally valid request. Durable gate precedes any
 	// target lookup, SQL admission or driver entry even for an admin session.
-	actionAPI := actionsv1connect.NewActionServiceClient(client, base)
-	action := &actions.CommandRequest{CommandId: "nha166-api-negative", AdmissionEpoch: "nha166-double", Target: &registry.EntityRef{Reference: &registry.EntityRef_HaAlias{HaAlias: "switch.nha166_double"}}, CapabilitySchemaId: contracts.SwitchSchema, Endpoint: "relay", Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetSwitch{SetSwitch: &actions.SetSwitch{On: true}}}, ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}
-	if _, err := actionAPI.SubmitAction(ctx, nha056SessionRequest(&actions.SubmitActionRequest{Command: action}, tokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied {
+	actionAPI := apiv2connect.NewCapabilityServiceClient(client, base)
+	action := &api.ExecuteCapabilityRequest{Name: "homes/nha166/entities/switch-nha166-double/capabilities/power", Etag: `W/"nha166-double"`, RequestId: "12345678-1234-4123-8123-123456789abc", ExpireTime: timestamppb.New(time.Now().Add(time.Minute)), Command: &api.ExecuteCapabilityRequest_Power{Power: &api.SetPowerCommand{Value: api.PowerValue_POWER_VALUE_ON}}}
+	if _, err := actionAPI.ExecuteCapability(ctx, nha056SessionRequest(action, tokens.AccessToken)); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatal("native action did not refuse before driver", err)
 	}
 	keyClient := authv1connect.NewMcpKeyServiceClient(client, base)
@@ -127,7 +125,7 @@ func TestNHA166TLSAttestationRequiresReadAuthorizationAndCollectorUsesOnlyReads(
 	if result, err := mcpSession.CallTool(ctx, &mcp.CallToolParams{Name: "homeward.submit_action", Arguments: map[string]any{}}); err == nil && (result == nil || !result.IsError) {
 		t.Fatal("MCP accepted nonexistent action tool")
 	}
-	final, err := api.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, tokens.AccessToken))
+	final, err := observationAPI.GetHealth(ctx, nha056SessionRequest(&obs.GetHealthRequest{}, tokens.AccessToken))
 	if err != nil || final.Header().Get("Homeward-Command-Driver-Entries") != "0" {
 		t.Fatal("API/MCP negative entered physical driver", err)
 	}

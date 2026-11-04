@@ -3,10 +3,7 @@
 use crate::{
     config_plans,
     configuration_contract::{self, ConfigurationAdmissionError as Error},
-    home::{
-        configurationplan::v1 as plan, configurationsimulation::v1 as wire,
-        registry::v1 as registry,
-    },
+    home::{api::v2 as plan, api::v2 as wire},
 };
 use buffa::{EnumValue, Message};
 use std::collections::BTreeSet;
@@ -24,7 +21,7 @@ macro_rules! known {
 }
 known!(
     support,
-    wire::Support,
+    wire::ConfigurationSimulationSupport,
     ObserveState,
     ClimateSetpoint,
     SwitchTurnOn,
@@ -38,7 +35,7 @@ known!(
 );
 known!(
     diagnostic,
-    wire::DiagnosticCode,
+    wire::ConfigurationSimulationDiagnosticCode,
     UnsupportedExtension,
     UnsupportedConcurrency,
     UnsupportedWait,
@@ -50,7 +47,7 @@ known!(
 );
 known!(
     action,
-    wire::ActionKind,
+    wire::ConfigurationSimulationActionKind,
     Variables,
     Sequence,
     Choose,
@@ -65,7 +62,7 @@ known!(
 );
 known!(
     stage,
-    wire::NodeStage,
+    wire::ConfigurationSimulationNodeStage,
     Entered,
     Completed,
     Stopped,
@@ -74,8 +71,8 @@ known!(
     Waiting
 );
 known!(
-    climate_mode,
-    registry::ClimateMode,
+    temperature_mode,
+    wire::TemperatureMode,
     Off,
     Heat,
     Cool,
@@ -85,34 +82,46 @@ known!(
 );
 known!(outcome, wire::IntentOutcome, Recorded, Refused);
 
-fn attribute(value: &wire::Attribute) -> bool {
+fn attribute(value: &wire::ConfigurationSimulationAttribute) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && config_plans::label(&value.name, 128)
         && match &value.value {
-            Some(wire::attribute::Value::Text(value)) => value.len() <= 4096,
-            Some(wire::attribute::Value::Boolean(_) | wire::attribute::Value::Integer(_)) => true,
-            Some(wire::attribute::Value::Number(value)) => value.is_finite(),
-            Some(wire::attribute::Value::NullValue(value)) => *value,
+            Some(wire::configuration_simulation_attribute::Value::Text(value)) => {
+                value.len() <= 4096
+            }
+            Some(
+                wire::configuration_simulation_attribute::Value::Boolean(_)
+                | wire::configuration_simulation_attribute::Value::Integer(_),
+            ) => true,
+            Some(wire::configuration_simulation_attribute::Value::Number(value)) => {
+                value.is_finite()
+            }
+            Some(wire::configuration_simulation_attribute::Value::NullValue(value)) => *value,
             None => false,
         }
 }
-pub fn admit_simulation_request(value: &wire::SimulatePlanRequest) -> Result<(), Error> {
+pub fn admit_simulation_request(
+    value: &wire::SimulateConfigurationPlanRequest,
+) -> Result<(), Error> {
     let family = match value.candidate.family {
         EnumValue::Known(
-            plan::SourceFamily::Automation | plan::SourceFamily::Script | plan::SourceFamily::Scene,
+            plan::ConfigurationPlanSourceFamily::Automation
+            | plan::ConfigurationPlanSourceFamily::Script
+            | plan::ConfigurationPlanSourceFamily::Scene,
         ) => true,
         EnumValue::Known(
-            plan::SourceFamily::Operational
-            | plan::SourceFamily::DeclarativeV1
-            | plan::SourceFamily::DeclarativeV2
-            | plan::SourceFamily::Authorization
-            | plan::SourceFamily::Ownership
-            | plan::SourceFamily::Dashboard
-            | plan::SourceFamily::Unspecified,
+            plan::ConfigurationPlanSourceFamily::Operational
+            | plan::ConfigurationPlanSourceFamily::DeclarativeV1
+            | plan::ConfigurationPlanSourceFamily::DeclarativeV2
+            | plan::ConfigurationPlanSourceFamily::Authorization
+            | plan::ConfigurationPlanSourceFamily::Ownership
+            | plan::ConfigurationPlanSourceFamily::Dashboard
+            | plan::ConfigurationPlanSourceFamily::Unspecified,
         )
         | EnumValue::Unknown(_) => false,
     };
     if !value.__buffa_unknown_fields.is_empty()
+        || !configuration_contract::home_name(&value.name)
         || !family
         || !value
             .candidate
@@ -178,7 +187,7 @@ pub fn admit_simulation_request(value: &wire::SimulatePlanRequest) -> Result<(),
     }
     Ok(())
 }
-fn position(value: &wire::Position) -> bool {
+fn position(value: &wire::ConfigurationSimulationPosition) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && if value.file.is_empty() {
             value.path.is_empty() && value.line == 0 && value.column == 0
@@ -192,7 +201,7 @@ fn position(value: &wire::Position) -> bool {
 fn finite(value: Option<f64>, minimum: f64, maximum: f64) -> bool {
     value.is_none_or(|value| value.is_finite() && (minimum..=maximum).contains(&value))
 }
-fn intent(value: &wire::Intent) -> bool {
+fn intent(value: &wire::ConfigurationSimulationIntent) -> bool {
     if !value.__buffa_unknown_fields.is_empty()
         || !config_plans::label(&value.alias, 255)
         || !value.position.as_option().is_some_and(position)
@@ -206,11 +215,13 @@ fn intent(value: &wire::Intent) -> bool {
         return false;
     }
     match &value.parameters {
-        Some(wire::intent::Parameters::Switch(value)) => value.__buffa_unknown_fields.is_empty(),
-        Some(wire::intent::Parameters::Fan(value)) => {
+        Some(wire::configuration_simulation_intent::Parameters::Switch(value)) => {
+            value.__buffa_unknown_fields.is_empty()
+        }
+        Some(wire::configuration_simulation_intent::Parameters::Fan(value)) => {
             value.__buffa_unknown_fields.is_empty() && value.percentage <= 100
         }
-        Some(wire::intent::Parameters::Light(value)) => {
+        Some(wire::configuration_simulation_intent::Parameters::Light(value)) => {
             let brightness = usize::from(value.brightness_percent.is_some())
                 + usize::from(value.brightness_step_percent.is_some())
                 + usize::from(value.brightness_255.is_some());
@@ -223,14 +234,14 @@ fn intent(value: &wire::Intent) -> bool {
                 && value.brightness_255.is_none_or(|value| value <= 255)
                 && value.color_temp_mireds.is_none_or(|value| value > 0)
         }
-        Some(wire::intent::Parameters::Climate(value)) => {
+        Some(wire::configuration_simulation_intent::Parameters::Climate(value)) => {
             value.__buffa_unknown_fields.is_empty()
                 && (value.temperature_celsius.is_some()
                     || value.mode.is_some()
                     || value.humidity_percent.is_some()
                     || value.fan_mode.is_some()
                     || value.preset_mode.is_some())
-                && value.mode.is_none_or(climate_mode)
+                && value.mode.is_none_or(temperature_mode)
                 && finite(value.temperature_celsius, -273.15, 1000.)
                 && finite(value.humidity_percent, 0., 100.)
                 && value
@@ -245,17 +256,23 @@ fn intent(value: &wire::Intent) -> bool {
         None => value.outcome == wire::IntentOutcome::Refused,
     }
 }
-pub fn admit_simulation_response(value: &wire::SimulatePlanResponse) -> Result<(), Error> {
+pub fn admit_simulation_response(
+    value: &wire::SimulateConfigurationPlanResponse,
+) -> Result<(), Error> {
     if !value.__buffa_unknown_fields.is_empty() {
         return Err(Error::Invalid);
     }
     let report = value.report.as_option().ok_or(Error::Invalid)?;
     let coherent = match report.status {
-        EnumValue::Known(wire::Status::Completed) => report.diagnostics.is_empty(),
-        EnumValue::Known(wire::Status::Partial | wire::Status::Failed) => {
-            !report.diagnostics.is_empty()
+        EnumValue::Known(wire::ConfigurationSimulationStatus::Completed) => {
+            report.diagnostics.is_empty()
         }
-        EnumValue::Known(wire::Status::Unspecified) | EnumValue::Unknown(_) => false,
+        EnumValue::Known(
+            wire::ConfigurationSimulationStatus::Partial
+            | wire::ConfigurationSimulationStatus::Failed,
+        ) => !report.diagnostics.is_empty(),
+        EnumValue::Known(wire::ConfigurationSimulationStatus::Unspecified)
+        | EnumValue::Unknown(_) => false,
     };
     if !report.__buffa_unknown_fields.is_empty()
         || !report.simulated

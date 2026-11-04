@@ -18,11 +18,11 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	registryv1 "github.com/damione1/Homeward/gen/home/registry/v1"
-	statev1 "github.com/damione1/Homeward/gen/home/state/v1"
-	"github.com/damione1/Homeward/gen/home/state/v1/statev1connect"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -233,8 +233,12 @@ func TestNHF003SessionServer(t *testing.T) {
 	if err := source.Publish(ctx, bindings[0], observation); err != nil {
 		t.Fatal(err)
 	}
-	stateClient := statev1connect.NewStateServiceClient(client, base)
-	if page, err := stateClient.OpenView(ctx, nha141BearerRequest(&statev1.OpenViewRequest{Filter: &statev1.ViewFilter{}, PageSize: 16}, tokens.AccessToken)); err != nil || len(page.Msg.Entities) != 1 {
+	homesResp, err := apiv2connect.NewHomeServiceClient(client, base).ListHomes(ctx, nha141BearerRequest(&api.ListHomesRequest{PageSize: 1}, tokens.AccessToken))
+	if err != nil || len(homesResp.Msg.Homes) != 1 {
+		t.Fatal("synthetic home readiness:", err)
+	}
+	entitiesResp, err := apiv2connect.NewHomeServiceClient(client, base).ListEntities(ctx, nha141BearerRequest(&api.ListEntitiesRequest{Parent: homesResp.Msg.Homes[0].GetName(), PageSize: 16}, tokens.AccessToken))
+	if err != nil || len(entitiesResp.Msg.Entities) != 1 {
 		t.Fatal("synthetic protected read readiness:", err)
 	}
 	var recoveryCode string

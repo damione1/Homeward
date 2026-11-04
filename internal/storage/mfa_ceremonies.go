@@ -462,7 +462,7 @@ func (r *MFARepository) PrepareLoginChallenge(creation ChallengeCreation, policy
 	if err := proto.Unmarshal(creation.Payload, &options); err != nil {
 		return MFALoginChallenge{}, mfaError(authmfa.ErrorInvalidInput)
 	}
-	if _, err := contracts.AdmitLoginDecision(&authv1.LoginDecision{Outcome: &authv1.LoginDecision_Challenge{Challenge: &options}}, creation.Now); err != nil {
+	if err := contracts.AdmitNativeFactorChallenge(&options, creation.Now); err != nil {
 		return MFALoginChallenge{}, mfaError(authmfa.ErrorInvalidInput)
 	}
 	expected, err := ceremony.AssertionOptions(creation.Now)
@@ -942,6 +942,13 @@ func (r *MFARepository) CompleteEnrollment(ctx context.Context, input MFAEnrollm
 		if _, err := tx.Exec(ctx, `INSERT INTO public.auth_mfa_credentials(account_id,id,instance_id,rp_id,record_version,key_id,cipher_suite,salt,ciphertext,created_at) VALUES($1,$2,$3,$4,1,$5,$6,$7,$8,$9)`, account, factorText, instanceText, rp, envelope.keyID[:], secretSuiteSQL, envelope.salt[:], envelope.ciphertext, now); err != nil {
 			return MFAActivation{}, mfaError(authmfa.ErrorConflict)
 		}
+		identity, err := FactorAPIIdentityKey(snapshot.account, factor)
+		if err != nil {
+			return MFAActivation{}, mfaError(authmfa.ErrorIntegrity)
+		}
+		if _, err := EnsureAPIResourceIdentityTx(ctx, tx, APIFactors, identity); err != nil {
+			return MFAActivation{}, mfaError(authmfa.ErrorUnavailable)
+		}
 		if err := replaceMFARecoveryTx(ctx, tx, input.batch, now); err != nil {
 			return MFAActivation{}, err
 		}
@@ -972,7 +979,7 @@ func validateMFALoginOptions(ceremony authmfa.PreparedCeremony, raw []byte, now 
 	if err := proto.Unmarshal(raw, &offered); err != nil {
 		return mfaError(authmfa.ErrorIntegrity)
 	}
-	if _, err := contracts.AdmitLoginDecision(&authv1.LoginDecision{Outcome: &authv1.LoginDecision_Challenge{Challenge: &offered}}, now); err != nil {
+	if err := contracts.AdmitNativeFactorChallenge(&offered, now); err != nil {
 		return mfaError(authmfa.ErrorIntegrity)
 	}
 	binding, err := ceremony.Binding()

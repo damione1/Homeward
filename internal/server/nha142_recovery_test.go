@@ -8,6 +8,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/damione1/Homeward/contracts"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
 	authv1 "github.com/damione1/Homeward/gen/home/auth/v1"
 	"github.com/damione1/Homeward/internal/authmfa"
 	"github.com/damione1/Homeward/internal/storage"
@@ -43,10 +44,10 @@ func (p *nha142RecoveryBarrierProvider) Verify(ctx context.Context, snapshot sto
 	}
 }
 
-func nha142RecoveryRequest(challenge *authv1.FactorChallenge, code string) *connect.Request[authv1.CompleteLoginRequest] {
-	return connect.NewRequest(&authv1.CompleteLoginRequest{
-		ChallengeId: &authv1.ChallengeId{Value: challenge.Id.Value},
-		Proof:       &authv1.FactorProof{Proof: &authv1.FactorProof_RecoveryCode{RecoveryCode: code}},
+func nha142RecoveryRequest(challenge *api.FactorChallenge, code string) *connect.Request[api.CompleteLoginRequest] {
+	return connect.NewRequest(&api.CompleteLoginRequest{
+		ChallengeId: challenge.ChallengeId,
+		Proof:       &api.FactorProof{Proof: &api.FactorProof_RecoveryCode{RecoveryCode: code}},
 	})
 }
 
@@ -88,7 +89,7 @@ func TestNHA142RecoveryCodeConcurrentSingleUse(t *testing.T) {
 	rig.handler.provider = barrier
 	callCtx, cancel := context.WithCancel(rig.ctx)
 	type outcome struct {
-		response *connect.Response[authv1.CompleteLoginResponse]
+		response *connect.Response[api.CompleteLoginResponse]
 		err      error
 	}
 	results := make(chan outcome, 2)
@@ -141,7 +142,7 @@ func TestNHA142RecoveryCodeConcurrentSingleUse(t *testing.T) {
 			t.Fatal("successful finalization did not return a session")
 		}
 		session := result.response.Msg.Decision.GetAuthenticated().Session
-		if session == nil || session.AuthenticationSatisfaction != authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE || session.CreatedAt == nil || session.AuthenticatedAt == nil || !session.CreatedAt.AsTime().Equal(session.AuthenticatedAt.AsTime()) {
+		if session == nil || session.AuthenticationSatisfaction != api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE || session.CreateTime == nil || session.AuthenticationTime == nil || !session.CreateTime.AsTime().Equal(session.AuthenticationTime.AsTime()) {
 			t.Fatal("recovery login lost original typed authentication evidence")
 		}
 		successes++
@@ -165,7 +166,7 @@ func TestNHA142RecoveryCodeConcurrentSingleUse(t *testing.T) {
 	if err != nil || unused == nil || unused.Msg.Decision.GetAuthenticated() == nil {
 		t.Fatal("a different unused code failed on the same live challenge", err)
 	}
-	if unused.Msg.Decision.GetAuthenticated().Session.AuthenticationSatisfaction != authv1.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE {
+	if unused.Msg.Decision.GetAuthenticated().Session.AuthenticationSatisfaction != api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE {
 		t.Fatal("unused recovery code issued a session without recovery provenance")
 	}
 	final, err := rig.store.ListSessions(rig.ctx, rig.account, rig.account, rig.clock.Now())

@@ -22,14 +22,17 @@ import (
 	"testing"
 	"time"
 
+	longrunningpb "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"connectrpc.com/connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
-	cfg "github.com/damione1/Homeward/gen/home/configuration/v1"
-	wire "github.com/damione1/Homeward/gen/home/integrationadmin/v1"
-	"github.com/damione1/Homeward/gen/home/integrationadmin/v1/integrationadminv1connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	"github.com/damione1/Homeward/internal/apierrors"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"golang.org/x/sys/unix"
+	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -37,6 +40,11 @@ const nha143Password = "NHA143 synthetic password should never appear in capture
 const nha143Access = "NHA143-opaque-access-secret"
 const nha143Refresh = "NHA143-opaque-refresh-secret"
 const nha143Invitation = "NHA143-opaque-invitation-secret"
+const nha143Home = "homes/home-1"
+const nha143Type = "homes/home-1/integrationTypes/t-bqxhi5ba"
+const nha143Instance = "homes/home-1/integrationInstances/i-isolated"
+const nha143Document = "homes/home-1/configurationDocuments/d-operational"
+const nha143Operation = "homes/home-1/operations/config-0123456789abcdef0123456789abcdef"
 
 type nha143Terminal struct {
 	calls  int
@@ -88,7 +96,7 @@ func TestNHA143KongArgvHelpAndUsage(t *testing.T) {
 			t.Fatal("Kong contextual help missing")
 		}
 	}
-	for _, command := range [][]string{{}, {"bogus"}, {"login"}, {"login", "admin", "--password", nha143Password}, {"login", "admin", nha143Password}, {"accounts", "create", "u", "--display-name", "u", "--role", "root"}, {"integrations", "delete", "id"}} {
+	for _, command := range [][]string{{}, {"bogus"}, {"login"}, {"login", "admin", "--password", nha143Password}, {"login", "admin", nha143Password}, {"accounts", "create", "u", "--display-name", "u", "--role", "root"}, {"integrations", "delete", nha143Instance}} {
 		nha143Run(t, dir, terminal, ExitUsage, command...)
 	}
 	if terminal.calls != 0 {
@@ -96,19 +104,28 @@ func TestNHA143KongArgvHelpAndUsage(t *testing.T) {
 	}
 }
 
+type nha143MutationRecord struct {
+	etag      string
+	requestID string
+	paths     []string
+}
+
 type nha143API struct {
-	authv1connect.UnimplementedAuthServiceHandler
-	authv1connect.UnimplementedAccountServiceHandler
-	integrationadminv1connect.UnimplementedIntegrationServiceHandler
+	apiv2connect.UnimplementedAuthServiceHandler
+	apiv2connect.UnimplementedAccountServiceHandler
+	apiv2connect.UnimplementedIntegrationServiceHandler
 	mu               sync.Mutex
 	calls            []string
 	challenge        bool
 	deny             bool
 	token            string
-	preconditions    []*wire.MutationPrecondition
+	mutations        []nha143MutationRecord
 	refreshError     connect.Code
+	renewalKeys      [][]byte
+	credentialPath   string
 	revokeError      connect.Code
-	activation       *cfg.ActivationResult
+	operation        *longrunningpb.Operation
+	operationErr     error
 	mutationOverride bool
 }
 
@@ -120,49 +137,67 @@ func (f *nha143API) record(name string, header http.Header) error {
 		return connect.NewError(connect.CodeUnauthenticated, errors.New(nha143Access))
 	}
 	if f.deny {
-		e := connect.NewError(connect.CodePermissionDenied, errors.New(nha143Password))
-		d, _ := connect.NewErrorDetail(&auth.AuthError{Code: auth.AuthErrorCode_AUTH_ERROR_CODE_PERMISSION_DENIED, Detail: &auth.AuthError_Permission{Permission: auth.PermissionFailure_PERMISSION_FAILURE_SCOPE_DENIED}})
-		e.AddDetail(d)
-		return e
+		return apierrors.New(api.ApiErrorReason_API_ERROR_REASON_ACCESS_DENIED).Connect()
 	}
+
 	return nil
 }
 func (f *nha143API) count() int { f.mu.Lock(); defer f.mu.Unlock(); return len(f.calls) }
-func nha143Tokens(token string) *auth.SessionTokens {
-	return &auth.SessionTokens{Session: &auth.Session{Id: &auth.SessionId{Value: "session-1"}, AccountId: &auth.AccountId{Value: "account-1"}}, Audience: auth.CredentialAudience_CREDENTIAL_AUDIENCE_INTERACTIVE, AccessToken: token, RefreshToken: nha143Refresh, AccessExpiresAt: timestamppb.New(time.Now().Add(time.Hour))}
+func nha143Tokens(token string) *api.SessionTokens {
+	now := time.Now()
+	return &api.SessionTokens{Session: &api.Session{Name: nha143Home + "/accounts/account-1/sessions/session-1",
+		CreateTime: timestamppb.New(now.Add(-time.Minute)), ExpireTime: timestamppb.New(now.Add(7 * 24 * time.Hour)),
+		AuthenticationSatisfaction: api.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_NOT_RECORDED},
+		Audience: api.CredentialAudience_CREDENTIAL_AUDIENCE_INTERACTIVE, AccessToken: token, RefreshToken: nha143Refresh,
+		AccessExpireTime: timestamppb.New(now.Add(14 * time.Minute))}
+
 }
-func (f *nha143API) StartLogin(_ context.Context, r *connect.Request[auth.StartLoginRequest]) (*connect.Response[auth.StartLoginResponse], error) {
+func (f *nha143API) StartLogin(_ context.Context, r *connect.Request[api.StartLoginRequest]) (*connect.Response[api.StartLoginResponse], error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, "login")
 	if r.Msg.Password != nha143Password {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New(nha143Password))
 	}
-	decision := &auth.LoginDecision{Outcome: &auth.LoginDecision_Authenticated{Authenticated: nha143Tokens(f.token)}}
+	decision := &api.LoginDecision{Outcome: &api.LoginDecision_Authenticated{Authenticated: nha143Tokens(f.token)}}
 	if f.challenge {
-		decision.Outcome = &auth.LoginDecision_Challenge{Challenge: &auth.FactorChallenge{Id: &auth.ChallengeId{Value: "factor-challenge"}}}
+		decision.Outcome = &api.LoginDecision_Challenge{Challenge: &api.FactorChallenge{ChallengeId: "factor-challenge"}}
 	}
-	return connect.NewResponse(&auth.StartLoginResponse{Decision: decision}), nil
+	return connect.NewResponse(&api.StartLoginResponse{Decision: decision}), nil
 }
-func (f *nha143API) RefreshSession(_ context.Context, r *connect.Request[auth.RefreshSessionRequest]) (*connect.Response[auth.RefreshSessionResponse], error) {
+func (f *nha143API) RefreshSession(_ context.Context, r *connect.Request[api.RefreshSessionRequest]) (*connect.Response[api.RefreshSessionResponse], error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, "refresh")
+	if len(r.Msg.RenewalKey) != 32 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("renewal key required"))
+	}
+	f.renewalKeys = append(f.renewalKeys, append([]byte(nil), r.Msg.RenewalKey...))
+	if f.credentialPath != "" {
+		raw, err := os.ReadFile(f.credentialPath)
+		var saved credentials
+		if err != nil || json.Unmarshal(raw, &saved) != nil || !bytes.Equal(saved.RenewalKey, r.Msg.RenewalKey) {
+			return nil, connect.NewError(connect.CodeInternal, errors.New("dispatch preceded durable key"))
+		}
+	}
+	if f.refreshError == connect.CodeUnauthenticated {
+		return nil, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_AUTHENTICATION_REQUIRED).Connect()
+	}
 	if f.refreshError != 0 {
 		return nil, connect.NewError(f.refreshError, errors.New(nha143Refresh))
 	}
 	if r.Msg.RefreshToken != nha143Refresh {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New(nha143Refresh))
 	}
-	return connect.NewResponse(&auth.RefreshSessionResponse{Tokens: nha143Tokens(f.token)}), nil
+	return connect.NewResponse(&api.RefreshSessionResponse{Tokens: nha143Tokens(f.token)}), nil
 }
-func (f *nha143API) ListSessions(_ context.Context, r *connect.Request[auth.ListSessionsRequest]) (*connect.Response[auth.ListSessionsResponse], error) {
+func (f *nha143API) ListSessions(_ context.Context, r *connect.Request[api.ListSessionsRequest]) (*connect.Response[api.ListSessionsResponse], error) {
 	if err := f.record("sessions", r.Header()); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&auth.ListSessionsResponse{Sessions: []*auth.Session{nha143Tokens(f.token).Session}}), nil
+	return connect.NewResponse(&api.ListSessionsResponse{Sessions: []*api.Session{nha143Tokens(f.token).Session}}), nil
 }
-func (f *nha143API) RevokeSession(_ context.Context, r *connect.Request[auth.RevokeSessionRequest]) (*connect.Response[auth.RevokeSessionResponse], error) {
+func (f *nha143API) RevokeSession(_ context.Context, r *connect.Request[api.RevokeSessionRequest]) (*connect.Response[api.RevokeSessionResponse], error) {
 	if err := f.record("revoke", r.Header()); err != nil {
 		return nil, err
 	}
@@ -172,99 +207,108 @@ func (f *nha143API) RevokeSession(_ context.Context, r *connect.Request[auth.Rev
 	if code != 0 {
 		return nil, connect.NewError(code, errors.New(nha143Access))
 	}
-	return connect.NewResponse(&auth.RevokeSessionResponse{}), nil
+	return connect.NewResponse(&api.RevokeSessionResponse{}), nil
 }
-func (f *nha143API) ListAccounts(_ context.Context, r *connect.Request[auth.ListAccountsRequest]) (*connect.Response[auth.ListAccountsResponse], error) {
+func (f *nha143API) ListAccounts(_ context.Context, r *connect.Request[api.ListAccountsRequest]) (*connect.Response[api.ListAccountsResponse], error) {
 	if err := f.record("accounts", r.Header()); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&auth.ListAccountsResponse{}), nil
+	return connect.NewResponse(&api.ListAccountsResponse{}), nil
 }
-func (f *nha143API) GetAccount(_ context.Context, r *connect.Request[auth.GetAccountRequest]) (*connect.Response[auth.GetAccountResponse], error) {
+func (f *nha143API) GetAccount(_ context.Context, r *connect.Request[api.GetAccountRequest]) (*connect.Response[api.Account], error) {
 	if err := f.record("account", r.Header()); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&auth.GetAccountResponse{Account: &auth.Account{Id: r.Msg.AccountId}}), nil
+	return connect.NewResponse(&api.Account{Name: r.Msg.Name}), nil
 }
-func (f *nha143API) CreateAccount(_ context.Context, r *connect.Request[auth.CreateAccountRequest]) (*connect.Response[auth.CreateAccountResponse], error) {
+func (f *nha143API) CreateAccount(_ context.Context, r *connect.Request[api.CreateAccountRequest]) (*connect.Response[api.Account], error) {
 	if err := f.record("create-account", r.Header()); err != nil {
 		return nil, err
 	}
-	if r.Msg.InitialPassword != nha143Password {
+	if r.Msg.GetAccount().GetInitialPassword() != nha143Password {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("password"))
 	}
-	return connect.NewResponse(&auth.CreateAccountResponse{Account: &auth.Account{Id: &auth.AccountId{Value: "created"}, Role: r.Msg.Role}}), nil
+	return connect.NewResponse(&api.Account{Name: nha143Home + "/accounts/created", Role: r.Msg.GetAccount().GetRole()}), nil
 }
-func (f *nha143API) CreateInvitation(_ context.Context, r *connect.Request[auth.CreateInvitationRequest]) (*connect.Response[auth.CreateInvitationResponse], error) {
+func (f *nha143API) IssueInvitation(_ context.Context, r *connect.Request[api.IssueInvitationRequest]) (*connect.Response[api.IssueInvitationResponse], error) {
 	if err := f.record("invite", r.Header()); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&auth.CreateInvitationResponse{Invitation: &auth.Invitation{Id: &auth.InvitationId{Value: "invitation-1"}}, InvitationToken: nha143Invitation}), nil
+	return connect.NewResponse(&api.IssueInvitationResponse{Invitation: &api.Invitation{Name: nha143Home + "/invitations/invitation-1"}, InvitationToken: nha143Invitation}), nil
 }
-func (f *nha143API) ListIntegrationTypes(_ context.Context, r *connect.Request[wire.ListIntegrationTypesRequest]) (*connect.Response[wire.ListIntegrationTypesResponse], error) {
+func (f *nha143API) ListIntegrationTypes(_ context.Context, r *connect.Request[api.ListIntegrationTypesRequest]) (*connect.Response[api.ListIntegrationTypesResponse], error) {
 	if err := f.record("catalogue", r.Header()); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&wire.ListIntegrationTypesResponse{}), nil
+	return connect.NewResponse(&api.ListIntegrationTypesResponse{}), nil
 }
-func (f *nha143API) GetIntegrationType(_ context.Context, r *connect.Request[wire.GetIntegrationTypeRequest]) (*connect.Response[wire.GetIntegrationTypeResponse], error) {
+func (f *nha143API) GetIntegrationType(_ context.Context, r *connect.Request[api.GetIntegrationTypeRequest]) (*connect.Response[api.IntegrationType], error) {
 	if err := f.record("schema", r.Header()); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&wire.GetIntegrationTypeResponse{Type: &wire.IntegrationType{TypeId: r.Msg.TypeId}}), nil
+	return connect.NewResponse(&api.IntegrationType{Name: r.Msg.Name, TypeKey: "mqtt"}), nil
 }
-func (f *nha143API) ListInstances(_ context.Context, r *connect.Request[wire.ListInstancesRequest]) (*connect.Response[wire.ListInstancesResponse], error) {
+func (f *nha143API) ListIntegrationInstances(_ context.Context, r *connect.Request[api.ListIntegrationInstancesRequest]) (*connect.Response[api.ListIntegrationInstancesResponse], error) {
 	if err := f.record("instances", r.Header()); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&wire.ListInstancesResponse{}), nil
+	return connect.NewResponse(&api.ListIntegrationInstancesResponse{}), nil
 }
-func (f *nha143API) GetInstance(_ context.Context, r *connect.Request[wire.GetInstanceRequest]) (*connect.Response[wire.GetInstanceResponse], error) {
+func (f *nha143API) GetIntegrationInstance(_ context.Context, r *connect.Request[api.GetIntegrationInstanceRequest]) (*connect.Response[api.IntegrationInstance], error) {
 	if err := f.record("instance", r.Header()); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&wire.GetInstanceResponse{Instance: &wire.IntegrationInstance{IntegrationInstanceId: r.Msg.IntegrationInstanceId, DesiredState: wire.DesiredState_DESIRED_STATE_DISABLED}}), nil
+	return connect.NewResponse(&api.IntegrationInstance{
+		Name:                  r.Msg.Name,
+		InstanceKey:           "isolated",
+		IntegrationType:       nha143Type,
+		DesiredState:          api.IntegrationDesiredState_INTEGRATION_DESIRED_STATE_DISABLED,
+		Etag:                  "W/\"" + strings.Repeat("a", 64) + "\"",
+		ConfigurationDocument: nha143Document,
+		Configuration: &api.IntegrationInstance_Editable{
+			Editable: &api.IntegrationConfiguration{
+				SchemaVersion: "1",
+				YamlSource:    []byte("{}"),
+			},
+		},
+		ObservedHealth:      &api.IntegrationInstance_NoHealthReport{NoHealthReport: &emptypb.Empty{}},
+		ObservedSupervision: &api.IntegrationInstance_NotSupervised{NotSupervised: &emptypb.Empty{}},
+	}), nil
 }
-func (f *nha143API) mutate(name string, header http.Header, p *wire.MutationPrecondition) error {
+func (f *nha143API) mutate(name string, header http.Header, rec nha143MutationRecord) error {
 	if err := f.record(name, header); err != nil {
 		return err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.preconditions = append(f.preconditions, p)
+	f.mutations = append(f.mutations, rec)
 	return nil
 }
-func (f *nha143API) CreateInstance(_ context.Context, r *connect.Request[wire.CreateInstanceRequest]) (*connect.Response[wire.CreateInstanceResponse], error) {
-	if err := f.mutate("create-instance", r.Header(), r.Msg.Precondition); err != nil {
+func (f *nha143API) CreateIntegrationInstance(_ context.Context, r *connect.Request[api.CreateIntegrationInstanceRequest]) (*connect.Response[longrunningpb.Operation], error) {
+	if err := f.mutate("create-instance", r.Header(), nha143MutationRecord{requestID: r.Msg.GetRequestId()}); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&wire.CreateInstanceResponse{Activation: f.activationResult()}), nil
+	return f.operationResponse(api.IntegrationMutationKind_INTEGRATION_MUTATION_KIND_CREATE)
 }
-func (f *nha143API) UpdateInstance(_ context.Context, r *connect.Request[wire.UpdateInstanceRequest]) (*connect.Response[wire.UpdateInstanceResponse], error) {
-	if err := f.mutate("update-instance", r.Header(), r.Msg.Precondition); err != nil {
+func (f *nha143API) UpdateIntegrationInstance(_ context.Context, r *connect.Request[api.UpdateIntegrationInstanceRequest]) (*connect.Response[longrunningpb.Operation], error) {
+	if err := f.mutate("update-instance", r.Header(), nha143MutationRecord{etag: r.Msg.GetIntegrationInstance().GetEtag(), requestID: r.Msg.GetRequestId(), paths: append([]string(nil), r.Msg.GetUpdateMask().GetPaths()...)}); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&wire.UpdateInstanceResponse{Activation: f.activationResult()}), nil
+	return f.operationResponse(api.IntegrationMutationKind_INTEGRATION_MUTATION_KIND_UPDATE)
 }
-func (f *nha143API) DeleteInstance(_ context.Context, r *connect.Request[wire.DeleteInstanceRequest]) (*connect.Response[wire.DeleteInstanceResponse], error) {
-	if err := f.mutate("delete-instance", r.Header(), r.Msg.Precondition); err != nil {
+func (f *nha143API) DeleteIntegrationInstance(_ context.Context, r *connect.Request[api.DeleteIntegrationInstanceRequest]) (*connect.Response[longrunningpb.Operation], error) {
+	if err := f.mutate("delete-instance", r.Header(), nha143MutationRecord{etag: r.Msg.GetEtag(), requestID: r.Msg.GetRequestId()}); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&wire.DeleteInstanceResponse{Activation: f.activationResult()}), nil
-}
-func (f *nha143API) SetInstanceEnabled(_ context.Context, r *connect.Request[wire.SetInstanceEnabledRequest]) (*connect.Response[wire.SetInstanceEnabledResponse], error) {
-	if err := f.mutate("set-enabled", r.Header(), r.Msg.Precondition); err != nil {
-		return nil, err
-	}
-	return connect.NewResponse(&wire.SetInstanceEnabledResponse{Activation: f.activationResult()}), nil
+	return f.operationResponse(api.IntegrationMutationKind_INTEGRATION_MUTATION_KIND_DELETE)
 }
 func nha143TLS(t *testing.T, token string) (*httptest.Server, *nha143API, string) {
 	t.Helper()
-	api := &nha143API{token: token}
+	apiHandler := &nha143API{token: token}
 	mux := http.NewServeMux()
-	mux.Handle(authv1connect.NewAuthServiceHandler(api))
-	mux.Handle(authv1connect.NewAccountServiceHandler(api))
-	mux.Handle(integrationadminv1connect.NewIntegrationServiceHandler(api))
+	mux.Handle(apiv2connect.NewAuthServiceHandler(apiHandler))
+	mux.Handle(apiv2connect.NewAccountServiceHandler(apiHandler))
+	mux.Handle(apiv2connect.NewIntegrationServiceHandler(apiHandler))
 	certificate, key := nha143Certificate(t)
 	pair, err := tls.X509KeyPair(certificate, key)
 	if err != nil {
@@ -278,7 +322,7 @@ func nha143TLS(t *testing.T, token string) (*httptest.Server, *nha143API, string
 	if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
-	return server, api, ca
+	return server, apiHandler, ca
 }
 func nha143Login(t *testing.T, dir, profile string) {
 	t.Helper()
@@ -329,11 +373,21 @@ func TestNHA143TwoTLSProfilesNoFallbackAndCredentials(t *testing.T) {
 
 func TestNHA143ConnectCommandsAndExplicitCAS(t *testing.T) {
 	dir := nha143Private(t)
-	server, api, ca := nha143TLS(t, nha143Access)
+	server, apiHandler, ca := nha143TLS(t, nha143Access)
 	terminal := &nha143Terminal{}
 	nha143Run(t, dir, terminal, ExitOK, "profiles", "add", "home", "--url", server.URL, "--ca", ca)
 	nha143Login(t, dir, "home")
-	for _, command := range [][]string{{"accounts", "list"}, {"accounts", "get", "account-1"}, {"sessions", "list", "account-1"}, {"sessions", "revoke", "other-session"}, {"integrations", "catalogue"}, {"integrations", "schema", "mqtt"}, {"integrations", "list"}, {"integrations", "get", "isolated"}, {"integrations", "health", "isolated"}} {
+	for _, command := range [][]string{
+		{"accounts", "list"},
+		{"accounts", "get", nha143Home + "/accounts/account-1"},
+		{"sessions", "list", nha143Home + "/accounts/account-1"},
+		{"sessions", "revoke", nha143Home + "/accounts/account-1/sessions/other-session"},
+		{"integrations", "catalogue", nha143Home},
+		{"integrations", "schema", nha143Type},
+		{"integrations", "list", nha143Home},
+		{"integrations", "get", nha143Instance},
+		{"integrations", "health", nha143Instance},
+	} {
 		nha143Run(t, dir, terminal, ExitOK, append([]string{"--profile", "home"}, command...)...)
 	}
 	nha143Run(t, dir, &nha143Terminal{values: []string{nha143Password, nha143Password}}, ExitOK, "--profile", "home", "accounts", "create", "user", "--display-name", "User", "--role", "user")
@@ -347,44 +401,55 @@ func TestNHA143ConnectCommandsAndExplicitCAS(t *testing.T) {
 	if err := os.WriteFile(config, []byte(`{"schema_version":"1","yaml_source":"e30="}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	cas := []string{"--revision", "7", "--source-sha256", strings.Repeat("a", 64), "--workspace-sha256", strings.Repeat("b", 64)}
-	for _, command := range [][]string{{"integrations", "create", "mqtt", "isolated", "--config", config}, {"integrations", "update", "mqtt", "isolated", "--config", config}, {"integrations", "delete", "isolated"}, {"integrations", "enable", "isolated"}, {"integrations", "disable", "isolated"}} {
+	etag := "W/\"" + strings.Repeat("a", 64) + "\""
+	nha143Run(t, dir, terminal, ExitOK, "--profile", "home", "integrations", "create", nha143Type, "isolated", "--config", config, "--request-id", "11111111-2222-4333-8444-555555555555")
+	for i, command := range [][]string{
+		{"integrations", "update", nha143Instance, "--config", config},
+		{"integrations", "delete", nha143Instance},
+		{"integrations", "enable", nha143Instance},
+		{"integrations", "disable", nha143Instance},
+	} {
+		reqID := fmt.Sprintf("%d2222222-2222-4333-8444-555555555555", i+2)
 		argv := append([]string{"--profile", "home"}, command...)
-		argv = append(argv, cas...)
+		argv = append(argv, "--etag", etag, "--request-id", reqID)
 		nha143Run(t, dir, terminal, ExitOK, argv...)
 	}
-	api.mu.Lock()
-	if len(api.preconditions) != 5 {
+	apiHandler.mu.Lock()
+	if len(apiHandler.mutations) != 5 {
 		t.Fatal("missing Connect mutation")
 	}
-	for _, p := range api.preconditions {
-		if p.Expected.Revision != 7 || !bytes.Equal(p.Expected.SourceSha256, bytes.Repeat([]byte{0xaa}, 32)) || !bytes.Equal(p.ExpectedWorkspaceSha256, bytes.Repeat([]byte{0xbb}, 32)) {
-			t.Fatal("CAS changed at CLI boundary")
+	if apiHandler.mutations[0].requestID != "11111111-2222-4333-8444-555555555555" {
+		t.Fatal("create request-id lost at CLI boundary")
+	}
+	for i, m := range apiHandler.mutations[1:] {
+		wantID := fmt.Sprintf("%d2222222-2222-4333-8444-555555555555", i+2)
+		if m.etag != etag || m.requestID != wantID {
+			t.Fatal("CAS etag or request-id changed at CLI boundary")
 		}
 	}
-	api.deny = true
-	api.mu.Unlock()
+	apiHandler.deny = true
+	apiHandler.mu.Unlock()
 	out := nha143Run(t, dir, terminal, ExitPermission, "--profile", "home", "accounts", "list")
-	if !strings.Contains(out, "AUTH_ERROR_CODE_PERMISSION_DENIED") {
+	if !strings.Contains(out, "API_ERROR_REASON_ACCESS_DENIED") {
 		t.Fatal("typed server error lost")
 	}
 }
 
 func TestNHA143ChallengeAndCredentialFileRejection(t *testing.T) {
 	dir := nha143Private(t)
-	server, api, ca := nha143TLS(t, nha143Access)
+	server, apiHandler, ca := nha143TLS(t, nha143Access)
 	terminal := &nha143Terminal{}
 	nha143Run(t, dir, terminal, ExitOK, "profiles", "add", "home", "--url", server.URL, "--ca", ca)
-	api.mu.Lock()
-	api.challenge = true
-	api.mu.Unlock()
+	apiHandler.mu.Lock()
+	apiHandler.challenge = true
+	apiHandler.mu.Unlock()
 	nha143Run(t, dir, &nha143Terminal{values: []string{nha143Password}}, ExitChallenge, "--profile", "home", "login", "admin")
 	if _, err := os.Stat(filepath.Join(dir, "home.credentials.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("challenge saved credential")
 	}
-	api.mu.Lock()
-	api.challenge = false
-	api.mu.Unlock()
+	apiHandler.mu.Lock()
+	apiHandler.challenge = false
+	apiHandler.mu.Unlock()
 	nha143Login(t, dir, "home")
 	path := filepath.Join(dir, "home.credentials.json")
 	original, err := os.ReadFile(path)
@@ -423,9 +488,9 @@ func TestNHA143ChallengeAndCredentialFileRejection(t *testing.T) {
 	}
 	clear(encoded)
 	nha143Run(t, dir, terminal, ExitOK, "--profile", "home", "accounts", "list")
-	api.mu.Lock()
-	calls := append([]string(nil), api.calls...)
-	api.mu.Unlock()
+	apiHandler.mu.Lock()
+	calls := append([]string(nil), apiHandler.calls...)
+	apiHandler.mu.Unlock()
 	if len(calls) < 2 || calls[len(calls)-2] != "refresh" || calls[len(calls)-1] != "accounts" {
 		t.Fatal("expired access was not refreshed before business request")
 	}
@@ -466,17 +531,74 @@ func nha143Certificate(t *testing.T) ([]byte, []byte) {
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateDER})
 }
 
-func (f *nha143API) activationResult() *cfg.ActivationResult {
+func nha143BuildOperation(kind api.IntegrationMutationKind, phase api.IntegrationOperationPhase, done bool, response proto.Message, opStatus *statuspb.Status) *longrunningpb.Operation {
+	now := timestamppb.New(time.Unix(1_700_000_000, 0).UTC())
+	meta := &api.IntegrationOperationMetadata{
+		Kind:       kind,
+		Target:     nha143Instance,
+		CreateTime: now,
+		Phase:      phase,
+	}
+	switch phase {
+	case api.IntegrationOperationPhase_INTEGRATION_OPERATION_PHASE_COMMITTED, api.IntegrationOperationPhase_INTEGRATION_OPERATION_PHASE_PUBLISHED:
+		meta.CommitTime = now
+		meta.Generation = nha143Home + "/configurationGenerations/g-2"
+		meta.GenerationRevision = 2
+		meta.ManifestSha256 = bytes.Repeat([]byte{0x44}, 32)
+	case api.IntegrationOperationPhase_INTEGRATION_OPERATION_PHASE_NO_CHANGE:
+		meta.ValidationTime = now
+	}
+	packedMeta, err := anypb.New(meta)
+	if err != nil {
+		panic(err)
+	}
+	op := &longrunningpb.Operation{
+		Name:     nha143Operation,
+		Metadata: packedMeta,
+		Done:     done,
+	}
+	if opStatus != nil {
+		op.Result = &longrunningpb.Operation_Error{Error: opStatus}
+	} else if response != nil {
+		packedResp, err := anypb.New(response)
+		if err != nil {
+			panic(err)
+		}
+		op.Result = &longrunningpb.Operation_Response{Response: packedResp}
+	}
+	return op
+}
+
+func (f *nha143API) operationResponse(kind api.IntegrationMutationKind) (*connect.Response[longrunningpb.Operation], error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.mutationOverride {
-		if f.activation == nil {
-			return nil
+		if f.operationErr != nil {
+			return nil, f.operationErr
 		}
-		return proto.Clone(f.activation).(*cfg.ActivationResult)
+		if f.operation == nil {
+			return connect.NewResponse((*longrunningpb.Operation)(nil)), nil
+		}
+		return connect.NewResponse(proto.Clone(f.operation).(*longrunningpb.Operation)), nil
 	}
-	revision := int64(1)
-	return &cfg.ActivationResult{Outcome: cfg.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED, Transaction: cfg.TransactionOutcome_TRANSACTION_OUTCOME_COMMITTED, GenerationRevision: &revision}
+	var resp proto.Message = &api.IntegrationInstance{
+		Name:                  nha143Instance,
+		InstanceKey:           "isolated",
+		IntegrationType:       nha143Type,
+		DesiredState:          api.IntegrationDesiredState_INTEGRATION_DESIRED_STATE_DISABLED,
+		Etag:                  "W/\"" + strings.Repeat("b", 64) + "\"",
+		ConfigurationDocument: nha143Document,
+		Configuration: &api.IntegrationInstance_Editable{
+			Editable: &api.IntegrationConfiguration{
+				SchemaVersion: "1",
+				YamlSource:    []byte("{}"),
+			},
+		},
+	}
+	if kind == api.IntegrationMutationKind_INTEGRATION_MUTATION_KIND_DELETE {
+		resp = &emptypb.Empty{}
+	}
+	return connect.NewResponse(nha143BuildOperation(kind, api.IntegrationOperationPhase_INTEGRATION_OPERATION_PHASE_PUBLISHED, true, resp, nil)), nil
 }
 
 func TestNHA143RejectsPrivateKeysAndNeverPrintsPEM(t *testing.T) {
@@ -564,7 +686,7 @@ func TestNHA143DefinitiveInvalidSessionsForgetAndNetworkFailuresRetain(t *testin
 	for _, expired := range []bool{false, true} {
 		t.Run(fmt.Sprint("expired-", expired), func(t *testing.T) {
 			dir := nha143Private(t)
-			server, api, ca := nha143TLS(t, nha143Access)
+			server, apiHandler, ca := nha143TLS(t, nha143Access)
 			terminal := &nha143Terminal{}
 			nha143Run(t, dir, terminal, ExitOK, "profiles", "add", "home", "--url", server.URL, "--ca", ca)
 			nha143Login(t, dir, "home")
@@ -586,10 +708,10 @@ func TestNHA143DefinitiveInvalidSessionsForgetAndNetworkFailuresRetain(t *testin
 				}
 				clear(data)
 			}
-			api.mu.Lock()
-			api.revokeError = connect.CodeUnauthenticated
-			api.refreshError = connect.CodeUnauthenticated
-			api.mu.Unlock()
+			apiHandler.mu.Lock()
+			apiHandler.revokeError = connect.CodeUnauthenticated
+			apiHandler.refreshError = connect.CodeUnauthenticated
+			apiHandler.mu.Unlock()
 			output := nha143Run(t, dir, terminal, ExitAuthentication, "--profile", "home", "logout")
 			if strings.Contains(output, `"revoked":true`) {
 				t.Fatal("local forgetting claimed remote revocation")
@@ -597,19 +719,19 @@ func TestNHA143DefinitiveInvalidSessionsForgetAndNetworkFailuresRetain(t *testin
 			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 				t.Fatal("definitively invalid session retained")
 			}
-			api.mu.Lock()
-			api.revokeError = 0
-			api.refreshError = 0
-			api.mu.Unlock()
+			apiHandler.mu.Lock()
+			apiHandler.revokeError = 0
+			apiHandler.refreshError = 0
+			apiHandler.mu.Unlock()
 			nha143Login(t, dir, "home")
 			before, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer clear(before)
-			api.mu.Lock()
-			api.revokeError = connect.CodeUnavailable
-			api.mu.Unlock()
+			apiHandler.mu.Lock()
+			apiHandler.revokeError = connect.CodeUnavailable
+			apiHandler.mu.Unlock()
 			nha143Run(t, dir, terminal, ExitUnavailable, "--profile", "home", "logout")
 			after, err := os.ReadFile(path)
 			if err != nil || !bytes.Equal(before, after) {
@@ -626,13 +748,14 @@ func TestNHA143DefinitiveInvalidSessionsForgetAndNetworkFailuresRetain(t *testin
 			if err := os.WriteFile(path, expiredData, 0600); err != nil {
 				t.Fatal(err)
 			}
-			api.mu.Lock()
-			api.refreshError = connect.CodeUnavailable
-			api.mu.Unlock()
+			apiHandler.mu.Lock()
+			apiHandler.refreshError = connect.CodeUnavailable
+			apiHandler.mu.Unlock()
 			nha143Run(t, dir, terminal, ExitUnavailable, "--profile", "home", "accounts", "list")
 			after, err = os.ReadFile(path)
-			if err != nil || !bytes.Equal(expiredData, after) {
-				t.Fatal("ambiguous refresh failure discarded credentials", err)
+			var retained credentials
+			if err != nil || json.Unmarshal(after, &retained) != nil || retained.Access != c.Access || retained.Refresh != c.Refresh || retained.Account != c.Account || retained.Session != c.Session || len(retained.RenewalKey) != 32 {
+				t.Fatal("ambiguous refresh failure discarded credentials or durable operation", err)
 			}
 			clear(after)
 			nha143Run(t, dir, terminal, ExitOK, "--profile", "home", "logout", "--forget-local")
@@ -645,52 +768,110 @@ func TestNHA143DefinitiveInvalidSessionsForgetAndNetworkFailuresRetain(t *testin
 
 func TestNHA143MutationOutcomesAreTypedAndNeverRetried(t *testing.T) {
 	dir := nha143Private(t)
-	server, api, ca := nha143TLS(t, nha143Access)
+	server, apiHandler, ca := nha143TLS(t, nha143Access)
 	terminal := &nha143Terminal{}
 	nha143Run(t, dir, terminal, ExitOK, "profiles", "add", "home", "--url", server.URL, "--ca", ca)
 	nha143Login(t, dir, "home")
-	revision := int64(2)
+	etag := "W/\"" + strings.Repeat("a", 64) + "\""
+	failedStatus := apierrors.New(api.ApiErrorReason_API_ERROR_REASON_VALIDATION_FAILED).Status()
+	opName, err := apitypes.ParseOperationName(nha143Operation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unknownFault := apierrors.New(api.ApiErrorReason_API_ERROR_REASON_COMMIT_OUTCOME_UNKNOWN).WithOperation(opName).Connect()
 	cases := []struct {
-		name       string
-		activation *cfg.ActivationResult
-		exit       int
+		name      string
+		operation *longrunningpb.Operation
+		opErr     error
+		exit      int
 	}{
-		{"published", &cfg.ActivationResult{Outcome: cfg.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED, Transaction: cfg.TransactionOutcome_TRANSACTION_OUTCOME_COMMITTED, GenerationRevision: &revision}, ExitOK},
-		{"published-not-committed", &cfg.ActivationResult{Outcome: cfg.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED, Transaction: cfg.TransactionOutcome_TRANSACTION_OUTCOME_NOT_COMMITTED, GenerationRevision: &revision}, ExitMutationFailed},
-		{"published-unknown", &cfg.ActivationResult{Outcome: cfg.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED, Transaction: cfg.TransactionOutcome_TRANSACTION_OUTCOME_COMMIT_UNKNOWN, GenerationRevision: &revision}, ExitMutationUnknown},
-		{"rejected", &cfg.ActivationResult{Outcome: cfg.ActivationOutcome_ACTIVATION_OUTCOME_REJECTED_BEFORE_COMMIT, Transaction: cfg.TransactionOutcome_TRANSACTION_OUTCOME_NO_TRANSACTION}, ExitMutationFailed},
-		{"not-committed", &cfg.ActivationResult{Outcome: cfg.ActivationOutcome_ACTIVATION_OUTCOME_NOT_COMMITTED, Transaction: cfg.TransactionOutcome_TRANSACTION_OUTCOME_NOT_COMMITTED}, ExitMutationFailed},
-		{"unknown", &cfg.ActivationResult{Outcome: cfg.ActivationOutcome_ACTIVATION_OUTCOME_COMMIT_UNKNOWN, Transaction: cfg.TransactionOutcome_TRANSACTION_OUTCOME_COMMIT_UNKNOWN}, ExitMutationUnknown},
-		{"reconciling", &cfg.ActivationResult{Outcome: cfg.ActivationOutcome_ACTIVATION_OUTCOME_COMMITTED_RECONCILING, Transaction: cfg.TransactionOutcome_TRANSACTION_OUTCOME_COMMITTED, GenerationRevision: &revision}, ExitMutationPending},
-		{"restart", &cfg.ActivationResult{Outcome: cfg.ActivationOutcome_ACTIVATION_OUTCOME_RESTART_REQUIRED, Transaction: cfg.TransactionOutcome_TRANSACTION_OUTCOME_NO_TRANSACTION}, ExitMutationPending},
-		{"nil", nil, ExitLocal}, {"zero", &cfg.ActivationResult{}, ExitLocal}, {"future", &cfg.ActivationResult{Outcome: cfg.ActivationOutcome(999), Transaction: cfg.TransactionOutcome_TRANSACTION_OUTCOME_COMMITTED}, ExitLocal},
-		{"unknown-transaction", &cfg.ActivationResult{Outcome: cfg.ActivationOutcome_ACTIVATION_OUTCOME_NOT_COMMITTED, Transaction: cfg.TransactionOutcome(999)}, ExitLocal},
+		{"published", nha143BuildOperation(api.IntegrationMutationKind_INTEGRATION_MUTATION_KIND_DELETE, api.IntegrationOperationPhase_INTEGRATION_OPERATION_PHASE_PUBLISHED, true, &emptypb.Empty{}, nil), nil, ExitOK},
+		{"accepted", nha143BuildOperation(api.IntegrationMutationKind_INTEGRATION_MUTATION_KIND_DELETE, api.IntegrationOperationPhase_INTEGRATION_OPERATION_PHASE_ACCEPTED, false, nil, nil), nil, ExitMutationPending},
+		{"committed", nha143BuildOperation(api.IntegrationMutationKind_INTEGRATION_MUTATION_KIND_DELETE, api.IntegrationOperationPhase_INTEGRATION_OPERATION_PHASE_COMMITTED, false, nil, nil), nil, ExitMutationPending},
+		{"failed", nha143BuildOperation(api.IntegrationMutationKind_INTEGRATION_MUTATION_KIND_DELETE, api.IntegrationOperationPhase_INTEGRATION_OPERATION_PHASE_FAILED, true, nil, failedStatus), nil, ExitMutationFailed},
+		{"unknown", nil, unknownFault, ExitMutationUnknown},
+		{"nil", nil, nil, ExitLocal},
+		{"zero", &longrunningpb.Operation{}, nil, ExitLocal},
+		{"future-phase", nha143BuildOperation(api.IntegrationMutationKind_INTEGRATION_MUTATION_KIND_DELETE, api.IntegrationOperationPhase(999), true, &emptypb.Empty{}, nil), nil, ExitLocal},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			api.mu.Lock()
-			api.mutationOverride = true
-			api.activation = test.activation
-			before := len(api.calls)
-			api.mu.Unlock()
-			output := nha143Run(t, dir, terminal, test.exit, "--profile", "home", "integrations", "delete", "isolated", "--revision", "7", "--source-sha256", strings.Repeat("a", 64), "--workspace-sha256", strings.Repeat("b", 64))
-			api.mu.Lock()
-			calls := len(api.calls) - before
-			api.mu.Unlock()
+			apiHandler.mu.Lock()
+			apiHandler.mutationOverride = true
+			apiHandler.operation = test.operation
+			apiHandler.operationErr = test.opErr
+			before := len(apiHandler.calls)
+			apiHandler.mu.Unlock()
+			output := nha143Run(t, dir, terminal, test.exit, "--profile", "home", "integrations", "delete", nha143Instance, "--etag", etag)
+			apiHandler.mu.Lock()
+			calls := len(apiHandler.calls) - before
+			apiHandler.mu.Unlock()
 			if calls != 1 {
 				t.Fatal("mutation implicitly retried")
 			}
-			if test.exit != ExitLocal && !strings.Contains(output, `"activation"`) {
-				t.Fatal("typed mutation state lost")
-			}
-			if test.exit == ExitMutationUnknown && !strings.Contains(output, "mutation_commit_unknown_do_not_retry") {
-				t.Fatal("commit ambiguity lost its do-not-retry signal")
-			}
-			if test.name == "published-not-committed" || test.name == "published-unknown" {
-				if !strings.Contains(output, test.activation.Outcome.String()) || !strings.Contains(output, test.activation.Transaction.String()) {
-					t.Fatal("publication and requesting transaction axes not preserved")
+			if test.exit == ExitMutationUnknown {
+				if !strings.Contains(output, "mutation_commit_unknown_do_not_retry") || !strings.Contains(output, nha143Operation) {
+					t.Fatal("commit ambiguity lost its do-not-retry signal or operation name")
 				}
+			} else if test.exit != ExitLocal && !strings.Contains(output, nha143Operation) {
+				t.Fatal("typed operation receipt lost")
 			}
 		})
+	}
+}
+
+func TestNHA203CLIRenewalSavesAndReusesExactKeyAfterLostReply(t *testing.T) {
+	dir := nha143Private(t)
+	server, apiHandler, ca := nha143TLS(t, nha143Access)
+	terminal := &nha143Terminal{}
+	nha143Run(t, dir, terminal, ExitOK, "profiles", "add", "renewal", "--url", server.URL, "--ca", ca)
+	nha143Login(t, dir, "renewal")
+	path := filepath.Join(dir, "renewal.credentials.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved credentials
+	if err := json.Unmarshal(raw, &saved); err != nil {
+		t.Fatal(err)
+	}
+	saved.Expires = time.Now().Add(-time.Minute)
+	data, err := json.Marshal(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	apiHandler.mu.Lock()
+	apiHandler.credentialPath = path
+	apiHandler.refreshError = connect.CodeUnavailable
+	apiHandler.mu.Unlock()
+	nha143Run(t, dir, terminal, ExitUnavailable, "--profile", "renewal", "accounts", "list")
+	raw, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if json.Unmarshal(raw, &saved) != nil || len(saved.RenewalKey) != 32 {
+		t.Fatal("uncertain renewal lost saved operation")
+	}
+	pending := append([]byte(nil), saved.RenewalKey...)
+	apiHandler.mu.Lock()
+	apiHandler.refreshError = 0
+	apiHandler.mu.Unlock()
+	nha143Run(t, dir, terminal, ExitOK, "--profile", "renewal", "accounts", "list")
+	apiHandler.mu.Lock()
+	keys := apiHandler.renewalKeys
+	apiHandler.mu.Unlock()
+	if len(keys) != 2 || !bytes.Equal(keys[0], pending) || !bytes.Equal(keys[1], pending) {
+		t.Fatal("retry changed durable renewal key")
+	}
+	raw, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved = credentials{} // An omitted JSON key must not retain the previous decoded value.
+	if json.Unmarshal(raw, &saved) != nil || len(saved.RenewalKey) != 0 {
+		t.Fatal("successful renewal retained pending operation")
 	}
 }

@@ -1,10 +1,9 @@
 use buffa::Message;
 use buffa_types::google::protobuf::Timestamp;
-use home_wire_contract::{auth_contract, home::auth::v1 as auth};
+use home_wire_contract::{auth_contract, home::api::v2 as auth};
 use zeroize::{Zeroize, Zeroizing};
 
-const MAGIC: &[u8; 8] = b"HWSess02";
-const LEGACY_MAGIC: &[u8; 8] = b"HWSess01";
+const MAGIC: &[u8; 8] = b"HWSess03";
 const HEADER: usize = 21;
 const LIMIT: usize = 32 * 1024;
 
@@ -55,7 +54,7 @@ impl SecretRecord {
         Ok(record)
     }
 
-    /// Legacy marker retained for migrating one-use sessions without a renewal key.
+    /// Explicit local destruction of a refresh credential; never dispatched again.
     pub fn consume_refresh(&mut self) -> Result<(), RecordFailure> {
         if self.refresh != RefreshState::Available {
             return Err(RecordFailure::RefreshConsumed);
@@ -83,9 +82,7 @@ impl SecretRecord {
     }
 
     pub fn decode(bytes: &[u8], now: &Timestamp) -> Result<Self, RecordFailure> {
-        if !(HEADER..=LIMIT).contains(&bytes.len())
-            || (&bytes[..8] != MAGIC && &bytes[..8] != LEGACY_MAGIC)
-        {
+        if !(HEADER..=LIMIT).contains(&bytes.len()) || &bytes[..8] != MAGIC {
             return Err(RecordFailure::Invalid);
         }
         let refresh = match bytes[8] {
@@ -152,8 +149,8 @@ impl SecretRecord {
             return true;
         };
         (
-            self.tokens.access_expires_at.seconds,
-            self.tokens.access_expires_at.nanos,
+            self.tokens.access_expire_time.seconds,
+            self.tokens.access_expire_time.nanos,
         ) <= (latest.seconds, latest.nanos)
     }
 
@@ -162,8 +159,8 @@ impl SecretRecord {
             return true;
         };
         (
-            self.tokens.session.expires_at.seconds,
-            self.tokens.session.expires_at.nanos,
+            self.tokens.session.expire_time.seconds,
+            self.tokens.session.expire_time.nanos,
         ) <= (latest.seconds, latest.nanos)
     }
 }

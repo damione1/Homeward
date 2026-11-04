@@ -1,20 +1,40 @@
-use buffa::Message;
 use buffa_types::google::protobuf::Timestamp;
 use home_client_session::{RecordFailure, SecretRecord};
-use home_wire_contract::home::auth::v1 as auth;
+use home_wire_contract::home::api::v2 as auth;
 
 fn record() -> (SecretRecord, Timestamp) {
-    let cwd = std::env::current_dir().unwrap();
-    let bytes = std::fs::read(cwd.join("../../contracts/auth_golden/login-success.bin")).unwrap();
-    let decision = auth::LoginDecision::decode_from_slice(&bytes).unwrap();
-    let Some(auth::login_decision::Outcome::Authenticated(tokens)) = decision.outcome else {
-        panic!("golden session missing")
-    };
     let now = Timestamp {
         seconds: 1_792_314_000,
         ..Default::default()
     };
-    (SecretRecord::new(*tokens, now.clone()).unwrap(), now)
+    let tokens = auth::SessionTokens {
+        session: auth::Session {
+            name: "homes/test/accounts/person/sessions/interactive".into(),
+            create_time: Timestamp {
+                seconds: now.seconds - 60,
+                ..Default::default()
+            }
+            .into(),
+            expire_time: Timestamp {
+                seconds: now.seconds + 3600,
+                ..Default::default()
+            }
+            .into(),
+            authentication_satisfaction: auth::AuthenticationSatisfaction::NotRecorded.into(),
+            ..Default::default()
+        }
+        .into(),
+        audience: auth::CredentialAudience::Interactive.into(),
+        access_token: "synthetic-access".into(),
+        refresh_token: "synthetic-refresh".into(),
+        access_expire_time: Timestamp {
+            seconds: now.seconds + 900,
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    };
+    (SecretRecord::new(tokens, now.clone()).unwrap(), now)
 }
 
 #[test]
@@ -62,12 +82,17 @@ fn corrupt_storage_and_backwards_clock_do_not_expose_a_session() {
 }
 
 #[test]
-fn legacy_available_records_migrate_without_discarding_the_session() {
+fn unsupported_profile_formats_are_rejected_without_legacy_fallback() {
     let (record, now) = record();
-    let mut legacy = record.encode();
-    legacy[..8].copy_from_slice(b"HWSess01");
-    let restored = SecretRecord::decode(&legacy, &now).unwrap();
-    assert_eq!(&restored.encode()[..8], b"HWSess02");
+    for magic in [b"HWSess01", b"HWSess02"] {
+        let mut old = record.encode();
+        old[..8].copy_from_slice(magic);
+        assert!(matches!(
+            SecretRecord::decode(&old, &now),
+            Err(RecordFailure::Invalid)
+        ));
+    }
+    assert_eq!(&record.encode()[..8], b"HWSess03");
 }
 
 #[test]

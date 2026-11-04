@@ -1,0 +1,9 @@
+name: "homes/home-a/accounts/account-a"
+login_name: "synthetic-admin"
+display_name: "Synthetic Admin"
+role: ACCOUNT_ROLE_ADMIN
+state: ACCOUNT_STATE_ACTIVE
+create_time { seconds: 1792310000 }
+update_time { seconds: 1792310000 }
+second_factor_enabled: false
+etag: "opaque-cas"

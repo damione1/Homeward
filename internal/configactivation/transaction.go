@@ -137,9 +137,12 @@ func prepareWorkspaceActivation(ctx context.Context, store *storage.Store, start
 	if err != nil {
 		return preparedActivation{}, err
 	}
-	attempt, err := storage.RandomActivationAttemptID()
-	if err != nil {
-		return preparedActivation{}, err
+	attempt, reserved := storage.ConfigurationAPIActivationID(ctx)
+	if !reserved {
+		attempt, err = storage.RandomActivationAttemptID()
+		if err != nil {
+			return preparedActivation{}, err
+		}
 	}
 	legacy, hasLegacy := current.LegacyCandidate()
 	prepared := preparedActivation{startup: startup, source: source, expected: expected, attempt: attempt,
@@ -311,6 +314,9 @@ func writePreparedActivation(ctx context.Context, store *storage.Store, replay *
 			if err := prepared.confirmDeclarations(ctx); err != nil {
 				return err
 			}
+		}
+		if err := recordIntegrationResources(tx, prepared.source); err != nil {
+			return err
 		}
 		if err := tx.ActivateGeneration(prepared.expected, target); err != nil {
 			return err

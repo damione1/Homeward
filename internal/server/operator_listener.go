@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
+	"github.com/damione1/Homeward/gen/home/operator/v1/operatorv1connect"
 	"github.com/damione1/Homeward/internal/observability"
 	"github.com/damione1/Homeward/internal/storage"
 )
@@ -83,7 +83,7 @@ func startOperatorListenerObserved(ctx context.Context, dataDir string, store *s
 		root.Close()
 		return nil, errors.Join(ErrOperatorSocketUnsafe, errors.New("final socket identity"), err)
 	}
-	_, handler := authv1connect.NewOperatorAccountServiceHandler(&accountHandler{store: store, coordinator: coordinator})
+	_, handler := operatorv1connect.NewOperatorAccountServiceHandler(&accountHandler{store: store, coordinator: coordinator})
 	handler = packageOperatorHealth(handler, health...)
 	active := newPublicAdmissions()
 	server := &http.Server{

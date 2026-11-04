@@ -1,0 +1,7 @@
+name: "homes/home-a/accounts/account-a/mcpKeys/mcp-key-a"
+client_name: "synthetic-mcp-client"
+audience: CREDENTIAL_AUDIENCE_MCP
+scopes { family: SCOPE_FAMILY_ACTIONS operation: SCOPE_OPERATION_WRITE }
+scopes { family: SCOPE_FAMILY_STATE_REGISTRY operation: SCOPE_OPERATION_READ }
+create_time { seconds: 1792310000 }
+expire_time { seconds: 1794900000 }

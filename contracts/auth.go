@@ -2,12 +2,10 @@ package contracts
 
 import (
 	"errors"
-	"math"
 	"reflect"
 	"time"
 	"unicode/utf8"
 
-	"connectrpc.com/connect"
 	auth "github.com/damione1/Homeward/gen/home/auth/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -78,25 +76,11 @@ func validAccountID(id *auth.AccountId) bool {
 	_, err := ParseAccountID(id.Value)
 	return err == nil
 }
-func validSessionID(id *auth.SessionId) bool {
-	if id == nil {
-		return false
-	}
-	_, err := ParseSessionID(id.Value)
-	return err == nil
-}
 func validChallengeID(id *auth.ChallengeId) bool {
 	if id == nil {
 		return false
 	}
 	_, err := ParseChallengeID(id.Value)
-	return err == nil
-}
-func validMcpKeyID(id *auth.McpKeyId) bool {
-	if id == nil {
-		return false
-	}
-	_, err := ParseMcpKeyID(id.Value)
 	return err == nil
 }
 func validInstanceID(id *auth.InstanceId) bool {
@@ -125,16 +109,6 @@ func AdmitAccountRole(role auth.AccountRole) error {
 		return ErrInvalidAuthContract
 	default:
 		return ErrInvalidAuthContract
-	}
-}
-func admitAccountStatus(status auth.AccountStatus) bool {
-	switch status {
-	case auth.AccountStatus_ACCOUNT_STATUS_ACTIVE, auth.AccountStatus_ACCOUNT_STATUS_DISABLED, auth.AccountStatus_ACCOUNT_STATUS_PENDING_INVITATION:
-		return true
-	case auth.AccountStatus_ACCOUNT_STATUS_UNSPECIFIED:
-		return false
-	default:
-		return false
 	}
 }
 func admitScopeFamily(family auth.ScopeFamily) bool {
@@ -188,32 +162,6 @@ func (a AdmittedAuthWire[T]) Snapshot() (T, error) {
 	return proto.Clone(a.value).(T), nil
 }
 
-func AdmitAccount(account *auth.Account) (AdmittedAuthWire[*auth.Account], error) {
-	if account == nil || !knownFieldsOnly(account.ProtoReflect()) || !validAccountID(account.Id) ||
-		!validText(account.LoginName) || AdmitAccountRole(account.Role) != nil || !admitAccountStatus(account.Status) ||
-		!validTimestamp(account.CreatedAt) || !validTimestamp(account.UpdatedAt) ||
-		account.UpdatedAt.AsTime().Before(account.CreatedAt.AsTime()) {
-		return AdmittedAuthWire[*auth.Account]{}, ErrInvalidAuthContract
-	}
-	return AdmittedAuthWire[*auth.Account]{value: proto.Clone(account).(*auth.Account)}, nil
-}
-
-func validSession(session *auth.Session, now time.Time) bool {
-	return session != nil && knownFieldsOnly(session.ProtoReflect()) && validSessionAuthentication(session, now) && validSessionID(session.Id) && validAccountID(session.AccountId) &&
-		validTimestamp(session.CreatedAt) && validFuture(session.ExpiresAt, now) &&
-		session.ExpiresAt.AsTime().After(session.CreatedAt.AsTime()) &&
-		(session.RevokedAt == nil || validTimestamp(session.RevokedAt)) &&
-		(session.LastUsedAt == nil || validTimestamp(session.LastUsedAt)) && session.RevokedAt == nil
-}
-func validSessionTokens(tokens *auth.SessionTokens, now time.Time) bool {
-	// This bounds remaining lifetime at admission, not issuance duration. The
-	// issuing service must enforce its own clock and 15-minute token policy.
-	return tokens != nil && validSession(tokens.Session, now) &&
-		tokens.Audience == auth.CredentialAudience_CREDENTIAL_AUDIENCE_INTERACTIVE &&
-		validText(tokens.AccessToken) && validText(tokens.RefreshToken) && validFuture(tokens.AccessExpiresAt, now) &&
-		!tokens.AccessExpiresAt.AsTime().After(now.Add(15*time.Minute)) &&
-		!tokens.AccessExpiresAt.AsTime().After(tokens.Session.ExpiresAt.AsTime())
-}
 func validFactorChallenge(challenge *auth.FactorChallenge, now time.Time) bool {
 	if challenge == nil || !knownFieldsOnly(challenge.ProtoReflect()) || !validChallengeID(challenge.Id) || !validFuture(challenge.ExpiresAt, now) || len(challenge.Options) == 0 {
 		return false
@@ -245,6 +193,15 @@ func validFactorChallenge(challenge *auth.FactorChallenge, now time.Time) bool {
 	return true
 }
 
+// AdmitNativeFactorChallenge validates the persisted MFA ceremony vocabulary.
+// It does not construct a public login response or verify a factor proof.
+func AdmitNativeFactorChallenge(challenge *auth.FactorChallenge, now time.Time) error {
+	if !validFactorChallenge(challenge, now) {
+		return ErrInvalidAuthContract
+	}
+	return nil
+}
+
 // AdmitFactorProofForChallenge only checks the offered wire shape. It never
 // verifies a recovery code, FIDO signature, challenge binding, RP ID or UV.
 func AdmitFactorProofForChallenge(proof *auth.FactorProof, challenge *auth.FactorChallenge, now time.Time) error {
@@ -271,69 +228,6 @@ func AdmitFactorProofForChallenge(proof *auth.FactorProof, challenge *auth.Facto
 	return ErrInvalidAuthContract
 }
 
-func AdmitCompleteLoginRequest(request *auth.CompleteLoginRequest, challenge *auth.FactorChallenge, now time.Time) error {
-	if request == nil || !knownFieldsOnly(request.ProtoReflect()) || !validFactorChallenge(challenge, now) ||
-		!validChallengeID(request.ChallengeId) || request.ChallengeId.Value != challenge.Id.Value {
-		return ErrInvalidAuthContract
-	}
-	return AdmitFactorProofForChallenge(request.Proof, challenge, now)
-}
-
-func AdmitBeginFactorEnrollment(request *auth.BeginFactorEnrollmentRequest) error {
-	if request == nil || !knownFieldsOnly(request.ProtoReflect()) || request.Kind != auth.FactorKind_FACTOR_KIND_FIDO2 || !utf8.ValidString(request.EnrollmentToken) {
-		return ErrInvalidAuthContract
-	}
-	return nil
-}
-
-func AdmitLoginDecision(decision *auth.LoginDecision, now time.Time) (AdmittedAuthWire[*auth.LoginDecision], error) {
-	if decision == nil || !knownFieldsOnly(decision.ProtoReflect()) {
-		return AdmittedAuthWire[*auth.LoginDecision]{}, ErrInvalidAuthContract
-	}
-	valid := false
-	switch outcome := decision.Outcome.(type) {
-	case *auth.LoginDecision_Authenticated:
-		valid = outcome != nil && validSessionTokens(outcome.Authenticated, now)
-	case *auth.LoginDecision_Challenge:
-		valid = outcome != nil && validFactorChallenge(outcome.Challenge, now)
-	case *auth.LoginDecision_EnrollmentRequired:
-		valid = outcome != nil && outcome.EnrollmentRequired != nil &&
-			validAccountID(outcome.EnrollmentRequired.AccountId) &&
-			validText(outcome.EnrollmentRequired.EnrollmentToken) &&
-			validFuture(outcome.EnrollmentRequired.ExpiresAt, now)
-	default:
-		// Includes absent and unknown future oneof branches.
-		valid = false
-	}
-	if !valid {
-		return AdmittedAuthWire[*auth.LoginDecision]{}, ErrInvalidAuthContract
-	}
-	return AdmittedAuthWire[*auth.LoginDecision]{value: proto.Clone(decision).(*auth.LoginDecision)}, nil
-}
-
-func AdmitMcpKey(key *auth.McpKey, now time.Time) (AdmittedAuthWire[*auth.McpKey], error) {
-	if key == nil || !knownFieldsOnly(key.ProtoReflect()) || !validMcpKeyID(key.Id) || !validAccountID(key.AccountId) ||
-		!validText(key.ClientName) || key.Audience != auth.CredentialAudience_CREDENTIAL_AUDIENCE_MCP ||
-		!validTimestamp(key.CreatedAt) || !validFuture(key.ExpiresAt, now) ||
-		!key.ExpiresAt.AsTime().After(key.CreatedAt.AsTime()) || key.RevokedAt != nil ||
-		key.ExpiresAt.AsTime().Sub(key.CreatedAt.AsTime()) > 365*24*time.Hour ||
-		(key.LastUsedAt != nil && !validTimestamp(key.LastUsedAt)) {
-		return AdmittedAuthWire[*auth.McpKey]{}, ErrInvalidAuthContract
-	}
-	seen := make(map[[2]int32]struct{}, len(key.Scopes))
-	for _, scope := range key.Scopes {
-		if AdmitScope(scope) != nil {
-			return AdmittedAuthWire[*auth.McpKey]{}, ErrInvalidAuthContract
-		}
-		pair := [2]int32{int32(scope.Family), int32(scope.Operation)}
-		if _, duplicate := seen[pair]; duplicate {
-			return AdmittedAuthWire[*auth.McpKey]{}, ErrInvalidAuthContract
-		}
-		seen[pair] = struct{}{}
-	}
-	return AdmittedAuthWire[*auth.McpKey]{value: proto.Clone(key).(*auth.McpKey)}, nil
-}
-
 // Absence selects the 30-day default. A present zero is invalid, including a
 // non-nil empty Duration message; the ceiling is 365 days.
 func AdmitMcpKeyLifetime(lifetime *durationpb.Duration) (time.Duration, error) {
@@ -350,115 +244,8 @@ func AdmitMcpKeyLifetime(lifetime *durationpb.Duration) (time.Duration, error) {
 	return d, nil
 }
 
-func AdmitMcpKeyCreateRequest(request *auth.CreateMcpKeyRequest) error {
-	if request == nil || !knownFieldsOnly(request.ProtoReflect()) || !validText(request.ClientName) {
-		return ErrInvalidAuthContract
-	}
-	if _, err := AdmitMcpKeyLifetime(request.Lifetime); err != nil {
-		return err
-	}
-	seen := make(map[[2]int32]struct{}, len(request.Scopes))
-	for _, scope := range request.Scopes {
-		if AdmitScope(scope) != nil {
-			return ErrInvalidAuthContract
-		}
-		pair := [2]int32{int32(scope.Family), int32(scope.Operation)}
-		if _, duplicate := seen[pair]; duplicate {
-			return ErrInvalidAuthContract
-		}
-		seen[pair] = struct{}{}
-	}
-	return nil
-}
-
-func AdmitAuthError(detail *auth.AuthError) (AdmittedAuthWire[*auth.AuthError], error) {
-	if detail == nil || !knownFieldsOnly(detail.ProtoReflect()) {
-		return AdmittedAuthWire[*auth.AuthError]{}, ErrInvalidAuthContract
-	}
-	valid := false
-	switch detail.Code {
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_UNAUTHENTICATED:
-		reason, ok := detail.Detail.(*auth.AuthError_Authentication)
-		valid = ok && reason != nil && (reason.Authentication == auth.AuthenticationFailure_AUTHENTICATION_FAILURE_INVALID_CREDENTIAL || reason.Authentication == auth.AuthenticationFailure_AUTHENTICATION_FAILURE_REVOKED || reason.Authentication == auth.AuthenticationFailure_AUTHENTICATION_FAILURE_FACTOR_REQUIRED)
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_PERMISSION_DENIED:
-		reason, ok := detail.Detail.(*auth.AuthError_Permission)
-		valid = ok && reason != nil && (reason.Permission == auth.PermissionFailure_PERMISSION_FAILURE_LOCAL_OPERATOR_REQUIRED || reason.Permission == auth.PermissionFailure_PERMISSION_FAILURE_SCOPE_DENIED || reason.Permission == auth.PermissionFailure_PERMISSION_FAILURE_ACCOUNT_DISABLED)
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_CONFLICT:
-		reason, ok := detail.Detail.(*auth.AuthError_Conflict)
-		valid = ok && reason != nil && (reason.Conflict == auth.ConflictFailure_CONFLICT_FAILURE_ALREADY_EXISTS || reason.Conflict == auth.ConflictFailure_CONFLICT_FAILURE_BOOTSTRAP_COMPLETE || reason.Conflict == auth.ConflictFailure_CONFLICT_FAILURE_ALREADY_USED || reason.Conflict == auth.ConflictFailure_CONFLICT_FAILURE_LAST_ADMIN)
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_EXPIRED:
-		reason, ok := detail.Detail.(*auth.AuthError_Expired)
-		valid = ok && reason != nil && (reason.Expired == auth.ExpiredResource_EXPIRED_RESOURCE_INVITATION || reason.Expired == auth.ExpiredResource_EXPIRED_RESOURCE_CHALLENGE || reason.Expired == auth.ExpiredResource_EXPIRED_RESOURCE_SESSION || reason.Expired == auth.ExpiredResource_EXPIRED_RESOURCE_ACCESS_TOKEN || reason.Expired == auth.ExpiredResource_EXPIRED_RESOURCE_MCP_KEY)
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_INVALID_ARGUMENT:
-		field, ok := detail.Detail.(*auth.AuthError_InvalidField)
-		valid = ok && field != nil && knownAuthField(field.InvalidField)
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_RATE_LIMITED:
-		retry, ok := detail.Detail.(*auth.AuthError_RetryAt)
-		valid = ok && retry != nil && validTimestamp(retry.RetryAt)
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_UNSPECIFIED:
-		valid = false
-	default:
-		valid = false
-	}
-	if !valid {
-		return AdmittedAuthWire[*auth.AuthError]{}, ErrInvalidAuthContract
-	}
-	return AdmittedAuthWire[*auth.AuthError]{value: proto.Clone(detail).(*auth.AuthError)}, nil
-}
-
-func knownAuthField(field auth.AuthField) bool {
-	switch field {
-	case auth.AuthField_AUTH_FIELD_LOGIN_NAME, auth.AuthField_AUTH_FIELD_PASSWORD, auth.AuthField_AUTH_FIELD_ACCOUNT_ID,
-		auth.AuthField_AUTH_FIELD_ROLE, auth.AuthField_AUTH_FIELD_STATUS, auth.AuthField_AUTH_FIELD_SESSION_ID,
-		auth.AuthField_AUTH_FIELD_CHALLENGE_ID, auth.AuthField_AUTH_FIELD_FACTOR_PROOF,
-		auth.AuthField_AUTH_FIELD_FACTOR_KIND, auth.AuthField_AUTH_FIELD_FACTOR_ID,
-		auth.AuthField_AUTH_FIELD_INVITATION_TOKEN, auth.AuthField_AUTH_FIELD_EXPIRES_AT,
-		auth.AuthField_AUTH_FIELD_CLIENT_NAME, auth.AuthField_AUTH_FIELD_SCOPES,
-		auth.AuthField_AUTH_FIELD_LIFETIME, auth.AuthField_AUTH_FIELD_MCP_KEY_ID:
-		return true
-	case auth.AuthField_AUTH_FIELD_UNSPECIFIED:
-		return false
-	default:
-		return false
-	}
-}
-
 // Connect mapping is exhaustive over admitted auth categories. It does not
 // serialize any credential or construct a public message from untrusted text.
-func AuthErrorConnectCode(detail *auth.AuthError) (connect.Code, error) {
-	if _, err := AdmitAuthError(detail); err != nil {
-		return 0, err
-	}
-	switch detail.Code {
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_UNAUTHENTICATED:
-		return connect.CodeUnauthenticated, nil
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_PERMISSION_DENIED:
-		return connect.CodePermissionDenied, nil
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_CONFLICT:
-		return connect.CodeFailedPrecondition, nil
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_EXPIRED:
-		reason := detail.GetExpired()
-		switch reason {
-		case auth.ExpiredResource_EXPIRED_RESOURCE_SESSION, auth.ExpiredResource_EXPIRED_RESOURCE_ACCESS_TOKEN,
-			auth.ExpiredResource_EXPIRED_RESOURCE_MCP_KEY:
-			return connect.CodeUnauthenticated, nil
-		case auth.ExpiredResource_EXPIRED_RESOURCE_INVITATION, auth.ExpiredResource_EXPIRED_RESOURCE_CHALLENGE:
-			return connect.CodeFailedPrecondition, nil
-		case auth.ExpiredResource_EXPIRED_RESOURCE_UNSPECIFIED:
-			return 0, ErrInvalidAuthContract
-		default:
-			return 0, ErrInvalidAuthContract
-		}
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_INVALID_ARGUMENT:
-		return connect.CodeInvalidArgument, nil
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_RATE_LIMITED:
-		return connect.CodeResourceExhausted, nil
-	case auth.AuthErrorCode_AUTH_ERROR_CODE_UNSPECIFIED:
-		return 0, ErrInvalidAuthContract
-	default:
-		return 0, ErrInvalidAuthContract
-	}
-}
 
 // AdmitAuthenticationSatisfaction admits newly issued authentication methods.
 // Legacy UNSPECIFIED remains an explicit metadata state, never new evidence.
@@ -471,70 +258,6 @@ func AdmitAuthenticationSatisfaction(value auth.AuthenticationSatisfaction) erro
 	default:
 		return ErrInvalidAuthContract
 	}
-}
-func validSessionAuthentication(session *auth.Session, now time.Time) bool {
-	if session == nil {
-		return false
-	}
-	switch session.AuthenticationSatisfaction {
-	case auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_UNSPECIFIED:
-		return session.AuthenticatedAt == nil
-	case auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_ONLY, auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_FIDO2, auth.AuthenticationSatisfaction_AUTHENTICATION_SATISFACTION_PASSWORD_RECOVERY_CODE:
-		return validTimestamp(session.AuthenticatedAt) && validTimestamp(session.CreatedAt) && session.AuthenticatedAt.AsTime().Equal(session.CreatedAt.AsTime()) && !session.AuthenticatedAt.AsTime().After(now)
-	default:
-		return false
-	}
-}
-func validMFAPolicyVersion(version *auth.PolicyVersion) bool {
-	return version != nil && knownFieldsOnly(version.ProtoReflect()) && version.Revision > 0 && version.Revision <= math.MaxInt64 && len(version.SourceSha256) == 32
-}
-func AdmitSetSecondFactorPolicy(request *auth.SetSecondFactorPolicyRequest) (AdmittedAuthWire[*auth.SetSecondFactorPolicyRequest], error) {
-	if request == nil || !knownFieldsOnly(request.ProtoReflect()) || !validMFAPolicyVersion(request.Expected) {
-		return AdmittedAuthWire[*auth.SetSecondFactorPolicyRequest]{}, ErrInvalidAuthContract
-	}
-	return AdmittedAuthWire[*auth.SetSecondFactorPolicyRequest]{value: proto.Clone(request).(*auth.SetSecondFactorPolicyRequest)}, nil
-}
-func validSecondFactorPolicy(policy *auth.SecondFactorPolicy) bool {
-	return policy != nil && knownFieldsOnly(policy.ProtoReflect()) && validMFAPolicyVersion(policy.Version) && validTimestamp(policy.UpdatedAt)
-}
-func AdmitGetSecondFactorPolicyResponse(response *auth.GetSecondFactorPolicyResponse) (AdmittedAuthWire[*auth.GetSecondFactorPolicyResponse], error) {
-	if response == nil || !knownFieldsOnly(response.ProtoReflect()) || !validSecondFactorPolicy(response.Policy) {
-		return AdmittedAuthWire[*auth.GetSecondFactorPolicyResponse]{}, ErrInvalidAuthContract
-	}
-	return AdmittedAuthWire[*auth.GetSecondFactorPolicyResponse]{value: proto.Clone(response).(*auth.GetSecondFactorPolicyResponse)}, nil
-}
-func AdmitSetSecondFactorPolicyResponse(response *auth.SetSecondFactorPolicyResponse) (AdmittedAuthWire[*auth.SetSecondFactorPolicyResponse], error) {
-	if response == nil || !knownFieldsOnly(response.ProtoReflect()) || !validSecondFactorPolicy(response.Policy) {
-		return AdmittedAuthWire[*auth.SetSecondFactorPolicyResponse]{}, ErrInvalidAuthContract
-	}
-	switch response.Continuation {
-	case auth.SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_CONTINUES, auth.SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_REAUTHENTICATION_REQUIRED:
-		return AdmittedAuthWire[*auth.SetSecondFactorPolicyResponse]{value: proto.Clone(response).(*auth.SetSecondFactorPolicyResponse)}, nil
-	case auth.SecondFactorSessionContinuation_SECOND_FACTOR_SESSION_CONTINUATION_UNSPECIFIED:
-		return AdmittedAuthWire[*auth.SetSecondFactorPolicyResponse]{}, ErrInvalidAuthContract
-	default:
-		return AdmittedAuthWire[*auth.SetSecondFactorPolicyResponse]{}, ErrInvalidAuthContract
-	}
-}
-func AdmitSecondFactorPolicyError(detail *auth.SecondFactorPolicyError) (AdmittedAuthWire[*auth.SecondFactorPolicyError], error) {
-	if detail == nil || !knownFieldsOnly(detail.ProtoReflect()) {
-		return AdmittedAuthWire[*auth.SecondFactorPolicyError]{}, ErrInvalidAuthContract
-	}
-	valid := false
-	switch detail.Code {
-	case auth.SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_INVALID_VERSION, auth.SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_VERSION_CONFLICT:
-		valid = detail.Field == "expected"
-	case auth.SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_AUTHORITY_UNAVAILABLE:
-		valid = detail.Field == ""
-	case auth.SecondFactorPolicyErrorCode_SECOND_FACTOR_POLICY_ERROR_CODE_UNSPECIFIED:
-		valid = false
-	default:
-		valid = false
-	}
-	if !valid {
-		return AdmittedAuthWire[*auth.SecondFactorPolicyError]{}, ErrInvalidAuthContract
-	}
-	return AdmittedAuthWire[*auth.SecondFactorPolicyError]{value: proto.Clone(detail).(*auth.SecondFactorPolicyError)}, nil
 }
 func AdmitResetSecondFactor(request *auth.ResetSecondFactorRequest) error {
 	if request == nil || !knownFieldsOnly(request.ProtoReflect()) || !validAccountID(request.AccountId) || len(request.AccountId.Value) > 128 {

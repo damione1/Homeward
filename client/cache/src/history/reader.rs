@@ -83,7 +83,7 @@ async fn collect(
         let reply = api
             .page(&capture.query, token)
             .await
-            .map_err(ReadError::Transport)?;
+            .map_err(transport_error)?;
         if cancel.is_cancelled() || access.is_cancelled() {
             return Err(ReadError::Cancelled);
         }

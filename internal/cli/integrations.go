@@ -1,29 +1,38 @@
 package cli
 
 import (
-	"encoding/hex"
-
+	longrunningpb "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"github.com/damione1/Homeward/contracts"
-	cfg "github.com/damione1/Homeward/gen/home/configuration/v1"
-	wire "github.com/damione1/Homeward/gen/home/integrationadmin/v1"
-	"github.com/damione1/Homeward/gen/home/integrationadmin/v1/integrationadminv1connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
+	"github.com/damione1/Homeward/internal/apitypes"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
-func (r *remote) integrations() integrationadminv1connect.IntegrationServiceClient {
-	return integrationadminv1connect.NewIntegrationServiceClient(r.client, r.base)
+func (r *remote) integrations() apiv2connect.IntegrationServiceClient {
+	return apiv2connect.NewIntegrationServiceClient(r.client, r.base)
 }
 
-type integrationCatalogue struct{}
+type IntegrationPageFlags struct {
+	Home      string `arg:"" help:"Canonical home resource name."`
+	PageSize  int32  `help:"Requested page size; zero selects the server default."`
+	PageToken string `help:"Opaque continuation returned by the same listing."`
+}
+type integrationCatalogue struct {
+	IntegrationPageFlags `embed:""`
+}
 
-func (*integrationCatalogue) Run(v *invocation) error {
+func (c *integrationCatalogue) Run(v *invocation) error {
+	if _, err := apitypes.ParseHomeName(c.Home); err != nil {
+		return fail("invalid_home_name", ExitUsage)
+	}
 	r, err := v.authenticated()
 	if err != nil {
 		return err
 	}
 	defer r.close()
-	response, err := r.integrations().ListIntegrationTypes(v.ctx, bearer(&wire.ListIntegrationTypesRequest{}, r.credential.Access))
+	response, err := r.integrations().ListIntegrationTypes(v.ctx, bearer(&api.ListIntegrationTypesRequest{Parent: c.Home, PageSize: c.PageSize, PageToken: c.PageToken}, r.credential.Access))
 	if err != nil {
 		return err
 	}
@@ -31,31 +40,39 @@ func (*integrationCatalogue) Run(v *invocation) error {
 }
 
 type integrationSchema struct {
-	Type string `arg:""`
+	Type string `arg:"" help:"Canonical integration type resource name."`
 }
 
 func (c *integrationSchema) Run(v *invocation) error {
+	if _, err := apitypes.ParseIntegrationTypeName(c.Type); err != nil {
+		return fail("invalid_integration_type_name", ExitUsage)
+	}
 	r, err := v.authenticated()
 	if err != nil {
 		return err
 	}
 	defer r.close()
-	response, err := r.integrations().GetIntegrationType(v.ctx, bearer(&wire.GetIntegrationTypeRequest{TypeId: c.Type}, r.credential.Access))
+	response, err := r.integrations().GetIntegrationType(v.ctx, bearer(&api.GetIntegrationTypeRequest{Name: c.Type}, r.credential.Access))
 	if err != nil {
 		return err
 	}
 	return v.emit(response.Msg)
 }
 
-type integrationList struct{}
+type integrationList struct {
+	IntegrationPageFlags `embed:""`
+}
 
-func (*integrationList) Run(v *invocation) error {
+func (c *integrationList) Run(v *invocation) error {
+	if _, err := apitypes.ParseHomeName(c.Home); err != nil {
+		return fail("invalid_home_name", ExitUsage)
+	}
 	r, err := v.authenticated()
 	if err != nil {
 		return err
 	}
 	defer r.close()
-	response, err := r.integrations().ListInstances(v.ctx, bearer(&wire.ListInstancesRequest{}, r.credential.Access))
+	response, err := r.integrations().ListIntegrationInstances(v.ctx, bearer(&api.ListIntegrationInstancesRequest{Parent: c.Home, PageSize: c.PageSize, PageToken: c.PageToken}, r.credential.Access))
 	if err != nil {
 		return err
 	}
@@ -63,16 +80,19 @@ func (*integrationList) Run(v *invocation) error {
 }
 
 type integrationGet struct {
-	ID string `arg:""`
+	Name string `arg:"" help:"Canonical integration instance resource name."`
 }
 
 func (c *integrationGet) Run(v *invocation) error {
+	if _, err := apitypes.ParseIntegrationInstanceName(c.Name); err != nil {
+		return fail("invalid_integration_instance_name", ExitUsage)
+	}
 	r, err := v.authenticated()
 	if err != nil {
 		return err
 	}
 	defer r.close()
-	response, err := r.integrations().GetInstance(v.ctx, bearer(&wire.GetInstanceRequest{IntegrationInstanceId: c.ID}, r.credential.Access))
+	response, err := r.integrations().GetIntegrationInstance(v.ctx, bearer(&api.GetIntegrationInstanceRequest{Name: c.Name}, r.credential.Access))
 	if err != nil {
 		return err
 	}
@@ -80,115 +100,107 @@ func (c *integrationGet) Run(v *invocation) error {
 }
 
 type integrationHealth struct {
-	ID string `arg:""`
+	Name string `arg:"" help:"Canonical integration instance resource name."`
 }
 
 func (c *integrationHealth) Run(v *invocation) error {
+	if _, err := apitypes.ParseIntegrationInstanceName(c.Name); err != nil {
+		return fail("invalid_integration_instance_name", ExitUsage)
+	}
 	r, err := v.authenticated()
 	if err != nil {
 		return err
 	}
 	defer r.close()
-	response, err := r.integrations().GetInstance(v.ctx, bearer(&wire.GetInstanceRequest{IntegrationInstanceId: c.ID}, r.credential.Access))
+	response, err := r.integrations().GetIntegrationInstance(v.ctx, bearer(&api.GetIntegrationInstanceRequest{Name: c.Name}, r.credential.Access))
 	if err != nil {
 		return err
 	}
-	if response.Msg.Instance == nil {
-		return fail("invalid_integration_response", ExitLocal)
-	}
-	instance := response.Msg.Instance
-	result := &wire.IntegrationInstance{TypeId: instance.TypeId, IntegrationInstanceId: instance.IntegrationInstanceId, DesiredState: instance.DesiredState, Report: instance.Report, Supervision: instance.Supervision}
-	return v.emit(result)
+	value := response.Msg
+	return v.emit(&api.IntegrationInstance{Name: value.Name, DesiredState: value.DesiredState, ObservedHealth: value.ObservedHealth, ObservedSupervision: value.ObservedSupervision})
 }
 
-// Every mutation uses the exact revision, source digest and physical workspace
-// digest the operator observed. There is no implicit reread, retry or CAS bypass.
-type MutationFlags struct {
-	Revision        int64  `required:"" help:"Expected operational.main revision from integrations get/list."`
-	SourceSHA256    string `name:"source-sha256" required:"" help:"Expected exact source SHA256 (64 lowercase hex digits)."`
-	WorkspaceSHA256 string `name:"workspace-sha256" required:"" help:"Expected physical workspace SHA256 (64 lowercase hex digits)."`
+// The user supplies the opaque etag they observed. No implicit reread, retry,
+// source revision decoding, filesystem digest or synthetic client UUID exists.
+type IntegrationRequestFlags struct {
+	RequestID string `name:"request-id" help:"Optional UUIDv4 for a retained original operation."`
+}
+type IntegrationMutationFlags struct {
+	Etag                    string `required:"" help:"Opaque etag from the integration instance."`
+	IntegrationRequestFlags `embed:""`
 }
 
-func digest(raw string) ([]byte, error) {
-	value, err := hex.DecodeString(raw)
-	if err != nil || len(value) != 32 || hex.EncodeToString(value) != raw {
-		return nil, fail("invalid_sha256", ExitUsage)
+func (flags IntegrationRequestFlags) validate() error {
+	if flags.RequestID != "" {
+		if _, err := apitypes.ParseRequestID(flags.RequestID); err != nil {
+			return fail("invalid_request_id", ExitUsage)
+		}
 	}
-	return value, nil
+	return nil
 }
-func (m MutationFlags) precondition() (*wire.MutationPrecondition, error) {
-	if m.Revision <= 0 {
-		return nil, fail("invalid_revision", ExitUsage)
-	}
-	source, err := digest(m.SourceSHA256)
-	if err != nil {
-		return nil, err
-	}
-	workspace, err := digest(m.WorkspaceSHA256)
-	if err != nil {
-		return nil, err
-	}
-	return &wire.MutationPrecondition{Expected: &cfg.DocumentVersion{Revision: m.Revision, SourceSha256: source}, ExpectedWorkspaceSha256: workspace}, nil
-}
-func readConfiguration(path string) (*wire.PublicConfiguration, error) {
+func readConfiguration(path string) (*api.IntegrationConfiguration, error) {
 	data, err := readRegularInput(path)
 	if err != nil {
 		return nil, err
 	}
 	defer clear(data)
-	configuration := &wire.PublicConfiguration{}
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(data, configuration); err != nil {
-		return nil, fail("invalid_public_configuration_json", ExitUsage)
+	value := new(api.IntegrationConfiguration)
+	if (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(data, value) != nil || value.SchemaVersion == "" {
+		return nil, fail("invalid_integration_configuration_json", ExitUsage)
 	}
-	if configuration.SchemaVersion == "" {
-		return nil, fail("configuration_schema_version_required", ExitUsage)
-	}
-	return configuration, nil
+	return value, nil
 }
 
 type integrationCreate struct {
-	Type          string `arg:""`
-	ID            string `arg:""`
-	Config        string `required:"" help:"PublicConfiguration protobuf JSON file; credential fields are secret references only."`
-	Enabled       bool   `help:"Initial desired state; defaults to disabled."`
-	MutationFlags `embed:""`
+	Type                    string `arg:"" help:"Canonical integration type resource name."`
+	ID                      string `arg:"" help:"Native instance key, immutable after creation."`
+	Config                  string `required:"" help:"IntegrationConfiguration protobuf JSON file; secret references only."`
+	Enabled                 bool   `help:"Initial desired state; defaults to disabled."`
+	IntegrationRequestFlags `embed:""`
 }
 
 func (c *integrationCreate) Run(v *invocation) error {
-	precondition, err := c.precondition()
+	typ, err := apitypes.ParseIntegrationTypeName(c.Type)
 	if err != nil {
+		return fail("invalid_integration_type_name", ExitUsage)
+	}
+	if err := c.validate(); err != nil {
 		return err
 	}
 	configuration, err := readConfiguration(c.Config)
 	if err != nil {
 		return err
 	}
+	if contracts.AdmitIntegrationConfiguration(configuration, c.ID) != nil {
+		return fail("invalid_integration_configuration", ExitUsage)
+	}
 	r, err := v.authenticated()
 	if err != nil {
 		return err
 	}
 	defer r.close()
-	state := wire.DesiredState_DESIRED_STATE_DISABLED
+	state := api.IntegrationDesiredState_INTEGRATION_DESIRED_STATE_DISABLED
 	if c.Enabled {
-		state = wire.DesiredState_DESIRED_STATE_ENABLED
+		state = api.IntegrationDesiredState_INTEGRATION_DESIRED_STATE_ENABLED
 	}
-	response, err := r.integrations().CreateInstance(v.ctx, bearer(&wire.CreateInstanceRequest{TypeId: c.Type, IntegrationInstanceId: c.ID, DesiredState: state, Configuration: configuration, Precondition: precondition}, r.credential.Access))
+	response, err := r.integrations().CreateIntegrationInstance(v.ctx, bearer(&api.CreateIntegrationInstanceRequest{Parent: typ.Home().String(), RequestId: c.RequestID, IntegrationInstance: &api.IntegrationInstance{InstanceKey: c.ID, IntegrationType: typ.String(), DesiredState: state, Configuration: &api.IntegrationInstance_Editable{Editable: configuration}}}, r.credential.Access))
 	if err != nil {
 		return err
 	}
-	return v.emitMutation(response.Msg, response.Msg.Activation)
+	return v.emitIntegrationOperation(response.Msg)
 }
 
 type integrationUpdate struct {
-	Type          string `arg:""`
-	ID            string `arg:""`
-	Config        string `required:"" help:"PublicConfiguration protobuf JSON file."`
-	MutationFlags `embed:""`
+	Name                     string `arg:"" help:"Canonical integration instance resource name."`
+	Config                   string `required:"" help:"IntegrationConfiguration protobuf JSON file."`
+	IntegrationMutationFlags `embed:""`
 }
 
 func (c *integrationUpdate) Run(v *invocation) error {
-	precondition, err := c.precondition()
-	if err != nil {
+	if _, err := apitypes.ParseIntegrationInstanceName(c.Name); err != nil {
+		return fail("invalid_integration_instance_name", ExitUsage)
+	}
+	if err := c.validate(); err != nil {
 		return err
 	}
 	configuration, err := readConfiguration(c.Config)
@@ -200,21 +212,23 @@ func (c *integrationUpdate) Run(v *invocation) error {
 		return err
 	}
 	defer r.close()
-	response, err := r.integrations().UpdateInstance(v.ctx, bearer(&wire.UpdateInstanceRequest{TypeId: c.Type, IntegrationInstanceId: c.ID, Configuration: configuration, Precondition: precondition}, r.credential.Access))
+	response, err := r.integrations().UpdateIntegrationInstance(v.ctx, bearer(&api.UpdateIntegrationInstanceRequest{RequestId: c.RequestID, IntegrationInstance: &api.IntegrationInstance{Name: c.Name, Etag: c.Etag, Configuration: &api.IntegrationInstance_Editable{Editable: configuration}}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"editable"}}}, r.credential.Access))
 	if err != nil {
 		return err
 	}
-	return v.emitMutation(response.Msg, response.Msg.Activation)
+	return v.emitIntegrationOperation(response.Msg)
 }
 
 type integrationDelete struct {
-	ID            string `arg:""`
-	MutationFlags `embed:""`
+	Name                     string `arg:""`
+	IntegrationMutationFlags `embed:""`
 }
 
 func (c *integrationDelete) Run(v *invocation) error {
-	precondition, err := c.precondition()
-	if err != nil {
+	if _, err := apitypes.ParseIntegrationInstanceName(c.Name); err != nil {
+		return fail("invalid_integration_instance_name", ExitUsage)
+	}
+	if err := c.validate(); err != nil {
 		return err
 	}
 	r, err := v.authenticated()
@@ -222,33 +236,35 @@ func (c *integrationDelete) Run(v *invocation) error {
 		return err
 	}
 	defer r.close()
-	response, err := r.integrations().DeleteInstance(v.ctx, bearer(&wire.DeleteInstanceRequest{IntegrationInstanceId: c.ID, Precondition: precondition}, r.credential.Access))
+	response, err := r.integrations().DeleteIntegrationInstance(v.ctx, bearer(&api.DeleteIntegrationInstanceRequest{Name: c.Name, Etag: c.Etag, RequestId: c.RequestID}, r.credential.Access))
 	if err != nil {
 		return err
 	}
-	return v.emitMutation(response.Msg, response.Msg.Activation)
+	return v.emitIntegrationOperation(response.Msg)
 }
 
 type integrationEnable struct {
-	ID            string `arg:""`
-	MutationFlags `embed:""`
+	Name                     string `arg:""`
+	IntegrationMutationFlags `embed:""`
 }
 
 func (c *integrationEnable) Run(v *invocation) error {
-	return setEnabled(v, c.ID, c.MutationFlags, wire.DesiredState_DESIRED_STATE_ENABLED)
+	return setIntegrationDesiredState(v, c.Name, c.IntegrationMutationFlags, api.IntegrationDesiredState_INTEGRATION_DESIRED_STATE_ENABLED)
 }
 
 type integrationDisable struct {
-	ID            string `arg:""`
-	MutationFlags `embed:""`
+	Name                     string `arg:""`
+	IntegrationMutationFlags `embed:""`
 }
 
 func (c *integrationDisable) Run(v *invocation) error {
-	return setEnabled(v, c.ID, c.MutationFlags, wire.DesiredState_DESIRED_STATE_DISABLED)
+	return setIntegrationDesiredState(v, c.Name, c.IntegrationMutationFlags, api.IntegrationDesiredState_INTEGRATION_DESIRED_STATE_DISABLED)
 }
-func setEnabled(v *invocation, id string, flags MutationFlags, state wire.DesiredState) error {
-	precondition, err := flags.precondition()
-	if err != nil {
+func setIntegrationDesiredState(v *invocation, name string, flags IntegrationMutationFlags, state api.IntegrationDesiredState) error {
+	if _, err := apitypes.ParseIntegrationInstanceName(name); err != nil {
+		return fail("invalid_integration_instance_name", ExitUsage)
+	}
+	if err := flags.validate(); err != nil {
 		return err
 	}
 	r, err := v.authenticated()
@@ -256,46 +272,29 @@ func setEnabled(v *invocation, id string, flags MutationFlags, state wire.Desire
 		return err
 	}
 	defer r.close()
-	response, err := r.integrations().SetInstanceEnabled(v.ctx, bearer(&wire.SetInstanceEnabledRequest{IntegrationInstanceId: id, DesiredState: state, Precondition: precondition}, r.credential.Access))
+	response, err := r.integrations().UpdateIntegrationInstance(v.ctx, bearer(&api.UpdateIntegrationInstanceRequest{RequestId: flags.RequestID, IntegrationInstance: &api.IntegrationInstance{Name: name, Etag: flags.Etag, DesiredState: state}, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"desired_state"}}}, r.credential.Access))
 	if err != nil {
 		return err
 	}
-	return v.emitMutation(response.Msg, response.Msg.Activation)
+	return v.emitIntegrationOperation(response.Msg)
 }
 
-// Preserve the server's typed result even when the mutation was not published.
-// No outcome causes a retry. Admission is owned by the existing wire contract.
-func (v *invocation) emitMutation(message proto.Message, activation *cfg.ActivationResult) error {
-	if contracts.AdmitIntegrationAdminResponse(message) != nil {
-		return fail("invalid_mutation_response", ExitLocal)
+func (v *invocation) emitIntegrationOperation(operation *longrunningpb.Operation) error {
+	if operation == nil {
+		return fail("invalid_integration_operation", ExitLocal)
 	}
-	var outcomeError error
-	// A published generation may belong to another SQL winner. The requesting
-	// transaction's failure/ambiguity takes priority over publication state.
-	switch activation.Transaction {
-	case cfg.TransactionOutcome_TRANSACTION_OUTCOME_NOT_COMMITTED:
-		outcomeError = fail("mutation_not_committed", ExitMutationFailed)
-	case cfg.TransactionOutcome_TRANSACTION_OUTCOME_COMMIT_UNKNOWN:
-		outcomeError = fail("mutation_commit_unknown_do_not_retry", ExitMutationUnknown)
-	case cfg.TransactionOutcome_TRANSACTION_OUTCOME_COMMITTED, cfg.TransactionOutcome_TRANSACTION_OUTCOME_NO_TRANSACTION:
-		switch activation.Outcome {
-		case cfg.ActivationOutcome_ACTIVATION_OUTCOME_PUBLISHED:
-		case cfg.ActivationOutcome_ACTIVATION_OUTCOME_REJECTED_BEFORE_COMMIT, cfg.ActivationOutcome_ACTIVATION_OUTCOME_NOT_COMMITTED:
-			outcomeError = fail("mutation_not_committed", ExitMutationFailed)
-		case cfg.ActivationOutcome_ACTIVATION_OUTCOME_COMMIT_UNKNOWN:
-			outcomeError = fail("mutation_commit_unknown_do_not_retry", ExitMutationUnknown)
-		case cfg.ActivationOutcome_ACTIVATION_OUTCOME_COMMITTED_RECONCILING:
-			outcomeError = fail("mutation_committed_reconciling", ExitMutationPending)
-		case cfg.ActivationOutcome_ACTIVATION_OUTCOME_RESTART_REQUIRED:
-			outcomeError = fail("mutation_restart_required", ExitMutationPending)
-		default:
-			return fail("invalid_mutation_outcome", ExitLocal)
-		}
-	default:
-		return fail("invalid_mutation_transaction", ExitLocal)
+	name, err := apitypes.ParseOperationName(operation.Name)
+	if err != nil || contracts.AdmitIntegrationOperation(operation, name) != nil {
+		return fail("invalid_integration_operation", ExitLocal)
 	}
-	if err := v.emit(message); err != nil {
+	if err := v.emit(operation); err != nil {
 		return err
 	}
-	return outcomeError
+	if !operation.Done {
+		return fail("mutation_pending", ExitMutationPending)
+	}
+	if operation.GetError() != nil {
+		return fail("mutation_failed", ExitMutationFailed)
+	}
+	return nil
 }

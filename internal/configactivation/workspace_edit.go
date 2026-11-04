@@ -15,11 +15,12 @@ func (o *Owner) ActivateWorkspaceEdit(ctx context.Context, request Request, stag
 	if !request.admitted || request.workspacePrecondition == nil || !request.workspacePrecondition.valid() || stage == nil {
 		return Result{outcome: RejectedBeforeCommit}, ErrInvalidStartup
 	}
-	bounded, finish, err := o.operation(ctx, false)
+	bounded, finish, err := o.operation(ctx, false, request.author)
 	if err != nil {
-		return Result{outcome: RejectedBeforeCommit}, err
+		return withAPIExecution(bounded, Result{outcome: RejectedBeforeCommit}), err
 	}
 	defer finish()
+	defer func() { result = o.finalizeAPIContext(bounded, result, err) }()
 	o.mu.RLock()
 	current := o.current
 	o.mu.RUnlock()

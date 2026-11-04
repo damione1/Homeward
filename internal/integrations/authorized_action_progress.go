@@ -50,6 +50,7 @@ func (s *DurableCommandService) AuthorizeActionRead(ctx context.Context, id doma
 			read.Close()
 		}
 	}()
+	flight := s.router.host.sampleAPICommandFlight(id)
 	record, found, err := s.store.CommandIntent(ctx, id)
 	if err != nil {
 		return nil, ErrDurableLedgerUnavailable
@@ -78,7 +79,18 @@ func (s *DurableCommandService) AuthorizeActionRead(ctx context.Context, id doma
 		permit.Release()
 		return nil, err
 	}
-	read.status = DurableCommandStatus{State: record.State(), Response: response, ErrorKind: record.ErrorKind()}
+	metadata, hasMetadata := record.APIMetadata()
+	terminal, err := apiTerminalResponse(record)
+	if err != nil {
+		permit.Release()
+		return nil, err
+	}
+	acknowledged, err := apiAcknowledgedResponse(id, record)
+	if err != nil {
+		permit.Release()
+		return nil, err
+	}
+	read.status = DurableCommandStatus{State: record.State(), Response: response, ErrorKind: record.ErrorKind(), Metadata: metadata, HasMetadata: hasMetadata, AcceptedAt: record.AcceptedAt(), APITerminal: terminal, APIAcknowledged: acknowledged, APIReconciliationUnavailable: present && flight.unavailable(id, s.epoch, target, record.Fingerprint())}
 	read.permit = permit
 	return read, nil
 }
@@ -105,6 +117,12 @@ func (r *AuthorizedActionRead) Durable() (DurableCommandStatus, error) {
 	status := r.status
 	if status.Response != nil {
 		status.Response = proto.Clone(status.Response).(*actions.CommandResponse)
+	}
+	if status.APIAcknowledged != nil {
+		status.APIAcknowledged = proto.Clone(status.APIAcknowledged).(*actions.CommandResponse)
+	}
+	if status.APITerminal != nil {
+		status.APITerminal = proto.Clone(status.APITerminal).(*actions.CommandResponse)
 	}
 	return status, nil
 }

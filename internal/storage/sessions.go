@@ -474,6 +474,9 @@ func (s *Store) createSessionTx(ctx context.Context, tx pgx.Tx, input SessionCre
  VALUES($1,$2,$3,$4,$5,1,$6,$4,NULLIF($7,''),NULLIF($8,''),NULLIF($9,''))`, id, account, revision, input.Now, expires, int16(evidence.satisfaction), evidence.factor, evidence.batch, evidence.code); err != nil {
 		return CreatedSession{}, ErrSessionUnavailable
 	}
+	if _, err := EnsureAPIResourceIdentityTx(ctx, tx, APISessions, id); err != nil {
+		return CreatedSession{}, ErrSessionUnavailable
+	}
 	if _, err := tx.Exec(ctx, `INSERT INTO public.auth_refresh_generations(session_id,generation,token_digest,state,issued_at)
 		VALUES($1,1,$2,1,$3)`, id, refreshDigest[:], input.Now); err != nil {
 		return CreatedSession{}, ErrSessionUnavailable

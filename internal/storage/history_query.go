@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"github.com/damione1/Homeward/internal/recorderevidence"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -96,10 +97,10 @@ func (l *historyReadLease) close() {
 }
 
 type RecorderQueryPage struct {
+	ProvenanceStartedAt              *time.Time
 	lease                            *historyReadLease
 	Observations                     []HistoricalObservation
 	Aggregates                       []RecorderHourlyAggregate
-	Coverage                         RecorderCoverageSnapshot
 	Next                             *RecorderQueryCursor
 	RawCutoff, AggregateCutoff, AsOf time.Time
 	AnalyticRun                      int64
@@ -171,11 +172,11 @@ func NewRecorderLiveHigh(epoch string, sequence uint64) (RecorderLiveHigh, error
 	}
 	return RecorderLiveHigh{epoch: admitted, sequence: sequence}, nil
 }
-func (s *Store) ReadHistoricalRecorderPage(ctx context.Context, q historyquery.Query, cursor *RecorderQueryCursor) (RecorderQueryPage, error) {
-	return s.ReadHistoricalRecorderPageAt(ctx, q, cursor, nil)
+func (s *Store) ReadHistoricalRecorderPage(ctx context.Context, q historyquery.Query, cursor *RecorderQueryCursor, access RecorderScopeAuthorizer) (RecorderQueryPage, error) {
+	return s.ReadHistoricalRecorderPageAt(ctx, q, cursor, nil, access)
 }
-func (s *Store) ReadHistoricalRecorderPageAt(ctx context.Context, q historyquery.Query, cursor *RecorderQueryCursor, live *RecorderLiveHigh) (RecorderQueryPage, error) {
-	if !q.Valid() || (q.Kind() != historyquery.Observations && q.Kind() != historyquery.Aggregates) || (cursor != nil && cursor.kind != q.Kind()) {
+func (s *Store) ReadHistoricalRecorderPageAt(ctx context.Context, q historyquery.Query, cursor *RecorderQueryCursor, live *RecorderLiveHigh, access RecorderScopeAuthorizer) (RecorderQueryPage, error) {
+	if access == nil || !q.Valid() || (q.Kind() != historyquery.Observations && q.Kind() != historyquery.Aggregates) || (cursor != nil && cursor.kind != q.Kind()) {
 		return RecorderQueryPage{}, historyquery.ErrInvalid
 	}
 	bounded, release, err := s.acquireHistoryRead(ctx)
@@ -199,13 +200,11 @@ func (s *Store) ReadHistoricalRecorderPageAt(ctx context.Context, q historyquery
 	}
 	if !page.NotRetained {
 		if q.Kind() == historyquery.Observations {
-			err = readHistoricalObservations(bounded, tx, q, next, &page)
+			err = readHistoricalObservations(bounded, tx, q, next, &page, access)
 		} else {
-			err = readHistoricalAggregates(bounded, tx, q, next, &page)
+			err = readHistoricalAggregates(bounded, tx, q, next, &page, access)
 		}
-		if err == nil {
-			page.Coverage, err = readHistoricalCoverage(bounded, tx, next)
-		}
+
 	}
 	if err != nil {
 		return RecorderQueryPage{}, err
@@ -231,6 +230,9 @@ func readHistoricalHead(ctx context.Context, tx pgx.Tx, q historyquery.Query, cu
 		return page, nil, historyquery.ErrIntegrity
 	}
 	page.AnalyticRun = analyticRun
+	if err := tx.QueryRow(ctx, `SELECT min(started_at) FROM public.recorder_epochs WHERE evidence_version=1`).Scan(&page.ProvenanceStartedAt); err != nil {
+		return page, nil, historyFailure(historyquery.ErrUnavailable, err)
+	}
 	page.AsOf = page.AsOf.UTC()
 	page.RawCutoff = rawCutoff.UTC()
 	policyCutoff := page.AsOf.Add(-7 * 24 * time.Hour)
@@ -306,17 +308,13 @@ func maxHistoryTime(a, b time.Time) time.Time {
 	return b
 }
 
-func readHistoricalObservations(ctx context.Context, tx pgx.Tx, q historyquery.Query, next *RecorderQueryCursor, page *RecorderQueryPage) error {
+func readHistoricalObservations(ctx context.Context, tx pgx.Tx, q historyquery.Query, next *RecorderQueryCursor, page *RecorderQueryPage, access RecorderScopeAuthorizer) error {
 	entity, _ := q.Entity().Value()
 	start, end := q.Bounds()
 	start = maxHistoryTime(start, page.RawCutoff)
-	// The first query reads only bounded keys and lengths, never the payload.
-	// Exact identity AND digest scope the SQL, before any protobuf reaches Go.
-	rows, err := tx.Query(ctx, `SELECT h.epoch,e.run_id,h.sequence::text,octet_length(h.payload),octet_length(h.entity_id),COALESCE(octet_length(h.measurement_unit),0),COALESCE(octet_length(h.measurement_canonical_unit),0),(octet_length(h.source_session)::bigint+octet_length(h.instance_id)+COALESCE(octet_length(h.causation_id),0)+COALESCE(octet_length(h.correlation_id),0))
- FROM public.state_history h JOIN public.recorder_epochs e ON e.epoch=h.epoch
- WHERE h.entity_digest=$1 AND h.entity_id=$2 AND h.received_at >= $3 AND h.received_at < $4
- AND (e.run_id,h.sequence)<=($5,$6::numeric) AND (e.run_id,h.sequence)>($7,$8::numeric)
- ORDER BY e.run_id,h.sequence LIMIT $9`, hashEntity(entity), entity, start.Truncate(time.Microsecond), historyCeilMicro(end), next.highRun, decimalUint(next.highSequence), next.afterRun, decimalUint(next.afterSequence), historyquery.MaxPoints+1)
+	// Only fixed-size admission keys are selected before authorization. Hidden
+	// points cannot trigger payload-size diagnostics or consume the public limit.
+	rows, err := tx.Query(ctx, `SELECT h.epoch,e.run_id,h.sequence::text FROM public.state_history h JOIN public.recorder_epochs e ON e.epoch=h.epoch WHERE h.entity_digest=$1 AND h.entity_id=$2 AND h.admission_evidence IS NOT NULL AND h.received_at >= $3 AND h.received_at < $4 AND (e.run_id,h.sequence)<=($5,$6::numeric) AND (e.run_id,h.sequence)>($7,$8::numeric) ORDER BY e.run_id,h.sequence LIMIT $9`, hashEntity(entity), entity, start.Truncate(time.Microsecond), historyCeilMicro(end), next.highRun, decimalUint(next.highSequence), next.afterRun, decimalUint(next.afterSequence), historyquery.MaxPoints+1)
 	if err != nil {
 		return historyFailure(historyquery.ErrUnavailable, err)
 	}
@@ -324,80 +322,99 @@ func readHistoricalObservations(ctx context.Context, tx pgx.Tx, q historyquery.Q
 		epoch    RecorderEpoch
 		run      int64
 		sequence uint64
-		size     int
 	}
-	keys := make([]key, 0, historyquery.MaxPoints)
-	bytesLeft := historyquery.MaxPointBytes
-	more := false
-	inputLeft := 4 << 20
+	keys := make([]key, 0, historyquery.MaxPoints+1)
 	for rows.Next() {
+		var k key
 		var raw []byte
 		var seq string
-		var run, payload, identity, unit, canonical, metadata int64
-		if err = rows.Scan(&raw, &run, &seq, &payload, &identity, &unit, &canonical, &metadata); err != nil {
+		if err = rows.Scan(&raw, &k.run, &seq); err != nil {
 			rows.Close()
 			return historyFailure(historyquery.ErrIntegrity, err)
 		}
-		if len(keys) == historyquery.MaxPoints {
-			more = true
-			break
-		}
-		// Fail before materializing any oversized point. Do not skip or advance it.
-		charge := payload + identity + unit + canonical + 512
-		if payload < 1 || identity < 1 || unit < 0 || canonical < 0 || run < 1 {
-			rows.Close()
-			return historyquery.ErrIntegrity
-		}
-		if metadata < 0 {
-			rows.Close()
-			return historyquery.ErrIntegrity
-		}
-		if charge > historyquery.MaxPointBytes || metadata+payload > 4<<20 {
-			if len(keys) > 0 {
-				more = true
-				break
-			}
-			rows.Close()
-			return historyquery.ErrPointTooLarge
-		}
-		if charge > int64(bytesLeft) || metadata+payload > int64(inputLeft) {
-			more = true
-			break
-		}
-		inputLeft -= int(metadata + payload)
-		k := key{run: run, size: int(payload)}
 		k.epoch, err = coverageEpoch(raw)
 		if err != nil {
 			rows.Close()
 			return historyquery.ErrIntegrity
 		}
 		k.sequence, err = coverageUint(seq)
-		if err != nil || k.sequence == 0 {
+		if err != nil || k.sequence == 0 || k.run < 1 {
 			rows.Close()
 			return historyquery.ErrIntegrity
 		}
 		keys = append(keys, k)
-		bytesLeft -= int(charge)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
 		return historyFailure(historyquery.ErrUnavailable, err)
 	}
-	page.Observations = make([]HistoricalObservation, 0, len(keys))
+	more := len(keys) > historyquery.MaxPoints
+	if more {
+		keys = keys[:historyquery.MaxPoints]
+	}
+	page.Observations = make([]HistoricalObservation, 0, q.Limit())
+	bytesLeft := historyquery.MaxPointBytes
+	inputLeft := 4 << 20
 	var examined *key
-	for index := range keys {
-		k := keys[index]
+	for i := range keys {
+		k := keys[i]
+		var evidence []byte
+		if err = tx.QueryRow(ctx, `SELECT admission_evidence FROM public.state_history WHERE epoch=$1 AND sequence=$2::numeric`, k.epoch.data(), decimalUint(k.sequence)).Scan(&evidence); err != nil {
+			return historyFailure(historyquery.ErrUnavailable, err)
+		}
+		if 4*len(evidence) > inputLeft {
+			more = true
+			break
+		}
+		inputLeft -= 4 * len(evidence)
+		proof, err := recorderevidence.Parse(evidence)
+		if err != nil || proof.Entity() != q.Entity() {
+			return historyquery.ErrIntegrity
+		}
+		visibility, err := access.AuthorizeRecorderEvidence(ctx, proof)
+		if err != nil {
+			return err
+		}
+		switch visibility {
+		case RecorderHidden:
+			examined = &keys[i]
+			continue
+		case RecorderVisible:
+		default:
+			return historyquery.ErrIntegrity
+		}
 		if len(page.Observations) == q.Limit() {
 			more = true
 			break
 		}
+		var payloadSize, projection, metadata int64
+		if err = tx.QueryRow(ctx, `SELECT octet_length(payload),octet_length(entity_id)+COALESCE(octet_length(measurement_unit),0)+COALESCE(octet_length(measurement_canonical_unit),0),octet_length(source_session)+octet_length(instance_id)+COALESCE(octet_length(causation_id),0)+COALESCE(octet_length(correlation_id),0) FROM public.state_history WHERE epoch=$1 AND sequence=$2::numeric`, k.epoch.data(), decimalUint(k.sequence)).Scan(&payloadSize, &projection, &metadata); err != nil {
+			return historyFailure(historyquery.ErrUnavailable, err)
+		}
+		charge := payloadSize + projection + 512
+		if payloadSize < 1 || projection < 0 || metadata < 0 {
+			return historyquery.ErrIntegrity
+		}
+		if charge > historyquery.MaxPointBytes {
+			if len(page.Observations) > 0 {
+				more = true
+				break
+			}
+			return historyquery.ErrPointTooLarge
+		}
+		if charge > int64(bytesLeft) || payloadSize+metadata > int64(inputLeft) {
+			more = true
+			break
+		}
+		bytesLeft -= int(charge)
+		inputLeft -= int(payloadSize + metadata)
 		var payload, digest []byte
-		if err = tx.QueryRow(ctx, `SELECT payload,payload_digest FROM public.state_history WHERE epoch=$1 AND sequence=$2::numeric AND entity_digest=$3 AND entity_id=$4 AND octet_length(payload)=$5`, k.epoch.data(), decimalUint(k.sequence), hashEntity(entity), entity, k.size).Scan(&payload, &digest); err != nil {
+		if err = tx.QueryRow(ctx, `SELECT payload,payload_digest FROM public.state_history WHERE epoch=$1 AND sequence=$2::numeric AND octet_length(payload)=$3`, k.epoch.data(), decimalUint(k.sequence), payloadSize).Scan(&payload, &digest); err != nil {
 			return historyFailure(historyquery.ErrUnavailable, err)
 		}
 		actual := sha256.Sum256(payload)
-		if len(payload) != k.size || !bytes.Equal(digest, actual[:]) {
+		if int64(len(payload)) != payloadSize || !bytes.Equal(digest, actual[:]) {
 			return historyquery.ErrIntegrity
 		}
 		wire := &state.ObservedState{}
@@ -411,57 +428,79 @@ func readHistoricalObservations(ctx context.Context, tx pgx.Tx, q historyquery.Q
 		if err != nil {
 			return err
 		}
-		examined = &keys[index]
-		// SQL only preselects conservatively on its microsecond lattice. The
-		// admitted payload retains the exact nanoseconds and decides membership.
+		examined = &keys[i]
 		received := wire.ReceivedAt.AsTime()
 		if received.Before(start) || !received.Before(end) {
 			continue
 		}
-		point := HistoricalObservation{Epoch: k.epoch, Sequence: k.sequence, State: wire, Descriptor: descriptor}
-		page.Observations = append(page.Observations, point)
+		page.Observations = append(page.Observations, HistoricalObservation{Epoch: k.epoch, Sequence: k.sequence, State: wire, Descriptor: descriptor})
 	}
 	if more && examined != nil {
-		last := *examined
-		next.afterRun = last.run
-		next.afterSequence = last.sequence
+		next.afterRun = examined.run
+		next.afterSequence = examined.sequence
 		copy := *next
 		page.Next = &copy
 	}
 	return nil
 }
 
-func readHistoricalAggregates(ctx context.Context, tx pgx.Tx, q historyquery.Query, next *RecorderQueryCursor, page *RecorderQueryPage) error {
+func readHistoricalAggregates(ctx context.Context, tx pgx.Tx, q historyquery.Query, next *RecorderQueryCursor, page *RecorderQueryPage, access RecorderScopeAuthorizer) error {
 	entity, _ := q.Entity().Value()
 	start, end := q.Bounds()
+	const maxCandidates = (4 << 20) / (2*recorderevidence.MaxBytes + 8192)
 	rows, err := tx.Query(ctx, `SELECT a.entity_id,a.bucket_start,a.bucket_end,a.group_digest,a.descriptor,a.availability,a.freshness,a.provenance,a.duration_ns,a.weighted,a.minimum,a.maximum,a.contribution,a.reset_kind,
- (a.reasons | COALESCE((SELECT bit_or(b.reasons) FROM public.recorder_analytical_breaks b WHERE b.entity_digest=a.entity_digest AND b.start_at<a.bucket_end AND (b.end_at>a.bucket_start OR (b.start_at=b.end_at AND b.start_at>=a.bucket_start))),0))
- FROM public.recorder_hourly_aggregates a WHERE a.entity_digest=$1 AND a.entity_id=$2 AND a.bucket_start >= $3 AND a.bucket_start < $4 AND a.bucket_end>$5
- AND ($6::timestamptz IS NULL OR (a.bucket_start,a.group_digest)>($6,$7)) ORDER BY a.bucket_start,a.group_digest LIMIT $8`, hashEntity(entity), entity, start, end, page.AggregateCutoff, historyNullableTime(next.afterBucket), next.group[:], q.Limit()+1)
+ a.reasons,a.admission_evidence
+ FROM public.recorder_hourly_aggregates a WHERE a.entity_digest=$1 AND a.entity_id=$2 AND a.admission_evidence IS NOT NULL AND a.bucket_start >= $3 AND a.bucket_start < $4 AND a.bucket_end>$5
+ AND ($6::timestamptz IS NULL OR (a.bucket_start,a.group_digest)>($6,$7)) ORDER BY a.bucket_start,a.group_digest LIMIT $8`, hashEntity(entity), entity, start, end, page.AggregateCutoff, historyNullableTime(next.afterBucket), next.group[:], maxCandidates+1)
 	if err != nil {
 		return historyFailure(historyquery.ErrUnavailable, err)
 	}
 	defer rows.Close()
 	page.Aggregates = make([]RecorderHourlyAggregate, 0, q.Limit())
 	more := false
+	examined := 0
 	for rows.Next() {
-		if len(page.Aggregates) == q.Limit() {
+		if examined == maxCandidates {
 			more = true
 			break
 		}
 		var a RecorderHourlyAggregate
-		var descriptor, group []byte
+		var descriptor, group, evidence []byte
 		var av, fr, pr, reset int16
 		var duration int64
 		var reasons int32
 		var minimum, maximum, delta *float64
 		var weighted float64
-		if err = rows.Scan(&a.Entity, &a.Start, &a.End, &group, &descriptor, &av, &fr, &pr, &duration, &weighted, &minimum, &maximum, &delta, &reset, &reasons); err != nil {
+		if err = rows.Scan(&a.Entity, &a.Start, &a.End, &group, &descriptor, &av, &fr, &pr, &duration, &weighted, &minimum, &maximum, &delta, &reset, &reasons, &evidence); err != nil {
 			return historyFailure(historyquery.ErrIntegrity, err)
 		}
+		proof, err := recorderevidence.Parse(evidence)
+		if err != nil || proof.Entity() != q.Entity() {
+			return historyquery.ErrIntegrity
+		}
+		visibility, err := access.AuthorizeRecorderEvidence(ctx, proof)
+		if err != nil {
+			return err
+		}
+		switch visibility {
+		case RecorderHidden:
+			examined++
+			next.afterBucket = a.Start.UTC()
+			copy(next.group[:], group)
+			continue
+		case RecorderVisible:
+		default:
+			return historyquery.ErrIntegrity
+		}
+		if len(page.Aggregates) == q.Limit() {
+			more = true
+			break
+		}
+		examined++
 		if a.Entity != entity || len(group) != 32 || av < 1 || av > 3 || fr < 1 || fr > 2 || pr < 1 || pr > 3 {
 			return historyquery.ErrIntegrity
 		}
+		copy(a.GroupDigest[:], group)
 		a.Start = a.Start.UTC()
 		a.End = a.End.UTC()
 		if !a.End.Equal(a.Start.Add(time.Hour)) || !a.Start.Equal(a.Start.Truncate(time.Hour)) {
@@ -474,6 +513,11 @@ func readHistoricalAggregates(ctx context.Context, tx pgx.Tx, q historyquery.Que
 		a.Availability = domain.Availability(av)
 		a.Freshness = domain.Freshness(fr)
 		a.Provenance = domain.Provenance(pr)
+		expectedGroup, err := recorderAggregateGroup(a.Descriptor, a.Availability, a.Freshness, a.Provenance, evidence)
+		if err != nil || !bytes.Equal(expectedGroup[:], group) {
+			return historyquery.ErrIntegrity
+		}
+
 		if _, err = recordermaintenance.NewPoint(recordermaintenance.PointInput{Epoch: "00000000000000000000000000000001", Sequence: 1, At: a.Start, Availability: a.Availability, Freshness: a.Freshness, Provenance: a.Provenance, Kind: domain.ValueMeasurement, Numeric: &a.Descriptor}); err != nil {
 			return historyquery.ErrIntegrity
 		}

@@ -5,37 +5,37 @@ import (
 	"math"
 	"unicode/utf8"
 
-	plan "github.com/damione1/Homeward/gen/home/configurationplan/v1"
-	wire "github.com/damione1/Homeward/gen/home/configurationsimulation/v1"
+	plan "github.com/damione1/Homeward/gen/home/api/v2"
+	wire "github.com/damione1/Homeward/gen/home/api/v2"
 	"google.golang.org/protobuf/proto"
 )
 
 var ErrInvalidConfigurationSimulationContract = errors.New("invalid configuration simulation contract")
 
-func simulationSupport(value wire.Support) bool {
+func simulationSupport(value wire.ConfigurationSimulationSupport) bool {
 	switch value {
-	case wire.Support_SUPPORT_OBSERVE_STATE, wire.Support_SUPPORT_CLIMATE_SETPOINT, wire.Support_SUPPORT_SWITCH_TURN_ON, wire.Support_SUPPORT_LIGHT_TURN_ON, wire.Support_SUPPORT_LIGHT_TURN_OFF, wire.Support_SUPPORT_LIGHT_BRIGHTNESS_ABSOLUTE, wire.Support_SUPPORT_LIGHT_BRIGHTNESS_RELATIVE, wire.Support_SUPPORT_LIGHT_TRANSITION, wire.Support_SUPPORT_SCENE_TURN_ON, wire.Support_SUPPORT_SCENE_TRANSITION:
+	case wire.ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_OBSERVE_STATE, wire.ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_CLIMATE_SETPOINT, wire.ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_SWITCH_TURN_ON, wire.ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_ON, wire.ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TURN_OFF, wire.ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_ABSOLUTE, wire.ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_BRIGHTNESS_RELATIVE, wire.ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_LIGHT_TRANSITION, wire.ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_SCENE_TURN_ON, wire.ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_SCENE_TRANSITION:
 		return true
-	case wire.Support_SUPPORT_UNSPECIFIED:
+	case wire.ConfigurationSimulationSupport_CONFIGURATION_SIMULATION_SUPPORT_UNSPECIFIED:
 		return false
 	default:
 		return false
 	}
 }
-func simulationAttribute(value *wire.Attribute) bool {
+func simulationAttribute(value *wire.ConfigurationSimulationAttribute) bool {
 	if value == nil || !planLabel(value.Name, 128) {
 		return false
 	}
 	switch item := value.Value.(type) {
-	case *wire.Attribute_Text:
+	case *wire.ConfigurationSimulationAttribute_Text:
 		return item != nil && utf8.ValidString(item.Text) && len(item.Text) <= 4096
-	case *wire.Attribute_Boolean:
+	case *wire.ConfigurationSimulationAttribute_Boolean:
 		return item != nil
-	case *wire.Attribute_Integer:
+	case *wire.ConfigurationSimulationAttribute_Integer:
 		return item != nil
-	case *wire.Attribute_Number:
+	case *wire.ConfigurationSimulationAttribute_Number:
 		return item != nil && !math.IsNaN(item.Number) && !math.IsInf(item.Number, 0)
-	case *wire.Attribute_NullValue:
+	case *wire.ConfigurationSimulationAttribute_NullValue:
 		return item != nil && item.NullValue
 	case nil:
 		return false
@@ -43,12 +43,12 @@ func simulationAttribute(value *wire.Attribute) bool {
 		return false
 	}
 }
-func AdmitConfigurationSimulationRequest(message *wire.SimulatePlanRequest) error {
-	if message == nil || !configurationKnown(message.ProtoReflect()) || !planCandidate(message.Candidate) || proto.Size(message) > 2<<20 || !configurationTime(message.Now) || message.Now.AsTime().Year() < 1900 || message.Now.AsTime().Year() > 2100 || !planLabel(message.TimeZone, 256) || message.VirtualLimitMillis == 0 || message.VirtualLimitMillis > 3600000 || len(message.Fixtures) > 128 || len(message.EventTypes) > 128 {
+func AdmitConfigurationSimulationRequest(message *wire.SimulateConfigurationPlanRequest) error {
+	if message == nil || !configurationKnown(message.ProtoReflect()) || !configurationHomeName(message.Name) || !planCandidate(message.Candidate) || proto.Size(message) > 2<<20 || !configurationTime(message.Now) || message.Now.AsTime().Year() < 1900 || message.Now.AsTime().Year() > 2100 || !planLabel(message.TimeZone, 256) || message.VirtualLimitMillis == 0 || message.VirtualLimitMillis > 3600000 || len(message.Fixtures) > 128 || len(message.EventTypes) > 128 {
 		return ErrInvalidConfigurationSimulationContract
 	}
 	switch message.Candidate.Family {
-	case plan.SourceFamily_SOURCE_FAMILY_AUTOMATION, plan.SourceFamily_SOURCE_FAMILY_SCRIPT, plan.SourceFamily_SOURCE_FAMILY_SCENE:
+	case plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION, plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT, plan.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE:
 	default:
 		return ErrInvalidConfigurationSimulationContract
 	}
@@ -66,7 +66,7 @@ func AdmitConfigurationSimulationRequest(message *wire.SimulatePlanRequest) erro
 		if fixture.State != nil && (!utf8.ValidString(*fixture.State) || len(*fixture.State) > 4096) {
 			return ErrInvalidConfigurationSimulationContract
 		}
-		supports := map[wire.Support]bool{}
+		supports := map[wire.ConfigurationSimulationSupport]bool{}
 		for _, support := range fixture.Supports {
 			if !simulationSupport(support) || supports[support] {
 				return ErrInvalidConfigurationSimulationContract
@@ -90,7 +90,7 @@ func AdmitConfigurationSimulationRequest(message *wire.SimulatePlanRequest) erro
 	}
 	return nil
 }
-func simulationPosition(position *wire.Position) bool {
+func simulationPosition(position *wire.ConfigurationSimulationPosition) bool {
 	if position == nil {
 		return false
 	}
@@ -99,11 +99,11 @@ func simulationPosition(position *wire.Position) bool {
 	}
 	return planLabel(position.File, 4096) && len(position.Path) <= 4096 && utf8.ValidString(position.Path) && position.Line > 0 && position.Column > 0
 }
-func simulationDiagnostic(value wire.DiagnosticCode) bool {
+func simulationDiagnostic(value wire.ConfigurationSimulationDiagnosticCode) bool {
 	switch value {
-	case wire.DiagnosticCode_DIAGNOSTIC_CODE_UNSUPPORTED_EXTENSION, wire.DiagnosticCode_DIAGNOSTIC_CODE_UNSUPPORTED_CONCURRENCY, wire.DiagnosticCode_DIAGNOSTIC_CODE_UNSUPPORTED_WAIT, wire.DiagnosticCode_DIAGNOSTIC_CODE_INVALID_SOURCE, wire.DiagnosticCode_DIAGNOSTIC_CODE_MISSING_FIXTURE, wire.DiagnosticCode_DIAGNOSTIC_CODE_FIXTURE_REFUSED, wire.DiagnosticCode_DIAGNOSTIC_CODE_EXECUTION_FAILED, wire.DiagnosticCode_DIAGNOSTIC_CODE_CAPACITY_EXCEEDED:
+	case wire.ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_EXTENSION, wire.ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_CONCURRENCY, wire.ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSUPPORTED_WAIT, wire.ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_INVALID_SOURCE, wire.ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_MISSING_FIXTURE, wire.ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_FIXTURE_REFUSED, wire.ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_EXECUTION_FAILED, wire.ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_CAPACITY_EXCEEDED:
 		return true
-	case wire.DiagnosticCode_DIAGNOSTIC_CODE_UNSPECIFIED:
+	case wire.ConfigurationSimulationDiagnosticCode_CONFIGURATION_SIMULATION_DIAGNOSTIC_CODE_UNSPECIFIED:
 		return false
 	default:
 		return false
@@ -112,7 +112,7 @@ func simulationDiagnostic(value wire.DiagnosticCode) bool {
 func simulationFinite(value *float64, min, max float64) bool {
 	return value == nil || !math.IsNaN(*value) && !math.IsInf(*value, 0) && *value >= min && *value <= max
 }
-func simulationIntent(value *wire.Intent) bool {
+func simulationIntent(value *wire.ConfigurationSimulationIntent) bool {
 	if value == nil || !planLabel(value.Alias, 255) || !simulationPosition(value.Position) || value.Position.File == "" || !configurationTime(value.At) {
 		return false
 	}
@@ -124,9 +124,9 @@ func simulationIntent(value *wire.Intent) bool {
 		return false
 	}
 	switch item := value.Parameters.(type) {
-	case *wire.Intent_Switch:
+	case *wire.ConfigurationSimulationIntent_Switch:
 		return item != nil && item.Switch != nil
-	case *wire.Intent_Light:
+	case *wire.ConfigurationSimulationIntent_Light:
 		if item == nil || item.Light == nil {
 			return false
 		}
@@ -142,18 +142,18 @@ func simulationIntent(value *wire.Intent) bool {
 			present++
 		}
 		return present <= 1 && (light.On != nil || present > 0 || light.ColorTempMireds != nil) && simulationFinite(light.BrightnessPercent, 0, 100) && simulationFinite(light.BrightnessStepPercent, -100, 100) && simulationFinite(light.TransitionSeconds, 0, 86400) && (light.Brightness_255 == nil || *light.Brightness_255 <= 255) && (light.ColorTempMireds == nil || *light.ColorTempMireds > 0)
-	case *wire.Intent_Climate:
+	case *wire.ConfigurationSimulationIntent_Climate:
 		if item == nil || item.Climate == nil {
 			return false
 		}
 		climate := item.Climate
 		if climate.Mode != nil {
-			if _, err := AdmitWireClimateMode(*climate.Mode); err != nil {
+			if *climate.Mode < wire.TemperatureMode_TEMPERATURE_MODE_OFF || *climate.Mode > wire.TemperatureMode_TEMPERATURE_MODE_FAN_ONLY {
 				return false
 			}
 		}
 		return (climate.TemperatureCelsius != nil || climate.Mode != nil || climate.HumidityPercent != nil || climate.FanMode != nil || climate.PresetMode != nil) && simulationFinite(climate.TemperatureCelsius, -273.15, 1000) && simulationFinite(climate.HumidityPercent, 0, 100) && (climate.FanMode == nil || planLabel(*climate.FanMode, 128)) && (climate.PresetMode == nil || planLabel(*climate.PresetMode, 128))
-	case *wire.Intent_Fan:
+	case *wire.ConfigurationSimulationIntent_Fan:
 		return item != nil && item.Fan != nil && item.Fan.Percentage <= 100
 	case nil:
 		return value.Outcome == wire.IntentOutcome_INTENT_OUTCOME_REFUSED
@@ -161,27 +161,27 @@ func simulationIntent(value *wire.Intent) bool {
 		return false
 	}
 }
-func simulationAction(value wire.ActionKind) bool {
+func simulationAction(value wire.ConfigurationSimulationActionKind) bool {
 	switch value {
-	case wire.ActionKind_ACTION_KIND_VARIABLES, wire.ActionKind_ACTION_KIND_SEQUENCE, wire.ActionKind_ACTION_KIND_CHOOSE, wire.ActionKind_ACTION_KIND_IF, wire.ActionKind_ACTION_KIND_REPEAT, wire.ActionKind_ACTION_KIND_PARALLEL, wire.ActionKind_ACTION_KIND_WAIT, wire.ActionKind_ACTION_KIND_STOP, wire.ActionKind_ACTION_KIND_CALL, wire.ActionKind_ACTION_KIND_DELAY, wire.ActionKind_ACTION_KIND_WAIT_TEMPLATE:
+	case wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_VARIABLES, wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_SEQUENCE, wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_CHOOSE, wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_IF, wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_REPEAT, wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_PARALLEL, wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_WAIT, wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_STOP, wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_CALL, wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_DELAY, wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_WAIT_TEMPLATE:
 		return true
-	case wire.ActionKind_ACTION_KIND_UNSPECIFIED:
+	case wire.ConfigurationSimulationActionKind_CONFIGURATION_SIMULATION_ACTION_KIND_UNSPECIFIED:
 		return false
 	default:
 		return false
 	}
 }
-func simulationStage(value wire.NodeStage) bool {
+func simulationStage(value wire.ConfigurationSimulationNodeStage) bool {
 	switch value {
-	case wire.NodeStage_NODE_STAGE_ENTERED, wire.NodeStage_NODE_STAGE_COMPLETED, wire.NodeStage_NODE_STAGE_STOPPED, wire.NodeStage_NODE_STAGE_CANCELLED, wire.NodeStage_NODE_STAGE_FAILED, wire.NodeStage_NODE_STAGE_WAITING:
+	case wire.ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_ENTERED, wire.ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_COMPLETED, wire.ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_STOPPED, wire.ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_CANCELLED, wire.ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_FAILED, wire.ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_WAITING:
 		return true
-	case wire.NodeStage_NODE_STAGE_UNSPECIFIED:
+	case wire.ConfigurationSimulationNodeStage_CONFIGURATION_SIMULATION_NODE_STAGE_UNSPECIFIED:
 		return false
 	default:
 		return false
 	}
 }
-func AdmitConfigurationSimulationResponse(message *wire.SimulatePlanResponse) error {
+func AdmitConfigurationSimulationResponse(message *wire.SimulateConfigurationPlanResponse) error {
 	if message == nil || !configurationKnown(message.ProtoReflect()) || proto.Size(message) > 512<<10 || message.Report == nil {
 		return ErrInvalidConfigurationSimulationContract
 	}
@@ -190,15 +190,15 @@ func AdmitConfigurationSimulationResponse(message *wire.SimulatePlanResponse) er
 		return ErrInvalidConfigurationSimulationContract
 	}
 	switch r.Status {
-	case wire.Status_STATUS_COMPLETED:
+	case wire.ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_COMPLETED:
 		if len(r.Diagnostics) != 0 {
 			return ErrInvalidConfigurationSimulationContract
 		}
-	case wire.Status_STATUS_PARTIAL, wire.Status_STATUS_FAILED:
+	case wire.ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_PARTIAL, wire.ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_FAILED:
 		if len(r.Diagnostics) == 0 {
 			return ErrInvalidConfigurationSimulationContract
 		}
-	case wire.Status_STATUS_UNSPECIFIED:
+	case wire.ConfigurationSimulationStatus_CONFIGURATION_SIMULATION_STATUS_UNSPECIFIED:
 		return ErrInvalidConfigurationSimulationContract
 	default:
 		return ErrInvalidConfigurationSimulationContract

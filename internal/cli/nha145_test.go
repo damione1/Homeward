@@ -12,30 +12,30 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	"github.com/damione1/Homeward/gen/home/auth/v1/authv1connect"
+	auth "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"github.com/damione1/Homeward/internal/mcpkeys"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type nha145API struct {
 	mu sync.Mutex
-	authv1connect.UnimplementedMcpKeyServiceHandler
+	apiv2connect.UnimplementedMcpKeyServiceHandler
 	auth    *nha143API
 	key     *auth.McpKey
 	secret  string
 	revoked bool
 }
 
-func (f *nha145API) CreateMcpKey(_ context.Context, r *connect.Request[auth.CreateMcpKeyRequest]) (*connect.Response[auth.CreateMcpKeyResponse], error) {
+func (f *nha145API) IssueMcpKey(_ context.Context, r *connect.Request[auth.IssueMcpKeyRequest]) (*connect.Response[auth.IssueMcpKeyResponse], error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.auth.record("key-create", r.Header()); err != nil {
 		return nil, err
 	}
 	now := time.Now()
-	f.key = &auth.McpKey{Id: &auth.McpKeyId{Value: "key-A"}, AccountId: &auth.AccountId{Value: "account-1"}, ClientName: r.Msg.ClientName, Audience: auth.CredentialAudience_CREDENTIAL_AUDIENCE_MCP, Scopes: r.Msg.Scopes, CreatedAt: timestamppb.New(now), ExpiresAt: timestamppb.New(now.Add(30 * 24 * time.Hour))}
-	return connect.NewResponse(&auth.CreateMcpKeyResponse{Key: f.key, Secret: f.secret}), nil
+	f.key = &auth.McpKey{Name: nha143Home + "/accounts/account-1/mcpKeys/key-a", ClientName: r.Msg.ClientName, Audience: auth.CredentialAudience_CREDENTIAL_AUDIENCE_MCP, Scopes: r.Msg.Scopes, CreateTime: timestamppb.New(now), ExpireTime: timestamppb.New(now.Add(30 * 24 * time.Hour))}
+	return connect.NewResponse(&auth.IssueMcpKeyResponse{McpKey: f.key, Secret: f.secret}), nil
 }
 func (f *nha145API) ListMcpKeys(_ context.Context, r *connect.Request[auth.ListMcpKeysRequest]) (*connect.Response[auth.ListMcpKeysResponse], error) {
 	f.mu.Lock()
@@ -43,7 +43,7 @@ func (f *nha145API) ListMcpKeys(_ context.Context, r *connect.Request[auth.ListM
 	if err := f.auth.record("key-list", r.Header()); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&auth.ListMcpKeysResponse{Keys: []*auth.McpKey{f.key}}), nil
+	return connect.NewResponse(&auth.ListMcpKeysResponse{McpKeys: []*auth.McpKey{f.key}}), nil
 }
 func (f *nha145API) RevokeMcpKey(_ context.Context, r *connect.Request[auth.RevokeMcpKeyRequest]) (*connect.Response[auth.RevokeMcpKeyResponse], error) {
 	f.mu.Lock()
@@ -51,7 +51,7 @@ func (f *nha145API) RevokeMcpKey(_ context.Context, r *connect.Request[auth.Revo
 	if err := f.auth.record("key-revoke", r.Header()); err != nil {
 		return nil, err
 	}
-	if r.Msg.KeyId.Value != f.key.Id.Value {
+	if r.Msg.Name != f.key.Name {
 		return nil, connect.NewError(connect.CodeNotFound, nil)
 	}
 	f.revoked = true
@@ -65,7 +65,7 @@ func TestNHA145KongCreateListRevokeAndOneTimeSecret(t *testing.T) {
 	}
 	text, _ := secret.Text()
 	api := &nha145API{auth: baseAPI, secret: text}
-	server.Config.Handler.(*http.ServeMux).Handle(authv1connect.NewMcpKeyServiceHandler(api))
+	server.Config.Handler.(*http.ServeMux).Handle(apiv2connect.NewMcpKeyServiceHandler(api))
 	dir := nha143Private(t)
 	terminal := &nha143Terminal{}
 	nha143Run(t, dir, terminal, ExitOK, "profiles", "add", "mcp", "--url", server.URL, "--ca", ca)
@@ -84,7 +84,7 @@ func TestNHA145KongCreateListRevokeAndOneTimeSecret(t *testing.T) {
 	if strings.Contains(listed, text) || strings.Contains(listed, "secret") {
 		t.Fatal("list leaked secret")
 	}
-	nha143Run(t, dir, terminal, ExitOK, "--profile", "mcp", "keys", "revoke", "key-A")
+	nha143Run(t, dir, terminal, ExitOK, "--profile", "mcp", "keys", "revoke", nha143Home+"/accounts/account-1/mcpKeys/key-a")
 	api.mu.Lock()
 	revoked := api.revoked
 	api.mu.Unlock()

@@ -253,6 +253,9 @@ type AccountChanges struct {
 	Display *accounts.DisplayName
 	Role    *authv1.AccountRole
 	Status  *authv1.AccountStatus
+	// Public v2 admission always supplies Expected. Native callers without a
+	// captured public resource retain their own authorization/revision fences.
+	Expected *AccountVersion
 }
 
 type authAction int16
@@ -456,7 +459,7 @@ func classifyAccountError(err error) error {
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return ErrAccountConflict
 	}
-	for _, known := range []error{ErrAccountInvalid, ErrAccountConflict, ErrAccountNotFound, ErrAccountPermission,
+	for _, known := range []error{ErrAccountInvalid, ErrAccountConflict, ErrAccountVersionConflict, ErrAccountNotFound, ErrAccountPermission,
 		ErrBootstrapCompleted, ErrLastActiveAdmin, ErrInvitationNotFound, ErrInvitationExpired, ErrInvitationUnavailable, ErrAccountListTooLarge,
 		ErrPolicyNotConfigured, authorization.ErrInvalid, authorization.ErrConflict} {
 		if errors.Is(err, known) {
@@ -642,6 +645,9 @@ func insertAccountRow(ctx context.Context, tx pgx.Tx, input NewAccount) error {
 	_, err = tx.Exec(ctx, `INSERT INTO public.auth_accounts(id,login_name,login_key,display_name,role,status,password_profile,password_salt,password_digest)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, id, display, key, name, role,
 		sqlStatusActive, profile, salt[:], digest[:])
+	if err == nil {
+		_, err = EnsureAPIResourceIdentityTx(ctx, tx, APIAccounts, id)
+	}
 	return err
 }
 

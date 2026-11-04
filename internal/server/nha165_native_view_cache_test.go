@@ -18,6 +18,7 @@ import (
 )
 
 type nha165GrantFixture struct {
+	host      *integrations.Manager
 	a         *policyViewAuthorizer
 	ctx       context.Context
 	principal authorization.Principal
@@ -31,11 +32,21 @@ type nha165GrantFixture struct {
 }
 
 func nha165GrantSetup(t *testing.T) nha165GrantFixture {
+	return nha165GrantSetupAuthority(t, nil)
+}
+func nha165GrantSetupAuthority(t *testing.T, authority *authorization.Authority) nha165GrantFixture {
 	t.Helper()
 	ctx := context.Background()
 	host, fixture, e := fake.NewCommandFixture()
 	if e != nil {
 		t.Fatal(e)
+	}
+	if authority != nil {
+		if err := host.AttachAuthorization(authority); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		authority = authorization.NewAuthority()
 	}
 	instance, _ := domain.ParseIntegrationInstanceID("nha165-cache-native")
 	session, e := host.OpenSession(instance)
@@ -74,7 +85,6 @@ func nha165GrantSetup(t *testing.T) nha165GrantFixture {
 	if e != nil {
 		t.Fatal(e)
 	}
-	authority := authorization.NewAuthority()
 	if e = authority.Hydrate([]authorization.AccountState{nha164AuthorityState(t, source, auth.AccountRole_ACCOUNT_ROLE_USER, 1)}); e != nil {
 		t.Fatal(e)
 	}
@@ -97,7 +107,7 @@ func nha165GrantSetup(t *testing.T) nha165GrantFixture {
 	if e != nil {
 		t.Fatal(e)
 	}
-	return nha165GrantFixture{a, ctx, principal, actor, account, source, record, session, binding, service}
+	return nha165GrantFixture{host, a, ctx, principal, actor, account, source, record, session, binding, service}
 }
 func (f nha165GrantFixture) rows(t *testing.T, want int) {
 	t.Helper()

@@ -1,10 +1,10 @@
 use std::time::Duration;
 
 use connectrpc::client::{CallOptions, HttpClient};
-use home_wire_contract::home::auth::v1 as auth;
+use home_wire_contract::home::api::v2 as auth;
 use tokio_util::sync::CancellationToken;
 
-use crate::{AccessToken, Failure, StateTransport, services::home::auth::v1 as service};
+use crate::{AccessToken, Failure, services::home::api::v2 as service};
 
 /// Single-attempt Auth calls. In particular, an uncertain RefreshSession is
 /// never retried here. The session coordinator owns rotation and persistence.
@@ -36,7 +36,7 @@ macro_rules! authenticated_call {
             timeout: Duration,
             cancel: &CancellationToken,
         ) -> Result<auth::$response, Failure> {
-            let options = StateTransport::options(token, timeout)?;
+            let options = token.options(timeout)?;
             tokio::select! { biased;
                 () = cancel.cancelled() => Err(Failure::cancelled()),
                 response = self.client.$wire(request, options) => {
@@ -49,16 +49,16 @@ macro_rules! authenticated_call {
 
 impl AuthTransport {
     authenticated_call!(
-        list_factors,
-        list_factors_with_options,
-        ListFactorsRequest,
-        ListFactorsResponse
+        list_factor_credentials,
+        list_factor_credentials_with_options,
+        ListFactorCredentialsRequest,
+        ListFactorCredentialsResponse
     );
     authenticated_call!(
-        remove_factor,
-        remove_factor_with_options,
-        RemoveFactorRequest,
-        RemoveFactorResponse
+        remove_factor_credential,
+        remove_factor_credential_with_options,
+        RemoveFactorCredentialRequest,
+        RemoveFactorCredentialResponse
     );
     authenticated_call!(
         replace_recovery_codes,
@@ -74,7 +74,7 @@ impl AuthTransport {
         timeout: Duration,
         cancel: &CancellationToken,
     ) -> Result<auth::ListSessionsResponse, Failure> {
-        let options = StateTransport::options(token, timeout)?;
+        let options = token.options(timeout)?;
         tokio::select! {
             biased;
             () = cancel.cancelled() => Err(Failure::cancelled()),
@@ -107,7 +107,7 @@ impl AuthTransport {
         timeout: Duration,
         cancel: &CancellationToken,
     ) -> Result<(), Failure> {
-        let options = StateTransport::options(token, timeout)?;
+        let options = token.options(timeout)?;
         tokio::select! {
             biased;
             () = cancel.cancelled() => Err(Failure::cancelled()),

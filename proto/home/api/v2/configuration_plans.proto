@@ -1,0 +1,203 @@
+syntax = "proto3";
+package home.api.v2;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
+option java_multiple_files = true;
+option java_outer_classname = "ConfigurationPlansProto";
+option java_package = "com.home.api.v2";
+
+// Closed variants select existing Homeward compilers. No caller-defined schema.
+enum ConfigurationPlanSourceFamily {
+  CONFIGURATION_PLAN_SOURCE_FAMILY_UNSPECIFIED = 0;
+  CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL = 1;
+  CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V1 = 2;
+  CONFIGURATION_PLAN_SOURCE_FAMILY_DECLARATIVE_V2 = 3;
+  CONFIGURATION_PLAN_SOURCE_FAMILY_AUTHORIZATION = 4;
+  CONFIGURATION_PLAN_SOURCE_FAMILY_OWNERSHIP = 5;
+  CONFIGURATION_PLAN_SOURCE_FAMILY_DASHBOARD = 6;
+  CONFIGURATION_PLAN_SOURCE_FAMILY_AUTOMATION = 7;
+  CONFIGURATION_PLAN_SOURCE_FAMILY_SCRIPT = 8;
+  CONFIGURATION_PLAN_SOURCE_FAMILY_SCENE = 9;
+}
+enum ConfigurationPlanState {
+  CONFIGURATION_PLAN_STATE_UNSPECIFIED = 0;
+  CONFIGURATION_PLAN_STATE_ADMITTED = 1;
+  CONFIGURATION_PLAN_STATE_REJECTED = 2;
+  CONFIGURATION_PLAN_STATE_STALE = 3;
+}
+enum ConfigurationPlanBaseKind {
+  CONFIGURATION_PLAN_BASE_KIND_UNSPECIFIED = 0;
+  CONFIGURATION_PLAN_BASE_KIND_ACTIVE_SQL = 1;
+  CONFIGURATION_PLAN_BASE_KIND_IMMUTABLE_REFERENCE = 2;
+  CONFIGURATION_PLAN_BASE_KIND_NO_ACTIVE_DOCUMENT = 3;
+}
+enum ConfigurationPlanEffect {
+  CONFIGURATION_PLAN_EFFECT_UNSPECIFIED = 0;
+  CONFIGURATION_PLAN_EFFECT_NONE = 1;
+  CONFIGURATION_PLAN_EFFECT_DASHBOARD = 2;
+  CONFIGURATION_PLAN_EFFECT_CONFIGURATION = 3;
+  CONFIGURATION_PLAN_EFFECT_HUMAN_RIGHTS = 4;
+  CONFIGURATION_PLAN_EFFECT_TECHNICAL_OWNERSHIP = 5;
+  CONFIGURATION_PLAN_EFFECT_RUN_TARGETS = 6;
+}
+enum ConfigurationPlanChangeOperation {
+  CONFIGURATION_PLAN_CHANGE_OPERATION_UNSPECIFIED = 0;
+  CONFIGURATION_PLAN_CHANGE_OPERATION_ADDED = 1;
+  CONFIGURATION_PLAN_CHANGE_OPERATION_REMOVED = 2;
+  CONFIGURATION_PLAN_CHANGE_OPERATION_REPLACED = 3;
+}
+enum ConfigurationPlanDiagnosticCode {
+  CONFIGURATION_PLAN_DIAGNOSTIC_CODE_UNSPECIFIED = 0;
+  CONFIGURATION_PLAN_DIAGNOSTIC_CODE_INVALID_SCHEMA = 1;
+  CONFIGURATION_PLAN_DIAGNOSTIC_CODE_EXCLUDED_REFERENCE = 2;
+  CONFIGURATION_PLAN_DIAGNOSTIC_CODE_UNSUPPORTED_SOURCE = 3;
+  CONFIGURATION_PLAN_DIAGNOSTIC_CODE_CAPACITY = 4;
+  CONFIGURATION_PLAN_DIAGNOSTIC_CODE_BASE_UNAVAILABLE = 5;
+}
+message ConfigurationPlanSourceFile {
+  string logical_path = 1;
+  bytes exact_source = 2;
+}
+message ConfigurationPlanCandidate {
+  ConfigurationPlanSourceFamily family = 1;
+  // Logical document/account/dashboard/selected-logic identity, never a path.
+  string identity = 2;
+  string entry = 3;
+  repeated ConfigurationPlanSourceFile files = 4;
+}
+message ConfigurationPlanBase {
+  ConfigurationPlanBaseKind kind = 1;
+  // Present only for SQL; absence is never revision zero claimed as active.
+  optional int64 revision = 2;
+  optional bytes source_sha256 = 3;
+}
+message ConfigurationPlanChange {
+  ConfigurationPlanEffect effect = 1;
+  ConfigurationPlanChangeOperation operation = 2;
+  // Closed compiler-owned field name; no source values, comments or parser text.
+  string field = 3;
+  uint32 references_added = 4;
+  uint32 references_removed = 5;
+}
+message ConfigurationPlan {
+  option (google.api.resource) = {
+    type: "homeward.damiengoehrig.ca/ConfigurationPlan"
+    pattern: "homes/{home}/configurationPlans/{configuration_plan}"
+    singular: "configurationPlan"
+    plural: "configurationPlans"
+  };
+  // Immutable process-epoch capture identity; never permission to activate.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+  ConfigurationPlanState state = 22 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Account resource of the native author captured when this plan was built.
+  string author = 2 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/Account"
+  ];
+  ConfigurationPlanSourceFamily family = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string identity = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string schema_version = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  bytes source_sha256 = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Absent for a rejected candidate; exact-source and manifest hashes differ.
+  optional bytes semantic_sha256 = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+  ConfigurationPlanBase base = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+  int64 generation_revision = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  bytes manifest_sha256 = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+  bytes observed_workspace_sha256 = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+  ConfigurationPlanEffect effect = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
+  repeated ConfigurationPlanChange changes = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+  repeated ConfigurationPlanDiagnosticCode diagnostics = 14 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Process-epoch authenticated metadata only. Not authorization or approval.
+  string receipt = 15 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Always false in this diagnostic service. Apply remains a separate owner.
+  bool application_available = 16 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Capture lifetime is bounded by native receipt validity and ten minutes.
+  google.protobuf.Timestamp create_time = 17 [(google.api.field_behavior) = OUTPUT_ONLY];
+  google.protobuf.Timestamp expire_time = 18 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Opaque diagnostic metadata revision; no publication authority.
+  string etag = 19;
+  // Last diagnostic revalidation, without extending create/expiry times.
+  google.protobuf.Timestamp update_time = 21 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Exact explicit source input. Never returned by Get/List or any error.
+  ConfigurationPlanCandidate candidate = 20 [(google.api.field_behavior) = INPUT_ONLY];
+}
+message CreateConfigurationPlanRequest {
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/ConfigurationPlan"
+  ];
+  ConfigurationPlan configuration_plan = 2 [(google.api.field_behavior) = REQUIRED];
+  // UUID identifying this intent for 24-hour replay of its original capture.
+  string request_id = 3 [(google.api.field_behavior) = OPTIONAL, (google.api.field_info).format = UUID4];
+}
+message RevalidateConfigurationPlanRequest {
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/ConfigurationPlan"
+  ];
+  ConfigurationPlanCandidate candidate = 2 [(google.api.field_behavior) = REQUIRED];
+  // Opaque token from the exact plan capture; compared without normalization.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+  // UUID identifying this intent for 24-hour replay of its original capture.
+  string request_id = 4 [(google.api.field_behavior) = OPTIONAL, (google.api.field_info).format = UUID4];
+}
+message GetConfigurationPlanRequest {
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "homeward.damiengoehrig.ca/ConfigurationPlan"
+  ];
+}
+message ListConfigurationPlansRequest {
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "homeward.damiengoehrig.ca/ConfigurationPlan"
+  ];
+  // Zero selects 100; negative fails; larger values are clamped to 100.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+message ListConfigurationPlansResponse {
+  repeated ConfigurationPlan configuration_plans = 1;
+  string next_page_token = 2;
+}
+
+// Optional, non-mutating previews on the common TLS listener. Native human
+// admin + current GLOBAL_CONFIGURATION/ADMINISTER, with current 050 policy.
+// Neither watcher autoactivation nor internal routines require these endpoints.
+service ConfigurationPlanService {
+  option (google.api.default_host) = "homeward.damiengoehrig.ca";
+  // Compiles explicit source once into a bounded redacted diagnostic capture.
+  rpc CreateConfigurationPlan(CreateConfigurationPlanRequest) returns (ConfigurationPlan) {
+    option (google.api.http) = {
+      post: "/v2/{parent=homes/*}/configurationPlans"
+      body: "configuration_plan"
+    };
+    option (google.api.method_signature) = "parent,configuration_plan";
+  }
+  // Reads this caller credential's unexpired capture without recompilation.
+  rpc GetConfigurationPlan(GetConfigurationPlanRequest) returns (ConfigurationPlan) {
+    option (google.api.http) = {get: "/v2/{name=homes/*/configurationPlans/*}"};
+    option (google.api.method_signature) = "name";
+  }
+  // Lists a stable capture of this caller credential's current plan metadata.
+  rpc ListConfigurationPlans(ListConfigurationPlansRequest) returns (ListConfigurationPlansResponse) {
+    option (google.api.http) = {get: "/v2/{parent=homes/*}/configurationPlans"};
+    option (google.api.method_signature) = "parent";
+  }
+  // Recompiles explicit bytes against the same native receipt without extending
+  // this capture's lifetime. It never grants application permission.
+  rpc RevalidateConfigurationPlan(RevalidateConfigurationPlanRequest) returns (ConfigurationPlan) {
+    option (google.api.http) = {
+      post: "/v2/{name=homes/*/configurationPlans/*}:revalidate"
+      body: "*"
+    };
+    option (google.api.method_signature) = "name";
+  }
+}
