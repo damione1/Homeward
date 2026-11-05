@@ -90,6 +90,20 @@ impl SavedView {
     pub fn query(&self) -> &str {
         &self.query
     }
+    pub fn readmit(&mut self, snapshot: &crate::dashboard_catalogue::Snapshot) -> bool {
+        let Some(previous) = &self.layout else {
+            return false;
+        };
+        let Some(current) = snapshot.layout(&previous.id) else {
+            return false;
+        };
+        if !previous.same_document(&current) {
+            return false;
+        }
+        self.layout = Some(current);
+        self.catalogue = Some(snapshot.token().clone());
+        true
+    }
 }
 struct Pending {
     view: SavedView,
@@ -108,6 +122,7 @@ struct State {
     pending: Option<Pending>,
     published: Option<i32>,
     focused: Option<Handle>,
+    focused_node: Option<NodeId>,
     serial: i32,
     queued: bool,
 }
@@ -122,6 +137,7 @@ impl Host {
             pending: None,
             published: None,
             focused: None,
+            focused_node: None,
             serial: 0,
             queued: false,
         })));
@@ -133,6 +149,7 @@ impl Host {
                     state.pending = None;
                     state.published = None;
                     state.focused = None;
+                    state.focused_node = None;
                     state.window.upgrade()
                 };
                 if let Some(window) = window {
@@ -147,6 +164,7 @@ impl Host {
                     let mut state = state.borrow_mut();
                     state.pending = None;
                     state.focused = None;
+                    state.focused_node = None;
                     state.window.upgrade()
                 };
                 if let Some(window) = window {
@@ -181,10 +199,10 @@ impl Host {
                         .lock()
                         .expect("presentation request mutex poisoned")
                         .revision;
-                    let current = (state.devices)()
-                        .and_then(|store| store.recipe_node(token, generation, revision))
-                        .is_some();
-                    if current {
+                    let node = (state.devices)()
+                        .and_then(|store| store.recipe_node(token, generation, revision));
+                    if let Some(node) = node {
+                        state.focused_node = Some(node);
                         state.focused = Some(Handle {
                             token,
                             generation,
@@ -213,14 +231,24 @@ impl Host {
             };
             if focused {
                 state.pending = None;
-                if (state.devices)()
+                if let Some(node) = (state.devices)()
                     .and_then(|store| store.recipe_node(token, generation, revision))
-                    .is_some()
                 {
+                    state.focused_node = Some(node);
                     state.focused = Some(handle);
                 }
             } else if state.focused == Some(handle) {
-                state.focused = None;
+                // A capture rollover temporarily removes all board rows until
+                // the new dashboard proof is admitted. Retain only the focus
+                // identity; readmit() will resolve it against fresh bindings.
+                if state
+                    .window
+                    .upgrade()
+                    .is_some_and(|window| window.get_has_configured_layout())
+                {
+                    state.focused = None;
+                    state.focused_node = None;
+                }
             }
         });
         let weak = Rc::downgrade(&host.0);
@@ -257,6 +285,44 @@ impl Host {
     }
     pub fn restore(&self, view: SavedView, revision: i32) {
         self.0.borrow_mut().pending = Some(Pending { view, revision });
+        self.schedule();
+    }
+    pub fn readmit(&self) {
+        let mut state = self.0.borrow_mut();
+        let Some(window) = state.window.upgrade() else {
+            return;
+        };
+        let request = state
+            .request
+            .lock()
+            .expect("presentation request mutex poisoned")
+            .clone();
+        let Some(snapshot) = &request.catalogue else {
+            return;
+        };
+        if let Some(pending) = &mut state.pending {
+            if !pending.view.readmit(snapshot) {
+                state.pending = None;
+            }
+        } else if let (Some(node), Some(layout)) =
+            (&state.focused_node, request.dashboard.shared_layout())
+        {
+            state.pending = Some(Pending {
+                view: SavedView::capture(
+                    &window,
+                    &request,
+                    Some(Origin {
+                        node: node.clone(),
+                        layout,
+                    }),
+                ),
+                revision: request.revision,
+            });
+        }
+        // The route revision is intentionally stable across a proof renewal.
+        // Its previous publication therefore cannot acknowledge fresh rows.
+        state.published = None;
+        drop(state);
         self.schedule();
     }
     pub fn restore_origin(&self, prepared: &NativePrepared) {
@@ -358,5 +424,103 @@ impl Host {
         if let Some(request) = request {
             window.set_recipe_focus(request);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dashboard_catalogue::Snapshot;
+    use home_client_cache::CachePhase;
+    use home_client_model::dashboard::{Intention, Presentation};
+
+    #[test]
+    fn nhf035_focus_waits_for_fresh_bindings_after_a_capture_rollover() {
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        window.set_view_loaded(true);
+        window.set_has_configured_layout(true);
+        let first = crate::dashboard::capture_fixture(vec![]);
+        let mut layout = crate::dashboard::joined_fixture(&first);
+        let mut native = crate::dashboard_layout::NativeLayout::try_from(
+            &crate::dashboard_layout::tests::extended_forest(),
+        )
+        .unwrap();
+        let node = NodeId::parse("recipe").unwrap();
+        let destination = Destination {
+            dashboard: layout.id.clone(),
+            node: NodeId::parse("popup").unwrap(),
+            presentation: Presentation::Popup,
+        };
+        for interaction in native
+            .nodes
+            .get_mut(&node)
+            .unwrap()
+            .recipes
+            .as_mut()
+            .unwrap()
+            .interactions
+            .values_mut()
+        {
+            interaction.intention = Intention::Navigate(destination.clone());
+        }
+        layout.native = Some(native);
+        let layout = Arc::new(layout);
+        let request = Arc::new(std::sync::Mutex::new(ProjectionRequest {
+            dashboard: LayoutState::Ready(layout.clone()),
+            catalogue: Some(Snapshot::fixture("first", vec![layout.clone()])),
+            ..Default::default()
+        }));
+        let devices = DeviceStore::default();
+        let projected = devices.project(CachePhase::Live, Some(&first), &request.lock().unwrap());
+        let old = projected.recipes.get(&node).unwrap();
+        let source = devices.clone();
+        let host = Host::bind(
+            &window,
+            request.clone(),
+            Rc::new(move || Some(source.clone())),
+        );
+        window.invoke_recipe_focus_observed(old.token, old.generation, true);
+        assert_eq!(host.0.borrow().focused_node, Some(node.clone()));
+
+        // New capture arrives before its dashboard Query response. Admission
+        // removes old controls, but the local focus identity is not authority.
+        let second = crate::dashboard::capture_fixture(vec![]);
+        devices.project(CachePhase::Live, Some(&second), &request.lock().unwrap());
+        window.set_has_configured_layout(false);
+        window.invoke_recipe_focus_observed(old.token, old.generation, false);
+        assert_eq!(host.0.borrow().focused_node, Some(node.clone()));
+        let mut renewed = layout.as_ref().clone();
+        renewed.capture = Some(second.incarnation().clone());
+        renewed.binding_expires = Some((2_000_000_000, 0));
+        let renewed = Arc::new(renewed);
+        {
+            let mut request = request.lock().unwrap();
+            request.dashboard = LayoutState::Ready(renewed.clone());
+            request.catalogue = Some(Snapshot::fixture("renewed", vec![renewed]));
+        }
+        host.readmit();
+        host.apply();
+        assert!(
+            host.0.borrow().pending.is_some(),
+            "old publication cannot consume pending focus"
+        );
+        assert!(!window.get_recipe_focus().present);
+        let projected = devices.project(CachePhase::Live, Some(&second), &request.lock().unwrap());
+        let current = projected.recipes.get(&node).unwrap();
+        assert_ne!(current.generation, old.generation);
+        assert!(devices.recipe_node(old.token, old.generation, 0).is_none());
+        window.set_has_configured_layout(true);
+        window.invoke_native_layout_published(0);
+        host.apply();
+        let restored = window.get_recipe_focus();
+        assert!(restored.present);
+        assert_eq!(
+            (restored.token, restored.generation),
+            (current.token, current.generation)
+        );
+        window.invoke_native_route_changed();
+        assert!(host.0.borrow().focused_node.is_none());
+        assert!(!window.get_recipe_focus().present);
     }
 }

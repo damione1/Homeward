@@ -1304,6 +1304,36 @@ pub(crate) fn bind_devices(
         };
         if valid { window.invoke_go_back(); }
     });
+    let (proof_state, proof_window, proof_refresh, proof_focus) = (
+        shared.clone(),
+        window.as_weak(),
+        refresh.clone(),
+        focus.clone(),
+    );
+    window.on_dashboard_refreshed(move || {
+        let Some(window) = proof_window.upgrade() else {
+            return;
+        };
+        {
+            let mut state = proof_state.borrow_mut();
+            let snapshot = state
+                .request
+                .lock()
+                .expect("presentation request mutex poisoned")
+                .catalogue
+                .clone();
+            if let Some(snapshot) = snapshot {
+                state
+                    .history
+                    .retain_mut(|entry| entry.view.readmit(&snapshot));
+            }
+            render(&window, &state);
+        }
+        proof_focus.readmit();
+        // No route change, revision bump, focus request or scroll reset. The
+        // existing route is reprojected solely with the newly admitted proof.
+        proof_refresh();
+    });
     let (layout_state, layout_window, layout_refresh, layout_selection) = (
         shared.clone(),
         window.as_weak(),
@@ -1406,6 +1436,123 @@ mod back_tests {
     use i_slint_backend_testing::ElementQuery;
     use slint::platform::PointerEventButton;
     use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn nhf035_capture_renewals_preserve_page_popup_focus_and_back_with_fresh_proofs() {
+        use crate::dashboard_catalogue::Snapshot;
+        use crate::dashboard_selection::{Catalogue, Choice, Choices};
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        crate::cache_view::bind(&window);
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_show_endpoint(false);
+        let request = Arc::new(Mutex::new(ProjectionRequest::default()));
+        let navigation = bind_devices(&window, request.clone(), || {}, || None);
+        let choices = Choices::default();
+        navigation.attach_catalogue(choices.clone());
+        let mut layout = dashboard::joined_fixture(&dashboard::capture_fixture(vec![]));
+        layout.native = Some(
+            crate::dashboard_layout::NativeLayout::try_from(
+                &crate::dashboard_layout::tests::extended_forest(),
+            )
+            .unwrap(),
+        );
+        let publish = |layout: dashboard::Layout, token: &str| {
+            let layout = Arc::new(layout);
+            let snapshot = Snapshot::fixture(token, vec![layout.clone()]);
+            crate::session_host::publish_dashboard(
+                &window,
+                &request,
+                &choices,
+                0,
+                Catalogue {
+                    choices: vec![Choice {
+                        id: layout.id.clone(),
+                        title: layout.title.clone(),
+                    }],
+                    selected: Some(layout.id.clone()),
+                    snapshot: Some(snapshot),
+                },
+                dashboard::LayoutState::Ready(layout),
+            );
+        };
+        publish(layout.clone(), "first-proof");
+        window.set_view_loaded(true);
+        window.invoke_quick_navigation(ViewPage::Settings);
+        window.invoke_shell_observed(ProShellFocus::Search, true);
+        let focus = navigation.state.borrow().current;
+        let revision = request.lock().unwrap().revision;
+        for i in 0..3 {
+            let previous = request.lock().unwrap().dashboard.shared_layout().unwrap();
+            layout.capture = Some(dashboard::capture_fixture(vec![]).incarnation().clone());
+            layout.binding_expires = Some((2_000_000_000 + i, 0));
+            publish(layout.clone(), &format!("new-proof-{i}"));
+            assert_eq!(window.get_page(), ViewPage::Settings);
+            assert_eq!(navigation.state.borrow().current, focus);
+            assert_eq!(request.lock().unwrap().revision, revision);
+            let current = request.lock().unwrap().dashboard.shared_layout().unwrap();
+            assert_ne!(previous, current, "the old authority proof is replaced");
+            assert!(previous.same_document(&current));
+            assert!(
+                !request
+                    .lock()
+                    .unwrap()
+                    .catalogue
+                    .as_ref()
+                    .unwrap()
+                    .contains(&previous)
+            );
+        }
+        let destination = Destination {
+            dashboard: layout.id.clone(),
+            node: crate::dashboard_layout::NodeId::parse("popup").unwrap(),
+            presentation: Presentation::Popup,
+        };
+        navigation
+            .navigate(destination.clone(), &layout, None)
+            .unwrap();
+        assert!(window.get_native_popup().open);
+        let popup_revision = request.lock().unwrap().revision;
+        layout.capture = Some(dashboard::capture_fixture(vec![]).incarnation().clone());
+        layout.binding_expires = Some((2_000_000_010, 0));
+        publish(layout.clone(), "popup-renewal");
+        assert!(window.get_native_popup().open);
+        assert_eq!(request.lock().unwrap().native, Some(destination));
+        assert_eq!(request.lock().unwrap().revision, popup_revision);
+        window.invoke_go_back();
+        assert!(!window.get_native_popup().open);
+        assert_eq!(
+            window.get_page(),
+            ViewPage::Settings,
+            "Back uses readmitted history"
+        );
+
+        // A new document (even under the same stable dashboard identity) still
+        // retires the previous route and focus rather than retaining stale UI.
+        layout.etag = "changed-document".into();
+        publish(layout, "changed-source");
+        assert_eq!(window.get_page(), ViewPage::Home);
+        assert!(navigation.state.borrow().current.is_none());
+        assert!(navigation.state.borrow().history.is_empty());
+
+        window.invoke_quick_navigation(ViewPage::Rooms);
+        crate::session_host::publish_dashboard(
+            &window,
+            &request,
+            &choices,
+            0,
+            choices.hidden(),
+            dashboard::LayoutState::Loading,
+        );
+        assert_eq!(
+            window.get_page(),
+            ViewPage::Home,
+            "invalidation still clears navigation"
+        );
+        assert!(!window.get_view_loaded());
+        assert!(window.get_home_layout_nodes().row_count() == 0);
+        assert!(request.lock().unwrap().catalogue.is_none());
+    }
 
     fn window() -> HomewardWindow {
         i_slint_backend_testing::init_no_event_loop();

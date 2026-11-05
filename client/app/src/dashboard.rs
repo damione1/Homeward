@@ -170,6 +170,19 @@ impl TryFrom<&wire::Dashboard> for Layout {
     }
 }
 impl Layout {
+    /// The authorized document is separate from the short-lived proof joining
+    /// it to one entity capture. Only this comparison may retain local routes;
+    /// command admission continues to compare the complete layout/proof.
+    pub fn same_document(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.etag == other.etag
+            && self.title == other.title
+            && self.profile_zone == other.profile_zone
+            && self.rooms == other.rooms
+            && self.observations == other.observations
+            && self.native == other.native
+    }
+
     pub fn join(
         response: &wire::QueryDashboardResponse,
         expected: &DashboardName,

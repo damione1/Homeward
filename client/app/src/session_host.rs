@@ -839,6 +839,55 @@ async fn close_profile(profile: &mut Option<Profile>, tasks: &mut JoinSet<()>, u
         // Drop the OS process lease before constructing a replacement profile.
     }
 }
+pub(crate) fn publish_dashboard(
+    window: &HomewardWindow,
+    presentation: &crate::dashboard::SharedRequest,
+    choices: &crate::dashboard_selection::Choices,
+    revision: u64,
+    catalogue: crate::dashboard_selection::Catalogue,
+    layout: crate::dashboard::LayoutState,
+) {
+    let Some(catalogue) = choices.accept_publication(revision, catalogue) else {
+        return;
+    };
+    let layout = match (&catalogue.snapshot, &catalogue.selected) {
+        (Some(snapshot), Some(id)) => snapshot.state(id),
+        (Some(_), None) | (None, _) => layout,
+    };
+    let refreshed = {
+        let mut request = presentation
+            .lock()
+            .expect("presentation request mutex poisoned");
+        window.invoke_dashboard_catalogue_changed();
+        if request.dashboard == layout && request.catalogue == catalogue.snapshot {
+            return;
+        }
+        let refreshed = request
+            .dashboard
+            .layout()
+            .zip(layout.layout())
+            .is_some_and(|(before, after)| before.same_document(after))
+            && request
+                .catalogue
+                .as_ref()
+                .zip(catalogue.snapshot.as_ref())
+                .is_some_and(|(before, after)| before.same_documents(after));
+        // Always replace the complete proof. Keeping a route never admits an
+        // old gesture, capture or authorization binding.
+        request.dashboard = layout;
+        request.catalogue = catalogue.snapshot;
+        refreshed
+    };
+    if refreshed {
+        window.invoke_dashboard_refreshed();
+    } else {
+        // Loading/invalidation and actual document changes retain the private
+        // clear barrier, even when a coalesced loading notification was skipped.
+        cache_view::clear_for_layout(window);
+        window.invoke_dashboard_changed();
+    }
+}
+
 async fn install_profile(
     endpoint: TrustedEndpoint,
     epoch: ProfileEpoch,
@@ -1039,31 +1088,14 @@ async fn install_profile(
                         if !guard.is_current(generation) {
                             return;
                         }
-                        let Some(catalogue) = choices.accept_publication(revision, catalogue)
-                        else {
-                            return;
-                        };
-                        let layout = match (&catalogue.snapshot, &catalogue.selected) {
-                            (Some(snapshot), Some(id)) => snapshot.state(id),
-                            (Some(_), None) | (None, _) => layout,
-                        };
-                        {
-                            let mut request = presentation
-                                .lock()
-                                .expect("presentation request mutex poisoned");
-                            window.invoke_dashboard_catalogue_changed();
-                            if request.dashboard == layout
-                                && request.catalogue == catalogue.snapshot
-                            {
-                                return;
-                            }
-                            request.dashboard = layout;
-                            request.catalogue = catalogue.snapshot;
-                        }
-                        // A different server layout invalidates both page models,
-                        // even if a coalesced loading notification was skipped.
-                        cache_view::clear_for_layout(&window);
-                        window.invoke_dashboard_changed();
+                        publish_dashboard(
+                            &window,
+                            &presentation,
+                            &choices,
+                            revision,
+                            catalogue,
+                            layout,
+                        );
                     });
                 });
             },

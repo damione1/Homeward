@@ -378,6 +378,7 @@ export component HomewardWindow inherits Window {
     private property <bool> content-interactive: root.background-interactive && !root.navigation-drawer.open;
     callback private-view-cleared(bool);
     callback dashboard-changed();
+    callback dashboard-refreshed();
     callback navigation-open();
     callback navigation-reopen();
     callback navigation-dismiss(CloseReason);

@@ -36,6 +36,22 @@ impl std::fmt::Debug for Snapshot {
     }
 }
 impl Snapshot {
+    /// A renewed opaque checkpoint is not a change to the authorized catalogue.
+    /// Preserve routes only when every admitted document is still identical.
+    pub fn same_documents(&self, other: &Self) -> bool {
+        self.layouts.len() == other.layouts.len()
+            && self.layouts.iter().all(|(name, state)| {
+                let Some(next) = other.layouts.get(name) else {
+                    return false;
+                };
+                if let (Some(before), Some(after)) = (state.layout(), next.layout()) {
+                    before.same_document(after)
+                } else {
+                    state == next
+                }
+            })
+    }
+
     #[cfg(test)]
     pub fn fixture(token: &str, layouts: Vec<Arc<Layout>>) -> Arc<Self> {
         let layouts = layouts
