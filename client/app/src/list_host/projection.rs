@@ -607,7 +607,7 @@ pub(super) fn render_widget(
     mut projection: Projection,
     target: &crate::dashboard_widget_host::TaskTarget,
     source: Option<(
-        home_client_session::SessionCoordinator,
+        home_client_session::GenerationGuard,
         Option<home_client_session::Generation>,
     )>,
 ) {

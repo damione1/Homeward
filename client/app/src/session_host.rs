@@ -13,8 +13,8 @@ use home_client_cache::{
     Publication, PublicationRefusal, Viewport,
 };
 use home_client_session::{
-    CredentialKey, Phase, SecureStore, ServerRevocation, SessionCoordinator, SessionView,
-    StoreFailure,
+    CredentialKey, Generation, GenerationGuard, Phase, SecureStore, ServerRevocation,
+    SessionCoordinator, SessionView, StoreFailure,
 };
 use slint::{ComponentHandle, Model};
 use std::{
@@ -888,6 +888,38 @@ pub(crate) fn publish_dashboard(
     }
 }
 
+type DashboardPublication = (
+    Generation,
+    u64,
+    crate::dashboard_selection::Catalogue,
+    crate::dashboard::LayoutState,
+);
+
+fn deferred_dashboard_publication(
+    guard: GenerationGuard,
+    presentation: crate::dashboard::SharedRequest,
+    choices: crate::dashboard_selection::Choices,
+    ticket: DeliveryTicket<DashboardPublication>,
+) -> impl FnOnce(HomewardWindow) + Send {
+    // Android may retain this queue after an Activity closes. Publication must
+    // not keep the closed coordinator and its exclusive OS store lease alive.
+    move |window| {
+        ticket.deliver(|_, (generation, revision, catalogue, layout)| {
+            if !guard.is_current(generation) {
+                return;
+            }
+            publish_dashboard(
+                &window,
+                &presentation,
+                &choices,
+                revision,
+                catalogue,
+                layout,
+            );
+        });
+    }
+}
+
 async fn install_profile(
     endpoint: TrustedEndpoint,
     epoch: ProfileEpoch,
@@ -1058,7 +1090,7 @@ async fn install_profile(
     let dashboard_choices = ui.dashboard_choices.clone();
     dashboard_choices.clear();
     tasks.spawn(async move {
-        let guard = dashboard_session.clone();
+        let guard = dashboard_session.generation_guard();
         let mailbox = ProjectionMailbox::new();
         crate::dashboard_host::run(
             dashboard_transport,
@@ -1083,21 +1115,10 @@ async fn install_profile(
                     dashboard_ui.projection_request.clone(),
                     dashboard_ui.dashboard_choices.clone(),
                 );
-                dashboard_ui.post(epoch, move |window| {
-                    ticket.deliver(|_, (generation, revision, catalogue, layout)| {
-                        if !guard.is_current(generation) {
-                            return;
-                        }
-                        publish_dashboard(
-                            &window,
-                            &presentation,
-                            &choices,
-                            revision,
-                            catalogue,
-                            layout,
-                        );
-                    });
-                });
+                dashboard_ui.post(
+                    epoch,
+                    deferred_dashboard_publication(guard, presentation, choices, ticket),
+                );
             },
         )
         .await;
@@ -1230,21 +1251,47 @@ async fn accept_invitation(
     {
         return;
     }
-    ui.post(epoch,move|window|{
-        if !source.is_current(generation)||window.get_invitation_generation()!=value.generation||!window.get_invitation_visible(){return}
+    ui.post(
+        epoch,
+        deferred_invitation_publication(
+            source.generation_guard(),
+            generation,
+            value.generation,
+            outcome,
+        ),
+    );
+}
+
+fn deferred_invitation_publication(
+    guard: GenerationGuard,
+    generation: Generation,
+    invitation_generation: i32,
+    outcome: crate::invitation::Outcome,
+) -> impl FnOnce(HomewardWindow) + Send {
+    move |window| {
+        if !guard.is_current(generation)
+            || window.get_invitation_generation() != invitation_generation
+            || !window.get_invitation_visible()
+        {
+            return;
+        }
         window.set_invitation_busy(false);
-        match outcome{
-            crate::invitation::Outcome::Accepted{login}=>{
-                window.invoke_clear_invitation();window.set_user_draft(login.into());
+        match outcome {
+            crate::invitation::Outcome::Accepted { login } => {
+                window.invoke_clear_invitation();
+                window.set_user_draft(login.into());
                 window.set_message_title("Invitation accepted".into());
                 window.set_message("Your account is ready. Sign in with the password you just chose.".into());
                 window.set_message_severity(AlertSeverity::Success);
-            },
-            crate::invitation::Outcome::Rejected=>window.set_invitation_feedback("The invitation was rejected, expired or already used. Check the token with your administrator.".into()),
-            crate::invitation::Outcome::Uncertain=>{window.set_invitation_uncertain(true);window.set_invitation_feedback("The result could not be confirmed. No retry will be sent. Return to sign-in and try your account credentials before requesting another invitation.".into());},
-            crate::invitation::Outcome::Cancelled=>(),
+            }
+            crate::invitation::Outcome::Rejected => window.set_invitation_feedback("The invitation was rejected, expired or already used. Check the token with your administrator.".into()),
+            crate::invitation::Outcome::Uncertain => {
+                window.set_invitation_uncertain(true);
+                window.set_invitation_feedback("The result could not be confirmed. No retry will be sent. Return to sign-in and try your account credentials before requesting another invitation.".into());
+            }
+            crate::invitation::Outcome::Cancelled => (),
         }
-    });
+    }
 }
 
 async fn worker(
@@ -1961,6 +2008,119 @@ mod tests {
         fn clear(&self) -> Result<(), StoreFailure> {
             Ok(())
         }
+    }
+
+    #[tokio::test]
+    async fn nhf037_queued_publications_release_store_and_reject_closed_owner() {
+        use crate::dashboard::{LayoutState, ProjectionRequest};
+        use crate::dashboard_selection::{Catalogue, Choices};
+        use std::sync::atomic::AtomicBool;
+
+        struct DropStore(Arc<AtomicBool>);
+        impl Drop for DropStore {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::SeqCst);
+            }
+        }
+        impl SecureStore for DropStore {
+            fn load(&self) -> Result<Option<Zeroizing<Vec<u8>>>, StoreFailure> {
+                panic!("publication must not read credentials")
+            }
+            fn save(&self, _: &[u8]) -> Result<(), StoreFailure> {
+                panic!("publication must not write credentials")
+            }
+            fn clear(&self) -> Result<(), StoreFailure> {
+                panic!("closing an Activity must not clear credentials")
+            }
+        }
+
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        let dropped = Arc::new(AtomicBool::new(false));
+        let connection =
+            home_client_transport::Connection::new("https://127.0.0.1:1", &[]).unwrap();
+        let owner =
+            SessionCoordinator::new(connection.auth(), Arc::new(DropStore(dropped.clone())));
+        let generation = owner.generation();
+        let presentation = Arc::new(Mutex::new(ProjectionRequest::default()));
+        let choices = Choices::default();
+        let pending = |guard| {
+            let mailbox = ProjectionMailbox::new();
+            let Publication::Schedule(ticket) = mailbox.publish(
+                mailbox.generation(),
+                (
+                    generation,
+                    0,
+                    Catalogue::default(),
+                    LayoutState::Unavailable,
+                ),
+            ) else {
+                panic!("fresh publication must be scheduled");
+            };
+            (
+                mailbox,
+                deferred_dashboard_publication(
+                    guard,
+                    presentation.clone(),
+                    choices.clone(),
+                    ticket,
+                ),
+            )
+        };
+
+        window.set_invitation_visible(true);
+        window.set_invitation_generation(7);
+        window.set_invitation_busy(true);
+        let pending_invitation = |guard| {
+            deferred_invitation_publication(
+                guard,
+                generation,
+                7,
+                crate::invitation::Outcome::Rejected,
+            )
+        };
+        pending_invitation(owner.generation_guard())(window.clone_strong());
+        assert!(!window.get_invitation_busy());
+        assert!(!window.get_invitation_feedback().is_empty());
+        window.set_invitation_busy(true);
+        window.set_invitation_feedback("".into());
+        let closed_invitation = pending_invitation(owner.generation_guard());
+        let orphaned_invitation = pending_invitation(owner.generation_guard());
+
+        let (_active_mailbox, active) = pending(owner.generation_guard());
+        active(window.clone_strong());
+        assert!(matches!(
+            presentation.lock().unwrap().dashboard,
+            LayoutState::Unavailable
+        ));
+        presentation.lock().unwrap().dashboard = LayoutState::Loading;
+        let (_closed_mailbox, closed) = pending(owner.generation_guard());
+        let (_orphaned_mailbox, orphaned) = pending(owner.generation_guard());
+        owner.close().await;
+        closed(window.clone_strong());
+        closed_invitation(window.clone_strong());
+        assert!(window.get_invitation_busy());
+        assert!(window.get_invitation_feedback().is_empty());
+        assert!(matches!(
+            presentation.lock().unwrap().dashboard,
+            LayoutState::Loading
+        ));
+
+        // Keep the actual UI publication alive, as an Android queue may do.
+        // It must neither retain the OS lease nor publish after its owner dies.
+        drop(owner);
+        assert!(
+            dropped.load(Ordering::SeqCst),
+            "queued publication retained secure storage"
+        );
+        orphaned(window.clone_strong());
+        orphaned_invitation(window.clone_strong());
+        assert!(window.get_invitation_busy());
+        assert!(window.get_invitation_feedback().is_empty());
+        assert!(matches!(
+            presentation.lock().unwrap().dashboard,
+            LayoutState::Loading
+        ));
     }
 
     #[tokio::test]

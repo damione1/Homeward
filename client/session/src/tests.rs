@@ -294,6 +294,38 @@ fn fixture() -> (
 }
 
 #[tokio::test]
+async fn nhf037_generation_guard_rejects_unpublished_advances_and_closed_or_dropped_owners() {
+    let (owner, _, _, store) = fixture();
+    let view = owner.subscribe();
+    let guard = owner.generation_guard();
+    let previous = owner.generation();
+    assert!(guard.is_current(previous));
+
+    // Generation changes synchronously, before the corresponding view is
+    // published. A queued UI callback must already reject the old generation.
+    let current = owner.advance();
+    assert_eq!(view.borrow().generation, previous);
+    assert!(!guard.is_current(previous));
+    assert!(guard.is_current(current));
+    assert_eq!(guard.is_current(current), owner.is_current(current));
+
+    owner.close().await;
+    assert!(!guard.is_current(current));
+    assert_eq!(store.clear_calls.load(Ordering::SeqCst), 0);
+    drop(owner);
+    assert!(!guard.is_current(current));
+
+    let (owner, _, _, _) = fixture();
+    let current = owner.generation();
+    let guard = owner.generation_guard();
+    drop(owner);
+    assert!(
+        !guard.is_current(current),
+        "an orphaned callback is invalid"
+    );
+}
+
+#[tokio::test]
 async fn independent_clocks_restore_normally_and_refresh_before_the_server_deadline() {
     let (owner, api, clock, store) = fixture();
     api.server_clock_offset.store(1, Ordering::SeqCst);

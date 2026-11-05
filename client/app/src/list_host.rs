@@ -12,8 +12,8 @@ use crate::{
     list_state::{Freshness, Prepared, Refusal, State, Write},
 };
 use home_client_cache::lists::{CapturedRows, ListReadEvent, ListReadExit, Scope, read_lists_once};
-use home_client_cache::{ProjectionMailbox, Publication};
-use home_client_session::{Generation, Phase, SessionCoordinator};
+use home_client_cache::{DeliveryTicket, ProjectionMailbox, Publication};
+use home_client_session::{Generation, GenerationGuard, Phase, SessionCoordinator};
 use home_client_transport::TaskTransport;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::sync::{
@@ -48,6 +48,19 @@ pub(crate) fn find_option(rows: ModelRc<OptionRow>, prefix: SharedString) -> i32
     rows.iter()
         .position(|row| !row.disabled && row.label.to_lowercase().starts_with(&prefix))
         .map_or(-1, |index| index as i32)
+}
+
+fn deferred_publication(
+    ticket: DeliveryTicket<projection::Projection>,
+    target: Option<crate::dashboard_widget_host::TaskTarget>,
+    source: Option<(GenerationGuard, Option<Generation>)>,
+) -> impl FnOnce(HomewardWindow) + Send {
+    move |window| {
+        ticket.deliver(|_, projection| match target {
+            Some(target) => projection::render_widget(&window, projection, &target, source),
+            None => projection::render(&window, projection),
+        });
+    }
 }
 
 #[derive(Clone)]
@@ -236,13 +249,14 @@ impl Lists {
                 return;
             };
             let target = self.0.widget.clone();
-            let source = self.0.session.lock().expect("list session").clone();
-            let _ = window.upgrade_in_event_loop(move |window| {
-                ticket.deliver(|_, projection| match target {
-                    Some(target) => projection::render_widget(&window, projection, &target, source),
-                    None => projection::render(&window, projection),
-                });
-            });
+            let source = self
+                .0
+                .session
+                .lock()
+                .expect("list session")
+                .as_ref()
+                .map(|(session, generation)| (session.generation_guard(), *generation));
+            let _ = window.upgrade_in_event_loop(deferred_publication(ticket, target, source));
         }
     }
     fn update(&self, change: impl FnOnce(&mut State) -> Result<(), Refusal>) {
@@ -627,6 +641,33 @@ mod widget_tests {
             Ok(())
         }
     }
+    #[tokio::test]
+    async fn nhf037_queued_list_publication_does_not_retain_session_storage() {
+        let connection =
+            home_client_transport::Connection::new("https://127.0.0.1:1", &[]).unwrap();
+        let store = Arc::new(EmptyStore);
+        let storage = Arc::downgrade(&store);
+        let session = SessionCoordinator::new(connection.auth(), store);
+        let mailbox = ProjectionMailbox::new();
+        let Publication::Schedule(ticket) = mailbox.publish(
+            mailbox.generation(),
+            projection::Projection::new(&State::default()),
+        ) else {
+            panic!("fresh publication must be scheduled");
+        };
+        let pending = deferred_publication(
+            ticket,
+            None,
+            Some((session.generation_guard(), Some(session.generation()))),
+        );
+        session.close().await;
+        drop(session);
+        assert!(storage.upgrade().is_none(), "queued list retained storage");
+        // Keep both the real callback and mailbox alive through the assertion.
+        drop(pending);
+        drop(mailbox);
+    }
+
     fn owner(limit: usize) -> Lists {
         let owner = Lists::for_widget(
             None,

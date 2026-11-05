@@ -1,6 +1,6 @@
 use std::{
     sync::{
-        Arc, Mutex as SyncMutex,
+        Arc, Mutex as SyncMutex, Weak,
         atomic::{AtomicU64, Ordering},
     },
     time::{SystemTime, UNIX_EPOCH},
@@ -57,6 +57,26 @@ struct Inner {
     operations: RwLock<()>,
     tasks: TaskTracker,
     view: watch::Sender<SessionView>,
+}
+impl Inner {
+    fn is_current(&self, generation: Generation) -> bool {
+        !self.shutdown.is_cancelled()
+            && Generation(self.generation.load(Ordering::SeqCst)) == generation
+    }
+}
+
+/// A publication fence without ownership of credentials or the OS store.
+/// A closed or dropped coordinator always makes the fence invalid.
+#[derive(Clone)]
+pub struct GenerationGuard {
+    inner: Weak<Inner>,
+}
+impl GenerationGuard {
+    pub fn is_current(&self, generation: Generation) -> bool {
+        self.inner
+            .upgrade()
+            .is_some_and(|inner| inner.is_current(generation))
+    }
 }
 
 #[derive(Clone)]
@@ -115,7 +135,12 @@ impl SessionCoordinator {
         Generation(self.inner.generation.load(Ordering::SeqCst))
     }
     pub fn is_current(&self, generation: Generation) -> bool {
-        !self.inner.shutdown.is_cancelled() && self.generation() == generation
+        self.inner.is_current(generation)
+    }
+    pub fn generation_guard(&self) -> GenerationGuard {
+        GenerationGuard {
+            inner: Arc::downgrade(&self.inner),
+        }
     }
     fn token_for(&self, generation: Generation) -> Result<CancellationToken, SessionFailure> {
         let epoch = self.inner.epoch.lock().expect("epoch lock");

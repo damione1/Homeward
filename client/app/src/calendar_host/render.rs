@@ -11,7 +11,7 @@ use home_client_model::{
     api_calendars::{CalendarEventName, CalendarName},
     calendars::CalendarId,
 };
-use home_client_session::{Generation, SessionCoordinator};
+use home_client_session::{Generation, GenerationGuard, SessionCoordinator};
 use home_wire_contract::{calendars_contract as admit, home::api::v2 as wire};
 use slint::{Model, ModelNotify, ModelRc, ModelTracker};
 use std::sync::Arc;
@@ -20,7 +20,7 @@ pub(super) struct Projection {
     generation: i32,
     privacy_generation: i32,
     source: Option<Generation>,
-    session: Option<SessionCoordinator>,
+    session: Option<GenerationGuard>,
     catalog: Vec<wire::CalendarSource>,
     selected: Option<CalendarId>,
     snapshot: Option<Arc<CalendarReadSnapshot>>,
@@ -46,7 +46,7 @@ impl Projection {
             generation: state.generation,
             privacy_generation: state.privacy_generation,
             source: state.source,
-            session,
+            session: session.map(|session| session.generation_guard()),
             catalog: state.catalog.clone(),
             selected: state.selected.clone(),
             snapshot: state.snapshot.clone(),

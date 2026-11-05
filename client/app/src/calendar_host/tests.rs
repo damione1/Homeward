@@ -333,3 +333,25 @@ fn widget_calendar_never_selects_first_catalogue_or_substitutes_missing_source()
         assert!(state.snapshot.is_none());
     }
 }
+
+#[tokio::test]
+async fn nhf037_retained_calendar_projection_does_not_own_session_storage() {
+    let connection = home_client_transport::Connection::new("https://127.0.0.1:1", &[]).unwrap();
+    let store = Arc::new(EmptyStore);
+    let storage = Arc::downgrade(&store);
+    let session = SessionCoordinator::new(connection.auth(), store);
+    let mut state = State::default();
+    ready(&mut state, &session);
+    let active = render::Projection::new(&state, Some(session.clone()));
+    state.clear_private();
+    let cleared = render::Projection::new(&state, Some(session.clone()));
+    session.close().await;
+    drop(session);
+    assert!(
+        storage.upgrade().is_none(),
+        "calendar projection retained storage"
+    );
+    // Both the populated and final clear payload may outlive the Activity.
+    drop(active);
+    drop(cleared);
+}
