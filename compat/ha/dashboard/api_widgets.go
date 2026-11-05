@@ -4,6 +4,7 @@ import (
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/internal/apiresources"
 	"github.com/damione1/Homeward/internal/domain"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"time"
 )
@@ -24,6 +25,19 @@ func activityValues(binding projectedBinding, field *api.DashboardFieldBinding, 
 		literal, err := typedLiteral(binding, field.Field, value)
 		if err != nil {
 			return nil, err
+		}
+		// Source spellings can denote the same typed value (for example
+		// auto and heat_cool). Activity predicates are sets, and clients
+		// require unique values after normalization, not only unique text.
+		duplicate := false
+		for _, existing := range out {
+			if proto.Equal(existing, literal) {
+				duplicate = true
+				break
+			}
+		}
+		if duplicate {
+			continue
 		}
 		out = append(out, literal)
 	}

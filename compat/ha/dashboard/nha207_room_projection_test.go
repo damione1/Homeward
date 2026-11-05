@@ -142,3 +142,38 @@ func TestNHA207RoomThermalSourceLiteralRemainsClosed(t *testing.T) {
 		t.Fatal("thermal spelling accepted for power trait")
 	}
 }
+
+func TestNHA207ActivityAliasesNormalizeToUniqueTypedValues(t *testing.T) {
+	for _, test := range []struct {
+		name, entities, values string
+		want                   []*api.DashboardLiteral
+	}{
+		{"thermal-aliases", "[climate.synthetic]", "['heat', 'cool', 'auto', 'heat_cool']", []*api.DashboardLiteral{
+			{Value: &api.DashboardLiteral_TemperatureMode{TemperatureMode: api.TemperatureMode_TEMPERATURE_MODE_HEAT}},
+			{Value: &api.DashboardLiteral_TemperatureMode{TemperatureMode: api.TemperatureMode_TEMPERATURE_MODE_COOL}},
+			{Value: &api.DashboardLiteral_TemperatureMode{TemperatureMode: api.TemperatureMode_TEMPERATURE_MODE_AUTO}},
+		}},
+		{"power-aliases", "[light.synthetic]", "['on', 'true', 'off', 'false']", []*api.DashboardLiteral{
+			{Value: &api.DashboardLiteral_PowerValue{PowerValue: api.PowerValue_POWER_VALUE_ON}},
+			{Value: &api.DashboardLiteral_PowerValue{PowerValue: api.PowerValue_POWER_VALUE_OFF}},
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			source := strings.Replace(nha207RoomSource, "activity_entities: [light.missing, light.synthetic]", "activity_entities: "+test.entities, 1)
+			source = strings.Replace(source, "active_states: ['on']", "active_states: "+test.values, 1)
+			room := nha207Room(t, source, nha207Projection(t)).GetWidget().GetRoom()
+			if room == nil || len(room.Activity) != 1 || len(room.Activity[0].ActiveValues) != len(test.want) {
+				t.Fatal("activity normalization did not produce a unique closed set", room)
+			}
+			for i, value := range room.Activity[0].ActiveValues {
+				if !proto.Equal(value, test.want[i]) {
+					t.Fatal("first semantic value order changed")
+				}
+			}
+			invalid := strings.Replace(source, test.values, strings.TrimSuffix(test.values, "]")+", 'invented_value']", 1)
+			if nha207Room(t, invalid, nha207Projection(t)).GetUnsupported() == nil {
+				t.Fatal("normalization discarded an unknown value")
+			}
+		})
+	}
+}
