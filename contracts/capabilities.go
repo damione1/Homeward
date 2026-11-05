@@ -59,9 +59,10 @@ type ExtensionCodec interface {
 }
 
 type extensionRegistration struct {
-	message protoreflect.MessageDescriptor
-	codec   ExtensionCodec
-	hash    [sha256.Size]byte
+	message    protoreflect.MessageDescriptor
+	codec      ExtensionCodec
+	hash       [sha256.Size]byte
+	descriptor []byte
 }
 
 // CapabilityCatalog only publishes declarations admitted from a driver. Entries
@@ -121,7 +122,7 @@ func (c *CapabilityCatalog) RegisterExtensionCodec(d *registry.CapabilityDescrip
 	if _, exists := c.extensions[key]; exists {
 		return errors.New("extension codec already registered")
 	}
-	c.extensions[key] = extensionRegistration{message: message, codec: codec, hash: digest}
+	c.extensions[key] = extensionRegistration{message: message, codec: codec, hash: digest, descriptor: append([]byte(nil), d.DescriptorSet...)}
 	return nil
 }
 

@@ -2,10 +2,12 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/damione1/Homeward/compat/ha/ir"
 	"github.com/damione1/Homeward/contracts"
+	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/configcompilation"
 	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/registry"
@@ -73,7 +75,7 @@ func historicalSourceCompilationInputs(ctx context.Context, input configcompilat
 			// An absent discovery remains absent: nil declarations add no
 			// support. Re-admit every supplied declaration through the same
 			// contracts validator and explicit conversion as live compilation.
-			supports, err = sourceSemanticSupports(validation, capabilities[identity.Entity])
+			supports, err = historicalSourceSemanticSupports(validation, capabilities[identity.Entity])
 			if err != nil {
 				return ir.Catalogue{}, nil, err
 			}
@@ -111,4 +113,18 @@ func historicalSourceCompilationInputs(ctx context.Context, input configcompilat
 		return ir.Catalogue{}, nil, err
 	}
 	return catalogue, records, nil
+}
+
+func historicalSourceSemanticSupports(catalog *contracts.CapabilityCatalog, descriptions []*wireregistry.CapabilityDescription) ([]ir.DeclaredSupport, error) {
+	// Normalize only detached copies: neither the sealed context nor any live
+	// capability registration can acquire an alternative descriptor digest.
+	normalized := make([]*wireregistry.CapabilityDescription, 0, len(descriptions))
+	for _, description := range descriptions {
+		current, err := catalog.NormalizeCompilationCapability(description)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ir.ErrInvalidCatalogue, err)
+		}
+		normalized = append(normalized, current)
+	}
+	return sourceSemanticSupports(catalog, normalized)
 }
