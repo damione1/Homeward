@@ -64,10 +64,9 @@ func (p *apiProjector) widget(card Card, view Location) (*api.DashboardWidget, e
 		widget := &api.DashboardRoomWidget{RoomId: value.RoomId}
 		if value.Temperature != nil {
 			field, _, err := p.sourceField(value.Temperature)
-			if err != nil {
-				return nil, err
+			if err == nil {
+				widget.Temperature = field
 			}
-			widget.Temperature = field
 		}
 		for _, raw := range value.ActivityEntityIds {
 			alias, err := domain.ParseHAAlias(raw)
@@ -76,7 +75,10 @@ func (p *apiProjector) widget(card Card, view Location) (*api.DashboardWidget, e
 			}
 			field, binding, err := p.field(alias, "state")
 			if err != nil {
-				return nil, err
+				// Room observations are independent optional enrichments. An
+				// unavailable or unauthorized slot must not erase an authorized
+				// navigation destination, nor manufacture a replacement binding.
+				continue
 			}
 			values, err := activityValues(binding, field, value.ActiveStates)
 			if err != nil {

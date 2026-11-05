@@ -102,10 +102,14 @@ func TestDashboardWidgetsExactSourceAndClosedProjection(t *testing.T) {
 		t.Fatal("authored clock presentation lost")
 	}
 	// Without an admitted source slot, names alone cannot activate these widgets.
-	for _, i := range []int{1, 2, 5, 6} {
+	for _, i := range []int{2, 5, 6} {
 		if nodes[i].GetUnsupported() == nil {
 			t.Fatalf("widget %d inferred capability from alias", i)
 		}
+	}
+	room := nodes[1].GetWidget().GetRoom()
+	if room == nil || room.Temperature != nil || len(room.Activity) != 1 || nodes[1].GetWidget().Action == nil {
+		t.Fatal("optional missing temperature erased room navigation or fabricated an observation")
 	}
 	navigation := nodes[7].GetWidget().GetNavigation()
 	if navigation == nil || navigation.Destination.NodeId != "$.views[1]" || nodes[7].GetWidget().ActionLabel != "Exact navigation" {

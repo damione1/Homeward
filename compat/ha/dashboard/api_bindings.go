@@ -209,6 +209,11 @@ func typedLiteral(b projectedBinding, field api.DashboardFieldKey, text string) 
 		}
 		result.Value = &api.DashboardLiteral_DecimalValue{DecimalValue: text}
 	case apiresources.Thermal:
+		// The HA source spelling denotes the same automatic heat/cool mode
+		// normalized by the scene importer; it is not a public API value.
+		if text == "heat_cool" {
+			text = "auto"
+		}
 		value, ok := enum(api.TemperatureMode_value, "TEMPERATURE_MODE_")
 		if !ok {
 			return nil, ErrUnprojectableRecipe
