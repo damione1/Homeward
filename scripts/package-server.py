@@ -101,10 +101,19 @@ def main():
     command("docker", "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
             "--entrypoint", "/usr/local/bin/homeward-package", image_id, "tzcheck")
     worker_check = """
-import importlib.metadata as m, json, sys, ssl, hashlib
+import importlib.metadata as m, json, sys, ssl, hashlib, os
 from pathlib import Path
 import grpc, google.protobuf, pylutron_caseta, orjson, cryptography, cffi
 from drivers.caseta import worker
+from drivers.caseta.config import _manifest_aliases
+assert os.getuid()==10001
+# Importing the worker does not execute its resource reader. Exercise the same
+# path used by settings admission, without any configuration or device access.
+aliases = _manifest_aliases()
+assert aliases
+manifest = Path(worker.__file__).resolve().parents[2] / 'scope/manifest.json'
+caseta_manifest = {'sha256': hashlib.sha256(manifest.read_bytes()).hexdigest(),
+                   'alias_count': len(aliases)}
 packages = ['grpcio', 'grpcio-tools', 'protobuf', 'setuptools', 'typing-extensions',
             'cffi', 'cryptography', 'orjson', 'pycparser', 'pylutron-caseta']
 inventory=json.loads(Path('/opt/homeward/release/runtime-inventory.json').read_text())
@@ -114,11 +123,18 @@ files.update(inventory['python_interpreter']['files'])
 for path,digest in files.items():
  if hashlib.sha256(Path(path).read_bytes()).hexdigest()!=digest: raise SystemExit('runtime package file changed: '+path)
 print(json.dumps({'python': sys.version, 'openssl': ssl.OPENSSL_VERSION,
-                  'packages': {name:m.version(name) for name in packages}, 'verified_inventory_files':len(files)}))
+                  'packages': {name:m.version(name) for name in packages}, 'verified_inventory_files':len(files),
+                  'caseta_manifest': caseta_manifest}))
 """
     worker = json.loads(command("docker", "run", "--rm", "--network", "none", "--read-only",
                                 "--cap-drop", "ALL", "--entrypoint", "python3", image_id,
                                 "-c", worker_check, capture=True).stdout)
+    manifest_path = ROOT / "scope/manifest.json"
+    source_aliases = {item["entity_id"] for item in json.loads(manifest_path.read_bytes())["entities"]
+                     if item.get("source") == "lutron_caseta"
+                     and item["entity_id"].split(".", 1)[0] in ("fan", "light", "switch")}
+    if worker["caseta_manifest"] != {"sha256": sha256(manifest_path), "alias_count": len(source_aliases)}:
+        raise SystemExit("runtime Caseta manifest differs from source archive")
     for line in (ROOT / "testworker/requirements.lock").read_text().splitlines():
         name, version = line.split("==")
         if worker["packages"][name] != version:
