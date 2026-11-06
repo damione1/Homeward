@@ -1,5 +1,6 @@
 use super::*;
 use crate::media::tests::media;
+use home_client_actions::capabilities::CapabilitySubmission;
 use home_client_session::{SecureStore, StoreFailure};
 use home_wire_contract::api_playback_contract::playback;
 use slint::Model;
@@ -212,4 +213,231 @@ async fn queued_media_projection_cannot_publish_private_content_after_session_cl
     assert!(window.get_media_data().title.is_empty());
     assert_eq!(window.get_media_artwork_id(), 0);
     assert_eq!(window.get_media_values().row_count(), 0);
+}
+
+#[test]
+fn capture_suspension_revokes_commands_retains_media_and_revalidates_before_reopening() {
+    let owner = Media::detached();
+    let session = session();
+    let view = ProjectionMailbox::<()>::new().generation();
+    let entity = EntityName::try_from("homes/test/entities/player").unwrap();
+    owner.choose(Some(entity.clone()), view);
+    ready(&owner, &session);
+    let (old, cancel, data) = {
+        let state = owner.0.state.lock().unwrap();
+        (
+            state.generation,
+            state.read_cancel.clone(),
+            state.data.clone().unwrap(),
+        )
+    };
+    owner.operation(1, old, ProMediaOperation::Play);
+    let deadline = (chrono::Utc::now().timestamp() + 30, 0);
+    owner.suspend(Some(entity.clone()), view, deadline);
+    let paused = {
+        let state = owner.0.state.lock().unwrap();
+        assert!(cancel.is_cancelled());
+        assert!(!state.authorized() && state.pending.is_none() && !state.read_pending);
+        assert!(Arc::ptr_eq(state.data.as_ref().unwrap(), &data));
+        assert!(state.retention.unwrap().waiting);
+        state.generation
+    };
+    owner.operation(1, old, ProMediaOperation::Play);
+    owner.operation(1, paused, ProMediaOperation::Play);
+    owner.reload(paused);
+    assert!(owner.0.state.lock().unwrap().pending.is_none());
+    assert!(!owner.0.state.lock().unwrap().read_pending);
+    owner.choose(Some(entity), view);
+    {
+        let state = owner.0.state.lock().unwrap();
+        assert!(!state.retention.unwrap().waiting && state.read_pending);
+        assert!(!state.authorized());
+        assert!(Arc::ptr_eq(state.data.as_ref().unwrap(), &data));
+    }
+    ready(&owner, &session);
+    assert!(owner.0.state.lock().unwrap().authorized());
+    assert!(owner.0.state.lock().unwrap().retention.is_none());
+    owner.foreground(false);
+    assert!(owner.0.state.lock().unwrap().data.is_none());
+}
+
+#[test]
+fn retained_media_expires_even_after_dashboard_joined_and_authoritative_failure_clears() {
+    let owner = Media::detached();
+    let session = session();
+    let view = ProjectionMailbox::<()>::new().generation();
+    let entity = EntityName::try_from("homes/test/entities/player").unwrap();
+    owner.choose(Some(entity.clone()), view);
+    ready(&owner, &session);
+    owner.suspend(
+        Some(entity.clone()),
+        view,
+        (chrono::Utc::now().timestamp() - 1, 0),
+    );
+    owner.choose(Some(entity.clone()), view);
+    let generation = owner.0.state.lock().unwrap().generation;
+    owner.expire_retention(generation);
+    {
+        let state = owner.0.state.lock().unwrap();
+        assert!(state.data.is_none() && state.entity.is_none() && state.retention.is_none());
+    }
+    owner.choose(Some(entity.clone()), view);
+    ready(&owner, &session);
+    owner.suspend(Some(entity), view, (chrono::Utc::now().timestamp() + 30, 0));
+    let generation = owner.0.state.lock().unwrap().generation;
+    owner.read_failed(generation, Status::Denied);
+    assert!(owner.0.state.lock().unwrap().data.is_none());
+}
+
+#[test]
+fn a_second_pending_cohort_revokes_the_inflight_revalidation_without_extending_retention() {
+    let owner = Media::detached();
+    let session = session();
+    let view = ProjectionMailbox::<()>::new().generation();
+    let entity = EntityName::try_from("homes/test/entities/player").unwrap();
+    owner.choose(Some(entity.clone()), view);
+    ready(&owner, &session);
+    let deadline = (chrono::Utc::now().timestamp() + 30, 0);
+    owner.suspend(Some(entity.clone()), view, deadline);
+    owner.choose(Some(entity.clone()), view);
+    let (old, cancel) = {
+        let state = owner.0.state.lock().unwrap();
+        (state.generation, state.read_cancel.clone())
+    };
+    owner.suspend(Some(entity), view, (deadline.0 + 30, 0));
+    owner.read_failed(old, Status::Denied);
+    let state = owner.0.state.lock().unwrap();
+    assert!(cancel.is_cancelled());
+    assert_ne!(state.generation, old);
+    assert!(state.retention.unwrap().waiting && !state.read_pending && !state.authorized());
+    assert_eq!(state.retention.unwrap().deadline, deadline);
+    assert!(state.data.is_some());
+}
+
+#[test]
+fn expired_retained_media_is_removed_at_delivery_without_waiting_for_a_timer() {
+    i_slint_backend_testing::init_no_event_loop();
+    let window = crate::create_window().unwrap();
+    let owner = Media::detached();
+    let session = session();
+    ready(&owner, &session);
+    let projection = {
+        let state = owner.0.state.lock().unwrap();
+        render::Projection::new(&state, Some((session.clone(), session.generation())))
+    };
+    render::render(&window, projection);
+    assert!(window.get_media_has_data());
+    let (projection, old, cancelled) = {
+        let mut state = owner.0.state.lock().unwrap();
+        state.picture = Picture::Loading;
+        state.retention = Some(state::Retention {
+            deadline: (chrono::Utc::now().timestamp() - 1, 0),
+            waiting: false,
+        });
+        (
+            render::Projection::new(&state, Some((session.clone(), session.generation()))),
+            state.generation,
+            state.read_cancel.clone(),
+        )
+    };
+    let Publication::Schedule(ticket) = owner
+        .0
+        .mailbox
+        .publish(owner.0.mailbox.generation(), projection)
+    else {
+        panic!("first scheduled publication");
+    };
+    Media::deliver(&Arc::downgrade(&owner.0), &window, ticket);
+    assert!(!window.get_media_has_data() && !window.get_media_visible());
+    assert_eq!(window.get_media_retention_ms(), 0);
+    assert!(cancelled.is_cancelled());
+    owner.read_failed(old, Status::Offline);
+    let state = owner.0.state.lock().unwrap();
+    assert!(state.data.is_none() && matches!(state.picture, Picture::Absent));
+    assert!(state.retention.is_none() && state.entity.is_none());
+    assert_ne!(state.generation, old);
+    assert_eq!(
+        state.status,
+        Status::Hidden,
+        "the old read result remains rejected"
+    );
+}
+
+#[test]
+fn media_success_and_pending_are_silent_while_unverified_and_failures_remain_visible() {
+    use crate::device_view::progress::tests::snapshot;
+    use home_wire_contract::home::api::v2 as wire;
+    let confirmed = snapshot(Some(wire::CommandOutcome::Confirmed));
+    assert_eq!(
+        progress::presentation(Some(&confirmed)),
+        (crate::ProActionPhase::Confirmed, "", "")
+    );
+    let pending = snapshot(None);
+    assert_eq!(
+        progress::presentation(Some(&pending)),
+        (crate::ProActionPhase::Acknowledged, "", "")
+    );
+    let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
+    assert!(!progress::presentation(Some(&terminal)).1.is_empty());
+    let mut refused = pending;
+    refused.operation = None;
+    refused.submission = CapabilitySubmission::Rejected;
+    assert!(!progress::presentation(Some(&refused)).1.is_empty());
+}
+
+#[test]
+fn retained_media_revalidation_keeps_observed_content_without_a_loading_banner() {
+    use i_slint_backend_testing::ElementQuery;
+    use slint::ComponentHandle;
+    i_slint_backend_testing::init_no_event_loop();
+    let window = crate::create_window().unwrap();
+    window.set_show_endpoint(false);
+    window.set_access_stage(crate::ProAccessStage::Connected);
+    window.set_view_loaded(true);
+    window.set_connection_status(crate::ConnectionStatus::Live);
+    window.set_page(crate::ViewPage::Detail);
+    window.show().unwrap();
+    let owner = Media::detached();
+    let session = session();
+    ready(&owner, &session);
+    for waiting in [true, false] {
+        let projection = {
+            let mut state = owner.0.state.lock().unwrap();
+            state.status = Status::Loading;
+            state.retention = Some(state::Retention {
+                deadline: (chrono::Utc::now().timestamp() + 30, 0),
+                waiting,
+            });
+            render::Projection::new(&state, Some((session.clone(), session.generation())))
+        };
+        render::render(&window, projection);
+        assert!(window.get_media_has_data() && window.get_media_visible());
+        assert!(!window.get_media_editable());
+        assert!(window.get_media_notice().is_empty());
+    }
+    let generation = owner.0.state.lock().unwrap().generation;
+    owner.read_failed(generation, Status::Denied);
+    let projection = {
+        let state = owner.0.state.lock().unwrap();
+        render::Projection::new(&state, Some((session.clone(), session.generation())))
+    };
+    render::render(&window, projection);
+    assert!(!window.get_media_has_data());
+    assert!(!window.get_media_notice().is_empty());
+    i_slint_backend_testing::mock_elapsed_time(Duration::from_millis(1));
+    assert_eq!(
+        ElementQuery::from_root(&window)
+            .match_inherits("HomewardMedia")
+            .find_all()
+            .len(),
+        1,
+        "a denied reading must remain visible with history closed"
+    );
+    assert!(
+        ElementQuery::from_root(&window)
+            .match_predicate(|element| element.accessible_label().as_deref()
+                == Some("Media access denied. Private data was removed."))
+            .find_first()
+            .is_some()
+    );
 }

@@ -1,5 +1,5 @@
-import { KitDialogSurface, KitDialogPanel, KitButton, KitIconButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy } from "@kit/kit.slint";
-import { ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProValueIntent, ProRecipeGesture } from "@kit-pro/kit-pro.slint";
+import { KitDialogSurface, KitDialogPanel, KitButton, KitIconButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy, StepDirection } from "@kit";
+import { ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProValueIntent, ProGesture } from "@kit-pro";
 import { HomewardDashboard } from "native-dashboard.slint";
 
 export component HomewardPopup inherits KitDialogSurface {
@@ -10,17 +10,20 @@ export component HomewardPopup inherits KitDialogSurface {
     callback back(int);
     in property <[ProLayoutNode]> nodes;
     in property <bool> commands-enabled;
+    in property <bool> content-interactive: true;
     in property <string> action-feedback;
     callback close(int,CloseReason);
-    pure callback responsive-arrange([ProLayoutInput],int,int,length) -> [ProLayoutCell];
+    callback step(int,int,StepDirection);
     callback power(int,int,ProPowerIntent);
     callback edit(int,int,int,ProValueIntent);
     callback choose(int,int,int);
     callback brightness(int,int,float);
     callback stop-tracking(int,int);
     callback details(int,int);
-    callback gesture(int,int,ProRecipeGesture);
+    callback gesture(int,int,ProGesture);
     in property <FocusRequest> recipe-focus;
+    in property <FocusRequest> tile-focus;
+    callback tile-focus-revealed(int,int,length,length);
     in property <FocusRequest> widget-focus;
     in property <FocusRequest> widget-item-focus;
     callback widget-activate(int,int);
@@ -81,7 +84,8 @@ export component HomewardPopup inherits KitDialogSurface {
                 if root.nodes.length == 0: Text { text: "This item is unavailable in the current view."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
                 if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; }
                 if root.nodes.length > 0: HomewardDashboard {
-                    recipe-focus: root.recipe-focus;
+                    recipe-focus: root.recipe-focus; tile-focus: root.tile-focus;
+                    tile-focus-revealed(t,g,top,bottom) => { root.tile-focus-revealed(t,g,top,bottom); }
                     widget-focus: root.widget-focus; widget-item-focus: root.widget-item-focus;
                     widget-activate(t,g) => { root.widget-activate(t,g); }
                     task-complete(t,g,i,ig,v) => { if (root.commands-enabled) { root.task-complete(t,g,i,ig,v); } }
@@ -97,10 +101,10 @@ export component HomewardPopup inherits KitDialogSurface {
                     recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
                     theme: root.theme; viewport-width: scroll.visible-width; screen-width: root.width;
                     nodes: root.nodes; node-index: 0;
-                    interactive: root.state.open && root.state.topmost && !root.state.busy;
+                    interactive: root.content-interactive && root.state.open && root.state.topmost && !root.state.busy;
                     commands-enabled: root.commands-enabled;
-                    responsive-arrange(inputs,columns,base,screen) => { return root.responsive-arrange(inputs,columns,base,screen); }
-                    power(token,generation,intent) => { root.power(token,generation,intent); }
+                    step(t,g,d) => { root.step(t,g,d); }
+            power(token,generation,intent) => { root.power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.choose(token,generation,choice); }
                     brightness(token,generation,value) => { root.brightness(token,generation,value); }

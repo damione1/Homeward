@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+slint-kit = { path = "../../../.tools/frontend-kits/slint-kit/crates/kit" }
 slint = { version = "=1.18.1", default-features = false, features = ["std", "compat-1-18"] }
 slint-kit-pro = { path = "../../../.tools/frontend-kits/pro/crates/kit-pro" }
 

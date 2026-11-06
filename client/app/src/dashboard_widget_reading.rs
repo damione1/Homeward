@@ -148,7 +148,8 @@ impl Reading {
                     generation,
                     title: self.room_title.as_str().into(),
                     subtitle: self.room_subtitle.as_str().into(),
-                    icon: icon.clone(),
+                    glyph: icon.clone(),
+                    ..Default::default()
                 };
                 ui.value = self.value.as_str().into();
                 ui.active = self.active;
@@ -231,7 +232,7 @@ impl Reading {
                         value: row.value.as_str().into(),
                         available: row.available,
                         active: row.active,
-                        icon: items
+                        glyph: items
                             .get(index)
                             .map(|item| crate::dashboard_icons::glyph(item.icon, icon))
                             .unwrap_or_else(|| icon.clone()),

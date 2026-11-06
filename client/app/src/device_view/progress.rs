@@ -7,7 +7,41 @@ use home_wire_contract::home::api::v2::ApiErrorReason;
 
 type Presentation = (Phase, &'static str, &'static str);
 
+// Keep command facts and admission phases intact. Normal progress is shown by
+// the control's busy state; observed values are the only successful visual result.
+pub(crate) fn quiet(
+    presentation: Presentation,
+    snapshot: Option<&CapabilitySnapshot>,
+) -> Presentation {
+    let routine = match presentation.0 {
+        Phase::Preparing
+        | Phase::Sending
+        | Phase::Accepted
+        | Phase::Dispatched
+        | Phase::Confirmed => true,
+        Phase::Acknowledged => snapshot
+            .and_then(|snapshot| snapshot.operation.as_ref())
+            .is_some_and(|operation| !operation.done()),
+        Phase::Idle
+        | Phase::Refused
+        | Phase::Uncertain
+        | Phase::Stopped
+        | Phase::Unavailable
+        | Phase::Interrupted
+        | Phase::Failed
+        | Phase::Cancelled
+        | Phase::Indeterminate => false,
+    };
+    if routine {
+        (presentation.0, "", "")
+    } else {
+        presentation
+    }
+}
 pub(crate) fn presentation(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
+    quiet(facts(snapshot), snapshot)
+}
+fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
     let Some(action) = snapshot else {
         return (Phase::Idle, "", "");
     };
@@ -148,7 +182,7 @@ pub(crate) fn presentation(snapshot: Option<&CapabilitySnapshot>) -> Presentatio
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use buffa::Message;
     use buffa_types::google::protobuf::{Any, Timestamp};
@@ -157,7 +191,7 @@ mod tests {
         api_command_operations::admit_command_operation, google::longrunning, home::api::v2 as wire,
     };
 
-    fn snapshot(outcome: Option<wire::CommandOutcome>) -> CapabilitySnapshot {
+    pub(crate) fn snapshot(outcome: Option<wire::CommandOutcome>) -> CapabilitySnapshot {
         let id = RequestId::try_from("12345678-1234-4123-8123-123456789abc").unwrap();
         let target =
             CapabilityName::try_from("homes/synthetic/entities/relay/capabilities/power").unwrap();
@@ -217,12 +251,12 @@ mod tests {
     fn pending_and_terminal_ack_never_render_confirmation() {
         let pending = snapshot(None);
         assert_eq!(presentation(Some(&pending)).0, Phase::Acknowledged);
-        assert!(presentation(Some(&pending)).1.contains("waiting"));
+        assert_eq!(presentation(Some(&pending)), (Phase::Acknowledged, "", ""));
         let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
         assert_eq!(presentation(Some(&terminal)).0, Phase::Acknowledged);
         assert!(presentation(Some(&terminal)).1.contains("unverified"));
         let confirmed = snapshot(Some(wire::CommandOutcome::Confirmed));
-        assert_eq!(presentation(Some(&confirmed)).0, Phase::Confirmed);
+        assert_eq!(presentation(Some(&confirmed)), (Phase::Confirmed, "", ""));
     }
     #[test]
     fn stopping_tracking_cannot_cancel_an_effect_or_erase_a_recorded_confirmation() {
@@ -231,6 +265,30 @@ mod tests {
         assert_eq!(presentation(Some(&pending)).0, Phase::Stopped);
         let mut confirmed = snapshot(Some(wire::CommandOutcome::Confirmed));
         confirmed.tracking = CapabilityTracking::Stopped;
-        assert_eq!(presentation(Some(&confirmed)).0, Phase::Confirmed);
+        assert_eq!(presentation(Some(&confirmed)), (Phase::Confirmed, "", ""));
+    }
+    #[test]
+    fn routine_progress_is_silent_but_problems_keep_their_feedback() {
+        let mut progress = snapshot(None);
+        progress.operation = None;
+        for submission in [
+            CapabilitySubmission::Prepared,
+            CapabilitySubmission::Sending,
+            CapabilitySubmission::Accepted,
+        ] {
+            progress.submission = submission;
+            let (_, label, detail) = presentation(Some(&progress));
+            assert!(label.is_empty() && detail.is_empty());
+        }
+        for submission in [
+            CapabilitySubmission::Rejected,
+            CapabilitySubmission::NotSent,
+            CapabilitySubmission::Uncertain,
+            CapabilitySubmission::Closed,
+        ] {
+            progress.submission = submission;
+            let (_, label, detail) = presentation(Some(&progress));
+            assert!(!label.is_empty() && !detail.is_empty());
+        }
     }
 }

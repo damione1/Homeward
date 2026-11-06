@@ -7,6 +7,9 @@ use home_wire_contract::api_command_operations::{CommandCompletion, CommandOutco
 pub(super) fn presentation(
     value: Option<&CapabilitySnapshot>,
 ) -> (ProActionPhase, &'static str, &'static str) {
+    crate::device_view::progress::quiet(facts(value), value)
+}
+fn facts(value: Option<&CapabilitySnapshot>) -> (ProActionPhase, &'static str, &'static str) {
     let Some(value) = value else {
         return (ProActionPhase::Idle, "", "");
     };

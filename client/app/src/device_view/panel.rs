@@ -31,6 +31,12 @@ pub(super) struct Draft {
     pub error: String,
     gesture: bool,
 }
+impl Draft {
+    pub fn retained(&self) -> Option<Self> {
+        // Text is not an armed gesture or an instruction to resend a value.
+        (self.dirty && !self.gesture).then(|| self.clone())
+    }
+}
 pub(super) struct Choice {
     pub label: String,
     pub intent: DeviceIntent,

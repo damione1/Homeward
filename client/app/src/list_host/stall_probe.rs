@@ -230,7 +230,7 @@ async fn run(fixture: Fixture, lists: Lists, window: slint::Weak<HomewardWindow>
         move |ticket| {
             let _ = target.upgrade_in_event_loop(move |window| {
                 ticket.deliver(|generation, projection| {
-                    cache_view::render(&window, generation, projection)
+                    cache_view::render(&window, generation, projection);
                 });
             });
         },

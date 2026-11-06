@@ -1,0 +1,227 @@
+//! Local text survives a capture rotation, without retaining an admission,
+//! gesture, selector session or pending command. The old proof only bounds
+//! these bytes; a joined capture supplies every new command generation.
+use super::*;
+use crate::{cache_view, dashboard::RoomId};
+use home_client_model::dashboard::Destination;
+
+type Stamp = (i64, i32);
+
+pub(super) fn now() -> Stamp {
+    let now = chrono::Utc::now();
+    (now.timestamp(), now.timestamp_subsec_nanos() as i32)
+}
+
+#[derive(Clone, PartialEq)]
+struct Scope {
+    revision: i32,
+    query: String,
+    room: Option<RoomId>,
+    detail: Option<EntityName>,
+    native: Option<Destination>,
+}
+impl From<&ProjectionRequest> for Scope {
+    fn from(request: &ProjectionRequest) -> Self {
+        Self {
+            revision: request.revision,
+            query: request.query.clone(),
+            room: request.room.clone(),
+            detail: request.detail.clone(),
+            native: request.native.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct Basis {
+    scope: Scope,
+    layout: Arc<Layout>,
+    authority: Vec<cache_view::EntityAuthority>,
+    deadline: Stamp,
+}
+impl Basis {
+    pub fn new(
+        phase: CachePhase,
+        view: Option<&CachedView>,
+        request: &ProjectionRequest,
+    ) -> Option<Self> {
+        let view = view?;
+        let layout = request.dashboard.shared_layout()?;
+        let deadline = layout
+            .binding_expires?
+            .min((view.expires().seconds, view.expires().nanos));
+        (phase == CachePhase::Live && layout.compatible(view) && deadline > now()).then_some(Self {
+            scope: Scope::from(request),
+            layout,
+            authority: cache_view::authority(view)?,
+            deadline,
+        })
+    }
+    fn permits(
+        &self,
+        phase: CachePhase,
+        view: Option<&CachedView>,
+        request: &ProjectionRequest,
+        now: Stamp,
+    ) -> bool {
+        let (Some(view), Some(layout)) = (view, request.dashboard.layout()) else {
+            return false;
+        };
+        phase == CachePhase::Live
+            && self.deadline > now
+            && (view.expires().seconds, view.expires().nanos) > now
+            && self.scope == Scope::from(request)
+            && cache_view::authority(view).as_ref() == Some(&self.authority)
+            && if layout.compatible(view) {
+                self.layout.same_document(layout)
+            } else {
+                // The same old proof may bridge only its own unjoined cohort.
+                // This does not make that proof compatible with the new view.
+                self.layout.as_ref() == layout
+                    && layout.capture.as_ref() != Some(view.incarnation())
+            }
+    }
+}
+
+#[derive(PartialEq)]
+struct Binding {
+    source: ControlSource,
+    target: CapabilityName,
+    etag: String,
+    access: WriteAccess,
+    control: Control,
+    helper_revision: Option<helper::HelperRevision>,
+}
+impl From<&Slot> for Binding {
+    fn from(slot: &Slot) -> Self {
+        Self {
+            source: slot.source.clone(),
+            target: slot.target.clone(),
+            etag: slot.capability.etag.clone(),
+            access: slot.access,
+            control: slot.control.clone(),
+            helper_revision: slot.helper_revision,
+        }
+    }
+}
+struct Text {
+    binding: Binding,
+    field: i32,
+    draft: panel::Draft,
+}
+pub(super) struct Saved {
+    pub serial: u64,
+    basis: Basis,
+    texts: Vec<Text>,
+}
+impl Saved {
+    pub fn capture(state: &State) -> Option<Self> {
+        let context = state.context.as_ref()?;
+        let basis = state.draft_basis.as_ref()?.clone();
+        let texts = context
+            .slots
+            .iter()
+            .filter(|slot| slot.access == WriteAccess::Allowed)
+            .flat_map(|slot| {
+                state
+                    .drafts
+                    .iter()
+                    .filter_map(move |((generation, field), draft)| {
+                        if *generation != slot.generation {
+                            return None;
+                        }
+                        let draft = draft.retained()?;
+                        Some(Text {
+                            binding: Binding::from(slot),
+                            field: *field,
+                            draft,
+                        })
+                    })
+            })
+            .collect::<Vec<_>>();
+        (!texts.is_empty()).then_some(Self {
+            serial: 0,
+            basis,
+            texts,
+        })
+    }
+    pub fn permits(
+        &self,
+        phase: CachePhase,
+        view: Option<&CachedView>,
+        request: &ProjectionRequest,
+        now: Stamp,
+    ) -> bool {
+        self.basis.permits(phase, view, request, now)
+    }
+    pub fn deadline(&self) -> Stamp {
+        self.basis.deadline
+    }
+    pub fn restore(
+        &self,
+        context: &Context,
+        drafts: &mut BTreeMap<(CardGeneration, i32), panel::Draft>,
+    ) {
+        for slot in &context.slots {
+            let binding = Binding::from(slot);
+            for text in self.texts.iter().filter(|text| text.binding == binding) {
+                drafts
+                    .entry((slot.generation, text.field))
+                    .or_insert_with(|| text.draft.clone());
+            }
+        }
+    }
+}
+
+/// Return the remaining wait only for the same live archive. Expiry never
+/// clears a fresh context's drafts or a replacement archive.
+pub(super) fn expire(
+    state: &mut State,
+    serial: u64,
+    deadline: Stamp,
+    now: Stamp,
+) -> Option<std::time::Duration> {
+    let saved = state.retained_drafts.as_ref()?;
+    if saved.serial != serial || saved.deadline() != deadline {
+        return None;
+    }
+    if now >= deadline {
+        state.retained_drafts = None;
+        return None;
+    }
+    let nanos = (i128::from(deadline.0) - i128::from(now.0)) * 1_000_000_000
+        + i128::from(deadline.1)
+        - i128::from(now.1);
+    Some(std::time::Duration::from_nanos(
+        u64::try_from(nanos).unwrap_or(u64::MAX),
+    ))
+}
+
+impl DeviceStore {
+    pub fn discard_retained_drafts(&self) {
+        let mut state = self.0.lock().expect("device store mutex");
+        state.retained_drafts = None;
+        state.draft_basis = None;
+    }
+    pub(super) fn expire_drafts_at(&self, serial: u64, deadline: Stamp) {
+        let Some(runtime) = self.1.as_ref() else {
+            return;
+        };
+        let weak = Arc::downgrade(&self.0);
+        runtime.spawn(async move {
+            loop {
+                let delay = {
+                    let Some(store) = weak.upgrade() else {
+                        return;
+                    };
+                    let mut state = store.lock().expect("device store mutex");
+                    expire(&mut state, serial, deadline, now())
+                };
+                let Some(delay) = delay else {
+                    return;
+                };
+                tokio::time::sleep(delay).await;
+            }
+        });
+    }
+}

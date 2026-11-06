@@ -133,8 +133,8 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
     );
     assert_eq!(
         before.rows.len(),
-        2,
-        "two occurrences share one exact device target"
+        1,
+        "two occurrences share one cohesive light control"
     );
     let prepared = prepare(&store, &before.rows[0]);
     fixture::light_mut(&mut entity)
@@ -142,6 +142,15 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
         .as_option_mut()
         .unwrap()
         .observed_time = buffa_types::google::protobuf::Timestamp::from_unix_secs(11).into();
+    // This fixture exercises visibility, with equivalent cohesive/sibling
+    // observations. Different evidence timestamps intentionally prevent the
+    // separate presentation deduplication from hiding a sibling control.
+    let Some(wire::capability::Trait::Power(power)) = entity.capabilities[1].r#trait.as_mut()
+    else {
+        panic!()
+    };
+    power.observation.as_option_mut().unwrap().observed_time =
+        buffa_types::google::protobuf::Timestamp::from_unix_secs(11).into();
     let updated = store.project(
         CachePhase::Live,
         Some(&view(&request, vec![entity.clone()])),
@@ -160,7 +169,7 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
     );
     assert_eq!(
         hidden.rows.len(),
-        2,
+        1,
         "the unconditional occurrence remains visible"
     );
     assert!(
@@ -185,7 +194,7 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
     assert_eq!(
         rendered
             .iter()
-            .filter(|row| row.kind == crate::ProLayoutKind::Device)
+            .filter(|row| row.kind == crate::ProLayoutKind::Tile)
             .count(),
         1
     );
@@ -1883,4 +1892,495 @@ fn missing_color_is_not_zero_and_invalid_positions_cannot_commit_an_earlier_valu
     ));
     assert!(color_temperature_text(0).is_none());
     assert!(color_temperature_text(1001).is_none());
+}
+
+#[test]
+fn panel_setpoint_step_is_one_complete_typed_intent_and_rejects_an_old_capture() {
+    let request = request();
+    let entity = climate_entity(&request);
+    let capture = view(&request, vec![entity]);
+    let store = DeviceStore::default();
+    let row = store
+        .project(CachePhase::Live, Some(&capture), &request)
+        .rows
+        .remove(0);
+    let intent = store
+        .step(
+            row.token,
+            row.generation,
+            request.revision,
+            crate::StepDirection::Increment,
+        )
+        .unwrap()
+        .expect("atomic step commits");
+    let prepared = store
+        .prepare(row.token, row.generation, request.revision, intent)
+        .unwrap();
+    assert!(
+        matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command.as_ref(), Some(wire::execute_capability_request::Command::TemperatureControl(value)) if value.setpoint == Some(wire::set_temperature_control_command::Setpoint::SetpointCelsius(20.5)))
+    );
+    store.project(CachePhase::Live, None, &request);
+    assert!(
+        store
+            .step(
+                row.token,
+                row.generation,
+                request.revision,
+                crate::StepDirection::Increment
+            )
+            .is_err()
+    );
+}
+
+fn draft_rotation_fixture(
+    kind: wire::HelperKind,
+) -> (wire::EntityViewEntry, CachedView, ProjectionRequest) {
+    let entity = helper_entity(&request(), kind);
+    let first = fixture::capture(vec![entity.clone()]);
+    let request = ProjectionRequest {
+        detail: Some(EntityName::try_from(entity.entity.name.as_str()).unwrap()),
+        dashboard: LayoutState::Ready(Arc::new(dashboard::joined_fixture(&first))),
+        ..Default::default()
+    };
+    (entity, first, request)
+}
+
+#[tokio::test]
+async fn typed_drafts_survive_pending_and_coalesced_capture_rotations_without_admission() {
+    for kind in [wire::HelperKind::Text, wire::HelperKind::Number] {
+        for pending in [false, true] {
+            let (entity, first, mut request) = draft_rotation_fixture(kind);
+            let second = fixture::capture(vec![entity.clone()]);
+            let third = fixture::capture(vec![entity]);
+            let store = DeviceStore::default();
+            let old = store
+                .project(CachePhase::Live, Some(&first), &request)
+                .rows
+                .remove(0);
+            let text = if kind == wire::HelperKind::Text {
+                "abcdef"
+            } else {
+                "-"
+            };
+            assert!(
+                store
+                    .edit(
+                        old.token,
+                        old.generation,
+                        request.revision,
+                        0,
+                        edit_event(crate::ProValueEvent::Draft, text, "")
+                    )
+                    .is_err()
+            );
+            if pending {
+                assert!(
+                    store
+                        .project(CachePhase::Live, Some(&second), &request)
+                        .rows
+                        .is_empty()
+                );
+                let (serial, deadline) = {
+                    let state = store.0.lock().unwrap();
+                    assert!(state.context.is_none());
+                    let saved = state
+                        .retained_drafts
+                        .as_ref()
+                        .expect("bounded text archive");
+                    (saved.serial, saved.deadline())
+                };
+                assert!(
+                    store
+                        .edit(
+                            old.token,
+                            old.generation,
+                            request.revision,
+                            0,
+                            edit_event(crate::ProValueEvent::Submit, "ok", "")
+                        )
+                        .is_err()
+                );
+                store.project(CachePhase::Live, Some(&third), &request);
+                let state = store.0.lock().unwrap();
+                let saved = state.retained_drafts.as_ref().unwrap();
+                assert_eq!(
+                    (saved.serial, saved.deadline()),
+                    (serial, deadline),
+                    "another unjoined capture grants no grace"
+                );
+            }
+            let joined = if pending { &third } else { &second };
+            request.dashboard = LayoutState::Ready(Arc::new(dashboard::joined_fixture(joined)));
+            let fresh = store
+                .project(CachePhase::Live, Some(joined), &request)
+                .rows
+                .remove(0);
+            assert_ne!(fresh.generation, old.generation);
+            assert_eq!(fresh.values[0].lower, text);
+            assert!(!fresh.values[0].error.is_empty());
+            assert!(store.0.lock().unwrap().retained_drafts.is_none());
+            assert!(
+                store
+                    .edit(
+                        old.token,
+                        old.generation,
+                        request.revision,
+                        0,
+                        edit_event(crate::ProValueEvent::Submit, text, "")
+                    )
+                    .is_err()
+            );
+            assert!(
+                store
+                    .edit(
+                        fresh.token,
+                        fresh.generation,
+                        request.revision,
+                        0,
+                        edit_event(crate::ProValueEvent::Commit, "", "")
+                    )
+                    .is_err(),
+                "retained text is not an armed gesture"
+            );
+            let valid = if kind == wire::HelperKind::Text {
+                "ok"
+            } else {
+                "0.5"
+            };
+            assert!(
+                store
+                    .edit(
+                        fresh.token,
+                        fresh.generation,
+                        request.revision,
+                        0,
+                        edit_event(crate::ProValueEvent::Draft, valid, "")
+                    )
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(
+                store
+                    .edit(
+                        fresh.token,
+                        fresh.generation,
+                        request.revision,
+                        0,
+                        edit_event(crate::ProValueEvent::Submit, valid, "")
+                    )
+                    .unwrap()
+                    .is_some()
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn draft_archives_cannot_cross_private_clear_scope_contract_or_authority_changes() {
+    for change in [
+        "none",
+        "private-clear",
+        "view-clear",
+        "offline",
+        "loading",
+        "revision",
+        "query",
+        "detail",
+        "document",
+        "denied",
+        "etag",
+        "entity-etag",
+        "removed",
+        "capability-removed",
+        "helper-cas",
+        "constraints",
+        "expired",
+    ] {
+        let (mut entity, first, mut request) = draft_rotation_fixture(wire::HelperKind::Text);
+        let store = DeviceStore::default();
+        let old = store
+            .project(CachePhase::Live, Some(&first), &request)
+            .rows
+            .remove(0);
+        assert!(
+            store
+                .edit(
+                    old.token,
+                    old.generation,
+                    0,
+                    0,
+                    edit_event(crate::ProValueEvent::Draft, "abcdef", "")
+                )
+                .is_err()
+        );
+        let pending = fixture::capture(vec![entity.clone()]);
+        store.project(CachePhase::Live, Some(&pending), &request);
+        assert!(store.0.lock().unwrap().retained_drafts.is_some());
+        match change {
+            "none" => {
+                store.project(CachePhase::Live, None, &request);
+            }
+            "offline" => {
+                store.project(CachePhase::Offline, Some(&pending), &request);
+            }
+            "loading" => {
+                request.dashboard = LayoutState::Loading;
+                store.project(CachePhase::Live, Some(&pending), &request);
+            }
+            "private-clear" => store.clear_private(),
+            "view-clear" => store.discard_retained_drafts(),
+            "revision" => request.revision += 1,
+            "query" => request.query = "Synthetic".into(),
+            "detail" => request.detail = None,
+            "denied" => entity.capabilities[0].action_access = wire::ActionAccess::Denied.into(),
+            "etag" => entity.capabilities[0].etag = "new-capability-definition".into(),
+            "entity-etag" => {
+                entity.entity.as_option_mut().unwrap().etag = "new-entity-definition".into();
+            }
+            "capability-removed" => entity.capabilities.clear(),
+            "helper-cas" => {
+                fixture::helper_mut(&mut entity, 0)
+                    .observation
+                    .as_option_mut()
+                    .unwrap()
+                    .value
+                    .as_option_mut()
+                    .unwrap()
+                    .helper_revision += 1
+            }
+            "constraints" => {
+                fixture::helper_mut(&mut entity, 0)
+                    .definition
+                    .as_option_mut()
+                    .unwrap()
+                    .text_maximum_length = Some(10)
+            }
+            "expired" => {
+                let mut state = store.0.lock().unwrap();
+                let saved = state.retained_drafts.as_ref().unwrap();
+                let (serial, deadline) = (saved.serial, saved.deadline());
+                assert!(!saved.permits(CachePhase::Live, Some(&pending), &request, deadline));
+                assert!(draft_retention::expire(&mut state, serial, deadline, deadline).is_none());
+                assert!(state.retained_drafts.is_none());
+            }
+            "document" | "removed" => {}
+            _ => unreachable!(),
+        }
+        let fresh = fixture::capture(if change == "removed" {
+            vec![]
+        } else {
+            vec![entity]
+        });
+        let mut layout = dashboard::joined_fixture(&fresh);
+        if change == "document" {
+            layout.etag = "new-document".into();
+        }
+        request.dashboard = LayoutState::Ready(Arc::new(layout));
+        let projection = store.project(CachePhase::Live, Some(&fresh), &request);
+        assert!(
+            store.0.lock().unwrap().retained_drafts.is_none(),
+            "{change}"
+        );
+        assert!(
+            projection
+                .rows
+                .iter()
+                .flat_map(|row| &row.values)
+                .all(|value| value.lower != "abcdef"),
+            "{change}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn archive_expiry_is_independent_of_ui_delivery_and_does_not_own_the_store() {
+    let (entity, first, mut request) = draft_rotation_fixture(wire::HelperKind::Text);
+    let deadline = chrono::Utc::now() + chrono::Duration::milliseconds(500);
+    let mut layout = dashboard::joined_fixture(&first);
+    layout.binding_expires = Some((
+        deadline.timestamp(),
+        deadline.timestamp_subsec_nanos() as i32,
+    ));
+    request.dashboard = LayoutState::Ready(Arc::new(layout));
+    let store = DeviceStore::default();
+    let old = store
+        .project(CachePhase::Live, Some(&first), &request)
+        .rows
+        .remove(0);
+    store
+        .edit(
+            old.token,
+            old.generation,
+            0,
+            0,
+            edit_event(crate::ProValueEvent::Draft, "draft", ""),
+        )
+        .unwrap();
+    let second = fixture::capture(vec![entity]);
+    store.project(CachePhase::Live, Some(&second), &request);
+    assert!(store.0.lock().unwrap().retained_drafts.is_some());
+    // No Slint window, render delivery, timer or subsequent project is involved.
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        loop {
+            if store.0.lock().unwrap().retained_drafts.is_none() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    drop(store);
+    // This second task is still sleeping when its owner disappears.
+    let (entity, first, request) = draft_rotation_fixture(wire::HelperKind::Text);
+    let store = DeviceStore::default();
+    let row = store
+        .project(CachePhase::Live, Some(&first), &request)
+        .rows
+        .remove(0);
+    store
+        .edit(
+            row.token,
+            row.generation,
+            0,
+            0,
+            edit_event(crate::ProValueEvent::Draft, "draft", ""),
+        )
+        .unwrap();
+    store.project(
+        CachePhase::Live,
+        Some(&fixture::capture(vec![entity])),
+        &request,
+    );
+    assert!(store.0.lock().unwrap().retained_drafts.is_some());
+    tokio::task::yield_now().await;
+    let weak = Arc::downgrade(&store.0);
+    drop(store);
+    assert!(
+        weak.upgrade().is_none(),
+        "the sleeping expiry task holds only Weak<State>"
+    );
+}
+
+#[test]
+fn a_detached_draft_without_an_expiry_scheduler_fails_closed() {
+    let (entity, first, request) = draft_rotation_fixture(wire::HelperKind::Text);
+    let store = DeviceStore::default();
+    let old = store
+        .project(CachePhase::Live, Some(&first), &request)
+        .rows
+        .remove(0);
+    store
+        .edit(
+            old.token,
+            old.generation,
+            0,
+            0,
+            edit_event(crate::ProValueEvent::Draft, "draft", ""),
+        )
+        .unwrap();
+    store.project(
+        CachePhase::Live,
+        Some(&fixture::capture(vec![entity])),
+        &request,
+    );
+    let state = store.0.lock().unwrap();
+    assert!(state.context.is_none());
+    assert!(state.retained_drafts.is_none());
+    assert!(state.drafts.is_empty());
+}
+
+#[tokio::test]
+async fn an_old_draft_expiry_cannot_clear_restored_text_or_a_replacement_archive() {
+    let (entity, first, mut request) = draft_rotation_fixture(wire::HelperKind::Text);
+    let second = fixture::capture(vec![entity.clone()]);
+    let third = fixture::capture(vec![entity]);
+    let store = DeviceStore::default();
+    let row = store
+        .project(CachePhase::Live, Some(&first), &request)
+        .rows
+        .remove(0);
+    store
+        .edit(
+            row.token,
+            row.generation,
+            0,
+            0,
+            edit_event(crate::ProValueEvent::Draft, "draft", ""),
+        )
+        .unwrap();
+    store.project(CachePhase::Live, Some(&second), &request);
+    let (serial, deadline) = {
+        let state = store.0.lock().unwrap();
+        let saved = state.retained_drafts.as_ref().unwrap();
+        (saved.serial, saved.deadline())
+    };
+    request.dashboard = LayoutState::Ready(Arc::new(dashboard::joined_fixture(&second)));
+    let fresh = store
+        .project(CachePhase::Live, Some(&second), &request)
+        .rows
+        .remove(0);
+    {
+        let mut state = store.0.lock().unwrap();
+        assert!(draft_retention::expire(&mut state, serial, deadline, deadline).is_none());
+        assert_eq!(
+            state.drafts[&(CardGeneration(fresh.generation), 0)].lower,
+            "draft"
+        );
+    }
+    store.project(CachePhase::Live, Some(&third), &request);
+    let mut state = store.0.lock().unwrap();
+    let replacement = state.retained_drafts.as_ref().unwrap().serial;
+    assert_ne!(replacement, serial);
+    assert!(draft_retention::expire(&mut state, serial, deadline, deadline).is_none());
+    assert_eq!(state.retained_drafts.as_ref().unwrap().serial, replacement);
+}
+
+#[tokio::test]
+async fn clean_fields_and_incomplete_pointer_gestures_are_not_archived_as_text() {
+    for gesture in [false, true] {
+        let (entity, first, mut request) = draft_rotation_fixture(wire::HelperKind::Number);
+        let store = DeviceStore::default();
+        let old = store
+            .project(CachePhase::Live, Some(&first), &request)
+            .rows
+            .remove(0);
+        let observed = old.values[0].lower.clone();
+        if gesture {
+            store
+                .edit(
+                    old.token,
+                    old.generation,
+                    0,
+                    0,
+                    edit_event(crate::ProValueEvent::Start, "", ""),
+                )
+                .unwrap();
+            let mut position = edit_event(crate::ProValueEvent::Position, "", "");
+            position.position = 0.8;
+            store
+                .edit(old.token, old.generation, 0, 0, position)
+                .unwrap();
+        }
+        let second = fixture::capture(vec![entity]);
+        store.project(CachePhase::Live, Some(&second), &request);
+        assert!(store.0.lock().unwrap().retained_drafts.is_none());
+        request.dashboard = LayoutState::Ready(Arc::new(dashboard::joined_fixture(&second)));
+        let fresh = store
+            .project(CachePhase::Live, Some(&second), &request)
+            .rows
+            .remove(0);
+        assert_eq!(fresh.values[0].lower, observed);
+        assert!(
+            store
+                .edit(
+                    fresh.token,
+                    fresh.generation,
+                    0,
+                    0,
+                    edit_event(crate::ProValueEvent::Commit, "", "")
+                )
+                .is_err()
+        );
+    }
 }

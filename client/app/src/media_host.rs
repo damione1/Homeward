@@ -17,7 +17,7 @@ use home_client_actions::{
     AdmissionCheck,
     capabilities::{CapabilityController, CapabilitySnapshot},
 };
-use home_client_cache::{ProjectionGeneration, ProjectionMailbox, Publication};
+use home_client_cache::{DeliveryTicket, ProjectionGeneration, ProjectionMailbox, Publication};
 use home_client_model::api::EntityName;
 use home_client_model::{
     api::Command,
@@ -28,7 +28,7 @@ use home_client_transport::MediaTransport;
 use slint::ComponentHandle;
 use state::{ChoiceKind, ChoiceToken, Pending, Picture, State, Status};
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Weak},
     time::Duration,
 };
 use tokio::{
@@ -84,6 +84,8 @@ impl Media {
         let this = owner.clone();
         window.on_media_expire_artwork(move |g| this.expire(g));
         let this = owner.clone();
+        window.on_media_retention_expired(move |g| this.expire_retention(g));
+        let this = owner.clone();
         window.on_media_set_interactive(move |active| this.interactive(active));
         let this = owner.clone();
         let weak = window.as_weak();
@@ -112,9 +114,30 @@ impl Media {
             .publish(self.0.mailbox.generation(), projection)
             && let Some(window) = &self.0.window
         {
+            let owner = Arc::downgrade(&self.0);
             let _ = window.upgrade_in_event_loop(move |window| {
-                ticket.deliver(|_, value| render::render(&window, value));
+                Self::deliver(&owner, &window, ticket);
             });
+        }
+    }
+    fn deliver(
+        owner: &Weak<Inner>,
+        window: &HomewardWindow,
+        ticket: DeliveryTicket<render::Projection>,
+    ) {
+        let mut retained_generation = None;
+        ticket.deliver(|_, value| {
+            retained_generation = value.retained_generation();
+            render::render(window, value);
+        });
+        // A delayed publication can clear the UI before its first expiry timer
+        // was ever armed. Purge its owner too, after releasing the mailbox lock.
+        // The queued closure retains only a weak owner; expiry rechecks identity
+        // and the current deadline so it cannot clear a newly admitted reading.
+        if let Some(generation) = retained_generation
+            && let Some(inner) = owner.upgrade()
+        {
+            Self(inner).expire_retention(generation);
         }
     }
     pub fn clear(&self) {
@@ -126,9 +149,61 @@ impl Media {
         self.publish(&state);
         self.0.changed.notify_one();
     }
+    pub fn suspend(
+        &self,
+        entity: Option<EntityName>,
+        view: ProjectionGeneration,
+        deadline: (i64, i32),
+    ) {
+        let mut state = self.0.state.lock().expect("media state");
+        if state.entity != entity || state.view != Some(view) {
+            drop(state);
+            self.clear();
+            return;
+        }
+        if state.retention.is_none_or(|retention| !retention.waiting) {
+            let deadline = state
+                .retention
+                .map_or(deadline, |retention| retention.deadline.min(deadline));
+            state.invalidate(false);
+            state.retention = Some(state::Retention {
+                deadline,
+                waiting: true,
+            });
+            state.read_pending = false;
+            let _ = self.0.mailbox.invalidate();
+            self.publish(&state);
+            self.0.changed.notify_one();
+        }
+    }
+    fn expire_retention(&self, generation: i32) {
+        let mut state = self.0.state.lock().expect("media state");
+        let now = chrono::Utc::now();
+        if generation != state.generation
+            || !state.retention.is_some_and(|retention| {
+                retention.deadline <= (now.timestamp(), now.timestamp_subsec_nanos() as i32)
+            })
+        {
+            return;
+        }
+        state.clear_private();
+        state.entity = None;
+        state.view = None;
+        let _ = self.0.mailbox.invalidate();
+        self.publish(&state);
+        self.0.changed.notify_one();
+    }
     pub fn choose(&self, entity: Option<EntityName>, view: ProjectionGeneration) {
         let mut state = self.0.state.lock().expect("media state");
         if state.entity == entity && state.view == Some(view) {
+            if let Some(retention) = state.retention.as_mut()
+                && retention.waiting
+            {
+                retention.waiting = false;
+                state.read_pending = state.entity.is_some();
+                self.publish(&state);
+                self.0.changed.notify_one();
+            }
             return;
         }
         state.clear_private();
@@ -165,7 +240,11 @@ impl Media {
     }
     fn reload(&self, generation: i32) {
         let mut state = self.0.state.lock().expect("media state");
-        if generation != state.generation || !state.active || !state.interactive {
+        if generation != state.generation
+            || !state.active
+            || !state.interactive
+            || state.retention.is_some()
+        {
             return;
         }
         state.read_cancel.cancel();
@@ -467,8 +546,16 @@ impl Media {
                 if state.action.is_none() {
                     updates = None;
                 }
-                let pending = if active { state.pending.take() } else { None };
-                let read = if active && state.read_pending && reads.is_empty() {
+                let pending = if active && state.retention.is_none() {
+                    state.pending.take()
+                } else {
+                    None
+                };
+                let read = if active
+                    && !state.retention.is_some_and(|retention| retention.waiting)
+                    && state.read_pending
+                    && reads.is_empty()
+                {
                     state.entity.clone().map(|entity| {
                         state.read_pending = false;
                         if state.data.is_none() {
@@ -489,7 +576,10 @@ impl Media {
                 (
                     pending,
                     read,
-                    active && state.entity.is_some() && state.status != Status::Unsupported,
+                    active
+                        && !state.retention.is_some_and(|retention| retention.waiting)
+                        && state.entity.is_some()
+                        && state.status != Status::Unsupported,
                 )
             };
             if let Some(pending) = pending {

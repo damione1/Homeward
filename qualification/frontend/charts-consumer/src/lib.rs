@@ -1,6 +1,7 @@
 //! Qualification-only external consumer. All observations are synthetic;
 //! this crate does not connect to Homeward or contain installation configuration.
 #![deny(clippy::wildcard_enum_match_arm)]
+pub use slint_kit_pro::ui::*;
 slint::include_modules!();
 
 #[cfg(test)]
@@ -131,6 +132,7 @@ mod tests {
                 Inspection::Gap(_)
             ));
             let window = ExternalCharts::new().unwrap();
+            slint_kit_pro::install(&window);
             let mut theme = window.global::<KitThemes>().get_light();
             theme.text_scale = 2.;
             theme.accent = slint::Color::from_rgb_u8(127, 33, 201);

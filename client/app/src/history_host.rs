@@ -16,7 +16,7 @@ use home_client_model::api::EntityName;
 use home_client_session::{Phase, SessionCoordinator};
 use home_client_transport::{FailureKind, HistoryTransport, RpcCode};
 use slint::ComponentHandle;
-use slint_kit_pro::charts::{ChartWorker, PreparationResult, ReadyNotice};
+use slint_kit_pro::charts::{ChartWorker, ReadyNotice};
 use state::{Failure, State, Status};
 use std::sync::{Arc, Mutex};
 use tokio::{sync::Notify, task::JoinSet};
@@ -104,7 +104,11 @@ impl History {
                 state.background = background;
                 state.accent = accent;
                 state.density = density;
-                state.render = state.data.is_some();
+                if state.paused {
+                    state.resume_render = state.data.is_some();
+                } else {
+                    state.render = state.data.is_some();
+                }
                 owner.0.changed.notify_one();
             }
         });
@@ -132,9 +136,30 @@ impl History {
             });
         }
     }
+    pub fn suspend(&self, entity: Option<EntityName>) {
+        let mut state = self.0.state.lock().expect("history state");
+        if state.entity != entity {
+            drop(state);
+            self.clear();
+            return;
+        }
+        if !state.paused {
+            state.suspend();
+            let _ = self.0.mailbox.invalidate();
+            self.publish(&state);
+            self.0.changed.notify_one();
+        }
+    }
     pub fn choose(&self, entity: Option<EntityName>) {
         let mut state = self.0.state.lock().expect("history state");
         if state.entity == entity {
+            if state.paused {
+                state.paused = false;
+                state.render = state.resume_render && state.data.is_some();
+                state.resume_render = false;
+                self.publish(&state);
+                self.0.changed.notify_one();
+            }
             return;
         }
         state.invalidate();
@@ -164,6 +189,9 @@ impl History {
     }
     fn draft(&self) {
         let mut state = self.0.state.lock().expect("history state");
+        if state.paused {
+            return;
+        }
         state.invalidate();
         let _ = self.0.mailbox.invalidate();
         self.publish(&state);
@@ -171,6 +199,9 @@ impl History {
     }
     fn apply(&self, start: &str, end: &str, stat: HistoryStatistic) {
         let mut state = self.0.state.lock().expect("history state");
+        if state.paused {
+            return;
+        }
         state.invalidate();
         let _ = self.0.mailbox.invalidate();
         let parsed = parse_query(state.entity.clone(), start, end, stat);
@@ -186,6 +217,9 @@ impl History {
     }
     fn group(&self, step: NavigationStep) {
         let mut state = self.0.state.lock().expect("history state");
+        if state.paused {
+            return;
+        }
         let Some(data) = &state.data else {
             return;
         };
@@ -330,7 +364,7 @@ impl History {
             }
             {
                 let mut state = self.0.state.lock().expect("history state");
-                if state.render {
+                if state.render && !state.paused {
                     state.render = false;
                     if let Some(request) = render::request(&state) {
                         match worker.submit(request) {
@@ -358,8 +392,7 @@ impl History {
                     let notice = ready.lock().expect("history render notice").take();
                     if let Some(result) = notice.and_then(ReadyNotice::take_ready) {
                         let mut state = self.0.state.lock().expect("history state");
-                        if state.expected_render == Some((result.id(),state.generation)) && state.admits(state.generation) {
-                            match result { PreparationResult::Ready(frame) => { state.frame = Some(frame); state.status = Status::Ready; },PreparationResult::Failed { .. } => { state.frame = None; state.status = Status::Failed(Failure::Projection); } }
+                        if state.complete_render(result) {
                             self.publish(&state);
                         }
                     }

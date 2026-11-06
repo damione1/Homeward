@@ -1,5 +1,5 @@
-import { KitTheme, KitThemes, KitButton, KitTextField, KitWrap, FieldAccess, NavigationStep, ButtonIntent } from "@kit/kit.slint";
-import { ProChart, ProChartPhase, ProChartSeries, ProChartRangeGesture } from "@kit-pro/kit-pro.slint";
+import { KitTheme, KitThemes, KitTextField, KitWrap, FieldAccess, NavigationStep, ButtonIntent } from "@kit";
+import { ProIdentityButton, ProChart, ProChartPhase, ProChartSeries, ProChartRangeGesture } from "@kit-pro";
 export enum HistoryStatistic { observation, minimum, maximum, mean, contribution }
 export struct HistoryPresentation {
     generation: int, phase: ProChartPhase, notice: string, description: string,
@@ -12,6 +12,8 @@ export component HomewardHistory inherits Rectangle {
     in property <KitTheme> theme: KitThemes.light;
     in property <HistoryPresentation> presentation;
     in property <bool> interactive;
+    in property <bool> suspended;
+    private property <bool> live: root.interactive && !root.suspended;
     in-out property <string> start;
     in-out property <string> end;
     in-out property <HistoryStatistic> statistic;
@@ -28,23 +30,23 @@ export component HomewardHistory inherits Rectangle {
     changed theme => { root.viewport(chart.plot-width,chart.plot-height,root.theme.canvas,root.theme.accent); }
     body := VerticalLayout {
         spacing: 12px;
-        KitTextField { theme: root.theme; label: "Start UTC (RFC3339)"; text <=> root.start; access: root.interactive ? FieldAccess.editable : FieldAccess.disabled; edited(text) => { root.draft-changed(); } }
-        KitTextField { theme: root.theme; label: "End UTC Exclusive (RFC3339)"; text <=> root.end; access: root.interactive ? FieldAccess.editable : FieldAccess.disabled; edited(text) => { root.draft-changed(); } }
+        KitTextField { theme: root.theme; label: "Start UTC (RFC3339)"; text <=> root.start; access: !root.interactive ? FieldAccess.disabled : root.suspended ? FieldAccess.read-only : FieldAccess.editable; edited(text) => { if (root.live) { root.draft-changed(); } } }
+        KitTextField { theme: root.theme; label: "End UTC Exclusive (RFC3339)"; text <=> root.end; access: !root.interactive ? FieldAccess.disabled : root.suspended ? FieldAccess.read-only : FieldAccess.editable; edited(text) => { if (root.live) { root.draft-changed(); } } }
         KitWrap {
-            KitButton { theme: root.theme; text: "Observations"; intent: root.statistic == HistoryStatistic.observation ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.observation); } }
-            KitButton { theme: root.theme; text: "Hourly Average"; intent: root.statistic == HistoryStatistic.mean ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.mean); } }
-            KitButton { theme: root.theme; text: "Minimum"; intent: root.statistic == HistoryStatistic.minimum ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.minimum); } }
-            KitButton { theme: root.theme; text: "Maximum"; intent: root.statistic == HistoryStatistic.maximum ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.maximum); } }
-            KitButton { theme: root.theme; text: "Contribution"; intent: root.statistic == HistoryStatistic.contribution ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; activated => { root.choose-statistic(HistoryStatistic.contribution); } }
-            KitButton { theme: root.theme; text: "Show / Refresh"; disabled: !root.interactive; activated => { root.apply(root.start,root.end,root.statistic); } }
+            ProIdentityButton { theme: root.theme; text: "Observations"; intent: root.statistic == HistoryStatistic.observation ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; generation: root.presentation.generation; activation-enabled: root.live; accessible-enabled: root.live; trigger(t,g) => { if (root.live) { root.choose-statistic(HistoryStatistic.observation); } } }
+            ProIdentityButton { theme: root.theme; text: "Hourly Average"; intent: root.statistic == HistoryStatistic.mean ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; generation: root.presentation.generation; activation-enabled: root.live; accessible-enabled: root.live; trigger(t,g) => { if (root.live) { root.choose-statistic(HistoryStatistic.mean); } } }
+            ProIdentityButton { theme: root.theme; text: "Minimum"; intent: root.statistic == HistoryStatistic.minimum ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; generation: root.presentation.generation; activation-enabled: root.live; accessible-enabled: root.live; trigger(t,g) => { if (root.live) { root.choose-statistic(HistoryStatistic.minimum); } } }
+            ProIdentityButton { theme: root.theme; text: "Maximum"; intent: root.statistic == HistoryStatistic.maximum ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; generation: root.presentation.generation; activation-enabled: root.live; accessible-enabled: root.live; trigger(t,g) => { if (root.live) { root.choose-statistic(HistoryStatistic.maximum); } } }
+            ProIdentityButton { theme: root.theme; text: "Contribution"; intent: root.statistic == HistoryStatistic.contribution ? ButtonIntent.primary : ButtonIntent.secondary; disabled: !root.interactive; generation: root.presentation.generation; activation-enabled: root.live; accessible-enabled: root.live; trigger(t,g) => { if (root.live) { root.choose-statistic(HistoryStatistic.contribution); } } }
+            ProIdentityButton { theme: root.theme; text: "Show / Refresh"; disabled: !root.interactive; generation: root.presentation.generation; activation-enabled: root.live; accessible-enabled: root.live; trigger(t,g) => { if (root.live) { root.apply(root.start,root.end,root.statistic); } } }
         }
         Text { text: root.presentation.group-label; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
         KitWrap {
-            KitButton { theme: root.theme; text: "Previous Group"; disabled: !root.interactive || root.presentation.series.length == 0; activated => { root.group(NavigationStep.previous); } }
-            KitButton { theme: root.theme; text: "Next Group"; disabled: !root.interactive || root.presentation.series.length == 0; activated => { root.group(NavigationStep.next); } }
+            ProIdentityButton { theme: root.theme; text: "Previous Group"; disabled: !root.interactive || root.presentation.series.length == 0; generation: root.presentation.generation; activation-enabled: root.live; accessible-enabled: root.live; trigger(t,g) => { if (root.live) { root.group(NavigationStep.previous); } } }
+            ProIdentityButton { theme: root.theme; text: "Next Group"; disabled: !root.interactive || root.presentation.series.length == 0; generation: root.presentation.generation; activation-enabled: root.live; accessible-enabled: root.live; trigger(t,g) => { if (root.live) { root.group(NavigationStep.next); } } }
         }
         chart := ProChart {
-            theme: root.theme; generation: root.presentation.generation; phase: root.interactive ? root.presentation.phase : ProChartPhase.unsupported;
+            theme: root.theme; generation: root.presentation.generation; phase: root.presentation.phase; interactive: root.interactive; inspection-enabled: !root.suspended;
             title: "History · server usage and costs";
             notice: root.presentation.notice; description: root.presentation.description; unit: root.presentation.unit;
             state-label: root.presentation.state-label;

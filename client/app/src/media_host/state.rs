@@ -54,7 +54,13 @@ pub(super) struct Choice {
     pub kind: ChoiceKind,
     pub id: ChoiceId,
 }
+#[derive(Clone, Copy)]
+pub(super) struct Retention {
+    pub deadline: (i64, i32),
+    pub waiting: bool,
+}
 pub(super) struct State {
+    pub retention: Option<Retention>,
     pub generation: i32,
     pub entity: Option<EntityName>,
     pub view: Option<ProjectionGeneration>,
@@ -80,6 +86,7 @@ pub(super) struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
+            retention: None,
             generation: 1,
             entity: None,
             view: None,
@@ -136,6 +143,7 @@ impl State {
         }
     }
     pub fn clear_private(&mut self) {
+        self.retention = None;
         self.invalidate(true);
         self.data = None;
         self.picture = Picture::Absent;
@@ -172,7 +180,8 @@ impl State {
     }
 
     pub fn authorized(&self) -> bool {
-        self.active
+        self.retention.is_none()
+            && self.active
             && self.foreground
             && self.interactive
             && self.generation > 0
@@ -190,6 +199,7 @@ impl State {
         token == 1 && generation == self.generation && self.editable()
     }
     pub fn apply(&mut self, data: Arc<Data>, source: Generation, picture: Picture) {
+        self.retention = None;
         let changed = self
             .data
             .as_ref()

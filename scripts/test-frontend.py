@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Exercise refusal boundaries without allocating a disk or starting a build."""
+import contextlib
+import json
 import importlib.util
 from pathlib import Path
 import tempfile
@@ -62,6 +64,81 @@ class StorageGuardTests(unittest.TestCase):
             with patch.object(frontend.os, 'walk', side_effect=missing):
                 with self.assertRaises(FileNotFoundError):
                     frontend.inventory([Path(temp)])
+
+    def test_android_retirement_checks_open_files_before_any_package_clean(self):
+        for opened in [False, True]:
+            with self.subTest(opened=opened), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                target = root / 'target'
+                (target / 'debug/deps').mkdir(parents=True)
+                (target / 'aarch64-linux-android/debug/deps').mkdir(parents=True)
+                baseline = root / 'baseline.json'
+                baseline.write_text('{}')
+                config = {'frontend_cache': str(root), 'baseline': str(baseline)}
+                calls = []
+                def run(argv, **_kwargs):
+                    calls.append(argv)
+                    if argv[0] == 'lsof':
+                        busy = opened and 'aarch64-linux-android' in argv[-1]
+                        return Mock(returncode=0 if busy else 1, stdout=b'123' if busy else b'')
+                    return Mock(returncode=0)
+                with patch.object(frontend, 'leases', return_value=contextlib.nullcontext()), \
+                     patch.object(frontend, 'measure', return_value={'within_policy': True}), \
+                     patch.object(frontend, 'sources', return_value='synthetic'), \
+                     patch.object(frontend, 'environment', return_value={'CARGO_TARGET_DIR': str(target)}), \
+                     patch.object(frontend.subprocess, 'check_output', return_value='COMMAND\n'), \
+                     patch.object(frontend.subprocess, 'run', side_effect=run):
+                    if opened:
+                        with self.assertRaises(SystemExit):
+                            frontend.retire_evaluations(config, frontend.EvaluationPackages.APP)
+                        self.assertFalse(any(call[0] == 'cargo' for call in calls))
+                    else:
+                        self.assertEqual(frontend.retire_evaluations(config, frontend.EvaluationPackages.APP), 0)
+                        clean = [call for call in calls if call[0] == 'cargo']
+                        self.assertEqual(clean, [
+                            ['cargo', 'clean', '-p', 'homeward-app'],
+                            ['cargo', 'clean', '-p', 'homeward-app', '--target', 'aarch64-linux-android'],
+                        ])
+                        result = json.loads(next(root.glob('rounds/*/result.json')).read_text())
+                        self.assertTrue(result['only_owned_evaluation_packages'])
+                        self.assertEqual(len(result['commands']), 2)
+
+    def test_pro_retirement_inventories_consumer_before_scoped_clean(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = root / 'target'
+            deps = target / 'debug/deps'
+            deps.mkdir(parents=True)
+            consumer = deps / 'slint_kit_pro_consumer_tests-synthetic'
+            consumer.write_bytes(b'evaluation')
+            runtime = deps / 'libslint_kit_pro-synthetic.rlib'
+            runtime.write_bytes(b'runtime')
+            baseline = root / 'baseline.json'
+            baseline.write_text('{}')
+            config = {'frontend_cache': str(root), 'baseline': str(baseline),
+                      'pro_kit': str(root / 'pro')}
+            calls = []
+            def run(argv, **_kwargs):
+                calls.append(argv)
+                if argv[0] == 'lsof':
+                    return Mock(returncode=1, stdout=b'')
+                receipt = json.loads(next(root.glob('rounds/*/evaluation-artifacts-before.json')).read_text())
+                self.assertEqual(set(receipt['artifacts']), {str(consumer)})
+                self.assertIn('slint-kit-pro-consumer-tests', receipt['packages'])
+                self.assertEqual(receipt['allocated_bytes'], consumer.stat().st_blocks * 512)
+                return Mock(returncode=0)
+            with patch.object(frontend, 'leases', return_value=contextlib.nullcontext()), \
+                 patch.object(frontend, 'measure', return_value={'within_policy': True}), \
+                 patch.object(frontend, 'sources', return_value='synthetic'), \
+                 patch.object(frontend, 'environment', return_value={'CARGO_TARGET_DIR': str(target)}), \
+                 patch.object(frontend.subprocess, 'check_output', return_value='COMMAND\n'), \
+                 patch.object(frontend.subprocess, 'run', side_effect=run):
+                self.assertEqual(frontend.retire_evaluations(config, frontend.EvaluationPackages.PRO), 0)
+            self.assertEqual([call for call in calls if call[0] == 'cargo'], [[
+                'cargo', 'clean', '-p', 'slint-kit-pro-tests',
+                '-p', 'slint-kit-pro-examples', '-p', 'slint-kit-pro-consumer-tests',
+            ]])
+            self.assertTrue(runtime.is_file())
 
     def test_reuse_hardlinks_and_external_symlinks(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -246,7 +246,7 @@ impl Media {
         state.apply(data, lease.generation, picture);
         self.publish(&state);
     }
-    fn read_failed(&self, generation: i32, status: Status) {
+    pub(super) fn read_failed(&self, generation: i32, status: Status) {
         let mut state = self.0.state.lock().expect("media state");
         if state.generation != generation {
             return;

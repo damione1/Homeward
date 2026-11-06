@@ -1,34 +1,33 @@
-export { KitFormValidation, HtmlInputKind, NumberInputFormat, KitInputConstraints, KitValidationResult, KitValidityState } from "@kit/kit.slint";
 import { KitDialogSurface, KitDialogPanel, KitIconButton, KitButton, KitSelect, KitTheme, KitThemes, KitThemeContext, KitCard, KitCardHeader, KitUrlField,
     KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess, KitCheckbox, CheckState,
     KitDataTable, TableColumn, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
-    KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, FocusRequest } from "@kit/kit.slint";
-import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProRecipeGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro/kit-pro.slint";
+    KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, StepDirection, FocusRequest } from "@kit";
+import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro";
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
 import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.slint";
 import { HomewardAdministration } from "administration.slint";
-import { ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField, ProAdminChoice } from "@kit-pro/kit-pro.slint";
-export { ProAdminFieldKind } from "@kit-pro/kit-pro.slint";
-export { IconGlyph, KitGlyphs, TableColumn } from "@kit/kit.slint";
-import { ProVideoAction } from "@kit-pro/kit-pro.slint";
-import { ProCameraPresentation, ProCameraEventRow, ProCameraState } from "@kit-pro/kit-pro.slint";
-import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro/kit-pro.slint";
-import { CivilDateView, LocalDateTimeView, LocalTimeView, ZonedTimePresentation, ZonedDateTimeDraft, AmbiguousTimeChoice, CalendarDay, CalendarNavigation } from "@kit/kit.slint";
+import { ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField, ProAdminChoice } from "@kit-pro";
+export { ProAdminFieldKind } from "@kit-pro";
+export { IconGlyph, KitGlyphs, TableColumn } from "@kit";
+import { ProVideoAction } from "@kit-pro";
+import { ProCameraPresentation, ProCameraEventRow, ProCameraState } from "@kit-pro";
+import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro";
+import { CivilDateView, LocalDateTimeView, LocalTimeView, ZonedTimePresentation, ZonedDateTimeDraft, AmbiguousTimeChoice, CalendarDay, CalendarNavigation } from "@kit";
 import { HomewardHistory, HistoryPresentation, HistoryStatistic } from "history.slint";
 import { HomewardMedia } from "media.slint";
-import { ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue } from "@kit-pro/kit-pro.slint";
-import { ProChartPhase, ProChartSeries, ProChartRangeGesture } from "@kit-pro/kit-pro.slint";
-import { KitGlyphs } from "@kit/kit.slint";
+import { ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue } from "@kit-pro";
+import { ProChartPhase, ProChartSeries, ProChartRangeGesture } from "@kit-pro";
+import { KitGlyphs } from "@kit";
 import { LucideTime } from "@kit/icons/lucide/time.slint";
 import { LucideDevices } from "@kit/icons/lucide/devices.slint";
 import { LucideHome } from "@kit/icons/lucide/home.slint";
 import { LucideNavigation } from "@kit/icons/lucide/navigation.slint";
 export { LucideHome } from "@kit/icons/lucide/home.slint";
 import { HomewardSkin } from "skin.slint";
-import { ProDashboardWidget, ProDashboardWidgetKind, ProLayoutSpanRule, ProLayoutMetricsPolicy } from "@kit-pro/kit-pro.slint";
+import { ProDashboardWidget, ProDashboardWidgetKind, ProLayoutSpanRule, ProLayoutMetricsPolicy } from "@kit-pro";
 import { HomewardDevices } from "device-cards.slint";
-import { HomewardDeviceDetail } from "device-detail.slint";
+import { HomewardDeviceDetail, HomewardDetailRow } from "device-detail.slint";
 import { HomewardDashboard } from "native-dashboard.slint";
 import { HomewardConfirmation } from "native-confirmation.slint";
 import { HomewardPopup } from "native-popup.slint";
@@ -246,6 +245,7 @@ export component HomewardWindow inherits Window {
     in property <[ProRoomRow]> home-rooms;
     in property <[ProObservationRow]> home-observations;
     in property <[ProDeviceRow]> device-cards;
+    in property <[HomewardDetailRow]> detail-panels;
     in property <[ProLayoutNode]> home-layout-nodes;
     in property <[ProLayoutNode]> rooms-layout-nodes;
     in property <[ProLayoutNode]> room-layout-nodes;
@@ -258,7 +258,7 @@ export component HomewardWindow inherits Window {
     callback native-popup-back(int);
     in property <bool> native-page;
     callback native-popup-dismiss(int,CloseReason);
-    callback recipe-gesture(int,int,ProRecipeGesture);
+    callback recipe-gesture(int,int,ProGesture);
     callback recipe-confirm(int);
     callback recipe-dismiss(int,CloseReason);
     callback recipe-context-changed();
@@ -266,6 +266,7 @@ export component HomewardWindow inherits Window {
     callback native-focus-cancelled();
     callback native-layout-published(int);
     in property <FocusRequest> recipe-focus;
+    in property <FocusRequest> tile-focus;
     callback recipe-focus-applied(int,int,int);
     callback recipe-focus-observed(int,int,bool);
     callback recipe-focus-revealed(int,int,length,length);
@@ -278,14 +279,22 @@ export component HomewardWindow inherits Window {
     in property <string> recipe-confirmation-title;
     in property <string> recipe-confirmation-message;
     in property <string> recipe-confirmation-description;
-    pure callback layout-arrange([ProLayoutInput],int,int,length) -> [ProLayoutCell];
     in property <bool> commands-ready;
+    in property <bool> cohort-pending;
+    in property <int> cohort-retain-ms;
+    callback cohort-expired();
+    Timer {
+        running: root.cohort-pending;
+        interval: max(1,root.cohort-retain-ms) * 1ms;
+        triggered => { root.cohort-expired(); }
+    }
     in property <bool> has-configured-layout;
     in property <string> action-feedback;
     in-out property <RoomView> room-view: RoomView.cards;
     changed projection-version => { root.room-view = RoomView.cards; }
     callback device-edit(int,int,int,ProValueIntent);
     callback device-choice(int,int,int);
+    callback device-step(int,int,StepDirection);
     callback device-power(int,int,ProPowerIntent);
     callback device-brightness(int,int,float);
     callback device-stop-tracking(int,int);
@@ -341,8 +350,18 @@ export component HomewardWindow inherits Window {
     callback media-expire-artwork(int);
     callback media-set-interactive(bool);
     callback media-private-cleared();
-    private property <bool> media-interactive: root.content-interactive && root.view-loaded && root.page == ViewPage.detail;
-    changed media-interactive => { root.media-set-interactive(root.media-interactive); }
+    private property <bool> media-interactive: root.dashboard-interactive && root.view-loaded && root.page == ViewPage.detail;
+    // Cohort suspension is an owner transition; ordinary route/session closure
+    // still clears readers immediately through this separate lifecycle gate.
+    private property <bool> media-owner-interactive: root.background-interactive && !root.navigation-drawer.open && root.view-loaded && root.page == ViewPage.detail;
+    changed media-owner-interactive => { root.media-set-interactive(root.media-owner-interactive); }
+    in property <int> media-retention-ms;
+    callback media-retention-expired(int);
+    Timer {
+        running: root.media-retention-ms > 0;
+        interval: max(1,root.media-retention-ms) * 1ms;
+        triggered => { root.media-retention-expired(root.media-generation); }
+    }
     in property <string> preferences-status;
 
     in property <string> admin-title: "Server Settings";
@@ -376,6 +395,8 @@ export component HomewardWindow inherits Window {
     private property <bool> connected: root.access-stage == ProAccessStage.connected;
     private property <bool> background-interactive: root.connected && !root.native-popup.open && !root.recipe-confirmation.open;
     private property <bool> content-interactive: root.background-interactive && !root.navigation-drawer.open;
+    // A capture gap closes admission, not the foreground view's focus scope.
+    private property <bool> dashboard-interactive: root.content-interactive;
     callback private-view-cleared(bool);
     callback dashboard-changed();
     callback dashboard-refreshed();
@@ -703,7 +724,9 @@ export component HomewardWindow inherits Window {
                 if root.dashboard-synthetic: KitAlert { theme: root.theme; title: "Test Server"; message: "Synthetic data · no real devices"; severity: information; }
                 if root.dashboard-status != "": KitAlert { theme: root.theme; title: "Dashboard"; message: root.dashboard-status; severity: information; }
                 if root.home-layout-nodes.length > 0: HomewardDashboard {
-                    recipe-focus: root.recipe-focus;
+                    step(t,g,d) => { root.device-step(t,g,d); }
+                    recipe-focus: root.recipe-focus; tile-focus: root.tile-focus;
+                    tile-focus-revealed(t,g,top,bottom) => { if (root.tile-focus.present && root.tile-focus.token == t && root.tile-focus.generation == g && !root.cohort-pending) { root.reveal-recipe(top,bottom); } }
                     widget-focus: root.widget-focus; widget-item-focus: root.widget-item-focus;
                     widget-activate(t,g) => { root.dashboard-widget-activate(t,g); }
                     task-complete(t,g,i,ig,v) => { if (root.commands-ready) { root.dashboard-task-complete(t,g,i,ig,v); } }
@@ -719,8 +742,7 @@ export component HomewardWindow inherits Window {
                     recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
                     theme: root.theme; viewport-width: home.visible-width; screen-width: root.width;
                     nodes: root.home-layout-nodes; node-index: 0;
-                    interactive: root.content-interactive && root.page == ViewPage.home; commands-enabled: root.commands-ready;
-                    responsive-arrange(inputs,columns,base,screen) => { return root.layout-arrange(inputs,columns,base,screen); }
+                    interactive: root.dashboard-interactive && root.page == ViewPage.home; commands-enabled: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -737,13 +759,14 @@ export component HomewardWindow inherits Window {
                 visible: root.displayed-page == ViewPage.rooms;
                 scrolled => { root.native-focus-cancelled(); }
                 if root.rooms-layout-nodes.length > 0: HomewardDashboard {
+                    step(t,g,d) => { root.device-step(t,g,d); }
                     theme: root.theme; viewport-width: rooms-area.visible-width; screen-width: root.width;
                     nodes: root.rooms-layout-nodes; node-index: 0;
-                    interactive: root.content-interactive && root.page == ViewPage.rooms;
+                    interactive: root.dashboard-interactive && root.page == ViewPage.rooms;
                     commands-enabled: root.commands-ready;
-                    recipe-focus: root.recipe-focus; widget-focus: root.widget-focus;
+                    recipe-focus: root.recipe-focus; tile-focus: root.tile-focus;
+                    tile-focus-revealed(t,g,top,bottom) => { if (root.tile-focus.present && root.tile-focus.token == t && root.tile-focus.generation == g && !root.cohort-pending) { root.reveal-recipe(top,bottom); } } widget-focus: root.widget-focus;
                     widget-item-focus: root.widget-item-focus;
-                    responsive-arrange(inputs,columns,base,screen) => { return root.layout-arrange(inputs,columns,base,screen); }
                     widget-activate(t,g) => { root.dashboard-widget-activate(t,g); }
                     widget-focus-observed(t,g,f) => { root.dashboard-widget-focus(t,g,f); }
                     widget-focus-applied(t,g,r) => { root.dashboard-widget-focus-applied(t,g,r); }
@@ -755,7 +778,7 @@ export component HomewardWindow inherits Window {
                 if root.rooms-layout-nodes.length == 0: ProHomeOverview {
                     theme: root.theme; viewport-width: rooms-area.visible-width; spacing: 12px;
                     rooms-title: "Choose a Room"; rooms: root.home-rooms;
-                    interactive: root.content-interactive && root.page == ViewPage.rooms;
+                    interactive: root.dashboard-interactive && root.page == ViewPage.rooms;
                     focus-request: root.home-focus;
                     room-open(token,generation) => { root.room-open(token,generation); }
                     room-focus-observed(token,generation,focused) => { root.home-observed(token,generation,focused); }
@@ -769,7 +792,9 @@ export component HomewardWindow inherits Window {
                 if root.room-layout-nodes.length == 0 && root.device-cards.length == 0: Text { text: "No cards are available for this room’s capabilities. The full list is still available."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
                 if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
                 if root.room-layout-nodes.length > 0: HomewardDashboard {
-                    recipe-focus: root.recipe-focus;
+                    step(t,g,d) => { root.device-step(t,g,d); }
+                    recipe-focus: root.recipe-focus; tile-focus: root.tile-focus;
+                    tile-focus-revealed(t,g,top,bottom) => { if (root.tile-focus.present && root.tile-focus.token == t && root.tile-focus.generation == g && !root.cohort-pending) { root.reveal-recipe(top,bottom); } }
                     widget-focus: root.widget-focus; widget-item-focus: root.widget-item-focus;
                     widget-activate(t,g) => { root.dashboard-widget-activate(t,g); }
                     task-complete(t,g,i,ig,v) => { if (root.commands-ready) { root.dashboard-task-complete(t,g,i,ig,v); } }
@@ -785,8 +810,7 @@ export component HomewardWindow inherits Window {
                     recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
                     theme: root.theme; viewport-width: room-area.visible-width; screen-width: root.width;
                     nodes: root.room-layout-nodes; node-index: 0;
-                    interactive: root.content-interactive && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-enabled: root.commands-ready;
-                    responsive-arrange(inputs,columns,base,screen) => { return root.layout-arrange(inputs,columns,base,screen); }
+                    interactive: root.dashboard-interactive && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-enabled: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -797,7 +821,7 @@ export component HomewardWindow inherits Window {
                 }
                 if !root.has-configured-layout && root.room-layout-nodes.length == 0: HomewardDevices {
                     theme: root.theme; viewport-width: viewport.width; devices: root.device-cards;
-                    interactive: root.content-interactive && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-ready: root.commands-ready;
+                    interactive: root.dashboard-interactive && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-ready: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -814,7 +838,7 @@ export component HomewardWindow inherits Window {
                     spacing: 12px;
                     back-button := KitButton { control-width: ControlWidth.intrinsic; disabled: !root.connected; theme: root.theme; control-size: comfortable; text: "Back"; activated => { if (root.page == ViewPage.room) { root.room-view = RoomView.cards; root.content-focus(); } else { root.go-back(); } } }
                     table := KitDataTable {
-                        interactive: root.content-interactive;
+                        interactive: root.dashboard-interactive;
                         theme: root.theme; control-size: comfortable; label: "Installation States";
                         empty-label: root.search-query == "" ? "No observations available." : "No results for this search.";
                         rows: root.cache-rows; active-index: root.cache-active-index; generation: root.cache-generation;
@@ -894,38 +918,34 @@ export component HomewardWindow inherits Window {
             x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
             VerticalLayout {
                 padding: 20px; spacing: 8px;
-                HorizontalLayout {
-                    spacing: 12px;
-                    detail-back := KitIconButton { theme: root.theme; glyph: root.theme.icons.chevron-left; accessible-name: "Back"; control-size: comfortable; disabled: !root.connected;
-                        private property <int> route-generation;
-                        activation-started => { self.route-generation = root.projection-version; }
-                        activated => { if (self.route-generation == root.projection-version && root.page == ViewPage.detail) { root.go-back(); } }
-                    }
-                    Text { min-width: 0px; text: root.device-cards.length > 0 ? root.device-cards[0].title : root.detail-title; color: root.theme.text-primary; font-size: 22px * root.theme.text-scale; font-weight: 600; wrap: word-wrap; horizontal-stretch: 1; vertical-alignment: center; }
-                    KitIconButton { theme: root.theme; glyph: root.theme.icons.close; accessible-name: "Close Details"; control-size: comfortable; disabled: !root.connected;
-                        private property <int> route-generation;
-                        activation-started => { self.route-generation = root.projection-version; }
-                        activated => { if (self.route-generation == root.projection-version && root.page == ViewPage.detail) { root.go-back(); } }
-                    }
+                detail-back := KitButton {
+                    theme: root.theme; text: "Back"; leading-icon: root.theme.icons.chevron-left;
+                    disabled: !root.content-interactive; control-size: comfortable;
+                    private property <int> route-generation;
+                    activation-started => { self.route-generation = root.projection-version; }
+                    activated => { if (self.route-generation == root.projection-version && root.page == ViewPage.detail) { root.go-back(); } }
                 }
                 HomewardConnectionBanner { theme: root.theme; status: root.connection-status; interactive: root.content-interactive; retry => { root.read-protected(); } }
                 detail-scroll := KitScrollArea {
-                    mouse-drag-pan-enabled: false;
+                    pan-policy: children-first;
                     vertical-stretch: 1;
                 if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
                 if !root.media-has-data: HomewardDeviceDetail {
-                    theme: root.theme; viewport-width: detail-scroll.visible-width; viewport-height: detail-scroll.visible-height; devices: root.device-cards;
-                    interactive: root.content-interactive && root.page == ViewPage.detail; commands-ready: root.commands-ready;
+                    step(t,g,d) => { root.device-step(t,g,d); }
+                    theme: root.theme; viewport-width: detail-scroll.visible-width; panels: root.detail-panels;
+                    dismiss(reason) => { root.go-back(); }
+                    interactive: root.dashboard-interactive && root.page == ViewPage.detail; commands-ready: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
                     brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
                     stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
                 }
-                if root.media-visible && (root.media-has-data || root.show-detail-history): HomewardMedia {
+                if root.media-visible && (root.media-has-data || root.media-notice != "" || root.show-detail-history): HomewardMedia {
                     width: min(detail-scroll.visible-width,480px);
-                    theme: root.theme; generation: root.media-generation;
-                    interactive: root.media-interactive; editable: root.media-editable; has-data: root.media-has-data;
+                    theme: root.theme; title: root.detail-title; generation: root.media-generation;
+                    dismiss(reason) => { root.go-back(); }
+                    interactive: root.media-interactive; suspended: root.cohort-pending || root.media-retention-ms > 0; editable: root.media-editable; has-data: root.media-has-data;
                     media: root.media-data; actions: root.media-actions; options: root.media-options; values: root.media-values;
                     progress-known: root.media-progress-known; progress: root.media-progress;
                     position-label: root.media-position-label; duration-label: root.media-duration-label;
@@ -942,7 +962,7 @@ export component HomewardWindow inherits Window {
                     spacing: 8px;
                     Text { text: root.detail-quality + " · " + root.detail-date; color: root.theme.text-secondary; font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
                 HomewardHistory {
-                    theme: root.theme; interactive: root.content-interactive && root.view-loaded && root.page == ViewPage.detail;
+                    theme: root.theme; interactive: root.dashboard-interactive && root.view-loaded && root.page == ViewPage.detail; suspended: root.cohort-pending;
                     presentation: root.history-presentation;
                     start <=> root.history-start; end <=> root.history-end; statistic <=> root.history-statistic;
                     apply(start,end,stat) => { root.history-apply(start,end,stat); }
@@ -960,6 +980,7 @@ export component HomewardWindow inherits Window {
         }
     }
     popup-dialog := HomewardPopup {
+                    step(t,g,d) => { root.device-step(t,g,d); }
         width: root.width; height: root.height; theme: root.theme;
         state: { open: root.native-popup.open, topmost: root.native-popup.topmost && !root.recipe-confirmation.open, busy: root.native-popup.busy };
         generation: root.native-popup-generation; title: root.native-popup-title;
@@ -967,7 +988,8 @@ export component HomewardWindow inherits Window {
         back(generation) => { root.native-popup-back(generation); }
         nodes: root.popup-layout-nodes; commands-enabled: root.commands-ready;
         action-feedback: root.action-feedback;
-        recipe-focus: root.recipe-focus;
+        recipe-focus: root.recipe-focus; tile-focus: root.tile-focus;
+                    tile-focus-revealed(t,g,top,bottom) => { if (root.tile-focus.present && root.tile-focus.token == t && root.tile-focus.generation == g && !root.cohort-pending) { root.reveal-recipe(top,bottom); } }
                     widget-focus: root.widget-focus; widget-item-focus: root.widget-item-focus;
                     widget-activate(t,g) => { root.dashboard-widget-activate(t,g); }
                     task-complete(t,g,i,ig,v) => { if (root.commands-ready) { root.dashboard-task-complete(t,g,i,ig,v); } }
@@ -983,7 +1005,6 @@ export component HomewardWindow inherits Window {
         recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
         scroll-interacted => { root.native-focus-cancelled(); }
         close(generation,reason) => { root.native-popup-dismiss(generation,reason); }
-        responsive-arrange(inputs,columns,base,screen) => { return root.layout-arrange(inputs,columns,base,screen); }
         power(token,generation,intent) => { root.device-power(token,generation,intent); }
         edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
         choose(token,generation,choice) => { root.device-choice(token,generation,choice); }

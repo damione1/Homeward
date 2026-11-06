@@ -600,9 +600,7 @@ impl State {
             let applied = pending.applied(&record);
             if applied && self.privacy == pending.privacy {
                 self.gate = Gate::Open;
-                self.notice =
-                    "Operation confirmed by the server. The mutation will not be resubmitted."
-                        .into();
+                self.notice.clear();
             } else {
                 self.gate = Gate::UserStopped;
                 self.notice="State reloaded; collection remains stopped locally. Review consent before resuming.".into();

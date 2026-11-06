@@ -19,6 +19,7 @@ pub(super) struct Projection {
         home_client_session::Generation,
     )>,
     generation: i32,
+    private_data: bool,
     status: Status,
     description: String,
     notice: String,
@@ -40,7 +41,7 @@ impl Projection {
             home_client_session::Generation,
         )>,
     ) -> Self {
-        let mut value = Self { guard, generation: state.generation,status: state.status,description: "UTC range, end exclusive. Observations: up to 7 days; aggregates: whole UTC hours, up to 500 hours. Choose a statistic, then Show / Refresh.".into(),notice: String::new(),unit: String::new(),group: String::new(),inspection: String::new(),frame: state.frame.clone(),accent: state.accent,cursor: None,range: state.range,start: String::new(),end: String::new() };
+        let mut value = Self { guard, generation: state.generation, private_data: state.data.is_some() || state.frame.is_some(),status: state.status,description: "UTC range, end exclusive. Observations: up to 7 days; aggregates: whole UTC hours, up to 500 hours. Choose a statistic, then Show / Refresh.".into(),notice: String::new(),unit: String::new(),group: String::new(),inspection: String::new(),frame: state.frame.clone(),accent: state.accent,cursor: None,range: state.range,start: String::new(),end: String::new() };
         if let Some(data) = &state.data {
             value.start = utc(&data.snapshot.query.period().start);
             value.end = utc(&data.snapshot.query.period().end);
@@ -304,6 +305,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         .guard
         .as_ref()
         .is_some_and(|(session, generation)| !session.is_current(*generation))
+        || value.private_data && value.guard.is_none()
     {
         window.set_history_frame_id(0);
         window.set_history_presentation(HistoryPresentation {
@@ -320,6 +322,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             "Apply the date range to read history.",
         ),
         Status::Loading => (ProChartPhase::Loading, "Reading server pages…"),
+        Status::Preparing if value.frame.is_some() => (ProChartPhase::Ready, ""),
         Status::Preparing => (ProChartPhase::Loading, "Preparing chart…"),
         Status::Ready => (ProChartPhase::Ready, ""),
         Status::Empty => (
@@ -341,6 +344,9 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                 }
                 Failure::Denied => "History access denied. Data was removed.",
                 Failure::Transport => "Server unavailable. Reload explicitly after it recovers.",
+                Failure::Interrupted => {
+                    "The refreshed context interrupted this reading. Choose Show / Refresh to read the selected range again."
+                }
                 Failure::Contract => {
                     "Inconsistent response: no partial page is displayed. Reload explicitly."
                 }

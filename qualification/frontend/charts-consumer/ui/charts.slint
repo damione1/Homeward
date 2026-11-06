@@ -1,6 +1,5 @@
-export { KitThemes } from "@kit/kit.slint";
-import { KitTheme, KitThemes, NavigationStep } from "@kit/kit.slint";
-import { ProChart, ProChartSeries, ProChartPhase } from "@kit-pro/kit-pro.slint";
+import { KitTheme, KitThemes, NavigationStep } from "@kit";
+import { ProChart, ProChartSeries, ProChartPhase } from "@kit-pro";
 export component ExternalCharts inherits Window {
     width: 900px; height: max(700px,chart.min-height);
     in property <KitTheme> theme: KitThemes.light;

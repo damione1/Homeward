@@ -92,7 +92,7 @@ impl Projection {
                         ""
                     }
                 }
-                ProTaskPhase::Pending => "Waiting for the server",
+                ProTaskPhase::Pending => "",
                 ProTaskPhase::Conflict => "Conflict to resolve",
                 ProTaskPhase::CommitUnknown => "Outcome unknown · no resubmission",
                 ProTaskPhase::CommittedResponseWithheld => "Access removed",

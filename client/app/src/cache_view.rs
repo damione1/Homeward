@@ -22,7 +22,57 @@ struct Row {
     cells: [String; 3],
 }
 
+// The authorization inventory is independent of changing observation values.
+// Equality permits retaining old pixels briefly, never retaining command authority.
+#[derive(Clone, PartialEq)]
+struct CapabilityAuthority {
+    name: String,
+    etag: String,
+    access: buffa::EnumValue<wire::ActionAccess>,
+    kind: Option<std::mem::Discriminant<wire::capability::Trait>>,
+}
+#[derive(Clone, PartialEq)]
+pub(crate) struct EntityAuthority {
+    name: EntityName,
+    etag: String,
+    capabilities: Vec<CapabilityAuthority>,
+}
+pub(crate) fn authority(view: &CachedView) -> Option<Vec<EntityAuthority>> {
+    view.entities()
+        .map(|(name, entry)| {
+            if !entry.__buffa_unknown_fields.is_empty()
+                || !entry.entity.__buffa_unknown_fields.is_empty()
+            {
+                return None;
+            }
+            let mut capabilities = entry
+                .capabilities
+                .iter()
+                .map(|cap| {
+                    if !cap.__buffa_unknown_fields.is_empty() || cap.etag.is_empty() {
+                        return None;
+                    }
+                    Some(CapabilityAuthority {
+                        name: cap.name.clone(),
+                        etag: cap.etag.clone(),
+                        access: cap.action_access,
+                        kind: cap.r#trait.as_ref().map(std::mem::discriminant),
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?;
+            capabilities.sort_by(|left, right| left.name.cmp(&right.name));
+            Some(EntityAuthority {
+                name: name.clone(),
+                etag: entry.entity.etag.clone(),
+                capabilities,
+            })
+        })
+        .collect()
+}
+
 pub(crate) struct CacheProjection {
+    pending_cohort: Option<Layout>,
+    authority: Option<Vec<EntityAuthority>>,
     history_entity: Option<EntityName>,
     revision: i32,
     phase: CachePhase,
@@ -36,6 +86,9 @@ pub(crate) struct CacheProjection {
 }
 impl CacheProjection {
     pub(crate) fn history_target(&self, revision: i32) -> Option<Option<EntityName>> {
+        if self.pending_cohort.is_some() {
+            return Some(None);
+        }
         if !self.home.captured {
             return Some(None);
         }
@@ -218,7 +271,22 @@ pub(crate) fn project_devices(
     });
     let devices = devices.project(phase, view, request);
     let board = crate::dashboard_presentation::Board::project(layout, request, &devices, view);
+    let pending_cohort = request
+        .dashboard
+        .layout()
+        .filter(|old| {
+            let now = chrono::Utc::now();
+            phase == CachePhase::Live
+                && old.capture.is_some()
+                && view.is_some_and(|view| old.capture.as_ref() != Some(view.incarnation()))
+                && old.binding_expires.is_some_and(|expires| {
+                    expires > (now.timestamp(), now.timestamp_subsec_nanos() as i32)
+                })
+        })
+        .cloned();
     CacheProjection {
+        pending_cohort,
+        authority: view.and_then(authority),
         history_entity: if phase == CachePhase::Live && detail.is_some() {
             request.detail.clone()
         } else {
@@ -294,6 +362,7 @@ fn entity_quality(entity: &wire::EntityViewEntry) -> String {
 
 #[derive(Default)]
 struct RowStore {
+    authority: Option<Vec<EntityAuthority>>,
     generation: Option<ProjectionGeneration>,
     total: usize,
     rows: BTreeMap<usize, (Row, TableRow)>,
@@ -304,6 +373,7 @@ struct RowStore {
 #[derive(Default)]
 pub(crate) struct CacheRows {
     state: RefCell<RowStore>,
+    pending_cohort: Cell<bool>,
     notify: ModelNotify,
     serial: Cell<i32>,
     home_serial: Cell<i32>,
@@ -311,6 +381,7 @@ pub(crate) struct CacheRows {
     rooms: std::rc::Rc<slint::VecModel<ProRoomRow>>,
     observations: std::rc::Rc<slint::VecModel<ProObservationRow>>,
     devices: std::rc::Rc<slint::VecModel<crate::ProDeviceRow>>,
+    details: std::rc::Rc<slint::VecModel<crate::HomewardDetailRow>>,
     home_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
     rooms_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
     room_layout_nodes: std::rc::Rc<slint::VecModel<crate::ProLayoutNode>>,
@@ -335,6 +406,7 @@ fn table_row(row: &Row, _offline: bool) -> TableRow {
 }
 impl CacheRows {
     fn apply(&self, generation: ProjectionGeneration, projection: CacheProjection) {
+        self.pending_cohort.set(false);
         self.profile_zone.set(projection.profile_zone);
         let mut old = self.state.borrow_mut();
         let reset = old.generation != Some(generation) || old.total != projection.total;
@@ -395,6 +467,7 @@ impl CacheRows {
                 .copied(),
         );
         *old = RowStore {
+            authority: projection.authority,
             generation: Some(generation),
             total: projection.total,
             rows,
@@ -412,6 +485,7 @@ impl CacheRows {
         }
     }
     fn clear(&self) {
+        self.pending_cohort.set(false);
         self.home_serial.set(
             self.home_serial
                 .get()
@@ -429,6 +503,7 @@ impl CacheRows {
         self.rooms.set_vec(Vec::new());
         self.observations.set_vec(Vec::new());
         self.devices.set_vec(Vec::new());
+        self.details.set_vec(Vec::new());
         self.home_layout_nodes.set_vec(Vec::new());
         self.rooms_layout_nodes.set_vec(Vec::new());
         self.room_layout_nodes.set_vec(Vec::new());
@@ -438,7 +513,10 @@ impl CacheRows {
         *self.widget_focus_mapping.borrow_mut() = None;
     }
     pub(crate) fn resolve(&self, token: i32, generation: i32, revision: i32) -> Option<EntityName> {
-        if generation != self.serial.get() || self.state.borrow().revision != revision {
+        if self.pending_cohort.get()
+            || generation != self.serial.get()
+            || self.state.borrow().revision != revision
+        {
             return None;
         }
         self.state
@@ -453,7 +531,10 @@ impl CacheRows {
         generation: i32,
         layout: Option<&Layout>,
     ) -> Option<dashboard::RoomId> {
-        if generation != self.home_serial.get() || self.state.borrow().layout.as_ref() != layout {
+        if self.pending_cohort.get()
+            || generation != self.home_serial.get()
+            || self.state.borrow().layout.as_ref() != layout
+        {
             return None;
         }
         let index = usize::try_from(token.checked_sub(dashboard::ROOM_TOKEN_BASE)?).ok()?;
@@ -471,7 +552,10 @@ impl CacheRows {
         generation: i32,
         revision: i32,
     ) -> Option<EntityName> {
-        if generation != self.home_serial.get() || self.state.borrow().revision != revision {
+        if self.pending_cohort.get()
+            || generation != self.home_serial.get()
+            || self.state.borrow().revision != revision
+        {
             return None;
         }
         self.state.borrow().observations.get(&token).cloned()
@@ -490,15 +574,23 @@ fn sync<T: Clone + PartialEq + 'static>(model: &slint::VecModel<T>, rows: Vec<T>
     }
 }
 pub(crate) fn bind(window: &HomewardWindow) {
+    let weak = window.as_weak();
+    window.on_cohort_expired(move || {
+        if let Some(window) = weak.upgrade()
+            && window.get_cohort_pending()
+        {
+            clear_state(&window, false);
+        }
+    });
     let model = std::rc::Rc::new(CacheRows::default());
     window.set_home_rooms(ModelRc::from(model.rooms.clone()));
     window.set_home_observations(ModelRc::from(model.observations.clone()));
     window.set_device_cards(ModelRc::from(model.devices.clone()));
+    window.set_detail_panels(ModelRc::from(model.details.clone()));
     window.set_home_layout_nodes(ModelRc::from(model.home_layout_nodes.clone()));
     window.set_rooms_layout_nodes(ModelRc::from(model.rooms_layout_nodes.clone()));
     window.set_room_layout_nodes(ModelRc::from(model.room_layout_nodes.clone()));
     window.set_popup_layout_nodes(ModelRc::from(model.popup_layout_nodes.clone()));
-    crate::dashboard_presentation::bind(window);
     window.set_cache_rows(ModelRc::from(model));
     let weak = window.as_weak();
     window.on_dashboard_focus_first(move || {
@@ -709,6 +801,7 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
     window.set_media_coordinator("".into());
     window.set_media_notice("".into());
     window.set_view_loaded(false);
+    window.set_cohort_pending(false);
     window.set_commands_ready(false);
     window.set_connection_status(ConnectionStatus::Idle);
     window.set_has_configured_layout(false);
@@ -723,6 +816,7 @@ fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
         window.set_home_generation(model.home_serial.get());
     } else {
         window.set_device_cards(Default::default());
+        window.set_detail_panels(Default::default());
         window.set_home_layout_nodes(Default::default());
         window.set_rooms_layout_nodes(Default::default());
         window.set_room_layout_nodes(Default::default());
@@ -773,11 +867,42 @@ pub(crate) fn refresh_clock(window: &HomewardWindow) {
     }
 }
 
+fn retains_pixels(
+    old: &RowStore,
+    generation: ProjectionGeneration,
+    projection: &CacheProjection,
+    now: (i64, i32),
+) -> bool {
+    projection
+        .pending_cohort
+        .as_ref()
+        .is_some_and(|layout| old.layout.as_ref() == Some(layout))
+        && projection
+            .pending_cohort
+            .as_ref()
+            .and_then(|layout| layout.binding_expires)
+            .is_some_and(|expires| expires > now)
+        && old.generation == Some(generation)
+        && old.revision == projection.revision
+        && projection.authority.is_some()
+        && old.authority == projection.authority
+}
+
+pub(crate) enum RenderOutcome {
+    Skipped,
+    Applied(Option<EntityName>),
+    Retained {
+        entity: Option<EntityName>,
+        deadline: (i64, i32),
+    },
+    Cleared,
+}
+
 pub(crate) fn render(
     window: &HomewardWindow,
     generation: ProjectionGeneration,
     mut projection: CacheProjection,
-) {
+) -> RenderOutcome {
     // This ticket has already crossed the cache owner's publication barrier.
     // Authoritative absence must clear the old private view even when a newer
     // local search has made the presentation revision obsolete.
@@ -785,11 +910,48 @@ pub(crate) fn render(
         clear_state(window, false);
         window.set_read_status(cache_status(projection.phase, 0).into());
         window.set_connection_status(connection_status(projection.phase));
-        return;
+        return RenderOutcome::Cleared;
     }
     if projection.revision != window.get_projection_version() {
-        return;
+        return RenderOutcome::Skipped;
     }
+    let rows = window.get_cache_rows();
+    if let Some(model) = rows.as_any().downcast_ref::<CacheRows>() {
+        let now = chrono::Utc::now();
+        let retain = retains_pixels(
+            &model.state.borrow(),
+            generation,
+            &projection,
+            (now.timestamp(), now.timestamp_subsec_nanos() as i32),
+        );
+        if retain {
+            // DeviceStore already revoked its capability and recipe context
+            // before this publication. Disable navigation/readers as well.
+            model.pending_cohort.set(true);
+            let expiry = projection
+                .pending_cohort
+                .as_ref()
+                .and_then(|layout| layout.binding_expires)
+                .expect("retention expiry");
+            let remaining = expiry
+                .0
+                .saturating_mul(1000)
+                .saturating_add(i64::from(expiry.1 / 1_000_000))
+                .saturating_sub(chrono::Utc::now().timestamp_millis());
+            window.set_cohort_retain_ms(i32::try_from(remaining.max(1)).unwrap_or(i32::MAX));
+            window.set_cohort_pending(true);
+            window.set_commands_ready(false);
+            window.invoke_dashboard_widgets_changed();
+            return RenderOutcome::Retained {
+                entity: projection.history_entity,
+                deadline: expiry,
+            };
+        }
+    }
+    window.set_cohort_pending(false);
+    let target = projection
+        .history_target(window.get_projection_version())
+        .flatten();
     let revision = projection.revision;
     window.set_connection_status(connection_status(projection.phase));
     if projection.phase == CachePhase::Live && projection.home.captured {
@@ -825,7 +987,8 @@ pub(crate) fn render(
                     generation: 0,
                     title: room.label.as_str().into(),
                     subtitle: format!("{} observed items", home.room_counts[index]).into(),
-                    icon: window.global::<KitGlyphs>().invoke_home(),
+                    glyph: window.global::<KitGlyphs>().invoke_home(),
+                    ..Default::default()
                 })
                 .collect::<Vec<_>>()
         })
@@ -855,7 +1018,7 @@ pub(crate) fn render(
             title: item.label.as_str().into(),
             value: item.value.as_str().into(),
             description: item.description.as_str().into(),
-            icon: match item.icon {
+            glyph: match item.icon {
                 Icon::Home => window.global::<KitGlyphs>().invoke_home(),
                 Icon::Information => window.global::<KitGlyphs>().invoke_information(),
                 Icon::Clock => window.global::<KitGlyphs>().invoke_clock(),
@@ -873,15 +1036,31 @@ pub(crate) fn render(
     let model = window.get_cache_rows();
     if let Some(model) = model.as_any().downcast_ref::<CacheRows>() {
         window.set_commands_ready(projection.devices.ready);
+        let cards = std::mem::take(&mut projection.devices.rows);
         sync(
             &model.devices,
-            std::mem::take(&mut projection.devices.rows)
+            cards
                 .iter()
                 .enumerate()
                 .map(|(index, row)| {
                     row.ui(
                         model.devices.row_data(index).as_ref(),
                         &window.global::<KitGlyphs>().invoke_information(),
+                    )
+                })
+                .collect(),
+        );
+        sync(
+            &model.details,
+            cards
+                .iter()
+                .enumerate()
+                .map(|(index, row)| {
+                    let device = model.devices.row_data(index).expect("published device");
+                    crate::device_view::detail::project(
+                        row,
+                        device,
+                        model.details.row_data(index).as_ref(),
                     )
                 })
                 .collect(),
@@ -973,6 +1152,7 @@ pub(crate) fn render(
     window.invoke_recipe_context_changed();
     window.invoke_native_layout_published(revision);
     refresh_clock(window);
+    RenderOutcome::Applied(target)
 }
 
 pub(crate) fn clear_native_target(
@@ -994,7 +1174,8 @@ pub(crate) fn clear_native_target(
 
 /// Only the active, coherent configured board can own resource readers.
 pub(crate) fn widget_bindings(window: &HomewardWindow) -> Vec<crate::dashboard_widgets::Binding> {
-    if !window.get_view_loaded()
+    if window.get_cohort_pending()
+        || !window.get_view_loaded()
         || window.get_access_stage() != crate::ProAccessStage::Connected
         || window.get_show_endpoint()
     {
@@ -1086,7 +1267,7 @@ fn activate_widget(window: &HomewardWindow, token: i32, generation: i32) {
     window.invoke_recipe_gesture(
         node.recipe.token,
         node.recipe.generation,
-        crate::ProRecipeGesture::Tap,
+        crate::ProGesture::Tap,
     );
 }
 fn next_widget_focus_request(rows: &CacheRows) -> i32 {
@@ -1491,7 +1672,7 @@ mod tests {
         window.invoke_dashboard_widget_activate(leaf.token, leaf.generation);
         assert_eq!(
             actions.borrow().as_slice(),
-            &[(71, 83, crate::ProRecipeGesture::Tap)]
+            &[(71, 83, crate::ProGesture::Tap)]
         );
         clear_state(&window, false);
         window.invoke_dashboard_widget_activate(leaf.token, leaf.generation);
@@ -2704,5 +2885,182 @@ mod tests {
         assert_eq!(window.get_dashboard_title(), "Second server dashboard");
         clear(&window);
         assert_eq!(model.row_count(), 0);
+    }
+
+    #[test]
+    fn authorization_inventory_equality_does_not_depend_on_capability_order() {
+        let mut entry = fixtures::entry(
+            "homes/synthetic/entities/lamp",
+            "Synthetic lamp",
+            vec![
+                fixtures::power(
+                    "homes/synthetic/entities/lamp/capabilities/a",
+                    Some(wire::PowerValue::Off),
+                ),
+                fixtures::power(
+                    "homes/synthetic/entities/lamp/capabilities/b",
+                    Some(wire::PowerValue::On),
+                ),
+            ],
+        );
+        let first = fixtures::capture(vec![entry.clone()]);
+        entry.capabilities.reverse();
+        let second = fixtures::capture(vec![entry]);
+        assert!(authority(&first).is_some() && authority(&first) == authority(&second));
+    }
+    #[test]
+    fn a_new_capture_retains_pixels_but_revokes_intents_until_its_dashboard_joins() {
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        bind(&window);
+        let initial = home_view();
+        let entries: Vec<_> = initial.entities().map(|(_, entry)| entry.clone()).collect();
+        let first = fixtures::capture(entries.clone());
+        let second = fixtures::capture(entries);
+        let layout = dashboard::joined_fixture(&first);
+        let mut request = ProjectionRequest {
+            detail: Some(first.entities().next().unwrap().0.clone()),
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(layout.clone())),
+            ..Default::default()
+        };
+        let store = crate::device_view::DeviceStore::default();
+        let generation = ProjectionMailbox::<()>::new().generation();
+        render(
+            &window,
+            generation,
+            project_devices(
+                CachePhase::Live,
+                Some(&first),
+                Viewport::default(),
+                &request,
+                &store,
+            ),
+        );
+        let devices = window.get_device_cards();
+        let panels = window.get_detail_panels();
+        let before = devices.row_data(0).expect("rendered detail");
+        let rows = window.get_cache_rows();
+        let model = rows.as_any().downcast_ref::<CacheRows>().unwrap();
+        let old_serial = model.serial.get();
+        let old_count = devices.row_count();
+        let pending = project_devices(
+            CachePhase::Live,
+            Some(&second),
+            Viewport::default(),
+            &request,
+            &store,
+        );
+        assert!(
+            pending.home.layout.is_none(),
+            "old layout never authorizes new capture"
+        );
+        assert!(pending.pending_cohort.is_some());
+        let expiry = layout.binding_expires.unwrap();
+        assert!(retains_pixels(
+            &model.state.borrow(),
+            generation,
+            &pending,
+            (expiry.0 - 30, expiry.1)
+        ));
+        assert!(!retains_pixels(
+            &model.state.borrow(),
+            generation,
+            &pending,
+            expiry
+        ));
+        render(&window, generation, pending);
+        assert!(window.get_cohort_pending());
+        assert!(!window.get_commands_ready());
+        assert_eq!(devices.row_count(), old_count);
+        assert_eq!(devices.row_data(0).unwrap(), before);
+        assert_eq!(panels, window.get_detail_panels());
+        assert!(model.resolve(0, old_serial, request.revision).is_none());
+        assert!(widget_bindings(&window).is_empty());
+        assert!(
+            store
+                .prepare(
+                    before.token,
+                    before.generation,
+                    request.revision,
+                    crate::device_view::DeviceIntent::Power(crate::device_view::Power::On)
+                )
+                .is_err()
+        );
+        request.dashboard =
+            dashboard::LayoutState::Ready(std::sync::Arc::new(dashboard::joined_fixture(&second)));
+        render(
+            &window,
+            generation,
+            project_devices(
+                CachePhase::Live,
+                Some(&second),
+                Viewport::default(),
+                &request,
+                &store,
+            ),
+        );
+        assert!(!window.get_cohort_pending());
+        assert_eq!(devices, window.get_device_cards());
+        assert_eq!(panels, window.get_detail_panels());
+        assert_eq!(devices.row_count(), old_count);
+        assert_ne!(devices.row_data(0).unwrap().generation, before.generation);
+    }
+
+    #[test]
+    fn capture_retention_cannot_cross_authorization_changes_or_explicit_absence() {
+        let first = home_view();
+        let layout = dashboard::joined_fixture(&first);
+        let generation = ProjectionMailbox::<()>::new().generation();
+        let model = CacheRows::default();
+        let mut request = ProjectionRequest {
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(layout.clone())),
+            ..Default::default()
+        };
+        model.apply(
+            generation,
+            project_request(
+                CachePhase::Live,
+                Some(&first),
+                Viewport::default(),
+                &request,
+            ),
+        );
+        let expiry = layout.binding_expires.unwrap();
+        for change in 0..4 {
+            let mut entries: Vec<_> = first.entities().map(|(_, entry)| entry.clone()).collect();
+            match change {
+                0 => {
+                    entries.pop();
+                }
+                1 => {
+                    entries[0].capabilities.clear();
+                }
+                2 => {
+                    entries[0].capabilities[0].action_access = wire::ActionAccess::Denied.into();
+                }
+                3 => {
+                    entries[0].capabilities[0].etag = "changed-definition".into();
+                }
+                _ => unreachable!(),
+            }
+            let next = fixtures::capture(entries);
+            let projection =
+                project_request(CachePhase::Live, Some(&next), Viewport::default(), &request);
+            assert!(!retains_pixels(
+                &model.state.borrow(),
+                generation,
+                &projection,
+                (expiry.0 - 30, expiry.1)
+            ));
+        }
+        let absent = project_request(CachePhase::Live, None, Viewport::default(), &request);
+        assert!(absent.pending_cohort.is_none());
+        let next = home_view();
+        request.dashboard = dashboard::LayoutState::Unavailable;
+        assert!(
+            project_request(CachePhase::Live, Some(&next), Viewport::default(), &request)
+                .pending_cohort
+                .is_none()
+        );
     }
 }

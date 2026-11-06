@@ -22,11 +22,11 @@ Thank you for wanting to contribute. [Issues](https://github.com/damione1/Homewa
 
 ## Native development evaluation
 
-The frontend consumes Slint Kit 0.5.1 and a local Slint Kit Pro checkout. Configure
-both matching kit checkouts before Cargo loads the workspace (absolute paths may
-point anywhere). Keep the free kit on the `v0.5.1` revision, or on a branch that
-contains the local corrections being evaluated; its runtime and build crates must
-resolve to the same version and source tree.
+The frontend consumes Slint Kit 0.7.1 and a matching local Slint Kit Pro checkout.
+Configure both source trees before Cargo loads the workspace. The sibling
+`slint-kit` alias keeps the runtime and build crates on one canonical source.
+Each window initializes the shared services once with
+`slint_kit_pro::install(&window)`; UI imports use `@kit` and `@kit-pro`.
 
 ```sh
 python3 scripts/frontend.py configure --free-kit /path/to/slint-kit --pro-kit /path/to/slint-kit-pro --backend-cache /path/to/shared/homeward-cache
@@ -64,6 +64,47 @@ server. Widget choice, order, responsive spans, resource bindings and visibility
 come from configuration. The palette and reusable native components remain in
 Slint Kit Pro and the product skin. See `docs/DESIGN.md`, `design/KIT.md` and
 `docs/dashboard-native-v3.md` for the reference and configuration vocabulary.
+
+Equipment leaves use `ProTile`; their surface opens detail, and controls emit
+separate capability intentions. Detail families use `ProLightPanel`,
+`ProClimatePanel`, `ProFanPanel`, `ProCoverPanel`, `ProSwitchPanel`,
+`ProAlarmPanel` and `ProMediaPanel`. Decimal ranges and choice tokens come from
+admitted capabilities. An absent step means continuous input, not an invented
+integer grid. Exact color-temperature/range/helper editors retain the kit's
+`ProDeviceControls` codecs.
+
+`ProLayoutBoard` preserves arbitrary server forests, responsive spans and popup
+routes; the fixed section structure of `ProRoomPanel` cannot replace that
+contract. Resource widgets keep their typed readers. Configured custom
+tap/hold/double-tap recipes retain `ProRecipeCard` or the gesture-enabled
+`ProEntityTile`, rather than translating an arbitrary recipe into a tile toggle.
+
+At capture rotation, an unchanged authorized inventory can keep its existing
+pixels until the matching dashboard arrives, bounded by the old proof expiry.
+Device commands, resource resolution and reader admission are suspended during
+that interval. Membership, permission, document, profile or proof changes clear
+the view. Media revalidates before command admission reopens; retained historical
+results keep their selected range without issuing another query.
+Active views keep native keyboard focus while command admission is suspended;
+inactive views behind a modal leave the Tab order. Dirty text drafts may cross
+only the same authorized document, capability contract and helper CAS revision,
+within the old proof's expiry. They receive fresh presentation generations;
+held gestures, selector sessions and pending commands are never restored. A
+weak owner timer expires detached draft text even if no UI publication arrives.
+
+The local preferences page stays open while the same profile renews its session
+capture. Private data and routes still clear; logout or profile replacement
+returns to Home.
+
+Routine command completion is silent: the observed equipment value or updated
+data is the feedback. Busy controls still prevent duplicate submissions; errors,
+refusals and uncertain results remain visible. This does not change command
+admission, acknowledgement tracking or safety confirmations.
+
+The ignored `render_synthetic_dashboard_families` test writes product renders
+without opening a profile or transport. Set `HOMEWARD_SYNTHETIC_RENDER_DIR` to an
+artifact directory and run it through `scripts/frontend.py run`; it covers
+phone/desktop, both themes and 100/200% text for each detail family.
 
 `scripts/qualify-frontend-dashboard-config.py` exercises the normal executable
 against isolated production SQL/auth/TLS services. Two external YAML sources

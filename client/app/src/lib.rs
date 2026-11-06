@@ -1,11 +1,12 @@
 //! Shared native entry point and owned secure-session host.
 #![deny(clippy::wildcard_enum_match_arm)]
+pub use slint_kit_pro::ui::*;
 slint::include_modules!();
 
 /// Every product/probe window owns one initialized Kit validation engine.
 pub(crate) fn create_window() -> Result<HomewardWindow, slint::PlatformError> {
     let window = HomewardWindow::new()?;
-    slint_kit::init_form_validation!(crate, window);
+    slint_kit_pro::install(&window);
     Ok(window)
 }
 
@@ -110,3 +111,6 @@ fn android_main(app: slint::android::AndroidApp) {
     session_host::run_with_lifecycle(session_host::NativeServices::Android(context), lifecycle)
         .expect("run Homeward native shell");
 }
+
+#[cfg(test)]
+mod dashboard_render_tests;

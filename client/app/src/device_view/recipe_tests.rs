@@ -233,11 +233,7 @@ fn native_back_resolves_the_source_node_after_a_visible_sibling_changes_its_ui_t
     });
     assert_eq!(
         &*calls.borrow(),
-        &[(
-            restored.token,
-            restored.generation,
-            crate::ProRecipeGesture::Tap
-        )]
+        &[(restored.token, restored.generation, crate::ProGesture::Tap)]
     );
     assert!(
         store
@@ -528,7 +524,7 @@ fn dismissing_a_confirmation_restores_its_exact_source_without_replaying_the_com
             0,
         )
         .unwrap();
-    window.invoke_recipe_gesture(row.token, row.generation, crate::ProRecipeGesture::Tap);
+    window.invoke_recipe_gesture(row.token, row.generation, crate::ProGesture::Tap);
     settle_focus(&window);
     let first = window.get_recipe_confirmation_id();
     assert!(window.get_recipe_confirmation().open);
@@ -665,7 +661,7 @@ fn popup_detail_back_and_close_restore_each_exact_native_opener() {
         &[(
             popup_restored.token,
             popup_restored.generation,
-            crate::ProRecipeGesture::Tap
+            crate::ProGesture::Tap
         )]
     );
     window.invoke_native_popup_dismiss(
@@ -690,7 +686,7 @@ fn popup_detail_back_and_close_restore_each_exact_native_opener() {
         Some(&(
             home_restored.token,
             home_restored.generation,
-            crate::ProRecipeGesture::Tap
+            crate::ProGesture::Tap
         ))
     );
     assert_eq!(calls.borrow().len(), 2);
@@ -1156,7 +1152,7 @@ fn a_pointer_press_from_an_old_prompt_cannot_confirm_its_replacement() {
     window.invoke_recipe_gesture(
         recipe(&first).token,
         recipe(&first).generation,
-        crate::ProRecipeGesture::Tap,
+        crate::ProGesture::Tap,
     );
     slint::platform::update_timers_and_animations();
     let confirm = ElementQuery::from_root(&window)
@@ -1182,7 +1178,7 @@ fn a_pointer_press_from_an_old_prompt_cannot_confirm_its_replacement() {
     window.invoke_recipe_gesture(
         recipe(&next).token,
         recipe(&next).generation,
-        crate::ProRecipeGesture::Tap,
+        crate::ProGesture::Tap,
     );
     slint::platform::update_timers_and_animations();
     assert!(window.get_recipe_confirmation_id() > old && window.get_recipe_confirmation().open);
@@ -1565,7 +1561,7 @@ fn native_confirmation_consumes_one_exact_intention_and_never_replays_an_old_id(
     window.invoke_recipe_gesture(
         recipe(&before).token,
         recipe(&before).generation,
-        crate::ProRecipeGesture::Tap,
+        crate::ProGesture::Tap,
     );
     assert!(window.get_recipe_confirmation().open);
     assert_eq!(
@@ -1619,7 +1615,7 @@ fn permission_loss_or_private_clear_closes_a_native_confirmation_without_submiss
     window.invoke_recipe_gesture(
         recipe(&before).token,
         recipe(&before).generation,
-        crate::ProRecipeGesture::Tap,
+        crate::ProGesture::Tap,
     );
     assert_eq!(window.get_recipe_confirmation_message(), "Custom prompt");
     let old = window.get_recipe_confirmation_id();
@@ -1634,7 +1630,7 @@ fn permission_loss_or_private_clear_closes_a_native_confirmation_without_submiss
     window.invoke_recipe_gesture(
         recipe(&restored).token,
         recipe(&restored).generation,
-        crate::ProRecipeGesture::Tap,
+        crate::ProGesture::Tap,
     );
     assert!(window.get_recipe_confirmation_id() > old);
     crate::cache_view::clear(&window);
@@ -1800,11 +1796,7 @@ fn cross_dashboard_pages_and_popups_return_to_the_exact_source_binding_without_c
         });
         assert_eq!(
             &*calls.borrow(),
-            &[(
-                restored.token,
-                restored.generation,
-                crate::ProRecipeGesture::Tap
-            )]
+            &[(restored.token, restored.generation, crate::ProGesture::Tap)]
         );
         assert!(store.0.lock().unwrap().actions.is_empty());
         window.hide().unwrap();

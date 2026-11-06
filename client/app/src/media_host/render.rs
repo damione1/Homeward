@@ -16,6 +16,7 @@ use std::{collections::BTreeMap, sync::Arc};
 pub(super) struct Projection {
     guard: Option<(SessionCoordinator, Generation)>,
     generation: i32,
+    retention: Option<super::state::Retention>,
     status: Status,
     data: Option<Arc<Data>>,
     picture: Picture,
@@ -28,11 +29,15 @@ pub(super) struct Projection {
     action: String,
 }
 impl Projection {
+    pub fn retained_generation(&self) -> Option<i32> {
+        self.retention.map(|_| self.generation)
+    }
     pub fn new(state: &State, guard: Option<(SessionCoordinator, Generation)>) -> Self {
         let (_, label, detail) = super::progress::presentation(state.progress.as_deref());
         Self {
             guard,
             generation: state.generation,
+            retention: state.retention,
             status: state.status,
             data: state.data.clone(),
             picture: state.picture.clone(),
@@ -42,15 +47,11 @@ impl Projection {
             position: state.position.clone(),
             options: state.choices.clone(),
             notice: state.notice.clone(),
-            action: if state.pending.is_some() {
-                "Checking command…".into()
-            } else {
-                [label, detail]
-                    .into_iter()
-                    .filter(|v| !v.is_empty())
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            },
+            action: [label, detail]
+                .into_iter()
+                .filter(|v| !v.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n"),
         }
     }
 }
@@ -115,6 +116,7 @@ fn field(data: &Data, field: Field, draft: &Draft) -> Option<ProDeviceValue> {
     })
 }
 pub(super) fn clear(window: &HomewardWindow) {
+    window.set_media_retention_ms(0);
     window.set_media_publishing(true);
     window.set_media_visible(false);
     window.set_media_progress_known(false);
@@ -143,6 +145,13 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         clear(window);
         return;
     }
+    let now = chrono::Utc::now();
+    if value.retention.is_some_and(|retention| {
+        retention.deadline <= (now.timestamp(), now.timestamp_subsec_nanos() as i32)
+    }) {
+        clear(window);
+        return;
+    }
     let visible = match value.status {
         Status::Hidden | Status::Unsupported => false,
         Status::Loading | Status::Ready | Status::Denied | Status::Offline | Status::Contract => {
@@ -156,7 +165,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     window.set_media_publishing(true);
     let status = match value.status {
         Status::Hidden | Status::Unsupported | Status::Ready => "",
-        Status::Loading => "Reading media information…",
+        Status::Loading => "",
         Status::Denied => "Media access denied. Private data was removed.",
         Status::Offline => {
             "Server unavailable. Dated reading; no commands will be replayed on reconnection."
@@ -164,6 +173,15 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         Status::Contract => "Incompatible media response. No command was sent.",
     };
     window.set_media_generation(value.generation);
+    window.set_media_retention_ms(value.retention.map_or(0, |retention| {
+        let remaining = retention
+            .deadline
+            .0
+            .saturating_mul(1000)
+            .saturating_add(i64::from(retention.deadline.1 / 1_000_000))
+            .saturating_sub(chrono::Utc::now().timestamp_millis());
+        i32::try_from(remaining.max(1)).unwrap_or(i32::MAX)
+    }));
     window.set_media_visible(true);
     window.set_media_editable(value.editable);
     window.set_media_has_data(value.data.is_some());

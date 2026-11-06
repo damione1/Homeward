@@ -114,20 +114,8 @@ def configure_sources(stage):
     pro = stage / 'sources' / Source.PRO.value
     tools = home / '.tools/frontend-kits'
     tools.mkdir(parents=True)
-    (tools / 'pro').symlink_to(os.path.relpath(pro, tools), target_is_directory=True)
-    config = home / '.cargo/config.toml'
-    config.parent.mkdir(exist_ok=True)
-    if config.exists():
-        raise RuntimeError('Review an exported Cargo config before overriding it')
-    crates = {'slint-kit': 'kit', 'slint-kit-core': 'kit-core',
-              'slint-kit-slint': 'kit-slint', 'slint-kit-build': 'kit-build',
-              'slint-kit-native': 'kit-native'}
-    lines = ['[patch.crates-io]']
-    for crate, directory in crates.items():
-        # Cargo reads these paths relative to the source workspace root.
-        path = os.path.relpath(free / 'crates' / directory, home)
-        lines.append(crate + ' = { path = ' + json.dumps(path) + ' }')
-    config.write_text('\n'.join(lines) + '\n')
+    for name, source in [('free', free), ('slint-kit', free), ('pro', pro)]:
+        (tools / name).symlink_to(os.path.relpath(source, tools), target_is_directory=True)
 
 
 def stage_sources(destination):
@@ -307,7 +295,7 @@ def android_app(stage, destination, env):
     if not env.get('CARGO_APK_RELEASE_KEYSTORE') or 'CARGO_APK_RELEASE_KEYSTORE_PASSWORD' not in env:
         raise RuntimeError('Supply Android release keystore and password externally; do not place them in source or delivery manifests')
     key = Path(env['CARGO_APK_RELEASE_KEYSTORE']).expanduser().resolve(strict=True)
-    if key.is_relative_to(stage) or key.is_relative_to(ROOT):
+    if key.is_relative_to(stage.resolve()) or key.is_relative_to(ROOT.resolve()):
         raise RuntimeError('Keep the signing keystore outside source and delivery trees')
     home = stage / 'sources' / Source.HOMEWARD.value
     execute([sys.executable,'scripts/build-frontend-android.py','--profile','release'],home,destination / 'android-build.log',env)

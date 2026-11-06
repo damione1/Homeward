@@ -154,6 +154,7 @@ impl Host {
                 };
                 if let Some(window) = window {
                     window.set_recipe_focus(FocusRequest::default());
+                    window.set_tile_focus(FocusRequest::default());
                 }
             }
         });
@@ -169,6 +170,7 @@ impl Host {
                 };
                 if let Some(window) = window {
                     window.set_recipe_focus(FocusRequest::default());
+                    window.set_tile_focus(FocusRequest::default());
                 }
             }
         });
@@ -211,6 +213,7 @@ impl Host {
                     }
                 }
                 window.set_recipe_focus(FocusRequest::default());
+                window.set_tile_focus(FocusRequest::default());
             }
         });
         let weak = Rc::downgrade(&host.0);
@@ -404,25 +407,44 @@ impl Host {
                         | crate::device_view::GestureAccess::Inactive => false,
                     })
                 });
+            let tile_focus = if focus.is_none() {
+                pending.view.origin.as_ref().and_then(|node| {
+                    (state.devices)()?.native_focus(
+                        node,
+                        pending.view.layout.as_deref()?,
+                        pending.revision,
+                    )
+                })
+            } else {
+                None
+            };
             let view = state.pending.take().expect("checked pending focus").view;
-            let request = focus.map(|row| {
-                state.serial = state
-                    .serial
-                    .checked_add(1)
-                    .expect("native focus serial exhausted");
-                FocusRequest {
-                    present: true,
-                    token: row.token,
-                    generation: row.generation,
-                    request: state.serial,
-                }
-            });
-            (window, view, request)
+            let tile = tile_focus.is_some();
+            let request = focus
+                .map(|row| (row.token, row.generation))
+                .or(tile_focus)
+                .map(|(token, generation)| {
+                    state.serial = state
+                        .serial
+                        .checked_add(1)
+                        .expect("native focus serial exhausted");
+                    FocusRequest {
+                        present: true,
+                        token,
+                        generation,
+                        request: state.serial,
+                    }
+                });
+            (window, view, request, tile)
         };
-        let (window, view, request) = resolved;
+        let (window, view, request, tile) = resolved;
         window.invoke_restore_board_scroll(view.home_scroll, view.room_scroll, view.popup_scroll);
         if let Some(request) = request {
-            window.set_recipe_focus(request);
+            if tile {
+                window.set_tile_focus(request);
+            } else {
+                window.set_recipe_focus(request);
+            }
         }
     }
 }

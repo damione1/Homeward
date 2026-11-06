@@ -467,3 +467,34 @@ fn another_home_cannot_reuse_native_keys_drafts_or_write_admission() {
     assert!(state.catalog.is_none() && state.items.is_none() && state.drafts.is_empty());
     assert!(!state.admits(prepared.context, prepared.id));
 }
+
+#[test]
+fn committed_list_changes_are_silent_while_busy_and_error_states_are_preserved() {
+    let mut state = ready();
+    state.publish_items(items(LIST, 10, &[])).unwrap();
+    let prepared = state.prepare(state.generation, Write::DeleteList).unwrap();
+    assert!(state.busy());
+    assert!(state.notice.is_empty());
+    let name = list(LIST, 10).name().clone();
+    state.finish(
+        prepared.context,
+        prepared.id,
+        ListWriteOutcome::Committed(Box::new(
+            home_client_actions::lists::ConfirmedMutation::DeletedList(name),
+        )),
+    );
+    assert!(!state.busy());
+    assert!(state.notice.is_empty());
+    assert!(state.selected_list.is_none());
+
+    let mut state = dirty();
+    let prepared = state.prepare(state.generation, Write::Save).unwrap();
+    state.finish(prepared.context, prepared.id, ListWriteOutcome::Conflict);
+    assert!(!state.notice.is_empty());
+    assert!(
+        state
+            .drafts
+            .values()
+            .any(|draft| draft.text == "Local draft")
+    );
+}

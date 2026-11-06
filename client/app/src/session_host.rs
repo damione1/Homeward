@@ -339,11 +339,20 @@ impl ProjectionTarget {
         let _ = self.window.upgrade_in_event_loop(move |window| {
             if epoch.load(Ordering::SeqCst) == profile.0 {
                 ticket.deliver(|generation, projection| {
-                    let target = projection.history_target(window.get_projection_version());
-                    cache_view::render(&window, generation, projection);
-                    if let Some(target) = target {
-                        history.choose(target.clone());
-                        media.choose(target, generation);
+                    match cache_view::render(&window, generation, projection) {
+                        cache_view::RenderOutcome::Retained { entity, deadline } => {
+                            history.suspend(entity.clone());
+                            media.suspend(entity, generation, deadline);
+                        }
+                        cache_view::RenderOutcome::Applied(target) => {
+                            history.choose(target.clone());
+                            media.choose(target, generation);
+                        }
+                        cache_view::RenderOutcome::Cleared => {
+                            history.clear();
+                            media.clear();
+                        }
+                        cache_view::RenderOutcome::Skipped => {}
                     }
                 });
             }
@@ -1413,14 +1422,7 @@ async fn worker(
                 let saved = services.directory().ok().is_some_and(|directory| value.save(&directory).is_ok());
                 let window = ui.window.clone();
                 let _ = window.upgrade_in_event_loop(move |window| {
-                    // An older save cannot acknowledge a more recent edit.
-                    if Preferences::current(&window) == value {
-                        window.set_preferences_status(if saved {
-                            "Settings saved on this device."
-                        } else {
-                            "These settings are active, but could not be saved."
-                        }.into());
-                    }
+                    value.complete_save(&window, saved);
                 });
             },
             changed = lifecycle.changed() => {
@@ -1495,7 +1497,7 @@ pub(crate) fn run_with_lifecycle(
         });
         preferences_tx.send_replace(Preferences::from_ui(dark, opaque, large, reduced));
         if let Some(window) = preferences_window.upgrade() {
-            window.set_preferences_status("Saving…".into());
+            window.set_preferences_status("".into());
         }
     });
     *lifecycle
@@ -1935,6 +1937,21 @@ pub(crate) fn run_with_lifecycle(
             Err(Refusal::InvalidValue) if editing_draft => {}
             Err(refusal) => {
                 edit_ui.refuse(ProfileEpoch(edit_ui.epoch.load(Ordering::SeqCst)), refusal)
+            }
+        }
+    });
+    let step_ui = ui.clone();
+    let submit_step = submit_device.clone();
+    window.on_device_step(move |token, generation, direction| {
+        let result = step_ui.current_devices().and_then(|(binding, revision)| {
+            binding.store.step(token, generation, revision, direction)
+        });
+        step_ui.repaint_devices();
+        match result {
+            Ok(Some(intent)) => submit_step(token, generation, intent),
+            Ok(None) => {}
+            Err(refusal) => {
+                step_ui.refuse(ProfileEpoch(step_ui.epoch.load(Ordering::SeqCst)), refusal)
             }
         }
     });

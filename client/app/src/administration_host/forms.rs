@@ -690,7 +690,7 @@ impl Draft {
             return match draft.submit() {
                 Ok(operation) => {
                     self.state = MutationState::InFlight;
-                    self.notice = "Saving…";
+                    self.notice = "";
                     Some(Operation::Advanced(Box::new(operation)))
                 }
                 Err(message) => {
@@ -854,14 +854,14 @@ impl Draft {
             }
         };
         self.state = MutationState::InFlight;
-        self.notice = "Saving…";
+        self.notice = "";
         Some(operation)
     }
     pub fn complete(&mut self, state: MutationState) {
         self.state = state;
         self.password = Zeroizing::new(String::new());
         self.notice = match state {
-            MutationState::Published => "Save confirmed by the server.",
+            MutationState::Published => "",
             MutationState::Rejected => {
                 "The server rejected the change. Correct the draft before confirming again."
             }
@@ -1157,4 +1157,30 @@ fn recovery_code(value: &str) -> bool {
                 value.is_ascii_uppercase() || (b'2'..=b'7').contains(&value)
             }
         })
+}
+
+#[cfg(test)]
+mod feedback_tests {
+    use super::*;
+
+    #[test]
+    fn published_forms_are_silent_but_unapplied_changes_and_failures_remain_visible() {
+        let own = AccountName::try_from("homes/synthetic/accounts/operator").unwrap();
+        let mut draft = Draft::new(Command::CreateMcp, own);
+        draft.password = Zeroizing::new("private draft".into());
+        draft.complete(MutationState::Published);
+        assert_eq!(draft.state, MutationState::Published);
+        assert!(draft.notice.is_empty());
+        assert!(draft.password.is_empty());
+        for phase in [
+            MutationState::Rejected,
+            MutationState::Conflict,
+            MutationState::Uncertain,
+            MutationState::Reconciling,
+            MutationState::RestartRequired,
+        ] {
+            draft.complete(phase);
+            assert!(!draft.notice.is_empty(), "{phase:?}");
+        }
+    }
 }

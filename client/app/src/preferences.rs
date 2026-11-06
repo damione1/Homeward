@@ -79,6 +79,19 @@ impl Preferences {
             window.get_reduced_motion(),
         )
     }
+    pub fn complete_save(self, window: &HomewardWindow, saved: bool) {
+        // An older save cannot acknowledge or clear a more recent edit's error.
+        if Self::current(window) == self {
+            window.set_preferences_status(
+                if saved {
+                    ""
+                } else {
+                    "These settings are active, but could not be saved."
+                }
+                .into(),
+            );
+        }
+    }
     pub fn apply(self, window: &HomewardWindow) {
         home_client_platform::appearance::apply(match self.appearance {
             Appearance::Light => home_client_platform::appearance::SystemBars::Light,
@@ -154,6 +167,24 @@ impl Preferences {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn save_feedback_is_silent_on_success_and_stale_results_cannot_clear_errors() {
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        let initial = Preferences::current(&window);
+        initial.complete_save(&window, false);
+        assert!(!window.get_preferences_status().is_empty());
+        initial.complete_save(&window, true);
+        assert!(window.get_preferences_status().is_empty());
+        window.set_dark_mode(!window.get_dark_mode());
+        let current = Preferences::current(&window);
+        current.complete_save(&window, false);
+        let error = window.get_preferences_status();
+        initial.complete_save(&window, true);
+        assert_eq!(window.get_preferences_status(), error);
+        current.complete_save(&window, true);
+        assert!(window.get_preferences_status().is_empty());
+    }
     #[test]
     fn preferences_persist_atomically_with_private_permissions_and_bounded_input() {
         use std::os::unix::fs::PermissionsExt;
