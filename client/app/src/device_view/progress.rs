@@ -307,7 +307,7 @@ pub(crate) mod tests {
         window.on_device_brightness(move |t, g, v| output.borrow_mut().push((t, g, v)));
         let publish = |snapshot: &CapabilitySnapshot, access| {
             let (phase, label, description) = presentation(Some(snapshot));
-            let row = super::super::presentation::CardRow {
+            let mut row = super::super::presentation::CardRow {
                 token: 0,
                 generation: 1,
                 title: "Synthetic light".into(),
@@ -316,16 +316,22 @@ pub(crate) mod tests {
                 power_on: true,
                 brightness_known: true,
                 brightness_percent: 62.037033,
-                brightness_minimum: 0.,
-                brightness_maximum: 100.,
-                brightness_step: 0.,
-                can_brightness: true,
                 access,
                 phase,
                 action_label: label.into(),
                 action_detail: description.into(),
                 ..Default::default()
             };
+            super::super::brightness_bounds(
+                &mut row,
+                super::super::number::Bounds::percentage_definition(
+                    &home_wire_contract::home::api::v2::PercentageBounds {
+                        minimum: 0.,
+                        maximum: 100.,
+                        ..Default::default()
+                    },
+                ),
+            );
             let panel =
                 super::super::detail::project(&row, row.ui(None, &Default::default()), None);
             window.set_detail_panels(ModelRc::from([panel]));
@@ -338,7 +344,7 @@ pub(crate) mod tests {
                 .expect("real detail slider")
         };
         publish(&snapshot(None), crate::ProControlAccess::Allowed);
-        assert_eq!(slider().accessible_value().as_deref(), Some("62.04%"));
+        assert_eq!(slider().accessible_value().as_deref(), Some("62%"));
         render("ack-pending");
         slider().invoke_accessible_increment_action();
         assert!(calls.borrow().is_empty(), "pending ACK blocks input");
@@ -346,7 +352,7 @@ pub(crate) mod tests {
         publish(&terminal, crate::ProControlAccess::Allowed);
         render("ack-terminal");
         slider().invoke_accessible_increment_action();
-        assert_eq!(&*calls.borrow(), &[(0, 1, 62.037033_f32 + 1.)]);
+        assert_eq!(&*calls.borrow(), &[(0, 1, 63.)]);
         assert_eq!(
             window
                 .get_detail_panels()
@@ -366,11 +372,56 @@ pub(crate) mod tests {
                 .is_some(),
             "uncertainty remains visible"
         );
+        // Exercise actual pointer gestures, including a second gesture after
+        // a pending/terminal transition. Accessibility alone missed this path.
+        use slint::platform::{PointerEventButton, WindowEvent};
+        let tap = |fraction: f32| {
+            let element = slider();
+            let origin = element.absolute_position();
+            let size = element.size();
+            let position = slint::LogicalPosition::new(
+                origin.x + size.width * 0.5,
+                origin.y + size.height * fraction,
+            );
+            window
+                .window()
+                .dispatch_event(WindowEvent::PointerMoved { position });
+            window.window().dispatch_event(WindowEvent::PointerPressed {
+                position,
+                button: PointerEventButton::Left,
+            });
+            window
+                .window()
+                .dispatch_event(WindowEvent::PointerReleased {
+                    position,
+                    button: PointerEventButton::Left,
+                });
+            slint::platform::update_timers_and_animations();
+        };
+        tap(0.213);
+        assert_eq!(calls.borrow().len(), 2);
+        publish(&snapshot(None), crate::ProControlAccess::Allowed);
+        tap(0.743);
+        assert_eq!(calls.borrow().len(), 2, "pending blocks pointer input");
+        publish(&terminal, crate::ProControlAccess::Allowed);
+        tap(0.743);
+        assert_eq!(calls.borrow().len(), 3);
+        for (_, _, value) in calls.borrow().iter() {
+            assert_eq!(
+                value.fract(),
+                0.,
+                "pointer and accessible intents are integers"
+            );
+            assert!((0.0..=100.0).contains(value));
+        }
+        assert_ne!(calls.borrow()[1].2, calls.borrow()[2].2);
+        render("ack-terminal-second-pointer");
         publish(&terminal, crate::ProControlAccess::Denied);
+        tap(0.421);
         slider().invoke_accessible_increment_action();
         assert_eq!(
             calls.borrow().len(),
-            1,
+            3,
             "terminal ACK does not grant authority"
         );
     }

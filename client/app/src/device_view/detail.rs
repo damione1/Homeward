@@ -599,6 +599,10 @@ mod tests {
         let projected = store.project(home_client_cache::CachePhase::Live, Some(&view), &request);
         assert_eq!(projected.rows.len(), 1);
         assert_eq!(projected.rows[0].kind, crate::ProDeviceKind::Light);
-        assert!(projected.rows[0].can_power && projected.rows[0].can_brightness);
+        assert!(projected.rows[0].can_power);
+        assert!(
+            !projected.rows[0].can_brightness,
+            "a fractional-only brightness domain has no integer editing values"
+        );
     }
 }

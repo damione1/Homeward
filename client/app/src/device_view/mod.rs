@@ -1,5 +1,6 @@
 //! Exact server-selected cards, command admission and bounded local action
 //! history. UI tokens are ephemeral; identities/permissions never come from UI.
+mod brightness;
 pub(crate) mod capability;
 mod climate;
 mod controls;
@@ -1189,7 +1190,10 @@ fn card(
     row
 }
 fn brightness_bounds(row: &mut CardRow, bounds: Option<number::Bounds>) {
-    if let Some(bounds) = bounds {
+    // Integer presentation also applies when no movable domain exists. It does
+    // not rewrite the observed quantity or grant a missing command capability.
+    row.brightness_step = 1.;
+    if let Some(bounds) = bounds.and_then(brightness::domain) {
         row.can_brightness = bounds.minimum() < bounds.maximum();
         row.brightness_minimum = bounds.minimum() as f32;
         row.brightness_maximum = bounds.maximum() as f32;

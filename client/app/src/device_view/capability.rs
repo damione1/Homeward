@@ -227,7 +227,7 @@ impl Control {
             ) => Ok(C::Light(Box::new(wire::SetLightCommand {
                 level: wire::SetLevelCommand {
                     target: Some(wire::set_level_command::Target::Percentage(
-                        bounds.canonical(value)?,
+                        super::brightness::admit(*bounds, value)?,
                     )),
                     ..Default::default()
                 }
@@ -241,7 +241,7 @@ impl Control {
                 DeviceIntent::Brightness(value),
             ) => Ok(C::Level(Box::new(wire::SetLevelCommand {
                 target: Some(wire::set_level_command::Target::Percentage(
-                    bounds.canonical(value)?,
+                    super::brightness::admit(*bounds, value)?,
                 )),
                 ..Default::default()
             }))),
