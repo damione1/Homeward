@@ -1,7 +1,7 @@
 use std::{
     sync::{
         Arc, Mutex as SyncMutex, Weak,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -18,7 +18,7 @@ use crate::{
     ServerRevocation, SessionFailure, SessionReaction, SessionView, api::AuthApi,
 };
 
-pub(crate) trait Clock: Send + Sync {
+pub trait Clock: Send + Sync {
     fn now(&self) -> Result<Timestamp, SessionFailure>;
 }
 struct WallClock;
@@ -49,7 +49,9 @@ struct Inner {
     store: Arc<dyn SecureStore>,
     clock: Arc<dyn Clock>,
     generation: AtomicU64,
+    generation_live: AtomicBool,
     identity_epoch: AtomicU64,
+    presentation_epoch: AtomicU64,
     epoch: SyncMutex<CancellationToken>,
     shutdown: CancellationToken,
     state: Mutex<State>,
@@ -61,6 +63,7 @@ struct Inner {
 impl Inner {
     fn is_current(&self, generation: Generation) -> bool {
         !self.shutdown.is_cancelled()
+            && self.generation_live.load(Ordering::SeqCst)
             && Generation(self.generation.load(Ordering::SeqCst)) == generation
     }
 }
@@ -76,6 +79,64 @@ impl GenerationGuard {
         self.inner
             .upgrade()
             .is_some_and(|inner| inner.is_current(generation))
+    }
+}
+
+/// Weak provenance of an admitted credential. It contains no credential,
+/// secure store or coordinator ownership. Presentation continuity is NOT an
+/// authorization grant: only `is_current` may fence admitted work.
+#[derive(Clone)]
+pub struct SourceProof {
+    inner: Weak<Inner>,
+    generation: Generation,
+    presentation_epoch: u64,
+}
+impl PartialEq for SourceProof {
+    fn eq(&self, other: &Self) -> bool {
+        Weak::ptr_eq(&self.inner, &other.inner)
+            && self.generation == other.generation
+            && self.presentation_epoch == other.presentation_epoch
+    }
+}
+impl Eq for SourceProof {}
+impl std::fmt::Debug for SourceProof {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SourceProof([weak local provenance])")
+    }
+}
+impl SourceProof {
+    pub fn is_current(&self) -> bool {
+        self.inner.upgrade().is_some_and(|inner| {
+            inner.is_current(self.generation)
+                && inner.presentation_epoch.load(Ordering::SeqCst) == self.presentation_epoch
+        })
+    }
+    /// Only bounds already-displayed pixels at their original deadline.
+    /// Every non-nominal transition permanently breaks this lineage, even
+    /// when a watch subscriber misses the intermediate failure publication.
+    pub fn presentation_continues(&self) -> bool {
+        self.inner.upgrade().is_some_and(|inner| {
+            !inner.shutdown.is_cancelled()
+                && inner.generation_live.load(Ordering::SeqCst)
+                && inner.presentation_epoch.load(Ordering::SeqCst) == self.presentation_epoch
+        })
+    }
+    pub fn renewing(&self) -> bool {
+        self.inner.upgrade().is_some_and(|inner| {
+            !inner.shutdown.is_cancelled()
+                && inner.generation_live.load(Ordering::SeqCst)
+                && Generation(inner.generation.load(Ordering::SeqCst)) != self.generation
+                && inner.presentation_epoch.load(Ordering::SeqCst) == self.presentation_epoch
+        })
+    }
+    pub fn same_presentation(&self, other: &Self) -> bool {
+        Weak::ptr_eq(&self.inner, &other.inner)
+            && self.presentation_epoch == other.presentation_epoch
+            && self.presentation_continues()
+            && other.presentation_continues()
+    }
+    pub fn generation(&self) -> Generation {
+        self.generation
     }
 }
 
@@ -104,7 +165,9 @@ impl SessionCoordinator {
                 store,
                 clock,
                 generation: AtomicU64::new(0),
+                generation_live: AtomicBool::new(true),
                 identity_epoch: AtomicU64::new(0),
+                presentation_epoch: AtomicU64::new(0),
                 epoch: SyncMutex::new(CancellationToken::new()),
                 shutdown: CancellationToken::new(),
                 state: Mutex::new(State {
@@ -149,17 +212,28 @@ impl SessionCoordinator {
         }
         Ok(epoch.child_token())
     }
+    fn break_presentation(&self) {
+        self.inner.presentation_epoch.fetch_add(1, Ordering::SeqCst);
+    }
     fn advance(&self) -> Generation {
+        self.break_presentation();
+        self.advance_renewal()
+    }
+    fn advance_renewal(&self) -> Generation {
         let generation = Generation(self.inner.generation.fetch_add(1, Ordering::SeqCst) + 1);
         let mut epoch = self.inner.epoch.lock().expect("epoch lock");
         epoch.cancel();
         *epoch = self.inner.shutdown.child_token();
+        self.inner.generation_live.store(true, Ordering::SeqCst);
         generation
     }
     fn publish(&self, phase: Phase) {
         self.publish_failure(phase, None);
     }
     fn publish_failure(&self, phase: Phase, failure: Option<SessionFailure>) {
+        if !matches!(phase, Phase::Ready | Phase::Refreshing) || failure.is_some() {
+            self.break_presentation();
+        }
         self.inner.view.send_replace(SessionView {
             generation: self.generation(),
             phase,
@@ -216,6 +290,11 @@ impl SessionCoordinator {
     async fn fail(&self, generation: Generation, failure: SessionFailure) -> SessionFailure {
         let mut state = self.inner.state.lock().await;
         if self.is_current(generation) {
+            // Retire this generation without changing the failure delivered to
+            // waiters of the same refresh attempt. Long-lived generation guards
+            // reject even a queued Ready publication of this numeric generation.
+            self.inner.generation_live.store(false, Ordering::SeqCst);
+            self.inner.epoch.lock().expect("epoch lock").cancel();
             state.record = None;
             state.challenge = None;
             state.failure = Some(failure);
@@ -533,6 +612,14 @@ impl SessionCoordinator {
                     let generation = self.generation();
                     return Ok(AccessLease {
                         generation,
+                        source: SourceProof {
+                            inner: Arc::downgrade(&self.inner),
+                            generation,
+                            presentation_epoch: self
+                                .inner
+                                .presentation_epoch
+                                .load(Ordering::SeqCst),
+                        },
                         cancellation: self.token_for(generation)?,
                         token: AccessToken::parse(&record.tokens.access_token)
                             .map_err(|_| SessionFailure::InvalidResponse)?,
@@ -547,7 +634,17 @@ impl SessionCoordinator {
                         .map_err(|_| SessionFailure::InvalidResponse)?,
                     });
                 }
-                let generation = self.advance();
+                // Only an ordinary deadline renewal preserves display lineage.
+                // Recovery after refusal, ambiguous dispatch or lifetime expiry
+                // is a new admission and must discard old private presentation.
+                let generation = if record.refresh == RefreshState::Available
+                    && !record.session_expired(&now)
+                    && state.failure.is_none()
+                {
+                    self.advance_renewal()
+                } else {
+                    self.advance()
+                };
                 state.phase = Phase::Refreshing;
                 self.publish(Phase::Refreshing);
                 let owner = self.clone();
@@ -854,9 +951,12 @@ impl SessionCoordinator {
     ) -> Result<SessionReaction, SessionFailure> {
         use auth::ApiErrorReason as Reason;
         // Only the renewal boundary can prove the refresh family invalid.
-        let detail = failure
-            .api_failure()
-            .map_err(|_| SessionFailure::InvalidResponse)?;
+        let detail = match failure.api_failure() {
+            Ok(detail) => detail,
+            Err(_) => {
+                return Err(self.fail(generation, SessionFailure::InvalidResponse).await);
+            }
+        };
         let reason = detail.as_ref().map(|detail| detail.reason());
         if reason == Some(Reason::AuthenticationRequired)
             || (reason.is_none()

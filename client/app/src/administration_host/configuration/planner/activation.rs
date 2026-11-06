@@ -602,7 +602,11 @@ impl Editor {
         match Receipt::admit(&self.captured, activation, current) {
             Ok(receipt) => {
                 self.activation.stage = EditStage::Completed(receipt.outcome);
-                self.notice = receipt.outcome.label();
+                self.notice = if receipt.outcome == Outcome::Published {
+                    ""
+                } else {
+                    receipt.outcome.label()
+                };
                 self.activation.receipt = Some(receipt);
             }
             Err(_) => self.activation_uncertain(),
@@ -1006,6 +1010,7 @@ mod tests {
             editor.activation.stage,
             EditStage::Completed(Outcome::Published)
         );
+        assert!(editor.notice.is_empty());
         assert_eq!(
             editor
                 .activation

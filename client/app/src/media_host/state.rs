@@ -54,7 +54,20 @@ pub(super) struct Choice {
     pub kind: ChoiceKind,
     pub id: ChoiceId,
 }
+#[derive(Clone, Copy)]
+pub(super) struct Retention {
+    pub deadline: (i64, i32),
+    pub waiting: bool,
+}
+pub(super) struct ReadContext {
+    pub generation: i32,
+    pub cancel: CancellationToken,
+    pub source: Option<home_client_cache::PresentationSource>,
+}
 pub(super) struct State {
+    pub presentation: Option<home_client_cache::PresentationSource>,
+    pub renewal: Option<home_client_cache::PresentationSource>,
+    pub retention: Option<Retention>,
     pub generation: i32,
     pub entity: Option<EntityName>,
     pub view: Option<ProjectionGeneration>,
@@ -80,6 +93,9 @@ pub(super) struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
+            presentation: None,
+            renewal: None,
+            retention: None,
             generation: 1,
             entity: None,
             view: None,
@@ -105,6 +121,80 @@ impl Default for State {
     }
 }
 impl State {
+    pub fn has_current_presentation(&self, generation: home_client_session::Generation) -> bool {
+        self.presentation
+            .as_ref()
+            .is_some_and(|p| p.source().is_current() && p.source().generation() == generation)
+    }
+    pub fn reconcile_session(&mut self, generation: home_client_session::Generation) {
+        if !self.has_current_presentation(generation) && !self.hold_renewal() {
+            self.clear_private();
+            self.read_pending = self.entity.is_some();
+        }
+    }
+    pub fn hold_renewal(&mut self) -> bool {
+        let candidate = self.renewal.clone().or_else(|| {
+            self.presentation
+                .clone()
+                .filter(|p| self.source == Some(p.source().generation()))
+        });
+        let Some(source) = candidate.filter(|p| p.renewing() && self.data.is_some()) else {
+            return false;
+        };
+        if self.retention.is_none_or(|r| !r.waiting) {
+            let deadline = self
+                .retention
+                .map_or(source.deadline(), |r| r.deadline.min(source.deadline()));
+            self.invalidate(false);
+            self.retention = Some(Retention {
+                deadline,
+                waiting: true,
+            });
+        }
+        self.renewal = Some(source);
+        self.read_pending = false;
+        true
+    }
+    /// A read is tied to the capture that admitted it, across access().await.
+    pub fn admits_read(
+        &self,
+        generation: i32,
+        source: &Option<home_client_cache::PresentationSource>,
+        lease: Generation,
+    ) -> bool {
+        self.generation == generation
+            && generation > 0
+            && self.active
+            && self.foreground
+            && self.interactive
+            && !self.read_cancel.is_cancelled()
+            && !self.retention.is_some_and(|r| r.waiting)
+            && self.presentation == *source
+            && source.as_ref().map_or(cfg!(test), |p| {
+                p.source().is_current() && p.source().generation() == lease
+            })
+    }
+    /// Expire the old display without cancelling work admitted by a fresh capture.
+    pub fn expire_display(&mut self) {
+        let fresh = self
+            .presentation
+            .as_ref()
+            .is_some_and(|p| p.source().is_current())
+            && self.retention.is_some_and(|r| !r.waiting);
+        if !fresh {
+            self.clear_private();
+            self.entity = None;
+            self.view = None;
+            return;
+        }
+        self.renewal = None;
+        self.retention = None;
+        self.data = None;
+        self.picture = Picture::Absent;
+        self.source = None;
+        self.choices.clear();
+        self.status = Status::Loading;
+    }
     pub fn draft(&self, field: Field) -> &Draft {
         match field {
             Field::Volume => &self.volume,
@@ -136,6 +226,9 @@ impl State {
         }
     }
     pub fn clear_private(&mut self) {
+        self.presentation = None;
+        self.renewal = None;
+        self.retention = None;
         self.invalidate(true);
         self.data = None;
         self.picture = Picture::Absent;
@@ -172,7 +265,12 @@ impl State {
     }
 
     pub fn authorized(&self) -> bool {
-        self.active
+        self.retention.is_none()
+            && self
+                .presentation
+                .as_ref()
+                .map_or(cfg!(test), |p| p.source().is_current())
+            && self.active
             && self.foreground
             && self.interactive
             && self.generation > 0
@@ -190,6 +288,8 @@ impl State {
         token == 1 && generation == self.generation && self.editable()
     }
     pub fn apply(&mut self, data: Arc<Data>, source: Generation, picture: Picture) {
+        self.renewal = None;
+        self.retention = None;
         let changed = self
             .data
             .as_ref()

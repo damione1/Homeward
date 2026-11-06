@@ -2076,6 +2076,7 @@ dependencies = [
 name = "homeward-app"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "base64 0.22.1",
  "buffa",
  "buffa-types",
@@ -2112,6 +2113,7 @@ version = "0.1.0"
 dependencies = [
  "i-slint-backend-testing",
  "slint",
+ "slint-kit",
  "slint-kit-pro",
  "slint-kit-pro-build",
 ]
@@ -4875,15 +4877,16 @@ dependencies = [
 
 [[package]]
 name = "slint-kit"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
+ "slint",
  "slint-kit-core",
  "slint-kit-slint",
 ]
 
 [[package]]
 name = "slint-kit-build"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "slint-build",
  "slint-kit-core",
@@ -4892,7 +4895,7 @@ dependencies = [
 
 [[package]]
 name = "slint-kit-core"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -4910,7 +4913,10 @@ name = "slint-kit-pro"
 version = "0.1.0"
 dependencies = [
  "plotters",
+ "slint",
+ "slint-build",
  "slint-kit",
+ "slint-kit-build",
 ]
 
 [[package]]
@@ -4923,9 +4929,10 @@ dependencies = [
 
 [[package]]
 name = "slint-kit-slint"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "slint",
+ "slint-build",
  "slint-kit-core",
  "wasm-bindgen",
  "web-sys",
@@ -6897,7 +6904,3 @@ dependencies = [
  "syn 3.0.9",
  "winnow",
 ]
-
-[[patch.unused]]
-name = "slint-kit-native"
-version = "0.6.0"

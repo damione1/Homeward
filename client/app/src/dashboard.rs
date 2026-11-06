@@ -75,6 +75,7 @@ pub(crate) struct Observation {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Layout {
+    pub source: Option<home_client_session::SourceProof>,
     pub id: DashboardName,
     pub etag: String,
     pub title: String,
@@ -161,6 +162,7 @@ impl TryFrom<&wire::Dashboard> for Layout {
             etag: value.etag.clone(),
             title: value.display_name.clone(),
             profile_zone,
+            source: None,
             capture: None,
             binding_expires: None,
             rooms,
@@ -215,12 +217,20 @@ impl Layout {
         if &layout.id != expected {
             return Err(LayoutFailure::Invalid);
         };
+        layout.source = view.source_proof().cloned();
         layout.capture = Some(view.incarnation().clone());
         layout.binding_expires = Some((expires.seconds, expires.nanos));
         Ok(layout)
     }
+    pub fn publication_current(&self) -> bool {
+        self.source
+            .as_ref()
+            .map_or(cfg!(test), |source| source.is_current())
+    }
     pub fn compatible(&self, view: &CachedView) -> bool {
-        self.capture.as_ref() == Some(view.incarnation())
+        self.publication_current()
+            && self.source.as_ref() == view.source_proof()
+            && self.capture.as_ref() == Some(view.incarnation())
             && self.binding_expires.is_some_and(|expires| {
                 let now = chrono::Utc::now();
                 expires > (now.timestamp(), now.timestamp_subsec_nanos() as i32)

@@ -6,7 +6,7 @@ use home_wire_contract::home::api::v2 as auth;
 use tokio_util::sync::CancellationToken;
 
 #[async_trait]
-pub(crate) trait AuthApi: Send + Sync {
+pub trait AuthApi: Send + Sync {
     async fn revoke(
         &self,
         request: auth::RevokeSessionRequest,

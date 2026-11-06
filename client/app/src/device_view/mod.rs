@@ -3,6 +3,8 @@
 pub(crate) mod capability;
 mod climate;
 mod controls;
+pub(crate) mod detail;
+mod draft_retention;
 mod helper;
 mod light;
 mod native;
@@ -132,6 +134,7 @@ impl<'a> CardInput<'a> {
 }
 #[derive(Clone, PartialEq)]
 struct Context {
+    source: Option<home_client_session::SourceProof>,
     revision: i32,
     layout: Arc<Layout>,
     catalogue: Option<crate::dashboard_catalogue::CatalogueToken>,
@@ -146,8 +149,20 @@ struct Context {
     )>,
 }
 impl Context {
+    fn source_current(&self) -> bool {
+        match &self.source {
+            Some(source) => source.is_current(),
+            // Isolated domain fixtures do not own credentials. Native captures
+            // always carry provenance; production absence is fail-closed.
+            None => cfg!(test),
+        }
+    }
+    fn live(&self) -> bool {
+        self.live && self.source_current()
+    }
     fn same_view(&self, other: &Self) -> bool {
-        self.revision == other.revision
+        self.source == other.source
+            && self.revision == other.revision
             && self.layout == other.layout
             && self.catalogue == other.catalogue
             && self.capture == other.capture
@@ -162,12 +177,15 @@ struct State {
     context: Option<Context>,
     actions: VecDeque<(CapabilityName, CapabilityHandle)>,
     drafts: BTreeMap<(CardGeneration, i32), panel::Draft>,
+    draft_basis: Option<draft_retention::Basis>,
+    retained_drafts: Option<draft_retention::Saved>,
+    draft_retention_serial: u64,
     selections: BTreeMap<CardGeneration, selection::Selection>,
     recipe_bindings: recipes::Bindings,
     native_steps: native::Steps,
 }
 #[derive(Clone)]
-pub(crate) struct DeviceStore(Arc<Mutex<State>>);
+pub(crate) struct DeviceStore(Arc<Mutex<State>>, Option<tokio::runtime::Handle>);
 #[derive(Default)]
 pub(crate) struct DeviceProjection {
     pub rows: Vec<CardRow>,
@@ -186,15 +204,21 @@ pub(crate) struct Prepared {
 }
 impl Default for DeviceStore {
     fn default() -> Self {
-        Self(Arc::new(Mutex::new(State {
-            serial: CardGeneration(0),
-            context: None,
-            actions: VecDeque::new(),
-            drafts: BTreeMap::new(),
-            selections: BTreeMap::new(),
-            recipe_bindings: recipes::Bindings::default(),
-            native_steps: native::Steps::default(),
-        })))
+        Self(
+            Arc::new(Mutex::new(State {
+                serial: CardGeneration(0),
+                context: None,
+                actions: VecDeque::new(),
+                drafts: BTreeMap::new(),
+                draft_basis: None,
+                retained_drafts: None,
+                draft_retention_serial: 0,
+                selections: BTreeMap::new(),
+                recipe_bindings: recipes::Bindings::default(),
+                native_steps: native::Steps::default(),
+            })),
+            tokio::runtime::Handle::try_current().ok(),
+        )
     }
 }
 fn selected<'a>(
@@ -300,6 +324,8 @@ impl DeviceStore {
         state.context = None;
         state.recipe_bindings = recipes::Bindings::default();
         state.drafts.clear();
+        state.draft_basis = None;
+        state.retained_drafts = None;
         state.native_steps = native::Steps::default();
         state.selections.clear();
         state.serial = CardGeneration(state.serial.0.saturating_add(1));
@@ -307,13 +333,40 @@ impl DeviceStore {
             handle.stop_tracking();
         }
     }
+    #[cfg(test)]
     pub fn project(
         &self,
         phase: CachePhase,
         view: Option<&CachedView>,
         request: &ProjectionRequest,
     ) -> DeviceProjection {
+        self.project_owner(phase, view, request, None)
+    }
+    pub fn project_owner(
+        &self,
+        phase: CachePhase,
+        view: Option<&CachedView>,
+        request: &ProjectionRequest,
+        renewal: Option<&home_client_cache::PresentationSource>,
+    ) -> DeviceProjection {
         let mut state = self.0.lock().expect("device store mutex");
+        let saved = if state.context.is_some() {
+            draft_retention::Saved::capture(&state)
+        } else {
+            state.retained_drafts.take()
+        }
+        .filter(|saved| {
+            let now = draft_retention::now();
+            if phase == CachePhase::Renewing {
+                renewal.is_some_and(|renewal| saved.permits_renewal(renewal, request, now))
+            } else {
+                saved.permits(phase, view, request, now)
+            }
+        });
+        let view = view.filter(|view| {
+            view.source_proof()
+                .map_or(cfg!(test), |source| source.is_current())
+        });
         let layout = request
             .dashboard
             .layout()
@@ -338,15 +391,22 @@ impl DeviceStore {
         let mut inputs = selection
             .into_iter()
             .flat_map(|(title, entity)| {
-                entity.capabilities.iter().filter_map(move |capability| {
-                    CardInput::new(
-                        ControlSource::General,
-                        title.clone(),
-                        entity,
-                        capability,
-                        Control::parse(capability),
-                    )
-                })
+                let primary_light = detail::primary_light(entity);
+                entity
+                    .capabilities
+                    .iter()
+                    .filter(move |capability| {
+                        !detail::covered_by_light(entity, capability, primary_light)
+                    })
+                    .filter_map(move |capability| {
+                        CardInput::new(
+                            ControlSource::General,
+                            title.clone(),
+                            entity,
+                            capability,
+                            Control::parse(capability),
+                        )
+                    })
             })
             .take(MAX_CARDS)
             .collect::<Vec<_>>();
@@ -449,6 +509,7 @@ impl DeviceStore {
         }
         let mut context = match (view, layout) {
             (Some(view), Some(_)) => Some(Context {
+                source: view.source_proof().cloned(),
                 revision: request.revision,
                 catalogue: request
                     .catalogue
@@ -497,6 +558,35 @@ impl DeviceStore {
             }
         }
         state.context = context;
+        if state.context.is_some() {
+            if let Some(saved) = saved {
+                let State {
+                    context, drafts, ..
+                } = &mut *state;
+                saved.restore(context.as_ref().expect("fresh context"), drafts);
+            }
+            state.retained_drafts = None;
+            state.draft_basis = draft_retention::Basis::new(phase, view, request);
+        } else {
+            state.draft_basis = None;
+            // Detached text needs its own expiry even if the UI publication is
+            // superseded or never delivered. Without a scheduler, fail closed.
+            state.retained_drafts = saved.filter(|_| self.1.is_some());
+            let needs_timer = state
+                .retained_drafts
+                .as_ref()
+                .is_some_and(|saved| saved.serial == 0);
+            if needs_timer {
+                if let Some(serial) = state.draft_retention_serial.checked_add(1) {
+                    state.draft_retention_serial = serial;
+                    let saved = state.retained_drafts.as_mut().expect("saved draft");
+                    saved.serial = serial;
+                    self.expire_drafts_at(serial, saved.deadline());
+                } else {
+                    state.retained_drafts = None;
+                }
+            }
+        }
         let generations = state
             .context
             .as_ref()
@@ -521,7 +611,7 @@ impl DeviceStore {
             .retain(|(generation, _), pending| {
                 generations.contains(generation) || pending.attached()
             });
-        let ready = state.context.as_ref().is_some_and(|context| context.live);
+        let ready = state.context.as_ref().is_some_and(|context| context.live());
         for (index, row) in cards.iter_mut().enumerate() {
             row.token = index as i32;
             let slot = state
@@ -644,7 +734,7 @@ impl DeviceStore {
     pub fn entity(&self, token: i32, generation: i32, revision: i32) -> Option<EntityName> {
         let state = self.0.lock().expect("device store mutex");
         let context = state.context.as_ref()?;
-        if context.revision != revision {
+        if !context.source_current() || context.revision != revision {
             return None;
         }
         context
@@ -652,6 +742,54 @@ impl DeviceStore {
             .get(usize::try_from(CardToken(token).0).ok()?)
             .filter(|slot| slot.generation == CardGeneration(generation))
             .map(|slot| slot.target.entity().clone())
+    }
+    pub fn native_origin(
+        &self,
+        token: i32,
+        generation: i32,
+        revision: i32,
+    ) -> Option<crate::dashboard_focus::Origin> {
+        let state = self.0.lock().expect("device store mutex");
+        let context = state.context.as_ref()?;
+        if !context.source_current() || context.revision != revision {
+            return None;
+        }
+        let slot = context
+            .slots
+            .get(usize::try_from(token).ok()?)
+            .filter(|slot| slot.generation == CardGeneration(generation))?;
+        if matches!(
+            slot.control,
+            Control::Helper(_) | Control::ReadOnly(_) | Control::Unsupported
+        ) {
+            return None;
+        }
+        let ControlSource::Native(node) = &slot.source else {
+            return None;
+        };
+        Some(crate::dashboard_focus::Origin {
+            node: node.clone(),
+            layout: context.layout.clone(),
+        })
+    }
+    pub fn native_focus(
+        &self,
+        node: &crate::dashboard_layout::NodeId,
+        layout: &crate::dashboard::Layout,
+        revision: i32,
+    ) -> Option<(i32, i32)> {
+        let state = self.0.lock().expect("device store mutex");
+        let context = state.context.as_ref()?;
+        if !context.source_current()
+            || context.revision != revision
+            || context.layout.as_ref() != layout
+        {
+            return None;
+        }
+        context.slots.iter().enumerate().find_map(|(token, slot)| {
+            matches!(&slot.source,ControlSource::Native(id) if id == node)
+                .then_some((token as i32, slot.generation.0))
+        })
     }
     pub fn edit(
         &self,
@@ -689,6 +827,68 @@ impl DeviceStore {
             .ok_or(Refusal::Stale)?;
         editor.edit(draft, intent, &control)
     }
+    /// A panel/tile step is one complete action on the admitted single setpoint.
+    pub fn step(
+        &self,
+        token: i32,
+        generation: i32,
+        revision: i32,
+        direction: crate::StepDirection,
+    ) -> Result<Option<DeviceIntent>, Refusal> {
+        let mut state = self.0.lock().expect("device store mutex");
+        let slot = active_slot(&state, token, generation, revision)?;
+        let control = slot.control.clone();
+        let editors = panel::editors(&control);
+        let mut setpoints = editors
+            .iter()
+            .enumerate()
+            .filter(|(_, editor)| matches!(editor, panel::Editor::Setpoint(_)));
+        let (field, editor) = setpoints.next().ok_or(Refusal::Unsupported)?;
+        if setpoints.next().is_some() {
+            return Err(Refusal::Unsupported);
+        }
+        let step = crate::ProValueIntent {
+            event: crate::ProValueEvent::Step,
+            direction,
+            thumb: crate::RangeThumb::Lower,
+            ..Default::default()
+        };
+        if native::is_thermostat(
+            state.context.as_ref().expect("active context"),
+            slot,
+            *editor,
+        ) {
+            return native::edit_step(
+                &mut state,
+                generation,
+                field as i32,
+                *editor,
+                step,
+                &control,
+            );
+        }
+        let draft = state
+            .drafts
+            .get_mut(&(CardGeneration(generation), field as i32))
+            .ok_or(Refusal::Stale)?;
+        editor.edit(
+            draft,
+            crate::ProValueIntent {
+                event: crate::ProValueEvent::Start,
+                ..Default::default()
+            },
+            &control,
+        )?;
+        editor.edit(draft, step, &control)?;
+        editor.edit(
+            draft,
+            crate::ProValueIntent {
+                event: crate::ProValueEvent::Commit,
+                ..Default::default()
+            },
+            &control,
+        )
+    }
     pub fn abandon_native_step(&self, token: i32, generation: i32) {
         let mut state = self.0.lock().expect("device store mutex");
         native::abandon_step(&mut state, token, generation);
@@ -717,7 +917,7 @@ impl DeviceStore {
             let Some(context) = state.context.as_ref() else {
                 return;
             };
-            if context.revision != revision {
+            if !context.source_current() || context.revision != revision {
                 return;
             }
             let Some(slot) = usize::try_from(token)
@@ -768,7 +968,7 @@ impl DeviceStore {
         let context = state
             .context
             .as_ref()
-            .filter(|context| context.live && context.revision == revision)
+            .filter(|context| context.live() && context.revision == revision)
             .ok_or(Refusal::Stale)?;
         let slot = usize::try_from(token)
             .ok()
@@ -811,7 +1011,7 @@ impl DeviceStore {
                 .as_ref()
                 .is_none_or(|lease| lease.admitted(&state))
                 && state.context.as_ref().is_some_and(|current| {
-                    current.live
+                    current.live()
                         && current.revision == revision
                         && current.slots.get(token as usize).is_some_and(|slot| {
                             slot.generation == expected.generation && slot.same_admission(&expected)
@@ -836,7 +1036,7 @@ fn active_slot(
     let context = state
         .context
         .as_ref()
-        .filter(|context| context.live && context.revision == revision)
+        .filter(|context| context.live() && context.revision == revision)
         .ok_or(Refusal::Stale)?;
     let slot = usize::try_from(token)
         .ok()
@@ -940,6 +1140,26 @@ fn card(
         Control::Fan(fan) => {
             row.kind = ProDeviceKind::Fan;
             row.can_power = fan.can_power();
+            if let Some(T::FanControl(value)) = capability.r#trait.as_ref()
+                && observation::evidence(capability).is_some()
+            {
+                match value.observation.speed.and_then(|speed| speed.as_known()) {
+                    Some(wire::FanSpeed::Off) => {
+                        row.power_known = true;
+                        row.power_on = false;
+                    }
+                    Some(
+                        wire::FanSpeed::Low
+                        | wire::FanSpeed::Medium
+                        | wire::FanSpeed::MediumHigh
+                        | wire::FanSpeed::High,
+                    ) => {
+                        row.power_known = true;
+                        row.power_on = true;
+                    }
+                    Some(wire::FanSpeed::Unspecified) | None => {}
+                }
+            }
         }
         Control::Helper(helper) => {
             row.kind = ProDeviceKind::Helper;
@@ -957,6 +1177,7 @@ fn card(
             row.quality = format!("{} · Unsupported capability", row.quality).into()
         }
     }
+    row.detail = detail::Metadata::new(control, capability);
     row.choices = panel::choice_rows(control);
     row.cover_operations = panel::cover_rows(control);
     row.lock_operations = panel::lock_rows(control);
@@ -972,10 +1193,7 @@ fn brightness_bounds(row: &mut CardRow, bounds: Option<number::Bounds>) {
         row.can_brightness = bounds.minimum() < bounds.maximum();
         row.brightness_minimum = bounds.minimum() as f32;
         row.brightness_maximum = bounds.maximum() as f32;
-        row.brightness_step = bounds
-            .step()
-            .unwrap_or(1_f64.min(bounds.maximum() - bounds.minimum()))
-            as f32;
+        row.brightness_step = bounds.step().unwrap_or(0.) as f32;
     }
 }
 

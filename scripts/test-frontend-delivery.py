@@ -45,6 +45,11 @@ class DeliveryBoundaries(unittest.TestCase):
                 delivery.restore_sources(relocated)
                 delivery.verify_sources(relocated)
                 self.assertEqual((relocated/'sources/homeward/code.txt').read_text(),'Validated source\n')
+                tools=relocated/'sources/homeward/.tools/frontend-kits'
+                self.assertEqual((tools/'slint-kit').resolve(),(relocated/'sources/slint-kit').resolve())
+                self.assertEqual((tools/'free').resolve(),(tools/'slint-kit').resolve())
+                self.assertEqual((tools/'pro').resolve(),(relocated/'sources/slint-kit-pro').resolve())
+                self.assertFalse((relocated/'sources/homeward/.cargo/config.toml').exists())
                 for source in delivery.Source:
                     exported=stage/'sources'/source.value
                     self.assertFalse((exported/'signing.keystore').exists())

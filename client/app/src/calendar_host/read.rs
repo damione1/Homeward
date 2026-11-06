@@ -390,7 +390,7 @@ impl Calendars {
                         state.draft = None;
                         state.snapshot = None;
                         state.reset_reads();
-                        state.notice = "Change saved; reading the server again.".into();
+                        state.notice.clear();
                         None
                     }
                     CalendarWriteOutcome::Conflict => {

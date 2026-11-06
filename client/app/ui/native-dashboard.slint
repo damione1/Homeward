@@ -1,6 +1,13 @@
-import { KitTheme } from "@kit/kit.slint";
-import { ProLayoutBoard, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent } from "@kit-pro/kit-pro.slint";
+import { KitTheme, StepDirection } from "@kit";
+import { ProLayoutBoard, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent } from "@kit-pro";
 export component HomewardDashboard inherits ProLayoutBoard {
+    callback step(int,int,StepDirection);
+    tile-open-requested(t,g) => { root.details(t,g); }
+    tile-toggle-requested(t,g,intent) => { root.power(t,g,intent); }
+    tile-level-requested(t,g,value) => { root.brightness(t,g,value); }
+    tile-level-chosen(t,g,choice) => { root.choose(t,g,choice); }
+    tile-action-requested(t,g,choice) => { root.choose(t,g,choice); }
+    tile-step-requested(t,g,direction) => { root.step(t,g,direction); }
     responsive-layout: true;
     current-temperature-label: "Current temperature"; setpoint-label: "Setpoint";
     clock-size: 44px; temperature-size: 28px; section-size: 15px;

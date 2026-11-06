@@ -112,6 +112,10 @@ pub async fn read_snapshot(
         &lease.cancellation,
     )
     .await
+    .map(|mut view| {
+        view.source = Some(lease.source_proof());
+        view
+    })
 }
 pub(crate) async fn read_snapshot_owned(
     transport: &EntityViewTransport,
@@ -135,6 +139,10 @@ pub(crate) async fn read_snapshot_owned(
         &lease.cancellation,
     )
     .await
+    .map(|mut view| {
+        view.source = Some(lease.source_proof());
+        view
+    })
 }
 fn check_cancel(
     cancel: &CancellationToken,

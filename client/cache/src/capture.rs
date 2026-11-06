@@ -193,6 +193,7 @@ impl SnapshotCapture {
         Ok(CachedView {
             incarnation: crate::CaptureIncarnation(Arc::new(())),
             _cleanup: None,
+            source: None,
             entities: self.entities,
             name: self.name,
             resume: self.resume,

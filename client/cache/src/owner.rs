@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use home_client_session::{Phase, SessionCoordinator, SessionFailure};
+use home_client_session::{AccessLease, Phase, SessionCoordinator, SessionFailure};
 use home_client_transport::{EntityViewTransport, FailureKind, HomeTransport, ReconnectPolicy};
 use tokio::{
     sync::{mpsc, watch},
@@ -27,6 +27,8 @@ use crate::{
 pub enum CachePhase {
     Idle,
     Loading,
+    /// Explicit local credential renewal; no old capture is published.
+    Renewing,
     Live,
     Offline,
     Resyncing,
@@ -34,6 +36,45 @@ pub enum CachePhase {
     Blocked,
     Invalid,
     Closed,
+}
+
+/// Presentation provenance stripped of capture, checkpoint, cleanup bearer
+/// and owner. It can only bound already displayed pixels, never a fresh read.
+#[derive(Clone, PartialEq)]
+pub struct PresentationSource {
+    source: home_client_session::SourceProof,
+    incarnation: crate::CaptureIncarnation,
+    expires: buffa_types::google::protobuf::Timestamp,
+}
+impl PresentationSource {
+    pub fn from_view(view: &CachedView) -> Option<Self> {
+        Some(Self {
+            source: view.source_proof()?.clone(),
+            incarnation: view.incarnation().clone(),
+            expires: view.expires().clone(),
+        })
+    }
+    pub fn source(&self) -> &home_client_session::SourceProof {
+        &self.source
+    }
+    pub fn incarnation(&self) -> &crate::CaptureIncarnation {
+        &self.incarnation
+    }
+    pub fn bounded(&self, deadline: (i64, i32)) -> Self {
+        let mut bounded = self.clone();
+        if deadline < self.deadline() {
+            bounded.expires.seconds = deadline.0;
+            bounded.expires.nanos = deadline.1;
+        }
+        bounded
+    }
+    pub fn deadline(&self) -> (i64, i32) {
+        (self.expires.seconds, self.expires.nanos)
+    }
+    pub fn renewing(&self) -> bool {
+        self.source.renewing()
+            && crate::wall_now().is_ok_and(|now| crate::time_key(&now) < self.deadline())
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,7 +140,9 @@ struct Desired {
     cancel: CancellationToken,
 }
 
-type Project<P> = dyn Fn(CachePhase, Option<&CachedView>, Viewport) -> P + Send + Sync;
+type Project<P> = dyn Fn(CachePhase, Option<&CachedView>, Viewport, Option<&PresentationSource>) -> P
+    + Send
+    + Sync;
 type Notify<P> = dyn Fn(DeliveryTicket<P>) + Send + Sync;
 type RunFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 type Runner<P> = dyn Fn(RunContext<P>) -> RunFuture + Send + Sync;
@@ -317,8 +360,17 @@ impl<P: Send + 'static> CacheHandle<P> {
 
 impl<P: Send + 'static> Inner<P> {
     fn emit(&self, generation: ProjectionGeneration, phase: CachePhase, view: Option<&CachedView>) {
+        self.emit_presentation(generation, phase, view, None);
+    }
+    fn emit_presentation(
+        &self,
+        generation: ProjectionGeneration,
+        phase: CachePhase,
+        view: Option<&CachedView>,
+        renewal: Option<&PresentationSource>,
+    ) {
         let viewport = *self.viewport.borrow();
-        let value = (self.project)(phase, view, viewport);
+        let value = (self.project)(phase, view, viewport, renewal);
         match self.mailbox.publish(generation, value) {
             Publication::Schedule(ticket) => (self.notify)(ticket),
             Publication::Coalesced | Publication::Rejected(_) => {}
@@ -335,31 +387,116 @@ pub struct CacheOwner<P: Send + 'static> {
     cleanup: Option<CleanupOwner>,
 }
 
+/// Read I/O boundary. The owner, credential admission, cancellation and
+/// publication loop are shared by native transports and synthetic tests.
+#[async_trait::async_trait]
+pub trait FeedSource: Send + Sync {
+    async fn capture(
+        &self,
+        lease: &AccessLease,
+        cancel: &CancellationToken,
+    ) -> Result<CachedView, SnapshotFailure>;
+    async fn watch(
+        &self,
+        lease: &AccessLease,
+        view: CachedView,
+        cancel: &CancellationToken,
+        applied: &mut (dyn for<'view> FnMut(&'view CachedView) + Send),
+    ) -> WatchExit;
+}
+struct NativeSource {
+    transport: EntityViewTransport,
+    homes: HomeTransport,
+    filter: Filter,
+    releases: CleanupHandle,
+}
+#[async_trait::async_trait]
+impl FeedSource for NativeSource {
+    async fn capture(
+        &self,
+        lease: &AccessLease,
+        cancel: &CancellationToken,
+    ) -> Result<CachedView, SnapshotFailure> {
+        read_snapshot_owned(
+            &self.transport,
+            &self.homes,
+            lease,
+            self.filter.clone(),
+            256,
+            cancel,
+            &self.releases,
+        )
+        .await
+    }
+    async fn watch(
+        &self,
+        lease: &AccessLease,
+        view: CachedView,
+        cancel: &CancellationToken,
+        applied: &mut (dyn for<'view> FnMut(&'view CachedView) + Send),
+    ) -> WatchExit {
+        watch_once(
+            &self.transport,
+            lease,
+            view,
+            Duration::from_secs(30),
+            cancel,
+            applied,
+        )
+        .await
+    }
+}
+
 impl<P: Send + 'static> CacheOwner<P> {
     pub fn start(
         session: SessionCoordinator,
         transport: EntityViewTransport,
         homes: HomeTransport,
         filter: Filter,
-        project: impl Fn(CachePhase, Option<&CachedView>, Viewport) -> P + Send + Sync + 'static,
+        project: impl Fn(CachePhase, Option<&CachedView>, Viewport, Option<&PresentationSource>) -> P
+        + Send
+        + Sync
+        + 'static,
         notify: impl Fn(DeliveryTicket<P>) + Send + Sync + 'static,
     ) -> (Self, mpsc::Receiver<CacheEvent>) {
         let (cleanup, releases) = CleanupOwner::start(session.clone(), transport.clone());
-        let runner = Arc::new(move |context: RunContext<P>| -> RunFuture {
-            let (session, transport, homes, filter, releases) = (
-                session.clone(),
-                transport.clone(),
-                homes.clone(),
-                filter.clone(),
-                releases.clone(),
-            );
-            Box::pin(native_run(
-                context, session, transport, homes, filter, releases,
-            ))
+        let source = Arc::new(NativeSource {
+            transport,
+            homes,
+            filter,
+            releases,
         });
-        let (mut owner, events) = Self::build(Arc::new(project), Arc::new(notify), runner);
+        let (mut owner, events) = Self::with_source(session, source, project, notify);
         owner.cleanup = Some(cleanup);
         (owner, events)
+    }
+
+    fn with_source(
+        session: SessionCoordinator,
+        source: Arc<dyn FeedSource>,
+        project: impl Fn(CachePhase, Option<&CachedView>, Viewport, Option<&PresentationSource>) -> P
+        + Send
+        + Sync
+        + 'static,
+        notify: impl Fn(DeliveryTicket<P>) + Send + Sync + 'static,
+    ) -> (Self, mpsc::Receiver<CacheEvent>) {
+        let runner = Arc::new(move |context: RunContext<P>| -> RunFuture {
+            Box::pin(native_run(context, session.clone(), source.clone()))
+        });
+        Self::build(Arc::new(project), Arc::new(notify), runner)
+    }
+
+    #[cfg(feature = "test-support")]
+    pub fn start_test_source(
+        session: SessionCoordinator,
+        source: Arc<dyn FeedSource>,
+        project: impl Fn(CachePhase, Option<&CachedView>, Viewport, Option<&PresentationSource>) -> P
+        + Send
+        + Sync
+        + 'static,
+        notify: impl Fn(DeliveryTicket<P>) + Send + Sync + 'static,
+    ) -> (Self, mpsc::Receiver<CacheEvent>) {
+        Self::with_source(session, source, project, notify)
     }
 
     fn build(
@@ -476,6 +613,7 @@ async fn owner_loop<P: Send + 'static>(
 struct DisplayState {
     phase: CachePhase,
     view: Option<CachedView>,
+    renewal: Option<PresentationSource>,
 }
 struct Emitter<P> {
     inner: Arc<Inner<P>>,
@@ -487,6 +625,7 @@ impl<P: Send + 'static> Emitter<P> {
         *self.state.lock().expect("cache view mutex poisoned") = DisplayState {
             phase,
             view: view.cloned(),
+            renewal: None,
         };
         self.inner.emit(self.generation, phase, view);
     }
@@ -499,12 +638,66 @@ impl<P: Send + 'static> Emitter<P> {
             .clone();
         self.set(CachePhase::Offline, view.as_ref());
     }
-    fn reproject(&self) {
-        let (phase, view) = {
+    fn renew_or_clear(&self) {
+        let renewal = {
             let state = self.state.lock().expect("cache view mutex poisoned");
-            (state.phase, state.view.clone())
+            state
+                .renewal
+                .clone()
+                .or_else(|| state.view.as_ref().and_then(PresentationSource::from_view))
+        }
+        .filter(PresentationSource::renewing);
+        if let Some(renewal) = renewal {
+            // Drop the real capture and its cleanup guard before publication.
+            *self.state.lock().expect("cache view mutex poisoned") = DisplayState {
+                phase: CachePhase::Renewing,
+                view: None,
+                renewal: Some(renewal.clone()),
+            };
+            self.inner.emit_presentation(
+                self.generation,
+                CachePhase::Renewing,
+                None,
+                Some(&renewal),
+            );
+        } else {
+            self.set(CachePhase::Loading, None);
+        }
+    }
+    fn session_changed(&self) {
+        let stale = {
+            let state = self.state.lock().expect("cache view mutex poisoned");
+            state.renewal.is_some()
+                || state
+                    .view
+                    .as_ref()
+                    .and_then(CachedView::source_proof)
+                    .is_some_and(|source| !source.is_current())
         };
-        self.inner.emit(self.generation, phase, view.as_ref());
+        if stale {
+            self.renew_or_clear();
+        }
+    }
+    fn renewal_delay(&self) -> Option<Duration> {
+        let state = self.state.lock().expect("cache view mutex poisoned");
+        let renewal = state.renewal.as_ref()?;
+        let now = crate::wall_now().ok()?;
+        let nanos = i128::from(renewal.expires.seconds - now.seconds) * 1_000_000_000
+            + i128::from(renewal.expires.nanos - now.nanos);
+        Some(Duration::from_nanos(
+            u64::try_from(nanos.max(0)).unwrap_or(u64::MAX),
+        ))
+    }
+    fn reproject(&self) {
+        let (phase, view, renewal) = {
+            let state = self.state.lock().expect("cache view mutex poisoned");
+            (state.phase, state.view.clone(), state.renewal.clone())
+        };
+        if renewal.is_some() {
+            self.renew_or_clear();
+        } else {
+            self.inner.emit(self.generation, phase, view.as_ref());
+        }
     }
     async fn event(&self, event: CacheEvent, cancel: &CancellationToken) {
         tokio::select! { biased; () = cancel.cancelled() => {}, _ = self.inner.events.send(event) => {} }
@@ -514,10 +707,7 @@ impl<P: Send + 'static> Emitter<P> {
 async fn native_run<P: Send + 'static>(
     context: RunContext<P>,
     session: SessionCoordinator,
-    transport: EntityViewTransport,
-    homes: HomeTransport,
-    filter: Filter,
-    releases: CleanupHandle,
+    source: Arc<dyn FeedSource>,
 ) {
     let emitter = Emitter {
         inner: context.inner.clone(),
@@ -525,22 +715,31 @@ async fn native_run<P: Send + 'static>(
         state: Mutex::new(DisplayState {
             phase: CachePhase::Loading,
             view: None,
+            renewal: None,
         }),
     };
     let cancel = &context.desired.cancel;
     let mut viewport = context.inner.viewport.subscribe();
+    let mut session_changes = session.subscribe();
     // Pin both futures across viewport changes. A scroll never drops/restarts an
     // in-flight decoder or a shared credential-refresh waiter.
-    let feed = feed(
-        &emitter, &session, &transport, &homes, filter, cancel, &releases,
-    );
+    let feed = feed(&emitter, &session, source.as_ref(), cancel);
     let maintenance = maintain_access(&emitter, &session, cancel);
     tokio::pin!(feed, maintenance);
     let mut ended = false;
     loop {
+        let delay = emitter.renewal_delay();
+        let expiry = async move {
+            match delay {
+                Some(delay) => tokio::time::sleep(delay).await,
+                None => std::future::pending::<()>().await,
+            }
+        };
         tokio::select! {
             biased;
             () = cancel.cancelled() => break,
+            changed = session_changes.changed() => { if changed.is_err() { break; } emitter.session_changed(); },
+            () = expiry => emitter.renew_or_clear(),
             changed = viewport.changed() => { if changed.is_err() { break; } emitter.reproject(); },
             () = &mut feed, if !ended => { ended = true; },
             () = &mut maintenance => break,
@@ -684,11 +883,8 @@ fn transient_session_failure(failure: SessionFailure) -> bool {
 async fn feed<P: Send + 'static>(
     emitter: &Emitter<P>,
     session: &SessionCoordinator,
-    transport: &EntityViewTransport,
-    homes: &HomeTransport,
-    filter: Filter,
+    source: &dyn FeedSource,
     cancel: &CancellationToken,
-    releases: &CleanupHandle,
 ) {
     let policy = ReconnectPolicy::new(4, Duration::from_millis(250), Duration::from_secs(4))
         .expect("fixed read retry policy");
@@ -732,23 +928,14 @@ async fn feed<P: Send + 'static>(
         };
         if access_generation != Some(lease.generation) {
             access_generation = Some(lease.generation);
-            emitter.set(CachePhase::Loading, None);
+            emitter.renew_or_clear();
         }
-        let view = match read_snapshot_owned(
-            transport,
-            homes,
-            &lease,
-            filter.clone(),
-            256,
-            cancel,
-            releases,
-        )
-        .await
-        {
-            Ok(view) => {
+        let view = match source.capture(&lease, cancel).await {
+            Ok(mut view) => {
                 if !session.is_current(lease.generation) || cancel.is_cancelled() {
                     continue;
                 }
+                view.source = Some(lease.source_proof());
                 emitter.set(CachePhase::Live, Some(&view));
                 network = NetworkRetry::default();
                 view
@@ -795,23 +982,17 @@ async fn feed<P: Send + 'static>(
             }
         };
         let watch_started = tokio::time::Instant::now();
-        let exit = watch_once(
-            transport,
-            &lease,
-            view,
-            Duration::from_secs(30),
-            cancel,
-            |view| {
+        let exit = source
+            .watch(&lease, view, cancel, &mut |view| {
                 progress.applied();
                 emitter.set(CachePhase::Live, Some(view));
-            },
-        )
-        .await;
+            })
+            .await;
         if cancel.is_cancelled() {
             return;
         }
         if !session.is_current(lease.generation) {
-            emitter.set(CachePhase::Loading, None);
+            emitter.renew_or_clear();
             continue;
         }
         progress.watch_ended(watch_started.elapsed(), &exit);
@@ -967,7 +1148,7 @@ mod tests {
             });
             let queue = queued.clone();
             let (owner, events) = CacheOwner::build(
-                Arc::new(|phase, _, _| phase),
+                Arc::new(|phase, _, _, _| phase),
                 Arc::new(move |ticket| queue.lock().unwrap().push(ticket)),
                 runner,
             );
@@ -1019,6 +1200,7 @@ mod tests {
             state: Mutex::new(DisplayState {
                 phase: CachePhase::Loading,
                 view: None,
+                renewal: None,
             }),
         }
     }
@@ -1342,6 +1524,7 @@ mod tests {
             state: Mutex::new(DisplayState {
                 phase: CachePhase::Idle,
                 view: None,
+                renewal: None,
             }),
         };
         let expected: Vec<_> = (0usize..32)
@@ -1379,7 +1562,7 @@ mod tests {
     #[tokio::test]
     async fn a_panicking_worker_fails_closed_without_leaving_control_waiters_hanging() {
         let (owner, _events) = CacheOwner::<CachePhase>::build(
-            Arc::new(|phase, _, _| phase),
+            Arc::new(|phase, _, _, _| phase),
             Arc::new(drop),
             Arc::new(|_| Box::pin(async { panic!("fixture worker failure") })),
         );

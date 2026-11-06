@@ -187,21 +187,12 @@ def configure(args):
             raise SystemExit('missing kit manifest: ' + str(path))
     links = REPO / '.tools/frontend-kits'
     links.mkdir(exist_ok=True)
-    for name, target in [('free', free), ('pro', pro)]:
+    for name, target in [('free', free), ('slint-kit', free), ('pro', pro)]:
         link = links / name
         if not link.exists():
             link.symlink_to(target, target_is_directory=True)
         elif not link.is_symlink() or link.resolve() != target:
             raise SystemExit('preserve existing kit link: ' + str(link))
-    patch = '[patch.crates-io]\n'
-    for name in ['kit', 'kit-core', 'kit-slint', 'kit-build', 'kit-native']:
-        patch += f'slint-{name} = {{ path = {json.dumps(str(free / "crates" / name))} }}\n'
-    for repo in [REPO, pro]:
-        config = repo / '.cargo/config.toml'
-        if config.exists():
-            raise SystemExit('preserve existing Cargo config: ' + str(config))
-        config.parent.mkdir(exist_ok=True)
-        config.write_text(patch)
     config = {'free_kit': str(free), 'pro_kit': str(pro), 'backend_cache': str(cache),
               'frontend_cache': str(frontend), 'android_sdk': '/opt/homebrew/share/android-commandlinetools',
               'baseline': str(frontend / 'storage-baseline.json'),
@@ -337,7 +328,8 @@ def retire_evaluations(config, selection):
         case EvaluationPackages.FREE:
             repository, packages = Path(config['free_kit']), ['kit-tests', 'kit-showcase']
         case EvaluationPackages.PRO:
-            repository, packages = Path(config['pro_kit']), ['slint-kit-pro-tests', 'slint-kit-pro-examples']
+            repository, packages = Path(config['pro_kit']), [
+                'slint-kit-pro-tests', 'slint-kit-pro-examples', 'slint-kit-pro-consumer-tests']
     proof = Path(config['frontend_cache']) / 'rounds' / str(time.time_ns())
     proof.mkdir(parents=True)
     with leases(config):
@@ -352,23 +344,51 @@ def retire_evaluations(config, selection):
             raise SystemExit('a builder is active; refusing retirement')
         env = environment(config)
         target = Path(env['CARGO_TARGET_DIR'])
-        opened = subprocess.run(['lsof', '-t', '+D', str(target / 'debug/deps')],
-                                capture_output=True, timeout=45)
-        if opened.returncode != 1 or opened.stdout:
-            raise SystemExit('target quiescence is unproven; refusing retirement')
+        # Cargo's default clean only covers the host target. The app also
+        # produces Android evaluations, so retire that explicit architecture
+        # under the same baseline and quiescence checks.
+        architectures = ['aarch64-linux-android'] if selection is EvaluationPackages.APP else []
+        roots = [target, *(target / architecture for architecture in architectures)]
+        for directory in [root / profile / 'deps' for root in roots for profile in ['debug', 'release']]:
+            if not directory.is_dir():
+                continue
+            opened = subprocess.run(['lsof', '-t', '+D', str(directory)],
+                                    capture_output=True, timeout=45)
+            if opened.returncode != 1 or opened.stdout:
+                raise SystemExit('target quiescence is unproven; refusing retirement: ' + str(directory))
         fingerprint = sources(config, proof)
+        # Record the named evaluation artifacts before Cargo retires them.
+        # Allocated bytes are deduplicated by inode, not an estimate of free
+        # space recovered: other hardlinks can keep those blocks alive.
+        artifacts = {
+            path: metadata
+            for path, metadata in inventory([
+                root / profile for root in roots for profile in ['debug', 'release']
+            ]).items()
+            if any(marker in path for marker in markers)
+        }
+        write(proof / 'evaluation-artifacts-before.json', {
+            'packages': packages, 'artifacts': artifacts,
+            'allocated_bytes': sum(metadata[4] for metadata in artifacts.values()),
+        })
         command = ['cargo', 'clean']
         for package in packages:
             command.extend(['-p', package])
-        write(proof / 'command.json', {'argv': command, 'cwd': str(repository),
+        commands = [command, *[command + ['--target', architecture] for architecture in architectures]]
+        write(proof / 'command.json', {'argv': command, 'commands': commands, 'cwd': str(repository),
               'source_manifest': fingerprint, 'evaluation_packages': selection.value,
               'recovery_only': True, 'baseline_had_no_matching_artifacts': True})
         started = time.monotonic()
+        results = []
         with (proof / 'output.log').open('wb') as log:
-            result = subprocess.run(command, cwd=repository, env=env,
-                                    stdout=log, stderr=subprocess.STDOUT)
+            for arguments in commands:
+                result = subprocess.run(arguments, cwd=repository, env=env,
+                                        stdout=log, stderr=subprocess.STDOUT)
+                results.append({'argv': arguments, 'returncode': result.returncode})
+                if result.returncode != 0:
+                    break
         after = measure(config)
-        write(proof / 'result.json', {'returncode': result.returncode,
+        write(proof / 'result.json', {'returncode': result.returncode, 'commands': results,
               'elapsed_seconds': time.monotonic() - started, 'after': after,
               'only_owned_evaluation_packages': True, 'all_four_leases_held': True})
         print(proof, flush=True)

@@ -331,7 +331,7 @@ async fn run(fixture: Fixture) -> Result<()> {
         connection.entity_views(),
         connection.home(),
         Filter::all(),
-        |phase, view, _| Snapshot {
+        |phase, view, _, _| Snapshot {
             phase,
             view: view.cloned(),
         },

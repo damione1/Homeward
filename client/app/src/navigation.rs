@@ -692,6 +692,7 @@ pub(crate) fn bind_devices(
     #[cfg(target_os = "android")]
     bind_native_back(window);
     let devices: crate::dashboard_focus::Devices = Rc::new(resolve_devices);
+    let cleared_devices = devices.clone();
     let focus = crate::dashboard_focus::Host::bind(window, request.clone(), devices.clone());
     let shared = Rc::new(RefCell::new(State::new(request)));
     let refresh: Rc<dyn Fn()> = Rc::new(refresh);
@@ -1075,15 +1076,18 @@ pub(crate) fn bind_devices(
     let (state, weak, run) = (shared.clone(), window.as_weak(), refresh.clone());
     window.on_device_details(move |token, generation| {
         if let Some(window) = weak.upgrade()
-            && let Some(id) = devices()
-                .and_then(|store| store.entity(token, generation, window.get_projection_version()))
+            && let Some(store) = devices()
+            && let Some(id) = store.entity(token, generation, window.get_projection_version())
         {
             if state.borrow().route == Route::Detail(id.clone()) {
                 return;
             }
-            state
-                .borrow_mut()
-                .open(&window, Route::Detail(id), Target::Body(BodyFocus::Back));
+            state.borrow_mut().open_from(
+                &window,
+                Route::Detail(id),
+                Target::Body(BodyFocus::Back),
+                store.native_origin(token, generation, window.get_projection_version()),
+            );
             changed(&window, &state, &*run, false);
             take_focus(&window, &state, Target::Body(BodyFocus::Back));
         }
@@ -1097,6 +1101,8 @@ pub(crate) fn bind_devices(
     let restore = focus.clone();
     window.on_go_back(move || {
         if let Some(window) = weak.upgrade() {
+            #[cfg(all(debug_assertions, not(test)))]
+            eprintln!("homeward-nav: cause=go_back detail={}", window.get_page() == ViewPage::Detail);
             let (opener, saved_view) = {
                 let mut state = state.borrow_mut();
                 let previous_detail = match &state.route {
@@ -1282,6 +1288,8 @@ pub(crate) fn bind_devices(
                 && matches!(&state.route, Route::Native(destination) if destination.presentation == Presentation::Popup)
         };
         if valid {
+            #[cfg(all(debug_assertions, not(test)))]
+            eprintln!("homeward-nav: cause=native_popup_dismiss");
             if matches!(reason, crate::CloseReason::Escape | crate::CloseReason::SystemBack) {
                 window.invoke_go_back();
                 return;
@@ -1342,9 +1350,21 @@ pub(crate) fn bind_devices(
     );
     window.on_dashboard_changed(move || {
         if let Some(window) = layout_window.upgrade() {
-            {
+            #[cfg(all(debug_assertions, not(test)))]
+            eprintln!(
+                "homeward-nav: cause=dashboard_changed detail={}",
+                window.get_page() == ViewPage::Detail
+            );
+            let section = {
                 let mut state = layout_state.borrow_mut();
-                state.route = Route::Home;
+                // Local preferences do not depend on the private dashboard.
+                // Keep only this page; all private navigation is still retired.
+                let section = if matches!(state.route, Route::Settings) {
+                    Section::Settings
+                } else {
+                    Section::Home
+                };
+                state.route = section.route();
                 state.history.clear();
                 state.current = None;
                 state.close(DismissReason::Programmatic);
@@ -1354,22 +1374,31 @@ pub(crate) fn bind_devices(
                     .expect("presentation request mutex poisoned")
                     .query
                     .clear();
-            }
+                section
+            };
             window.set_search_query("".into());
             window.set_home_focus(FocusRequest::default());
-            select_section(&layout_selection, Section::Home);
+            select_section(&layout_selection, section);
             changed(&window, &layout_state, &*layout_refresh, true);
         }
     });
     let selection_for_native = selection.clone();
     let (state, weak) = (shared.clone(), window.as_weak());
     window.on_private_view_cleared(move |forget_dashboard| {
+        if let Some(store) = cleared_devices() {
+            store.discard_retained_drafts();
+        }
         if let Some(window) = weak.upgrade() {
-            {
+            let section = {
                 let mut state = state.borrow_mut();
+                let section = if !forget_dashboard && matches!(state.route, Route::Settings) {
+                    Section::Settings
+                } else {
+                    Section::Home
+                };
                 state.history.clear();
                 state.current = None;
-                state.route = Route::Home;
+                state.route = section.route();
                 state.close(DismissReason::Programmatic);
                 let revision = state
                     .request
@@ -1398,9 +1427,10 @@ pub(crate) fn bind_devices(
                     catalogue,
                     ..Default::default()
                 };
-            }
+                section
+            };
             window.set_search_query("".into());
-            select_section(&selection, Section::Home);
+            select_section(&selection, section);
             render(&window, &state.borrow());
         }
     });
@@ -1436,6 +1466,224 @@ mod back_tests {
     use i_slint_backend_testing::ElementQuery;
     use slint::platform::PointerEventButton;
     use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn local_preferences_survive_session_recapture_without_retaining_private_authority() {
+        use crate::dashboard_catalogue::Snapshot;
+        use crate::dashboard_selection::{Catalogue, Choice, Choices};
+        use crate::device_view::{DeviceIntent, DeviceStore, Power, fixture};
+        use home_client_cache::{CachePhase, ProjectionMailbox, Viewport};
+        use home_wire_contract::home::api::v2 as wire;
+
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        crate::cache_view::bind(&window);
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_endpoint_ready(true);
+        window.set_show_endpoint(false);
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(1100., 1600.));
+        window.on_recipe_gesture(|_, _, _| panic!("preferences must not emit a recipe gesture"));
+        window.on_device_power(|_, _, _| panic!("preferences must not emit a device command"));
+        window.show().unwrap();
+        let request = Arc::new(Mutex::new(ProjectionRequest::default()));
+        let store = DeviceStore::default();
+        let cleared = store.clone();
+        let navigation = bind_devices(
+            &window,
+            request.clone(),
+            || {},
+            move || Some(cleared.clone()),
+        );
+        let choices = Choices::default();
+        navigation.attach_catalogue(choices.clone());
+        let settle = || {
+            // Force real layout/property evaluation, then drain the Slint
+            // changed callbacks, focus restorations and navigation timers.
+            for _ in 0..8 {
+                let pane = ElementQuery::from_root(&window)
+                    .match_inherits("ProAdaptiveShell")
+                    .find_first()
+                    .expect("the connected shell stays mounted across every route");
+                let _ = (pane.absolute_position(), pane.size());
+                slint::platform::update_timers_and_animations();
+                i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(1));
+            }
+        };
+        let click_preference = |label: &str| {
+            let label = label.to_owned();
+            ElementQuery::from_root(&window)
+                .match_accessible_role(i_slint_backend_testing::AccessibleRole::Button)
+                .match_predicate(move |item| {
+                    item.accessible_label().as_deref() == Some(label.as_str())
+                })
+                .find_first()
+                .unwrap()
+                .mock_single_click(PointerEventButton::Left);
+            settle();
+        };
+        let mut power = fixture::power(
+            "homes/synthetic/entities/private-entity-0002/capabilities/power",
+            Some(wire::PowerValue::Off),
+        );
+        let Some(wire::capability::Trait::Power(control)) = power.r#trait.as_mut() else {
+            unreachable!()
+        };
+        control.supports_set = true;
+        let entry = fixture::entry(
+            "homes/synthetic/entities/private-entity-0002",
+            "Lamp",
+            vec![power],
+        );
+        let first = fixture::capture(vec![entry.clone()]);
+        let renewals: Vec<_> = (0..3)
+            .map(|_| fixture::capture(vec![entry.clone()]))
+            .collect();
+        let generation = ProjectionMailbox::<()>::new().generation();
+        let publish = |view: &home_client_cache::CachedView, token: &str| {
+            let layout = Arc::new(dashboard::joined_fixture(view));
+            crate::session_host::publish_dashboard(
+                &window,
+                &request,
+                &choices,
+                0,
+                Catalogue {
+                    choices: vec![Choice {
+                        id: layout.id.clone(),
+                        title: layout.title.clone(),
+                    }],
+                    selected: Some(layout.id.clone()),
+                    snapshot: Some(Snapshot::fixture(token, vec![layout.clone()])),
+                },
+                dashboard::LayoutState::Ready(layout),
+            );
+        };
+        let project = |phase, view| {
+            let current = request.lock().unwrap().clone();
+            crate::cache_view::render(
+                &window,
+                generation,
+                crate::cache_view::project_devices(
+                    phase,
+                    view,
+                    Viewport::default(),
+                    &current,
+                    &store,
+                ),
+            );
+        };
+        let assert_local_page = || {
+            assert_eq!(window.get_page(), ViewPage::Settings);
+            assert!(window.get_dark_mode());
+            assert!(window.get_large_text());
+            assert!(!window.get_native_popup().open);
+            let selected = window.get_navigation_state().selected;
+            assert!(
+                window
+                    .get_navigation_rows()
+                    .iter()
+                    .any(|row| row.token == selected.token && row.label == "Settings")
+            );
+        };
+        publish(&first, "initial");
+        project(CachePhase::Live, Some(&first));
+        settle();
+        window.invoke_quick_navigation(ViewPage::Settings);
+        project(CachePhase::Live, Some(&first));
+        settle();
+        click_preference("Dark Theme");
+        click_preference("200 % Text");
+        assert_local_page();
+        let mut old_guards = Vec::new();
+        for (cycle, renewed) in renewals.iter().enumerate() {
+            let previous = if cycle == 0 {
+                &first
+            } else {
+                &renewals[cycle - 1]
+            };
+            let current = request.lock().unwrap().clone();
+            let projection = store.project(CachePhase::Live, Some(previous), &current);
+            let row = projection
+                .native_devices
+                .values()
+                .next()
+                .expect("the synthetic layout binds the power capability");
+            let revision = current.revision;
+            let prepared = store
+                .prepare(
+                    row.token,
+                    row.generation,
+                    revision,
+                    DeviceIntent::Power(Power::On),
+                )
+                .unwrap();
+            assert!((prepared.guard)());
+            old_guards.push(prepared.guard);
+            // The real cache reader emits this exact transition when access()
+            // returns a new session lease generation. Exercise the intermediate
+            // private clear, rather than only dashboard-refreshed at the end.
+            project(CachePhase::Loading, None);
+            settle();
+            assert!(!window.get_view_loaded());
+            assert_eq!(window.get_device_cards().row_count(), 0);
+            assert!(!window.get_commands_ready());
+            assert!(old_guards.iter().all(|guard| !guard()));
+            assert!(
+                store
+                    .prepare(
+                        row.token,
+                        row.generation,
+                        revision,
+                        DeviceIntent::Power(Power::On)
+                    )
+                    .is_err()
+            );
+            assert_local_page();
+            crate::session_host::publish_dashboard(
+                &window,
+                &request,
+                &choices,
+                0,
+                choices.hidden(),
+                dashboard::LayoutState::Loading,
+            );
+            settle();
+            assert_local_page();
+            publish(renewed, &format!("renewal-{cycle}"));
+            project(CachePhase::Live, Some(renewed));
+            settle();
+            assert_local_page();
+            assert!(old_guards.iter().all(|guard| !guard()));
+            assert!(
+                store
+                    .prepare(
+                        row.token,
+                        row.generation,
+                        revision,
+                        DeviceIntent::Power(Power::On)
+                    )
+                    .is_err()
+            );
+        }
+        click_preference("Standard Text");
+        assert!(!window.get_large_text());
+        assert!(window.get_dark_mode());
+        assert_eq!(window.get_page(), ViewPage::Settings);
+        // Private routes still disappear at the same barrier.
+        window.invoke_show_inventory();
+        project(CachePhase::Live, renewals.last());
+        project(CachePhase::Loading, None);
+        settle();
+        assert_eq!(window.get_page(), ViewPage::Home);
+        // Logout, profile replacement and lost authority use the full clear.
+        window.invoke_quick_navigation(ViewPage::Settings);
+        crate::cache_view::clear(&window);
+        settle();
+        assert_eq!(window.get_page(), ViewPage::Home);
+        assert!(request.lock().unwrap().catalogue.is_none());
+        assert!(old_guards.iter().all(|guard| !guard()));
+    }
 
     #[test]
     fn nhf035_capture_renewals_preserve_page_popup_focus_and_back_with_fresh_proofs() {
@@ -1527,11 +1775,11 @@ mod back_tests {
             "Back uses readmitted history"
         );
 
-        // A new document (even under the same stable dashboard identity) still
-        // retires the previous route and focus rather than retaining stale UI.
+        // A new document retires private navigation and focus. The local
+        // preferences page itself is independent of that document.
         layout.etag = "changed-document".into();
         publish(layout, "changed-source");
-        assert_eq!(window.get_page(), ViewPage::Home);
+        assert_eq!(window.get_page(), ViewPage::Settings);
         assert!(navigation.state.borrow().current.is_none());
         assert!(navigation.state.borrow().history.is_empty());
 
@@ -1552,6 +1800,137 @@ mod back_tests {
         assert!(!window.get_view_loaded());
         assert!(window.get_home_layout_nodes().row_count() == 0);
         assert!(request.lock().unwrap().catalogue.is_none());
+    }
+
+    #[test]
+    fn inventory_detail_outside_layout_survives_capture_and_catalogue_rotation() {
+        use crate::device_view::fixture;
+        use crate::{
+            cache_view,
+            dashboard_catalogue::Snapshot,
+            dashboard_selection::{Catalogue, Choice, Choices},
+        };
+        use home_client_cache::{CachePhase, ProjectionMailbox, Viewport};
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        cache_view::bind(&window);
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_show_endpoint(false);
+        window.show().unwrap();
+        let request = Arc::new(Mutex::new(ProjectionRequest::default()));
+        let store = crate::device_view::DeviceStore::default();
+        let bound = store.clone();
+        let navigation = bind_devices(&window, request.clone(), || {}, move || Some(bound.clone()));
+        let choices = Choices::default();
+        navigation.attach_catalogue(choices.clone());
+        let generation = ProjectionMailbox::<()>::new().generation();
+        let entry = fixture::entry(
+            "homes/synthetic/entities/inventory-only",
+            "Inventory lamp",
+            vec![fixture::power(
+                "homes/synthetic/entities/inventory-only/capabilities/power",
+                Some(home_wire_contract::home::api::v2::PowerValue::On),
+            )],
+        );
+        let other = fixture::entry(
+            "homes/synthetic/entities/other-inventory-only",
+            "Other lamp",
+            vec![fixture::power(
+                "homes/synthetic/entities/other-inventory-only/capabilities/power",
+                Some(home_wire_contract::home::api::v2::PowerValue::On),
+            )],
+        );
+        let publish = |view: &home_client_cache::CachedView, token: &str| {
+            let layout = Arc::new(dashboard::joined_fixture(view));
+            let snapshot = Snapshot::fixture(token, vec![layout.clone()]);
+            crate::session_host::publish_dashboard(
+                &window,
+                &request,
+                &choices,
+                0,
+                Catalogue {
+                    choices: vec![Choice {
+                        id: layout.id.clone(),
+                        title: layout.title.clone(),
+                    }],
+                    selected: Some(layout.id.clone()),
+                    snapshot: Some(snapshot),
+                },
+                dashboard::LayoutState::Ready(layout),
+            );
+        };
+        let render = |view: &home_client_cache::CachedView| {
+            let current = request.lock().unwrap().clone();
+            cache_view::render(
+                &window,
+                generation,
+                cache_view::project_devices(
+                    CachePhase::Live,
+                    Some(view),
+                    Viewport::default(),
+                    &current,
+                    &store,
+                ),
+            );
+            slint::platform::update_timers_and_animations();
+        };
+        let mut entries = vec![entry, other];
+        let first = fixture::capture(entries.clone());
+        publish(&first, "first");
+        render(&first);
+        window.invoke_quick_navigation(ViewPage::Settings);
+        window.invoke_show_inventory();
+        render(&first);
+        window.invoke_cache_activate(0, window.get_cache_generation());
+        assert_eq!(window.get_page(), ViewPage::Detail);
+        render(&first);
+        assert_eq!(window.get_detail_title(), "Inventory lamp");
+        let revision = window.get_projection_version();
+        let mut current = first;
+        for i in 0..3 {
+            // Observe another entity, then the selected one, without changing
+            // definitions, permissions or the dashboard document.
+            if i > 0 {
+                use home_wire_contract::home::api::v2 as wire;
+                let index = if i == 1 { 1 } else { 0 };
+                let Some(wire::capability::Trait::Power(power)) =
+                    entries[index].capabilities[0].r#trait.as_mut()
+                else {
+                    panic!("power fixture")
+                };
+                let observation = power.observation.get_or_insert_default();
+                observation.value = Some(wire::PowerValue::Off.into());
+                observation.observed_time =
+                    buffa_types::google::protobuf::Timestamp::from_unix_secs(100 + i).into();
+            }
+            let next = fixture::capture(entries.clone());
+            render(&next);
+            assert!(window.get_cohort_pending());
+            assert_eq!(
+                window.get_page(),
+                ViewPage::Detail,
+                "capture gap must not dismiss an inventory detail"
+            );
+            publish(&next, &format!("fresh-{i}"));
+            render(&next);
+            assert_eq!(window.get_page(), ViewPage::Detail);
+            assert_eq!(window.get_detail_title(), "Inventory lamp");
+            assert_eq!(window.get_projection_version(), revision);
+            current = next;
+        }
+        window.invoke_go_back();
+        render(&current);
+        assert_eq!(window.get_page(), ViewPage::Inventory);
+        // A real catalogue invalidation still retires private routes.
+        crate::session_host::publish_dashboard(
+            &window,
+            &request,
+            &choices,
+            0,
+            choices.hidden(),
+            dashboard::LayoutState::Loading,
+        );
+        assert_eq!(window.get_page(), ViewPage::Home);
     }
 
     fn window() -> HomewardWindow {

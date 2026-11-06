@@ -1,12 +1,14 @@
-import { KitTheme, KitButton } from "@kit/kit.slint";
-import { ProMediaPlayer, ProMediaGroup, ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue, ProValueIntent, ProArtworkState } from "@kit-pro/kit-pro.slint";
+import { KitTheme, CloseReason } from "@kit";
+import { ProIdentityButton, ProMediaPanel, ProMediaGroup, ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue, ProValueIntent, ProArtworkState } from "@kit-pro";
 
 // Product composition only. Content, capabilities, privacy and exact action
 // targets are supplied by the native owner; the Pro owns reusable controls.
 export component HomewardMedia inherits VerticalLayout {
     in property <KitTheme> theme;
+    in property <string> title;
     in property <int> generation;
     in property <bool> interactive;
+    in property <bool> suspended;
     in property <bool> editable;
     in property <bool> has-data;
     in property <ProMediaPresentation> media;
@@ -22,6 +24,7 @@ export component HomewardMedia inherits VerticalLayout {
     in property <[string]> members;
     in property <string> notice;
     in property <int> artwork-remaining-ms;
+    callback dismiss(CloseReason);
     callback operation(int,int,ProMediaOperation);
     callback option(int,int,ProMediaOptionKind,int);
     callback edit(int,int,int,ProValueIntent);
@@ -29,12 +32,14 @@ export component HomewardMedia inherits VerticalLayout {
     callback expire-artwork(int);
     min-width: 0px;
     spacing: 12px;
-    if root.has-data: ProMediaPlayer {
+    if root.has-data: ProMediaPanel {
         theme: root.theme; media: root.media; actions: root.actions; options: root.options; values: root.values;
-        editable: root.editable && root.interactive;
+        title: root.title;
+        interactive: root.interactive; commands-enabled: root.editable;
+        can-volume: false; can-mute: false;
+        dismiss(reason) => { root.dismiss(reason); }
         progress-known: root.progress-known; progress: root.progress;
         position-label: root.position-label; duration-label: root.duration-label;
-        apply-label: "Apply"; increment-label: "Increase"; decrement-label: "Decrease";
         operation-requested(token,generation,operation) => { root.operation(token,generation,operation); }
         option-requested(token,generation,kind,option) => { root.option(token,generation,kind,option); }
         value-edited(token,generation,field,intent) => { root.edit(token,generation,field,intent); }
@@ -43,9 +48,11 @@ export component HomewardMedia inherits VerticalLayout {
         theme: root.theme; title: root.group-title; coordinator: root.coordinator; members: root.members;
     }
     if root.notice != "": Text { text: root.notice; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: char-wrap; }
-    KitButton {
+    ProIdentityButton {
         theme: root.theme; text: "Refresh Media"; disabled: !root.interactive;
-        activated => { root.reload(root.generation); }
+        generation: root.generation; activation-enabled: !root.suspended;
+        accessible-enabled: !root.suspended && !self.disabled;
+        trigger(t,g) => { if (!root.suspended) { root.reload(g); } }
     }
     // Expiry does not wait for an in-flight network read or a polling interval.
     Timer {

@@ -40,6 +40,7 @@ macro_rules! card_row {
             pub field_keys: std::collections::BTreeMap<&'static str, i32>,
             pub choices: Vec<ProDeviceChoice>,
             pub select_options: Vec<OptionRow>,
+            pub detail: super::detail::Metadata,
             pub environment: crate::environment_view::Presentation,
         }
         impl CardRow {
@@ -49,7 +50,7 @@ macro_rules! card_row {
                 ProDeviceRow {
                     has_primary_value: self.field_keys.contains_key("setpoint_celsius") || self.field_keys.contains_key("setpoint_range_celsius"),
                     primary_value_token: self.field_keys.get("setpoint_celsius").or_else(|| self.field_keys.get("setpoint_range_celsius")).copied().unwrap_or_default(),
-                    environment_kind, weather, solar, presence, icon: icon.clone(),
+                    environment_kind, weather, solar, presence, glyph: icon.clone(),
                     $($field:self.$field.to_owned(),)*
                     cover_operations:nested(self.cover_operations.as_slice(),previous.map(|row|&row.cover_operations)),
                     lock_operations:nested(self.lock_operations.as_slice(),previous.map(|row|&row.lock_operations)),

@@ -188,7 +188,7 @@ async fn run(fixture: Fixture, lists: Lists, window: slint::Weak<HomewardWindow>
         connection.entity_views(),
         connection.home(),
         Filter::all(),
-        move |phase, view, viewport| {
+        move |phase, view, viewport, _renewal| {
             *captured_command.lock().unwrap() = action_entity.as_ref().and_then(|id| {
                 let view = view?;
                 let entity = view.get(id)?;
@@ -230,7 +230,7 @@ async fn run(fixture: Fixture, lists: Lists, window: slint::Weak<HomewardWindow>
         move |ticket| {
             let _ = target.upgrade_in_event_loop(move |window| {
                 ticket.deliver(|generation, projection| {
-                    cache_view::render(&window, generation, projection)
+                    cache_view::render(&window, generation, projection);
                 });
             });
         },

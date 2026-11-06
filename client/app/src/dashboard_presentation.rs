@@ -1,8 +1,8 @@
 //! Product adapter from a validated server forest to injected Pro presentation.
 use crate::{
-    IconGlyph, ProGestureAccess, ProLayoutCell, ProLayoutColumns, ProLayoutFlow, ProLayoutHeading,
-    ProLayoutInput, ProLayoutKind, ProLayoutMetricsPolicy, ProLayoutNode, ProLayoutSpan,
-    ProLayoutSpanRule, ProRecipeRow, ProRecipeStyle,
+    IconGlyph, ProGestureAccess, ProLayoutColumns, ProLayoutFlow, ProLayoutHeading, ProLayoutInput,
+    ProLayoutKind, ProLayoutMetricsPolicy, ProLayoutNode, ProLayoutSpan, ProLayoutSpanRule,
+    ProRecipeRow, ProRecipeStyle,
 };
 use crate::{
     dashboard::{Layout, ProjectionRequest},
@@ -229,7 +229,15 @@ impl Board {
                     Kind::Widget => ProLayoutKind::Widget,
                     Kind::Tile => {
                         if node.device.is_some() {
-                            ProLayoutKind::Device
+                            if node
+                                .device
+                                .as_ref()
+                                .is_some_and(|device| tile_supported(device, data))
+                            {
+                                ProLayoutKind::Tile
+                            } else {
+                                ProLayoutKind::Device
+                            }
                         } else {
                             ProLayoutKind::Diagnostic
                         }
@@ -391,6 +399,8 @@ impl Board {
                     children.as_slice(),
                     previous_children,
                 );
+                let device_ui = device.ui(previous.as_ref().map(|node| &node.device), icon);
+                let tile = tile_row(&device_ui, previous.as_ref().map(|node| &node.tile));
                 ProLayoutNode {
                     viewport_min_width: data.viewport_min_width,
                     viewport_max_width: data.viewport_max_width,
@@ -465,22 +475,177 @@ impl Board {
                     vertical: data.vertical.unwrap_or(false),
                     hide_state: data.hide_state.unwrap_or(false),
                     children,
-                    device: device.ui(previous.as_ref().map(|node| &node.device), icon),
+                    device: device_ui,
+                    tile,
+                    tile_template: if node.square || data.vertical == Some(true) {
+                        crate::ProTileTemplate::Large
+                    } else {
+                        crate::ProTileTemplate::Rectangle
+                    },
                     recipe,
+                    ..Default::default()
                 }
             })
             .collect()
     }
 }
-pub(crate) fn bind(window: &crate::HomewardWindow) {
-    slint_kit_pro::bind_responsive_layout_arranger!(
-        window,
-        on_layout_arrange,
-        ProLayoutSpan,
-        ProLayoutCell
-    );
+// Rich custom editors and server-defined gesture recipes retain their own
+// components. Every ordinary equipment tile uses the shared dashboard tile.
+fn tile_supported(device: &crate::device_view::presentation::CardRow, node: &Node) -> bool {
+    if node
+        .recipes
+        .as_ref()
+        .is_some_and(|recipes| !recipes.interactions.is_empty())
+    {
+        return false;
+    }
+    match device.kind {
+        crate::ProDeviceKind::Light
+        | crate::ProDeviceKind::Switch
+        | crate::ProDeviceKind::Binary
+        | crate::ProDeviceKind::Measurement
+        | crate::ProDeviceKind::Climate
+        | crate::ProDeviceKind::Fan
+        | crate::ProDeviceKind::Cover
+        | crate::ProDeviceKind::Lock
+        | crate::ProDeviceKind::Alarm => true,
+        crate::ProDeviceKind::Helper
+        | crate::ProDeviceKind::Observation
+        | crate::ProDeviceKind::Unsupported => false,
+    }
 }
-
+fn tile_row(
+    device: &crate::ProDeviceRow,
+    previous: Option<&crate::ProTileRow>,
+) -> crate::ProTileRow {
+    use crate::{ProActionPhase as P, ProControlAccess, ProTileControl as C};
+    let previous =
+        previous.filter(|row| row.token == device.token && row.generation == device.generation);
+    let primary = device.values.iter().find(|value| {
+        device.has_primary_value
+            && value.token == device.primary_value_token
+            && value.mode == crate::ProValueMode::Single
+    });
+    let actions: Vec<_> = device
+        .cover_operations
+        .iter()
+        .map(|row| (row.token, row.label))
+        .chain(
+            device
+                .lock_operations
+                .iter()
+                .map(|row| (row.token, row.label)),
+        )
+        .chain(
+            device
+                .alarm_operations
+                .iter()
+                .map(|row| (row.token, row.label)),
+        )
+        .map(|(token, label)| crate::ProTileAction {
+            token,
+            label,
+            ..Default::default()
+        })
+        .collect();
+    let choices: Vec<_> = device
+        .choices
+        .iter()
+        .map(|row| crate::ChoiceRow {
+            token: row.token,
+            label: row.label,
+            selected: row.selected,
+            disabled: false,
+        })
+        .collect();
+    let control = if device.summary_only {
+        C::None
+    } else if device.can_brightness {
+        C::Level
+    } else if primary.is_some() {
+        C::Stepper
+    } else if !actions.is_empty() {
+        C::Actions
+    } else if !choices.is_empty() {
+        C::Levels
+    } else if device.can_power {
+        C::Toggle
+    } else {
+        C::None
+    };
+    let pending = matches!(
+        device.phase,
+        P::Preparing
+            | P::Sending
+            | P::Uncertain
+            | P::Accepted
+            | P::Dispatched
+            | P::Acknowledged
+            | P::Interrupted
+    );
+    crate::ProTileRow {
+        token: device.token,
+        generation: device.generation,
+        title: device.title.clone(),
+        value: format!(
+            "{}{}{}",
+            device.value,
+            if device.unit.is_empty() { "" } else { " " },
+            device.unit
+        )
+        .into(),
+        detail: if !device.action_label.is_empty() {
+            device.action_label.clone()
+        } else if device.access == ProControlAccess::Denied {
+            "Read-only".into()
+        } else {
+            device.quality.clone()
+        },
+        glyph: device.glyph.clone(),
+        active: device.power_known && device.power_on,
+        power: if !device.power_known {
+            crate::ProSwitchState::Unknown
+        } else if device.power_on {
+            crate::ProSwitchState::On
+        } else {
+            crate::ProSwitchState::Off
+        },
+        commands_disabled: device.access != ProControlAccess::Allowed
+            || device.command_unavailable
+            || pending,
+        // The surface is always a safe route to detail. Buttons retain separate
+        // exact capability intents; no transport call is generated by opening.
+        tap: crate::ProTileTap::Open,
+        hold_opens: true,
+        control,
+        level: device.brightness_percent,
+        level_known: device.brightness_known,
+        level_minimum: device.brightness_minimum,
+        level_maximum: device.brightness_maximum,
+        level_increment: device.brightness_step,
+        levels: crate::device_view::presentation::nested(&choices, previous.map(|row| &row.levels)),
+        levels_active: choices
+            .iter()
+            .find(|row| row.selected)
+            .or_else(|| choices.first())
+            .map_or(-1, |row| row.token),
+        actions: crate::device_view::presentation::nested(
+            &actions,
+            previous.map(|row| &row.actions),
+        ),
+        stepper_value: primary
+            .as_ref()
+            .map(|value| format!("{} {}", value.lower, value.suffix).into())
+            .unwrap_or_default(),
+        can_increment: primary
+            .as_ref()
+            .is_some_and(|value| value.can_step && value.lower_position < 1.),
+        can_decrement: primary
+            .as_ref()
+            .is_some_and(|value| value.can_step && value.lower_position > 0.),
+        ..Default::default()
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -712,5 +877,40 @@ mod tests {
             assert_eq!(rows[index].children.row_count(), node.children.len());
             assert!(node.children.iter().all(|child| *child < rows.len()));
         }
+    }
+    #[test]
+    fn new_tiles_keep_fractional_domains_and_separate_safe_navigation_from_commands() {
+        let mut device = crate::ProDeviceRow {
+            token: 0,
+            generation: 9,
+            kind: crate::ProDeviceKind::Light,
+            title: "Synthetic lamp".into(),
+            can_brightness: true,
+            brightness_known: true,
+            brightness_percent: 0.2,
+            brightness_minimum: 0.1,
+            brightness_maximum: 0.3,
+            brightness_step: 0.1,
+            access: crate::ProControlAccess::Allowed,
+            ..Default::default()
+        };
+        let tile = tile_row(&device, None);
+        assert_eq!(tile.tap, crate::ProTileTap::Open);
+        assert_eq!(tile.control, crate::ProTileControl::Level);
+        assert_eq!(
+            (tile.level_minimum, tile.level_maximum, tile.level_increment),
+            (0.1, 0.3, 0.1)
+        );
+        assert!(!tile.commands_disabled);
+        device.access = crate::ProControlAccess::Denied;
+        let denied = tile_row(&device, Some(&tile));
+        assert!(denied.commands_disabled);
+        assert_eq!(
+            denied.tap,
+            crate::ProTileTap::Open,
+            "read-only detail remains navigable"
+        );
+        assert_eq!(denied.token, 0);
+        assert_eq!(denied.generation, 9);
     }
 }

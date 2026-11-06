@@ -33,7 +33,7 @@ chrono = { version = "=0.4.45", default-features = false, features = ["clock"] }
 rustls-pemfile = "2"
 url = "2"
 png = "=0.18.1"
-slint-kit = "=0.6.0"
+slint-kit = { path = "../../.tools/frontend-kits/slint-kit/crates/kit" }
 slint-kit-pro = { path = "../../.tools/frontend-kits/pro/crates/kit-pro" }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
@@ -46,8 +46,11 @@ slint = { version = "=1.18.1", default-features = false, features = ["std", "com
 slint-kit-pro-build = { path = "../../.tools/frontend-kits/pro/crates/kit-pro-build" }
 
 [dev-dependencies]
+home-client-session = { path = "../session", features = ["test-support"] }
+home-client-cache = { path = "../cache", features = ["test-support"] }
+async-trait = "0.1"
 connectrpc = { version = "=0.9.1", default-features = false }
-i-slint-backend-testing = "=1.18.1"
+i-slint-backend-testing = { version = "=1.18.1", features = ["renderer-software"] }
 i-slint-core = "=1.18.1"
 
 [package.metadata.android]

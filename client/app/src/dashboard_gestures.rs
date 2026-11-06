@@ -1,7 +1,7 @@
 //! Window-owned confirmation retains one exact prepared intention. It never
 //! submits by row index again and cannot replay a consumed or stale prompt.
 use crate::{
-    DialogState, HomewardWindow, ProRecipeGesture,
+    DialogState, HomewardWindow, ProGesture,
     device_view::{NativePrepared, Refusal},
 };
 use home_client_model::dashboard::Gesture;
@@ -85,9 +85,9 @@ pub(crate) fn bind(
             return;
         }
         let gesture = match gesture {
-            ProRecipeGesture::Tap => Gesture::Tap,
-            ProRecipeGesture::Hold => Gesture::Hold,
-            ProRecipeGesture::DoubleTap => Gesture::DoubleTap,
+            ProGesture::Tap => Gesture::Tap,
+            ProGesture::Hold => Gesture::Hold,
+            ProGesture::DoubleTap => Gesture::DoubleTap,
         };
         match prepare(token, generation, gesture) {
             Ok(prepared) if prepared.is_current() => {

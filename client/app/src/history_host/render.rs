@@ -15,10 +15,12 @@ use std::sync::Arc;
 
 pub(super) struct Projection {
     guard: Option<(
-        home_client_session::SessionCoordinator,
+        home_client_session::GenerationGuard,
         home_client_session::Generation,
     )>,
+    presentation: Option<home_client_cache::PresentationSource>,
     generation: i32,
+    private_data: bool,
     status: Status,
     description: String,
     notice: String,
@@ -33,6 +35,13 @@ pub(super) struct Projection {
     end: String,
 }
 impl Projection {
+    pub fn retained_source(&self) -> Option<(i32, home_client_cache::PresentationSource)> {
+        self.presentation
+            .as_ref()
+            .filter(|p| p.source().renewing())
+            .map(|p| (self.generation, p.clone()))
+    }
+
     pub fn new(
         state: &State,
         guard: Option<(
@@ -40,7 +49,7 @@ impl Projection {
             home_client_session::Generation,
         )>,
     ) -> Self {
-        let mut value = Self { guard, generation: state.generation,status: state.status,description: "UTC range, end exclusive. Observations: up to 7 days; aggregates: whole UTC hours, up to 500 hours. Choose a statistic, then Show / Refresh.".into(),notice: String::new(),unit: String::new(),group: String::new(),inspection: String::new(),frame: state.frame.clone(),accent: state.accent,cursor: None,range: state.range,start: String::new(),end: String::new() };
+        let mut value = Self { guard: guard.map(|(session, generation)| (session.generation_guard(), generation)), presentation: state.renewal.clone().or_else(|| state.presentation.clone()), generation: state.generation, private_data: state.data.is_some() || state.frame.is_some(),status: state.status,description: "UTC range, end exclusive. Observations: up to 7 days; aggregates: whole UTC hours, up to 500 hours. Choose a statistic, then Show / Refresh.".into(),notice: String::new(),unit: String::new(),group: String::new(),inspection: String::new(),frame: state.frame.clone(),accent: state.accent,cursor: None,range: state.range,start: String::new(),end: String::new() };
         if let Some(data) = &state.data {
             value.start = utc(&data.snapshot.query.period().start);
             value.end = utc(&data.snapshot.query.period().end);
@@ -297,6 +306,27 @@ fn axis(value: f64) -> String {
     }
 }
 pub(super) fn render(window: &HomewardWindow, value: Projection) {
+    if let Some(source) = value
+        .presentation
+        .as_ref()
+        .filter(|p| p.source().renewing())
+    {
+        if crate::cache_view::presentation_remaining(source).is_some() {
+            window.set_history_revalidating(true);
+            // Preserve the installed raster, not a queued old Ready payload.
+            return;
+        }
+        window.set_history_revalidating(false);
+        window.set_history_frame_id(0);
+        window.set_history_presentation(HistoryPresentation {
+            generation: value.generation,
+            phase: ProChartPhase::Error,
+            state_label: "The retained reading expired. Reload explicitly.".into(),
+            ..Default::default()
+        });
+        return;
+    }
+    window.set_history_revalidating(false);
     // Delivery happens under the mailbox invalidation barrier. Check session
     // authority here too, after any time spent waiting in the UI queue, without
     // re-entering the mailbox or the history owner's mutex.
@@ -304,6 +334,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         .guard
         .as_ref()
         .is_some_and(|(session, generation)| !session.is_current(*generation))
+        || value.private_data && value.guard.is_none()
     {
         window.set_history_frame_id(0);
         window.set_history_presentation(HistoryPresentation {
@@ -320,6 +351,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             "Apply the date range to read history.",
         ),
         Status::Loading => (ProChartPhase::Loading, "Reading server pages…"),
+        Status::Preparing if value.frame.is_some() => (ProChartPhase::Ready, ""),
         Status::Preparing => (ProChartPhase::Loading, "Preparing chart…"),
         Status::Ready => (ProChartPhase::Ready, ""),
         Status::Empty => (
@@ -341,6 +373,9 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                 }
                 Failure::Denied => "History access denied. Data was removed.",
                 Failure::Transport => "Server unavailable. Reload explicitly after it recovers.",
+                Failure::Interrupted => {
+                    "The refreshed context interrupted this reading. Choose Show / Refresh to read the selected range again."
+                }
                 Failure::Contract => {
                     "Inconsistent response: no partial page is displayed. Reload explicitly."
                 }

@@ -16,9 +16,14 @@ class Target(Enum):
 
 vendor = root / 'client/platform/vendor/slint-android-activity'
 origin = json.loads((vendor / 'ORIGIN.json').read_text())
-allowed_changes = {'Cargo.toml', 'androidwindowadapter.rs', 'javahelper.rs', 'java/SlintAndroidJavaHelper.java'}
+allowed_changes = {'Cargo.toml', 'androidwindowadapter.rs', 'javahelper.rs', 'java/SlintAndroidJavaHelper.java', 'lib.rs'}
 if set(origin['modified_files']) != allowed_changes:
     raise SystemExit('Unexpected Android backend patch scope')
+if set(origin.get('added_files', [])) != {'touch_guard.rs', 'touch_dispatch.rs'}:
+    raise SystemExit('Unexpected Android touch dispatch additions')
+for name in origin['added_files']:
+    if not (vendor / name).is_file():
+        raise SystemExit('Missing documented Android dispatch source: ' + name)
 for name, expected in origin['upstream_files'].items():
     if name not in allowed_changes and hashlib.sha256((vendor / name).read_bytes()).hexdigest() != expected:
         raise SystemExit('Unexpected change to vendored Android SDK source: ' + name)
@@ -42,7 +47,7 @@ for target in Target:
         raise SystemExit('Native clients must use the pinned body-provenance correction')
     for name in ['slint-kit', 'slint-kit-core', 'slint-kit-slint', 'slint-kit-build']:
         matches = [package for package in packages if package['name'] == name]
-        if len(matches) != 1 or matches[0]['version'] != '0.5.1' or matches[0]['source'] is not None or not Path(matches[0]['manifest_path']).resolve().is_relative_to(Path(config['free_kit'])):
+        if len(matches) != 1 or matches[0]['version'] != '0.7.1' or matches[0]['source'] is not None or not Path(matches[0]['manifest_path']).resolve().is_relative_to(Path(config['free_kit'])):
             raise SystemExit(f'{target}: duplicate or unexpected free kit origin: {name}')
     for name in ['slint-kit-pro', 'slint-kit-pro-build']:
         matches = [package for package in packages if package['name'] == name]

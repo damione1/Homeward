@@ -276,6 +276,8 @@ impl LifecycleBridge {
             .lock()
             .expect("foreground admission mutex poisoned") = admission;
         if state == Lifecycle::Suspended {
+            #[cfg(all(debug_assertions, not(test)))]
+            eprintln!("homeward-nav: cause=suspended");
             let binding = self
                 .cache_handle
                 .lock()
@@ -339,11 +341,21 @@ impl ProjectionTarget {
         let _ = self.window.upgrade_in_event_loop(move |window| {
             if epoch.load(Ordering::SeqCst) == profile.0 {
                 ticket.deliver(|generation, projection| {
-                    let target = projection.history_target(window.get_projection_version());
-                    cache_view::render(&window, generation, projection);
-                    if let Some(target) = target {
-                        history.choose(target.clone());
-                        media.choose(target, generation);
+                    match cache_view::render(&window, generation, projection) {
+                        cache_view::RenderOutcome::Retained { entity, deadline } => {
+                            history.suspend(entity.clone());
+                            media.suspend(entity, generation, deadline);
+                        }
+                        cache_view::RenderOutcome::Applied(target) => {
+                            let source = cache_view::presentation_source(&window);
+                            history.choose_presented(target.clone(), source.clone());
+                            media.choose_presented(target, generation, source);
+                        }
+                        cache_view::RenderOutcome::Cleared => {
+                            history.clear();
+                            media.clear();
+                        }
+                        cache_view::RenderOutcome::Skipped => {}
                     }
                 });
             }
@@ -674,7 +686,7 @@ fn invitation_allowed(phase: Phase) -> bool {
         | Phase::Closed => false,
     }
 }
-fn render_view(window: &HomewardWindow, view: SessionView) {
+pub(crate) fn render_view(window: &HomewardWindow, view: SessionView) {
     if !invitation_allowed(view.phase) {
         window.invoke_clear_invitation();
     }
@@ -854,6 +866,8 @@ pub(crate) fn publish_dashboard(
         (Some(snapshot), Some(id)) => snapshot.state(id),
         (Some(_), None) | (None, _) => layout,
     };
+    #[cfg(all(debug_assertions, not(test)))]
+    let loading = matches!(&layout, crate::dashboard::LayoutState::Loading);
     let refreshed = {
         let mut request = presentation
             .lock()
@@ -883,6 +897,12 @@ pub(crate) fn publish_dashboard(
     } else {
         // Loading/invalidation and actual document changes retain the private
         // clear barrier, even when a coalesced loading notification was skipped.
+        #[cfg(all(debug_assertions, not(test)))]
+        eprintln!(
+            "homeward-nav: cause=dashboard_publication_reset loading={} detail={}",
+            loading,
+            window.get_page() == crate::ViewPage::Detail
+        );
         cache_view::clear_for_layout(window);
         window.invoke_dashboard_changed();
     }
@@ -905,7 +925,11 @@ fn deferred_dashboard_publication(
     // not keep the closed coordinator and its exclusive OS store lease alive.
     move |window| {
         ticket.deliver(|_, (generation, revision, catalogue, layout)| {
-            if !guard.is_current(generation) {
+            if !guard.is_current(generation)
+                || layout
+                    .layout()
+                    .is_some_and(|layout| !layout.publication_current())
+            {
                 return;
             }
             publish_dashboard(
@@ -1060,7 +1084,7 @@ async fn install_profile(
         connection.entity_views(),
         connection.home(),
         Filter::all(),
-        move |phase, view, viewport| {
+        move |phase, view, viewport, renewal| {
             let current = view.filter(|_| phase == home_client_cache::CachePhase::Live);
             dashboard_capture.send_if_modified(|previous| {
                 if previous.as_deref().map(|v| v.incarnation()) == current.map(|v| v.incarnation())
@@ -1074,7 +1098,7 @@ async fn install_profile(
                 .lock()
                 .expect("presentation request mutex poisoned")
                 .clone();
-            cache_view::project_devices(phase, view, viewport, &request, &projected_devices)
+            cache_view::project_owner(phase, view, viewport, &request, &projected_devices, renewal)
         },
         move |ticket| cache_target.post(ticket),
     );
@@ -1413,14 +1437,7 @@ async fn worker(
                 let saved = services.directory().ok().is_some_and(|directory| value.save(&directory).is_ok());
                 let window = ui.window.clone();
                 let _ = window.upgrade_in_event_loop(move |window| {
-                    // An older save cannot acknowledge a more recent edit.
-                    if Preferences::current(&window) == value {
-                        window.set_preferences_status(if saved {
-                            "Settings saved on this device."
-                        } else {
-                            "These settings are active, but could not be saved."
-                        }.into());
-                    }
+                    value.complete_save(&window, saved);
                 });
             },
             changed = lifecycle.changed() => {
@@ -1495,7 +1512,7 @@ pub(crate) fn run_with_lifecycle(
         });
         preferences_tx.send_replace(Preferences::from_ui(dark, opaque, large, reduced));
         if let Some(window) = preferences_window.upgrade() {
-            window.set_preferences_status("Saving…".into());
+            window.set_preferences_status("".into());
         }
     });
     *lifecycle
@@ -1938,6 +1955,21 @@ pub(crate) fn run_with_lifecycle(
             }
         }
     });
+    let step_ui = ui.clone();
+    let submit_step = submit_device.clone();
+    window.on_device_step(move |token, generation, direction| {
+        let result = step_ui.current_devices().and_then(|(binding, revision)| {
+            binding.store.step(token, generation, revision, direction)
+        });
+        step_ui.repaint_devices();
+        match result {
+            Ok(Some(intent)) => submit_step(token, generation, intent),
+            Ok(None) => {}
+            Err(refusal) => {
+                step_ui.refuse(ProfileEpoch(step_ui.epoch.load(Ordering::SeqCst)), refusal)
+            }
+        }
+    });
     let choice_ui = ui.clone();
     window.on_device_choice(move |token, generation, choice| {
         let result = choice_ui.current_devices().and_then(|(binding, revision)| {
@@ -2139,7 +2171,7 @@ mod tests {
             connection.entity_views(),
             connection.home(),
             Filter::all(),
-            cache_view::project,
+            |phase, view, viewport, _| cache_view::project(phase, view, viewport),
             drop,
         );
         let handle = owner.handle();

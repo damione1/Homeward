@@ -624,7 +624,7 @@ impl State {
             item: self.selected_item.clone(),
             added_text,
         });
-        self.notice = "Change awaiting the server.";
+        self.notice = "";
         Ok(Prepared {
             mutation,
             context: self.context,
@@ -643,7 +643,7 @@ impl State {
         let pending = self.pending.take().expect("checked pending write");
         match outcome {
             ListWriteOutcome::Committed(_) => {
-                self.notice = "Saved.";
+                self.notice = "";
                 if let Some(text) = pending.added_text {
                     self.confirmed_add = Some((id, text));
                 }

@@ -1,7 +1,7 @@
 use crate::history::{Data, Statistic};
 use home_client_cache::history::Query;
 use home_client_model::api::EntityName;
-use slint_kit_pro::charts::{PreparationId, PreparedFrame};
+use slint_kit_pro::charts::{PreparationId, PreparationResult, PreparedFrame};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
@@ -24,8 +24,18 @@ pub(super) enum Failure {
     Transport,
     Contract,
     Projection,
+    Interrupted,
+}
+pub(super) struct ReadContext {
+    pub generation: i32,
+    pub cancel: CancellationToken,
+    pub source: Option<home_client_cache::PresentationSource>,
 }
 pub(super) struct State {
+    pub presentation: Option<home_client_cache::PresentationSource>,
+    pub renewal: Option<home_client_cache::PresentationSource>,
+    pub paused: bool,
+    pub resume_render: bool,
     pub generation: i32,
     pub entity: Option<EntityName>,
     pub foreground: bool,
@@ -50,6 +60,10 @@ pub(super) struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
+            presentation: None,
+            renewal: None,
+            paused: false,
+            resume_render: false,
             generation: 1,
             entity: None,
             foreground: true,
@@ -75,6 +89,10 @@ impl Default for State {
 }
 impl State {
     pub fn invalidate(&mut self) {
+        self.presentation = None;
+        self.renewal = None;
+        self.paused = false;
+        self.resume_render = false;
         self.cancel.cancel();
         self.cancel = CancellationToken::new();
         self.generation = if self.generation == 0 {
@@ -93,8 +111,112 @@ impl State {
         self.group = 0;
         self.status = Status::Draft;
     }
+    pub fn complete_render(&mut self, result: PreparationResult) -> bool {
+        if self.expected_render != Some((result.id(), self.generation))
+            || !self.accepts_read(self.generation)
+        {
+            return false;
+        }
+        self.expected_render = None;
+        match result {
+            PreparationResult::Ready(frame) => {
+                self.frame = Some(frame);
+                self.status = Status::Ready;
+                self.renewal = None;
+            }
+            PreparationResult::Failed { .. } => {
+                self.frame = None;
+                self.status = Status::Failed(Failure::Projection);
+                self.renewal = None;
+            }
+        }
+        true
+    }
+    pub fn suspend(&mut self) {
+        if self.paused {
+            return;
+        }
+        self.paused = true;
+        self.resume_render = self.render || self.expected_render.is_some();
+        if self.status == Status::Loading && self.data.is_none() && self.frame.is_none() {
+            self.status = Status::Failed(Failure::Interrupted);
+        }
+        self.cancel.cancel();
+        self.cancel = CancellationToken::new();
+        self.generation = if self.generation > 0 {
+            self.generation.checked_add(1).unwrap_or(0)
+        } else {
+            0
+        };
+        self.pending = None;
+        self.expected_render = None;
+        self.render = false;
+    }
+    pub fn has_current_presentation(&self, generation: home_client_session::Generation) -> bool {
+        self.presentation
+            .as_ref()
+            .is_some_and(|p| p.source().is_current() && p.source().generation() == generation)
+    }
+    pub fn reconcile_session(&mut self, generation: home_client_session::Generation) {
+        if !self.has_current_presentation(generation) && !self.hold_renewal() {
+            self.invalidate();
+            self.entity = None;
+        }
+    }
+    pub fn hold_renewal(&mut self) -> bool {
+        let candidate = self.renewal.clone().or_else(|| {
+            self.presentation
+                .clone()
+                .filter(|p| self.source_generation == Some(p.source().generation()))
+        });
+        let Some(source) = candidate.filter(|p| p.renewing() && self.data.is_some()) else {
+            return false;
+        };
+        self.suspend();
+        self.renewal = Some(source);
+        true
+    }
+    pub fn admits_source(
+        &self,
+        generation: i32,
+        source: &Option<home_client_cache::PresentationSource>,
+        lease: home_client_session::Generation,
+    ) -> bool {
+        self.accepts_read(generation)
+            && self.presentation == *source
+            && source.as_ref().map_or(cfg!(test), |p| {
+                p.source().is_current() && p.source().generation() == lease
+            })
+    }
+    /// The deadline belongs to the old raster, not to the fresh reader or worker.
+    pub fn expire_display(&mut self) {
+        let fresh = self
+            .presentation
+            .as_ref()
+            .filter(|p| p.source().is_current() && !self.paused);
+        let Some(source) = fresh else {
+            self.invalidate();
+            self.entity = None;
+            return;
+        };
+        let fresh_data = self.source_generation == Some(source.source().generation());
+        self.renewal = None;
+        self.frame = None;
+        if !fresh_data {
+            self.data = None;
+            self.source_generation = None;
+            self.status = Status::Loading;
+        }
+    }
     pub fn admits(&self, generation: i32) -> bool {
-        generation > 0
+        self.renewal.is_none() && self.accepts_read(generation)
+    }
+    pub fn accepts_read(&self, generation: i32) -> bool {
+        self.presentation
+            .as_ref()
+            .map_or(cfg!(test), |p| p.source().is_current())
+            && !self.paused
+            && generation > 0
             && generation == self.generation
             && self.active
             && self.foreground

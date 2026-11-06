@@ -20,7 +20,12 @@
     "Cargo.toml",
     "androidwindowadapter.rs",
     "javahelper.rs",
-    "java/SlintAndroidJavaHelper.java"
+    "java/SlintAndroidJavaHelper.java",
+    "lib.rs"
   ],
-  "reason": "Resolve raw Android printable keys through the device KeyCharacterMap and event meta state; retain named/control shortcut mapping. Gate the native IME proxy's editor/focus/InputConnection state on Slint Enable/Disable so Android cannot implicitly reopen the keyboard after editor removal or activity restore. Forward unhandled native Back through the window CloseRequested policy, including when no widget has focus, while preserving Activity.finish when the application accepts closing. No password normalization or shared registry edits."
+  "reason": "Resolve raw Android printable keys through the device KeyCharacterMap and event meta state; retain named/control shortcut mapping. Gate the native IME proxy's editor/focus/InputConnection state on Slint Enable/Disable so Android cannot implicitly reopen the keyboard after editor removal or activity restore. Forward unhandled native Back through the window CloseRequested policy, including when no widget has focus, while preserving Activity.finish when the application accepts closing. No password normalization or shared registry edits. Register the local touch guard and dispatcher modules: capture primary pointer ownership, suppress scrolling/modal handoff releases, and forward native cancellation without committing an action.",
+  "added_files": [
+    "touch_guard.rs",
+    "touch_dispatch.rs"
+  ]
 }

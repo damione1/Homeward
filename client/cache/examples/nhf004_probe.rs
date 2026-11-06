@@ -182,7 +182,7 @@ async fn owner_case(
         session.clone(),
         transport.clone(),
         Filter::all(),
-        move |phase, view, _| {
+        move |phase, view, _, _| {
             let mut observed = observed_worker.lock().unwrap();
             let sequence = view.map_or(0, |view| {
                 view.entities()

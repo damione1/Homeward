@@ -148,6 +148,7 @@ fn hiding_settings_does_not_stop_foreground_collection_but_suspend_requires_read
 }
 #[test]
 fn ambiguous_consent_resolves_by_read_and_a_later_local_stop_wins() {
+    for stopped in [false, true] {
     let mut state = ready();
     let prior = state.record.as_ref().unwrap().clone();
     let mut desired = (*prior.consent).clone();
@@ -164,7 +165,11 @@ fn ambiguous_consent_resolves_by_read_and_a_later_local_stop_wins() {
         privacy: state.privacy,
         resolution_read: false,
     });
-    state.stop();
+    if stopped {
+        state.stop();
+    } else {
+        state.requested = true;
+    }
     state.running = false;
     assert!(matches!(state.plan(Instant::now()), Some(Job::Read)));
     assert!(state.pending.as_ref().unwrap().resolution_read);
@@ -172,9 +177,11 @@ fn ambiguous_consent_resolves_by_read_and_a_later_local_stop_wins() {
     received.revision += 1;
     received.consent = desired.into();
     assert!(state.accept(context(), received, true));
-    assert_eq!(state.gate, Gate::UserStopped);
+    assert_eq!(state.gate, if stopped { Gate::UserStopped } else { Gate::Open });
+    assert_eq!(state.notice.is_empty(), !stopped);
     assert!(state.pending.is_none());
     assert!(state.intent.is_none());
+    }
 }
 #[test]
 fn native_identity_revision_regression_and_counter_exhaustion_fail_closed() {

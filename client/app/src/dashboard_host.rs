@@ -57,6 +57,14 @@ async fn follow(
         .access(cancel)
         .await
         .map_err(|_| ReadFailure::Empty)?;
+    // access() may itself renew. Never query an old capture with the new
+    // credential, even if the Ready watch publication overtook cache teardown.
+    if !view
+        .source_proof()
+        .is_some_and(|proof| proof.is_current() && proof.generation() == lease.generation)
+    {
+        return Ok(());
+    }
     let linked = lease.cancellation.child_token();
     let read = async {
         loop {
@@ -193,7 +201,7 @@ async fn follow(
                 .as_ref()
                 .map_or(LayoutState::Unavailable, |id| snapshot.state(id));
             catalogue.snapshot = Some(snapshot);
-            if !session.is_current(lease.generation) || linked.is_cancelled() {
+            if !lease.source_proof().is_current() || linked.is_cancelled() {
                 return Ok(());
             }
             publish(lease.generation, revision, catalogue, layout);
@@ -243,7 +251,11 @@ pub(crate) async fn run(
     let mut backoff = FibonacciBackoff::default();
     loop {
         let view = *phases.borrow_and_update();
-        let capture = captures.borrow_and_update().clone();
+        let capture = captures.borrow_and_update().clone().filter(|capture| {
+            capture
+                .source_proof()
+                .is_some_and(|proof| proof.is_current() && proof.generation() == view.generation)
+        });
         if view.phase == Phase::Ready && capture.is_some() {
             let capture = capture.expect("checked capture");
             let attempt = cancel.child_token();

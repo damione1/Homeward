@@ -705,7 +705,11 @@ impl Workflow {
                 };
                 match result {
                     Ok(receipt) => {
-                        draft.notice = receipt.outcome.label();
+                        draft.notice = if receipt.outcome == Outcome::Published {
+                            ""
+                        } else {
+                            receipt.outcome.label()
+                        };
                         draft.receipt = Some(receipt);
                     }
                     Err(_) => self.uncertain(),
@@ -1634,6 +1638,7 @@ pub(super) mod tests {
             workflow.draft.as_ref().unwrap().stage(),
             EditStage::Completed(Outcome::Published)
         );
+        assert!(workflow.draft.as_ref().unwrap().notice.is_empty());
         workflow.editor_action(ProAdminAction::Save);
         assert!(workflow.pending.is_none());
     }
