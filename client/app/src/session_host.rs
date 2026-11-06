@@ -276,6 +276,8 @@ impl LifecycleBridge {
             .lock()
             .expect("foreground admission mutex poisoned") = admission;
         if state == Lifecycle::Suspended {
+            #[cfg(all(debug_assertions, not(test)))]
+            eprintln!("homeward-nav: cause=suspended");
             let binding = self
                 .cache_handle
                 .lock()
@@ -864,6 +866,8 @@ pub(crate) fn publish_dashboard(
         (Some(snapshot), Some(id)) => snapshot.state(id),
         (Some(_), None) | (None, _) => layout,
     };
+    #[cfg(all(debug_assertions, not(test)))]
+    let loading = matches!(&layout, crate::dashboard::LayoutState::Loading);
     let refreshed = {
         let mut request = presentation
             .lock()
@@ -893,6 +897,12 @@ pub(crate) fn publish_dashboard(
     } else {
         // Loading/invalidation and actual document changes retain the private
         // clear barrier, even when a coalesced loading notification was skipped.
+        #[cfg(all(debug_assertions, not(test)))]
+        eprintln!(
+            "homeward-nav: cause=dashboard_publication_reset loading={} detail={}",
+            loading,
+            window.get_page() == crate::ViewPage::Detail
+        );
         cache_view::clear_for_layout(window);
         window.invoke_dashboard_changed();
     }

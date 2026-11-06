@@ -1101,6 +1101,8 @@ pub(crate) fn bind_devices(
     let restore = focus.clone();
     window.on_go_back(move || {
         if let Some(window) = weak.upgrade() {
+            #[cfg(all(debug_assertions, not(test)))]
+            eprintln!("homeward-nav: cause=go_back detail={}", window.get_page() == ViewPage::Detail);
             let (opener, saved_view) = {
                 let mut state = state.borrow_mut();
                 let previous_detail = match &state.route {
@@ -1286,6 +1288,8 @@ pub(crate) fn bind_devices(
                 && matches!(&state.route, Route::Native(destination) if destination.presentation == Presentation::Popup)
         };
         if valid {
+            #[cfg(all(debug_assertions, not(test)))]
+            eprintln!("homeward-nav: cause=native_popup_dismiss");
             if matches!(reason, crate::CloseReason::Escape | crate::CloseReason::SystemBack) {
                 window.invoke_go_back();
                 return;
@@ -1346,6 +1350,11 @@ pub(crate) fn bind_devices(
     );
     window.on_dashboard_changed(move || {
         if let Some(window) = layout_window.upgrade() {
+            #[cfg(all(debug_assertions, not(test)))]
+            eprintln!(
+                "homeward-nav: cause=dashboard_changed detail={}",
+                window.get_page() == ViewPage::Detail
+            );
             let section = {
                 let mut state = layout_state.borrow_mut();
                 // Local preferences do not depend on the private dashboard.
@@ -1791,6 +1800,137 @@ mod back_tests {
         assert!(!window.get_view_loaded());
         assert!(window.get_home_layout_nodes().row_count() == 0);
         assert!(request.lock().unwrap().catalogue.is_none());
+    }
+
+    #[test]
+    fn inventory_detail_outside_layout_survives_capture_and_catalogue_rotation() {
+        use crate::device_view::fixture;
+        use crate::{
+            cache_view,
+            dashboard_catalogue::Snapshot,
+            dashboard_selection::{Catalogue, Choice, Choices},
+        };
+        use home_client_cache::{CachePhase, ProjectionMailbox, Viewport};
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        cache_view::bind(&window);
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_show_endpoint(false);
+        window.show().unwrap();
+        let request = Arc::new(Mutex::new(ProjectionRequest::default()));
+        let store = crate::device_view::DeviceStore::default();
+        let bound = store.clone();
+        let navigation = bind_devices(&window, request.clone(), || {}, move || Some(bound.clone()));
+        let choices = Choices::default();
+        navigation.attach_catalogue(choices.clone());
+        let generation = ProjectionMailbox::<()>::new().generation();
+        let entry = fixture::entry(
+            "homes/synthetic/entities/inventory-only",
+            "Inventory lamp",
+            vec![fixture::power(
+                "homes/synthetic/entities/inventory-only/capabilities/power",
+                Some(home_wire_contract::home::api::v2::PowerValue::On),
+            )],
+        );
+        let other = fixture::entry(
+            "homes/synthetic/entities/other-inventory-only",
+            "Other lamp",
+            vec![fixture::power(
+                "homes/synthetic/entities/other-inventory-only/capabilities/power",
+                Some(home_wire_contract::home::api::v2::PowerValue::On),
+            )],
+        );
+        let publish = |view: &home_client_cache::CachedView, token: &str| {
+            let layout = Arc::new(dashboard::joined_fixture(view));
+            let snapshot = Snapshot::fixture(token, vec![layout.clone()]);
+            crate::session_host::publish_dashboard(
+                &window,
+                &request,
+                &choices,
+                0,
+                Catalogue {
+                    choices: vec![Choice {
+                        id: layout.id.clone(),
+                        title: layout.title.clone(),
+                    }],
+                    selected: Some(layout.id.clone()),
+                    snapshot: Some(snapshot),
+                },
+                dashboard::LayoutState::Ready(layout),
+            );
+        };
+        let render = |view: &home_client_cache::CachedView| {
+            let current = request.lock().unwrap().clone();
+            cache_view::render(
+                &window,
+                generation,
+                cache_view::project_devices(
+                    CachePhase::Live,
+                    Some(view),
+                    Viewport::default(),
+                    &current,
+                    &store,
+                ),
+            );
+            slint::platform::update_timers_and_animations();
+        };
+        let mut entries = vec![entry, other];
+        let first = fixture::capture(entries.clone());
+        publish(&first, "first");
+        render(&first);
+        window.invoke_quick_navigation(ViewPage::Settings);
+        window.invoke_show_inventory();
+        render(&first);
+        window.invoke_cache_activate(0, window.get_cache_generation());
+        assert_eq!(window.get_page(), ViewPage::Detail);
+        render(&first);
+        assert_eq!(window.get_detail_title(), "Inventory lamp");
+        let revision = window.get_projection_version();
+        let mut current = first;
+        for i in 0..3 {
+            // Observe another entity, then the selected one, without changing
+            // definitions, permissions or the dashboard document.
+            if i > 0 {
+                use home_wire_contract::home::api::v2 as wire;
+                let index = if i == 1 { 1 } else { 0 };
+                let Some(wire::capability::Trait::Power(power)) =
+                    entries[index].capabilities[0].r#trait.as_mut()
+                else {
+                    panic!("power fixture")
+                };
+                let observation = power.observation.get_or_insert_default();
+                observation.value = Some(wire::PowerValue::Off.into());
+                observation.observed_time =
+                    buffa_types::google::protobuf::Timestamp::from_unix_secs(100 + i).into();
+            }
+            let next = fixture::capture(entries.clone());
+            render(&next);
+            assert!(window.get_cohort_pending());
+            assert_eq!(
+                window.get_page(),
+                ViewPage::Detail,
+                "capture gap must not dismiss an inventory detail"
+            );
+            publish(&next, &format!("fresh-{i}"));
+            render(&next);
+            assert_eq!(window.get_page(), ViewPage::Detail);
+            assert_eq!(window.get_detail_title(), "Inventory lamp");
+            assert_eq!(window.get_projection_version(), revision);
+            current = next;
+        }
+        window.invoke_go_back();
+        render(&current);
+        assert_eq!(window.get_page(), ViewPage::Inventory);
+        // A real catalogue invalidation still retires private routes.
+        crate::session_host::publish_dashboard(
+            &window,
+            &request,
+            &choices,
+            0,
+            choices.hidden(),
+            dashboard::LayoutState::Loading,
+        );
+        assert_eq!(window.get_page(), ViewPage::Home);
     }
 
     fn window() -> HomewardWindow {

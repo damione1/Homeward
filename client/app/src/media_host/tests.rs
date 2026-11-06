@@ -573,6 +573,10 @@ fn media_success_and_pending_are_silent_while_unverified_and_failures_remain_vis
         (crate::ProActionPhase::Acknowledged, "", "")
     );
     let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
+    assert_eq!(
+        progress::presentation(Some(&terminal)).0,
+        crate::ProActionPhase::AcknowledgedUnverified
+    );
     assert!(!progress::presentation(Some(&terminal)).1.is_empty());
     let mut refused = pending;
     refused.operation = None;

@@ -846,6 +846,12 @@ pub(crate) fn clear_for_layout(window: &HomewardWindow) {
     clear_state(window, false);
 }
 fn clear_state(window: &HomewardWindow, forget_dashboard: bool) {
+    #[cfg(all(debug_assertions, not(test)))]
+    eprintln!(
+        "homeward-nav: cause=clear_state forget_dashboard={} detail={}",
+        forget_dashboard,
+        window.get_page() == crate::ViewPage::Detail
+    );
     window.invoke_history_private_cleared();
     window.invoke_media_private_cleared();
     window.set_media_visible(false);

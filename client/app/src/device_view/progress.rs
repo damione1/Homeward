@@ -23,6 +23,7 @@ pub(crate) fn quiet(
             .and_then(|snapshot| snapshot.operation.as_ref())
             .is_some_and(|operation| !operation.done()),
         Phase::Idle
+        | Phase::AcknowledgedUnverified
         | Phase::Refused
         | Phase::Uncertain
         | Phase::Stopped
@@ -62,7 +63,7 @@ fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
                 ..
             } => {
                 return (
-                    Phase::Acknowledged,
+                    Phase::AcknowledgedUnverified,
                     "Acknowledged · effect unverified",
                     "Tracking has ended. The acknowledgement does not establish the physical result.",
                 );
@@ -253,10 +254,125 @@ pub(crate) mod tests {
         assert_eq!(presentation(Some(&pending)).0, Phase::Acknowledged);
         assert_eq!(presentation(Some(&pending)), (Phase::Acknowledged, "", ""));
         let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
-        assert_eq!(presentation(Some(&terminal)).0, Phase::Acknowledged);
+        assert_eq!(
+            presentation(Some(&terminal)).0,
+            Phase::AcknowledgedUnverified
+        );
         assert!(presentation(Some(&terminal)).1.contains("unverified"));
         let confirmed = snapshot(Some(wire::CommandOutcome::Confirmed));
         assert_eq!(presentation(Some(&confirmed)), (Phase::Confirmed, "", ""));
+    }
+    #[test]
+    fn terminal_ack_releases_the_real_detail_slider_but_keeps_uncertainty_visible() {
+        use i_slint_backend_testing::ElementQuery;
+        use slint::{ComponentHandle, Model, ModelRc};
+        use std::{cell::RefCell, rc::Rc};
+        slint::platform::set_platform(Box::new(i_slint_backend_testing::TestingBackend::new(
+            i_slint_backend_testing::TestingBackendOptions {
+                mock_time: true,
+                renderer_name: Some("software".into()),
+                ..Default::default()
+            },
+        )))
+        .unwrap();
+        let window = crate::create_window().unwrap();
+        window.set_show_endpoint(false);
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_view_loaded(true);
+        window.set_connection_status(crate::ConnectionStatus::Live);
+        window.set_commands_ready(true);
+        window.set_page(crate::ViewPage::Detail);
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(900., 1400.));
+        window.show().unwrap();
+        let render = |name: &str| {
+            if let Some(directory) = std::env::var_os("HOMEWARD_POSTQA_RENDER_DIR") {
+                let directory = std::path::PathBuf::from(directory);
+                std::fs::create_dir_all(&directory).unwrap();
+                let pixels = window.window().take_snapshot().unwrap();
+                let file = std::fs::File::create(directory.join(format!("{name}.png"))).unwrap();
+                let mut encoder = png::Encoder::new(file, pixels.width(), pixels.height());
+                encoder.set_color(png::ColorType::Rgba);
+                encoder.set_depth(png::BitDepth::Eight);
+                encoder
+                    .write_header()
+                    .unwrap()
+                    .write_image_data(pixels.as_bytes())
+                    .unwrap();
+            }
+        };
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let output = calls.clone();
+        window.on_device_brightness(move |t, g, v| output.borrow_mut().push((t, g, v)));
+        let publish = |snapshot: &CapabilitySnapshot, access| {
+            let (phase, label, description) = presentation(Some(snapshot));
+            let row = super::super::presentation::CardRow {
+                token: 0,
+                generation: 1,
+                title: "Synthetic light".into(),
+                kind: crate::ProDeviceKind::Light,
+                power_known: true,
+                power_on: true,
+                brightness_known: true,
+                brightness_percent: 62.037033,
+                brightness_minimum: 0.,
+                brightness_maximum: 100.,
+                brightness_step: 0.,
+                can_brightness: true,
+                access,
+                phase,
+                action_label: label.into(),
+                action_detail: description.into(),
+                ..Default::default()
+            };
+            let panel =
+                super::super::detail::project(&row, row.ui(None, &Default::default()), None);
+            window.set_detail_panels(ModelRc::from([panel]));
+            slint::platform::update_timers_and_animations();
+        };
+        let slider = || {
+            ElementQuery::from_root(&window)
+                .match_inherits("KitSlider")
+                .find_first()
+                .expect("real detail slider")
+        };
+        publish(&snapshot(None), crate::ProControlAccess::Allowed);
+        assert_eq!(slider().accessible_value().as_deref(), Some("62.04%"));
+        render("ack-pending");
+        slider().invoke_accessible_increment_action();
+        assert!(calls.borrow().is_empty(), "pending ACK blocks input");
+        let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
+        publish(&terminal, crate::ProControlAccess::Allowed);
+        render("ack-terminal");
+        slider().invoke_accessible_increment_action();
+        assert_eq!(&*calls.borrow(), &[(0, 1, 62.037033_f32 + 1.)]);
+        assert_eq!(
+            window
+                .get_detail_panels()
+                .row_data(0)
+                .unwrap()
+                .light
+                .brightness,
+            62.037033,
+            "no optimistic observation"
+        );
+        assert!(
+            ElementQuery::from_root(&window)
+                .match_predicate(|e| e
+                    .accessible_label()
+                    .is_some_and(|s| s.contains("effect unverified")))
+                .find_first()
+                .is_some(),
+            "uncertainty remains visible"
+        );
+        publish(&terminal, crate::ProControlAccess::Denied);
+        slider().invoke_accessible_increment_action();
+        assert_eq!(
+            calls.borrow().len(),
+            1,
+            "terminal ACK does not grant authority"
+        );
     }
     #[test]
     fn stopping_tracking_cannot_cancel_an_effect_or_erase_a_recorded_confirmation() {

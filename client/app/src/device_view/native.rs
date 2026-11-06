@@ -139,24 +139,35 @@ pub(super) fn observe_step(
                     &action.request_id() == id && resolved_step(&action.snapshot())
                 })
             });
-        if release {
-            state.native_steps.pending.remove(&pending_key);
-        } else {
-            // A route can retire the original slot while this exact target is
-            // still unresolved. New generations inherit its locked draft.
-            let mut locked = initial.clone();
-            locked.lower = pending.proposed.clone();
-            locked.dirty = true;
-            state.drafts.insert(key, locked);
-            return;
-        }
+        reconcile_step(state, key, pending_key, initial, release);
+        return;
     }
     state.drafts.insert(key, initial.clone());
+}
+fn reconcile_step(
+    state: &mut super::State,
+    key: (super::CardGeneration, i32),
+    pending_key: (super::CardGeneration, i32),
+    initial: &super::panel::Draft,
+    release: bool,
+) {
+    if release {
+        state.native_steps.pending.remove(&pending_key);
+        state.drafts.insert(key, initial.clone());
+    } else {
+        // A route can retire the original slot while this exact target is
+        // still unresolved. New generations inherit its locked draft.
+        let mut locked = initial.clone();
+        locked.lower = state.native_steps.pending[&pending_key].proposed.clone();
+        locked.dirty = true;
+        state.drafts.insert(key, locked);
+    }
 }
 fn resolved_step(snapshot: &home_client_actions::capabilities::CapabilitySnapshot) -> bool {
     matches!(
         super::progress::presentation(Some(snapshot)).0,
         crate::ProActionPhase::Confirmed
+            | crate::ProActionPhase::AcknowledgedUnverified
             | crate::ProActionPhase::Refused
             | crate::ProActionPhase::Failed
             | crate::ProActionPhase::Cancelled
@@ -774,6 +785,70 @@ mod tests {
         assert!(resolved_step(&snapshot));
         snapshot.submission = CapabilitySubmission::Rejected;
         assert!(resolved_step(&snapshot));
+    }
+    #[test]
+    fn terminal_unverified_step_releases_the_lease_and_uses_fresh_observation() {
+        use crate::device_view::progress::tests::snapshot;
+        let (request, mut entity) = thermostat_fixture();
+        let store = DeviceStore::default();
+        let projected = store.project(
+            CachePhase::Live,
+            Some(&view(&request, vec![entity.clone()])),
+            &request,
+        );
+        let row = projected.native_devices[&NodeId::parse("tile").unwrap()].clone();
+        let intent = store
+            .edit(row.token, row.generation, 0, 0, step())
+            .unwrap()
+            .unwrap();
+        let prepared = store.prepare(row.token, row.generation, 0, intent).unwrap();
+        let pending = snapshot(None);
+        {
+            let mut state = store.0.lock().unwrap();
+            attach_step(&mut state, &prepared.target, &pending.request_id);
+        }
+        drop(prepared);
+        api_fixture::temperature_mut(&mut entity)
+            .observation
+            .get_or_insert_default()
+            .setpoint = Some(wire::temperature_control_observation::Setpoint::SetpointCelsius(21.));
+        let capture = view(&request, vec![entity]);
+        store.project(CachePhase::Live, Some(&capture), &request);
+        let key = (super::super::CardGeneration(row.generation), 0);
+        let mut fresh = super::super::panel::Draft::default();
+        fresh.lower = "21".into();
+        {
+            let mut state = store.0.lock().unwrap();
+            reconcile_step(&mut state, key, key, &fresh, resolved_step(&pending));
+            assert_eq!(state.native_steps.pending.len(), 1);
+            assert_eq!(state.drafts[&key].lower, "20.5");
+        }
+        assert!(matches!(
+            store.edit(row.token, row.generation, 0, 0, step()),
+            Err(Refusal::Capacity)
+        ));
+        let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
+        let (phase, notice, _) = crate::device_view::progress::presentation(Some(&terminal));
+        assert_eq!(phase, crate::ProActionPhase::AcknowledgedUnverified);
+        assert!(notice.contains("unverified"));
+        {
+            let mut state = store.0.lock().unwrap();
+            reconcile_step(&mut state, key, key, &fresh, resolved_step(&terminal));
+            assert!(state.native_steps.pending.is_empty());
+            assert_eq!(state.drafts[&key].lower, "21");
+            assert!(!state.drafts[&key].dirty);
+        }
+        store.project(CachePhase::Live, Some(&capture), &request);
+        let next = store
+            .edit(row.token, row.generation, 0, 0, step())
+            .unwrap()
+            .unwrap();
+        let command = store.prepare(row.token, row.generation, 0, next).unwrap();
+        assert!(
+            matches!(home_wire_contract::api_contract::encode_command(&command.request).command,
+            Some(wire::execute_capability_request::Command::TemperatureControl(value))
+            if matches!(value.setpoint,Some(wire::set_temperature_control_command::Setpoint::SetpointCelsius(21.5))))
+        );
     }
     #[test]
     fn thermostat_step_requires_fresh_exact_generation_and_never_completes_from_readback() {

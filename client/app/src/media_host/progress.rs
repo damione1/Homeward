@@ -76,7 +76,7 @@ fn facts(value: Option<&CapabilitySnapshot>) -> (ProActionPhase, &'static str, &
                     outcome: CommandOutcome::AcknowledgedUnverified,
                     ..
                 } => (
-                    ProActionPhase::Acknowledged,
+                    ProActionPhase::AcknowledgedUnverified,
                     "Acknowledged",
                     "Physical result not established",
                 ),
