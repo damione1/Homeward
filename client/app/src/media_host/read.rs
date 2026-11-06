@@ -196,10 +196,14 @@ impl Media {
         session: SessionCoordinator,
         transport: MediaTransport,
         entity: EntityName,
-        generation: i32,
-        cancel: CancellationToken,
+        context: state::ReadContext,
         previous: Option<(ArtworkReference, Picture)>,
     ) {
+        let state::ReadContext {
+            generation,
+            cancel,
+            source,
+        } = context;
         let expected = entity.clone();
         let lease = match session.access(&cancel).await {
             Ok(lease) => lease,
@@ -210,6 +214,15 @@ impl Media {
                 return;
             }
         };
+        {
+            let state = self.0.state.lock().expect("media state");
+            if !state.admits_read(generation, &source, lease.generation)
+                || state.entity.as_ref() != Some(&entity)
+                || cancel.is_cancelled()
+            {
+                return;
+            }
+        }
         let value = current_playback(&session, &transport, &lease, &expected, &cancel)
             .await
             .and_then(|value| {
@@ -223,6 +236,12 @@ impl Media {
         {
             return;
         }
+        {
+            let state = self.0.state.lock().expect("media state");
+            if !state.admits_read(generation, &source, lease.generation) {
+                return;
+            }
+        }
         let data = match value {
             Ok(data) => data,
             Err(status) => {
@@ -235,7 +254,7 @@ impl Media {
         )
         .await;
         let mut state = self.0.state.lock().expect("media state");
-        if state.generation != generation
+        if !state.admits_read(generation, &source, lease.generation)
             || state.entity.as_ref() != Some(&entity)
             || cancel.is_cancelled()
             || lease.cancellation.is_cancelled()

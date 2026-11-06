@@ -46,6 +46,9 @@ slint = { version = "=1.18.1", default-features = false, features = ["std", "com
 slint-kit-pro-build = { path = "../../.tools/frontend-kits/pro/crates/kit-pro-build" }
 
 [dev-dependencies]
+home-client-session = { path = "../session", features = ["test-support"] }
+home-client-cache = { path = "../cache", features = ["test-support"] }
+async-trait = "0.1"
 connectrpc = { version = "=0.9.1", default-features = false }
 i-slint-backend-testing = { version = "=1.18.1", features = ["renderer-software"] }
 i-slint-core = "=1.18.1"

@@ -26,7 +26,14 @@ pub(super) enum Failure {
     Projection,
     Interrupted,
 }
+pub(super) struct ReadContext {
+    pub generation: i32,
+    pub cancel: CancellationToken,
+    pub source: Option<home_client_cache::PresentationSource>,
+}
 pub(super) struct State {
+    pub presentation: Option<home_client_cache::PresentationSource>,
+    pub renewal: Option<home_client_cache::PresentationSource>,
     pub paused: bool,
     pub resume_render: bool,
     pub generation: i32,
@@ -53,6 +60,8 @@ pub(super) struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
+            presentation: None,
+            renewal: None,
             paused: false,
             resume_render: false,
             generation: 1,
@@ -80,6 +89,8 @@ impl Default for State {
 }
 impl State {
     pub fn invalidate(&mut self) {
+        self.presentation = None;
+        self.renewal = None;
         self.paused = false;
         self.resume_render = false;
         self.cancel.cancel();
@@ -102,7 +113,7 @@ impl State {
     }
     pub fn complete_render(&mut self, result: PreparationResult) -> bool {
         if self.expected_render != Some((result.id(), self.generation))
-            || !self.admits(self.generation)
+            || !self.accepts_read(self.generation)
         {
             return false;
         }
@@ -111,10 +122,12 @@ impl State {
             PreparationResult::Ready(frame) => {
                 self.frame = Some(frame);
                 self.status = Status::Ready;
+                self.renewal = None;
             }
             PreparationResult::Failed { .. } => {
                 self.frame = None;
                 self.status = Status::Failed(Failure::Projection);
+                self.renewal = None;
             }
         }
         true
@@ -139,8 +152,70 @@ impl State {
         self.expected_render = None;
         self.render = false;
     }
+    pub fn has_current_presentation(&self, generation: home_client_session::Generation) -> bool {
+        self.presentation
+            .as_ref()
+            .is_some_and(|p| p.source().is_current() && p.source().generation() == generation)
+    }
+    pub fn reconcile_session(&mut self, generation: home_client_session::Generation) {
+        if !self.has_current_presentation(generation) && !self.hold_renewal() {
+            self.invalidate();
+            self.entity = None;
+        }
+    }
+    pub fn hold_renewal(&mut self) -> bool {
+        let candidate = self.renewal.clone().or_else(|| {
+            self.presentation
+                .clone()
+                .filter(|p| self.source_generation == Some(p.source().generation()))
+        });
+        let Some(source) = candidate.filter(|p| p.renewing() && self.data.is_some()) else {
+            return false;
+        };
+        self.suspend();
+        self.renewal = Some(source);
+        true
+    }
+    pub fn admits_source(
+        &self,
+        generation: i32,
+        source: &Option<home_client_cache::PresentationSource>,
+        lease: home_client_session::Generation,
+    ) -> bool {
+        self.accepts_read(generation)
+            && self.presentation == *source
+            && source.as_ref().map_or(cfg!(test), |p| {
+                p.source().is_current() && p.source().generation() == lease
+            })
+    }
+    /// The deadline belongs to the old raster, not to the fresh reader or worker.
+    pub fn expire_display(&mut self) {
+        let fresh = self
+            .presentation
+            .as_ref()
+            .filter(|p| p.source().is_current() && !self.paused);
+        let Some(source) = fresh else {
+            self.invalidate();
+            self.entity = None;
+            return;
+        };
+        let fresh_data = self.source_generation == Some(source.source().generation());
+        self.renewal = None;
+        self.frame = None;
+        if !fresh_data {
+            self.data = None;
+            self.source_generation = None;
+            self.status = Status::Loading;
+        }
+    }
     pub fn admits(&self, generation: i32) -> bool {
-        !self.paused
+        self.renewal.is_none() && self.accepts_read(generation)
+    }
+    pub fn accepts_read(&self, generation: i32) -> bool {
+        self.presentation
+            .as_ref()
+            .map_or(cfg!(test), |p| p.source().is_current())
+            && !self.paused
             && generation > 0
             && generation == self.generation
             && self.active

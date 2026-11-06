@@ -345,8 +345,9 @@ impl ProjectionTarget {
                             media.suspend(entity, generation, deadline);
                         }
                         cache_view::RenderOutcome::Applied(target) => {
-                            history.choose(target.clone());
-                            media.choose(target, generation);
+                            let source = cache_view::presentation_source(&window);
+                            history.choose_presented(target.clone(), source.clone());
+                            media.choose_presented(target, generation, source);
                         }
                         cache_view::RenderOutcome::Cleared => {
                             history.clear();
@@ -683,7 +684,7 @@ fn invitation_allowed(phase: Phase) -> bool {
         | Phase::Closed => false,
     }
 }
-fn render_view(window: &HomewardWindow, view: SessionView) {
+pub(crate) fn render_view(window: &HomewardWindow, view: SessionView) {
     if !invitation_allowed(view.phase) {
         window.invoke_clear_invitation();
     }
@@ -914,7 +915,11 @@ fn deferred_dashboard_publication(
     // not keep the closed coordinator and its exclusive OS store lease alive.
     move |window| {
         ticket.deliver(|_, (generation, revision, catalogue, layout)| {
-            if !guard.is_current(generation) {
+            if !guard.is_current(generation)
+                || layout
+                    .layout()
+                    .is_some_and(|layout| !layout.publication_current())
+            {
                 return;
             }
             publish_dashboard(
@@ -1069,7 +1074,7 @@ async fn install_profile(
         connection.entity_views(),
         connection.home(),
         Filter::all(),
-        move |phase, view, viewport| {
+        move |phase, view, viewport, renewal| {
             let current = view.filter(|_| phase == home_client_cache::CachePhase::Live);
             dashboard_capture.send_if_modified(|previous| {
                 if previous.as_deref().map(|v| v.incarnation()) == current.map(|v| v.incarnation())
@@ -1083,7 +1088,7 @@ async fn install_profile(
                 .lock()
                 .expect("presentation request mutex poisoned")
                 .clone();
-            cache_view::project_devices(phase, view, viewport, &request, &projected_devices)
+            cache_view::project_owner(phase, view, viewport, &request, &projected_devices, renewal)
         },
         move |ticket| cache_target.post(ticket),
     );
@@ -2156,7 +2161,7 @@ mod tests {
             connection.entity_views(),
             connection.home(),
             Filter::all(),
-            cache_view::project,
+            |phase, view, viewport, _| cache_view::project(phase, view, viewport),
             drop,
         );
         let handle = owner.handle();

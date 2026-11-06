@@ -89,10 +89,14 @@ pub struct AccessLease {
     pub generation: Generation,
     pub cancellation: CancellationToken,
     pub(crate) token: AccessToken,
+    pub(crate) source: crate::SourceProof,
     pub(crate) account: AccountName,
     pub(crate) session: SessionName,
 }
 impl AccessLease {
+    pub fn source_proof(&self) -> crate::SourceProof {
+        self.source.clone()
+    }
     pub fn token(&self) -> &AccessToken {
         &self.token
     }

@@ -186,21 +186,41 @@ impl Media {
         {
             return;
         }
-        state.clear_private();
-        state.entity = None;
-        state.view = None;
+        state.expire_display();
         let _ = self.0.mailbox.invalidate();
         self.publish(&state);
         self.0.changed.notify_one();
     }
+    #[cfg(test)]
     pub fn choose(&self, entity: Option<EntityName>, view: ProjectionGeneration) {
+        self.choose_presented(entity, view, None);
+    }
+    pub fn choose_presented(
+        &self,
+        entity: Option<EntityName>,
+        view: ProjectionGeneration,
+        presentation: Option<home_client_cache::PresentationSource>,
+    ) {
         let mut state = self.0.state.lock().expect("media state");
         if state.entity == entity && state.view == Some(view) {
+            let changed_scope = state.presentation != presentation;
+            let changed_credential = state
+                .presentation
+                .as_ref()
+                .zip(presentation.as_ref())
+                .is_some_and(|(old, new)| old.source().generation() != new.source().generation());
+            if changed_credential && !state.hold_renewal() {
+                state.clear_private();
+                state.read_pending = state.entity.is_some();
+            }
+            state.presentation = presentation;
             if let Some(retention) = state.retention.as_mut()
                 && retention.waiting
             {
                 retention.waiting = false;
                 state.read_pending = state.entity.is_some();
+            }
+            if changed_scope || state.read_pending {
                 self.publish(&state);
                 self.0.changed.notify_one();
             }
@@ -209,6 +229,7 @@ impl Media {
         state.clear_private();
         state.entity = entity;
         state.view = Some(view);
+        state.presentation = presentation;
         state.read_pending = state.entity.is_some();
         let _ = self.0.mailbox.invalidate();
         self.publish(&state);
@@ -220,7 +241,12 @@ impl Media {
             return;
         }
         state.foreground = active;
+        // Local visibility withdraws all private data and intentions. The weak
+        // capture provenance can survive; it grants nothing while inactive and
+        // is checked again before any read when this same target reopens.
+        let source = state.presentation.clone();
         state.clear_private();
+        state.presentation = source;
         state.read_pending = active && state.entity.is_some();
         let _ = self.0.mailbox.invalidate();
         self.publish(&state);
@@ -232,7 +258,12 @@ impl Media {
             return;
         }
         state.interactive = active;
+        // Local visibility withdraws all private data and intentions. The weak
+        // capture provenance can survive; it grants nothing while inactive and
+        // is checked again before any read when this same target reopens.
+        let source = state.presentation.clone();
         state.clear_private();
+        state.presentation = source;
         state.read_pending = active && state.entity.is_some();
         let _ = self.0.mailbox.invalidate();
         self.publish(&state);
@@ -530,8 +561,15 @@ impl Media {
                 let view = *phases.borrow();
                 if view.generation != source_generation {
                     source_generation = view.generation;
-                    state.clear_private();
-                    state.read_pending = state.entity.is_some();
+                    state.reconcile_session(view.generation);
+                    let _ = self.0.mailbox.invalidate();
+                }
+                if state
+                    .renewal
+                    .as_ref()
+                    .is_some_and(|p| crate::cache_view::presentation_remaining(p).is_none())
+                {
+                    state.expire_display();
                     let _ = self.0.mailbox.invalidate();
                 }
                 let active = matches!(view.phase, Phase::Ready | Phase::Refreshing)
@@ -552,6 +590,10 @@ impl Media {
                     None
                 };
                 let read = if active
+                    && state
+                        .presentation
+                        .as_ref()
+                        .map_or(cfg!(test), |p| p.source().is_current())
                     && !state.retention.is_some_and(|retention| retention.waiting)
                     && state.read_pending
                     && reads.is_empty()
@@ -564,8 +606,11 @@ impl Media {
                         let previous = state.artwork_reference().map(|(r, p)| (r.clone(), p));
                         (
                             entity,
-                            state.generation,
-                            state.read_cancel.clone(),
+                            state::ReadContext {
+                                generation: state.generation,
+                                cancel: state.read_cancel.clone(),
+                                source: state.presentation.clone(),
+                            },
                             previous,
                         )
                     })
@@ -577,6 +622,10 @@ impl Media {
                     pending,
                     read,
                     active
+                        && state
+                            .presentation
+                            .as_ref()
+                            .map_or(cfg!(test), |p| p.source().is_current())
                         && !state.retention.is_some_and(|retention| retention.waiting)
                         && state.entity.is_some()
                         && state.status != Status::Unsupported,
@@ -606,18 +655,33 @@ impl Media {
                 }
                 self.publish(&state);
             }
-            if let Some((entity, generation, stop, previous)) = read {
+            if let Some((entity, context, previous)) = read {
                 clock.reset();
                 let (owner, session, transport) =
                     (self.clone(), session.clone(), transport.clone());
                 reads.spawn(async move {
                     owner
-                        .read(session, transport, entity, generation, stop, previous)
+                        .read(session, transport, entity, context, previous)
                         .await;
                 });
             }
+            let expiry = self
+                .0
+                .state
+                .lock()
+                .expect("media state")
+                .renewal
+                .as_ref()
+                .and_then(crate::cache_view::presentation_remaining);
+            let expires = async {
+                match expiry {
+                    Some(delay) => tokio::time::sleep(delay).await,
+                    None => std::future::pending::<()>().await,
+                }
+            };
             tokio::select! {biased;
                 ()=cancel.cancelled()=>break,
+                ()=expires=>{},
                 changed=phases.changed()=>{if changed.is_err(){break}},
                 ()=self.0.changed.notified()=>{},
                 _=clock.tick(),if poll=>{self.0.state.lock().expect("media state").read_pending=true;},

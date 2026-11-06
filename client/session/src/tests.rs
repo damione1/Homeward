@@ -1123,3 +1123,161 @@ fn canonical_auth_failure(reason: auth::ApiErrorReason) -> Failure {
         ))
         .into()
 }
+
+#[tokio::test]
+async fn nominal_renewal_has_weak_display_lineage_but_never_old_credential_admission() {
+    let (owner, api, clock, _) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("test".into()))
+        .await
+        .unwrap();
+    let old = owner.access(&CancellationToken::new()).await.unwrap();
+    let proof = old.source_proof();
+    assert!(proof.is_current());
+    assert!(!proof.renewing());
+    let mut phases = owner.subscribe();
+    clock.0.store(BASE + 200, Ordering::SeqCst);
+    let next = owner.clone();
+    let waiter = tokio::spawn(async move { next.access(&CancellationToken::new()).await });
+    api.started.notified().await;
+    assert!(old.cancellation.is_cancelled());
+    assert!(!proof.is_current());
+    assert!(proof.renewing());
+    api.release.add_permits(1);
+    let fresh = waiter.await.unwrap().unwrap();
+    // The consumer deliberately missed Refreshing: the lineage is explicit,
+    // independent of which watch publications happened to be delivered.
+    assert_eq!(phases.borrow_and_update().phase, Phase::Ready);
+    assert!(proof.renewing());
+    assert!(fresh.source_proof().is_current());
+    assert!(proof.same_presentation(&fresh.source_proof()));
+    owner.close().await;
+    assert!(!proof.presentation_continues());
+}
+
+#[tokio::test]
+async fn missed_rights_or_authority_failures_permanently_break_display_lineage() {
+    for reason in [
+        auth::ApiErrorReason::AccessDenied,
+        auth::ApiErrorReason::AuthorityUnavailable,
+    ] {
+        let (owner, _, _, _) = fixture();
+        owner
+            .login("alice".into(), Zeroizing::new("test".into()))
+            .await
+            .unwrap();
+        let old = owner.access(&CancellationToken::new()).await.unwrap();
+        let proof = old.source_proof();
+        let mut phases = owner.subscribe();
+        owner
+            .observe_failure(old.generation, &canonical_auth_failure(reason))
+            .await
+            .unwrap();
+        owner.allow_new_view_attempt().await.unwrap();
+        assert_eq!(phases.borrow_and_update().phase, Phase::Ready);
+        assert!(!proof.presentation_continues());
+        assert!(!proof.renewing());
+        let fresh = owner.access(&CancellationToken::new()).await.unwrap();
+        assert!(!proof.same_presentation(&fresh.source_proof()));
+        owner.close().await;
+    }
+}
+
+#[tokio::test]
+async fn display_provenance_does_not_keep_session_or_store_alive() {
+    let (owner, api, _, store) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("test".into()))
+        .await
+        .unwrap();
+    let lease = owner.access(&CancellationToken::new()).await.unwrap();
+    let proof = lease.source_proof();
+    let weak = Arc::downgrade(&store);
+    drop((owner, api, store));
+    assert!(weak.upgrade().is_none());
+    assert!(!proof.is_current());
+    assert!(!proof.presentation_continues());
+}
+
+#[tokio::test]
+async fn terminal_failure_retires_generation_for_long_lived_publication_guards() {
+    let (owner, _, _, _) = fixture();
+    let guard = owner.generation_guard(); // installed before login by the host
+    owner
+        .login("alice".into(), Zeroizing::new("test".into()))
+        .await
+        .unwrap();
+    let old = owner.access(&CancellationToken::new()).await.unwrap();
+    assert!(guard.is_current(old.generation));
+    assert_eq!(
+        owner
+            .fail(old.generation, SessionFailure::InvalidResponse)
+            .await,
+        SessionFailure::InvalidResponse
+    );
+    assert_eq!(owner.generation(), old.generation);
+    assert!(!owner.is_current(old.generation));
+    assert!(!guard.is_current(old.generation));
+    assert!(old.cancellation.is_cancelled());
+    assert!(!old.source_proof().renewing());
+    owner
+        .login("alice".into(), Zeroizing::new("test".into()))
+        .await
+        .unwrap();
+    let fresh = owner.access(&CancellationToken::new()).await.unwrap();
+    assert!(guard.is_current(fresh.generation));
+    assert!(!guard.is_current(old.generation));
+    assert!(!old.source_proof().same_presentation(&fresh.source_proof()));
+    owner.close().await;
+}
+
+#[tokio::test]
+async fn invalid_refresh_response_retires_publications_without_hiding_the_waiter_error() {
+    let (owner, api, clock, store) = fixture();
+    owner
+        .login("alice".into(), Zeroizing::new("synthetic".into()))
+        .await
+        .unwrap();
+    let old = owner.access(&CancellationToken::new()).await.unwrap();
+    let guard = owner.generation_guard();
+    api.rotated_nanos.store(1_000, Ordering::SeqCst);
+    clock.0.store(BASE + 121, Ordering::SeqCst);
+    api.release.add_permits(1);
+    assert!(matches!(
+        owner.access(&CancellationToken::new()).await,
+        Err(SessionFailure::InvalidResponse)
+    ));
+    assert!(!guard.is_current(old.generation));
+    assert!(!old.source_proof().presentation_continues());
+    let failed_generation = owner.generation();
+    assert!(!guard.is_current(failed_generation));
+    assert_eq!(owner.subscribe().borrow().phase, Phase::UnsupportedResponse);
+    let saved = store
+        .load()
+        .unwrap()
+        .expect("the exact pending renewal remains durable");
+    assert!(matches!(
+        SecretRecord::decode(&saved, &clock.now().unwrap())
+            .unwrap()
+            .refresh,
+        RefreshState::Pending(_)
+    ));
+    owner.restore().await.unwrap();
+    assert_eq!(owner.subscribe().borrow().phase, Phase::Ready);
+    assert_ne!(owner.generation(), failed_generation);
+    assert!(!guard.is_current(failed_generation));
+    api.rotated_nanos.store(0, Ordering::SeqCst);
+    api.release.add_permits(1);
+    let fresh = owner.access(&CancellationToken::new()).await.unwrap();
+    assert!(guard.is_current(fresh.generation));
+    assert!(!guard.is_current(old.generation));
+    assert!(!old.source_proof().same_presentation(&fresh.source_proof()));
+    let keys = api.renewal_keys.lock().unwrap();
+    assert_eq!(keys.len(), 2);
+    assert_eq!(
+        keys[0], keys[1],
+        "restore retries the same durable operation"
+    );
+    drop(keys);
+    owner.close().await;
+}

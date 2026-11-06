@@ -104,7 +104,7 @@ impl History {
                 state.background = background;
                 state.accent = accent;
                 state.density = density;
-                if state.paused {
+                if !state.admits(state.generation) {
                     state.resume_render = state.data.is_some();
                 } else {
                     state.render = state.data.is_some();
@@ -131,9 +131,38 @@ impl History {
             .publish(self.0.mailbox.generation(), projection)
             && let Some(window) = &self.0.window
         {
+            let owner = Arc::downgrade(&self.0);
             let _ = window.upgrade_in_event_loop(move |window| {
-                ticket.deliver(|_, value| render::render(&window, value));
+                Self::deliver(&owner, &window, ticket);
             });
+        }
+    }
+    fn deliver(
+        owner: &std::sync::Weak<Inner>,
+        window: &HomewardWindow,
+        ticket: home_client_cache::DeliveryTicket<render::Projection>,
+    ) {
+        let mut retained = None;
+        ticket.deliver(|_, value| {
+            retained = value.retained_source();
+            render::render(window, value);
+        });
+        // Never re-enter State/mailbox while delivering a ticket. A delayed
+        // raster can expire before the owner loop or a UI timer gets a turn.
+        if let Some((generation, source)) = retained
+            && crate::cache_view::presentation_remaining(&source).is_none()
+            && let Some(inner) = owner.upgrade()
+        {
+            let this = Self(inner);
+            let mut state = this.0.state.lock().expect("history state");
+            if state.generation == generation
+                && state.renewal.as_ref().or(state.presentation.as_ref()) == Some(&source)
+            {
+                state.expire_display();
+                let _ = this.0.mailbox.invalidate();
+                this.publish(&state);
+                this.0.changed.notify_one();
+            }
         }
     }
     pub fn suspend(&self, entity: Option<EntityName>) {
@@ -150,9 +179,40 @@ impl History {
             self.0.changed.notify_one();
         }
     }
+    #[cfg(test)]
     pub fn choose(&self, entity: Option<EntityName>) {
+        self.choose_presented(entity, None);
+    }
+    pub fn choose_presented(
+        &self,
+        entity: Option<EntityName>,
+        presentation: Option<home_client_cache::PresentationSource>,
+    ) {
         let mut state = self.0.state.lock().expect("history state");
         if state.entity == entity {
+            let changed_credential = state
+                .presentation
+                .as_ref()
+                .zip(presentation.as_ref())
+                .is_some_and(|(old, new)| old.source().generation() != new.source().generation());
+            if changed_credential && !state.hold_renewal() {
+                state.invalidate();
+            }
+            state.presentation = presentation;
+            if state.renewal.is_some() && state.paused {
+                // Revalidate precisely the prior explicit query under fresh
+                // admission. Old result permissions are never relabelled.
+                state.pending = state
+                    .data
+                    .as_ref()
+                    .map(|data| (data.snapshot.query.clone(), data.statistic));
+                state.paused = false;
+                state.render = false;
+                state.resume_render = false;
+                self.publish(&state);
+                self.0.changed.notify_one();
+                return;
+            }
             if state.paused {
                 state.paused = false;
                 state.render = state.resume_render && state.data.is_some();
@@ -164,6 +224,7 @@ impl History {
         }
         state.invalidate();
         state.entity = entity;
+        state.presentation = presentation;
         let _ = self.0.mailbox.invalidate();
         self.publish(&state);
         self.0.changed.notify_one();
@@ -189,20 +250,24 @@ impl History {
     }
     fn draft(&self) {
         let mut state = self.0.state.lock().expect("history state");
-        if state.paused {
+        if !state.admits(state.generation) {
             return;
         }
+        let presentation = state.presentation.clone();
         state.invalidate();
+        state.presentation = presentation;
         let _ = self.0.mailbox.invalidate();
         self.publish(&state);
         self.0.changed.notify_one();
     }
     fn apply(&self, start: &str, end: &str, stat: HistoryStatistic) {
         let mut state = self.0.state.lock().expect("history state");
-        if state.paused {
+        if !state.admits(state.generation) {
             return;
         }
+        let presentation = state.presentation.clone();
         state.invalidate();
+        state.presentation = presentation;
         let _ = self.0.mailbox.invalidate();
         let parsed = parse_query(state.entity.clone(), start, end, stat);
         match parsed {
@@ -217,7 +282,7 @@ impl History {
     }
     fn group(&self, step: NavigationStep) {
         let mut state = self.0.state.lock().expect("history state");
-        if state.paused {
+        if !state.admits(state.generation) {
             return;
         }
         let Some(data) = &state.data else {
@@ -333,8 +398,16 @@ impl History {
                 let current = *phases.borrow();
                 if current.generation != session_generation {
                     session_generation = current.generation;
-                    state.invalidate();
-                    state.entity = None;
+                    state.reconcile_session(current.generation);
+                    let _ = self.0.mailbox.invalidate();
+                    self.publish(&state);
+                }
+                if state
+                    .renewal
+                    .as_ref()
+                    .is_some_and(|p| crate::cache_view::presentation_remaining(p).is_none())
+                {
+                    state.expire_display();
                     let _ = self.0.mailbox.invalidate();
                     self.publish(&state);
                 }
@@ -348,18 +421,22 @@ impl History {
                     self.publish(&state);
                 }
                 state.active = active;
-                state
-                    .pending
-                    .take()
-                    .map(|query| (state.generation, state.cancel.clone(), query))
+                state.pending.take().map(|query| {
+                    (
+                        state::ReadContext {
+                            generation: state.generation,
+                            cancel: state.cancel.clone(),
+                            source: state.presentation.clone(),
+                        },
+                        query,
+                    )
+                })
             };
-            if let Some((generation, stop, (query, statistic))) = pending {
+            if let Some((context, (query, statistic))) = pending {
                 while reads.join_next().await.is_some() {}
                 let (owner, credential, api) = (self.clone(), session.clone(), transport.clone());
                 reads.spawn(async move {
-                    owner
-                        .read(credential, api, query, statistic, generation, stop)
-                        .await;
+                    owner.read(credential, api, query, statistic, context).await;
                 });
             }
             {
@@ -384,8 +461,23 @@ impl History {
                     self.publish(&state);
                 }
             }
+            let expiry = self
+                .0
+                .state
+                .lock()
+                .expect("history state")
+                .renewal
+                .as_ref()
+                .and_then(crate::cache_view::presentation_remaining);
+            let expires = async {
+                match expiry {
+                    Some(delay) => tokio::time::sleep(delay).await,
+                    None => std::future::pending::<()>().await,
+                }
+            };
             tokio::select! { biased;
                 () = cancel.cancelled() => break,
+                () = expires => {},
                 change = phases.changed() => { if change.is_err() { break; } }
                 () = self.0.changed.notified() => {}
                 () = wake.notified() => {
@@ -412,17 +504,29 @@ impl History {
         transport: HistoryTransport,
         query: Query,
         statistic: Statistic,
-        generation: i32,
-        cancel: CancellationToken,
+        context: state::ReadContext,
     ) {
+        let state::ReadContext {
+            generation,
+            cancel,
+            source,
+        } = context;
         let lease = tokio::select! { biased; () = cancel.cancelled() => return, lease = session.access(&cancel) => match lease {
             Ok(lease) => lease,
             Err(_) => {
                 let mut state = self.0.state.lock().expect("history state");
-                if state.admits(generation) { state.status = Status::Failed(Failure::Denied); self.publish(&state); }
+                if state.accepts_read(generation) { state.status = Status::Failed(Failure::Denied); self.publish(&state); }
                 return;
             }
         } };
+        if !self.0.state.lock().expect("history state").admits_source(
+            generation,
+            &source,
+            lease.generation,
+        ) || cancel.is_cancelled()
+        {
+            return;
+        }
         let response = history::read_history(&transport, &lease, query, &cancel).await;
         if let Err(history::ReadError::Transport(failure)) = &response {
             let _ = session.observe_failure(lease.generation, failure).await;
@@ -433,7 +537,7 @@ impl History {
                 .map_err(|_| Failure::Projection)
         });
         let mut state = self.0.state.lock().expect("history state");
-        if !state.admits(generation) || cancel.is_cancelled() {
+        if !state.admits_source(generation, &source, lease.generation) || cancel.is_cancelled() {
             return;
         }
         if lease.cancellation.is_cancelled() || !session.is_current(lease.generation) {
@@ -455,8 +559,12 @@ impl History {
                 };
                 state.render = !data.groups.is_empty();
                 state.data = Some(data);
+                if !state.render {
+                    state.renewal = None;
+                }
             }
             Err(reason) => {
+                state.renewal = None;
                 state.data = None;
                 state.frame = None;
                 state.status = Status::Failed(reason);

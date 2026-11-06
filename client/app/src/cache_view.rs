@@ -71,6 +71,7 @@ pub(crate) fn authority(view: &CachedView) -> Option<Vec<EntityAuthority>> {
 }
 
 pub(crate) struct CacheProjection {
+    presentation: Option<home_client_cache::PresentationSource>,
     pending_cohort: Option<Layout>,
     authority: Option<Vec<EntityAuthority>>,
     history_entity: Option<EntityName>,
@@ -153,6 +154,7 @@ pub(crate) fn project_request(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn project_devices(
     phase: CachePhase,
     view: Option<&CachedView>,
@@ -160,6 +162,37 @@ pub(crate) fn project_devices(
     request: &ProjectionRequest,
     devices: &crate::device_view::DeviceStore,
 ) -> CacheProjection {
+    project_owner(phase, view, viewport, request, devices, None)
+}
+
+pub(crate) fn project_owner(
+    mut phase: CachePhase,
+    mut view: Option<&CachedView>,
+    viewport: Viewport,
+    request: &ProjectionRequest,
+    devices: &crate::device_view::DeviceStore,
+    renewal: Option<&home_client_cache::PresentationSource>,
+) -> CacheProjection {
+    let presentation = renewal
+        .cloned()
+        .or_else(|| view.and_then(home_client_cache::PresentationSource::from_view))
+        .map(|p| {
+            request
+                .dashboard
+                .layout()
+                .and_then(|l| l.binding_expires)
+                .map_or(p.clone(), |deadline| p.bounded(deadline))
+        });
+    if let Some(source) = &presentation
+        && !source.source().is_current()
+    {
+        view = None;
+        phase = if source.renewing() {
+            CachePhase::Renewing
+        } else {
+            CachePhase::Blocked
+        };
+    }
     let layout = request
         .dashboard
         .layout()
@@ -269,25 +302,39 @@ pub(crate) fn project_devices(
     let profile_zone = layout.map_or(crate::environment_view::ProfileZone::Missing, |layout| {
         layout.profile_zone
     });
-    let devices = devices.project(phase, view, request);
+    let devices = devices.project_owner(
+        phase,
+        view,
+        request,
+        presentation
+            .as_ref()
+            .filter(|_| phase == CachePhase::Renewing),
+    );
     let board = crate::dashboard_presentation::Board::project(layout, request, &devices, view);
     let pending_cohort = request
         .dashboard
         .layout()
         .filter(|old| {
             let now = chrono::Utc::now();
-            phase == CachePhase::Live
-                && old.capture.is_some()
-                && view.is_some_and(|view| old.capture.as_ref() != Some(view.incarnation()))
+            old.capture.is_some()
+                && (phase == CachePhase::Live
+                    && view.is_some_and(|view| old.capture.as_ref() != Some(view.incarnation()))
+                    || phase == CachePhase::Renewing
+                        && presentation.as_ref().is_some_and(|p| {
+                            p.renewing() && old.capture.as_ref() == Some(p.incarnation())
+                        }))
                 && old.binding_expires.is_some_and(|expires| {
                     expires > (now.timestamp(), now.timestamp_subsec_nanos() as i32)
                 })
         })
         .cloned();
     CacheProjection {
+        presentation,
         pending_cohort,
         authority: view.and_then(authority),
-        history_entity: if phase == CachePhase::Live && detail.is_some() {
+        history_entity: if phase == CachePhase::Renewing
+            || phase == CachePhase::Live && detail.is_some()
+        {
             request.detail.clone()
         } else {
             None
@@ -301,7 +348,7 @@ pub(crate) fn project_devices(
         total,
         rows,
         home: HomeProjection {
-            captured: view.is_some(),
+            captured: view.is_some() || phase == CachePhase::Renewing,
             layout: layout.cloned(),
             status: if layout.is_some() {
                 String::new()
@@ -362,6 +409,7 @@ fn entity_quality(entity: &wire::EntityViewEntry) -> String {
 
 #[derive(Default)]
 struct RowStore {
+    presentation: Option<home_client_cache::PresentationSource>,
     authority: Option<Vec<EntityAuthority>>,
     generation: Option<ProjectionGeneration>,
     total: usize,
@@ -467,6 +515,7 @@ impl CacheRows {
                 .copied(),
         );
         *old = RowStore {
+            presentation: projection.presentation,
             authority: projection.authority,
             generation: Some(generation),
             total: projection.total,
@@ -512,8 +561,16 @@ impl CacheRows {
         *self.focused_widget_item.borrow_mut() = None;
         *self.widget_focus_mapping.borrow_mut() = None;
     }
+    fn source_current(&self) -> bool {
+        self.state
+            .borrow()
+            .presentation
+            .as_ref()
+            .map_or(cfg!(test), |source| source.source().is_current())
+    }
     pub(crate) fn resolve(&self, token: i32, generation: i32, revision: i32) -> Option<EntityName> {
-        if self.pending_cohort.get()
+        if !self.source_current()
+            || self.pending_cohort.get()
             || generation != self.serial.get()
             || self.state.borrow().revision != revision
         {
@@ -531,7 +588,8 @@ impl CacheRows {
         generation: i32,
         layout: Option<&Layout>,
     ) -> Option<dashboard::RoomId> {
-        if self.pending_cohort.get()
+        if !self.source_current()
+            || self.pending_cohort.get()
             || generation != self.home_serial.get()
             || self.state.borrow().layout.as_ref() != layout
         {
@@ -552,7 +610,8 @@ impl CacheRows {
         generation: i32,
         revision: i32,
     ) -> Option<EntityName> {
-        if self.pending_cohort.get()
+        if !self.source_current()
+            || self.pending_cohort.get()
             || generation != self.home_serial.get()
             || self.state.borrow().revision != revision
         {
@@ -884,8 +943,25 @@ fn retains_pixels(
             .is_some_and(|expires| expires > now)
         && old.generation == Some(generation)
         && old.revision == projection.revision
-        && projection.authority.is_some()
-        && old.authority == projection.authority
+        && if projection.phase == CachePhase::Renewing {
+            projection
+                .presentation
+                .as_ref()
+                .zip(old.presentation.as_ref())
+                .is_some_and(|(new, old)| {
+                    new.renewing()
+                        && new.incarnation() == old.incarnation()
+                        && new.source() == old.source()
+                })
+        } else {
+            projection.authority.is_some()
+                && old.authority == projection.authority
+                && old.presentation.as_ref().is_none_or(|old| {
+                    projection.presentation.as_ref().is_some_and(|new| {
+                        old.source().same_presentation(new.source()) && new.source().is_current()
+                    })
+                })
+        }
 }
 
 pub(crate) enum RenderOutcome {
@@ -903,6 +979,22 @@ pub(crate) fn render(
     generation: ProjectionGeneration,
     mut projection: CacheProjection,
 ) -> RenderOutcome {
+    // A queued coherent publication must not reinstall a retired credential's
+    // view. A nominal renewal may retain existing pixels, never install these
+    // old rows as a newly admitted view. Ruptures also survive watch coalescing.
+    if let Some(source) = &projection.presentation
+        && !source.source().is_current()
+    {
+        if source.renewing() {
+            projection.phase = CachePhase::Renewing;
+            if projection.pending_cohort.is_none() {
+                projection.pending_cohort = projection.home.layout.clone();
+            }
+        } else {
+            clear_state(window, false);
+            return RenderOutcome::Cleared;
+        }
+    }
     // This ticket has already crossed the cache owner's publication barrier.
     // Authoritative absence must clear the old private view even when a newer
     // local search has made the presentation revision obsolete.
@@ -947,6 +1039,10 @@ pub(crate) fn render(
                 deadline: expiry,
             };
         }
+    }
+    if projection.phase == CachePhase::Renewing {
+        clear_state(window, false);
+        return RenderOutcome::Cleared;
     }
     window.set_cohort_pending(false);
     let target = projection
@@ -1200,6 +1296,9 @@ pub(crate) fn widget_bindings(window: &HomewardWindow) -> Vec<crate::dashboard_w
     let Some(rows) = rows.as_any().downcast_ref::<CacheRows>() else {
         return Vec::new();
     };
+    if !rows.source_current() {
+        return Vec::new();
+    }
     rows.widget_bindings
         .borrow()
         .iter()
@@ -1398,7 +1497,9 @@ pub(crate) fn publish_widget_agenda(
 fn connection_status(phase: CachePhase) -> ConnectionStatus {
     match phase {
         CachePhase::Idle | CachePhase::Suspended | CachePhase::Closed => ConnectionStatus::Idle,
-        CachePhase::Loading | CachePhase::Resyncing => ConnectionStatus::Connecting,
+        CachePhase::Loading | CachePhase::Renewing | CachePhase::Resyncing => {
+            ConnectionStatus::Connecting
+        }
         CachePhase::Live => ConnectionStatus::Live,
         CachePhase::Offline => ConnectionStatus::Offline,
         CachePhase::Blocked | CachePhase::Invalid => ConnectionStatus::Blocked,
@@ -1407,7 +1508,7 @@ fn connection_status(phase: CachePhase) -> ConnectionStatus {
 fn cache_status(phase: CachePhase, total: usize) -> String {
     let label = match phase {
         CachePhase::Idle => "",
-        CachePhase::Loading => "Loading states…",
+        CachePhase::Loading | CachePhase::Renewing => "Loading states…",
         CachePhase::Live => {
             if total == 0 {
                 "No authorized items in this view."
@@ -2908,6 +3009,77 @@ mod tests {
         let second = fixtures::capture(vec![entry]);
         assert!(authority(&first).is_some() && authority(&first) == authority(&second));
     }
+    #[tokio::test]
+    async fn renewal_revokes_resolvers_before_ui_and_rejects_delayed_ready_after_rupture() {
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        bind(&window);
+        let credentials = crate::renewal_tests::Credentials::new().await;
+        let view = credentials.captured(home_view()).await;
+        let request = ProjectionRequest {
+            dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(
+                dashboard::joined_fixture(&view),
+            )),
+            ..Default::default()
+        };
+        let devices = crate::device_view::DeviceStore::default();
+        let generation = ProjectionMailbox::<()>::new().generation();
+        let project = || {
+            project_devices(
+                CachePhase::Live,
+                Some(&view),
+                Viewport::default(),
+                &request,
+                &devices,
+            )
+        };
+        render(&window, generation, project());
+        let queued_ready = project();
+        let queued_after_rupture = project();
+        let rows = window.get_cache_rows();
+        let model = rows.as_any().downcast_ref::<CacheRows>().unwrap();
+        let (token, entity) = model
+            .state
+            .borrow()
+            .rows
+            .iter()
+            .find_map(|(token, (row, _))| row.id.clone().map(|id| (*token as i32, id)))
+            .unwrap();
+        let serial = model.serial.get();
+        let revision = window.get_projection_version();
+        assert!(model.resolve(token, serial, revision).is_some());
+        model.state.borrow_mut().observations.insert(42, entity);
+        let home_serial = model.home_serial.get();
+        assert!(
+            model
+                .resolve_observation(42, home_serial, revision)
+                .is_some()
+        );
+        let count = window.get_home_layout_nodes().row_count();
+        credentials.renew().await;
+        assert!(!model.pending_cohort.get(), "no UI publication has run yet");
+        assert!(model.resolve(token, serial, revision).is_none());
+        assert!(
+            model
+                .resolve_observation(42, home_serial, revision)
+                .is_none()
+        );
+        assert!(widget_bindings(&window).is_empty());
+        assert!(matches!(
+            render(&window, generation, queued_ready),
+            RenderOutcome::Retained { .. }
+        ));
+        assert_eq!(window.get_home_layout_nodes().row_count(), count);
+        assert!(!window.get_commands_ready());
+        credentials.session.close().await;
+        assert!(matches!(
+            render(&window, generation, queued_after_rupture),
+            RenderOutcome::Cleared
+        ));
+        assert_eq!(window.get_home_layout_nodes().row_count(), 0);
+        assert!(!window.get_has_configured_layout());
+    }
+
     #[test]
     fn a_new_capture_retains_pixels_but_revokes_intents_until_its_dashboard_joins() {
         i_slint_backend_testing::init_no_event_loop();
@@ -3063,4 +3235,30 @@ mod tests {
                 .is_none()
         );
     }
+}
+
+/// Weak provenance of the currently displayed capture, never the capture itself.
+pub(crate) fn presentation_source(
+    window: &HomewardWindow,
+) -> Option<home_client_cache::PresentationSource> {
+    let rows = window.get_cache_rows();
+    rows.as_any()
+        .downcast_ref::<CacheRows>()?
+        .state
+        .borrow()
+        .presentation
+        .clone()
+}
+pub(crate) fn presentation_remaining(
+    source: &home_client_cache::PresentationSource,
+) -> Option<std::time::Duration> {
+    if !source.source().presentation_continues() {
+        return None;
+    }
+    let now = chrono::Utc::now();
+    let (seconds, nanos) = source.deadline();
+    let remaining = i128::from(seconds - now.timestamp()) * 1_000_000_000
+        + i128::from(nanos - now.timestamp_subsec_nanos() as i32);
+    (remaining > 0)
+        .then(|| std::time::Duration::from_nanos(u64::try_from(remaining).unwrap_or(u64::MAX)))
 }

@@ -350,6 +350,7 @@ export component HomewardWindow inherits Window {
     callback media-expire-artwork(int);
     callback media-set-interactive(bool);
     callback media-private-cleared();
+    in-out property <bool> history-revalidating: false;
     private property <bool> media-interactive: root.dashboard-interactive && root.view-loaded && root.page == ViewPage.detail;
     // Cohort suspension is an owner transition; ordinary route/session closure
     // still clears readers immediately through this separate lifecycle gate.
@@ -962,7 +963,7 @@ export component HomewardWindow inherits Window {
                     spacing: 8px;
                     Text { text: root.detail-quality + " · " + root.detail-date; color: root.theme.text-secondary; font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
                 HomewardHistory {
-                    theme: root.theme; interactive: root.dashboard-interactive && root.view-loaded && root.page == ViewPage.detail; suspended: root.cohort-pending;
+                    theme: root.theme; interactive: root.dashboard-interactive && root.view-loaded && root.page == ViewPage.detail; suspended: root.cohort-pending || root.history-revalidating;
                     presentation: root.history-presentation;
                     start <=> root.history-start; end <=> root.history-end; statistic <=> root.history-statistic;
                     apply(start,end,stat) => { root.history-apply(start,end,stat); }

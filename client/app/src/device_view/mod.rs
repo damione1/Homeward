@@ -134,6 +134,7 @@ impl<'a> CardInput<'a> {
 }
 #[derive(Clone, PartialEq)]
 struct Context {
+    source: Option<home_client_session::SourceProof>,
     revision: i32,
     layout: Arc<Layout>,
     catalogue: Option<crate::dashboard_catalogue::CatalogueToken>,
@@ -148,8 +149,20 @@ struct Context {
     )>,
 }
 impl Context {
+    fn source_current(&self) -> bool {
+        match &self.source {
+            Some(source) => source.is_current(),
+            // Isolated domain fixtures do not own credentials. Native captures
+            // always carry provenance; production absence is fail-closed.
+            None => cfg!(test),
+        }
+    }
+    fn live(&self) -> bool {
+        self.live && self.source_current()
+    }
     fn same_view(&self, other: &Self) -> bool {
-        self.revision == other.revision
+        self.source == other.source
+            && self.revision == other.revision
             && self.layout == other.layout
             && self.catalogue == other.catalogue
             && self.capture == other.capture
@@ -320,11 +333,21 @@ impl DeviceStore {
             handle.stop_tracking();
         }
     }
+    #[cfg(test)]
     pub fn project(
         &self,
         phase: CachePhase,
         view: Option<&CachedView>,
         request: &ProjectionRequest,
+    ) -> DeviceProjection {
+        self.project_owner(phase, view, request, None)
+    }
+    pub fn project_owner(
+        &self,
+        phase: CachePhase,
+        view: Option<&CachedView>,
+        request: &ProjectionRequest,
+        renewal: Option<&home_client_cache::PresentationSource>,
     ) -> DeviceProjection {
         let mut state = self.0.lock().expect("device store mutex");
         let saved = if state.context.is_some() {
@@ -332,7 +355,18 @@ impl DeviceStore {
         } else {
             state.retained_drafts.take()
         }
-        .filter(|saved| saved.permits(phase, view, request, draft_retention::now()));
+        .filter(|saved| {
+            let now = draft_retention::now();
+            if phase == CachePhase::Renewing {
+                renewal.is_some_and(|renewal| saved.permits_renewal(renewal, request, now))
+            } else {
+                saved.permits(phase, view, request, now)
+            }
+        });
+        let view = view.filter(|view| {
+            view.source_proof()
+                .map_or(cfg!(test), |source| source.is_current())
+        });
         let layout = request
             .dashboard
             .layout()
@@ -475,6 +509,7 @@ impl DeviceStore {
         }
         let mut context = match (view, layout) {
             (Some(view), Some(_)) => Some(Context {
+                source: view.source_proof().cloned(),
                 revision: request.revision,
                 catalogue: request
                     .catalogue
@@ -576,7 +611,7 @@ impl DeviceStore {
             .retain(|(generation, _), pending| {
                 generations.contains(generation) || pending.attached()
             });
-        let ready = state.context.as_ref().is_some_and(|context| context.live);
+        let ready = state.context.as_ref().is_some_and(|context| context.live());
         for (index, row) in cards.iter_mut().enumerate() {
             row.token = index as i32;
             let slot = state
@@ -699,7 +734,7 @@ impl DeviceStore {
     pub fn entity(&self, token: i32, generation: i32, revision: i32) -> Option<EntityName> {
         let state = self.0.lock().expect("device store mutex");
         let context = state.context.as_ref()?;
-        if context.revision != revision {
+        if !context.source_current() || context.revision != revision {
             return None;
         }
         context
@@ -716,7 +751,7 @@ impl DeviceStore {
     ) -> Option<crate::dashboard_focus::Origin> {
         let state = self.0.lock().expect("device store mutex");
         let context = state.context.as_ref()?;
-        if context.revision != revision {
+        if !context.source_current() || context.revision != revision {
             return None;
         }
         let slot = context
@@ -745,7 +780,10 @@ impl DeviceStore {
     ) -> Option<(i32, i32)> {
         let state = self.0.lock().expect("device store mutex");
         let context = state.context.as_ref()?;
-        if context.revision != revision || context.layout.as_ref() != layout {
+        if !context.source_current()
+            || context.revision != revision
+            || context.layout.as_ref() != layout
+        {
             return None;
         }
         context.slots.iter().enumerate().find_map(|(token, slot)| {
@@ -879,7 +917,7 @@ impl DeviceStore {
             let Some(context) = state.context.as_ref() else {
                 return;
             };
-            if context.revision != revision {
+            if !context.source_current() || context.revision != revision {
                 return;
             }
             let Some(slot) = usize::try_from(token)
@@ -930,7 +968,7 @@ impl DeviceStore {
         let context = state
             .context
             .as_ref()
-            .filter(|context| context.live && context.revision == revision)
+            .filter(|context| context.live() && context.revision == revision)
             .ok_or(Refusal::Stale)?;
         let slot = usize::try_from(token)
             .ok()
@@ -973,7 +1011,7 @@ impl DeviceStore {
                 .as_ref()
                 .is_none_or(|lease| lease.admitted(&state))
                 && state.context.as_ref().is_some_and(|current| {
-                    current.live
+                    current.live()
                         && current.revision == revision
                         && current.slots.get(token as usize).is_some_and(|slot| {
                             slot.generation == expected.generation && slot.same_admission(&expected)
@@ -998,7 +1036,7 @@ fn active_slot(
     let context = state
         .context
         .as_ref()
-        .filter(|context| context.live && context.revision == revision)
+        .filter(|context| context.live() && context.revision == revision)
         .ok_or(Refusal::Stale)?;
     let slot = usize::try_from(token)
         .ok()

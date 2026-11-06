@@ -2384,3 +2384,80 @@ async fn clean_fields_and_incomplete_pointer_gestures_are_not_archived_as_text()
         );
     }
 }
+
+#[tokio::test]
+async fn renewal_preserves_only_unarmed_draft_text_with_fresh_capture_admission() {
+    for pending in [false, true] {
+        let credentials = crate::renewal_tests::Credentials::new().await;
+        let entity = helper_entity(&request(), wire::HelperKind::Text);
+        let first = credentials
+            .captured(fixture::capture(vec![entity.clone()]))
+            .await;
+        let mut request = ProjectionRequest {
+            detail: Some(EntityName::try_from(entity.entity.name.as_str()).unwrap()),
+            dashboard: LayoutState::Ready(Arc::new(dashboard::joined_fixture(&first))),
+            ..Default::default()
+        };
+        let store = DeviceStore::default();
+        let old = store
+            .project(CachePhase::Live, Some(&first), &request)
+            .rows
+            .remove(0);
+        assert!(
+            store
+                .edit(
+                    old.token,
+                    old.generation,
+                    request.revision,
+                    0,
+                    edit_event(crate::ProValueEvent::Draft, "abcdef", "")
+                )
+                .is_err()
+        );
+        let source = home_client_cache::PresentationSource::from_view(&first).unwrap();
+        credentials.renew().await;
+        assert!(
+            store
+                .edit(
+                    old.token,
+                    old.generation,
+                    request.revision,
+                    0,
+                    edit_event(crate::ProValueEvent::Submit, "ok", "")
+                )
+                .is_err()
+        );
+        if pending {
+            assert!(
+                store
+                    .project_owner(CachePhase::Renewing, None, &request, Some(&source))
+                    .rows
+                    .is_empty()
+            );
+            let state = store.0.lock().unwrap();
+            assert!(state.context.is_none() && state.retained_drafts.is_some());
+        }
+        let next = credentials.captured(fixture::capture(vec![entity])).await;
+        request.dashboard = LayoutState::Ready(Arc::new(dashboard::joined_fixture(&next)));
+        let fresh = store
+            .project(CachePhase::Live, Some(&next), &request)
+            .rows
+            .remove(0);
+        assert_ne!(old.generation, fresh.generation);
+        assert_eq!(fresh.values[0].lower, "abcdef");
+        assert!(!fresh.values[0].error.is_empty());
+        assert!(
+            store
+                .edit(
+                    fresh.token,
+                    fresh.generation,
+                    request.revision,
+                    0,
+                    edit_event(crate::ProValueEvent::Commit, "", "")
+                )
+                .is_err()
+        );
+        store.clear_private();
+        credentials.session.close().await;
+    }
+}

@@ -80,6 +80,7 @@ impl std::fmt::Debug for CaptureIncarnation {
 #[derive(Clone)]
 pub struct CachedView {
     pub(crate) incarnation: CaptureIncarnation,
+    pub(crate) source: Option<home_client_session::SourceProof>,
     pub(crate) _cleanup: Option<Arc<snapshot_cleanup::ReleaseGuard>>,
     pub(crate) entities: BTreeMap<EntityName, Arc<wire::EntityViewEntry>>,
     pub(crate) name: EntityViewName,
@@ -89,6 +90,9 @@ pub struct CachedView {
     pub(crate) encoded_bytes: usize,
 }
 impl CachedView {
+    pub fn source_proof(&self) -> Option<&home_client_session::SourceProof> {
+        self.source.as_ref()
+    }
     pub fn incarnation(&self) -> &CaptureIncarnation {
         &self.incarnation
     }
@@ -206,3 +210,8 @@ fn wall_now() -> Result<Timestamp, CacheFailure> {
         ..Default::default()
     })
 }
+
+#[cfg(feature = "test-support")]
+pub use owner::FeedSource;
+
+pub use owner::PresentationSource;

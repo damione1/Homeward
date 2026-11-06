@@ -52,6 +52,8 @@ use native_touch_tests::touch_guard;
 mod preferences;
 mod profile;
 mod raster;
+#[cfg(test)]
+mod renewal_tests;
 mod session_host;
 mod video_host;
 

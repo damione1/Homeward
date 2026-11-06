@@ -5,6 +5,201 @@ use home_client_session::{SecureStore, StoreFailure};
 use home_wire_contract::api_playback_contract::playback;
 use slint::Model;
 
+#[tokio::test]
+async fn renewal_media_resumes_in_both_publication_orders_and_expires_only_old_pixels() {
+    i_slint_backend_testing::init_no_event_loop();
+    let window = crate::create_window().unwrap();
+    for applied_first in [false, true] {
+        let credentials = crate::renewal_tests::Credentials::new().await;
+        let entity = EntityName::try_from("homes/test/entities/player").unwrap();
+        let source = credentials.source(entity.as_str()).await;
+        let owner = Media::detached();
+        let view = ProjectionMailbox::<()>::new().generation();
+        owner.choose_presented(Some(entity.clone()), view, Some(source.clone()));
+        ready(&owner, &credentials.session);
+        let (old, cancel) = {
+            let state = owner.0.state.lock().unwrap();
+            render::render(
+                &window,
+                render::Projection::new(
+                    &state,
+                    Some((
+                        credentials.session.clone(),
+                        credentials.session.generation(),
+                    )),
+                ),
+            );
+            (state.generation, state.read_cancel.clone())
+        };
+        assert!(window.get_media_has_data());
+        credentials.renew().await;
+        assert!(!owner.0.state.lock().unwrap().authorized());
+        let fresh = credentials.source(entity.as_str()).await;
+        if !applied_first {
+            owner
+                .0
+                .state
+                .lock()
+                .unwrap()
+                .reconcile_session(credentials.session.generation());
+        }
+        owner.choose_presented(Some(entity.clone()), view, Some(fresh.clone()));
+        if applied_first {
+            owner
+                .0
+                .state
+                .lock()
+                .unwrap()
+                .reconcile_session(credentials.session.generation());
+        }
+        let (generation, in_flight) = {
+            let mut state = owner.0.state.lock().unwrap();
+            assert!(cancel.is_cancelled());
+            assert_ne!(state.generation, old);
+            assert!(!state.retention.unwrap().waiting && state.read_pending);
+            assert!(state.admits_read(
+                state.generation,
+                &Some(fresh.clone()),
+                credentials.session.generation()
+            ));
+            assert!(!state.authorized());
+            render::render(
+                &window,
+                render::Projection::new(
+                    &state,
+                    Some((credentials.session.clone(), source.source().generation())),
+                ),
+            );
+            assert!(window.get_media_has_data() && !window.get_media_editable());
+            state.retention.as_mut().unwrap().deadline = (chrono::Utc::now().timestamp() - 1, 0);
+            state.renewal = Some(source.bounded(state.retention.unwrap().deadline));
+            (state.generation, state.read_cancel.clone())
+        };
+        owner.expire_retention(generation);
+        {
+            let state = owner.0.state.lock().unwrap();
+            assert!(state.data.is_none() && state.renewal.is_none());
+            assert!(
+                !in_flight.is_cancelled(),
+                "fresh read survives the old pixels' deadline"
+            );
+            assert!(state.admits_read(generation, &Some(fresh), credentials.session.generation()));
+        }
+        ready(&owner, &credentials.session);
+        assert!(owner.0.state.lock().unwrap().authorized());
+        credentials.session.close().await;
+    }
+}
+
+#[tokio::test]
+async fn renewal_media_local_visibility_and_fresh_scope_both_wake_the_reader() {
+    let credentials = crate::renewal_tests::Credentials::new().await;
+    let entity = EntityName::try_from("homes/test/entities/player").unwrap();
+    let source = credentials.source(entity.as_str()).await;
+    for choose_first in [false, true] {
+        let owner = Media::detached();
+        let view = ProjectionMailbox::<()>::new().generation();
+        if choose_first {
+            owner.choose_presented(Some(entity.clone()), view, Some(source.clone()));
+        }
+        owner.interactive(true);
+        if !choose_first {
+            owner.choose_presented(Some(entity.clone()), view, Some(source.clone()));
+        }
+        for visible in [false, true] {
+            owner.interactive(visible);
+        }
+        for foreground in [false, true] {
+            owner.foreground(foreground);
+        }
+        let mut state = owner.0.state.lock().unwrap();
+        state.active = true;
+        assert!(state.read_pending && state.data.is_none());
+        assert!(state.admits_read(
+            state.generation,
+            &Some(source.clone()),
+            credentials.session.generation()
+        ));
+        state.presentation = None;
+        drop(state);
+        // Consume previous wake before installing the missing fresh provenance.
+        while tokio::time::timeout(Duration::from_millis(1), owner.0.changed.notified())
+            .await
+            .is_ok()
+        {}
+        owner.choose_presented(Some(entity.clone()), view, Some(source.clone()));
+        tokio::time::timeout(Duration::from_secs(1), owner.0.changed.notified())
+            .await
+            .unwrap();
+    }
+    credentials.session.close().await;
+}
+
+#[tokio::test]
+async fn renewal_media_access_cannot_send_an_old_capture_read_with_the_new_credential() {
+    let credentials = crate::renewal_tests::Credentials::new().await;
+    let entity = EntityName::try_from("homes/test/entities/player").unwrap();
+    let source = credentials.source(entity.as_str()).await;
+    let owner = Media::detached();
+    let view = ProjectionMailbox::<()>::new().generation();
+    owner.choose_presented(Some(entity.clone()), view, Some(source.clone()));
+    ready(&owner, &credentials.session);
+    let context = {
+        let state = owner.0.state.lock().unwrap();
+        state::ReadContext {
+            generation: state.generation,
+            cancel: state.read_cancel.clone(),
+            source: Some(source),
+        }
+    };
+    let (transport, count, server) = crate::renewal_tests::counted_transport().await;
+    credentials.expire_access();
+    let (reader, session, api, target) = (
+        owner.clone(),
+        credentials.session.clone(),
+        transport.media(),
+        entity.clone(),
+    );
+    let read = tokio::spawn(async move {
+        reader.read(session, api, target, context, None).await;
+    });
+    credentials.wait_refresh().await;
+    credentials.release_refresh();
+    tokio::time::timeout(Duration::from_secs(2), read)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 0);
+    let fresh = credentials.source(entity.as_str()).await;
+    owner.choose_presented(Some(entity.clone()), view, Some(fresh.clone()));
+    let context = {
+        let state = owner.0.state.lock().unwrap();
+        state::ReadContext {
+            generation: state.generation,
+            cancel: state.read_cancel.clone(),
+            source: Some(fresh),
+        }
+    };
+    tokio::time::timeout(
+        Duration::from_secs(2),
+        owner.read(
+            credentials.session.clone(),
+            transport.media(),
+            entity,
+            context,
+            None,
+        ),
+    )
+    .await
+    .unwrap();
+    assert!(
+        count.load(std::sync::atomic::Ordering::SeqCst) > 0,
+        "fresh capture can start its own read"
+    );
+    server.abort();
+    credentials.session.close().await;
+}
+
 struct EmptyStore;
 impl SecureStore for EmptyStore {
     fn load(&self) -> Result<Option<zeroize::Zeroizing<Vec<u8>>>, StoreFailure> {

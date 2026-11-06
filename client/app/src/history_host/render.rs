@@ -15,9 +15,10 @@ use std::sync::Arc;
 
 pub(super) struct Projection {
     guard: Option<(
-        home_client_session::SessionCoordinator,
+        home_client_session::GenerationGuard,
         home_client_session::Generation,
     )>,
+    presentation: Option<home_client_cache::PresentationSource>,
     generation: i32,
     private_data: bool,
     status: Status,
@@ -34,6 +35,13 @@ pub(super) struct Projection {
     end: String,
 }
 impl Projection {
+    pub fn retained_source(&self) -> Option<(i32, home_client_cache::PresentationSource)> {
+        self.presentation
+            .as_ref()
+            .filter(|p| p.source().renewing())
+            .map(|p| (self.generation, p.clone()))
+    }
+
     pub fn new(
         state: &State,
         guard: Option<(
@@ -41,7 +49,7 @@ impl Projection {
             home_client_session::Generation,
         )>,
     ) -> Self {
-        let mut value = Self { guard, generation: state.generation, private_data: state.data.is_some() || state.frame.is_some(),status: state.status,description: "UTC range, end exclusive. Observations: up to 7 days; aggregates: whole UTC hours, up to 500 hours. Choose a statistic, then Show / Refresh.".into(),notice: String::new(),unit: String::new(),group: String::new(),inspection: String::new(),frame: state.frame.clone(),accent: state.accent,cursor: None,range: state.range,start: String::new(),end: String::new() };
+        let mut value = Self { guard: guard.map(|(session, generation)| (session.generation_guard(), generation)), presentation: state.renewal.clone().or_else(|| state.presentation.clone()), generation: state.generation, private_data: state.data.is_some() || state.frame.is_some(),status: state.status,description: "UTC range, end exclusive. Observations: up to 7 days; aggregates: whole UTC hours, up to 500 hours. Choose a statistic, then Show / Refresh.".into(),notice: String::new(),unit: String::new(),group: String::new(),inspection: String::new(),frame: state.frame.clone(),accent: state.accent,cursor: None,range: state.range,start: String::new(),end: String::new() };
         if let Some(data) = &state.data {
             value.start = utc(&data.snapshot.query.period().start);
             value.end = utc(&data.snapshot.query.period().end);
@@ -298,6 +306,27 @@ fn axis(value: f64) -> String {
     }
 }
 pub(super) fn render(window: &HomewardWindow, value: Projection) {
+    if let Some(source) = value
+        .presentation
+        .as_ref()
+        .filter(|p| p.source().renewing())
+    {
+        if crate::cache_view::presentation_remaining(source).is_some() {
+            window.set_history_revalidating(true);
+            // Preserve the installed raster, not a queued old Ready payload.
+            return;
+        }
+        window.set_history_revalidating(false);
+        window.set_history_frame_id(0);
+        window.set_history_presentation(HistoryPresentation {
+            generation: value.generation,
+            phase: ProChartPhase::Error,
+            state_label: "The retained reading expired. Reload explicitly.".into(),
+            ..Default::default()
+        });
+        return;
+    }
+    window.set_history_revalidating(false);
     // Delivery happens under the mailbox invalidation barrier. Check session
     // authority here too, after any time spent waiting in the UI queue, without
     // re-entering the mailbox or the history owner's mutex.

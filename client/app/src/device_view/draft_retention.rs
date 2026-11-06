@@ -34,6 +34,7 @@ impl From<&ProjectionRequest> for Scope {
 
 #[derive(Clone)]
 pub(super) struct Basis {
+    source: Option<home_client_session::SourceProof>,
     scope: Scope,
     layout: Arc<Layout>,
     authority: Vec<cache_view::EntityAuthority>,
@@ -51,6 +52,7 @@ impl Basis {
             .binding_expires?
             .min((view.expires().seconds, view.expires().nanos));
         (phase == CachePhase::Live && layout.compatible(view) && deadline > now()).then_some(Self {
+            source: view.source_proof().cloned(),
             scope: Scope::from(request),
             layout,
             authority: cache_view::authority(view)?,
@@ -68,6 +70,10 @@ impl Basis {
             return false;
         };
         phase == CachePhase::Live
+            && self.source.as_ref().is_none_or(|old| {
+                view.source_proof()
+                    .is_some_and(|new| old.same_presentation(new) && new.is_current())
+            })
             && self.deadline > now
             && (view.expires().seconds, view.expires().nanos) > now
             && self.scope == Scope::from(request)
@@ -153,6 +159,20 @@ impl Saved {
         now: Stamp,
     ) -> bool {
         self.basis.permits(phase, view, request, now)
+    }
+    pub fn permits_renewal(
+        &self,
+        renewal: &home_client_cache::PresentationSource,
+        request: &ProjectionRequest,
+        now: Stamp,
+    ) -> bool {
+        renewal.renewing()
+            && self.basis.deadline > now
+            && self.basis.deadline <= renewal.deadline()
+            && self.basis.source.as_ref() == Some(renewal.source())
+            && self.basis.scope == Scope::from(request)
+            && request.dashboard.layout() == Some(self.basis.layout.as_ref())
+            && self.basis.layout.capture.as_ref() == Some(renewal.incarnation())
     }
     pub fn deadline(&self) -> Stamp {
         self.basis.deadline

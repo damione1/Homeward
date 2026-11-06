@@ -241,7 +241,7 @@ fn command(
     if candidates.next().is_some() {
         return BoundIntent::Unavailable(Refusal::Unsupported);
     }
-    if !context.live {
+    if !context.live() {
         return BoundIntent::Unavailable(Refusal::Stale);
     }
     if slot.access != WriteAccess::Allowed {
@@ -427,7 +427,8 @@ impl DeviceStore {
     pub fn recipe_node(&self, token: i32, generation: i32, revision: i32) -> Option<NodeId> {
         let state = self.0.lock().expect("device store mutex");
         let snapshot = state.recipe_bindings.snapshot.as_ref()?;
-        if snapshot.fence.revision != revision
+        if !snapshot.fence.source_current()
+            || snapshot.fence.revision != revision
             || !state.context.as_ref()?.same_view(&snapshot.fence)
         {
             return None;
@@ -447,7 +448,8 @@ impl DeviceStore {
     ) -> Option<RecipePresentation> {
         let state = self.0.lock().expect("device store mutex");
         let snapshot = state.recipe_bindings.snapshot.as_ref()?;
-        if snapshot.fence.revision != revision
+        if !snapshot.fence.source_current()
+            || snapshot.fence.revision != revision
             || snapshot.fence.layout.as_ref() != layout
             || !state.context.as_ref()?.same_view(&snapshot.fence)
         {
@@ -494,7 +496,8 @@ impl DeviceStore {
             .as_ref()
             .ok_or(Refusal::Stale)?;
         let index = usize::try_from(token).map_err(|_| Refusal::Stale)?;
-        if snapshot.fence.revision != revision
+        if !snapshot.fence.source_current()
+            || snapshot.fence.revision != revision
             || !state
                 .context
                 .as_ref()
@@ -524,7 +527,8 @@ impl DeviceStore {
                 .snapshot
                 .as_ref()
                 .is_some_and(|snapshot| {
-                    snapshot.fence.revision == revision
+                    snapshot.fence.source_current()
+                        && snapshot.fence.revision == revision
                         && state
                             .context
                             .as_ref()

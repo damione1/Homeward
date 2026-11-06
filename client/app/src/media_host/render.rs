@@ -14,7 +14,8 @@ use slint::{Model, ModelRc, SharedString};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) struct Projection {
-    guard: Option<(SessionCoordinator, Generation)>,
+    guard: Option<(home_client_session::GenerationGuard, Generation)>,
+    presentation: Option<home_client_cache::PresentationSource>,
     generation: i32,
     retention: Option<super::state::Retention>,
     status: Status,
@@ -35,7 +36,8 @@ impl Projection {
     pub fn new(state: &State, guard: Option<(SessionCoordinator, Generation)>) -> Self {
         let (_, label, detail) = super::progress::presentation(state.progress.as_deref());
         Self {
-            guard,
+            guard: guard.map(|(session, generation)| (session.generation_guard(), generation)),
+            presentation: state.renewal.clone().or_else(|| state.presentation.clone()),
             generation: state.generation,
             retention: state.retention,
             status: state.status,
@@ -139,6 +141,34 @@ pub(super) fn clear(window: &HomewardWindow) {
     window.set_media_publishing(false);
 }
 pub(super) fn render(window: &HomewardWindow, value: Projection) {
+    if let Some(source) = value
+        .presentation
+        .as_ref()
+        .filter(|p| p.source().renewing())
+    {
+        if let Some(remaining) = crate::cache_view::presentation_remaining(source) {
+            // Keep only pixels already installed in this window. Never install
+            // a late old Ready payload or its former permission model.
+            window.set_media_editable(false);
+            window.set_media_retention_ms(
+                i32::try_from(remaining.as_millis())
+                    .unwrap_or(i32::MAX)
+                    .max(1),
+            );
+            window.set_media_generation(value.generation);
+            if value.status == Status::Offline {
+                window.set_media_notice(
+                    "Server unavailable. Showing the last reading while access is revalidated."
+                        .into(),
+                );
+            } else if !value.notice.is_empty() {
+                window.set_media_notice(value.notice.into());
+            }
+            return;
+        }
+        clear(window);
+        return;
+    }
     if value.guard.as_ref().is_some_and(|(s, g)| !s.is_current(*g))
         || value.data.is_some() && value.guard.is_none()
     {
