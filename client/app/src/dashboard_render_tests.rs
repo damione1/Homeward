@@ -156,6 +156,197 @@ fn the_product_light_detail_contains_one_brightness_control() {
 }
 
 #[test]
+fn modal_feedback_stays_below_controls_without_moving_them() {
+    use i_slint_backend_testing::{ElementQuery, TestingBackend, TestingBackendOptions};
+    slint::platform::set_platform(Box::new(TestingBackend::new(TestingBackendOptions {
+        mock_time: true,
+        renderer_name: Some("software".into()),
+        ..Default::default()
+    })))
+    .unwrap();
+    let window = setup();
+    window.show().unwrap();
+    let render = |name: &str| {
+        if let Some(directory) = std::env::var_os("HOMEWARD_FEEDBACK_RENDER_DIR") {
+            let directory = std::path::PathBuf::from(directory);
+            std::fs::create_dir_all(&directory).unwrap();
+            save(&window, &directory.join(format!("{name}.png")));
+        }
+    };
+    let dialog = |name: &str| {
+        let name = name.to_owned();
+        ElementQuery::from_root(&window)
+            .match_inherits("KitDialogPanel")
+            .match_predicate(move |element| {
+                element.accessible_label().as_deref() == Some(name.as_str())
+            })
+            .find_first()
+            .expect("named product modal")
+    };
+    let geometry = |name: &str| {
+        slint::platform::update_timers_and_animations();
+        let panel = dialog(name);
+        let slider = panel
+            .query_descendants()
+            .match_inherits("KitSlider")
+            .find_first()
+            .unwrap();
+        let origin = slider.absolute_position();
+        let size = slider.size();
+        let panel_origin = panel.absolute_position();
+        let panel_size = panel.size();
+        [
+            origin.x,
+            origin.y,
+            size.width,
+            size.height,
+            panel_origin.x,
+            panel_origin.y,
+            panel_size.width,
+            panel_size.height,
+        ]
+    };
+    let assert_notice = |name: &str, expected: &str, before: [f32; 8]| {
+        let after = geometry(name);
+        for (before, after) in before.into_iter().zip(after) {
+            assert!(
+                (before - after).abs() < 0.1,
+                "feedback moved a control: {before} -> {after}"
+            );
+        }
+        let notices = dialog(name)
+            .query_descendants()
+            .match_inherits("KitAlert")
+            .find_all();
+        assert_eq!(
+            notices.len(),
+            1,
+            "one notice, no global device-progress duplicate"
+        );
+        assert_eq!(notices[0].accessible_label().as_deref(), Some(expected));
+        assert!(
+            notices[0].absolute_position().y >= after[1] + after[3],
+            "notice follows the slider"
+        );
+    };
+    let scroll = |name: &str, to_bottom: bool| {
+        use slint::platform::WindowEvent;
+        let area = dialog(name)
+            .query_descendants()
+            .match_inherits("KitScrollArea")
+            .find_first()
+            .unwrap();
+        let origin = area.absolute_position();
+        let size = area.size();
+        let position =
+            slint::LogicalPosition::new(origin.x + size.width - 2., origin.y + size.height / 2.);
+        for _ in 0..3 {
+            window
+                .window()
+                .dispatch_event(WindowEvent::PointerScrolled {
+                    position,
+                    delta_x: 0.,
+                    delta_y: if to_bottom { -4096. } else { 4096. },
+                });
+            i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(100));
+        }
+        if to_bottom {
+            let notice = dialog(name)
+                .query_descendants()
+                .match_inherits("KitAlert")
+                .find_first()
+                .unwrap();
+            assert!(
+                notice.absolute_position().y >= origin.y - 1.,
+                "notice starts inside the viewport"
+            );
+            assert!(
+                notice.absolute_position().y + notice.size().height <= origin.y + size.height + 1.,
+                "the complete notice is reachable"
+            );
+        }
+    };
+    for (screen, width, height) in [("phone", 390., 844.), ("tablet", 900., 1400.)] {
+        for dark in [false, true] {
+            for large in [false, true] {
+                let screen = format!(
+                    "{screen}-{}-{}",
+                    if dark { "dark" } else { "light" },
+                    if large { 200 } else { 100 }
+                );
+                window.set_dark_mode(dark);
+                window.set_large_text(large);
+                window
+                    .window()
+                    .set_size(slint::LogicalSize::new(width, height));
+                window.set_native_popup(DialogState::default());
+                window.set_page(ViewPage::Detail);
+                window.set_action_feedback("".into());
+                let (_, mut panel) = panels().remove(0);
+                window.set_device_cards(ModelRc::from([panel.device.clone()]));
+                window.set_detail_panels(ModelRc::from([panel.clone()]));
+                scroll("Synthetic light", false);
+                let before = geometry("Synthetic light");
+                // Refusals before submission have no action row and retain their
+                // global fallback, now following the device/media module.
+                window.set_action_feedback(device_view::Refusal::Capacity.message().into());
+                assert_notice("Synthetic light", "Update", before);
+                scroll("Synthetic light", true);
+                render(&format!("{screen}-detail-refusal"));
+                window.set_action_feedback("".into());
+                let snapshot = device_view::progress::tests::snapshot(Some(
+                    home_wire_contract::home::api::v2::CommandOutcome::AcknowledgedUnverified,
+                ));
+                let (phase, title, detail) = device_view::progress::presentation(Some(&snapshot));
+                panel.device.phase = phase;
+                panel.device.action_label = title.into();
+                panel.device.action_detail = detail.into();
+                window.set_detail_panels(ModelRc::from([panel]));
+                scroll("Synthetic light", false);
+                assert_notice("Synthetic light", "Change not confirmed", before);
+                scroll("Synthetic light", true);
+                render(&format!("{screen}-detail-unconfirmed"));
+
+                window.set_page(ViewPage::Home);
+                window.set_native_popup_title("Synthetic room".into());
+                window.set_native_popup_generation(1);
+                window.set_popup_layout_nodes(ModelRc::from([ProLayoutNode {
+                    token: 10,
+                    generation: 1,
+                    kind: ProLayoutKind::Tile,
+                    tile_template: ProTileTemplate::Rectangle,
+                    tile_rows: 2,
+                    tile: ProTileRow {
+                        token: 0,
+                        generation: 1,
+                        title: "Synthetic dimmer".into(),
+                        control: ProTileControl::Level,
+                        level: 70.,
+                        level_known: true,
+                        level_minimum: 0.,
+                        level_maximum: 100.,
+                        level_increment: 1.,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }]));
+                window.set_native_popup(DialogState {
+                    open: true,
+                    topmost: true,
+                    ..Default::default()
+                });
+                scroll("Synthetic room", false);
+                let before = geometry("Synthetic room");
+                window.set_action_feedback(device_view::Refusal::Capacity.message().into());
+                assert_notice("Synthetic room", "Update", before);
+                scroll("Synthetic room", true);
+                render(&format!("{screen}-room-refusal"));
+            }
+        }
+    }
+}
+
+#[test]
 #[ignore = "writes optional synthetic UI evidence outside the repository"]
 fn render_synthetic_dashboard_families() {
     use i_slint_backend_testing::{TestingBackend, TestingBackendOptions};

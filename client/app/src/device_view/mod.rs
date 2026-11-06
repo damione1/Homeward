@@ -69,12 +69,12 @@ pub(crate) enum Refusal {
 impl Refusal {
     pub fn message(self) -> &'static str {
         match self {
-            Self::Stale => "Command not sent: the view changed. Repeat the gesture.",
-            Self::ReadOnly => "Command not sent: this capability is read-only.",
-            Self::Unsupported => "Command not sent: this capability is unsupported.",
-            Self::InvalidValue => "Command not sent: the value is invalid for this device.",
-            Self::Capacity => "Command not sent: an operation is in progress. Try again shortly.",
-            Self::Unavailable => "Command not sent: the controller is unavailable.",
+            Self::Stale => "Change not sent. Please try again.",
+            Self::ReadOnly => "This device is read-only.",
+            Self::Unsupported => "This control is not available.",
+            Self::InvalidValue => "Choose a valid value.",
+            Self::Capacity => "Please wait for the current change.",
+            Self::Unavailable => "Connection unavailable. Please try again.",
         }
     }
 }
@@ -689,6 +689,7 @@ impl DeviceStore {
                 .find(|(target, _)| target == &slot.target)
                 .map(|(_, handle)| handle.snapshot());
             let (phase, label, detail) = progress::presentation(snapshot.as_deref());
+            row.command_unavailable |= progress::blocks_input(snapshot.as_deref());
             row.phase = phase;
             row.action_label = label.into();
             row.action_detail = detail.into();

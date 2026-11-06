@@ -42,6 +42,18 @@ pub(crate) fn quiet(
 pub(crate) fn presentation(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
     quiet(facts(snapshot), snapshot)
 }
+// An unavailable live feed does not finish an accepted operation. Keep its
+// control closed until the same operation supplies a terminal result; a
+// standalone unavailable status without a pending operation adds no lock.
+pub(super) fn blocks_input(snapshot: Option<&CapabilitySnapshot>) -> bool {
+    snapshot.is_some_and(|snapshot| {
+        snapshot.tracking == CapabilityTracking::Unavailable
+            && snapshot
+                .operation
+                .as_ref()
+                .is_some_and(|operation| !operation.done())
+    })
+}
 fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
     let Some(action) = snapshot else {
         return (Phase::Idle, "", "");
@@ -54,8 +66,8 @@ fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
             } => {
                 return (
                     Phase::Confirmed,
-                    "Effect confirmed",
-                    "The server recorded confirmation. Observed state remains separate.",
+                    "Change confirmed",
+                    "The device confirmed the change.",
                 );
             }
             CommandCompletion::Success {
@@ -64,29 +76,29 @@ fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
             } => {
                 return (
                     Phase::AcknowledgedUnverified,
-                    "Acknowledged · effect unverified",
-                    "Tracking has ended. The acknowledgement does not establish the physical result.",
+                    "Change not confirmed",
+                    "Check the device before trying again.",
                 );
             }
             CommandCompletion::Failure(failure) => {
                 if failure.uncertainty().is_some() {
                     return (
                         Phase::Indeterminate,
-                        "Couldn’t confirm the result",
-                        "The command may have executed. It will not be submitted again automatically.",
+                        "Change not confirmed",
+                        "Check the device before trying again.",
                     );
                 }
                 if failure.reason() == ApiErrorReason::RequestCancelled {
                     return (
                         Phase::Cancelled,
-                        "Command ended as cancelled",
-                        "Only the server’s recorded result establishes this status.",
+                        "Change cancelled",
+                        "Check the device before trying again.",
                     );
                 }
                 return (
                     Phase::Failed,
-                    "Command failed",
-                    "The server recorded a failure. No observed value is used to infer an effect.",
+                    "Change failed",
+                    "Check the device and try again.",
                 );
             }
             CommandCompletion::Pending => {}
@@ -96,22 +108,22 @@ fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
         CapabilityTracking::Stopped => {
             return (
                 Phase::Stopped,
-                "Tracking stopped on this device",
-                "This does not cancel a command the server has already accepted.",
+                "Updates stopped",
+                "Check the device before trying again.",
             );
         }
         CapabilityTracking::Unavailable => {
             return (
                 Phase::Unavailable,
-                "Live tracking unavailable",
-                "The recorded progress is retained. No additional physical effect is inferred.",
+                "Update unavailable",
+                "The change has not been confirmed yet.",
             );
         }
         CapabilityTracking::Interrupted => {
             return (
                 Phase::Interrupted,
-                "Tracking interrupted",
-                "The outcome remains unconfirmed. No new submission will be made.",
+                "Connection interrupted",
+                "Check the device before trying again.",
             );
         }
         CapabilityTracking::Waiting | CapabilityTracking::Live | CapabilityTracking::Complete => {}
@@ -120,64 +132,48 @@ fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
         return match operation.phase() {
             CommandPhase::Accepted => (
                 Phase::Accepted,
-                "Command accepted",
-                "The durable admission does not establish an effect.",
+                "Change requested",
+                "Waiting for the device.",
             ),
-            CommandPhase::Dispatched => (
-                Phase::Dispatched,
-                "Command forwarded",
-                "The physical result has not been confirmed.",
-            ),
+            CommandPhase::Dispatched => {
+                (Phase::Dispatched, "Change sent", "Waiting for the device.")
+            }
             CommandPhase::Acknowledged => (
                 Phase::Acknowledged,
-                "Acknowledged · waiting for confirmation",
-                "The observed state remains independent of this command.",
+                "Waiting for the device",
+                "The change has not been confirmed yet.",
             ),
             CommandPhase::Confirmed
             | CommandPhase::Failed
             | CommandPhase::Cancelled
             | CommandPhase::Indeterminate => (
                 Phase::Unavailable,
-                "Tracking unavailable",
-                "No additional confirmation is inferred.",
+                "Update unavailable",
+                "Check the device before trying again.",
             ),
         };
     }
     match action.submission {
-        CapabilitySubmission::Prepared => (
-            Phase::Preparing,
-            "Checking command",
-            "The gesture is discarded if its view or permissions change.",
-        ),
-        CapabilitySubmission::Sending => (
-            Phase::Sending,
-            "Sending",
-            "This action is submitted only once.",
-        ),
+        CapabilitySubmission::Prepared => (Phase::Preparing, "Preparing change", ""),
+        CapabilitySubmission::Sending => (Phase::Sending, "Sending change", ""),
         CapabilitySubmission::Accepted => (
             Phase::Accepted,
-            "Command accepted",
-            "Tracking the same operation without another submission.",
+            "Change requested",
+            "Waiting for the device.",
         ),
-        CapabilitySubmission::Rejected => (
-            Phase::Refused,
-            "Rejected",
-            "The server refused this intention. Refresh the view before another gesture.",
-        ),
+        CapabilitySubmission::Rejected => {
+            (Phase::Refused, "Change refused", "Refresh and try again.")
+        }
         CapabilitySubmission::Uncertain => (
             Phase::Uncertain,
-            "Submission uncertain",
-            "The command may have executed. It will not be submitted again automatically.",
+            "Change not confirmed",
+            "Check the device before trying again.",
         ),
-        CapabilitySubmission::NotSent => (
-            Phase::Refused,
-            "Not sent",
-            "The gesture context was no longer valid before submission.",
-        ),
+        CapabilitySubmission::NotSent => (Phase::Refused, "Change not sent", "Please try again."),
         CapabilitySubmission::Closed => (
             Phase::Stopped,
-            "Tracking closed",
-            "Closing this device’s tracking does not cancel a physical effect.",
+            "Updates stopped",
+            "Check the device before trying again.",
         ),
     }
 }
@@ -258,7 +254,7 @@ pub(crate) mod tests {
             presentation(Some(&terminal)).0,
             Phase::AcknowledgedUnverified
         );
-        assert!(presentation(Some(&terminal)).1.contains("unverified"));
+        assert!(presentation(Some(&terminal)).1.contains("not confirmed"));
         let confirmed = snapshot(Some(wire::CommandOutcome::Confirmed));
         assert_eq!(presentation(Some(&confirmed)), (Phase::Confirmed, "", ""));
     }
@@ -320,6 +316,7 @@ pub(crate) mod tests {
                 phase,
                 action_label: label.into(),
                 action_detail: description.into(),
+                command_unavailable: blocks_input(Some(snapshot)),
                 ..Default::default()
             };
             super::super::brightness_bounds(
@@ -348,7 +345,24 @@ pub(crate) mod tests {
         render("ack-pending");
         slider().invoke_accessible_increment_action();
         assert!(calls.borrow().is_empty(), "pending ACK blocks input");
+        let mut unavailable = snapshot(None);
+        unavailable.tracking = CapabilityTracking::Unavailable;
+        publish(&unavailable, crate::ProControlAccess::Allowed);
+        assert_eq!(presentation(Some(&unavailable)).0, Phase::Unavailable);
+        assert!(blocks_input(Some(&unavailable)));
+        slider().invoke_accessible_increment_action();
+        assert!(
+            calls.borrow().is_empty(),
+            "unavailable progress is still pending"
+        );
+        render("ack-pending-unavailable");
         let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
+        let mut terminal_unavailable = terminal.clone();
+        terminal_unavailable.tracking = CapabilityTracking::Unavailable;
+        assert!(!blocks_input(Some(&terminal_unavailable)));
+        let mut no_operation = unavailable.clone();
+        no_operation.operation = None;
+        assert!(!blocks_input(Some(&no_operation)));
         publish(&terminal, crate::ProControlAccess::Allowed);
         render("ack-terminal");
         slider().invoke_accessible_increment_action();
@@ -367,7 +381,7 @@ pub(crate) mod tests {
             ElementQuery::from_root(&window)
                 .match_predicate(|e| e
                     .accessible_label()
-                    .is_some_and(|s| s.contains("effect unverified")))
+                    .is_some_and(|s| s.contains("Change not confirmed")))
                 .find_first()
                 .is_some(),
             "uncertainty remains visible"

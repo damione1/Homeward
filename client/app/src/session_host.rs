@@ -1369,10 +1369,11 @@ async fn worker(
                                     (ui.clone(), profile.cancel.clone(), profile.cache.handle());
                                 tasks.spawn(async move {
                                     loop {
-                                        let snapshot = updates.borrow_and_update().clone();
-                                        let (_, title, detail) = crate::device_view::progress::presentation(Some(&snapshot));
-                                        let feedback = if title.is_empty() { String::new() } else { format!("{title}. {detail}") };
-                                        action_ui.post(epoch, move |window| window.set_action_feedback(feedback.into()));
+                                        // Device progress belongs to its projected row. Publishing
+                                        // it as global feedback duplicates the notice and moves
+                                        // unrelated controls. Global feedback is for refusals that
+                                        // have no submitted action/row of their own.
+                                        let _ = updates.borrow_and_update();
                                         let _ = action_cache.viewport(*action_ui.viewport.borrow());
                                         if handle.is_finished() { break; }
                                         tokio::select! { biased;

@@ -752,7 +752,7 @@ export component HomewardWindow inherits Window {
                     details(token,generation) => { root.device-details(token,generation); }
                     gesture(token,generation,gesture) => { root.recipe-gesture(token,generation,gesture); }
                 }
-                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
+                if root.action-feedback != "" && root.page != ViewPage.detail && !root.native-popup.open: KitAlert { theme: root.theme; title: "Update"; message: root.action-feedback; severity: information; }
                 if root.cache-error != "": KitAlert { theme: root.theme; title: "Last Reading"; message: root.cache-error; severity: warning; }
             }
             rooms-area := KitScrollArea {
@@ -791,7 +791,7 @@ export component HomewardWindow inherits Window {
                 scrolled => { root.native-focus-cancelled(); }
                 room-back := KitButton { control-width: ControlWidth.intrinsic; disabled: !root.connected; theme: root.theme; text: "Back"; control-size: comfortable; activated => { root.go-back(); } }
                 if root.room-layout-nodes.length == 0 && root.device-cards.length == 0: Text { text: "No cards are available for this room’s capabilities. The full list is still available."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
-                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
+                if root.action-feedback != "" && root.page != ViewPage.detail && !root.native-popup.open: KitAlert { theme: root.theme; title: "Update"; message: root.action-feedback; severity: information; }
                 if root.room-layout-nodes.length > 0: HomewardDashboard {
                     step(t,g,d) => { root.device-step(t,g,d); }
                     recipe-focus: root.recipe-focus; tile-focus: root.tile-focus;
@@ -930,7 +930,6 @@ export component HomewardWindow inherits Window {
                 detail-scroll := KitScrollArea {
                     pan-policy: children-first;
                     vertical-stretch: 1;
-                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Command"; message: root.action-feedback; severity: information; }
                 if !root.media-has-data: HomewardDeviceDetail {
                     step(t,g,d) => { root.device-step(t,g,d); }
                     theme: root.theme; viewport-width: detail-scroll.visible-width; panels: root.detail-panels;
@@ -958,6 +957,7 @@ export component HomewardWindow inherits Window {
                     reload(generation) => { root.media-reload(generation); }
                     expire-artwork(generation) => { root.media-expire-artwork(generation); }
                 }
+                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Update"; message: root.action-feedback; severity: information; }
                 KitButton { theme: root.theme; text: root.show-detail-history ? "Hide History and Diagnostics" : "History and Diagnostics"; disabled: !root.content-interactive; activated => { root.show-detail-history = !root.show-detail-history; } }
                 if root.show-detail-history: VerticalLayout {
                     spacing: 8px;

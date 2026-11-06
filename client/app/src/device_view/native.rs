@@ -830,7 +830,7 @@ mod tests {
         let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
         let (phase, notice, _) = crate::device_view::progress::presentation(Some(&terminal));
         assert_eq!(phase, crate::ProActionPhase::AcknowledgedUnverified);
-        assert!(notice.contains("unverified"));
+        assert!(notice.contains("not confirmed"));
         {
             let mut state = store.0.lock().unwrap();
             reconcile_step(&mut state, key, key, &fresh, resolved_step(&terminal));
