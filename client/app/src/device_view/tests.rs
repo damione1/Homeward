@@ -521,6 +521,103 @@ fn slider_uses_injected_bounds_and_major_unknown_or_read_only_slots_cannot_write
         Err(Refusal::ReadOnly)
     ));
 }
+
+#[test]
+fn dimmer_projection_and_submission_use_integers_without_rewriting_observations() {
+    let request = request();
+    for (limits, expected) in [
+        ((0., 100., None), (0., 100., 1., 47.)),
+        ((0.5, 80., Some(2.5)), (3., 78., 5., 48.)),
+    ] {
+        let mut entity = light(&request);
+        let control = fixture::light_mut(&mut entity);
+        control.brightness_percent = wire::NumberBounds {
+            minimum: limits.0,
+            maximum: limits.1,
+            step: limits.2,
+            ..Default::default()
+        }
+        .into();
+        control
+            .observation
+            .as_option_mut()
+            .unwrap()
+            .brightness_percent = Some(31.25);
+        let store = DeviceStore::default();
+        let projected = store.project(
+            CachePhase::Live,
+            Some(&view(&request, vec![entity])),
+            &request,
+        );
+        let row = &projected.rows[0];
+        assert_eq!(row.brightness_percent, 31.25, "keep the observed quantity");
+        assert_eq!(row.value.as_str(), "31 %");
+        assert_eq!(
+            (
+                row.brightness_minimum,
+                row.brightness_maximum,
+                row.brightness_step
+            ),
+            (expected.0, expected.1, expected.2)
+        );
+        let prepared = store
+            .prepare(
+                row.token,
+                row.generation,
+                0,
+                DeviceIntent::Brightness(47.25),
+            )
+            .ok()
+            .unwrap();
+        let Some(wire::execute_capability_request::Command::Light(args)) =
+            home_wire_contract::api_contract::encode_command(&prepared.request).command
+        else {
+            panic!("typed light command")
+        };
+        assert_eq!(
+            args.level.target,
+            Some(wire::set_level_command::Target::Percentage(expected.3))
+        );
+        assert!((prepared.guard)());
+    }
+}
+
+#[test]
+fn fractional_only_dimmer_keeps_power_and_observation_but_cannot_send_a_level() {
+    let request = request();
+    for limits in [(0.1, 0.9), (0.2, 1.2)] {
+        let mut entity = light(&request);
+        let control = fixture::light_mut(&mut entity);
+        control.brightness_percent = wire::NumberBounds {
+            minimum: limits.0,
+            maximum: limits.1,
+            ..Default::default()
+        }
+        .into();
+        control
+            .observation
+            .as_option_mut()
+            .unwrap()
+            .brightness_percent = Some(0.75);
+        let store = DeviceStore::default();
+        let projected = store.project(
+            CachePhase::Live,
+            Some(&view(&request, vec![entity])),
+            &request,
+        );
+        let row = &projected.rows[0];
+        assert!(row.can_power);
+        assert!(!row.can_brightness);
+        assert_eq!(row.brightness_percent, 0.75);
+        assert_eq!(row.value.as_str(), "1 %");
+        assert!(
+            store
+                .prepare(row.token, row.generation, 0, DeviceIntent::Brightness(1.))
+                .is_err()
+        );
+        assert!((prepare(&store, row).guard)());
+    }
+}
 #[test]
 fn configuration_selects_cards_and_presentation_never_contains_opaque_identity() {
     let mut request = request();

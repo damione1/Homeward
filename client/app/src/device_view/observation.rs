@@ -145,7 +145,7 @@ pub(crate) fn value_text(capability: &wire::Capability) -> String {
             .observation
             .percentage
             .filter(|n| n.is_finite() && (0.0..=100.0).contains(n))
-            .map(|n| format!("{n} %"))
+            .map(|n| format!("{n:.0} %"))
             .unwrap_or_else(missing),
         Some(T::NumericMeasurement(v)) => numeric_text(v).unwrap_or_else(missing),
         Some(T::BinaryObservation(v)) => v
@@ -163,7 +163,7 @@ pub(crate) fn value_text(capability: &wire::Capability) -> String {
                 .brightness_percent
                 .filter(|n| n.is_finite() && (0.0..=100.0).contains(n))
             {
-                values.push(format!("{level} %"));
+                values.push(format!("{level:.0} %"));
             }
             if let Some(color) = v
                 .observation
