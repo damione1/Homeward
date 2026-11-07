@@ -30,10 +30,13 @@ class Operation(str, enum.Enum):
     OPEN = "open"
     CLOSE = "close"
     STOP = "stop"
+    LOCK = "lock"
+    UNLOCK = "unlock"
 
 
 OPERATIONS = {Kind.ALARM: frozenset((Operation.ARM_HOME, Operation.ARM_AWAY, Operation.ARM_NIGHT, Operation.DISARM)),
-              Kind.COVER: frozenset((Operation.OPEN, Operation.CLOSE, Operation.STOP)), Kind.LOCK: frozenset()}
+              Kind.COVER: frozenset((Operation.OPEN, Operation.CLOSE, Operation.STOP)),
+              Kind.LOCK: frozenset((Operation.LOCK, Operation.UNLOCK))}
 
 
 @dataclasses.dataclass(frozen=True)

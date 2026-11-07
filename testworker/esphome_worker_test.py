@@ -119,11 +119,53 @@ class ESPHomeControls(unittest.TestCase):
         info = esp.LockInfo(key=123)
         self.assertEqual(list(description(f, info, None).lock.operations), [])
         self.assertIsNone(state_value(f, info, esp.LockEntityState(key=123, state=esp.LockState.NONE), esp.APIVersion(1, 10)))
-        self.assertEqual(state_value(f, info, esp.LockEntityState(key=123, state=esp.LockState.UNLOCKED),
-                                     esp.APIVersion(1, 10)).state, controls.LOCK_STATE_UNLOCKED)
-        with self.assertRaises(ProtocolFault):
-            dispatch(Mock(), f, info, description(f, info, None), None,
-                     command(Kind.LOCK, controls.LOCK_OPERATION_LOCK))
+        for name in ("LOCKED", "UNLOCKED", "JAMMED", "LOCKING", "UNLOCKING", "OPENING", "OPEN"):
+            self.assertEqual(state_value(f, info, esp.LockEntityState(key=123, state=getattr(esp.LockState, name)),
+                                         esp.APIVersion(1, 10)).state, getattr(controls, "LOCK_STATE_" + name))
+        client = Mock()
+        for operation in (controls.LOCK_OPERATION_LOCK, controls.LOCK_OPERATION_UNLOCK):
+            with self.assertRaises(ProtocolFault):
+                dispatch(client, f, info, description(f, info, None), None, command(Kind.LOCK, operation))
+        self.assertEqual(client.mock_calls, [])
+
+    def test_lock_dispatch_is_explicit_and_never_open(self):
+        info = esp.LockInfo(key=123, supports_open=True)
+        for name, wire, native, refused in (
+                ("lock", controls.LOCK_OPERATION_LOCK, esp.LockCommand.LOCK, controls.LOCK_OPERATION_UNLOCK),
+                ("unlock", controls.LOCK_OPERATION_UNLOCK, esp.LockCommand.UNLOCK, controls.LOCK_OPERATION_LOCK)):
+            f = function(Kind.LOCK, (name,))
+            d = description(f, info, None)
+            self.assertEqual(list(d.lock.operations), [wire])
+            client = Mock()
+            dispatch(client, f, info, d, None, command(Kind.LOCK, wire))
+            client.lock_command.assert_called_once_with(123, native, device_id=0)
+            for operation in (refused, controls.LOCK_OPERATION_UNSPECIFIED, 99):
+                with self.assertRaises(ProtocolFault):
+                    dispatch(client, f, info, d, None, command(Kind.LOCK, operation))
+            self.assertEqual(client.lock_command.call_count, 1)
+        with self.assertRaises(ValueError):
+            function(Kind.LOCK, ("open",))
+
+    def test_code_required_lock_remains_readonly(self):
+        f = function(Kind.LOCK, ("lock", "unlock"))
+        info = esp.LockInfo(key=123, requires_code=True)
+        d = description(f, info, None)
+        self.assertEqual(list(d.lock.operations), [])
+        client = Mock()
+        for operation in (controls.LOCK_OPERATION_LOCK, controls.LOCK_OPERATION_UNLOCK):
+            with self.assertRaises(ProtocolFault):
+                dispatch(client, f, info, d, None, command(Kind.LOCK, operation))
+        self.assertEqual(client.mock_calls, [])
+
+    def test_lock_transport_failure_is_not_retried(self):
+        f = function(Kind.LOCK, ("lock", "unlock"))
+        info = esp.LockInfo(key=123)
+        client = Mock()
+        client.lock_command.side_effect = ConnectionError("test")
+        with self.assertRaises(ConnectionError):
+            dispatch(client, f, info, description(f, info, None), None,
+                     command(Kind.LOCK, controls.LOCK_OPERATION_UNLOCK))
+        client.lock_command.assert_called_once_with(123, esp.LockCommand.UNLOCK, device_id=0)
 
     def test_cover_state_keeps_zero_position_and_real_motion(self):
         f = function(Kind.COVER)

@@ -43,6 +43,8 @@ ALARM_COMMANDS = {Operation.ARM_HOME: (controls.ALARM_OPERATION_ARM_HOME, esp.Al
                   Operation.ARM_NIGHT: (controls.ALARM_OPERATION_ARM_NIGHT, esp.AlarmControlPanelCommand.ARM_NIGHT)}
 COVER_COMMANDS = {Operation.OPEN: controls.COVER_OPERATION_OPEN, Operation.CLOSE: controls.COVER_OPERATION_CLOSE,
                   Operation.STOP: controls.COVER_OPERATION_STOP}
+LOCK_COMMANDS = {Operation.LOCK: (controls.LOCK_OPERATION_LOCK, esp.LockCommand.LOCK),
+                 Operation.UNLOCK: (controls.LOCK_OPERATION_UNLOCK, esp.LockCommand.UNLOCK)}
 
 
 def timestamp():
@@ -78,6 +80,10 @@ def description(function, info, code):
         if info.assumed_state:
             raise ProtocolFault("assumed lock state is unsupported")
         result.lock.observed_states.extend(LOCK_STATES.values())
+        # Lock credentials are not supported by this driver profile. Discovery
+        # must not offer an action whose authentication cannot be satisfied.
+        if not info.requires_code:
+            result.lock.operations.extend(LOCK_COMMANDS[name][0] for name in function.operations)
     return result
 
 
@@ -181,7 +187,11 @@ def dispatch(client, function, info, descriptor, code, frame):
             client.cover_command(function.key, position=0.0 if arg.operation == controls.COVER_OPERATION_CLOSE else 1.0,
                                  device_id=0)
     else:
-        raise ProtocolFault("lock observation only")
+        operation = request.arguments.lock.operation
+        if operation not in descriptor.lock.operations:
+            raise ProtocolFault("unadvertised lock operation")
+        action = next(pair[1] for pair in LOCK_COMMANDS.values() if pair[0] == operation)
+        client.lock_command(function.key, action, device_id=0)
 
 
 async def heartbeat(host):
