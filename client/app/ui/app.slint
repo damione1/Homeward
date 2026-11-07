@@ -2,14 +2,14 @@ import { KitDialogSurface, KitDialogPanel, KitIconButton, KitButton, KitSelect, 
     KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess, KitCheckbox, CheckState,
     KitDataTable, TableColumn, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, StepDirection, FocusRequest } from "@kit";
-import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro";
+import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProDeviceKind, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro";
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
 import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.slint";
 import { HomewardAdministration } from "administration.slint";
 import { ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField, ProAdminChoice } from "@kit-pro";
 export { ProAdminFieldKind } from "@kit-pro";
-export { IconGlyph, KitGlyphs, TableColumn } from "@kit";
+export { IconGlyph, KitGlyphs, TableColumn, ChoiceIcon } from "@kit";
 import { ProVideoAction } from "@kit-pro";
 import { ProCameraPresentation, ProCameraEventRow, ProCameraState } from "@kit-pro";
 import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro";
@@ -304,6 +304,11 @@ export component HomewardWindow inherits Window {
     in property <int> cache-generation;
     in property <int> home-generation;
     in property <bool> view-loaded;
+    private property <int> detail-focus-request;
+    private property <bool> detail-has-header: !root.media-has-data && root.detail-panels.length > 0 && (
+        root.detail-panels[0].device.kind == ProDeviceKind.light || root.detail-panels[0].device.kind == ProDeviceKind.switch ||
+        root.detail-panels[0].device.kind == ProDeviceKind.fan || root.detail-panels[0].device.kind == ProDeviceKind.climate ||
+        root.detail-panels[0].device.kind == ProDeviceKind.cover || root.detail-panels[0].device.kind == ProDeviceKind.alarm);
     in property <string> detail-title;
     private property <bool> show-detail-history;
     changed detail-title => { root.show-detail-history = false; }
@@ -454,7 +459,7 @@ export component HomewardWindow inherits Window {
             } else { root.take-shell-focus(ProShellFocus.workspace); }
         }
         else if (target == BodyFocus.inventory) { table.take-focus(); }
-        else if (target == BodyFocus.back) { if (root.page == ViewPage.detail) { detail-back.take-focus(); } else if (root.page == ViewPage.room && root.room-view == RoomView.cards) { room-back.take-focus(); } else { back-button.take-focus(); } }
+        else if (target == BodyFocus.back) { if (root.page == ViewPage.detail) { root.detail-focus-request += 1; } else if (root.page == ViewPage.room && root.room-view == RoomView.cards) { room-back.take-focus(); } else { back-button.take-focus(); } }
         else if (target == BodyFocus.lists) { lists-pane.take-focus(); }
         else if (target == BodyFocus.calendars) { calendars-pane.focus-catalog(); }
         else if (target == BodyFocus.cameras) { cameras-pane.focus-catalog(); }
@@ -919,9 +924,11 @@ export component HomewardWindow inherits Window {
             x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
             VerticalLayout {
                 padding: 20px; spacing: 8px;
-                detail-back := KitButton {
+                if !root.detail-has-header: detail-back := KitButton {
+                    private property <int> focus-request: root.detail-focus-request;
+                    changed focus-request => { if (self.focus-request > 0) { self.take-focus(); } }
                     theme: root.theme; text: "Back"; leading-icon: root.theme.icons.chevron-left;
-                    disabled: !root.content-interactive; control-size: comfortable;
+                    disabled: !root.content-interactive || root.detail-has-header; control-size: comfortable;
                     private property <int> route-generation;
                     activation-started => { self.route-generation = root.projection-version; }
                     activated => { if (self.route-generation == root.projection-version && root.page == ViewPage.detail) { root.go-back(); } }
@@ -931,6 +938,7 @@ export component HomewardWindow inherits Window {
                     pan-policy: children-first;
                     vertical-stretch: 1;
                 if !root.media-has-data: HomewardDeviceDetail {
+                    focus-request: root.detail-focus-request;
                     step(t,g,d) => { root.device-step(t,g,d); }
                     theme: root.theme; viewport-width: detail-scroll.visible-width; panels: root.detail-panels;
                     dismiss(reason) => { root.go-back(); }

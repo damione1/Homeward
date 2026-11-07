@@ -67,8 +67,10 @@ impl Cover {
         if !admit::cover_observation(value, &self.limits) {
             return None;
         }
-        value
-            .position_percent
+        value.position_percent
+    }
+    pub fn initial_position(&self, value: &wire::CoverValue) -> Option<f64> {
+        self.observed_position(value)
             .filter(|p| self.position.is_some_and(|b| b.admit(*p).is_ok()))
     }
     pub fn arguments(&self, intent: CoverIntent) -> Result<wire::SetCoverCommand, Refusal> {
@@ -252,7 +254,8 @@ mod tests {
             position_percent: Some(0.),
             ..Default::default()
         };
-        assert!(cover.observed_position(&observed).is_none());
+        assert_eq!(cover.observed_position(&observed), Some(0.));
+        assert!(cover.initial_position(&observed).is_none());
         let mut zero = limits();
         zero.set_position_percent.as_option_mut().unwrap().minimum = 0.;
         let cover = Cover::parse(&zero).unwrap();
@@ -326,6 +329,8 @@ mod tests {
         assert_eq!(positions.observed_position(&observation), Some(35.));
         let operations = cover.restricted(true, false);
         assert!(operations.position().is_none());
+        assert_eq!(operations.observed_position(&observation), Some(35.));
+        assert!(operations.initial_position(&observation).is_none());
         assert!(
             operations
                 .arguments(CoverIntent::Position(NumericInput::Text("40".into())))

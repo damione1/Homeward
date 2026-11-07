@@ -113,12 +113,37 @@ fn panels() -> Vec<(&'static str, HomewardDetailRow)> {
                     disabled: false,
                 },
                 ChoiceRow {
+                    token: 2,
+                    label: "Arm Home".into(),
+                    selected: false,
+                    disabled: false,
+                },
+                ChoiceRow {
                     token: 1,
                     label: "Arm away".into(),
                     selected: false,
                     disabled: false,
                 },
+                ChoiceRow {
+                    token: 3,
+                    label: "Arm Night".into(),
+                    selected: false,
+                    disabled: false,
+                },
             ]
+            .as_slice(),
+        );
+        panel.alarm.mode_icons = ModelRc::from(
+            [
+                (0, home_wire_contract::home::api::v2::DashboardIcon::Power),
+                (1, home_wire_contract::home::api::v2::DashboardIcon::Shield),
+                (2, home_wire_contract::home::api::v2::DashboardIcon::Home),
+                (3, home_wire_contract::home::api::v2::DashboardIcon::Bed),
+            ]
+            .map(|(token, icon)| ChoiceIcon {
+                token,
+                glyph: dashboard_icons::glyph(icon, &Default::default()),
+            })
             .as_slice(),
         );
         result.push((name, panel));
@@ -370,7 +395,50 @@ fn render_synthetic_dashboard_families() {
             window.set_dark_mode(dark);
             for large in [false, true] {
                 window.set_large_text(large);
-                for (name, panel) in panels() {
+                let mut variants = panels();
+                let mut close_only = variants
+                    .iter()
+                    .find(|(name, _)| *name == "cover")
+                    .unwrap()
+                    .1
+                    .clone();
+                close_only.device.title = "Synthetic closed cover".into();
+                close_only.cover.state_label = "Closed · 0 %".into();
+                close_only.cover.position = 0.;
+                close_only.positioned = false;
+                close_only.cover.operations = ModelRc::from([ProCoverChoice {
+                    token: 2,
+                    label: "Close".into(),
+                    operation: ProCoverOperation::Close,
+                }]);
+                variants.push(("cover-close-only", close_only));
+                let lock = device_view::presentation::CardRow {
+                    title: "Synthetic remote controls".into(),
+                    token: 0,
+                    generation: 1,
+                    kind: ProDeviceKind::Lock,
+                    value: "Unlocked".into(),
+                    quality: "Current observation".into(),
+                    access: ProControlAccess::Allowed,
+                    lock_operations: vec![
+                        ProLockChoice {
+                            token: 0,
+                            label: "Lock".into(),
+                            operation: ProLockOperation::Lock,
+                        },
+                        ProLockChoice {
+                            token: 1,
+                            label: "Unlock".into(),
+                            operation: ProLockOperation::Unlock,
+                        },
+                    ],
+                    ..Default::default()
+                };
+                variants.push((
+                    "lock",
+                    device_view::detail::project(&lock, lock.ui(None, &Default::default()), None),
+                ));
+                for (name, panel) in variants {
                     window.set_media_has_data(false);
                     window.set_device_cards(ModelRc::from([panel.device.clone()].as_slice()));
                     window.set_detail_panels(ModelRc::from([panel].as_slice()));
@@ -779,5 +847,64 @@ fn product_dashboard_tile_keeps_focus_when_only_capture_admission_is_closed() {
         calls.get(),
         2,
         "the same focused control resumes only for a fresh action"
+    );
+}
+
+#[test]
+fn alarm_detail_has_one_close_and_preserves_mode_identity() {
+    use i_slint_backend_testing::ElementQuery;
+    use slint::platform::PointerEventButton;
+    use std::{cell::RefCell, rc::Rc};
+    i_slint_backend_testing::init_no_event_loop();
+    let window = setup();
+    let (_, panel) = panels()
+        .into_iter()
+        .find(|(name, _)| *name == "alarm")
+        .unwrap();
+    window.set_device_cards(ModelRc::from([panel.device.clone()].as_slice()));
+    window.set_detail_panels(ModelRc::from([panel].as_slice()));
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let output = calls.clone();
+    window.on_device_choice(move |token, generation, choice| {
+        output.borrow_mut().push((token, generation, choice))
+    });
+    window.show().unwrap();
+    let back = ElementQuery::from_root(&window)
+        .match_id("HomewardWindow::detail-back")
+        .find_all();
+    assert!(
+        back.is_empty(),
+        "the specialized panel owns its close button"
+    );
+    let modes = ElementQuery::from_root(&window)
+        .match_inherits("KitPressable")
+        .match_predicate(|item| item.accessible_label().as_deref() == Some("Arm away"))
+        .find_all();
+    assert_eq!(modes.len(), 1);
+    modes[0].mock_single_click(PointerEventButton::Left);
+    assert_eq!(&*calls.borrow(), &[(0, 1, 1)]);
+    window.set_commands_ready(false);
+    slint::platform::update_timers_and_animations();
+    modes[0].mock_single_click(PointerEventButton::Left);
+    assert_eq!(calls.borrow().len(), 1, "command suspension stays closed");
+    let dismissals = Rc::new(std::cell::Cell::new(0));
+    let output = dismissals.clone();
+    window.on_go_back(move || output.set(output.get() + 1));
+    window.invoke_take_body_focus(BodyFocus::Back);
+    slint::platform::update_timers_and_animations();
+    window
+        .window()
+        .dispatch_event(slint::platform::WindowEvent::KeyPressed {
+            text: slint::platform::Key::Return.into(),
+        });
+    window
+        .window()
+        .dispatch_event(slint::platform::WindowEvent::KeyReleased {
+            text: slint::platform::Key::Return.into(),
+        });
+    assert_eq!(
+        dismissals.get(),
+        1,
+        "initial detail focus reaches the remaining Close control"
     );
 }

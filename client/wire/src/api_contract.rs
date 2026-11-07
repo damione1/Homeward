@@ -243,6 +243,7 @@ pub fn parse_alarm_operation(
     match v {
         EnumValue::Known(wire::AlarmOperation::ArmHome) => Ok(AlarmOperation::ArmHome),
         EnumValue::Known(wire::AlarmOperation::ArmAway) => Ok(AlarmOperation::ArmAway),
+        EnumValue::Known(wire::AlarmOperation::ArmNight) => Ok(AlarmOperation::ArmNight),
         EnumValue::Known(wire::AlarmOperation::Disarm) => Ok(AlarmOperation::Disarm),
         EnumValue::Known(wire::AlarmOperation::Unspecified) => {
             Err(reject("alarm.operation", ViolationKind::MissingIntent))
@@ -254,6 +255,7 @@ fn encode_alarm_operation(v: AlarmOperation) -> EnumValue<wire::AlarmOperation> 
     match v {
         AlarmOperation::ArmHome => wire::AlarmOperation::ArmHome,
         AlarmOperation::ArmAway => wire::AlarmOperation::ArmAway,
+        AlarmOperation::ArmNight => wire::AlarmOperation::ArmNight,
         AlarmOperation::Disarm => wire::AlarmOperation::Disarm,
     }
     .into()

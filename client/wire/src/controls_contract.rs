@@ -61,7 +61,9 @@ pub fn lock_operation(value: EnumValue<wire::LockOperation>) -> Option<wire::Loc
 pub fn alarm_operation(value: EnumValue<wire::AlarmOperation>) -> Option<wire::AlarmOperation> {
     use wire::AlarmOperation as O;
     match value {
-        EnumValue::Known(operation @ (O::ArmHome | O::ArmAway | O::Disarm)) => Some(operation),
+        EnumValue::Known(operation @ (O::ArmHome | O::ArmAway | O::ArmNight | O::Disarm)) => {
+            Some(operation)
+        }
         EnumValue::Known(O::Unspecified) | EnumValue::Unknown(_) => None,
     }
 }
@@ -116,7 +118,7 @@ pub fn lock_constraints(value: &wire::LockConstraints) -> bool {
 }
 pub fn alarm_constraints(value: &wire::AlarmConstraints) -> bool {
     value.__buffa_unknown_fields.is_empty()
-        && options(&value.operations, alarm_operation, 3)
+        && options(&value.operations, alarm_operation, 4)
         && options(&value.observed_states, alarm_state, 10)
         && (!value.operations.is_empty() || !value.observed_states.is_empty())
 }
