@@ -37,4 +37,4 @@ TalkBack is not qualified. Slint 1.18.1's Android backend exposes no semantic ap
 
 Calendar and live media playback are unavailable in the simulator. This run does not qualify a new installed Mac or tablet build.
 
-The real alarm/PIN compatibility boundary is documented separately in [ALARM-COMPATIBILITY.md](ALARM-COMPATIBILITY.md). The current control profile and the simulated panel qualification do not establish real-panel support.
+This historical simulated panel qualification does not establish real-panel support.

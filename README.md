@@ -47,17 +47,6 @@ the frontend's advisory 60 GB storage target before, during and after each round
 It retains at least 50 GB free under the current shared-host policy. The Android SDK and existing Java installation are configured
 for this Homebrew development host; see the Obsidian ticket for the evaluated versions.
 
-For Android updates, keep the development signing identity outside disposable caches
-and reuse it across worktrees. Pass `--android-debug-keystore /absolute/path/to/debug.keystore`
-to `configure`, or set `android_debug_keystore` in an existing untracked
-`frontend.local.json`. The file must already exist; the runner does not replace a
-missing identity. An explicit `CARGO_APK_DEV_KEYSTORE` environment override takes
-precedence, and `CARGO_APK_DEV_KEYSTORE_PASSWORD` remains environment-only. Both
-cargo-apk and Activity packaging use that identity. Without an explicit identity,
-cargo-apk uses its Android user-directory default; changing that directory can
-create a different signer and prevent updates to an installed app. Never uninstall
-an existing app to resolve a signing mismatch when its session must be preserved.
-
 A separate opt-in mock runs with
 `python3 scripts/frontend.py run -- python3 scripts/launch-frontend-mock.py`.
 It prints its isolated instance URL and public CA path. Production `homed` never loads it.
