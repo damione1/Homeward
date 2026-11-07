@@ -160,6 +160,8 @@ func NativeArguments(c Capability, intent apitypes.Intent) (*actions.ActionArgs,
 			a.Operation = controls.AlarmOperation_ALARM_OPERATION_ARM_HOME
 		case apitypes.AlarmArmAway:
 			a.Operation = controls.AlarmOperation_ALARM_OPERATION_ARM_AWAY
+		case apitypes.AlarmArmNight:
+			a.Operation = controls.AlarmOperation_ALARM_OPERATION_ARM_NIGHT
 		case apitypes.AlarmDisarm:
 			a.Operation = controls.AlarmOperation_ALARM_OPERATION_DISARM
 		default:

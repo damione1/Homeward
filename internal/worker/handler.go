@@ -565,6 +565,45 @@ func parseQuality(input *statev1.Quality) (domain.Quality, error) {
 
 func parseValue(input *wire.Observation) (*domain.StateValue, error) {
 	switch value := input.Value.(type) {
+	case *wire.Observation_Cover:
+		if value == nil {
+			return nil, integrations.ErrInvalidInput
+		}
+		admitted, err := contracts.AdmitWireCoverValue(value.Cover)
+		if err != nil {
+			return nil, err
+		}
+		v, err := domain.NewCoverStateValue(admitted)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
+	case *wire.Observation_Lock:
+		if value == nil {
+			return nil, integrations.ErrInvalidInput
+		}
+		admitted, err := contracts.AdmitWireLockValue(value.Lock)
+		if err != nil {
+			return nil, err
+		}
+		v, err := domain.NewLockStateValue(admitted)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
+	case *wire.Observation_Alarm:
+		if value == nil {
+			return nil, integrations.ErrInvalidInput
+		}
+		admitted, err := contracts.AdmitWireAlarmValue(value.Alarm)
+		if err != nil {
+			return nil, err
+		}
+		v, err := domain.NewAlarmStateValue(admitted)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
 	case *wire.Observation_Climate:
 		if value == nil {
 			return nil, integrations.ErrInvalidInput

@@ -83,6 +83,8 @@ enum AlarmOperation {
   ALARM_OPERATION_ARM_HOME = 1;
   ALARM_OPERATION_ARM_AWAY = 2;
   ALARM_OPERATION_DISARM = 3;
+  // Arm night when advertised by the native device.
+  ALARM_OPERATION_ARM_NIGHT = 4;
 }
 message AlarmConstraints {
   repeated AlarmOperation operations = 1;

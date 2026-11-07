@@ -795,6 +795,8 @@ enum DashboardCommandKind {
   DASHBOARD_COMMAND_KIND_ALARM_ARM_AWAY = 11;
   // Alarm disarm.
   DASHBOARD_COMMAND_KIND_ALARM_DISARM = 12;
+  // Alarm arm night.
+  DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT = 13;
 }
 
 // Closed literal observation comparisons.

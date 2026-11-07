@@ -7,7 +7,7 @@ import sys
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-HOST_MAJOR, HOST_MINOR = 1, 4
+HOST_MAJOR, HOST_MINOR = 1, 5
 check = len(sys.argv) == 2 and sys.argv[1] == "--check"
 if len(sys.argv) > 2 or (len(sys.argv) == 2 and not check):
     raise SystemExit("usage: host-schema.py [--check]")

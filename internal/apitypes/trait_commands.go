@@ -182,13 +182,14 @@ const (
 	AlarmArmHome AlarmOperation = iota + 1
 	AlarmArmAway
 	AlarmDisarm
+	AlarmArmNight
 )
 
 type AlarmCommand struct{ operation AlarmOperation }
 
 func NewAlarmCommand(v AlarmOperation) (AlarmCommand, error) {
 	switch v {
-	case AlarmArmHome, AlarmArmAway, AlarmDisarm:
+	case AlarmArmHome, AlarmArmAway, AlarmDisarm, AlarmArmNight:
 		return AlarmCommand{v}, nil
 	default:
 		return AlarmCommand{}, ErrIntent

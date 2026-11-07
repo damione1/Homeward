@@ -81,7 +81,7 @@ func lockOperation(value control.LockOperation) bool {
 }
 func alarmOperation(value control.AlarmOperation) bool {
 	switch value {
-	case control.AlarmOperation_ALARM_OPERATION_ARM_HOME, control.AlarmOperation_ALARM_OPERATION_ARM_AWAY, control.AlarmOperation_ALARM_OPERATION_DISARM:
+	case control.AlarmOperation_ALARM_OPERATION_ARM_HOME, control.AlarmOperation_ALARM_OPERATION_ARM_AWAY, control.AlarmOperation_ALARM_OPERATION_DISARM, control.AlarmOperation_ALARM_OPERATION_ARM_NIGHT:
 		return true
 	default:
 		return false
