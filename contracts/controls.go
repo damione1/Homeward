@@ -109,7 +109,7 @@ func validLockConstraints(value *control.LockConstraints) bool {
 	return value != nil && knownFieldsOnly(value.ProtoReflect()) && validControlOptions(value.Operations, lockOperation, 2) && validControlOptions(value.ObservedStates, func(state control.LockState) bool { _, ok := lockStates[state]; return ok }, 7) && (len(value.Operations) != 0 || len(value.ObservedStates) != 0)
 }
 func validAlarmConstraints(value *control.AlarmConstraints) bool {
-	return value != nil && knownFieldsOnly(value.ProtoReflect()) && validControlOptions(value.Operations, alarmOperation, 3) && validControlOptions(value.ObservedStates, func(state control.AlarmState) bool { _, ok := alarmStates[state]; return ok }, 10) && (len(value.Operations) != 0 || len(value.ObservedStates) != 0)
+	return value != nil && knownFieldsOnly(value.ProtoReflect()) && validControlOptions(value.Operations, alarmOperation, 4) && validControlOptions(value.ObservedStates, func(state control.AlarmState) bool { _, ok := alarmStates[state]; return ok }, 10) && (len(value.Operations) != 0 || len(value.ObservedStates) != 0)
 }
 func admitCoverAction(value *control.CoverAction, limits *control.CoverConstraints) bool {
 	if value == nil || !knownFieldsOnly(value.ProtoReflect()) || !validCoverConstraints(limits) {
