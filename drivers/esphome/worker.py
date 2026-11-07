@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import signal
 import sys
+import time
 
 import aioesphomeapi as esp
 import grpc
@@ -162,7 +163,7 @@ def dispatch(client, function, info, descriptor, code, frame):
     request = frame.request
     if request.capability_schema_id != SCHEMAS[function.kind] or request.endpoint != "native" or \
             request.arguments.WhichOneof("arguments") != function.kind.value or \
-            request.expires_at.ToDatetime().timestamp() <= timestamp().ToDatetime().timestamp():
+            request.expires_at.ToNanoseconds() <= time.time_ns():
         raise ProtocolFault("unsupported or expired command")
     if function.kind is Kind.ALARM:
         operation = request.arguments.alarm.operation

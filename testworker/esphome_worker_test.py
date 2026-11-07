@@ -87,6 +87,23 @@ class ESPHomeControls(unittest.TestCase):
                 dispatch(client, f, info, d, None, frame)
             self.assertEqual(client.mock_calls, [])
 
+    def test_deadline_compares_utc_nanoseconds_independently_of_local_time(self):
+        from unittest.mock import patch
+        f = function(Kind.COVER, ("close",))
+        info = esp.CoverInfo(key=123)
+        frame = command(Kind.COVER, controls.COVER_OPERATION_CLOSE)
+        frame.request.expires_at.seconds = 1772955000
+        frame.request.expires_at.nanos = 123
+        deadline = frame.request.expires_at.ToNanoseconds()
+        client = Mock()
+        with patch("drivers.esphome.worker.time.time_ns", return_value=deadline):
+            with self.assertRaises(ProtocolFault):
+                dispatch(client, f, info, description(f, info, None), None, frame)
+        self.assertEqual(client.mock_calls, [])
+        with patch("drivers.esphome.worker.time.time_ns", return_value=deadline - 1):
+            dispatch(client, f, info, description(f, info, None), None, frame)
+        client.cover_command.assert_called_once_with(123, position=0.0, device_id=0)
+
     def test_transport_failure_is_not_retried(self):
         f = function(Kind.COVER, ("close",))
         info = esp.CoverInfo(key=123)
@@ -151,6 +168,34 @@ class ESPHomeControls(unittest.TestCase):
 
 
 class NativeSessionComposition(unittest.IsolatedAsyncioTestCase):
+    async def test_noise_failure_never_reconnects_in_plaintext(self):
+        import asyncio
+        import base64
+        import os
+        from unittest.mock import AsyncMock, patch
+        from drivers.esphome import worker
+        key = base64.b64encode(bytes(range(32))).decode()
+        channel = Mock(channel_ready=AsyncMock(), close=AsyncMock())
+        host = Mock(handshake=AsyncMock(), call=AsyncMock())
+        host.secret = AsyncMock(side_effect=lambda name: key if name == "noise-key" else None)
+        client = Mock(connect=AsyncMock(side_effect=ConnectionError("synthetic Noise failure")), disconnect=AsyncMock())
+        read_fd, write_fd = os.pipe()
+        os.write(write_fd, b"1" * 64)
+        os.close(write_fd)
+        settings = Settings("device.example", 6053, "aa:bb:cc:dd:ee:01", "synthetic", Transport.NOISE,
+                            "noise-key", None, (function(Kind.LOCK),))
+        with patch.dict(os.environ, HOMEWARD_HOST_SOCKET="synthetic", HOMEWARD_HOST_TOKEN_FD=str(read_fd)), \
+                patch.object(worker.grpc.aio, "insecure_channel", return_value=channel), \
+                patch.object(worker, "Host", return_value=host), \
+                patch.object(worker.esp, "APIClient", return_value=client) as constructor, \
+                patch.object(asyncio.get_running_loop(), "add_signal_handler"):
+            with self.assertRaises(ConnectionError):
+                await worker.run(settings)
+        constructor.assert_called_once()
+        self.assertEqual(constructor.call_args.kwargs["noise_psk"], key)
+        client.connect.assert_awaited_once()
+        client.disconnect.assert_awaited_once()
+
     async def test_publication_preserves_receipt_time_without_claiming_correlation(self):
         from unittest.mock import AsyncMock
         from drivers.esphome.worker import Host
