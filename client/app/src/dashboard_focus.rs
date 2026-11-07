@@ -34,6 +34,7 @@ pub(crate) struct SavedView {
     room: Option<RoomId>,
     native: Option<Destination>,
     detail: Option<EntityName>,
+    detail_source: Option<NodeId>,
     origin: Option<NodeId>,
     home_scroll: f32,
     room_scroll: f32,
@@ -61,6 +62,7 @@ impl SavedView {
             room: request.room.clone(),
             native: request.native.clone(),
             detail: request.detail.clone(),
+            detail_source: request.detail_source.clone(),
             origin: origin
                 .filter(|origin| request.dashboard.layout() == Some(origin.layout.as_ref()))
                 .map(|origin| origin.node),
@@ -77,9 +79,13 @@ impl SavedView {
             && request.room == self.room
             && request.native == self.native
             && request.detail == self.detail
+            && request.detail_source == self.detail_source
     }
     pub fn layout(&self) -> Option<&Arc<Layout>> {
         self.layout.as_ref()
+    }
+    pub fn origin(&self) -> Option<&NodeId> {
+        self.origin.as_ref()
     }
     pub fn has_origin(&self) -> bool {
         self.origin.is_some()

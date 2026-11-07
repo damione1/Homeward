@@ -771,3 +771,118 @@ fn close_only_cover_preserves_observation_without_position_or_other_commands() {
         ))
     );
 }
+
+#[test]
+fn configured_detail_title_keeps_its_exact_opening_node_without_an_entity_override() {
+    use crate::dashboard_layout::{FeatureKind, NodeId};
+    use home_client_model::dashboard::{CommandKind, Gesture, Intention};
+    use slint::ComponentHandle;
+    i_slint_backend_testing::init_no_event_loop();
+    let initial = request();
+    let mut entity = Family::Alarm.entity(&initial);
+    entity.entity.get_or_insert_default().display_name.clear();
+    let mut scenario = native_request(
+        initial,
+        &entity,
+        vec![FeatureKind::AlarmModes],
+        CommandKind::AlarmArmHome,
+    );
+    let id = EntityName::try_from(entity.entity.name.as_str()).unwrap();
+    let source = NodeId::parse("tile").unwrap();
+    let mut layout = scenario.dashboard.layout().unwrap().clone();
+    let node = layout
+        .native
+        .as_mut()
+        .unwrap()
+        .nodes
+        .get_mut(&source)
+        .unwrap();
+    node.title = "Configured entrance control".into();
+    node.recipes
+        .as_mut()
+        .unwrap()
+        .interactions
+        .get_mut(&Gesture::Tap)
+        .unwrap()
+        .intention = Intention::MoreInfo(id.clone());
+    scenario.dashboard = crate::dashboard::LayoutState::Ready(Arc::new(layout));
+    let store = DeviceStore::default();
+    let cache = view(&scenario, vec![entity.clone()]);
+    let initial = store.project(CachePhase::Live, Some(&cache), &scenario);
+    let recipe = &initial.recipes[&source];
+    let prepared = store
+        .prepare_recipe(
+            recipe.token,
+            recipe.generation,
+            scenario.revision,
+            Gesture::Tap,
+        )
+        .unwrap();
+    let window = crate::create_window().unwrap();
+    crate::cache_view::bind(&window);
+    let shared = Arc::new(Mutex::new(scenario.request.clone()));
+    let navigation = crate::navigation::bind_devices(&window, shared.clone(), || {}, || None);
+    navigation
+        .more_info(
+            id,
+            Some(crate::dashboard_focus::Origin::prepared(&prepared)),
+        )
+        .unwrap();
+    assert_eq!(shared.lock().unwrap().detail_source.as_ref(), Some(&source));
+    let publish = |entity: &wire::EntityViewEntry| {
+        let cache = view(&scenario, vec![entity.clone()]);
+        let request = shared.lock().unwrap().clone();
+        let projection = crate::cache_view::project_devices(
+            CachePhase::Live,
+            Some(&cache),
+            home_client_cache::Viewport::default(),
+            &request,
+            &store,
+        );
+        crate::cache_view::render(
+            &window,
+            home_client_cache::ProjectionMailbox::<()>::new().generation(),
+            projection,
+        );
+    };
+    publish(&entity);
+    assert_eq!(window.get_detail_title(), "Configured entrance control");
+    assert_eq!(
+        window.get_detail_panels().row_data(0).unwrap().device.title,
+        "Configured entrance control"
+    );
+    entity.entity.get_or_insert_default().display_name = "Registry default".into();
+    publish(&entity);
+    assert_eq!(
+        window.get_detail_title(),
+        "Configured entrance control",
+        "the configured source remains authoritative"
+    );
+    {
+        let mut request = shared.lock().unwrap();
+        let mut layout = request.dashboard.layout().unwrap().clone();
+        let node = layout
+            .native
+            .as_mut()
+            .unwrap()
+            .nodes
+            .get_mut(&source)
+            .unwrap();
+        node.entity = Some(EntityName::try_from("homes/synthetic/entities/unrelated").unwrap());
+        request.dashboard = crate::dashboard::LayoutState::Ready(Arc::new(layout));
+    }
+    publish(&entity);
+    assert_eq!(
+        window.get_detail_title(),
+        "Registry default",
+        "a source rebound to another entity cannot rename this detail"
+    );
+    assert_eq!(
+        window.get_detail_panels().row_data(0).unwrap().device.title,
+        "Registry default"
+    );
+    window.invoke_go_back();
+    assert!(shared.lock().unwrap().detail_source.is_none());
+    assert!(store.0.lock().unwrap().actions.is_empty());
+    window.hide().unwrap();
+}
