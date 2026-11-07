@@ -717,15 +717,32 @@ fn close_only_cover_preserves_observation_without_position_or_other_commands() {
     let definition = capability.definition.as_option_mut().unwrap();
     definition.operations = vec![wire::CoverOperation::Close.into()];
     definition.set_position_percent = Default::default();
+    use crate::dashboard_layout::{FeatureKind, NodeId};
+    use home_client_model::dashboard::CommandKind;
+    let request = native_request(
+        request,
+        &entity,
+        vec![FeatureKind::CoverOpenClose, FeatureKind::CoverPosition],
+        CommandKind::CoverClose,
+    );
     let store = DeviceStore::default();
-    let row = first(&store, &request, &entity, CachePhase::Live);
+    let projection = store.project(
+        CachePhase::Live,
+        Some(&view(&request, vec![entity])),
+        &request,
+    );
+    let row = projection
+        .native_devices
+        .get(&NodeId::parse("tile").unwrap())
+        .expect("configured cover features stay supported");
+    assert_eq!(row.kind, ProDeviceKind::Cover);
     assert_eq!(row.cover_operations.len(), 1);
     assert_eq!(
         row.cover_operations[0].operation,
         crate::ProCoverOperation::Close
     );
     assert!(row.values.is_empty());
-    let panel = super::detail::project(&row, row.ui(None, &Default::default()), None);
+    let panel = super::detail::project(row, row.ui(None, &Default::default()), None);
     assert!(panel.cover.position_known);
     assert_eq!(panel.cover.position, 35.);
     assert!(!panel.positioned);

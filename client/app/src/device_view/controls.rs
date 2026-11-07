@@ -51,6 +51,9 @@ impl Cover {
     pub fn position(&self) -> Option<Bounds> {
         self.position
     }
+    pub fn observes_position(&self) -> bool {
+        self.limits.observes_position_percent
+    }
     pub fn restricted(&self, operations: bool, position: bool) -> Self {
         let mut value = self.clone();
         if !operations {
