@@ -112,6 +112,7 @@ pub(crate) fn alarm_operation(value: wire::AlarmOperation) -> Option<&'static st
     match value {
         wire::AlarmOperation::ArmHome => Some("Arm Home"),
         wire::AlarmOperation::ArmAway => Some("Arm Away"),
+        wire::AlarmOperation::ArmNight => Some("Arm Night"),
         wire::AlarmOperation::Disarm => Some("Disarm"),
         wire::AlarmOperation::Unspecified => None,
     }

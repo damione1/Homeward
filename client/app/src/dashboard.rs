@@ -294,11 +294,26 @@ pub(crate) struct ProjectionRequest {
     pub query: String,
     pub room: Option<RoomId>,
     pub detail: Option<EntityName>,
+    pub detail_source: Option<NodeId>,
     pub dashboard: LayoutState,
     pub catalogue: Option<Arc<crate::dashboard_catalogue::Snapshot>>,
     pub native: Option<Destination>,
 }
 impl ProjectionRequest {
+    pub fn detail_title(&self, layout: Option<&Layout>, entity: &wire::Entity) -> String {
+        let configured = self
+            .detail_source
+            .as_ref()
+            .and_then(|source| layout?.native.as_ref()?.nodes.get(source))
+            .filter(|node| {
+                node.entity.as_ref().is_some_and(|id| {
+                    id.as_str() == entity.name && self.detail.as_ref() == Some(id)
+                })
+            })
+            .map(|node| node.title.as_str())
+            .filter(|title| !title.is_empty());
+        crate::cache_view::bounded(configured.unwrap_or(&entity.display_name))
+    }
     pub fn native_root<'a>(&'a self, layout: &'a Layout) -> Option<&'a NodeId> {
         let native = layout.native.as_ref()?;
         match self.native.as_ref() {

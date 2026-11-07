@@ -228,6 +228,9 @@ fn command(value: EnumValue<wire::DashboardCommandKind>) -> Result<CommandKind, 
         EnumValue::Known(wire::DashboardCommandKind::Unlock) => Ok(CommandKind::Unlock),
         EnumValue::Known(wire::DashboardCommandKind::AlarmArmHome) => Ok(CommandKind::AlarmArmHome),
         EnumValue::Known(wire::DashboardCommandKind::AlarmArmAway) => Ok(CommandKind::AlarmArmAway),
+        EnumValue::Known(wire::DashboardCommandKind::AlarmArmNight) => {
+            Ok(CommandKind::AlarmArmNight)
+        }
         EnumValue::Known(wire::DashboardCommandKind::AlarmDisarm) => Ok(CommandKind::AlarmDisarm),
         EnumValue::Known(wire::DashboardCommandKind::Unspecified) | EnumValue::Unknown(_) => {
             Err(RecipeFailure::Unsupported)

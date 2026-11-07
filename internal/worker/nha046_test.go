@@ -50,7 +50,7 @@ func TestNHA046CasetaFanBindingRequiresExactNegotiatedHost(t *testing.T) {
 		digest   string
 		admitted bool
 	}{
-		{0, schemaDigestHex, false}, {1, schemaDigestHex, false}, {2, schemaDigestHex, false}, {3, schemaDigestHex, false}, {4, schemaDigestHex, true},
+		{0, schemaDigestHex, false}, {1, schemaDigestHex, false}, {2, schemaDigestHex, false}, {3, schemaDigestHex, false}, {4, schemaDigestHex, false}, {hostProtocolMinor, schemaDigestHex, true},
 	} {
 		t.Run(fixture.digest[:8], func(t *testing.T) {
 			p := newPilot(config)

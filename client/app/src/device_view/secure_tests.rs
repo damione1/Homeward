@@ -7,6 +7,7 @@ use super::{
     tests::{light, request, view},
 };
 use home_wire_contract::home::api::v2 as wire;
+use slint::Model;
 use wire::execute_capability_request::Command as Arguments;
 #[derive(Clone, Copy)]
 enum Family {
@@ -580,6 +581,7 @@ fn secure_header_commands_resolve_exact_families_and_reject_unadvertised_operati
         C::Unlock,
         C::AlarmArmHome,
         C::AlarmArmAway,
+        C::AlarmArmNight,
         C::AlarmDisarm,
     ];
     for family in [Family::Cover, Family::Lock, Family::Alarm] {
@@ -608,6 +610,7 @@ fn secure_header_commands_resolve_exact_families_and_reject_unadvertised_operati
                     | C::Unlock
                     | C::AlarmArmHome
                     | C::AlarmArmAway
+                    | C::AlarmArmNight
                     | C::AlarmDisarm,
                 )
                 | (
@@ -621,6 +624,7 @@ fn secure_header_commands_resolve_exact_families_and_reject_unadvertised_operati
                     | C::CoverStop
                     | C::AlarmArmHome
                     | C::AlarmArmAway
+                    | C::AlarmArmNight
                     | C::AlarmDisarm,
                 )
                 | (
@@ -634,7 +638,8 @@ fn secure_header_commands_resolve_exact_families_and_reject_unadvertised_operati
                     | C::CoverStop
                     | C::Lock
                     | C::Unlock
-                    | C::AlarmArmHome,
+                    | C::AlarmArmHome
+                    | C::AlarmArmNight,
                 ) => false,
             };
             assert_eq!(
@@ -649,4 +654,235 @@ fn secure_header_commands_resolve_exact_families_and_reject_unadvertised_operati
             }
         }
     }
+}
+
+#[test]
+fn night_selection_uses_the_advertised_token_and_observed_mode() {
+    let request = request();
+    let mut entity = Family::Alarm.entity(&request);
+    let Some(wire::capability::Trait::Alarm(capability)) = entity.capabilities[0].r#trait.as_mut()
+    else {
+        panic!("alarm fixture")
+    };
+    capability
+        .definition
+        .as_option_mut()
+        .unwrap()
+        .operations
+        .push(wire::AlarmOperation::ArmNight.into());
+    capability
+        .definition
+        .as_option_mut()
+        .unwrap()
+        .observed_states
+        .push(wire::AlarmState::ArmedNight.into());
+    capability
+        .observation
+        .as_option_mut()
+        .unwrap()
+        .value
+        .as_option_mut()
+        .unwrap()
+        .state = wire::AlarmState::ArmedNight.into();
+    let store = DeviceStore::default();
+    let row = first(&store, &request, &entity, CachePhase::Live);
+    assert_eq!(
+        row.alarm_operations[2].operation,
+        crate::ProAlarmOperation::ArmNight
+    );
+    let panel = super::detail::project(&row, row.ui(None, &Default::default()), None);
+    assert_eq!(panel.alarm.condition, crate::ProAlarmCondition::Armed);
+    assert!(panel.alarm.modes.row_data(2).unwrap().selected);
+    let intent = store.choose(row.token, row.generation, 0, 2).unwrap();
+    let prepared = store.prepare(row.token, row.generation, 0, intent).unwrap();
+    let Some(Arguments::Alarm(command)) =
+        home_wire_contract::api_contract::encode_command(&prepared.request).command
+    else {
+        panic!("typed alarm request")
+    };
+    assert_eq!(
+        command.operation.as_known(),
+        Some(wire::AlarmOperation::ArmNight)
+    );
+}
+
+#[test]
+fn close_only_cover_preserves_observation_without_position_or_other_commands() {
+    let request = request();
+    let mut entity = Family::Cover.entity(&request);
+    let Some(wire::capability::Trait::Cover(capability)) = entity.capabilities[0].r#trait.as_mut()
+    else {
+        panic!("cover fixture")
+    };
+    let definition = capability.definition.as_option_mut().unwrap();
+    definition.operations = vec![wire::CoverOperation::Close.into()];
+    definition.set_position_percent = Default::default();
+    use crate::dashboard_layout::{FeatureKind, NodeId};
+    use home_client_model::dashboard::CommandKind;
+    let request = native_request(
+        request,
+        &entity,
+        vec![FeatureKind::CoverOpenClose, FeatureKind::CoverPosition],
+        CommandKind::CoverClose,
+    );
+    let store = DeviceStore::default();
+    let projection = store.project(
+        CachePhase::Live,
+        Some(&view(&request, vec![entity])),
+        &request,
+    );
+    let row = projection
+        .native_devices
+        .get(&NodeId::parse("tile").unwrap())
+        .expect("configured cover features stay supported");
+    assert_eq!(row.kind, ProDeviceKind::Cover);
+    assert_eq!(row.cover_operations.len(), 1);
+    assert_eq!(
+        row.cover_operations[0].operation,
+        crate::ProCoverOperation::Close
+    );
+    assert!(row.values.is_empty());
+    let panel = super::detail::project(row, row.ui(None, &Default::default()), None);
+    assert!(panel.cover.position_known);
+    assert_eq!(panel.cover.position, 35.);
+    assert!(!panel.positioned);
+    for intent in [
+        CoverIntent::Operation(wire::CoverOperation::Open),
+        CoverIntent::Operation(wire::CoverOperation::Stop),
+        CoverIntent::Position(NumericInput::Text("0".into())),
+    ] {
+        assert!(
+            store
+                .prepare(row.token, row.generation, 0, DeviceIntent::Cover(intent))
+                .is_err()
+        );
+    }
+    let intent = store.choose(row.token, row.generation, 0, 0).unwrap();
+    let prepared = store.prepare(row.token, row.generation, 0, intent).unwrap();
+    let Some(Arguments::Cover(command)) =
+        home_wire_contract::api_contract::encode_command(&prepared.request).command
+    else {
+        panic!("typed cover request")
+    };
+    assert_eq!(
+        command.target,
+        Some(wire::set_cover_command::Target::Operation(
+            wire::CoverOperation::Close.into()
+        ))
+    );
+}
+
+#[test]
+fn configured_detail_title_keeps_its_exact_opening_node_without_an_entity_override() {
+    use crate::dashboard_layout::{FeatureKind, NodeId};
+    use home_client_model::dashboard::{CommandKind, Gesture, Intention};
+    use slint::ComponentHandle;
+    i_slint_backend_testing::init_no_event_loop();
+    let initial = request();
+    let mut entity = Family::Alarm.entity(&initial);
+    entity.entity.get_or_insert_default().display_name.clear();
+    let mut scenario = native_request(
+        initial,
+        &entity,
+        vec![FeatureKind::AlarmModes],
+        CommandKind::AlarmArmHome,
+    );
+    let id = EntityName::try_from(entity.entity.name.as_str()).unwrap();
+    let source = NodeId::parse("tile").unwrap();
+    let mut layout = scenario.dashboard.layout().unwrap().clone();
+    let node = layout
+        .native
+        .as_mut()
+        .unwrap()
+        .nodes
+        .get_mut(&source)
+        .unwrap();
+    node.title = "Configured entrance control".into();
+    node.recipes
+        .as_mut()
+        .unwrap()
+        .interactions
+        .get_mut(&Gesture::Tap)
+        .unwrap()
+        .intention = Intention::MoreInfo(id.clone());
+    scenario.dashboard = crate::dashboard::LayoutState::Ready(Arc::new(layout));
+    let store = DeviceStore::default();
+    let cache = view(&scenario, vec![entity.clone()]);
+    let initial = store.project(CachePhase::Live, Some(&cache), &scenario);
+    let recipe = &initial.recipes[&source];
+    let prepared = store
+        .prepare_recipe(
+            recipe.token,
+            recipe.generation,
+            scenario.revision,
+            Gesture::Tap,
+        )
+        .unwrap();
+    let window = crate::create_window().unwrap();
+    crate::cache_view::bind(&window);
+    let shared = Arc::new(Mutex::new(scenario.request.clone()));
+    let navigation = crate::navigation::bind_devices(&window, shared.clone(), || {}, || None);
+    navigation
+        .more_info(
+            id,
+            Some(crate::dashboard_focus::Origin::prepared(&prepared)),
+        )
+        .unwrap();
+    assert_eq!(shared.lock().unwrap().detail_source.as_ref(), Some(&source));
+    let publish = |entity: &wire::EntityViewEntry| {
+        let cache = view(&scenario, vec![entity.clone()]);
+        let request = shared.lock().unwrap().clone();
+        let projection = crate::cache_view::project_devices(
+            CachePhase::Live,
+            Some(&cache),
+            home_client_cache::Viewport::default(),
+            &request,
+            &store,
+        );
+        crate::cache_view::render(
+            &window,
+            home_client_cache::ProjectionMailbox::<()>::new().generation(),
+            projection,
+        );
+    };
+    publish(&entity);
+    assert_eq!(window.get_detail_title(), "Configured entrance control");
+    assert_eq!(
+        window.get_detail_panels().row_data(0).unwrap().device.title,
+        "Configured entrance control"
+    );
+    entity.entity.get_or_insert_default().display_name = "Registry default".into();
+    publish(&entity);
+    assert_eq!(
+        window.get_detail_title(),
+        "Configured entrance control",
+        "the configured source remains authoritative"
+    );
+    {
+        let mut request = shared.lock().unwrap();
+        let mut layout = request.dashboard.layout().unwrap().clone();
+        let node = layout
+            .native
+            .as_mut()
+            .unwrap()
+            .nodes
+            .get_mut(&source)
+            .unwrap();
+        node.entity = Some(EntityName::try_from("homes/synthetic/entities/unrelated").unwrap());
+        request.dashboard = crate::dashboard::LayoutState::Ready(Arc::new(layout));
+    }
+    publish(&entity);
+    assert_eq!(
+        window.get_detail_title(),
+        "Registry default",
+        "a source rebound to another entity cannot rename this detail"
+    );
+    assert_eq!(
+        window.get_detail_panels().row_data(0).unwrap().device.title,
+        "Registry default"
+    );
+    window.invoke_go_back();
+    assert!(shared.lock().unwrap().detail_source.is_none());
+    assert!(store.0.lock().unwrap().actions.is_empty());
+    window.hide().unwrap();
 }

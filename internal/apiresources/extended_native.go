@@ -118,6 +118,8 @@ func convertAlarmOperation(v controls.AlarmOperation) (api.AlarmOperation, error
 		return api.AlarmOperation_ALARM_OPERATION_ARM_HOME, nil
 	case controls.AlarmOperation_ALARM_OPERATION_ARM_AWAY:
 		return api.AlarmOperation_ALARM_OPERATION_ARM_AWAY, nil
+	case controls.AlarmOperation_ALARM_OPERATION_ARM_NIGHT:
+		return api.AlarmOperation_ALARM_OPERATION_ARM_NIGHT, nil
 	case controls.AlarmOperation_ALARM_OPERATION_DISARM:
 		return api.AlarmOperation_ALARM_OPERATION_DISARM, nil
 	default:

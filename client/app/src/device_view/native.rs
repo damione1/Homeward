@@ -374,7 +374,7 @@ fn features(control: &Control) -> BTreeSet<FeatureKind> {
             if !cover.operations().is_empty() {
                 result.insert(FeatureKind::CoverOpenClose);
             }
-            if cover.position().is_some() {
+            if cover.observes_position() || cover.position().is_some() {
                 result.insert(FeatureKind::CoverPosition);
             }
         }

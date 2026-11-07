@@ -213,6 +213,9 @@ impl Control {
             CommandKind::AlarmArmAway => Ok(DeviceIntent::Alarm(
                 home_wire_contract::home::api::v2::AlarmOperation::ArmAway,
             )),
+            CommandKind::AlarmArmNight => Ok(DeviceIntent::Alarm(
+                home_wire_contract::home::api::v2::AlarmOperation::ArmNight,
+            )),
             CommandKind::AlarmDisarm => Ok(DeviceIntent::Alarm(
                 home_wire_contract::home::api::v2::AlarmOperation::Disarm,
             )),
@@ -624,6 +627,10 @@ impl DeviceStore {
                     .expect("known operation"),
                     CommandKind::AlarmArmAway => crate::control_text::alarm_operation(
                         home_wire_contract::home::api::v2::AlarmOperation::ArmAway,
+                    )
+                    .expect("known operation"),
+                    CommandKind::AlarmArmNight => crate::control_text::alarm_operation(
+                        home_wire_contract::home::api::v2::AlarmOperation::ArmNight,
                     )
                     .expect("known operation"),
                     CommandKind::AlarmDisarm => crate::control_text::alarm_operation(

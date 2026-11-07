@@ -22598,6 +22598,8 @@ pub enum AlarmOperation {
     ALARM_OPERATION_ARM_AWAY = 2i32,
     /// Alarm operation disarm.
     ALARM_OPERATION_DISARM = 3i32,
+    /// Arm night when advertised by the native device.
+    ALARM_OPERATION_ARM_NIGHT = 4i32,
 }
 impl AlarmOperation {
     ///Idiomatic alias for [`Self::ALARM_OPERATION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -22612,6 +22614,9 @@ impl AlarmOperation {
     ///Idiomatic alias for [`Self::ALARM_OPERATION_DISARM`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Disarm: Self = Self::ALARM_OPERATION_DISARM;
+    ///Idiomatic alias for [`Self::ALARM_OPERATION_ARM_NIGHT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ArmNight: Self = Self::ALARM_OPERATION_ARM_NIGHT;
 }
 impl ::core::default::Default for AlarmOperation {
     fn default() -> Self {
@@ -22625,6 +22630,7 @@ impl ::buffa::Enumeration for AlarmOperation {
             1i32 => ::core::option::Option::Some(Self::ALARM_OPERATION_ARM_HOME),
             2i32 => ::core::option::Option::Some(Self::ALARM_OPERATION_ARM_AWAY),
             3i32 => ::core::option::Option::Some(Self::ALARM_OPERATION_DISARM),
+            4i32 => ::core::option::Option::Some(Self::ALARM_OPERATION_ARM_NIGHT),
             _ => ::core::option::Option::None,
         }
     }
@@ -22637,6 +22643,7 @@ impl ::buffa::Enumeration for AlarmOperation {
             Self::ALARM_OPERATION_ARM_HOME => "ALARM_OPERATION_ARM_HOME",
             Self::ALARM_OPERATION_ARM_AWAY => "ALARM_OPERATION_ARM_AWAY",
             Self::ALARM_OPERATION_DISARM => "ALARM_OPERATION_DISARM",
+            Self::ALARM_OPERATION_ARM_NIGHT => "ALARM_OPERATION_ARM_NIGHT",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -22653,6 +22660,9 @@ impl ::buffa::Enumeration for AlarmOperation {
             "ALARM_OPERATION_DISARM" => {
                 ::core::option::Option::Some(Self::ALARM_OPERATION_DISARM)
             }
+            "ALARM_OPERATION_ARM_NIGHT" => {
+                ::core::option::Option::Some(Self::ALARM_OPERATION_ARM_NIGHT)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -22662,6 +22672,7 @@ impl ::buffa::Enumeration for AlarmOperation {
             Self::ALARM_OPERATION_ARM_HOME,
             Self::ALARM_OPERATION_ARM_AWAY,
             Self::ALARM_OPERATION_DISARM,
+            Self::ALARM_OPERATION_ARM_NIGHT,
         ]
     }
 }
@@ -57631,6 +57642,8 @@ pub enum DashboardCommandKind {
     DASHBOARD_COMMAND_KIND_ALARM_ARM_AWAY = 11i32,
     /// Alarm disarm.
     DASHBOARD_COMMAND_KIND_ALARM_DISARM = 12i32,
+    /// Alarm arm night.
+    DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT = 13i32,
 }
 impl DashboardCommandKind {
     ///Idiomatic alias for [`Self::DASHBOARD_COMMAND_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -57672,6 +57685,9 @@ impl DashboardCommandKind {
     ///Idiomatic alias for [`Self::DASHBOARD_COMMAND_KIND_ALARM_DISARM`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const AlarmDisarm: Self = Self::DASHBOARD_COMMAND_KIND_ALARM_DISARM;
+    ///Idiomatic alias for [`Self::DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AlarmArmNight: Self = Self::DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT;
 }
 impl ::core::default::Default for DashboardCommandKind {
     fn default() -> Self {
@@ -57703,6 +57719,11 @@ impl ::buffa::Enumeration for DashboardCommandKind {
             }
             12i32 => {
                 ::core::option::Option::Some(Self::DASHBOARD_COMMAND_KIND_ALARM_DISARM)
+            }
+            13i32 => {
+                ::core::option::Option::Some(
+                    Self::DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT,
+                )
             }
             _ => ::core::option::Option::None,
         }
@@ -57738,6 +57759,9 @@ impl ::buffa::Enumeration for DashboardCommandKind {
             }
             Self::DASHBOARD_COMMAND_KIND_ALARM_DISARM => {
                 "DASHBOARD_COMMAND_KIND_ALARM_DISARM"
+            }
+            Self::DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT => {
+                "DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT"
             }
         }
     }
@@ -57782,6 +57806,11 @@ impl ::buffa::Enumeration for DashboardCommandKind {
             "DASHBOARD_COMMAND_KIND_ALARM_DISARM" => {
                 ::core::option::Option::Some(Self::DASHBOARD_COMMAND_KIND_ALARM_DISARM)
             }
+            "DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT" => {
+                ::core::option::Option::Some(
+                    Self::DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -57800,6 +57829,7 @@ impl ::buffa::Enumeration for DashboardCommandKind {
             Self::DASHBOARD_COMMAND_KIND_ALARM_ARM_HOME,
             Self::DASHBOARD_COMMAND_KIND_ALARM_ARM_AWAY,
             Self::DASHBOARD_COMMAND_KIND_ALARM_DISARM,
+            Self::DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT,
         ]
     }
 }

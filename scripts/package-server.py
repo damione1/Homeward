@@ -14,6 +14,9 @@ import shutil
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = ROOT
 IMAGE = "homeward-server:nha168"
+# Qualification must inspect the image trust store, not a host-injected CA.
+# Other Docker engines ignore this vendor label. No TLS checks are disabled.
+IMAGE_FILES_ONLY = ("--label", "dev.orbstack.add-ca-certificates=false")
 
 
 def command(*args, capture=False):
@@ -91,14 +94,15 @@ def main():
     image_id = info["Id"]
     # Resolve tags once. Every probe/export below uses this immutable image ID.
     (output / "image-inspect.json").write_text(json.dumps(info, sort_keys=True, indent=2) + "\n")
-    container = command("docker", "create", "--platform", args.platform, image_id, capture=True).stdout.strip()
+    container = command("docker", "create", "--platform", args.platform, *IMAGE_FILES_ONLY, image_id, capture=True).stdout.strip()
     try:
         for name in binaries:
             command("docker", "cp", f"{container}:/usr/local/bin/{name}", str(output / name))
         command("docker", "cp", f"{container}:/opt/homeward/release", str(output / "inventory"))
     finally:
         command("docker", "rm", container, capture=True)
-    command("docker", "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+    command("docker", "run", "--rm", "--platform", args.platform, *IMAGE_FILES_ONLY,
+            "--network", "none", "--read-only", "--cap-drop", "ALL",
             "--entrypoint", "/usr/local/bin/homeward-package", image_id, "tzcheck")
     worker_check = """
 import importlib.metadata as m, json, sys, ssl, hashlib, os
@@ -106,6 +110,11 @@ from pathlib import Path
 import grpc, google.protobuf, pylutron_caseta, orjson, cryptography, cffi
 from drivers.caseta import worker
 from drivers.caseta.config import _manifest_aliases
+from drivers.esphome import worker as esphome_worker
+from drivers.esphome.config import Kind, Function
+import aioesphomeapi
+probe = Function(Kind.LOCK, 1, "synthetic_lock", "lock", ())
+assert not esphome_worker.description(probe, aioesphomeapi.LockInfo(key=1), None).lock.operations
 assert os.getuid()==10001
 # Importing the worker does not execute its resource reader. Exercise the same
 # path used by settings admission, without any configuration or device access.
@@ -115,7 +124,9 @@ manifest = Path(worker.__file__).resolve().parents[2] / 'scope/manifest.json'
 caseta_manifest = {'sha256': hashlib.sha256(manifest.read_bytes()).hexdigest(),
                    'alias_count': len(aliases)}
 packages = ['grpcio', 'grpcio-tools', 'protobuf', 'setuptools', 'typing-extensions',
-            'cffi', 'cryptography', 'orjson', 'pycparser', 'pylutron-caseta']
+            'cffi', 'cryptography', 'orjson', 'pycparser', 'pylutron-caseta',
+            'aioesphomeapi', 'aiohappyeyeballs', 'async-interrupt', 'backports-zstd',
+            'chacha20poly1305-reuseable', 'ifaddr', 'noiseprotocol', 'tzdata', 'tzlocal', 'zeroconf']
 inventory=json.loads(Path('/opt/homeward/release/runtime-inventory.json').read_text())
 files={path:item['sha256'] for path,item in inventory['debian_files'].items()}
 for distribution in inventory['python']: files.update(distribution['files'])
@@ -126,7 +137,8 @@ print(json.dumps({'python': sys.version, 'openssl': ssl.OPENSSL_VERSION,
                   'packages': {name:m.version(name) for name in packages}, 'verified_inventory_files':len(files),
                   'caseta_manifest': caseta_manifest}))
 """
-    worker = json.loads(command("docker", "run", "--rm", "--network", "none", "--read-only",
+    worker = json.loads(command("docker", "run", "--rm", "--platform", args.platform, *IMAGE_FILES_ONLY,
+                                "--network", "none", "--read-only",
                                 "--cap-drop", "ALL", "--entrypoint", "python3", image_id,
                                 "-c", worker_check, capture=True).stdout)
     manifest_path = ROOT / "scope/manifest.json"
@@ -159,7 +171,8 @@ print(json.dumps({'uid':os.getuid(),'source_image':(root/'source-image.txt').rea
  'source_linkage':(root/'source-linkage.txt').read_text(),'tools':tools,
  'files_sha256':{str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file()}}))
 """
-    clients = json.loads(command("docker", "run", "--rm", "--network", "none", "--read-only",
+    clients = json.loads(command("docker", "run", "--rm", "--platform", args.platform, *IMAGE_FILES_ONLY,
+                                 "--network", "none", "--read-only",
                                  "--cap-drop", "ALL", "--entrypoint", "/usr/local/bin/python3", image_id,
                                  "-c", client_check, capture=True).stdout)
     if clients["source_image"] != declared["postgres_clients"]["source_image"]:

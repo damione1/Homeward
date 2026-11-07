@@ -477,6 +477,7 @@ pub enum LockOperation {
 pub enum AlarmOperation {
     ArmHome,
     ArmAway,
+    ArmNight,
     Disarm,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

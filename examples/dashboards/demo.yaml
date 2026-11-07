@@ -1421,7 +1421,7 @@ views:
           entity: lock.demo_lock
           grid_options:
             columns: 1
-          name: Garage Lock
+          name: Garage remote controls
           tap_action:
             action: more-info
           icon: mdi:lock
@@ -2826,6 +2826,7 @@ views:
       presentation: summary
     - type: tile
       entity: lock.demo_lock
+      name: Garage remote controls
       grid_options:
         columns: full
       tap_action:

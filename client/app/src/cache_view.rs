@@ -291,7 +291,7 @@ pub(crate) fn project_owner(
                 .map(|time| time.to_rfc3339())
                 .unwrap_or_else(|| "Date not provided".into());
             [
-                bounded(&entity.entity.display_name),
+                request.detail_title(layout, &entity.entity),
                 bounded(&value),
                 bounded(&quality),
                 date,
@@ -2318,6 +2318,7 @@ mod tests {
         let view = home_view();
         let request = ProjectionRequest {
             revision: 7,
+            detail_source: None,
             room: Some(dashboard::fixture().rooms[1].id.clone()),
             native: None,
             dashboard: dashboard::LayoutState::Ready(std::sync::Arc::new(

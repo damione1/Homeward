@@ -238,6 +238,8 @@ func ParseAlarmOperation(v wire.AlarmOperation) (apitypes.AlarmOperation, error)
 		return apitypes.AlarmArmHome, nil
 	case wire.AlarmOperation_ALARM_OPERATION_ARM_AWAY:
 		return apitypes.AlarmArmAway, nil
+	case wire.AlarmOperation_ALARM_OPERATION_ARM_NIGHT:
+		return apitypes.AlarmArmNight, nil
 	case wire.AlarmOperation_ALARM_OPERATION_DISARM:
 		return apitypes.AlarmDisarm, nil
 	case wire.AlarmOperation_ALARM_OPERATION_UNSPECIFIED:

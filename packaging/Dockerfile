@@ -76,6 +76,7 @@ COPY packaging/collect-runtime.py /tmp/homeward-collect-runtime.py
 RUN python /tmp/homeward-collect-runtime.py runtime --output /opt/homeward/release \
  && rm /tmp/homeward-collect-runtime.py
 COPY drivers/caseta /opt/homeward/drivers/caseta
+COPY drivers/esphome /opt/homeward/drivers/esphome
 COPY scope/manifest.json /opt/homeward/scope/manifest.json
 COPY testworker/generated /opt/homeward/testworker/generated
 COPY testworker/schema_digest.py /opt/homeward/testworker/schema_digest.py

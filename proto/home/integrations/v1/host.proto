@@ -5,12 +5,11 @@ import "google/protobuf/timestamp.proto";
 import "home/actions/v1/actions.proto";
 import "home/registry/v1/registry.proto";
 import "home/state/v1/state.proto";
+import "home/controls/v1/controls.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/integrations/v1;integrationsv1";
 
-// Exact v1.0, v1.1, v1.2 and v1.3 profiles are admitted. Fan requires v1.1;
-// climate observations and their declarations require v1.2; light transitions
-// require v1.3.
+// Only the current v1.5 Host profile is admitted, including typed control observations.
 enum Capability {
   CAPABILITY_UNSPECIFIED = 0;
   CAPABILITY_DISCOVER = 1;
@@ -69,6 +68,9 @@ message Observation {
     home.state.v1.LightValue light = 9;
     home.state.v1.FanValue fan = 10;
     home.state.v1.ClimateValue climate = 11;
+    home.controls.v1.CoverValue cover = 12;
+    home.controls.v1.LockValue lock = 13;
+    home.controls.v1.AlarmValue alarm = 14;
   }
 }
 message PublishRequest { Observation observation = 1; }

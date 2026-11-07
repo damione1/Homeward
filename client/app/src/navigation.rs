@@ -452,6 +452,17 @@ impl State {
             | Route::Cameras
             | Route::Settings => None,
         };
+        request.detail_source = if request.detail.is_some() {
+            self.history
+                .last()
+                .filter(|entry| {
+                    entry.view.layout().map(|layout| layout.as_ref()) == request.dashboard.layout()
+                })
+                .and_then(|entry| entry.view.origin())
+                .cloned()
+        } else {
+            None
+        };
         request.revision
     }
     fn fallback_opener(&self) -> Target {

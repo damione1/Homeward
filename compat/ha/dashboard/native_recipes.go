@@ -260,6 +260,8 @@ func nativeService(value string) wire.DashboardCommandKind {
 		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_UNLOCK
 	case "alarm_control_panel.alarm_arm_home":
 		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_ARM_HOME
+	case "alarm_control_panel.alarm_arm_night":
+		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT
 	case "alarm_control_panel.alarm_arm_away":
 		return wire.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_ARM_AWAY
 	case "alarm_control_panel.alarm_disarm":

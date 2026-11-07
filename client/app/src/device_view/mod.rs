@@ -231,7 +231,7 @@ fn selected<'a>(
     if let Some(id) = &request.detail {
         return view
             .get(id)
-            .map(|entity| vec![(bounded(&entity.entity.display_name), entity)])
+            .map(|entity| vec![(request.detail_title(Some(layout), &entity.entity), entity)])
             .unwrap_or_default();
     }
     if layout.native.is_some() {

@@ -723,6 +723,8 @@ enum AlarmOperation {
   ALARM_OPERATION_ARM_AWAY = 2;
   // Alarm operation disarm.
   ALARM_OPERATION_DISARM = 3;
+  // Arm night when advertised by the native device.
+  ALARM_OPERATION_ARM_NIGHT = 4;
 }
 
 // Solar Event Kind: closed typed source vocabulary; no label inference.

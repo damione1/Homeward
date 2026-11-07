@@ -6,9 +6,9 @@ use super::{
     presentation::{CardRow, nested},
 };
 use crate::{
-    ChoiceRow, HomewardDetailRow, ProAlarm, ProAlarmCondition, ProClimate, ProClimateOptions,
-    ProCover, ProCoverLock, ProCoverMotion, ProDeviceRow, ProFan, ProLight, ProSwitch,
-    ProSwitchState, ProValueMode,
+    ChoiceIcon, ChoiceRow, HomewardDetailRow, ProAlarm, ProAlarmCondition, ProClimate,
+    ProClimateOptions, ProCover, ProCoverLock, ProCoverMotion, ProDeviceRow, ProFan, ProLight,
+    ProSwitch, ProSwitchState, ProValueMode,
 };
 use home_wire_contract::home::api::v2 as wire;
 use slint::{Model, SharedString};
@@ -19,6 +19,7 @@ pub(crate) struct Metadata {
     fan_modes: Vec<ChoiceRow>,
     speeds: Vec<ChoiceRow>,
     alarm_modes: Vec<ChoiceRow>,
+    alarm_icons: Vec<ChoiceIcon>,
     condition: ProAlarmCondition,
     motion: ProCoverMotion,
     position: Option<f64>,
@@ -150,6 +151,35 @@ impl Metadata {
                     Some(wire::AlarmState::Triggered) => ProAlarmCondition::Triggered,
                     Some(wire::AlarmState::Unspecified) | None => ProAlarmCondition::Unknown,
                 };
+                result.alarm_icons = alarm
+                    .operations()
+                    .iter()
+                    .enumerate()
+                    .map(|(index, operation)| ChoiceIcon {
+                        token: index as i32,
+                        glyph: match *operation {
+                            wire::AlarmOperation::ArmHome => crate::dashboard_icons::glyph(
+                                wire::DashboardIcon::Home,
+                                &Default::default(),
+                            ),
+                            wire::AlarmOperation::ArmAway => crate::dashboard_icons::glyph(
+                                wire::DashboardIcon::Shield,
+                                &Default::default(),
+                            ),
+                            wire::AlarmOperation::ArmNight => crate::dashboard_icons::glyph(
+                                wire::DashboardIcon::Bed,
+                                &Default::default(),
+                            ),
+                            wire::AlarmOperation::Disarm => crate::dashboard_icons::glyph(
+                                wire::DashboardIcon::Power,
+                                &Default::default(),
+                            ),
+                            wire::AlarmOperation::Unspecified => {
+                                unreachable!("admitted alarm operation")
+                            }
+                        },
+                    })
+                    .collect();
                 result.alarm_modes = alarm
                     .operations()
                     .iter()
@@ -170,6 +200,9 @@ impl Metadata {
                             ) | (
                                 Some(wire::AlarmState::ArmedAway),
                                 wire::AlarmOperation::ArmAway
+                            ) | (
+                                Some(wire::AlarmState::ArmedNight),
+                                wire::AlarmOperation::ArmNight
                             )
                         ),
                         disabled: false,
@@ -309,6 +342,7 @@ pub(crate) fn project(
             state_label: device.value.clone(),
             status: device.quality.clone(),
             modes: nested(&metadata.alarm_modes, previous.map(|v| &v.alarm.modes)),
+            mode_icons: nested(&metadata.alarm_icons, previous.map(|v| &v.alarm.mode_icons)),
             mode_focus: selected(&metadata.alarm_modes),
             ..Default::default()
         },

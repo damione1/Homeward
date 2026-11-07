@@ -284,6 +284,7 @@ pub(super) fn alarm_rows(control: &Control) -> Vec<ProAlarmChoice> {
             let kind = match *operation {
                 wire::AlarmOperation::ArmHome => ProAlarmOperation::ArmHome,
                 wire::AlarmOperation::ArmAway => ProAlarmOperation::ArmAway,
+                wire::AlarmOperation::ArmNight => ProAlarmOperation::ArmNight,
                 wire::AlarmOperation::Disarm => ProAlarmOperation::Disarm,
                 wire::AlarmOperation::Unspecified => return None,
             };
@@ -436,7 +437,7 @@ impl Editor {
                 && super::observation::evidence(entity).is_some()
                 && let Some(wire::capability::Trait::Cover(capability)) = entity.r#trait.as_ref()
                 && let Some(value) = capability.observation.value.as_option()
-                && let Some(position) = cover.observed_position(value)
+                && let Some(position) = cover.initial_position(value)
             {
                 draft.lower = position.to_string();
             }

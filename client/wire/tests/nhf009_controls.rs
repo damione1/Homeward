@@ -187,3 +187,32 @@ fn constraints_reject_unknown_duplicate_and_unusable_declarations() {
     nested.set_position_percent = unknown(nested.set_position_percent.as_option().unwrap()).into();
     assert!(!admit::cover_constraints(&nested));
 }
+
+#[test]
+fn night_requires_advertised_operation_and_parses_as_a_typed_intent() {
+    let mut limits = w::AlarmDefinition {
+        operations: vec![
+            w::AlarmOperation::ArmHome.into(),
+            w::AlarmOperation::ArmAway.into(),
+            w::AlarmOperation::Disarm.into(),
+        ],
+        observed_states: vec![w::AlarmState::ArmedNight.into()],
+        ..Default::default()
+    };
+    let command = w::SetAlarmCommand {
+        operation: w::AlarmOperation::ArmNight.into(),
+        ..Default::default()
+    };
+    assert!(
+        !admit::alarm_action(&command, &limits),
+        "observing Night does not advertise a command"
+    );
+    limits.operations.push(w::AlarmOperation::ArmNight.into());
+    assert!(admit::alarm_constraints(&limits));
+    assert!(admit::alarm_action(&command, &limits));
+    assert_eq!(
+        home_wire_contract::api_contract::parse_alarm_operation(w::AlarmOperation::ArmNight.into())
+            .unwrap(),
+        home_client_model::api::AlarmOperation::ArmNight
+    );
+}

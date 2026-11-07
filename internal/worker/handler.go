@@ -139,7 +139,7 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 		// These native-only families have no observation/command codec in Host.
 		// Their presence in transitive protobuf dependencies grants no support.
 		for _, description := range input.Descriptions {
-			if contracts.NativeSolarDescription(description) || contracts.NativeControlDescription(description) || contracts.NativeEnvironmentDescription(description) {
+			if contracts.NativeSolarDescription(description) || contracts.NativeEnvironmentDescription(description) {
 				return nil, rpcInvalid()
 			}
 			if description != nil && (description.SchemaId == contracts.HelperSchema || description.GetHelper() != nil) {
@@ -565,6 +565,45 @@ func parseQuality(input *statev1.Quality) (domain.Quality, error) {
 
 func parseValue(input *wire.Observation) (*domain.StateValue, error) {
 	switch value := input.Value.(type) {
+	case *wire.Observation_Cover:
+		if value == nil {
+			return nil, integrations.ErrInvalidInput
+		}
+		admitted, err := contracts.AdmitWireCoverValue(value.Cover)
+		if err != nil {
+			return nil, err
+		}
+		v, err := domain.NewCoverStateValue(admitted)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
+	case *wire.Observation_Lock:
+		if value == nil {
+			return nil, integrations.ErrInvalidInput
+		}
+		admitted, err := contracts.AdmitWireLockValue(value.Lock)
+		if err != nil {
+			return nil, err
+		}
+		v, err := domain.NewLockStateValue(admitted)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
+	case *wire.Observation_Alarm:
+		if value == nil {
+			return nil, integrations.ErrInvalidInput
+		}
+		admitted, err := contracts.AdmitWireAlarmValue(value.Alarm)
+		if err != nil {
+			return nil, err
+		}
+		v, err := domain.NewAlarmStateValue(admitted)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
 	case *wire.Observation_Climate:
 		if value == nil {
 			return nil, integrations.ErrInvalidInput

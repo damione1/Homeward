@@ -367,6 +367,8 @@ const (
 	AlarmOperation_ALARM_OPERATION_ARM_AWAY AlarmOperation = 2
 	// Alarm operation disarm.
 	AlarmOperation_ALARM_OPERATION_DISARM AlarmOperation = 3
+	// Arm night when advertised by the native device.
+	AlarmOperation_ALARM_OPERATION_ARM_NIGHT AlarmOperation = 4
 )
 
 // Enum value maps for AlarmOperation.
@@ -376,12 +378,14 @@ var (
 		1: "ALARM_OPERATION_ARM_HOME",
 		2: "ALARM_OPERATION_ARM_AWAY",
 		3: "ALARM_OPERATION_DISARM",
+		4: "ALARM_OPERATION_ARM_NIGHT",
 	}
 	AlarmOperation_value = map[string]int32{
 		"ALARM_OPERATION_UNSPECIFIED": 0,
 		"ALARM_OPERATION_ARM_HOME":    1,
 		"ALARM_OPERATION_ARM_AWAY":    2,
 		"ALARM_OPERATION_DISARM":      3,
+		"ALARM_OPERATION_ARM_NIGHT":   4,
 	}
 )
 
@@ -5769,12 +5773,13 @@ const file_home_api_v2_extended_traits_proto_rawDesc = "" +
 	"\x12ALARM_STATE_ARMING\x10\b\x12\x19\n" +
 	"\x15ALARM_STATE_DISARMING\x10\t\x12\x19\n" +
 	"\x15ALARM_STATE_TRIGGERED\x10\n" +
-	"*\x89\x01\n" +
+	"*\xa8\x01\n" +
 	"\x0eAlarmOperation\x12\x1f\n" +
 	"\x1bALARM_OPERATION_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18ALARM_OPERATION_ARM_HOME\x10\x01\x12\x1c\n" +
 	"\x18ALARM_OPERATION_ARM_AWAY\x10\x02\x12\x1a\n" +
-	"\x16ALARM_OPERATION_DISARM\x10\x03*\xdd\x01\n" +
+	"\x16ALARM_OPERATION_DISARM\x10\x03\x12\x1d\n" +
+	"\x19ALARM_OPERATION_ARM_NIGHT\x10\x04*\xdd\x01\n" +
 	"\x0eSolarEventKind\x12 \n" +
 	"\x1cSOLAR_EVENT_KIND_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SOLAR_EVENT_KIND_DAWN\x10\x01\x12\x19\n" +

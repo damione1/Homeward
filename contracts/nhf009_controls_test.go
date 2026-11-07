@@ -24,7 +24,7 @@ func TestNHF009ControlEnumCoverageAndPresenceBytes(t *testing.T) {
 		{control.AlarmState(0).Descriptor(), len(alarmStates) + 1},
 		{control.CoverOperation(0).Descriptor(), 4},
 		{control.LockOperation(0).Descriptor(), 3},
-		{control.AlarmOperation(0).Descriptor(), 4},
+		{control.AlarmOperation(0).Descriptor(), 5},
 	} {
 		if item.descriptor.Values().Len() != item.expected {
 			t.Fatalf("new control enum requires admission review: %s", item.descriptor.FullName())

@@ -220,6 +220,118 @@
             "sha256": "6c49efb2728c368e7383c9be0905a9599055813d405d4095e22505b201470a96"
           }
         ]
+      },
+      {
+        "requirement": "aioesphomeapi==46.28.0",
+        "source": "https://pypi.org/pypi/aioesphomeapi/46.28.0/json",
+        "artifacts": [
+          {
+            "filename": "aioesphomeapi-46.28.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl",
+            "sha256": "3f481ec184a540b3b77a5300da453086cb70f1f5c4a1816e5b232b329eeab96f"
+          },
+          {
+            "filename": "aioesphomeapi-46.28.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "sha256": "3dda7a47853561fe91987b0b9cf9a226ef888f3b0a93a93c31a45652afe3ff28"
+          }
+        ]
+      },
+      {
+        "requirement": "aiohappyeyeballs==2.7.1",
+        "source": "https://pypi.org/pypi/aiohappyeyeballs/2.7.1/json",
+        "artifacts": [
+          {
+            "filename": "aiohappyeyeballs-2.7.1-py3-none-any.whl",
+            "sha256": "9243213661e29250eb41368e5daa826fc017156c3b8a11440826b2e3ed376472"
+          }
+        ]
+      },
+      {
+        "requirement": "async-interrupt==1.2.2",
+        "source": "https://pypi.org/pypi/async-interrupt/1.2.2/json",
+        "artifacts": [
+          {
+            "filename": "async_interrupt-1.2.2-py3-none-any.whl",
+            "sha256": "0a8deb884acfb5fe55188a693ae8a4381bbbd2cb6e670dac83869489513eec2c"
+          }
+        ]
+      },
+      {
+        "requirement": "backports-zstd==1.8.0",
+        "source": "https://pypi.org/pypi/backports-zstd/1.8.0/json",
+        "artifacts": [
+          {
+            "filename": "backports_zstd-1.8.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl",
+            "sha256": "1a808ba1371231c00a2b71f03840a727088e287d0ee1dfb3230958950f21f421"
+          },
+          {
+            "filename": "backports_zstd-1.8.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "sha256": "44a9004f9e809ea56910d326d21946650369db59eb86edc0c76840f21530704c"
+          }
+        ]
+      },
+      {
+        "requirement": "chacha20poly1305-reuseable==0.13.2",
+        "source": "https://pypi.org/pypi/chacha20poly1305-reuseable/0.13.2/json",
+        "artifacts": [
+          {
+            "filename": "chacha20poly1305_reuseable-0.13.2-py3-none-any.whl",
+            "sha256": "c7dba7c3604a9fa51bcfef9e4bfdaa3bfaadd88b6c5436a27be1c7e9c4081048"
+          }
+        ]
+      },
+      {
+        "requirement": "ifaddr==0.2.0",
+        "source": "https://pypi.org/pypi/ifaddr/0.2.0/json",
+        "artifacts": [
+          {
+            "filename": "ifaddr-0.2.0-py3-none-any.whl",
+            "sha256": "085e0305cfe6f16ab12d72e2024030f5d52674afad6911bb1eee207177b8a748"
+          }
+        ]
+      },
+      {
+        "requirement": "noiseprotocol==0.3.1",
+        "source": "https://pypi.org/pypi/noiseprotocol/0.3.1/json",
+        "artifacts": [
+          {
+            "filename": "noiseprotocol-0.3.1-py3-none-any.whl",
+            "sha256": "2e1a603a38439636cf0ffd8b3e8b12cee27d368a28b41be7dbe568b2abb23111"
+          }
+        ]
+      },
+      {
+        "requirement": "tzdata==2026.6",
+        "source": "https://pypi.org/pypi/tzdata/2026.6/json",
+        "artifacts": [
+          {
+            "filename": "tzdata-2026.6-py2.py3-none-any.whl",
+            "sha256": "0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec"
+          }
+        ]
+      },
+      {
+        "requirement": "tzlocal==5.4.5",
+        "source": "https://pypi.org/pypi/tzlocal/5.4.5/json",
+        "artifacts": [
+          {
+            "filename": "tzlocal-5.4.5-py3-none-any.whl",
+            "sha256": "ecab534f6d65d9deb4c4ea52c121ab6dd5958e9b878e71dcb102578269752454"
+          }
+        ]
+      },
+      {
+        "requirement": "zeroconf==0.154.0",
+        "source": "https://pypi.org/pypi/zeroconf/0.154.0/json",
+        "artifacts": [
+          {
+            "filename": "zeroconf-0.154.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl",
+            "sha256": "b7d35af27a84ea1c395739bcbacba1f4dfb20071c2439b7800d9cdd8d195c5ea"
+          },
+          {
+            "filename": "zeroconf-0.154.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "sha256": "c1fd35219bb548a9b145d248d65b7eec5d1e05d2569c3134cde25069ea52e800"
+          }
+        ]
       }
     ]
   },

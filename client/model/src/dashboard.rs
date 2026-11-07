@@ -29,6 +29,7 @@ pub enum CommandKind {
     Unlock,
     AlarmArmHome,
     AlarmArmAway,
+    AlarmArmNight,
     AlarmDisarm,
 }
 

@@ -90,7 +90,7 @@ func (p *apiProjector) command(alias domain.HAAlias, kind api.DashboardCommandKi
 			return b.native.Trait() == apiresources.Cover
 		case api.DashboardCommandKind_DASHBOARD_COMMAND_KIND_LOCK, api.DashboardCommandKind_DASHBOARD_COMMAND_KIND_UNLOCK:
 			return b.native.Trait() == apiresources.Lock
-		case api.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_ARM_HOME, api.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_ARM_AWAY, api.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_DISARM:
+		case api.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_ARM_HOME, api.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_ARM_AWAY, api.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_DISARM, api.DashboardCommandKind_DASHBOARD_COMMAND_KIND_ALARM_ARM_NIGHT:
 			return b.native.Trait() == apiresources.Alarm
 		default:
 			return false
