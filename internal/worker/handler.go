@@ -139,7 +139,7 @@ func (p *pilot) Discover(ctx context.Context, r *connect.Request[wire.DiscoverRe
 		// These native-only families have no observation/command codec in Host.
 		// Their presence in transitive protobuf dependencies grants no support.
 		for _, description := range input.Descriptions {
-			if contracts.NativeSolarDescription(description) || contracts.NativeControlDescription(description) || contracts.NativeEnvironmentDescription(description) {
+			if contracts.NativeSolarDescription(description) || contracts.NativeEnvironmentDescription(description) {
 				return nil, rpcInvalid()
 			}
 			if description != nil && (description.SchemaId == contracts.HelperSchema || description.GetHelper() != nil) {
