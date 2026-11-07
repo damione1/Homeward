@@ -106,6 +106,11 @@ from pathlib import Path
 import grpc, google.protobuf, pylutron_caseta, orjson, cryptography, cffi
 from drivers.caseta import worker
 from drivers.caseta.config import _manifest_aliases
+from drivers.esphome import worker as esphome_worker
+from drivers.esphome.config import Kind, Function
+import aioesphomeapi
+probe = Function(Kind.LOCK, 1, "synthetic_lock", "lock", ())
+assert not esphome_worker.description(probe, aioesphomeapi.LockInfo(key=1), None).lock.operations
 assert os.getuid()==10001
 # Importing the worker does not execute its resource reader. Exercise the same
 # path used by settings admission, without any configuration or device access.
@@ -115,7 +120,9 @@ manifest = Path(worker.__file__).resolve().parents[2] / 'scope/manifest.json'
 caseta_manifest = {'sha256': hashlib.sha256(manifest.read_bytes()).hexdigest(),
                    'alias_count': len(aliases)}
 packages = ['grpcio', 'grpcio-tools', 'protobuf', 'setuptools', 'typing-extensions',
-            'cffi', 'cryptography', 'orjson', 'pycparser', 'pylutron-caseta']
+            'cffi', 'cryptography', 'orjson', 'pycparser', 'pylutron-caseta',
+            'aioesphomeapi', 'aiohappyeyeballs', 'async-interrupt', 'backports-zstd',
+            'chacha20poly1305-reuseable', 'ifaddr', 'noiseprotocol', 'tzdata', 'tzlocal', 'zeroconf']
 inventory=json.loads(Path('/opt/homeward/release/runtime-inventory.json').read_text())
 files={path:item['sha256'] for path,item in inventory['debian_files'].items()}
 for distribution in inventory['python']: files.update(distribution['files'])

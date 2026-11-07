@@ -110,7 +110,7 @@ func nha174RejectedProfile(t *testing.T, minor uint32) *pilot {
 	return p
 }
 func TestNHA174OldProfilesRefusedBeforeHostAndSecrets(t *testing.T) {
-	for _, minor := range []uint32{0, 1, 2, 3, 5} {
+	for _, minor := range []uint32{0, 1, 2, 3, 4, hostProtocolMinor + 1} {
 		nha174RejectedProfile(t, minor)
 	}
 }

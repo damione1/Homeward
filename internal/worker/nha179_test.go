@@ -26,7 +26,7 @@ func (nha179Generation) WithCurrent(ctx context.Context, admit func(uint64) erro
 	return admit(7)
 }
 
-func TestNHA179CasetaBindingOptInRequiresExactNegotiatedHost14(t *testing.T) {
+func TestNHA179CasetaBindingOptInRequiresExactNegotiatedCurrentHost(t *testing.T) {
 	configured, err := NewConfiguredBinding("synthetic-bridge", "zone-1", "light.synthetic")
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestNHA179CasetaBindingOptInRequiresExactNegotiatedHost14(t *testing.T) {
 		digest   string
 		admitted bool
 	}{
-		{0, schemaDigestHex, false}, {1, schemaDigestHex, false}, {2, schemaDigestHex, false}, {3, schemaDigestHex, false}, {4, schemaDigestHex, true},
+		{0, schemaDigestHex, false}, {1, schemaDigestHex, false}, {2, schemaDigestHex, false}, {3, schemaDigestHex, false}, {4, schemaDigestHex, false}, {hostProtocolMinor, schemaDigestHex, true},
 	} {
 		t.Run(fixture.digest[:8], func(t *testing.T) {
 			p := newPilot(config)
@@ -70,7 +70,7 @@ func TestNHA179CasetaBindingOptInRequiresExactNegotiatedHost14(t *testing.T) {
 			response, err := p.Handshake(context.Background(), request)
 			if fixture.admitted {
 				if err != nil || response == nil || !p.handshaken {
-					t.Fatalf("qualified 1.4 rejected: %v", err)
+					t.Fatalf("qualified current Host rejected: %v", err)
 				}
 			} else if response != nil || connect.CodeOf(err) != connect.CodeFailedPrecondition || !errors.Is(err, ErrInvalidConfig) || p.handshaken {
 				t.Fatalf("unqualified Host minor admitted: %v response=%v", err, response)
