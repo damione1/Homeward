@@ -141,6 +141,16 @@ def environment(config):
                HOMEBREW_NO_AUTO_UPDATE='1', HOMEBREW_NO_INSTALL_CLEANUP='1',
                JAVA_HOME='/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home',
                PYTHONDONTWRITEBYTECODE='1')
+    # Signing identity must survive cache/worktree changes. An explicit caller
+    # override still takes precedence over the untracked local configuration.
+    key = env.get('CARGO_APK_DEV_KEYSTORE')
+    if key is None:
+        key = config.get('android_debug_keystore')
+    if key is not None:
+        key = Path(key).expanduser()
+        if not key.is_absolute() or not key.is_file():
+            raise SystemExit('Android debug keystore must be an existing absolute file')
+        env['CARGO_APK_DEV_KEYSTORE'] = str(key)
     return env
 
 
@@ -178,6 +188,11 @@ def leases(config):
 def configure(args):
     if LOCAL.exists():
         raise SystemExit('already configured; preserve the original storage baseline')
+    key = args.android_debug_keystore
+    if key is not None:
+        key = key.expanduser().resolve()
+        if not key.is_file():
+            raise SystemExit('Android debug keystore must already exist')
     free, pro, cache = args.free_kit.resolve(), args.pro_kit.resolve(), args.backend_cache.resolve()
     frontend = cache / 'frontend'
     if frontend.exists():
@@ -205,6 +220,8 @@ def configure(args):
                               '/opt/homebrew/Caskroom/android-platform-tools',
                               str(Path.home() / '.android/debug.keystore'),
                               str(Path.home() / '.rustup/toolchains/1.98.1-aarch64-apple-darwin/lib/rustlib/aarch64-linux-android')]}
+    if key is not None:
+        config['android_debug_keystore'] = str(key)
     # Existing backend allocations are baseline-only, never a second frontend charge.
     baseline = inventory([Path(p) for p in config['shared_roots'] + config['owned_roots']])
     write(Path(config['baseline']), baseline)
@@ -402,6 +419,8 @@ def main():
     setup.add_argument('--free-kit', type=Path, required=True)
     setup.add_argument('--pro-kit', type=Path, required=True)
     setup.add_argument('--backend-cache', type=Path, required=True)
+    setup.add_argument('--android-debug-keystore', type=Path,
+                       help='existing signing identity for Android development updates')
     commands.add_parser('storage')
     run = commands.add_parser('run')
     run.add_argument('--reserve-gb', type=float, default=2)

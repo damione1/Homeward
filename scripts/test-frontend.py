@@ -14,6 +14,30 @@ spec.loader.exec_module(frontend)
 
 
 class StorageGuardTests(unittest.TestCase):
+    def test_debug_signing_identity_survives_cache_changes_and_explicit_override_wins(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            key = root / 'stable.keystore'
+            override = root / 'explicit.keystore'
+            key.write_bytes(b'synthetic key placeholder')
+            override.write_bytes(b'synthetic override placeholder')
+            config = {'backend_cache': str(root / 'backend'),
+                      'frontend_cache': str(root / 'cache-a'),
+                      'android_sdk': str(root / 'sdk'), 'android_debug_keystore': str(key)}
+            with patch.dict(frontend.os.environ, {'PATH': '/synthetic/bin'}, clear=True):
+                first = frontend.environment(config)
+                config['frontend_cache'] = str(root / 'cache-b')
+                second = frontend.environment(config)
+                self.assertNotEqual(first['ANDROID_USER_HOME'], second['ANDROID_USER_HOME'])
+                self.assertEqual(first['CARGO_APK_DEV_KEYSTORE'], str(key))
+                self.assertEqual(second['CARGO_APK_DEV_KEYSTORE'], str(key))
+                with patch.dict(frontend.os.environ, {'CARGO_APK_DEV_KEYSTORE': str(override)}):
+                    self.assertEqual(frontend.environment(config)['CARGO_APK_DEV_KEYSTORE'], str(override))
+                key.unlink()
+                with self.assertRaisesRegex(SystemExit, 'existing absolute file'):
+                    frontend.environment(config)
+                self.assertFalse(key.exists(), 'a missing identity must never be regenerated')
+
     def test_budget_stop_joins_a_child_that_exited_before_the_signal(self):
         process = Mock(pid=123)
         process.poll.side_effect = [None, 0]
