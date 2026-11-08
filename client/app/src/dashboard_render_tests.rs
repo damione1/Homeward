@@ -1,6 +1,6 @@
 //! Synthetic product renders: no profile, session, transport or device command.
 use crate::*;
-use slint::{ComponentHandle, ModelRc};
+use slint::{ComponentHandle, Model, ModelRc};
 
 fn panels() -> Vec<(&'static str, HomewardDetailRow)> {
     let mut result = Vec::new();
@@ -1319,4 +1319,76 @@ fn modal_content_respects_dynamic_system_insets_without_shrinking_scrims() {
         }
     }
     window.hide().unwrap();
+}
+
+#[path = "../examples/fixtures/modular.rs"]
+mod modular_fixture;
+
+#[test]
+fn nhf044_modular_product_matrix_and_detail_use_the_same_source_rows() {
+    use i_slint_backend_testing::{TestingBackend, TestingBackendOptions};
+    slint::platform::set_platform(Box::new(TestingBackend::new(TestingBackendOptions {
+        mock_time: true,
+        renderer_name: Some("software".into()),
+        ..Default::default()
+    })))
+    .unwrap();
+    let window = setup();
+    modular_fixture::apply(&window, false);
+    assert_eq!(
+        window.get_home_layout_nodes().row_count(),
+        6,
+        "one root and five families"
+    );
+    assert_eq!(
+        window
+            .get_home_layout_nodes()
+            .row_data(0)
+            .unwrap()
+            .children
+            .row_count(),
+        5
+    );
+    window.show().unwrap();
+    let directory = std::env::var_os("HOMEWARD_NHF044_RENDER_DIR").map(std::path::PathBuf::from);
+    if let Some(path) = &directory {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    for (size, width, height) in [("compact", 360., 800.), ("desktop", 1100., 900.)] {
+        for dark in [false, true] {
+            for large in [false, true] {
+                window.set_dark_mode(dark);
+                window.set_large_text(large);
+                window
+                    .window()
+                    .set_size(slint::LogicalSize::new(width, height));
+                slint::platform::update_timers_and_animations();
+                if let Some(path) = &directory {
+                    save(
+                        &window,
+                        &path.join(format!(
+                            "{size}-{}-{}.png",
+                            if dark { "dark" } else { "light" },
+                            if large { 200 } else { 100 }
+                        )),
+                    );
+                }
+            }
+        }
+    }
+    let before = window.get_device_cards().row_data(0).unwrap();
+    modular_fixture::apply(&window, true);
+    let detail = window.get_detail_panels().row_data(0).unwrap().device;
+    assert_eq!(before.control_family, detail.control_family);
+    assert_eq!(before.modules.row_count(), detail.modules.row_count());
+    for index in 0..before.modules.row_count() {
+        let before = before.modules.row_data(index).unwrap();
+        let after = detail.modules.row_data(index).unwrap();
+        assert_eq!(before.state, after.state);
+        assert_eq!(before.role, after.role);
+        assert_eq!(
+            before.choices.iter().collect::<Vec<_>>(),
+            after.choices.iter().collect::<Vec<_>>()
+        );
+    }
 }

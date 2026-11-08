@@ -1,5 +1,7 @@
 # Generic demo configuration. Entity aliases are fictional.
 # Resolve owner, list and calendar identifiers when publishing to a demo instance.
+# visual_family controls presentation only. Optional RGB/preset modules appear
+# only when the selected source advertises those functions; no driver is inferred.
 homeward:
   profile: homeward-dashboard-3
   owner: OWNER_ACCOUNT_ID
@@ -38,6 +40,7 @@ views:
           columns: 1
       - type: tile
         entity: cover.demo_garage_door
+        visual_family: garage
         name: Garage
         icon: mdi:garage
         presentation: summary
@@ -74,6 +77,7 @@ views:
           columns: 1
       - type: tile
         entity: cover.demo_garage_door
+        visual_family: garage
         name: Garage
         icon: mdi:garage
         presentation: summary
@@ -101,6 +105,7 @@ views:
         action_label: Adjust
       - type: tile
         entity: fan.demo_living_room_ceiling_fan
+        visual_family: stepped_level
         grid_options:
           columns: 1
         name: Ceiling Fan
@@ -287,6 +292,7 @@ views:
         action_label: Adjust
       - type: tile
         entity: fan.demo_living_room_ceiling_fan
+        visual_family: stepped_level
         grid_options:
           columns: 1
         name: Ceiling Fan
@@ -487,6 +493,7 @@ views:
           columns: 1
     - type: tile
       entity: fan.demo_living_room_ceiling_fan
+      visual_family: stepped_level
       grid_options:
         columns: full
       name: Ceiling Fan
@@ -818,6 +825,7 @@ views:
           icon: mdi:lightbulb
         - type: tile
           entity: light.demo_library_lamp
+          visual_family: continuous_level
           grid_options:
             columns: 1
           name: Library Lamp
@@ -840,6 +848,7 @@ views:
           icon: mdi:lightbulb
         - type: tile
           entity: switch.demo_design_lamp_relay
+          visual_family: binary
           grid_options:
             columns: 1
           name: Design lamp
@@ -876,6 +885,7 @@ views:
           action_label: Adjust
         - type: tile
           entity: fan.demo_living_room_ceiling_fan
+          visual_family: stepped_level
           grid_options:
             columns: 1
           name: Ceiling Fan
@@ -1415,6 +1425,7 @@ views:
           icon: mdi:lightbulb
         - type: tile
           entity: cover.demo_garage_door
+          visual_family: garage
           grid_options:
             columns: 1
           name: Garage Door
@@ -1754,6 +1765,7 @@ views:
         action_label: Adjust
       - type: tile
         entity: fan.demo_living_room_ceiling_fan
+        visual_family: stepped_level
         grid_options:
           columns: full
         name: Ceiling Fan
@@ -2808,6 +2820,7 @@ views:
     - type: tile
       name: Garage Door
       entity: cover.demo_garage_door
+      visual_family: garage
       grid_options:
         columns: full
       icon: mdi:garage

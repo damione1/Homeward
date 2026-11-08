@@ -1,3 +1,4 @@
+import { ProModuleIntent } from "@kit-pro";
 import { LucideIcons } from "@kit/icons/lucide/all.slint";
 import { KitDialogSurface, KitDialogPanel, KitIconButton, KitButton, KitSelect, KitTheme, KitThemes, KitThemeContext, KitCard, KitCardHeader, KitUrlField,
     KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess, KitCheckbox, CheckState,
@@ -302,6 +303,7 @@ export component HomewardWindow inherits Window {
     callback lock-operation(int,int,ProLockOperation);
     callback device-step(int,int,StepDirection);
     callback device-power(int,int,ProPowerIntent);
+    callback device-module(ProModuleIntent);
     callback device-brightness(int,int,float);
     callback device-stop-tracking(int,int);
     callback device-details(int,int);
@@ -755,6 +757,7 @@ export component HomewardWindow inherits Window {
                     theme: root.theme; viewport-width: home.visible-width; screen-width: root.width;
                     nodes: root.home-layout-nodes; node-index: 0;
                     interactive: root.dashboard-interactive && root.page == ViewPage.home; commands-enabled: root.commands-ready;
+                    module-intent(intent) => { root.device-module(intent); }
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -823,6 +826,7 @@ export component HomewardWindow inherits Window {
                     theme: root.theme; viewport-width: room-area.visible-width; screen-width: root.width;
                     nodes: root.room-layout-nodes; node-index: 0;
                     interactive: root.dashboard-interactive && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-enabled: root.commands-ready;
+                    module-intent(intent) => { root.device-module(intent); }
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -834,6 +838,7 @@ export component HomewardWindow inherits Window {
                 if !root.has-configured-layout && root.room-layout-nodes.length == 0: HomewardDevices {
                     theme: root.theme; viewport-width: viewport.width; devices: root.device-cards;
                     interactive: root.dashboard-interactive && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-ready: root.commands-ready;
+                    module-intent(intent) => { root.device-module(intent); }
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -971,6 +976,7 @@ export component HomewardWindow inherits Window {
                     panels: root.detail-panels;
                     dismiss(reason) => { root.go-back(); }
                     interactive: root.dashboard-interactive && root.page == ViewPage.detail; commands-ready: root.commands-ready;
+                    module-intent(intent) => { root.device-module(intent); }
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
@@ -1047,7 +1053,8 @@ export component HomewardWindow inherits Window {
         recipe-focus-revealed(token,generation,top,bottom) => { root.recipe-focus-revealed(token,generation,top,bottom); }
         scroll-interacted => { root.native-focus-cancelled(); }
         close(generation,reason) => { root.native-popup-dismiss(generation,reason); }
-        power(token,generation,intent) => { root.device-power(token,generation,intent); }
+        module-intent(intent) => { root.device-module(intent); }
+                    power(token,generation,intent) => { root.device-power(token,generation,intent); }
         edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
         choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
         brightness(token,generation,value) => { root.device-brightness(token,generation,value); }

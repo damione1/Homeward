@@ -68,11 +68,11 @@ pub(crate) fn power(capability: &wire::Capability) -> Option<bool> {
             wire::PowerValue::Unspecified => None,
         },
         T::LightControl(value) => value.observation.on,
+        T::FanControl(value) => value.observation.on,
         T::Level(_)
         | T::TemperatureControl(_)
         | T::NumericMeasurement(_)
         | T::BinaryObservation(_)
-        | T::FanControl(_)
         | T::Cover(_)
         | T::Lock(_)
         | T::Alarm(_)
@@ -195,20 +195,23 @@ pub(crate) fn value_text(capability: &wire::Capability) -> String {
                 values.join(" · ")
             }
         }
-        Some(T::FanControl(v)) => v
-            .observation
-            .speed
-            .and_then(|speed| speed.as_known())
-            .and_then(|speed| match speed {
-                wire::FanSpeed::Off => Some("Off"),
-                wire::FanSpeed::Low => Some("Low"),
-                wire::FanSpeed::Medium => Some("Medium"),
-                wire::FanSpeed::MediumHigh => Some("Medium high"),
-                wire::FanSpeed::High => Some("High"),
-                wire::FanSpeed::Unspecified => None,
-            })
-            .map(str::to_owned)
-            .unwrap_or_else(missing),
+        Some(T::FanControl(v)) => {
+            let mut values = Vec::new();
+            if let Some(on) = v.observation.on {
+                values.push(if on { "On".into() } else { "Off".into() });
+            }
+            if let Some(key) = &v.observation.speed {
+                values.push(key.clone());
+            }
+            if let Some(level) = v.observation.level.filter(|value| value.is_finite()) {
+                values.push(level.to_string());
+            }
+            if values.is_empty() {
+                missing()
+            } else {
+                values.join(" · ")
+            }
+        }
         Some(T::Cover(v)) => v
             .observation
             .value
@@ -513,4 +516,51 @@ mod tests {
             .freshness = wire::Freshness::Stale.into();
         assert_eq!(power(&cap(light)), None);
     }
+}
+
+#[test]
+fn nhf044_fan_toggle_uses_only_explicit_fresh_observed_power() {
+    let mut fan = wire::FanControlCapability {
+        observation: wire::FanControlObservation {
+            quality: super::fixture::quality().into(),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    };
+    let capability = |fan: wire::FanControlCapability| wire::Capability {
+        r#trait: Some(wire::capability::Trait::FanControl(fan.into())),
+        ..Default::default()
+    };
+    for key in ["Off", "quiet:7"] {
+        fan.observation.as_option_mut().unwrap().speed = Some(key.into());
+        assert_eq!(power(&capability(fan.clone())), None);
+    }
+    fan.observation.as_option_mut().unwrap().on = Some(false);
+    assert_eq!(power(&capability(fan.clone())), Some(false));
+    fan.observation.as_option_mut().unwrap().on = Some(true);
+    assert_eq!(power(&capability(fan.clone())), Some(true));
+    fan.observation
+        .as_option_mut()
+        .unwrap()
+        .quality
+        .as_option_mut()
+        .unwrap()
+        .freshness = wire::Freshness::Stale.into();
+    assert_eq!(power(&capability(fan.clone())), None);
+    fan.observation
+        .as_option_mut()
+        .unwrap()
+        .quality
+        .as_option_mut()
+        .unwrap()
+        .freshness = wire::Freshness::Current.into();
+    fan.observation
+        .as_option_mut()
+        .unwrap()
+        .quality
+        .as_option_mut()
+        .unwrap()
+        .provenance = wire::Provenance::Estimated.into();
+    assert_eq!(power(&capability(fan)), None);
 }

@@ -1,3 +1,4 @@
+import { ProControlModules, ProControlDensity, ProModuleIntent, ProDetailPanel } from "@kit-pro";
 import { KitTheme, KitAlert, KitButton, CloseReason, StepDirection, RangeThumb } from "@kit";
 import { ProDeviceRow, ProDeviceValue, ProDeviceKind, ProDeviceControls, ProValueMode, ProActionPhase, ProControlAccess,
     ProLightPanel, ProLight, ProSwitchPanel, ProSwitch, ProFanPanel, ProFan, ProClimatePanel, ProClimate,
@@ -33,6 +34,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
     callback alarm-confirm(int,int);
     callback lock-operation(int,int,ProLockOperation);
     callback power(int,int,ProPowerIntent);
+    callback module-intent(ProModuleIntent);
     callback brightness(int,int,float);
     callback stop-tracking(int,int);
     width: root.viewport-width;
@@ -41,7 +43,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
         private property <ProDeviceRow> device: panel.device;
         private property <bool> pending: device.phase == ProActionPhase.preparing || device.phase == ProActionPhase.sending || device.phase == ProActionPhase.uncertain || device.phase == ProActionPhase.accepted || device.phase == ProActionPhase.dispatched || device.phase == ProActionPhase.acknowledged || device.phase == ProActionPhase.interrupted;
         private property <bool> editable: root.commands-ready && device.access == ProControlAccess.allowed && !device.command-unavailable && !self.pending;
-        private property <bool> specialized: device.kind == ProDeviceKind.light || device.kind == ProDeviceKind.switch || device.kind == ProDeviceKind.climate || device.kind == ProDeviceKind.fan || device.kind == ProDeviceKind.cover || device.kind == ProDeviceKind.alarm;
+        private property <bool> specialized: !device.modular && (device.kind == ProDeviceKind.light || device.kind == ProDeviceKind.switch || device.kind == ProDeviceKind.climate || device.kind == ProDeviceKind.fan || device.kind == ProDeviceKind.cover || device.kind == ProDeviceKind.alarm);
         private property <bool> show-last-command: false;
         private property <bool> saw-command-in-flight: false;
         changed pending => {
@@ -49,7 +51,25 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             else if (self.saw-command-in-flight) { self.show-last-command = true; self.saw-command-in-flight = false; }
         }
         spacing: 12px;
-        if device.kind == ProDeviceKind.light: ProLightPanel {
+        if device.modular: ProDetailPanel {
+            private property <int> focus-request: root.focus-request;
+            changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
+            theme: root.theme; width: root.viewport-width;
+            min-height: index == 0 ? root.minimum-panel-height : 0px;
+            title: device.title; subtitle: device.value;
+            notice: device.quality; tools: index == 0 ? root.tools : [];
+            tool-requested(token) => { root.tool-requested(token); }
+            dismiss(reason) => { root.dismiss(reason); }
+            interactive: root.interactive;
+            ProControlModules {
+                theme: root.theme; context: {token: device.token,generation:device.generation};
+                family: device.control-family; density: ProControlDensity.detail; modules: device.modules;
+                commands-enabled: root.commands-ready;
+                interactive: root.interactive;
+                intent(value) => { root.module-intent(value); }
+            }
+        }
+        if !device.modular && device.kind == ProDeviceKind.light: ProLightPanel {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
@@ -67,7 +87,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             power-requested(t,g,intent) => { root.power(t,g,intent); }
             brightness-requested(t,g,value) => { root.brightness(t,g,value); }
         }
-        if device.kind == ProDeviceKind.switch: ProSwitchPanel {
+        if !device.modular && device.kind == ProDeviceKind.switch: ProSwitchPanel {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
@@ -79,7 +99,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             dismiss(reason) => { root.dismiss(reason); }
             power-requested(t,g,intent) => { root.power(t,g,intent); }
         }
-        if device.kind == ProDeviceKind.fan: ProFanPanel {
+        if !device.modular && device.kind == ProDeviceKind.fan: ProFanPanel {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
@@ -92,7 +112,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             power-requested(t,g,intent) => { root.power(t,g,intent); }
             speed-requested(t,g,choice) => { root.choose(t,g,choice); }
         }
-        if device.kind == ProDeviceKind.climate: ProClimatePanel {
+        if !device.modular && device.kind == ProDeviceKind.climate: ProClimatePanel {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
@@ -107,7 +127,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             step-requested(t,g,direction) => { root.step(t,g,direction); }
             choice-requested(t,g,group,choice) => { root.choose(t,g,choice); }
         }
-        if device.kind == ProDeviceKind.cover: ProCoverPanel {
+        if !device.modular && device.kind == ProDeviceKind.cover: ProCoverPanel {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
@@ -133,7 +153,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             dismiss(reason) => { root.dismiss(reason); }
             operation-requested(t,g,choice,operation) => { root.choose(t,g,choice); }
         }
-        if device.kind == ProDeviceKind.alarm: ProAlarmPanel {
+        if !device.modular && device.kind == ProDeviceKind.alarm: ProAlarmPanel {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
@@ -178,7 +198,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             activation-started => { self.armed-token = device.token; self.armed-generation = device.generation; }
             activated => { root.stop-tracking(self.armed-token,self.armed-generation); }
         }
-        if !family.specialized: ProEntityTile {
+        if !device.modular && !family.specialized: ProEntityTile {
             theme: root.theme; width: root.viewport-width;
             device: device; show-details: false;
             interactive: root.interactive; commands-enabled: root.commands-ready;

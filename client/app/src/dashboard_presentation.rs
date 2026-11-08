@@ -492,6 +492,9 @@ impl Board {
 // Rich custom editors and server-defined gesture recipes retain their own
 // components. Every ordinary equipment tile uses the shared dashboard tile.
 fn tile_supported(device: &crate::device_view::presentation::CardRow, node: &Node) -> bool {
+    if device.modular {
+        return false;
+    }
     if node
         .recipes
         .as_ref()

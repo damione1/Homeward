@@ -33,6 +33,9 @@ macro_rules! card_row {
         #[derive(Clone,Default,Debug)]
         pub(crate) struct CardRow {
             $(pub $field: $ty,)*
+            pub modular: bool,
+            pub control_family: crate::ProControlFamily,
+            pub modules: Vec<super::modules::Row>,
             pub cover_operations: Vec<ProCoverChoice>,
             pub lock_operations: Vec<ProLockChoice>,
             pub alarm_operations: Vec<ProAlarmChoice>,
@@ -47,7 +50,12 @@ macro_rules! card_row {
             pub fn ui(&self, previous: Option<&ProDeviceRow>, icon: &IconGlyph) -> ProDeviceRow {
                 let previous=previous.filter(|row|row.token==self.token && row.generation==self.generation);
                 let (environment_kind,weather,solar,presence)=self.environment.ui(previous);
+                let modules = self.modules.iter().enumerate().map(|(index, module)| {
+                    let old = previous.and_then(|row| row.modules.row_data(index));
+                    module.ui(old.as_ref())
+                }).collect::<Vec<_>>();
                 ProDeviceRow {
+                    modular:self.modular,control_family:self.control_family,modules:nested(&modules, previous.map(|row| &row.modules)),
                     has_primary_value: self.field_keys.contains_key("setpoint_celsius") || self.field_keys.contains_key("setpoint_range_celsius"),
                     primary_value_token: self.field_keys.get("setpoint_celsius").or_else(|| self.field_keys.get("setpoint_range_celsius")).copied().unwrap_or_default(),
                     environment_kind, weather, solar, presence, glyph: icon.clone(),

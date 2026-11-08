@@ -293,7 +293,8 @@ impl Control {
                 | Self::Measurement
                 | Self::ReadOnly(_)
                 | Self::Unsupported,
-                DeviceIntent::Power(_)
+                DeviceIntent::Module(_)
+                | DeviceIntent::Power(_)
                 | DeviceIntent::Brightness(_)
                 | DeviceIntent::ColorTemperature(_)
                 | DeviceIntent::Climate(_)

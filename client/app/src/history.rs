@@ -169,7 +169,7 @@ impl Data {
                             Some(
                                 wire::historical_state::Value::SwitchOn(_)
                                 | wire::historical_state::Value::Light(_)
-                                | wire::historical_state::Value::FanSpeed(_)
+                                | wire::historical_state::Value::Fan(_)
                                 | wire::historical_state::Value::TemperatureControl(_)
                                 | wire::historical_state::Value::Helper(_)
                                 | wire::historical_state::Value::Solar(_)

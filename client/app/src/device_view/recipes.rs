@@ -583,7 +583,8 @@ impl DeviceStore {
             BoundIntent::Command { token, kind, .. } => {
                 let power = command.as_ref().and_then(|(_, _, intent)| match intent {
                     DeviceIntent::Power(power) => Some(*power),
-                    DeviceIntent::Brightness(_)
+                    DeviceIntent::Module(_)
+                    | DeviceIntent::Brightness(_)
                     | DeviceIntent::ColorTemperature(_)
                     | DeviceIntent::Climate(_)
                     | DeviceIntent::FanSpeed(_)

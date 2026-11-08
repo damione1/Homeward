@@ -840,8 +840,21 @@ fn typed_climate_and_fan_arguments_use_the_existing_target_and_admission_guard()
     entity.capabilities[0].etag = "fan-definition".into();
     entity.capabilities[0].r#trait = Some(wire::capability::Trait::FanControl(Box::new(
         wire::FanControlCapability {
-            speed: wire::SelectorDefinition {
-                options: vec!["Low".into()],
+            level: wire::ControlLevelDefinition {
+                definition: Some(wire::control_level_definition::Definition::Steps(
+                    wire::ControlChoices {
+                        choices: vec!["Low".into()]
+                            .into_iter()
+                            .map(|key: String| wire::ControlChoice {
+                                display_name: key.clone(),
+                                key,
+                                ..Default::default()
+                            })
+                            .collect(),
+                        ..Default::default()
+                    }
+                    .into(),
+                )),
                 ..Default::default()
             }
             .into(),
@@ -860,7 +873,7 @@ fn typed_climate_and_fan_arguments_use_the_existing_target_and_admission_guard()
             row.token,
             row.generation,
             0,
-            DeviceIntent::FanSpeed(wire::FanSpeed::Low),
+            DeviceIntent::FanSpeed(home_client_model::api::SelectorKey::try_from("Low").unwrap()),
         )
         .ok()
         .unwrap();
