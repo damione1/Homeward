@@ -22,6 +22,7 @@ import (
 	"github.com/damione1/Homeward/internal/solar"
 	"github.com/damione1/Homeward/internal/sonos"
 	"github.com/damione1/Homeward/internal/storage"
+	"github.com/damione1/Homeward/internal/wled"
 	"github.com/damione1/Homeward/internal/workday"
 	"github.com/damione1/Homeward/internal/worker"
 	"github.com/damione1/Homeward/scope"
@@ -42,6 +43,7 @@ type Config struct {
 	neviweb             *neviweb.Settings
 	ecobee              *ecobee.Settings
 	sonos               *sonos.Settings
+	wled                *wled.Settings
 	androidTV           *androidtv.Settings
 	hilo                *hilo.Settings
 	workers             []worker.Config
@@ -73,6 +75,7 @@ type rawConfig struct {
 	Neviweb                 *neviweb.Input          `yaml:"neviweb"`
 	Ecobee                  *ecobee.Input           `yaml:"ecobee"`
 	Sonos                   *sonos.Input            `yaml:"sonos"`
+	WLED                    *wled.Input             `yaml:"wled"`
 	AndroidTV               *androidtv.Input        `yaml:"android_tv"`
 	Hilo                    *hilo.Input             `yaml:"hilo"`
 	Energy                  []energyInput           `yaml:"energy"`
@@ -126,6 +129,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 	launch.mqtt, launch.neviweb, launch.hilo = operational.mqtt, operational.neviweb, operational.hilo
 	launch.ecobee = operational.ecobee
 	launch.sonos = operational.sonos
+	launch.wled = operational.wled
 	launch.androidTV = operational.androidTV
 	launch.workers, launch.energy, launch.derivedPower = operational.workers, operational.energy, operational.derivedPower
 	launch.solar, launch.workday = operational.solar, operational.workday
@@ -247,6 +251,13 @@ func parseOperational(raw rawConfig) (Config, error) {
 			return Config{}, fmt.Errorf("configuration: %w", err)
 		}
 		result.ecobee = &settings
+	}
+	if raw.WLED != nil {
+		settings, err := wled.ParseSettings(*raw.WLED)
+		if err != nil {
+			return Config{}, ErrInvalidYAML
+		}
+		result.wled = &settings
 	}
 	if raw.Sonos != nil {
 		settings, err := sonos.ParseSettings(*raw.Sonos)

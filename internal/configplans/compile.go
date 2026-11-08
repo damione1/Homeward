@@ -127,6 +127,16 @@ func compile(candidate Candidate, manifest registry.Manifest) (image, Diagnostic
 				result.refs[alias] = true
 			}
 		}
+		if settings, present := configuration.WLEDSettings(); present {
+			for _, controller := range settings.Controllers() {
+				for _, r := range controller.Routes {
+					if !admitAlias(r.Alias, manifest) {
+						return image{}, ExcludedReference
+					}
+					result.refs[r.Alias] = true
+				}
+			}
+		}
 		if settings, present := configuration.SonosSettings(); present {
 			for _, player := range settings.Players() {
 				if !admitAlias(player.Alias, manifest) {
@@ -188,7 +198,7 @@ func compile(candidate Candidate, manifest registry.Manifest) (image, Diagnostic
 		if e != nil {
 			return image{}, InvalidSchema
 		}
-		operationalFields := map[string]bool{"android_tv": true, "sonos": true, "mqtt": true, "ecobee": true, "neviweb": true, "hilo": true, "energy": true, "derived_power": true, "solar": true, "workday": true, "external_workers": true, "remote_calendar": true, "disabled_integrations": true}
+		operationalFields := map[string]bool{"wled": true, "android_tv": true, "sonos": true, "mqtt": true, "ecobee": true, "neviweb": true, "hilo": true, "energy": true, "derived_power": true, "solar": true, "workday": true, "external_workers": true, "remote_calendar": true, "disabled_integrations": true}
 		launchFields := map[string]bool{"scope_revision": true, "backup_recovery_recipient": true, "backups": true, "listen": true, "postgres": true, "data_dir": true, "public": true, "recorder": true}
 		for i := 0; i < len(node.Content); i += 2 {
 			key := node.Content[i].Value
@@ -767,6 +777,15 @@ func declaredOperationalReferences(configuration config.Config, manifest registr
 	for _, binding := range configuration.EnergyBindings() {
 		if !admitAlias(binding.SourceAlias(), manifest) || !admitAlias(binding.OutputAlias(), manifest) {
 			return ExcludedReference
+		}
+	}
+	if settings, present := configuration.WLEDSettings(); present {
+		for _, controller := range settings.Controllers() {
+			for _, r := range controller.Routes {
+				if !admitAlias(r.Alias, manifest) {
+					return ExcludedReference
+				}
+			}
 		}
 	}
 	if settings, present := configuration.SonosSettings(); present {
