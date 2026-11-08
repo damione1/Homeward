@@ -49,25 +49,48 @@ func (f *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		if f.mode == "write-failure" {
 			return nil, io.ErrUnexpectedEOF
 		}
-		var a struct {
+		type change struct {
 			On         *bool   `json:"on"`
 			Brightness *uint32 `json:"bri"`
 			Preset     *int    `json:"ps"`
+		}
+		var a struct {
+			change
+			Segments []struct {
+				change
+				ID uint32 `json:"id"`
+			} `json:"seg"`
 		}
 		if json.NewDecoder(r.Body).Decode(&a) != nil {
 			return nil, ErrUnavailable
 		}
 		if f.mode != "ack-only" {
-			if a.On != nil {
-				f.d.State.On = a.On
+			apply := func(change change, on **bool, bri **uint32) {
+				if change.Brightness != nil {
+					q := *change.Brightness
+					*on = proto.Bool(q > 0)
+					if q > 0 {
+						*bri = proto.Uint32(q)
+					}
+				}
+				if change.On != nil {
+					*on = proto.Bool(*change.On)
+				}
 			}
-			if a.Brightness != nil {
-				f.d.State.Brightness = a.Brightness
+			apply(a.change, &f.d.State.On, &f.d.State.Brightness)
+			for _, update := range a.Segments {
+				for i := range f.d.State.Segments {
+					seg := &f.d.State.Segments[i]
+					if *seg.ID == update.ID {
+						apply(update.change, &seg.On, &seg.Brightness)
+					}
+				}
 			}
 			if a.Preset != nil {
 				f.d.State.Preset = a.Preset
 			}
 		}
+
 		out = []byte(`{"success":true}`)
 	default:
 		return nil, ErrUnavailable
@@ -94,13 +117,14 @@ type rig struct {
 	request   *actions.CommandRequest
 }
 
-func newRig(t *testing.T) rig {
+func newRig(t *testing.T) rig { return newRouteRig(t, nil) }
+func newRouteRig(t *testing.T, segmentID *uint32) rig {
 	t.Helper()
 	host, fixture, e := fake.NewCommandFixture()
 	if e != nil {
 		t.Fatal(e)
 	}
-	settings, e := ParseSettings(Input{Instance: "demo-wled", Controllers: []ControllerInput{{Address: "192.168.50.20", MAC: "aabbccddeeff", Routes: []RouteInput{{Alias: "light.demo", Label: "Demo"}}}}})
+	settings, e := ParseSettings(Input{Instance: "demo-wled", Controllers: []ControllerInput{{Address: "192.168.50.20", MAC: "aabbccddeeff", Routes: []RouteInput{{Alias: "light.demo", Label: "Demo", Segment: segmentID}}}}})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -189,5 +213,65 @@ func TestNHA083ACKAndIdentityNeverInventConfirmation(t *testing.T) {
 				t.Fatalf("writes %d want %d", r.transport.writes, want)
 			}
 		})
+	}
+}
+
+func TestNHA083SegmentOffACKCannotBorrowMasterOff(t *testing.T) {
+	r := newRouteRig(t, proto.Uint32(0))
+	r.transport.d.State.On = proto.Bool(false)
+	r.transport.d.State.Segments[0].On = proto.Bool(true)
+	r.transport.mode = "ack-only"
+	r.request.Arguments.GetSetLight().BrightnessPercent = nil
+	r.request.Arguments.GetSetLight().On = proto.Bool(false)
+	r.request.ExpiresAt = timestamppb.New(time.Now().Add(60 * time.Millisecond))
+	_, _ = r.service.Dispatch(context.Background(), r.actor, r.request)
+	id, _ := domain.ParseCommandID(r.request.CommandId)
+	status, e := r.host.ActionStatus(id)
+	if e != nil || status.Status == actions.ActionStatus_ACTION_STATUS_CONFIRMED {
+		t.Fatalf("ACK borrowed master OFF: %v %v", status, e)
+	}
+	if r.transport.writes != 1 {
+		t.Fatal("wrong number of writes")
+	}
+}
+func TestNHA083ZeroBrightnessConfirmsNativeOffWithRetainedLevel(t *testing.T) {
+	for _, segmentID := range []*uint32{nil, proto.Uint32(0)} {
+		r := newRouteRig(t, segmentID)
+		r.request.Arguments.GetSetLight().BrightnessPercent = proto.Float64(0)
+		_, e := r.service.Dispatch(context.Background(), r.actor, r.request)
+		if e != nil {
+			t.Fatal(e)
+		}
+		id, _ := domain.ParseCommandID(r.request.CommandId)
+		status, e := r.host.ActionStatus(id)
+		if e != nil || status.Status != actions.ActionStatus_ACTION_STATUS_CONFIRMED {
+			t.Fatalf("zero brightness %v %v", status, e)
+		}
+		if segmentID == nil {
+			if *r.transport.d.State.On || *r.transport.d.State.Brightness == 0 {
+				t.Fatal("master fixture did not preserve last level")
+			}
+		} else {
+			if *r.transport.d.State.Segments[0].On || *r.transport.d.State.Segments[0].Brightness == 0 {
+				t.Fatal("segment fixture did not preserve last level")
+			}
+		}
+		if r.transport.writes != 1 {
+			t.Fatal("replayed")
+		}
+	}
+}
+
+func TestNHA083PositiveBrightnessACKCannotBorrowRetainedOffLevel(t *testing.T) {
+	r := newRig(t)
+	r.transport.d.State.On = proto.Bool(false)
+	r.transport.d.State.Brightness = proto.Uint32(128)
+	r.transport.mode = "ack-only"
+	r.request.ExpiresAt = timestamppb.New(time.Now().Add(60 * time.Millisecond))
+	_, _ = r.service.Dispatch(context.Background(), r.actor, r.request)
+	id, _ := domain.ParseCommandID(r.request.CommandId)
+	status, e := r.host.ActionStatus(id)
+	if e != nil || status.Status == actions.ActionStatus_ACTION_STATUS_CONFIRMED {
+		t.Fatalf("retained off level confirmed positive brightness: %v %v", status, e)
 	}
 }

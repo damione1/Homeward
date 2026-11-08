@@ -28,7 +28,11 @@ func payload(r route, d document, a *actions.SetLight) ([]byte, error) {
 		if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 || v > 100 {
 			return nil, ErrUnavailable
 		}
-		fields["bri"] = uint32(math.Round(v * 255 / 100))
+		q := uint32(math.Round(v * 255 / 100))
+		if q == 0 && a.On != nil && *a.On {
+			return nil, ErrUnavailable
+		}
+		fields["bri"] = q
 	}
 	if a.Rgb != nil {
 		if r.input.Segment == nil || !r.description.GetLight().Rgb || a.Rgb.Red == nil || a.Rgb.Green == nil || a.Rgb.Blue == nil || *a.Rgb.Red > 255 || *a.Rgb.Green > 255 || *a.Rgb.Blue > 255 {
@@ -147,23 +151,36 @@ func matches(r route, d document, a *actions.SetLight) bool {
 		return false
 	}
 	on, bri := *d.State.On, *d.State.Brightness
+	nativeOn := on
 	var col []uint32
 	if r.input.Segment != nil {
 		s, ok := d.find(*r.input.Segment)
 		if !ok {
 			return false
 		}
-		on = on && *s.On
+		nativeOn = *s.On
+		on = on && nativeOn
 		bri = *s.Brightness
 		if len(s.Colors) > 0 {
 			col = s.Colors[0]
 		}
 	}
-	if a.On != nil && *a.On != on {
+	// Effective power cannot prove a segment OFF write while its master is OFF.
+	if a.On != nil && (*a.On != nativeOn || *a.On && !on) {
 		return false
 	}
-	if a.BrightnessPercent != nil && uint32(math.Round(*a.BrightnessPercent*255/100)) != bri {
-		return false
+	if a.BrightnessPercent != nil {
+		q := uint32(math.Round(*a.BrightnessPercent * 255 / 100))
+		// WLED v0.15.0 json.cpp deserializeState/deserializeSegment and
+		// serializeState/serializeSegment: zero switches off, preserving briLast
+		// or segment opacity. The readback must prove native OFF, not bri==0.
+		if q == 0 {
+			if nativeOn {
+				return false
+			}
+		} else if q != bri || a.On == nil && !nativeOn {
+			return false
+		}
 	}
 	if a.Rgb != nil && (len(col) < 3 || col[0] != a.Rgb.GetRed() || col[1] != a.Rgb.GetGreen() || col[2] != a.Rgb.GetBlue()) {
 		return false
