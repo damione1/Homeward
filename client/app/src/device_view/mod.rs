@@ -1,5 +1,6 @@
 //! Exact server-selected cards, command admission and bounded local action
 //! history. UI tokens are ephemeral; identities/permissions never come from UI.
+mod alarm_input;
 mod brightness;
 pub(crate) mod capability;
 mod climate;
@@ -182,6 +183,7 @@ struct State {
     retained_drafts: Option<draft_retention::Saved>,
     draft_retention_serial: u64,
     selections: BTreeMap<CardGeneration, selection::Selection>,
+    alarm_inputs: BTreeMap<CardGeneration, alarm_input::Input>,
     recipe_bindings: recipes::Bindings,
     native_steps: native::Steps,
 }
@@ -202,6 +204,7 @@ pub(crate) struct Prepared {
     pub request: Command,
     pub guard: AdmissionCheck,
     pub layout: Arc<Layout>,
+    pub alarm_code: Option<home_client_actions::capabilities::AlarmCode>,
 }
 impl Default for DeviceStore {
     fn default() -> Self {
@@ -215,6 +218,7 @@ impl Default for DeviceStore {
                 retained_drafts: None,
                 draft_retention_serial: 0,
                 selections: BTreeMap::new(),
+                alarm_inputs: BTreeMap::new(),
                 recipe_bindings: recipes::Bindings::default(),
                 native_steps: native::Steps::default(),
             })),
@@ -325,6 +329,7 @@ impl DeviceStore {
         state.context = None;
         state.recipe_bindings = recipes::Bindings::default();
         state.drafts.clear();
+        state.alarm_inputs.clear();
         state.draft_basis = None;
         state.retained_drafts = None;
         state.native_steps = native::Steps::default();
@@ -411,6 +416,35 @@ impl DeviceStore {
             })
             .take(MAX_CARDS)
             .collect::<Vec<_>>();
+        let associated = request
+            .detail_source
+            .as_ref()
+            .and_then(|id| {
+                layout
+                    .and_then(|layout| layout.native.as_ref())
+                    .and_then(|native| native.nodes.get(id))
+            })
+            .filter(|node| node.entity == request.detail && request.detail.is_some())
+            .and_then(|node| node.capability.as_ref().zip(node.cover_lock.as_ref()))
+            .map(|(source, lock)| (source.clone(), lock.clone()));
+        if let Some((_, lock)) = &associated
+            && let Some(entity) = view.and_then(|view| view.get(&lock.capability.entity()))
+            && let Some(capability) = entity
+                .capabilities
+                .iter()
+                .find(|capability| capability.name == lock.capability.as_str())
+            && matches!(Control::parse(capability), Control::Lock(_))
+            && !inputs.iter().any(|input| input.target == lock.capability)
+            && let Some(input) = CardInput::new(
+                ControlSource::General,
+                lock.label.clone(),
+                entity,
+                capability,
+                Control::parse(capability),
+            )
+        {
+            inputs.push(input);
+        }
         for (node, admitted) in native_controls {
             let Some(entity) = view.and_then(|view| view.get(&admitted.entity)) else {
                 continue;
@@ -558,6 +592,43 @@ impl DeviceStore {
                 };
             }
         }
+        // A fresh capture may rotate UI generations while the same authorized
+        // panel remains open. Move (never clone) digits only across that exact
+        // source/document/revision and capability admission; gaps fail closed.
+        let keep_alarm_scope =
+            state
+                .context
+                .as_ref()
+                .zip(context.as_ref())
+                .is_some_and(|(old, new)| {
+                    old.live()
+                        && new.live()
+                        && old.revision == new.revision
+                        && old.layout.same_document(&new.layout)
+                        && match (&old.source, &new.source) {
+                            (Some(old), Some(new)) => old.same_presentation(new),
+                            (None, None) => cfg!(test),
+                            (Some(_), None) | (None, Some(_)) => false,
+                        }
+                });
+        let old_inputs = std::mem::take(&mut state.alarm_inputs);
+        if keep_alarm_scope {
+            for (generation, input) in old_inputs {
+                let next = state
+                    .context
+                    .as_ref()
+                    .and_then(|old| old.slots.iter().find(|slot| slot.generation == generation))
+                    .and_then(|old| {
+                        context
+                            .as_ref()
+                            .and_then(|new| new.slots.iter().find(|slot| slot.same_admission(old)))
+                    })
+                    .map(|slot| slot.generation);
+                if let Some(next) = next {
+                    state.alarm_inputs.insert(next, input);
+                }
+            }
+        }
         state.context = context;
         if state.context.is_some() {
             if let Some(saved) = saved {
@@ -605,6 +676,9 @@ impl DeviceStore {
         state
             .selections
             .retain(|generation, _| generations.contains(generation));
+        state
+            .alarm_inputs
+            .retain(|generation, _| generations.contains(generation));
         state.native_steps.observed.clear();
         state
             .native_steps
@@ -622,15 +696,18 @@ impl DeviceStore {
                 .slots[index]
                 .clone();
             row.generation = slot.generation.0;
+            row.detail
+                .alarm_input(state.alarm_inputs.get(&slot.generation));
             row.field_keys = editors[index]
                 .iter()
                 .enumerate()
                 .filter_map(|(index, (editor, _))| match editor {
                     panel::Editor::Setpoint(_) => Some(("setpoint_celsius", index as i32)),
                     panel::Editor::Range(_) => Some(("setpoint_range_celsius", index as i32)),
-                    panel::Editor::CoverPosition(_)
-                    | panel::Editor::Helper
-                    | panel::Editor::ColorTemperature => None,
+                    panel::Editor::ColorTemperature => {
+                        Some(("color_temperature_mireds", index as i32))
+                    }
+                    panel::Editor::CoverPosition(_) | panel::Editor::Helper => None,
                 })
                 .collect();
             row.values = editors[index]
@@ -693,6 +770,38 @@ impl DeviceStore {
             row.phase = phase;
             row.action_label = label.into();
             row.action_detail = detail.into();
+        }
+        if let Some((source, lock)) = associated {
+            let lock_row = state
+                .context
+                .as_ref()
+                .and_then(|context| {
+                    context.slots.iter().position(|slot| {
+                        slot.target == lock.capability && matches!(slot.control, Control::Lock(_))
+                    })
+                })
+                .and_then(|index| cards.get(index))
+                .cloned();
+            if let Some(lock_row) = lock_row {
+                let mut attached = false;
+                for row in &mut cards {
+                    if row.kind == ProDeviceKind::Cover
+                        && state
+                            .context
+                            .as_ref()
+                            .and_then(|context| context.slots.get(row.token as usize))
+                            .is_some_and(|slot| slot.target == source)
+                    {
+                        row.detail.associate_lock(&lock_row, &lock.label);
+                        attached = true;
+                    }
+                }
+                if attached
+                    && let Some(row) = cards.iter_mut().find(|row| row.token == lock_row.token)
+                {
+                    row.detail.associated_only = true;
+                }
+            }
         }
         let recipes = recipes::project(&mut state, phase, view, &native_nodes);
         let native_devices = native_indices
@@ -965,7 +1074,7 @@ impl DeviceStore {
         revision: i32,
         intent: DeviceIntent,
     ) -> Result<Prepared, Refusal> {
-        let state = self.0.lock().expect("device store mutex");
+        let mut state = self.0.lock().expect("device store mutex");
         let step_lease = native::step_lease(&state, token, generation);
         let context = state
             .context
@@ -980,6 +1089,13 @@ impl DeviceStore {
         if slot.access != WriteAccess::Allowed {
             return Err(Refusal::ReadOnly);
         }
+        let required_operation = if let (Control::Alarm(alarm), DeviceIntent::Alarm(operation)) =
+            (&slot.control, &intent)
+        {
+            alarm.requires_code(*operation).then_some(*operation)
+        } else {
+            None
+        };
         let arguments = slot.control.arguments(intent, slot.helper_revision)?;
         let request_id = home_client_actions::new_request_id().map_err(|_| Refusal::Unavailable)?;
         let expires = std::time::SystemTime::now()
@@ -1020,11 +1136,27 @@ impl DeviceStore {
                         })
                 })
         });
+        let layout = context.layout.clone();
+        let alarm_code = if let Some(operation) = required_operation {
+            let input = state
+                .alarm_inputs
+                .remove(&CardGeneration(generation))
+                .filter(|input| input.operation == Some(operation))
+                .ok_or(Refusal::InvalidValue)?;
+            Some(
+                home_client_actions::capabilities::AlarmCode::new(input.digits)
+                    .ok_or(Refusal::InvalidValue)?,
+            )
+        } else {
+            state.alarm_inputs.remove(&CardGeneration(generation));
+            None
+        };
         Ok(Prepared {
+            alarm_code,
             target,
             request,
             guard,
-            layout: context.layout.clone(),
+            layout,
         })
     }
 }

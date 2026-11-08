@@ -17,7 +17,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "testworker/generated"))
-from drivers.esphome.config import Kind, Operation, load_settings
+from drivers.esphome.config import CodeSource, Kind, Operation, load_settings
 from home.controls.v1 import controls_pb2 as controls
 from home.integrations.v1 import host_pb2, host_pb2_grpc
 from home.registry.v1 import registry_pb2
@@ -60,14 +60,18 @@ def description(function, info, code):
         result.alarm.observed_states.extend(ALARM_STATES.values())
         for name in function.operations:
             if name == Operation.DISARM:
-                allowed = not info.requires_code or code is not None
+                required = info.requires_code
+                allowed = not required or function.code_source is CodeSource.USER or code is not None
             else:
                 feature = {Operation.ARM_HOME: esp.AlarmControlPanelEntityFeature.ARM_HOME,
                            Operation.ARM_AWAY: esp.AlarmControlPanelEntityFeature.ARM_AWAY,
                            Operation.ARM_NIGHT: esp.AlarmControlPanelEntityFeature.ARM_NIGHT}[name]
-                allowed = bool(info.supported_features & feature) and (not info.requires_code_to_arm or code is not None)
+                required = info.requires_code_to_arm
+                allowed = bool(info.supported_features & feature) and (not required or function.code_source is CodeSource.USER or code is not None)
             if allowed:
                 result.alarm.operations.append(ALARM_COMMANDS[name][0])
+                if required and function.code_source is CodeSource.USER:
+                    result.alarm.code_required_operations.append(ALARM_COMMANDS[name][0])
     elif function.kind is Kind.COVER:
         if info.assumed_state:
             raise ProtocolFault("assumed cover state is unsupported")
@@ -75,7 +79,10 @@ def description(function, info, code):
                                             controls.COVER_STATE_OPENING, controls.COVER_STATE_CLOSING])
         result.cover.observes_position_percent = info.supports_position
         result.cover.operations.extend(COVER_COMMANDS[name] for name in function.operations
-                                       if name != Operation.STOP or info.supports_stop)
+                                       if name is not Operation.SET_POSITION and (name is not Operation.STOP or info.supports_stop))
+        if Operation.SET_POSITION in function.operations and info.supports_position:
+            result.cover.set_position_percent.minimum = 0
+            result.cover.set_position_percent.maximum = 100
     else:
         if info.assumed_state:
             raise ProtocolFault("assumed lock state is unsupported")
@@ -167,18 +174,34 @@ class Host:
 
 def dispatch(client, function, info, descriptor, code, frame):
     request = frame.request
+    ephemeral = frame.ephemeral_alarm_code
+    frame.ClearField("ephemeral_alarm_code")
     if request.capability_schema_id != SCHEMAS[function.kind] or request.endpoint != "native" or \
             request.arguments.WhichOneof("arguments") != function.kind.value or \
             request.expires_at.ToNanoseconds() <= time.time_ns():
         raise ProtocolFault("unsupported or expired command")
+    if ephemeral and function.kind is not Kind.ALARM:
+        raise ProtocolFault("unexpected interactive credential")
     if function.kind is Kind.ALARM:
         operation = request.arguments.alarm.operation
         if operation not in descriptor.alarm.operations:
             raise ProtocolFault("unadvertised alarm operation")
         action = next(pair[1] for pair in ALARM_COMMANDS.values() if pair[0] == operation)
-        client.alarm_control_panel_command(function.key, action, code, device_id=0)
+        required = operation in descriptor.alarm.code_required_operations
+        if required != bool(ephemeral) or ephemeral and (not 1 <= len(ephemeral) <= 32 or not ephemeral.isdigit()):
+            raise ProtocolFault("invalid interactive credential")
+        if ephemeral and function.code_source is not CodeSource.USER:
+            raise ProtocolFault("unexpected interactive credential")
+        supplied = ephemeral.decode("ascii") if required else code
+        client.alarm_control_panel_command(function.key, action, supplied, device_id=0)
     elif function.kind is Kind.COVER:
         arg = request.arguments.cover
+        if arg.WhichOneof("command") == "position_percent":
+            value = arg.position_percent
+            if not descriptor.cover.HasField("set_position_percent") or not math.isfinite(value) or not 0 <= value <= 100:
+                raise ProtocolFault("unadvertised cover position")
+            client.cover_command(function.key, position=value / 100.0, device_id=0)
+            return
         if arg.WhichOneof("command") != "operation" or arg.operation not in descriptor.cover.operations:
             raise ProtocolFault("unadvertised cover operation")
         if arg.operation == controls.COVER_OPERATION_STOP:
@@ -214,7 +237,7 @@ async def commands(host, client, settings, infos, descriptions, codes):
             continue
         # Socket submission is neither device ACK nor physical confirmation.
         # Any exception after dispatch terminates this attempt, without replay.
-        await host.complete(frame, host_pb2.COMMAND_RESULT_KIND_ACCEPTED)
+        await host.complete(frame, host_pb2.COMMAND_RESULT_KIND_SENT_UNVERIFIED)
     raise ProtocolFault("Host command stream closed")
 
 

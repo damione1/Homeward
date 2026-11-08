@@ -1,5 +1,5 @@
-import { KitDialogSurface, KitDialogPanel, KitButton, KitIconButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy, StepDirection } from "@kit";
-import { ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProValueIntent, ProGesture } from "@kit-pro";
+import { KitDialogSurface, KitButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy, StepDirection } from "@kit";
+import { ProDetailPanel, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProValueIntent, ProGesture } from "@kit-pro";
 import { HomewardDashboard } from "native-dashboard.slint";
 
 export component HomewardPopup inherits KitDialogSurface {
@@ -42,45 +42,32 @@ export component HomewardPopup inherits KitDialogSurface {
     out property <float> scroll-offset: scroll.content-y / 1px;
     public function restore-scroll(offset: float) { scroll.content-y = clamp(offset * 1px, -max(0px,scroll.content-height - scroll.visible-height),0px); }
     public function reveal-focus(top: length, bottom: length) { scroll.reveal(top - scroll.absolute-position.y - scroll.content-y,bottom - scroll.absolute-position.y - scroll.content-y); }
-    private property <int> armed-generation;
     private property <bool> opened: root.state.open;
     tab-policy: DialogTabPolicy.native;
-    public function take-focus() { if (root.state.open && root.state.topmost) { close-button.take-focus(); } }
-    changed generation => { close-button.cancel-press(); }
-    changed opened => { close-button.cancel-press(); if (root.opened) { root.take-focus(); } }
+    public function take-focus() { if (root.state.open && root.state.topmost) { panel.take-focus(); } }
+    changed opened => { if (root.opened) { root.take-focus(); } }
     dismiss(reason) => { root.close(root.generation, reason); }
-    KitDialogPanel {
-        theme: root.theme; accessible-name: root.title;
-        width: max(0px, min(root.width - 32px, root.detail ? 480px : 840px));
-        height: max(0px, min(root.height * 0.88, root.detail ? 680px : 704px));
+    panel := ProDetailPanel {
+        theme: root.theme; title: root.title; close-label: "Close " + root.title;
+        notice: root.action-feedback;
+        interactive: root.state.open && root.state.topmost && !root.state.busy;
+        width: root.width < 600px ? root.width : max(0px, min(root.width - 48px, root.detail ? 480px : 840px));
+        height: root.width < 600px ? root.height : min(max(0px, root.height - 48px), self.preferred-height);
         x: (root.width - self.width) / 2; y: (root.height - self.height) / 2;
-        VerticalLayout {
-            padding: 16px; spacing: 12px;
-            HorizontalLayout {
-                spacing: 8px;
-                if root.can-back: KitIconButton {
-                    theme: root.theme; glyph: root.theme.icons.chevron-left;
-                    accessible-name: "Back"; control-size: ControlSize.comfortable;
-                    disabled: !root.state.open || !root.state.topmost || root.state.busy;
-                    private property <int> pressed-generation;
-                    activation-started => { self.pressed-generation = root.generation; }
-                    activated => { if (self.pressed-generation == root.generation) { root.back(self.pressed-generation); } }
-                }
-                Text { min-width: 0px; text: root.title; color: root.theme.text-primary;
-                    font-size: 22px * root.theme.text-scale; font-weight: 600;
-                    wrap: word-wrap; horizontal-stretch: 1; vertical-alignment: center; }
-                close-button := KitIconButton {
-                    theme: root.theme; glyph: root.theme.icons.close;
-                    accessible-name: "Close " + root.title; control-size: ControlSize.comfortable;
-                    disabled: !root.state.open || !root.state.topmost || root.state.busy;
-                    activation-started => { root.armed-generation = root.generation; }
-                    activated => { if (root.armed-generation == root.generation) { root.close(root.armed-generation, CloseReason.programmatic); } }
-                }
-            }
+        tools: root.can-back ? [{token: root.generation, label: "Back", glyph: root.theme.icons.chevron-left}] : [];
+        tool-requested(token) => {
+            if (root.can-back && token == root.generation) { root.back(token); }
+        }
+        dismiss(reason) => { root.close(root.generation,reason); }
             scroll := KitScrollArea {
                 mouse-drag-pan-enabled: false;
                 vertical-stretch: 1;
+                min-height: 0px; preferred-height: popup-content.preferred-height;
+                overlay-scrollbars: true;
                 scrolled => { root.scroll-interacted(); }
+                popup-content := VerticalLayout {
+                    min-width: 0px; preferred-width: 0px;
+                    spacing: root.theme.spacing.unit * 3;
                 if root.nodes.length == 0: Text { text: "This item is unavailable in the current view."; color: root.theme.text-secondary; font-size: 16px * root.theme.text-scale; wrap: word-wrap; }
                 if root.nodes.length > 0: HomewardDashboard {
                     recipe-focus: root.recipe-focus; tile-focus: root.tile-focus;
@@ -111,7 +98,6 @@ export component HomewardPopup inherits KitDialogSurface {
                     details(token,generation) => { root.details(token,generation); }
                     gesture(token,generation,gesture) => { root.gesture(token,generation,gesture); }
                 }
-                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Update"; message: root.action-feedback; }
             }
         }
     }

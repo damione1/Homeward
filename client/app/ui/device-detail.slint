@@ -1,11 +1,14 @@
 import { KitTheme, KitAlert, KitButton, CloseReason, StepDirection, RangeThumb } from "@kit";
-import { ProDeviceRow, ProDeviceKind, ProDeviceControls, ProValueMode, ProActionPhase, ProControlAccess,
+import { ProDeviceRow, ProDeviceValue, ProDeviceKind, ProDeviceControls, ProValueMode, ProActionPhase, ProControlAccess,
     ProLightPanel, ProLight, ProSwitchPanel, ProSwitch, ProFanPanel, ProFan, ProClimatePanel, ProClimate,
-    ProCoverPanel, ProCover, ProAlarmPanel, ProAlarm, ProEntityTile, ProPowerIntent, ProValueIntent } from "@kit-pro";
+    ProDetailTool, ProAssociatedLock, ProLockOperation, ProCoverPanel, ProCover, ProAlarmPanel, ProAlarm, ProEntityTile, ProPowerIntent, ProValueIntent } from "@kit-pro";
 
 export struct HomewardDetailRow {
     device: ProDeviceRow, light: ProLight, switch: ProSwitch, fan: ProFan,
-    climate: ProClimate, cover: ProCover, alarm: ProAlarm, positioned: bool, position-minimum: float, position-maximum: float, position-step: float,
+    associated-lock: ProAssociatedLock, lock-commands-enabled: bool,
+    has-temperature: bool, temperature-field: ProDeviceValue,
+    has-climate-editor: bool, climate-field: ProDeviceValue,
+    climate: ProClimate, cover: ProCover, alarm: ProAlarm, alarm-code-required: bool, positioned: bool, position-minimum: float, position-maximum: float, position-step: float,
 }
 
 // One presentation per capability selected by the host. Panels own their chrome
@@ -13,14 +16,22 @@ export struct HomewardDetailRow {
 export component HomewardDeviceDetail inherits VerticalLayout {
     in property <KitTheme> theme;
     in property <length> viewport-width;
+    in property <length> minimum-panel-height;
     in property <[HomewardDetailRow]> panels;
     in property <bool> interactive;
     in property <bool> commands-ready;
     in property <int> focus-request;
+    in property <[ProDetailTool]> tools;
+    callback tool-requested(int);
     callback dismiss(CloseReason);
     callback step(int,int,StepDirection);
     callback edit(int,int,int,ProValueIntent);
     callback choose(int,int,int);
+    callback alarm-mode(int,int,int);
+    callback alarm-digit(int,int,int);
+    callback alarm-clear(int,int);
+    callback alarm-confirm(int,int);
+    callback lock-operation(int,int,ProLockOperation);
     callback power(int,int,ProPowerIntent);
     callback brightness(int,int,float);
     callback stop-tracking(int,int);
@@ -31,13 +42,25 @@ export component HomewardDeviceDetail inherits VerticalLayout {
         private property <bool> pending: device.phase == ProActionPhase.preparing || device.phase == ProActionPhase.sending || device.phase == ProActionPhase.uncertain || device.phase == ProActionPhase.accepted || device.phase == ProActionPhase.dispatched || device.phase == ProActionPhase.acknowledged || device.phase == ProActionPhase.interrupted;
         private property <bool> editable: root.commands-ready && device.access == ProControlAccess.allowed && !device.command-unavailable && !self.pending;
         private property <bool> specialized: device.kind == ProDeviceKind.light || device.kind == ProDeviceKind.switch || device.kind == ProDeviceKind.climate || device.kind == ProDeviceKind.fan || device.kind == ProDeviceKind.cover || device.kind == ProDeviceKind.alarm;
+        private property <bool> show-last-command: false;
+        private property <bool> saw-command-in-flight: false;
+        changed pending => {
+            if (self.pending) { self.saw-command-in-flight = true; }
+            else if (self.saw-command-in-flight) { self.show-last-command = true; self.saw-command-in-flight = false; }
+        }
         spacing: 12px;
         if device.kind == ProDeviceKind.light: ProLightPanel {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
+            min-height: index == 0 ? root.minimum-panel-height : 0px;
+            tools: index == 0 ? root.tools : [];
+            tool-requested(token) => { root.tool-requested(token); }
             title: device.title; light: panel.light;
             can-brightness: device.can-brightness; can-power: device.can-power;
+            can-temperature: panel.has-temperature; canonical-temperature: panel.has-temperature;
+            temperature-field: panel.temperature-field;
+            temperature-edited(t,g,f,intent) => { root.edit(t,g,f,intent); }
             brightness-minimum: device.brightness-minimum; brightness-maximum: device.brightness-maximum; brightness-increment: device.brightness-step;
             interactive: root.interactive; commands-enabled: parent.editable;
             dismiss(reason) => { root.dismiss(reason); }
@@ -48,6 +71,9 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
+            min-height: index == 0 ? root.minimum-panel-height : 0px;
+            tools: index == 0 ? root.tools : [];
+            tool-requested(token) => { root.tool-requested(token); }
             title: device.title; switch: panel.switch;
             interactive: root.interactive; commands-enabled: parent.editable && device.can-power;
             dismiss(reason) => { root.dismiss(reason); }
@@ -57,6 +83,9 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
+            min-height: index == 0 ? root.minimum-panel-height : 0px;
+            tools: index == 0 ? root.tools : [];
+            tool-requested(token) => { root.tool-requested(token); }
             title: device.title; fan: panel.fan; can-power: device.can-power;
             interactive: root.interactive; commands-enabled: parent.editable;
             dismiss(reason) => { root.dismiss(reason); }
@@ -67,7 +96,12 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
+            min-height: index == 0 ? root.minimum-panel-height : 0px;
+            tools: index == 0 ? root.tools : [];
+            tool-requested(token) => { root.tool-requested(token); }
             title: device.title; climate: panel.climate;
+            has-editor: panel.has-climate-editor; device: family.device; field: panel.climate-field;
+            value-edited(t,g,f,intent) => { root.edit(t,g,f,intent); }
             interactive: root.interactive; commands-enabled: parent.editable;
             dismiss(reason) => { root.dismiss(reason); }
             step-requested(t,g,direction) => { root.step(t,g,direction); }
@@ -77,7 +111,14 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
+            min-height: index == 0 ? root.minimum-panel-height : 0px;
+            tools: index == 0 ? root.tools : [];
+            tool-requested(token) => { root.tool-requested(token); }
             title: device.title; cover: panel.cover;
+            paint: covering;
+            associated-lock: panel.associated-lock;
+            lock-commands-enabled: root.commands-ready && panel.lock-commands-enabled;
+            lock-requested(t,g,operation) => { root.lock-operation(t,g,operation); }
             positioned: panel.positioned;
             position-minimum: panel.position-minimum; position-maximum: panel.position-maximum; position-increment: panel.position-step;
             position-requested(t,g,value) => {
@@ -96,15 +137,22 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             private property <int> focus-request: root.focus-request;
             changed focus-request => { if (index == 0 && self.focus-request > 0) { self.take-focus(); } }
             theme: root.theme; width: root.viewport-width;
-            title: device.title; alarm: panel.alarm; code-required: false;
+            min-height: index == 0 ? root.minimum-panel-height : 0px;
+            tools: index == 0 ? root.tools : [];
+            tool-requested(token) => { root.tool-requested(token); }
+            title: device.title; alarm: panel.alarm; neutral-mode-selection: true; compact: root.viewport-width <= 400px; code-required: panel.alarm-code-required;
+            footnote: panel.alarm-code-required ? "Code used only for this command. Not saved on this device." : "";
             interactive: root.interactive; commands-enabled: parent.editable;
             dismiss(reason) => { root.dismiss(reason); }
-            mode-requested(t,g,choice) => { root.choose(t,g,choice); }
+            mode-requested(t,g,choice) => { root.alarm-mode(t,g,choice); }
+            digit-entered(t,g,digit) => { root.alarm-digit(t,g,digit); }
+            digit-cleared(t,g) => { root.alarm-clear(t,g); }
+            confirm-requested(t,g) => { root.alarm-confirm(t,g); }
         }
         // Extended numeric fields retain the canonical host codec: light white
         // temperature and climate domains requiring an exact text/range editor.
-        if family.specialized: VerticalLayout {
-            for field in device.values: VerticalLayout { if device.kind != ProDeviceKind.cover && (device.kind != ProDeviceKind.climate || !device.has-primary-value || field.token != device.primary-value-token || field.mode == ProValueMode.range || !field.can-step): ProDeviceControls {
+        if family.specialized && device.kind != ProDeviceKind.cover && device.values.length > (panel.has-temperature ? 1 : panel.has-climate-editor ? 1 : 0): VerticalLayout {
+            for field in device.values: VerticalLayout { if device.kind != ProDeviceKind.cover && (!panel.has-temperature || field.token != panel.temperature-field.token) && (!panel.has-climate-editor || field.token != panel.climate-field.token): ProDeviceControls {
                 theme: root.theme; context-label: device.title;
                 token: device.token; generation: device.generation;
                 interactive: root.interactive; editable: family.editable;
@@ -112,9 +160,15 @@ export component HomewardDeviceDetail inherits VerticalLayout {
                 edit(t,g,f,intent) => { root.edit(t,g,f,intent); }
             } }
         }
-        if family.specialized && device.action-label != "": KitAlert {
+        if family.specialized && device.action-label != "" && (family.pending || family.show-last-command): KitAlert {
             theme: root.theme; title: device.action-label; message: device.action-detail;
             severity: information;
+        }
+        if family.specialized && !family.pending && device.action-label != "": KitButton {
+            theme: root.theme; control-size: comfortable;
+            text: family.show-last-command ? "Hide last command" : "Last command";
+            disabled: !root.interactive;
+            activated => { family.show-last-command = !family.show-last-command; }
         }
         if family.specialized && family.pending: KitButton {
             theme: root.theme; text: "Stop Tracking"; control-size: comfortable;

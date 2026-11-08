@@ -23,6 +23,15 @@ use std::{
 };
 use tokio::sync::watch;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
+/// One-use alarm input. Never part of a command identity, snapshot or durable state.
+/// Deliberately neither Clone nor Debug; dropping an unsent value erases it.
+pub struct AlarmCode(zeroize::Zeroizing<Vec<u8>>);
+impl AlarmCode {
+    pub fn new(value: zeroize::Zeroizing<Vec<u8>>) -> Option<Self> {
+        (!value.is_empty() && value.len() <= 32 && value.iter().all(u8::is_ascii_digit))
+            .then_some(Self(value))
+    }
+}
 const MAX_JOBS: usize = 32;
 const MAX_REQUEST_BYTES: usize = 64 * 1024;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -202,6 +211,19 @@ impl CapabilityController {
         command: Command,
         admission: AdmissionCheck,
     ) -> Result<CapabilityHandle, CapabilityControllerError> {
+        self.submit_with_alarm_code(command, admission, None)
+    }
+    pub fn submit_with_alarm_code(
+        &self,
+        command: Command,
+        admission: AdmissionCheck,
+        alarm_code: Option<AlarmCode>,
+    ) -> Result<CapabilityHandle, CapabilityControllerError> {
+        if alarm_code.is_some()
+            && !matches!(command.intent(), home_client_model::api::Intent::Alarm(_))
+        {
+            return Err(CapabilityControllerError::InvalidCommand);
+        }
         let shared = &self.owner.shared;
         if shared.cancel.is_cancelled() || shared.tasks.is_closed() {
             return Err(CapabilityControllerError::Closed);
@@ -257,9 +279,13 @@ impl CapabilityController {
         });
         entries.push_back(entry.clone());
         // Register the job under the same lock that closes submission during shutdown.
-        shared
-            .tasks
-            .spawn(run(shared.clone(), entry.clone(), command, admission));
+        shared.tasks.spawn(run(
+            shared.clone(),
+            entry.clone(),
+            command,
+            admission,
+            alarm_code,
+        ));
         drop(entries);
         Ok(CapabilityHandle { entry })
     }
@@ -376,10 +402,16 @@ async fn observe_failure(
 ) {
     let _ = shared.session.observe_failure(generation, error).await;
 }
-async fn run(shared: Arc<Shared>, entry: Arc<Entry>, command: Command, admission: AdmissionCheck) {
+async fn run(
+    shared: Arc<Shared>,
+    entry: Arc<Entry>,
+    command: Command,
+    admission: AdmissionCheck,
+    alarm_code: Option<AlarmCode>,
+) {
     if tokio::time::timeout(
         Duration::from_secs(90),
-        run_once(shared, entry.clone(), command, admission),
+        run_once(shared, entry.clone(), command, admission, alarm_code),
     )
     .await
     .is_err()
@@ -398,6 +430,7 @@ async fn run_once(
     entry: Arc<Entry>,
     command: Command,
     admission: AdmissionCheck,
+    alarm_code: Option<AlarmCode>,
 ) {
     if entry.stop.is_cancelled() {
         not_sent(&entry, CapabilityIssue::Cancelled);
@@ -416,10 +449,16 @@ async fn run_once(
         return;
     }
     entry.update(|value| value.submission = CapabilitySubmission::Sending);
+    // Attach only after the final session/admission check. The logical command
+    // retained for operation recovery contains no secret; recovery only reads.
+    let mut request = encode_command(&command);
+    if let Some(code) = alarm_code {
+        request.ephemeral_alarm_code.extend_from_slice(&code.0);
+    }
     let response = tokio::select! {biased;
         ()=entry.stop.cancelled()=>{entry.update(|value|{value.submission=CapabilitySubmission::Uncertain;value.issue=Some(CapabilityIssue::Cancelled);value.tracking=CapabilityTracking::Stopped});return},
         ()=lease.cancellation.cancelled()=>{entry.update(|value|{value.submission=CapabilitySubmission::Uncertain;value.issue=Some(CapabilityIssue::NoSession);value.tracking=CapabilityTracking::Interrupted});return},
-        response=shared.capabilities.execute_capability(encode_command(&command),lease.token(),Duration::from_secs(10),&entry.stop)=>response,
+        response=shared.capabilities.execute_capability(request,lease.token(),Duration::from_secs(10),&entry.stop)=>response,
     };
     let operation = match response {
         Err(error) => {

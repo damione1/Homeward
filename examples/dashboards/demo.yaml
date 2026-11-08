@@ -45,6 +45,9 @@ views:
           action: more-info
         grid_options:
           columns: 1
+        cover_lock:
+          entity: lock.demo_lock
+          name: Garage remote controls
   - type: grid
     column_span: 3
     minimum_column_width: 136
@@ -78,6 +81,9 @@ views:
           action: more-info
         grid_options:
           columns: 1
+        cover_lock:
+          entity: lock.demo_lock
+          name: Garage remote controls
       - type: custom:homeward-thermostat
         title: Home Climate
         icon: mdi:thermometer
@@ -1417,6 +1423,9 @@ views:
           tap_action:
             action: more-info
           icon: mdi:garage
+          cover_lock:
+            entity: lock.demo_lock
+            name: Garage remote controls
         - type: tile
           entity: lock.demo_lock
           grid_options:
@@ -2806,6 +2815,9 @@ views:
       - type: cover-position
       tap_action:
         action: more-info
+      cover_lock:
+        entity: lock.demo_lock
+        name: Garage remote controls
     - type: tile
       entity: light.demo_garage_light
       grid_options:

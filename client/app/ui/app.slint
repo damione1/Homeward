@@ -1,8 +1,9 @@
+import { LucideIcons } from "@kit/icons/lucide/all.slint";
 import { KitDialogSurface, KitDialogPanel, KitIconButton, KitButton, KitSelect, KitTheme, KitThemes, KitThemeContext, KitCard, KitCardHeader, KitUrlField,
     KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess, KitCheckbox, CheckState,
     KitDataTable, TableColumn, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, StepDirection, FocusRequest } from "@kit";
-import { ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProDeviceKind, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro";
+import { ProLockOperation, ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProDeviceKind, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro";
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
 import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.slint";
@@ -294,6 +295,11 @@ export component HomewardWindow inherits Window {
     changed projection-version => { root.room-view = RoomView.cards; }
     callback device-edit(int,int,int,ProValueIntent);
     callback device-choice(int,int,int);
+    callback alarm-mode(int,int,int);
+    callback alarm-digit(int,int,int);
+    callback alarm-clear(int,int);
+    callback alarm-confirm(int,int);
+    callback lock-operation(int,int,ProLockOperation);
     callback device-step(int,int,StepDirection);
     callback device-power(int,int,ProPowerIntent);
     callback device-brightness(int,int,float);
@@ -916,15 +922,19 @@ export component HomewardWindow inherits Window {
         state: {open: root.page == ViewPage.detail && root.connected && !root.show-endpoint,topmost: !root.recipe-confirmation.open,busy:false};
         tab-policy: native;
         dismiss(reason) => { if (root.page == ViewPage.detail && root.connected) { root.go-back(); } }
-        KitDialogPanel {
-            theme: root.theme;
-            accessible-name: root.device-cards.length > 0 ? root.device-cards[0].title : root.detail-title;
-            width: root.width < 600px ? root.width : max(0px,min(root.width - 48px,560px));
-            height: root.width < 600px ? root.height : max(0px,min(root.height - 48px,720px));
+        Rectangle {
+            private property <bool> owns-chrome: !root.detail-has-header && !root.media-has-data;
+            accessible-role: groupbox;
+            accessible-label: root.device-cards.length > 0 ? root.device-cards[0].title : root.detail-title;
+            width: root.width < 600px ? root.width : max(0px,min(root.width - 48px,480px));
+            height: root.width < 600px ? root.height : min(max(0px, root.height - 48px),
+                detail-content.preferred-height + detail-banner.preferred-height + detail-refusal.preferred-height + (self.owns-chrome ? 48px : 0px));
+            if self.owns-chrome: KitDialogPanel { theme: root.theme; width: parent.width; height: parent.height; }
+            TouchArea { }
             x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
             VerticalLayout {
-                padding: 20px; spacing: 8px;
-                if !root.detail-has-header: detail-back := KitButton {
+                padding: parent.owns-chrome ? 20px : 0px; spacing: 0px;
+                if !root.detail-has-header && !root.media-has-data: detail-back := KitButton {
                     private property <int> focus-request: root.detail-focus-request;
                     changed focus-request => { if (self.focus-request > 0) { self.take-focus(); } }
                     theme: root.theme; text: "Back"; leading-icon: root.theme.icons.chevron-left;
@@ -933,14 +943,32 @@ export component HomewardWindow inherits Window {
                     activation-started => { self.route-generation = root.projection-version; }
                     activated => { if (self.route-generation == root.projection-version && root.page == ViewPage.detail) { root.go-back(); } }
                 }
-                HomewardConnectionBanner { theme: root.theme; status: root.connection-status; interactive: root.content-interactive; retry => { root.read-protected(); } }
+                detail-banner := HomewardConnectionBanner { theme: root.theme; status: root.connection-status; interactive: root.content-interactive; retry => { root.read-protected(); } }
+                detail-refusal := VerticalLayout {
+                    if root.action-feedback != "": KitAlert {
+                        theme: root.theme; title: root.action-feedback; severity: information;
+                    }
+                }
                 detail-scroll := KitScrollArea {
                     pan-policy: children-first;
+                    overlay-scrollbars: true;
                     vertical-stretch: 1;
+                detail-content := VerticalLayout {
+                    min-width: 0px; preferred-width: 0px;
+                    spacing: 8px;
                 if !root.media-has-data: HomewardDeviceDetail {
+                    lock-operation(t,g,operation) => { root.lock-operation(t,g,operation); }
+                    alarm-mode(t,g,c) => { root.alarm-mode(t,g,c); }
+                    alarm-digit(t,g,d) => { root.alarm-digit(t,g,d); }
+                    alarm-clear(t,g) => { root.alarm-clear(t,g); }
+                    alarm-confirm(t,g) => { root.alarm-confirm(t,g); }
+                    tools: [{token: 1, label: "History and diagnostics", glyph: LucideIcons.rotate-ccw-clock()}];
+                    tool-requested(token) => { if (token == 1) { root.show-detail-history = !root.show-detail-history; } }
                     focus-request: root.detail-focus-request;
                     step(t,g,d) => { root.device-step(t,g,d); }
-                    theme: root.theme; viewport-width: detail-scroll.visible-width; panels: root.detail-panels;
+                    theme: root.theme; viewport-width: detail-scroll.visible-width;
+                    minimum-panel-height: root.width < 600px ? root.height : 0px;
+                    panels: root.detail-panels;
                     dismiss(reason) => { root.go-back(); }
                     interactive: root.dashboard-interactive && root.page == ViewPage.detail; commands-ready: root.commands-ready;
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
@@ -951,6 +979,10 @@ export component HomewardWindow inherits Window {
                 }
                 if root.media-visible && (root.media-has-data || root.media-notice != "" || root.show-detail-history): HomewardMedia {
                     width: min(detail-scroll.visible-width,480px);
+                    minimum-panel-height: root.width < 600px ? root.height : 0px;
+                    tools: [{token: -1, label: "History and diagnostics", glyph: LucideIcons.rotate-ccw-clock()},
+                        {token: root.media-generation, label: "Refresh media", glyph: LucideIcons.refresh-cw()}];
+                    tool-requested(token) => { if (token == -1) { root.show-detail-history = !root.show-detail-history; } }
                     theme: root.theme; title: root.detail-title; generation: root.media-generation;
                     dismiss(reason) => { root.go-back(); }
                     interactive: root.media-interactive; suspended: root.cohort-pending || root.media-retention-ms > 0; editable: root.media-editable; has-data: root.media-has-data;
@@ -965,8 +997,7 @@ export component HomewardWindow inherits Window {
                     reload(generation) => { root.media-reload(generation); }
                     expire-artwork(generation) => { root.media-expire-artwork(generation); }
                 }
-                if root.action-feedback != "": KitAlert { theme: root.theme; title: "Update"; message: root.action-feedback; severity: information; }
-                KitButton { theme: root.theme; text: root.show-detail-history ? "Hide History and Diagnostics" : "History and Diagnostics"; disabled: !root.content-interactive; activated => { root.show-detail-history = !root.show-detail-history; } }
+                if !root.detail-has-header && !root.media-has-data: KitButton { theme: root.theme; text: root.show-detail-history ? "Hide History and Diagnostics" : "History and Diagnostics"; disabled: !root.content-interactive; activated => { root.show-detail-history = !root.show-detail-history; } }
                 if root.show-detail-history: VerticalLayout {
                     spacing: 8px;
                     Text { text: root.detail-quality + " · " + root.detail-date; color: root.theme.text-secondary; font-size: 12px * root.theme.text-scale; wrap: word-wrap; }
@@ -987,6 +1018,7 @@ export component HomewardWindow inherits Window {
                 }
             }
         }
+    }
     }
     popup-dialog := HomewardPopup {
                     step(t,g,d) => { root.device-step(t,g,d); }

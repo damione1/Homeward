@@ -148,6 +148,8 @@ const (
 	CommandResultKind_COMMAND_RESULT_KIND_FAILED      CommandResultKind = 2
 	// The bridge acknowledged the command, before any observed state.
 	CommandResultKind_COMMAND_RESULT_KIND_ACKNOWLEDGED CommandResultKind = 3
+	// Socket/protocol submission ended without a device acknowledgement.
+	CommandResultKind_COMMAND_RESULT_KIND_SENT_UNVERIFIED CommandResultKind = 4
 )
 
 // Enum value maps for CommandResultKind.
@@ -157,12 +159,14 @@ var (
 		1: "COMMAND_RESULT_KIND_ACCEPTED",
 		2: "COMMAND_RESULT_KIND_FAILED",
 		3: "COMMAND_RESULT_KIND_ACKNOWLEDGED",
+		4: "COMMAND_RESULT_KIND_SENT_UNVERIFIED",
 	}
 	CommandResultKind_value = map[string]int32{
-		"COMMAND_RESULT_KIND_UNSPECIFIED":  0,
-		"COMMAND_RESULT_KIND_ACCEPTED":     1,
-		"COMMAND_RESULT_KIND_FAILED":       2,
-		"COMMAND_RESULT_KIND_ACKNOWLEDGED": 3,
+		"COMMAND_RESULT_KIND_UNSPECIFIED":     0,
+		"COMMAND_RESULT_KIND_ACCEPTED":        1,
+		"COMMAND_RESULT_KIND_FAILED":          2,
+		"COMMAND_RESULT_KIND_ACKNOWLEDGED":    3,
+		"COMMAND_RESULT_KIND_SENT_UNVERIFIED": 4,
 	}
 )
 
@@ -1500,8 +1504,10 @@ type CommandsResponse struct {
 	Request       *v13.CommandRequest    `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
 	Correlation   string                 `protobuf:"bytes,2,opt,name=correlation,proto3" json:"correlation,omitempty"`
 	BindingHandle []byte                 `protobuf:"bytes,3,opt,name=binding_handle,json=bindingHandle,proto3" json:"binding_handle,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// One-dispatch credential, outside the durable CommandRequest. Never log it.
+	EphemeralAlarmCode []byte `protobuf:"bytes,4,opt,name=ephemeral_alarm_code,json=ephemeralAlarmCode,proto3" json:"ephemeral_alarm_code,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *CommandsResponse) Reset() {
@@ -1551,6 +1557,13 @@ func (x *CommandsResponse) GetCorrelation() string {
 func (x *CommandsResponse) GetBindingHandle() []byte {
 	if x != nil {
 		return x.BindingHandle
+	}
+	return nil
+}
+
+func (x *CommandsResponse) GetEphemeralAlarmCode() []byte {
+	if x != nil {
+		return x.EphemeralAlarmCode
 	}
 	return nil
 }
@@ -1705,11 +1718,12 @@ const file_home_integrations_v1_host_proto_rawDesc = "" +
 	"\x17CompleteCommandResponse\"\x12\n" +
 	"\x10HeartbeatRequest\"\x13\n" +
 	"\x11HeartbeatResponse\"\x11\n" +
-	"\x0fCommandsRequest\"\x96\x01\n" +
+	"\x0fCommandsRequest\"\xc8\x01\n" +
 	"\x10CommandsResponse\x129\n" +
 	"\arequest\x18\x01 \x01(\v2\x1f.home.actions.v1.CommandRequestR\arequest\x12 \n" +
 	"\vcorrelation\x18\x02 \x01(\tR\vcorrelation\x12%\n" +
-	"\x0ebinding_handle\x18\x03 \x01(\fR\rbindingHandle\"t\n" +
+	"\x0ebinding_handle\x18\x03 \x01(\fR\rbindingHandle\x120\n" +
+	"\x14ephemeral_alarm_code\x18\x04 \x01(\fR\x12ephemeralAlarmCode\"t\n" +
 	"\x16CompleteCommandRequest\x12\x1d\n" +
 	"\n" +
 	"command_id\x18\x01 \x01(\tR\tcommandId\x12;\n" +
@@ -1727,12 +1741,13 @@ const file_home_integrations_v1_host_proto_rawDesc = "" +
 	"\x19HEALTH_STATUS_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13HEALTH_STATUS_READY\x10\x01\x12\x1a\n" +
 	"\x16HEALTH_STATUS_DEGRADED\x10\x02\x12\x1d\n" +
-	"\x19HEALTH_STATUS_UNAVAILABLE\x10\x03*\xa0\x01\n" +
+	"\x19HEALTH_STATUS_UNAVAILABLE\x10\x03*\xc9\x01\n" +
 	"\x11CommandResultKind\x12#\n" +
 	"\x1fCOMMAND_RESULT_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cCOMMAND_RESULT_KIND_ACCEPTED\x10\x01\x12\x1e\n" +
 	"\x1aCOMMAND_RESULT_KIND_FAILED\x10\x02\x12$\n" +
-	" COMMAND_RESULT_KIND_ACKNOWLEDGED\x10\x032\xe0\x06\n" +
+	" COMMAND_RESULT_KIND_ACKNOWLEDGED\x10\x03\x12'\n" +
+	"#COMMAND_RESULT_KIND_SENT_UNVERIFIED\x10\x042\xe0\x06\n" +
 	"\vHostService\x12\\\n" +
 	"\tHandshake\x12&.home.integrations.v1.HandshakeRequest\x1a'.home.integrations.v1.HandshakeResponse\x12Y\n" +
 	"\bDiscover\x12%.home.integrations.v1.DiscoverRequest\x1a&.home.integrations.v1.DiscoverResponse\x12V\n" +

@@ -247,6 +247,10 @@ message ExecuteCapabilityRequest {
   // Definition binding from the authorized capability capture. Required by
   // live execution admission, after object authorization and syntax parsing.
   string etag = 6 [(google.api.field_behavior) = OPTIONAL];
+  // Numeric alarm credential for this admission only (1..32 ASCII digits).
+  // Detached before fingerprinting; never persisted, returned, logged or replayed.
+  // Allowed only for an operation declared in code_required_operations.
+  bytes ephemeral_alarm_code = 15 [(google.api.field_behavior) = INPUT_ONLY];
   // Required physical-intent deadline; enforced again at the point of effect.
   google.protobuf.Timestamp expire_time = 5 [(google.api.field_behavior) = REQUIRED];
 }

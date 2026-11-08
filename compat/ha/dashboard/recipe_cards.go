@@ -282,6 +282,22 @@ func parseFeatureKind(value string) FeatureKind {
 
 func (c *compiler) cardExtension(card *Card, entry parser.Entry) (bool, bool) {
 	switch entry.Key {
+	case "cover_lock":
+		if c.profile != CompilationDashboard || (card.kind != ElementTileCard && card.kind != ElementRecipeCard) || card.coverLock != nil || entry.Value.Kind() != parser.KindMapping || len(entry.Value.Entries()) != 2 {
+			c.unsupported(CodeInvalidValue, entry.Value, "cover association requires one explicit entity and name")
+			return true, true
+		}
+		entityNode, hasEntity := entry.Value.Lookup("entity")
+		nameNode, hasName := entry.Value.Lookup("name")
+		entityText, entityOK := scalarText(entityNode)
+		entity, err := domain.ParseHAAlias(entityText)
+		name, nameOK := staticText(nameNode, 256)
+		if !hasEntity || !hasName || !entityOK || err != nil || !nameOK || strings.TrimSpace(name) == "" {
+			c.unsupported(CodeInvalidValue, entry.Value, "invalid cover lock association")
+			return true, true
+		}
+		card.coverLock = &coverLock{entity: entity, name: name}
+		return true, false
 	case "presentation":
 		value, ok := scalarText(entry.Value)
 		if c.profile != CompilationDashboard || (card.kind != ElementTileCard && card.kind != ElementRecipeCard) || !ok || (value != "controls" && value != "summary") {

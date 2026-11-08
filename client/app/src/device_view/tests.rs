@@ -2558,3 +2558,114 @@ async fn renewal_preserves_only_unarmed_draft_text_with_fresh_capture_admission(
         credentials.session.close().await;
     }
 }
+
+#[test]
+fn color_temperature_panel_uses_the_canonical_editor_and_exact_server_grid() {
+    use i_slint_backend_testing::ElementQuery;
+    use slint::{ComponentHandle, ModelRc};
+    use std::{cell::RefCell, rc::Rc};
+    i_slint_backend_testing::init_no_event_loop();
+    let request = request();
+    let store = DeviceStore::default();
+    let capture = view(&request, vec![color_light(&request)]);
+    let row = store
+        .project(CachePhase::Live, Some(&capture), &request)
+        .rows
+        .remove(0);
+    let panel = super::detail::project(&row, row.ui(None, &Default::default()), None);
+    assert!(panel.has_temperature);
+    assert_eq!(panel.temperature_field, row.values[0]);
+    let window = crate::create_window().unwrap();
+    window.set_show_endpoint(false);
+    window.set_access_stage(crate::ProAccessStage::Connected);
+    window.set_view_loaded(true);
+    window.set_connection_status(crate::ConnectionStatus::Live);
+    window.set_commands_ready(true);
+    window.set_page(crate::ViewPage::Detail);
+    window
+        .window()
+        .set_size(slint::LogicalSize::new(390., 844.));
+    window.set_device_cards(ModelRc::from([panel.device.clone()]));
+    window.set_detail_panels(ModelRc::from([panel]));
+    let emitted = Rc::new(RefCell::new(Vec::new()));
+    let output = emitted.clone();
+    let owner = store.clone();
+    window.on_device_edit(move |token, generation, field, event| {
+        if let Some(intent) = owner.edit(token, generation, 0, field, event).unwrap() {
+            let prepared = owner.prepare(token, generation, 0, intent).unwrap();
+            output
+                .borrow_mut()
+                .push(home_wire_contract::api_contract::encode_command(
+                    &prepared.request,
+                ));
+        }
+    });
+    window.show().unwrap();
+    ElementQuery::from_root(&window)
+        .match_predicate(|item| item.accessible_label().as_deref() == Some("White"))
+        .find_first()
+        .expect("white capability section")
+        .invoke_accessible_default_action();
+    let slider = ElementQuery::from_root(&window)
+        .match_inherits("ProDimmerControl")
+        .find_first()
+        .expect("canonical editor inside the light panel")
+        .query_descendants()
+        .match_inherits("KitSlider")
+        .find_first()
+        .unwrap();
+    slider.invoke_accessible_increment_action();
+    let values = emitted.borrow();
+    assert_eq!(values.len(), 1);
+    assert!(
+        matches!(values[0].command.as_ref(),Some(wire::execute_capability_request::Command::Light(value)) if value.color_temperature_mireds==Some(327))
+    );
+    drop(values);
+    window.set_commands_ready(false);
+    slider.invoke_accessible_increment_action();
+    assert_eq!(
+        emitted.borrow().len(),
+        1,
+        "revocation keeps the editor inert"
+    );
+    window.hide().unwrap();
+}
+
+#[test]
+fn climate_panel_keeps_observed_setpoint_distinct_from_ambient_and_quality_notices() {
+    let request = request();
+    let entity = climate_entity(&request);
+    let store = DeviceStore::default();
+    let row = store
+        .project(
+            CachePhase::Live,
+            Some(&view(&request, vec![entity])),
+            &request,
+        )
+        .rows
+        .remove(0);
+    let panel = super::detail::project(&row, row.ui(None, &Default::default()), None);
+    assert!(
+        panel.climate.current.is_empty(),
+        "the capability supplies no ambient sensor"
+    );
+    assert_eq!(panel.climate_field.lower, "20");
+    assert_eq!(panel.climate.activity, "Idle");
+    assert!(row.readings.contains("Observed setpoint"));
+    let mut entity = light(&request);
+    let capability = &mut entity.capabilities[0];
+    assert!(super::observation::quality_notice(capability).is_empty());
+    if let Some(wire::capability::Trait::LightControl(light)) = &mut capability.r#trait {
+        light
+            .observation
+            .as_option_mut()
+            .unwrap()
+            .quality
+            .as_option_mut()
+            .unwrap()
+            .freshness = wire::Freshness::Stale.into();
+    } else {
+        panic!("synthetic light");
+    }
+    assert!(super::observation::quality_notice(capability).contains("Stale"));
+}

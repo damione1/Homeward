@@ -128,7 +128,7 @@ func TestNHA069ActiveCommandRouterWritesOnlyAfterDispatch(t *testing.T) {
 		entityText, _ := ids[i].Entity.Value()
 		request := &actions.CommandRequest{CommandId: scenario.id, AdmissionEpoch: epoch, ConfigRevision: 7, Target: &registry.EntityRef{Reference: &registry.EntityRef_EntityId{EntityId: entityText}}, CapabilitySchemaId: scenario.schema, Endpoint: "mqtt", Arguments: scenario.args, ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}
 		response, err := router.Dispatch(context.Background(), actor, request)
-		if err != nil || response == nil || response.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
+		if err != nil || response == nil || response.Status != actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED {
 			t.Fatalf("command %s: %v %v", scenario.id, response, err)
 		}
 		select {

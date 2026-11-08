@@ -73,6 +73,10 @@ fn facts(value: Option<&CapabilitySnapshot>) -> (ProActionPhase, &'static str, &
                     "Qualified native confirmation",
                 ),
                 CommandCompletion::Success {
+                    outcome: CommandOutcome::SentUnverified,
+                    ..
+                } => (ProActionPhase::Idle, "", ""),
+                CommandCompletion::Success {
                     outcome: CommandOutcome::AcknowledgedUnverified,
                     ..
                 } => (

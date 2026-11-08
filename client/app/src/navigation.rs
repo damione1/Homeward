@@ -2048,17 +2048,26 @@ mod back_tests {
             assert!(p.y >= 0. && p.y + size.height <= 740.);
             assert!(size.width >= 48. && size.height >= 48.);
         }
-        let title = popup
+        let panel = popup
+            .query_descendants()
+            .match_inherits("ProDetailPanel")
+            .find_first()
+            .unwrap();
+        assert_eq!(panel.accessible_label().as_deref(), Some("Kitchen"));
+        // The panel announces its title once. Its decorative Text is hidden
+        // from accessibility, and wraps below the actions at 200%.
+        let title = panel
             .query_descendants()
             .match_type_name("Text")
-            .match_predicate(|e| e.accessible_label().as_deref() == Some("Kitchen"))
+            .match_predicate(|e| e.size().width > 0. && e.size().height > 0.)
             .find_first()
-            .expect("the popup header exposes the configured room title");
-        assert!(title.size().width > 0. && title.size().height > 0.);
-        assert!(title.absolute_position().x >= back.absolute_position().x + back.size().width + 7.);
+            .expect("visible popup heading");
+        assert!(title.absolute_position().x >= panel.absolute_position().x);
         assert!(
-            title.absolute_position().x + title.size().width <= close.absolute_position().x - 7.
+            title.absolute_position().x + title.size().width
+                <= panel.absolute_position().x + panel.size().width + 1.
         );
+        assert!(title.absolute_position().y >= close.absolute_position().y + close.size().height);
         back.mock_single_click(PointerEventButton::Left);
         assert_eq!(backs.get(), 1);
     }

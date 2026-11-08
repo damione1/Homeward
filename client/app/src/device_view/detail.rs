@@ -6,30 +6,106 @@ use super::{
     presentation::{CardRow, nested},
 };
 use crate::{
-    ChoiceIcon, ChoiceRow, HomewardDetailRow, ProAlarm, ProAlarmCondition, ProClimate,
-    ProClimateOptions, ProCover, ProCoverLock, ProCoverMotion, ProDeviceRow, ProFan, ProLight,
-    ProSwitch, ProSwitchState, ProValueMode,
+    ChoiceIcon, ChoiceRow, HomewardDetailRow, ProAlarm, ProAlarmCondition, ProAssociatedLock,
+    ProClimate, ProClimateOptions, ProCover, ProCoverLock, ProCoverMotion, ProDeviceRow, ProFan,
+    ProLight, ProSwitch, ProSwitchState, ProValueMode,
 };
 use home_wire_contract::home::api::v2 as wire;
 use slint::{Model, SharedString};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Metadata {
+    pub associated_only: bool,
+    associated_lock: Option<AssociatedLock>,
+    lock_state: ProCoverLock,
     modes: Vec<ChoiceRow>,
+    climate_activity: String,
+    quality_notice: String,
     fan_modes: Vec<ChoiceRow>,
     speeds: Vec<ChoiceRow>,
     alarm_modes: Vec<ChoiceRow>,
     alarm_icons: Vec<ChoiceIcon>,
+    alarm_code_required: bool,
+    alarm_operations: Vec<wire::AlarmOperation>,
+    alarm_code_count: usize,
+    alarm_code_selected: bool,
+    alarm_prompt: String,
+    alarm_confirm: String,
     condition: ProAlarmCondition,
     motion: ProCoverMotion,
     position: Option<f64>,
     position_step: Option<f64>,
     position_bounds: Option<(f64, f64)>,
 }
+#[derive(Clone, Debug)]
+struct AssociatedLock {
+    token: i32,
+    generation: i32,
+    title: String,
+    label: SharedString,
+    state: ProCoverLock,
+    enabled: bool,
+    can_lock: bool,
+    can_unlock: bool,
+}
 impl Metadata {
+    pub(super) fn associate_lock(&mut self, row: &CardRow, title: &str) {
+        self.associated_lock = Some(AssociatedLock {
+            token: row.token,
+            generation: row.generation,
+            title: title.into(),
+            label: row.value.clone(),
+            state: row.detail.lock_state,
+            enabled: row.access == crate::ProControlAccess::Allowed
+                && !row.command_unavailable
+                && !matches!(
+                    row.phase,
+                    crate::ProActionPhase::Preparing
+                        | crate::ProActionPhase::Sending
+                        | crate::ProActionPhase::Accepted
+                        | crate::ProActionPhase::Dispatched
+                        | crate::ProActionPhase::Acknowledged
+                        | crate::ProActionPhase::Uncertain
+                        | crate::ProActionPhase::Interrupted
+                ),
+            can_lock: row
+                .lock_operations
+                .iter()
+                .any(|operation| operation.operation == crate::ProLockOperation::Lock),
+            can_unlock: row
+                .lock_operations
+                .iter()
+                .any(|operation| operation.operation == crate::ProLockOperation::Unlock),
+        });
+    }
+
+    pub(super) fn alarm_input(&mut self, input: Option<&super::alarm_input::Input>) {
+        if !self.alarm_code_required {
+            return;
+        }
+        if let Some(operation) = input.and_then(|input| input.operation) {
+            for row in &mut self.alarm_modes {
+                row.selected = self.alarm_operations.get(row.token as usize) == Some(&operation);
+            }
+        }
+        self.alarm_code_count = input.map_or(0, |input| input.digits.len());
+        self.alarm_code_selected = input.is_some_and(|input| input.operation.is_some());
+        self.alarm_confirm = input
+            .and_then(|input| input.operation)
+            .and_then(crate::control_text::alarm_operation)
+            .unwrap_or("Confirm")
+            .into();
+        self.alarm_prompt = if input.is_some_and(|input| input.operation.is_some()) {
+            format!("Code to {}", self.alarm_confirm.to_lowercase())
+        } else {
+            "Choose a mode requiring a code".into()
+        };
+    }
+
     pub(super) fn new(control: &Control, capability: &wire::Capability) -> Self {
         let mut result = Self {
             condition: ProAlarmCondition::Unknown,
+            quality_notice: observation::quality_notice(capability),
             ..Default::default()
         };
         let observed = observation::evidence(capability).is_some();
@@ -39,6 +115,13 @@ impl Metadata {
                 let Some(T::TemperatureControl(value)) = capability.r#trait.as_ref() else {
                     return result;
                 };
+                result.climate_activity = observed
+                    .then(|| value.observation.activity.and_then(|v| v.as_known()))
+                    .flatten()
+                    .filter(|activity| climate.observes().activities.contains(activity))
+                    .map(super::panel::activity_label)
+                    .unwrap_or_default()
+                    .into();
                 let selected_mode = observed
                     .then(|| value.observation.mode.and_then(|v| v.as_known()))
                     .flatten();
@@ -123,6 +206,8 @@ impl Metadata {
                 }
             }
             Control::Alarm(alarm) => {
+                result.alarm_code_required = alarm.has_code();
+                result.alarm_operations = alarm.operations().to_vec();
                 let Some(T::Alarm(value)) = capability.r#trait.as_ref() else {
                     return result;
                 };
@@ -209,11 +294,33 @@ impl Metadata {
                     })
                     .collect();
             }
+            Control::Lock(_) => {
+                result.lock_state = ProCoverLock::Unknown;
+                if observed && let Some(T::Lock(value)) = capability.r#trait.as_ref() {
+                    result.lock_state = match value
+                        .observation
+                        .value
+                        .as_option()
+                        .and_then(|value| value.state.as_known())
+                    {
+                        Some(wire::LockState::Locked) => ProCoverLock::Locked,
+                        Some(wire::LockState::Unlocked) => ProCoverLock::Unlocked,
+                        Some(
+                            wire::LockState::Unspecified
+                            | wire::LockState::Locking
+                            | wire::LockState::Unlocking
+                            | wire::LockState::Jammed
+                            | wire::LockState::Opening
+                            | wire::LockState::Open,
+                        )
+                        | None => ProCoverLock::Unknown,
+                    };
+                }
+            }
             Control::Switch { .. }
             | Control::Light { .. }
             | Control::Level { .. }
             | Control::Helper(_)
-            | Control::Lock(_)
             | Control::Binary
             | Control::Measurement
             | Control::ReadOnly(_)
@@ -257,13 +364,21 @@ pub(crate) fn project(
     let climate_field = primary
         .as_ref()
         .filter(|field| field.mode == ProValueMode::Single);
+    let temperature = row
+        .field_keys
+        .get("color_temperature_mireds")
+        .and_then(|token| device.values.iter().find(|field| field.token == *token));
     HomewardDetailRow {
+        has_temperature: temperature.is_some(),
+        temperature_field: temperature.unwrap_or_default(),
+        has_climate_editor: primary.is_some(),
+        climate_field: primary.clone().unwrap_or_default(),
         light: ProLight {
             token: device.token,
             generation: device.generation,
             power,
             state_label: state.clone(),
-            status: device.quality.clone(),
+            status: metadata.quality_notice.clone().into(),
             brightness: device.brightness_percent,
             brightness_known: device.brightness_known,
             ..Default::default()
@@ -288,7 +403,7 @@ pub(crate) fn project(
             generation: device.generation,
             power,
             state_label: device.value.clone(),
-            status: device.quality.clone(),
+            status: metadata.quality_notice.clone().into(),
             speeds: nested(&metadata.speeds, previous.map(|v| &v.fan.speeds)),
             speed_focus: selected(&metadata.speeds),
             ..Default::default()
@@ -303,7 +418,7 @@ pub(crate) fn project(
                 .is_some_and(|field| field.can_step && field.lower_position < 1.),
             can_decrement: climate_field
                 .is_some_and(|field| field.can_step && field.lower_position > 0.),
-            current: device.readings.clone(),
+            activity: metadata.climate_activity.clone().into(),
             modes: ProClimateOptions {
                 rows: nested(&metadata.modes, previous.map(|v| &v.climate.modes.rows)),
                 focus: selected(&metadata.modes),
@@ -321,30 +436,51 @@ pub(crate) fn project(
             token: device.token,
             generation: device.generation,
             state_label: device.value.clone(),
-            status: device.quality.clone(),
+            status: metadata.quality_notice.clone().into(),
             motion: metadata.motion,
             operations: device.cover_operations.clone(),
             position: metadata.position.unwrap_or_default() as f32,
             position_known: metadata.position.is_some(),
-            lock: ProCoverLock::Absent,
-            ..Default::default()
         },
+        associated_lock: metadata
+            .associated_lock
+            .as_ref()
+            .map_or_else(Default::default, |lock| ProAssociatedLock {
+                token: lock.token,
+                generation: lock.generation,
+                title: lock.title.clone().into(),
+                state: lock.state,
+                state_label: lock.label.clone(),
+                can_lock: lock.can_lock,
+                can_unlock: lock.can_unlock,
+            }),
+        lock_commands_enabled: metadata
+            .associated_lock
+            .as_ref()
+            .is_some_and(|lock| lock.enabled),
         positioned: metadata
             .position_bounds
             .is_some_and(|(minimum, maximum)| maximum > minimum),
         position_minimum: metadata.position_bounds.map_or(0., |bounds| bounds.0) as f32,
         position_maximum: metadata.position_bounds.map_or(0., |bounds| bounds.1) as f32,
         position_step: metadata.position_step.unwrap_or(0.) as f32,
+        alarm_code_required: metadata.alarm_code_required,
         alarm: ProAlarm {
+            entered_count: metadata.alarm_code_count as i32,
+            code_capacity: 32,
+            can_confirm: metadata.alarm_code_count > 0 && metadata.alarm_code_selected,
+            code_length: metadata.alarm_code_count.max(4) as i32,
+            code_label: format!("{} digits entered", metadata.alarm_code_count).into(),
+            prompt: metadata.alarm_prompt.clone().into(),
+            confirm_label: metadata.alarm_confirm.clone().into(),
             token: device.token,
             generation: device.generation,
             condition: metadata.condition,
             state_label: device.value.clone(),
-            status: device.quality.clone(),
+            status: metadata.quality_notice.clone().into(),
             modes: nested(&metadata.alarm_modes, previous.map(|v| &v.alarm.modes)),
             mode_icons: nested(&metadata.alarm_icons, previous.map(|v| &v.alarm.mode_icons)),
             mode_focus: selected(&metadata.alarm_modes),
-            ..Default::default()
         },
         device,
     }

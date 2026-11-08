@@ -22,6 +22,7 @@ import (
 	"github.com/damione1/Homeward/internal/apitypes"
 	"github.com/damione1/Homeward/internal/authorization"
 	"github.com/damione1/Homeward/internal/domain"
+	"github.com/damione1/Homeward/internal/integrations"
 	"github.com/damione1/Homeward/internal/storage"
 	"google.golang.org/protobuf/proto"
 )
@@ -60,6 +61,13 @@ func publicCommandID(actor domain.ActorID, key *apitypes.RequestID) (domain.Comm
 }
 
 func (h *coreRPCHandler) ExecuteCapability(ctx context.Context, request *connect.Request[api.ExecuteCapabilityRequest]) (*connect.Response[longrunningpb.Operation], error) {
+	// Detach before any diagnostics, cloning or durable fingerprint construction.
+	var code []byte
+	if request != nil && request.Msg != nil {
+		code = request.Msg.EphemeralAlarmCode
+		request.Msg.EphemeralAlarmCode = nil
+		defer clear(code)
+	}
 	if h == nil || h.home == nil || h.commands == nil {
 		return nil, apiRPCError(ctx, authorization.ErrUnavailable)
 	}
@@ -113,7 +121,7 @@ func (h *coreRPCHandler) ExecuteCapability(ctx context.Context, request *connect
 	if current.Authorize(readPermission, object) != nil {
 		return nil, apiRPCError(ctx, authorization.ErrDenied)
 	}
-	if proto.Size(request.Msg) > 64*1024 {
+	if len(code) > 32 || proto.Size(request.Msg) > 64*1024 {
 		return nil, apiRPCError(ctx, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_REQUEST_TOO_LARGE))
 	}
 	command, err := boundary.ParseCommand(request.Msg)
@@ -165,6 +173,22 @@ func (h *coreRPCHandler) ExecuteCapability(ctx context.Context, request *connect
 	if err != nil {
 		return nil, apiRPCError(ctx, apierrors.New(api.ApiErrorReason_API_ERROR_REASON_CAPABILITY_UNAVAILABLE))
 	}
+	requiresCode := false
+	if definition := selected.Resource().GetAlarm().GetDefinition(); definition != nil && request.Msg.GetAlarm() != nil {
+		for _, operation := range definition.CodeRequiredOperations {
+			if operation == request.Msg.GetAlarm().Operation {
+				requiresCode = true
+			}
+		}
+	}
+	if requiresCode != (len(code) != 0) {
+		return nil, apiRPCError(ctx, homeValidation(request.Msg, "ephemeral_alarm_code", api.ValidationReason_VALIDATION_REASON_REQUIRED_VALUE))
+	}
+	for _, digit := range code {
+		if digit < '0' || digit > '9' {
+			return nil, apiRPCError(ctx, homeValidation(request.Msg, "ephemeral_alarm_code", api.ValidationReason_VALIDATION_REASON_INVALID_FORMAT))
+		}
+	}
 	now := time.Now()
 	if !command.ExpireTime().After(now) || command.ExpireTime().After(now.Add(maximumOperationLease)) {
 		return nil, apiRPCError(ctx, homeValidation(request.Msg, "expire_time", api.ValidationReason_VALIDATION_REASON_INVALID_DEADLINE))
@@ -195,6 +219,16 @@ func (h *coreRPCHandler) ExecuteCapability(ctx context.Context, request *connect
 		return nil, apiRPCError(ctx, err)
 	}
 	native := &actions.CommandRequest{CommandId: idText, AdmissionEpoch: epoch, ConfigRevision: revision, Target: &registrywire.EntityRef{Reference: &registrywire.EntityRef_EntityId{EntityId: entityText}}, CapabilitySchemaId: schema, Endpoint: endpoint, Arguments: args, ExpiresAt: request.Msg.ExpireTime}
+	if requiresCode {
+		var dispose func()
+		continuation, dispose, err = integrations.WithEphemeralAlarmCode(continuation, id, actor, entity, args.GetAlarm().GetOperation(), code)
+		if err != nil {
+			release()
+			return nil, apiRPCError(ctx, homeValidation(request.Msg, "ephemeral_alarm_code", api.ValidationReason_VALIDATION_REASON_INVALID_FORMAT))
+		}
+		releaseLease := release
+		release = func() { dispose(); releaseLease() }
+	}
 	response, err := h.commands.Admit(ctx, continuation, actor, native, metadata, release)
 	if err != nil {
 		fault := apiFault(err)

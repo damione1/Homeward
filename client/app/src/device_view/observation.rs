@@ -114,6 +114,22 @@ pub(crate) fn quality_text(capability: &wire::Capability) -> String {
     };
     format!("{availability} · {freshness} · {provenance}")
 }
+// Routine provenance remains in diagnostics; degraded evidence stays visible.
+pub(crate) fn quality_notice(capability: &wire::Capability) -> String {
+    let current_observed = evidence(capability)
+        .and_then(|(quality, _)| quality)
+        .and_then(|value| parse_quality(value).ok())
+        .is_some_and(|quality| {
+            quality.availability() == Availability::Available
+                && quality.freshness() == Freshness::Current
+                && quality.provenance() == Provenance::Observed
+        });
+    if current_observed {
+        String::new()
+    } else {
+        quality_text(capability)
+    }
+}
 pub(crate) fn observed_time(
     capability: &wire::Capability,
 ) -> Option<chrono::DateTime<chrono::Utc>> {

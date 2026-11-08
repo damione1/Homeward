@@ -795,8 +795,10 @@ type AlarmConstraints struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Operations     []AlarmOperation       `protobuf:"varint,1,rep,packed,name=operations,proto3,enum=home.controls.v1.AlarmOperation" json:"operations,omitempty"`
 	ObservedStates []AlarmState           `protobuf:"varint,2,rep,packed,name=observed_states,json=observedStates,proto3,enum=home.controls.v1.AlarmState" json:"observed_states,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Interactive numeric credential required for this subset of operations.
+	CodeRequiredOperations []AlarmOperation `protobuf:"varint,3,rep,packed,name=code_required_operations,json=codeRequiredOperations,proto3,enum=home.controls.v1.AlarmOperation" json:"code_required_operations,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *AlarmConstraints) Reset() {
@@ -839,6 +841,13 @@ func (x *AlarmConstraints) GetOperations() []AlarmOperation {
 func (x *AlarmConstraints) GetObservedStates() []AlarmState {
 	if x != nil {
 		return x.ObservedStates
+	}
+	return nil
+}
+
+func (x *AlarmConstraints) GetCodeRequiredOperations() []AlarmOperation {
+	if x != nil {
+		return x.CodeRequiredOperations
 	}
 	return nil
 }
@@ -972,12 +981,13 @@ const file_home_controls_v1_controls_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\x0e2\x1b.home.controls.v1.LockStateR\x05state\"K\n" +
 	"\n" +
 	"LockAction\x12=\n" +
-	"\toperation\x18\x01 \x01(\x0e2\x1f.home.controls.v1.LockOperationR\toperation\"\x9b\x01\n" +
+	"\toperation\x18\x01 \x01(\x0e2\x1f.home.controls.v1.LockOperationR\toperation\"\xf7\x01\n" +
 	"\x10AlarmConstraints\x12@\n" +
 	"\n" +
 	"operations\x18\x01 \x03(\x0e2 .home.controls.v1.AlarmOperationR\n" +
 	"operations\x12E\n" +
-	"\x0fobserved_states\x18\x02 \x03(\x0e2\x1c.home.controls.v1.AlarmStateR\x0eobservedStates\"@\n" +
+	"\x0fobserved_states\x18\x02 \x03(\x0e2\x1c.home.controls.v1.AlarmStateR\x0eobservedStates\x12Z\n" +
+	"\x18code_required_operations\x18\x03 \x03(\x0e2 .home.controls.v1.AlarmOperationR\x16codeRequiredOperations\"@\n" +
 	"\n" +
 	"AlarmValue\x122\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x1c.home.controls.v1.AlarmStateR\x05state\"M\n" +
@@ -1073,13 +1083,14 @@ var file_home_controls_v1_controls_proto_depIdxs = []int32{
 	3,  // 8: home.controls.v1.LockAction.operation:type_name -> home.controls.v1.LockOperation
 	5,  // 9: home.controls.v1.AlarmConstraints.operations:type_name -> home.controls.v1.AlarmOperation
 	4,  // 10: home.controls.v1.AlarmConstraints.observed_states:type_name -> home.controls.v1.AlarmState
-	4,  // 11: home.controls.v1.AlarmValue.state:type_name -> home.controls.v1.AlarmState
-	5,  // 12: home.controls.v1.AlarmAction.operation:type_name -> home.controls.v1.AlarmOperation
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	5,  // 11: home.controls.v1.AlarmConstraints.code_required_operations:type_name -> home.controls.v1.AlarmOperation
+	4,  // 12: home.controls.v1.AlarmValue.state:type_name -> home.controls.v1.AlarmState
+	5,  // 13: home.controls.v1.AlarmAction.operation:type_name -> home.controls.v1.AlarmOperation
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_home_controls_v1_controls_proto_init() }

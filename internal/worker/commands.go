@@ -10,6 +10,7 @@ import (
 	wire "github.com/damione1/Homeward/gen/home/integrations/v1"
 	obs "github.com/damione1/Homeward/gen/home/observability/v1"
 	"github.com/damione1/Homeward/internal/integrations"
+	"google.golang.org/protobuf/proto"
 )
 
 // Dispatch is called only by the Host's existing route/ledger. A transport
@@ -224,12 +225,30 @@ func (p *pilot) Commands(ctx context.Context, r *connect.Request[wire.CommandsRe
 				}
 				continue
 			}
-			if err := stream.Send(item.frame); err != nil {
+			code, err := item.command.TakeEphemeralAlarmCode(item.ctx)
+			if err != nil {
+				p.dropPending(item.frame.Request.CommandId, item.frame.Correlation, item)
+				select {
+				case item.result <- err:
+				default:
+				}
+				continue
+			}
+			frame := proto.Clone(item.frame).(*wire.CommandsResponse)
+			frame.EphemeralAlarmCode = code
+			sendErr := func() error {
+				defer func() { clear(code); frame.EphemeralAlarmCode = nil }()
+				if err := p.frame(frame); err != nil {
+					return err
+				}
+				return stream.Send(frame)
+			}()
+			if sendErr != nil {
 				select {
 				case item.result <- ErrUnavailable:
 				default:
 				}
-				return err
+				return sendErr
 			}
 		}
 	}
@@ -250,8 +269,11 @@ func (p *pilot) CompleteCommand(_ context.Context, r *connect.Request[wire.Compl
 	}
 	var result error
 	acknowledged := false
+	sent := false
 	switch r.Msg.Kind {
 	case wire.CommandResultKind_COMMAND_RESULT_KIND_ACCEPTED:
+	case wire.CommandResultKind_COMMAND_RESULT_KIND_SENT_UNVERIFIED:
+		sent = true
 	case wire.CommandResultKind_COMMAND_RESULT_KIND_FAILED:
 		result = ErrCommandFailed
 	case wire.CommandResultKind_COMMAND_RESULT_KIND_ACKNOWLEDGED:
@@ -268,8 +290,14 @@ func (p *pilot) CompleteCommand(_ context.Context, r *connect.Request[wire.Compl
 	p.observeWorkerRemoveLocked(item)
 	delete(p.pending, r.Msg.CommandId)
 	p.mu.Unlock()
-	if acknowledged {
-		if err := item.command.Acknowledge(); err != nil {
+	if acknowledged || sent {
+		var err error
+		if sent {
+			err = item.command.SentUnverified()
+		} else {
+			err = item.command.Acknowledge()
+		}
+		if err != nil {
 			select {
 			case item.result <- err:
 			default:

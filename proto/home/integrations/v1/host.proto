@@ -106,6 +106,8 @@ message CommandsResponse {
   home.actions.v1.CommandRequest request = 1;
   string correlation = 2;
   bytes binding_handle = 3;
+  // One-dispatch credential, outside the durable CommandRequest. Never log it.
+  bytes ephemeral_alarm_code = 4;
 }
 enum CommandResultKind {
   COMMAND_RESULT_KIND_UNSPECIFIED = 0;
@@ -113,6 +115,8 @@ enum CommandResultKind {
   COMMAND_RESULT_KIND_FAILED = 2;
   // The bridge acknowledged the command, before any observed state.
   COMMAND_RESULT_KIND_ACKNOWLEDGED = 3;
+  // Socket/protocol submission ended without a device acknowledgement.
+  COMMAND_RESULT_KIND_SENT_UNVERIFIED = 4;
 }
 message CompleteCommandRequest {
   string command_id = 1;

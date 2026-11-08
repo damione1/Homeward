@@ -97,7 +97,7 @@ fn fan_target_label(value: wire::TemperatureFanTarget) -> &'static str {
         wire::TemperatureFanTarget::Auto => "Auto",
     }
 }
-fn activity_label(value: wire::TemperatureActivity) -> &'static str {
+pub(super) fn activity_label(value: wire::TemperatureActivity) -> &'static str {
     match value {
         wire::TemperatureActivity::Unspecified => "Unspecified",
         wire::TemperatureActivity::Idle => "Idle",

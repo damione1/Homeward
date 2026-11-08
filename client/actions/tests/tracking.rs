@@ -205,3 +205,44 @@ fn every_explicit_intention_gets_a_distinct_uuid4() {
         b'8' | b'9' | b'a' | b'b'
     ));
 }
+
+#[test]
+fn dispatch_only_completion_is_terminal_without_any_causal_ack_or_observation() {
+    let command = command();
+    let sent = terminal(
+        &command,
+        wire::CommandPhase::Dispatched,
+        wire::CommandOutcome::SentUnverified,
+    );
+    let admitted = admit_command_operation(&sent, &command, None).unwrap();
+    assert!(admitted.done());
+    assert!(matches!(
+        admitted.completion(),
+        CommandCompletion::Success {
+            outcome: CommandOutcome::SentUnverified,
+            observed_time: None
+        }
+    ));
+    for phase in [
+        wire::CommandPhase::Accepted,
+        wire::CommandPhase::Acknowledged,
+        wire::CommandPhase::Confirmed,
+    ] {
+        assert!(
+            admit_command_operation(
+                &terminal(&command, phase, wire::CommandOutcome::SentUnverified),
+                &command,
+                None
+            )
+            .is_err()
+        );
+    }
+    let mut observation_claim = sent;
+    let Some(operation::Result::Response(response)) = observation_claim.result.as_mut() else {
+        unreachable!()
+    };
+    let mut body = wire::ExecuteCapabilityResponse::decode_from_slice(&response.value).unwrap();
+    body.observed_time = Timestamp::from_unix_secs(1_700_000_001).into();
+    response.value = body.encode_to_vec().into();
+    assert!(admit_command_operation(&observation_claim, &command, None).is_err());
+}

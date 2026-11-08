@@ -316,7 +316,7 @@ func (t *actionTracker) acceptTarget(id domain.CommandID, entity domain.EntityID
 
 func terminalAction(status actions.ActionStatus) bool {
 	switch status {
-	case actions.ActionStatus_ACTION_STATUS_CONFIRMED, actions.ActionStatus_ACTION_STATUS_FAILED, actions.ActionStatus_ACTION_STATUS_CANCELLED, actions.ActionStatus_ACTION_STATUS_INDETERMINATE:
+	case actions.ActionStatus_ACTION_STATUS_CONFIRMED, actions.ActionStatus_ACTION_STATUS_FAILED, actions.ActionStatus_ACTION_STATUS_CANCELLED, actions.ActionStatus_ACTION_STATUS_INDETERMINATE, actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED:
 		return true
 	case actions.ActionStatus_ACTION_STATUS_ACCEPTED, actions.ActionStatus_ACTION_STATUS_DISPATCHED, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED:
 		return false
@@ -410,6 +410,26 @@ func (t *actionTracker) acknowledge(e *actionEntry) error {
 	}
 	return nil
 }
+
+// sent terminates dispatch-only work without inventing a device acknowledgement.
+func (t *actionTracker) sent(e *actionEntry) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.expire(e)
+	if !e.entered {
+		return ErrInvalidInput
+	}
+	// Submission completion cannot erase stronger evidence already received.
+	if e.snapshot.Status == actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED || e.snapshot.Status == actions.ActionStatus_ACTION_STATUS_CONFIRMED {
+		return nil
+	}
+	if terminalAction(e.snapshot.Status) {
+		return ErrActionTerminal
+	}
+	t.advance(e, actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED)
+	return nil
+}
+
 func (t *actionTracker) protocol(e *actionEntry) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()

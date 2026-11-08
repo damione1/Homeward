@@ -1568,8 +1568,10 @@ type AlarmDefinition struct {
 	Operations []AlarmOperation `protobuf:"varint,1,rep,packed,name=operations,proto3,enum=home.api.v2.AlarmOperation" json:"operations,omitempty"`
 	// Observed states. Presence preserves unknown, zero and false independently.
 	ObservedStates []AlarmState `protobuf:"varint,2,rep,packed,name=observed_states,json=observedStates,proto3,enum=home.api.v2.AlarmState" json:"observed_states,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Subset requiring an interactive numeric code; empty means no user input.
+	CodeRequiredOperations []AlarmOperation `protobuf:"varint,3,rep,packed,name=code_required_operations,json=codeRequiredOperations,proto3,enum=home.api.v2.AlarmOperation" json:"code_required_operations,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *AlarmDefinition) Reset() {
@@ -1612,6 +1614,13 @@ func (x *AlarmDefinition) GetOperations() []AlarmOperation {
 func (x *AlarmDefinition) GetObservedStates() []AlarmState {
 	if x != nil {
 		return x.ObservedStates
+	}
+	return nil
+}
+
+func (x *AlarmDefinition) GetCodeRequiredOperations() []AlarmOperation {
+	if x != nil {
+		return x.CodeRequiredOperations
 	}
 	return nil
 }
@@ -5428,12 +5437,13 @@ const file_home_api_v2_extended_traits_proto_rawDesc = "" +
 	"operations\x12E\n" +
 	"\x0fobserved_states\x18\x02 \x03(\x0e2\x16.home.api.v2.LockStateB\x04\xe2A\x01\x03R\x0eobservedStates\"?\n" +
 	"\tLockValue\x122\n" +
-	"\x05state\x18\x01 \x01(\x0e2\x16.home.api.v2.LockStateB\x04\xe2A\x01\x03R\x05state\"\x96\x01\n" +
+	"\x05state\x18\x01 \x01(\x0e2\x16.home.api.v2.LockStateB\x04\xe2A\x01\x03R\x05state\"\xf3\x01\n" +
 	"\x0fAlarmDefinition\x12;\n" +
 	"\n" +
 	"operations\x18\x01 \x03(\x0e2\x1b.home.api.v2.AlarmOperationR\n" +
 	"operations\x12F\n" +
-	"\x0fobserved_states\x18\x02 \x03(\x0e2\x17.home.api.v2.AlarmStateB\x04\xe2A\x01\x03R\x0eobservedStates\"A\n" +
+	"\x0fobserved_states\x18\x02 \x03(\x0e2\x17.home.api.v2.AlarmStateB\x04\xe2A\x01\x03R\x0eobservedStates\x12[\n" +
+	"\x18code_required_operations\x18\x03 \x03(\x0e2\x1b.home.api.v2.AlarmOperationB\x04\xe2A\x01\x03R\x16codeRequiredOperations\"A\n" +
 	"\n" +
 	"AlarmValue\x123\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x17.home.api.v2.AlarmStateB\x04\xe2A\x01\x03R\x05state\"\x97\x01\n" +
@@ -5996,126 +6006,127 @@ var file_home_api_v2_extended_traits_proto_depIdxs = []int32{
 	2,   // 6: home.api.v2.LockValue.state:type_name -> home.api.v2.LockState
 	5,   // 7: home.api.v2.AlarmDefinition.operations:type_name -> home.api.v2.AlarmOperation
 	4,   // 8: home.api.v2.AlarmDefinition.observed_states:type_name -> home.api.v2.AlarmState
-	4,   // 9: home.api.v2.AlarmValue.state:type_name -> home.api.v2.AlarmState
-	80,  // 10: home.api.v2.SolarOccurrence.event_time:type_name -> google.protobuf.Timestamp
-	8,   // 11: home.api.v2.SolarOccurrence.absent:type_name -> home.api.v2.SolarAbsenceReason
-	7,   // 12: home.api.v2.SolarValue.horizon:type_name -> home.api.v2.SolarHorizon
-	26,  // 13: home.api.v2.SolarValue.next_dawn:type_name -> home.api.v2.SolarOccurrence
-	26,  // 14: home.api.v2.SolarValue.next_dusk:type_name -> home.api.v2.SolarOccurrence
-	26,  // 15: home.api.v2.SolarValue.next_midnight:type_name -> home.api.v2.SolarOccurrence
-	26,  // 16: home.api.v2.SolarValue.next_noon:type_name -> home.api.v2.SolarOccurrence
-	26,  // 17: home.api.v2.SolarValue.next_rising:type_name -> home.api.v2.SolarOccurrence
-	26,  // 18: home.api.v2.SolarValue.next_setting:type_name -> home.api.v2.SolarOccurrence
-	6,   // 19: home.api.v2.SolarEventValue.event:type_name -> home.api.v2.SolarEventKind
-	26,  // 20: home.api.v2.SolarEventValue.occurrence:type_name -> home.api.v2.SolarOccurrence
-	6,   // 21: home.api.v2.SolarEventDefinition.event:type_name -> home.api.v2.SolarEventKind
-	10,  // 22: home.api.v2.Temperature.unit:type_name -> home.api.v2.TemperatureUnit
-	11,  // 23: home.api.v2.Wind.unit:type_name -> home.api.v2.SpeedUnit
-	12,  // 24: home.api.v2.Precipitation.unit:type_name -> home.api.v2.PrecipitationUnit
-	80,  // 25: home.api.v2.ForecastPeriod.start_time:type_name -> google.protobuf.Timestamp
-	80,  // 26: home.api.v2.ForecastPeriod.end_time:type_name -> google.protobuf.Timestamp
-	13,  // 27: home.api.v2.ForecastPeriod.kind:type_name -> home.api.v2.ForecastKind
-	9,   // 28: home.api.v2.ForecastPeriod.condition:type_name -> home.api.v2.WeatherCondition
-	31,  // 29: home.api.v2.ForecastPeriod.temperature:type_name -> home.api.v2.Temperature
-	31,  // 30: home.api.v2.ForecastPeriod.low:type_name -> home.api.v2.Temperature
-	31,  // 31: home.api.v2.ForecastPeriod.high:type_name -> home.api.v2.Temperature
-	33,  // 32: home.api.v2.ForecastPeriod.precipitation:type_name -> home.api.v2.Precipitation
-	80,  // 33: home.api.v2.Forecast.issue_time:type_name -> google.protobuf.Timestamp
-	80,  // 34: home.api.v2.Forecast.expire_time:type_name -> google.protobuf.Timestamp
-	34,  // 35: home.api.v2.Forecast.periods:type_name -> home.api.v2.ForecastPeriod
-	9,   // 36: home.api.v2.WeatherValue.condition:type_name -> home.api.v2.WeatherCondition
-	31,  // 37: home.api.v2.WeatherValue.temperature:type_name -> home.api.v2.Temperature
-	32,  // 38: home.api.v2.WeatherValue.wind:type_name -> home.api.v2.Wind
-	35,  // 39: home.api.v2.WeatherValue.forecast:type_name -> home.api.v2.Forecast
-	14,  // 40: home.api.v2.PresenceValue.residence:type_name -> home.api.v2.Residence
-	15,  // 41: home.api.v2.PresenceValue.confidence:type_name -> home.api.v2.PresenceConfidence
-	40,  // 42: home.api.v2.PresenceDetailsValue.zone:type_name -> home.api.v2.PresenceZone
-	41,  // 43: home.api.v2.PresenceDetailsValue.coordinates:type_name -> home.api.v2.Coordinates
-	81,  // 44: home.api.v2.LocalDateTime.date:type_name -> google.type.Date
-	82,  // 45: home.api.v2.LocalDateTime.time:type_name -> google.type.TimeOfDay
-	80,  // 46: home.api.v2.HelperValue.trigger_time:type_name -> google.protobuf.Timestamp
-	81,  // 47: home.api.v2.HelperValue.date:type_name -> google.type.Date
-	82,  // 48: home.api.v2.HelperValue.time:type_name -> google.type.TimeOfDay
-	44,  // 49: home.api.v2.HelperValue.local_value:type_name -> home.api.v2.LocalDateTime
-	81,  // 50: home.api.v2.HelperInputValue.date:type_name -> google.type.Date
-	82,  // 51: home.api.v2.HelperInputValue.time:type_name -> google.type.TimeOfDay
-	44,  // 52: home.api.v2.HelperInputValue.local_value:type_name -> home.api.v2.LocalDateTime
-	16,  // 53: home.api.v2.HelperDefinition.kind:type_name -> home.api.v2.HelperKind
-	17,  // 54: home.api.v2.HelperDefinition.operations:type_name -> home.api.v2.HelperOperation
-	18,  // 55: home.api.v2.HelperDefinition.unavailable_reason:type_name -> home.api.v2.HelperReason
-	20,  // 56: home.api.v2.CoverCapability.definition:type_name -> home.api.v2.CoverDefinition
-	49,  // 57: home.api.v2.CoverCapability.observation:type_name -> home.api.v2.CoverObservation
-	21,  // 58: home.api.v2.CoverObservation.value:type_name -> home.api.v2.CoverValue
-	80,  // 59: home.api.v2.CoverObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 60: home.api.v2.CoverObservation.quality:type_name -> home.api.v2.ObservationQuality
-	22,  // 61: home.api.v2.LockCapability.definition:type_name -> home.api.v2.LockDefinition
-	51,  // 62: home.api.v2.LockCapability.observation:type_name -> home.api.v2.LockObservation
-	23,  // 63: home.api.v2.LockObservation.value:type_name -> home.api.v2.LockValue
-	80,  // 64: home.api.v2.LockObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 65: home.api.v2.LockObservation.quality:type_name -> home.api.v2.ObservationQuality
-	24,  // 66: home.api.v2.AlarmCapability.definition:type_name -> home.api.v2.AlarmDefinition
-	53,  // 67: home.api.v2.AlarmCapability.observation:type_name -> home.api.v2.AlarmObservation
-	25,  // 68: home.api.v2.AlarmObservation.value:type_name -> home.api.v2.AlarmValue
-	80,  // 69: home.api.v2.AlarmObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 70: home.api.v2.AlarmObservation.quality:type_name -> home.api.v2.ObservationQuality
-	47,  // 71: home.api.v2.HelperCapability.definition:type_name -> home.api.v2.HelperDefinition
-	55,  // 72: home.api.v2.HelperCapability.observation:type_name -> home.api.v2.HelperObservation
-	45,  // 73: home.api.v2.HelperObservation.value:type_name -> home.api.v2.HelperValue
-	80,  // 74: home.api.v2.HelperObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 75: home.api.v2.HelperObservation.quality:type_name -> home.api.v2.ObservationQuality
-	29,  // 76: home.api.v2.SolarCapability.definition:type_name -> home.api.v2.SolarDefinition
-	57,  // 77: home.api.v2.SolarCapability.observation:type_name -> home.api.v2.SolarObservation
-	27,  // 78: home.api.v2.SolarObservation.value:type_name -> home.api.v2.SolarValue
-	80,  // 79: home.api.v2.SolarObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 80: home.api.v2.SolarObservation.quality:type_name -> home.api.v2.ObservationQuality
-	30,  // 81: home.api.v2.SolarEventCapability.definition:type_name -> home.api.v2.SolarEventDefinition
-	59,  // 82: home.api.v2.SolarEventCapability.observation:type_name -> home.api.v2.SolarEventObservation
-	28,  // 83: home.api.v2.SolarEventObservation.value:type_name -> home.api.v2.SolarEventValue
-	80,  // 84: home.api.v2.SolarEventObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 85: home.api.v2.SolarEventObservation.quality:type_name -> home.api.v2.ObservationQuality
-	37,  // 86: home.api.v2.WeatherCapability.definition:type_name -> home.api.v2.WeatherDefinition
-	61,  // 87: home.api.v2.WeatherCapability.observation:type_name -> home.api.v2.WeatherObservation
-	36,  // 88: home.api.v2.WeatherObservation.value:type_name -> home.api.v2.WeatherValue
-	80,  // 89: home.api.v2.WeatherObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 90: home.api.v2.WeatherObservation.quality:type_name -> home.api.v2.ObservationQuality
-	39,  // 91: home.api.v2.PresenceCapability.definition:type_name -> home.api.v2.PresenceDefinition
-	63,  // 92: home.api.v2.PresenceCapability.observation:type_name -> home.api.v2.PresenceObservation
-	38,  // 93: home.api.v2.PresenceObservation.value:type_name -> home.api.v2.PresenceValue
-	80,  // 94: home.api.v2.PresenceObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 95: home.api.v2.PresenceObservation.quality:type_name -> home.api.v2.ObservationQuality
-	43,  // 96: home.api.v2.PresenceDetailsCapability.definition:type_name -> home.api.v2.PresenceDetailsDefinition
-	65,  // 97: home.api.v2.PresenceDetailsCapability.observation:type_name -> home.api.v2.PresenceDetailsObservation
-	42,  // 98: home.api.v2.PresenceDetailsObservation.value:type_name -> home.api.v2.PresenceDetailsValue
-	80,  // 99: home.api.v2.PresenceDetailsObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 100: home.api.v2.PresenceDetailsObservation.quality:type_name -> home.api.v2.ObservationQuality
-	66,  // 101: home.api.v2.FanControlCapability.speed:type_name -> home.api.v2.SelectorDefinition
-	68,  // 102: home.api.v2.FanControlCapability.observation:type_name -> home.api.v2.FanControlObservation
-	19,  // 103: home.api.v2.FanControlObservation.speed:type_name -> home.api.v2.FanSpeed
-	80,  // 104: home.api.v2.FanControlObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 105: home.api.v2.FanControlObservation.quality:type_name -> home.api.v2.ObservationQuality
-	84,  // 106: home.api.v2.LightControlCapability.brightness_percent:type_name -> home.api.v2.NumberBounds
-	84,  // 107: home.api.v2.LightControlCapability.color_temperature_mireds:type_name -> home.api.v2.NumberBounds
-	84,  // 108: home.api.v2.LightControlCapability.transition_duration_bounds:type_name -> home.api.v2.NumberBounds
-	70,  // 109: home.api.v2.LightControlCapability.observation:type_name -> home.api.v2.LightControlObservation
-	80,  // 110: home.api.v2.LightControlObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 111: home.api.v2.LightControlObservation.quality:type_name -> home.api.v2.ObservationQuality
-	85,  // 112: home.api.v2.SetLightCommand.power:type_name -> home.api.v2.SetPowerCommand
-	86,  // 113: home.api.v2.SetLightCommand.level:type_name -> home.api.v2.SetLevelCommand
-	87,  // 114: home.api.v2.SetLightCommand.transition_duration:type_name -> google.protobuf.Duration
-	85,  // 115: home.api.v2.SetFanCommand.power:type_name -> home.api.v2.SetPowerCommand
-	88,  // 116: home.api.v2.SetTemperatureControlCommand.setpoint_range_celsius:type_name -> home.api.v2.TemperatureRange
-	89,  // 117: home.api.v2.SetTemperatureControlCommand.mode:type_name -> home.api.v2.TemperatureMode
-	90,  // 118: home.api.v2.SetTemperatureControlCommand.fan_target:type_name -> home.api.v2.TemperatureFanTarget
-	1,   // 119: home.api.v2.SetCoverCommand.operation:type_name -> home.api.v2.CoverOperation
-	3,   // 120: home.api.v2.SetLockCommand.operation:type_name -> home.api.v2.LockOperation
-	5,   // 121: home.api.v2.SetAlarmCommand.operation:type_name -> home.api.v2.AlarmOperation
-	17,  // 122: home.api.v2.SetHelperCommand.operation:type_name -> home.api.v2.HelperOperation
-	46,  // 123: home.api.v2.SetHelperCommand.value:type_name -> home.api.v2.HelperInputValue
-	124, // [124:124] is the sub-list for method output_type
-	124, // [124:124] is the sub-list for method input_type
-	124, // [124:124] is the sub-list for extension type_name
-	124, // [124:124] is the sub-list for extension extendee
-	0,   // [0:124] is the sub-list for field type_name
+	5,   // 9: home.api.v2.AlarmDefinition.code_required_operations:type_name -> home.api.v2.AlarmOperation
+	4,   // 10: home.api.v2.AlarmValue.state:type_name -> home.api.v2.AlarmState
+	80,  // 11: home.api.v2.SolarOccurrence.event_time:type_name -> google.protobuf.Timestamp
+	8,   // 12: home.api.v2.SolarOccurrence.absent:type_name -> home.api.v2.SolarAbsenceReason
+	7,   // 13: home.api.v2.SolarValue.horizon:type_name -> home.api.v2.SolarHorizon
+	26,  // 14: home.api.v2.SolarValue.next_dawn:type_name -> home.api.v2.SolarOccurrence
+	26,  // 15: home.api.v2.SolarValue.next_dusk:type_name -> home.api.v2.SolarOccurrence
+	26,  // 16: home.api.v2.SolarValue.next_midnight:type_name -> home.api.v2.SolarOccurrence
+	26,  // 17: home.api.v2.SolarValue.next_noon:type_name -> home.api.v2.SolarOccurrence
+	26,  // 18: home.api.v2.SolarValue.next_rising:type_name -> home.api.v2.SolarOccurrence
+	26,  // 19: home.api.v2.SolarValue.next_setting:type_name -> home.api.v2.SolarOccurrence
+	6,   // 20: home.api.v2.SolarEventValue.event:type_name -> home.api.v2.SolarEventKind
+	26,  // 21: home.api.v2.SolarEventValue.occurrence:type_name -> home.api.v2.SolarOccurrence
+	6,   // 22: home.api.v2.SolarEventDefinition.event:type_name -> home.api.v2.SolarEventKind
+	10,  // 23: home.api.v2.Temperature.unit:type_name -> home.api.v2.TemperatureUnit
+	11,  // 24: home.api.v2.Wind.unit:type_name -> home.api.v2.SpeedUnit
+	12,  // 25: home.api.v2.Precipitation.unit:type_name -> home.api.v2.PrecipitationUnit
+	80,  // 26: home.api.v2.ForecastPeriod.start_time:type_name -> google.protobuf.Timestamp
+	80,  // 27: home.api.v2.ForecastPeriod.end_time:type_name -> google.protobuf.Timestamp
+	13,  // 28: home.api.v2.ForecastPeriod.kind:type_name -> home.api.v2.ForecastKind
+	9,   // 29: home.api.v2.ForecastPeriod.condition:type_name -> home.api.v2.WeatherCondition
+	31,  // 30: home.api.v2.ForecastPeriod.temperature:type_name -> home.api.v2.Temperature
+	31,  // 31: home.api.v2.ForecastPeriod.low:type_name -> home.api.v2.Temperature
+	31,  // 32: home.api.v2.ForecastPeriod.high:type_name -> home.api.v2.Temperature
+	33,  // 33: home.api.v2.ForecastPeriod.precipitation:type_name -> home.api.v2.Precipitation
+	80,  // 34: home.api.v2.Forecast.issue_time:type_name -> google.protobuf.Timestamp
+	80,  // 35: home.api.v2.Forecast.expire_time:type_name -> google.protobuf.Timestamp
+	34,  // 36: home.api.v2.Forecast.periods:type_name -> home.api.v2.ForecastPeriod
+	9,   // 37: home.api.v2.WeatherValue.condition:type_name -> home.api.v2.WeatherCondition
+	31,  // 38: home.api.v2.WeatherValue.temperature:type_name -> home.api.v2.Temperature
+	32,  // 39: home.api.v2.WeatherValue.wind:type_name -> home.api.v2.Wind
+	35,  // 40: home.api.v2.WeatherValue.forecast:type_name -> home.api.v2.Forecast
+	14,  // 41: home.api.v2.PresenceValue.residence:type_name -> home.api.v2.Residence
+	15,  // 42: home.api.v2.PresenceValue.confidence:type_name -> home.api.v2.PresenceConfidence
+	40,  // 43: home.api.v2.PresenceDetailsValue.zone:type_name -> home.api.v2.PresenceZone
+	41,  // 44: home.api.v2.PresenceDetailsValue.coordinates:type_name -> home.api.v2.Coordinates
+	81,  // 45: home.api.v2.LocalDateTime.date:type_name -> google.type.Date
+	82,  // 46: home.api.v2.LocalDateTime.time:type_name -> google.type.TimeOfDay
+	80,  // 47: home.api.v2.HelperValue.trigger_time:type_name -> google.protobuf.Timestamp
+	81,  // 48: home.api.v2.HelperValue.date:type_name -> google.type.Date
+	82,  // 49: home.api.v2.HelperValue.time:type_name -> google.type.TimeOfDay
+	44,  // 50: home.api.v2.HelperValue.local_value:type_name -> home.api.v2.LocalDateTime
+	81,  // 51: home.api.v2.HelperInputValue.date:type_name -> google.type.Date
+	82,  // 52: home.api.v2.HelperInputValue.time:type_name -> google.type.TimeOfDay
+	44,  // 53: home.api.v2.HelperInputValue.local_value:type_name -> home.api.v2.LocalDateTime
+	16,  // 54: home.api.v2.HelperDefinition.kind:type_name -> home.api.v2.HelperKind
+	17,  // 55: home.api.v2.HelperDefinition.operations:type_name -> home.api.v2.HelperOperation
+	18,  // 56: home.api.v2.HelperDefinition.unavailable_reason:type_name -> home.api.v2.HelperReason
+	20,  // 57: home.api.v2.CoverCapability.definition:type_name -> home.api.v2.CoverDefinition
+	49,  // 58: home.api.v2.CoverCapability.observation:type_name -> home.api.v2.CoverObservation
+	21,  // 59: home.api.v2.CoverObservation.value:type_name -> home.api.v2.CoverValue
+	80,  // 60: home.api.v2.CoverObservation.observed_time:type_name -> google.protobuf.Timestamp
+	83,  // 61: home.api.v2.CoverObservation.quality:type_name -> home.api.v2.ObservationQuality
+	22,  // 62: home.api.v2.LockCapability.definition:type_name -> home.api.v2.LockDefinition
+	51,  // 63: home.api.v2.LockCapability.observation:type_name -> home.api.v2.LockObservation
+	23,  // 64: home.api.v2.LockObservation.value:type_name -> home.api.v2.LockValue
+	80,  // 65: home.api.v2.LockObservation.observed_time:type_name -> google.protobuf.Timestamp
+	83,  // 66: home.api.v2.LockObservation.quality:type_name -> home.api.v2.ObservationQuality
+	24,  // 67: home.api.v2.AlarmCapability.definition:type_name -> home.api.v2.AlarmDefinition
+	53,  // 68: home.api.v2.AlarmCapability.observation:type_name -> home.api.v2.AlarmObservation
+	25,  // 69: home.api.v2.AlarmObservation.value:type_name -> home.api.v2.AlarmValue
+	80,  // 70: home.api.v2.AlarmObservation.observed_time:type_name -> google.protobuf.Timestamp
+	83,  // 71: home.api.v2.AlarmObservation.quality:type_name -> home.api.v2.ObservationQuality
+	47,  // 72: home.api.v2.HelperCapability.definition:type_name -> home.api.v2.HelperDefinition
+	55,  // 73: home.api.v2.HelperCapability.observation:type_name -> home.api.v2.HelperObservation
+	45,  // 74: home.api.v2.HelperObservation.value:type_name -> home.api.v2.HelperValue
+	80,  // 75: home.api.v2.HelperObservation.observed_time:type_name -> google.protobuf.Timestamp
+	83,  // 76: home.api.v2.HelperObservation.quality:type_name -> home.api.v2.ObservationQuality
+	29,  // 77: home.api.v2.SolarCapability.definition:type_name -> home.api.v2.SolarDefinition
+	57,  // 78: home.api.v2.SolarCapability.observation:type_name -> home.api.v2.SolarObservation
+	27,  // 79: home.api.v2.SolarObservation.value:type_name -> home.api.v2.SolarValue
+	80,  // 80: home.api.v2.SolarObservation.observed_time:type_name -> google.protobuf.Timestamp
+	83,  // 81: home.api.v2.SolarObservation.quality:type_name -> home.api.v2.ObservationQuality
+	30,  // 82: home.api.v2.SolarEventCapability.definition:type_name -> home.api.v2.SolarEventDefinition
+	59,  // 83: home.api.v2.SolarEventCapability.observation:type_name -> home.api.v2.SolarEventObservation
+	28,  // 84: home.api.v2.SolarEventObservation.value:type_name -> home.api.v2.SolarEventValue
+	80,  // 85: home.api.v2.SolarEventObservation.observed_time:type_name -> google.protobuf.Timestamp
+	83,  // 86: home.api.v2.SolarEventObservation.quality:type_name -> home.api.v2.ObservationQuality
+	37,  // 87: home.api.v2.WeatherCapability.definition:type_name -> home.api.v2.WeatherDefinition
+	61,  // 88: home.api.v2.WeatherCapability.observation:type_name -> home.api.v2.WeatherObservation
+	36,  // 89: home.api.v2.WeatherObservation.value:type_name -> home.api.v2.WeatherValue
+	80,  // 90: home.api.v2.WeatherObservation.observed_time:type_name -> google.protobuf.Timestamp
+	83,  // 91: home.api.v2.WeatherObservation.quality:type_name -> home.api.v2.ObservationQuality
+	39,  // 92: home.api.v2.PresenceCapability.definition:type_name -> home.api.v2.PresenceDefinition
+	63,  // 93: home.api.v2.PresenceCapability.observation:type_name -> home.api.v2.PresenceObservation
+	38,  // 94: home.api.v2.PresenceObservation.value:type_name -> home.api.v2.PresenceValue
+	80,  // 95: home.api.v2.PresenceObservation.observed_time:type_name -> google.protobuf.Timestamp
+	83,  // 96: home.api.v2.PresenceObservation.quality:type_name -> home.api.v2.ObservationQuality
+	43,  // 97: home.api.v2.PresenceDetailsCapability.definition:type_name -> home.api.v2.PresenceDetailsDefinition
+	65,  // 98: home.api.v2.PresenceDetailsCapability.observation:type_name -> home.api.v2.PresenceDetailsObservation
+	42,  // 99: home.api.v2.PresenceDetailsObservation.value:type_name -> home.api.v2.PresenceDetailsValue
+	80,  // 100: home.api.v2.PresenceDetailsObservation.observed_time:type_name -> google.protobuf.Timestamp
+	83,  // 101: home.api.v2.PresenceDetailsObservation.quality:type_name -> home.api.v2.ObservationQuality
+	66,  // 102: home.api.v2.FanControlCapability.speed:type_name -> home.api.v2.SelectorDefinition
+	68,  // 103: home.api.v2.FanControlCapability.observation:type_name -> home.api.v2.FanControlObservation
+	19,  // 104: home.api.v2.FanControlObservation.speed:type_name -> home.api.v2.FanSpeed
+	80,  // 105: home.api.v2.FanControlObservation.observed_time:type_name -> google.protobuf.Timestamp
+	83,  // 106: home.api.v2.FanControlObservation.quality:type_name -> home.api.v2.ObservationQuality
+	84,  // 107: home.api.v2.LightControlCapability.brightness_percent:type_name -> home.api.v2.NumberBounds
+	84,  // 108: home.api.v2.LightControlCapability.color_temperature_mireds:type_name -> home.api.v2.NumberBounds
+	84,  // 109: home.api.v2.LightControlCapability.transition_duration_bounds:type_name -> home.api.v2.NumberBounds
+	70,  // 110: home.api.v2.LightControlCapability.observation:type_name -> home.api.v2.LightControlObservation
+	80,  // 111: home.api.v2.LightControlObservation.observed_time:type_name -> google.protobuf.Timestamp
+	83,  // 112: home.api.v2.LightControlObservation.quality:type_name -> home.api.v2.ObservationQuality
+	85,  // 113: home.api.v2.SetLightCommand.power:type_name -> home.api.v2.SetPowerCommand
+	86,  // 114: home.api.v2.SetLightCommand.level:type_name -> home.api.v2.SetLevelCommand
+	87,  // 115: home.api.v2.SetLightCommand.transition_duration:type_name -> google.protobuf.Duration
+	85,  // 116: home.api.v2.SetFanCommand.power:type_name -> home.api.v2.SetPowerCommand
+	88,  // 117: home.api.v2.SetTemperatureControlCommand.setpoint_range_celsius:type_name -> home.api.v2.TemperatureRange
+	89,  // 118: home.api.v2.SetTemperatureControlCommand.mode:type_name -> home.api.v2.TemperatureMode
+	90,  // 119: home.api.v2.SetTemperatureControlCommand.fan_target:type_name -> home.api.v2.TemperatureFanTarget
+	1,   // 120: home.api.v2.SetCoverCommand.operation:type_name -> home.api.v2.CoverOperation
+	3,   // 121: home.api.v2.SetLockCommand.operation:type_name -> home.api.v2.LockOperation
+	5,   // 122: home.api.v2.SetAlarmCommand.operation:type_name -> home.api.v2.AlarmOperation
+	17,  // 123: home.api.v2.SetHelperCommand.operation:type_name -> home.api.v2.HelperOperation
+	46,  // 124: home.api.v2.SetHelperCommand.value:type_name -> home.api.v2.HelperInputValue
+	125, // [125:125] is the sub-list for method output_type
+	125, // [125:125] is the sub-list for method input_type
+	125, // [125:125] is the sub-list for extension type_name
+	125, // [125:125] is the sub-list for extension extendee
+	0,   // [0:125] is the sub-list for field type_name
 }
 
 func init() { file_home_api_v2_extended_traits_proto_init() }

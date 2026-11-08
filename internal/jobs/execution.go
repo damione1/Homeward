@@ -153,7 +153,7 @@ func (h *CommandHandler) execute(ctx context.Context, attempt Attempt) (Outcome,
 		return Uncertain, err
 	}
 	switch response.Status {
-	case actions.ActionStatus_ACTION_STATUS_DISPATCHED,
+	case actions.ActionStatus_ACTION_STATUS_DISPATCHED, actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED,
 		actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED,
 		actions.ActionStatus_ACTION_STATUS_CONFIRMED:
 		return Completed, err

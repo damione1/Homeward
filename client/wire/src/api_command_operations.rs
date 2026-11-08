@@ -35,6 +35,7 @@ impl CommandPhase {
 pub enum CommandOutcome {
     Confirmed,
     AcknowledgedUnverified,
+    SentUnverified,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandCompletion {
@@ -167,6 +168,12 @@ pub fn admit_command_operation(
                         return Err(InvalidOperation::Inconsistent);
                     }
                     CommandOutcome::AcknowledgedUnverified
+                }
+                EnumValue::Known(wire::CommandOutcome::SentUnverified) => {
+                    if phase != CommandPhase::Dispatched || observed_time.is_some() {
+                        return Err(InvalidOperation::Inconsistent);
+                    }
+                    CommandOutcome::SentUnverified
                 }
                 EnumValue::Known(wire::CommandOutcome::Unspecified) | EnumValue::Unknown(_) => {
                     return Err(InvalidOperation::Unsupported);

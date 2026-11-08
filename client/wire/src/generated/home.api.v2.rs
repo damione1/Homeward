@@ -24849,6 +24849,12 @@ pub struct AlarmDefinition {
     ///
     /// Field 2: `observed_states`
     pub observed_states: ::buffa::alloc::vec::Vec<::buffa::EnumValue<AlarmState>>,
+    /// Subset requiring an interactive numeric code; empty means no user input.
+    ///
+    /// Field 3: `code_required_operations`
+    pub code_required_operations: ::buffa::alloc::vec::Vec<
+        ::buffa::EnumValue<AlarmOperation>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -24857,6 +24863,7 @@ impl ::core::fmt::Debug for AlarmDefinition {
         f.debug_struct("AlarmDefinition")
             .field("operations", &self.operations)
             .field("observed_states", &self.observed_states)
+            .field("code_required_operations", &self.code_required_operations)
             .finish()
     }
 }
@@ -24903,6 +24910,14 @@ impl ::buffa::Message for AlarmDefinition {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if !self.code_required_operations.is_empty() {
+            let payload: u64 = self
+                .code_required_operations
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -24932,6 +24947,17 @@ impl ::buffa::Message for AlarmDefinition {
                 .sum::<u64>();
             ::buffa::types::put_len_delimited_header(2u32, payload, buf);
             for v in &self.observed_states {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if !self.code_required_operations.is_empty() {
+            let payload: u64 = self
+                .code_required_operations
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(3u32, payload, buf);
+            for v in &self.code_required_operations {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
@@ -25024,6 +25050,44 @@ impl ::buffa::Message for AlarmDefinition {
                     );
                 }
             }
+            3u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.code_required_operations.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.code_required_operations
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.code_required_operations
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -25034,6 +25098,7 @@ impl ::buffa::Message for AlarmDefinition {
     fn clear(&mut self) {
         self.operations.clear();
         self.observed_states.clear();
+        self.code_required_operations.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -39316,6 +39381,12 @@ pub struct ExecuteCapabilityRequest {
     ///
     /// Field 6: `etag`
     pub etag: ::buffa::alloc::string::String,
+    /// Numeric alarm credential for this admission only (1..32 ASCII digits).
+    /// Detached before fingerprinting; never persisted, returned, logged or replayed.
+    /// Allowed only for an operation declared in code_required_operations.
+    ///
+    /// Field 15: `ephemeral_alarm_code`
+    pub ephemeral_alarm_code: ::buffa::alloc::vec::Vec<u8>,
     /// Required physical-intent deadline; enforced again at the point of effect.
     ///
     /// Field 5: `expire_time`
@@ -39335,6 +39406,7 @@ impl ::core::fmt::Debug for ExecuteCapabilityRequest {
             .field("name", &self.name)
             .field("request_id", &self.request_id)
             .field("etag", &self.etag)
+            .field("ephemeral_alarm_code", &self.ephemeral_alarm_code)
             .field("expire_time", &self.expire_time)
             .field("command", &self.command)
             .finish()
@@ -39470,6 +39542,12 @@ impl ::buffa::Message for ExecuteCapabilityRequest {
         if !self.etag.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.etag) as u64;
         }
+        if !self.ephemeral_alarm_code.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.ephemeral_alarm_code)
+                        as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -39582,6 +39660,13 @@ impl ::buffa::Message for ExecuteCapabilityRequest {
         }
         if !self.etag.is_empty() {
             ::buffa::types::put_string_field(6u32, &self.etag, buf);
+        }
+        if !self.ephemeral_alarm_code.is_empty() {
+            ::buffa::types::put_shared_bytes_field(
+                15u32,
+                &self.ephemeral_alarm_code,
+                buf,
+            );
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -39848,6 +39933,13 @@ impl ::buffa::Message for ExecuteCapabilityRequest {
                 )?;
                 ::buffa::types::merge_string(&mut self.etag, buf)?;
             }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.ephemeral_alarm_code, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -39861,6 +39953,7 @@ impl ::buffa::Message for ExecuteCapabilityRequest {
         self.request_id.clear();
         self.expire_time = ::buffa::MessageField::none();
         self.etag.clear();
+        self.ephemeral_alarm_code.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -41321,6 +41414,8 @@ pub enum CommandOutcome {
     COMMAND_OUTCOME_CONFIRMED = 1i32,
     /// This source can promise an acknowledgement only; no confirmation invented.
     COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED = 2i32,
+    /// Dispatch finished without a device acknowledgement. Live state is separate.
+    COMMAND_OUTCOME_SENT_UNVERIFIED = 3i32,
 }
 impl CommandOutcome {
     ///Idiomatic alias for [`Self::COMMAND_OUTCOME_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -41332,6 +41427,9 @@ impl CommandOutcome {
     ///Idiomatic alias for [`Self::COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const AcknowledgedUnverified: Self = Self::COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED;
+    ///Idiomatic alias for [`Self::COMMAND_OUTCOME_SENT_UNVERIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SentUnverified: Self = Self::COMMAND_OUTCOME_SENT_UNVERIFIED;
 }
 impl ::core::default::Default for CommandOutcome {
     fn default() -> Self {
@@ -41348,6 +41446,7 @@ impl ::buffa::Enumeration for CommandOutcome {
                     Self::COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED,
                 )
             }
+            3i32 => ::core::option::Option::Some(Self::COMMAND_OUTCOME_SENT_UNVERIFIED),
             _ => ::core::option::Option::None,
         }
     }
@@ -41361,6 +41460,7 @@ impl ::buffa::Enumeration for CommandOutcome {
             Self::COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED => {
                 "COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED"
             }
+            Self::COMMAND_OUTCOME_SENT_UNVERIFIED => "COMMAND_OUTCOME_SENT_UNVERIFIED",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -41376,6 +41476,9 @@ impl ::buffa::Enumeration for CommandOutcome {
                     Self::COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED,
                 )
             }
+            "COMMAND_OUTCOME_SENT_UNVERIFIED" => {
+                ::core::option::Option::Some(Self::COMMAND_OUTCOME_SENT_UNVERIFIED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -41384,6 +41487,7 @@ impl ::buffa::Enumeration for CommandOutcome {
             Self::COMMAND_OUTCOME_UNSPECIFIED,
             Self::COMMAND_OUTCOME_CONFIRMED,
             Self::COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED,
+            Self::COMMAND_OUTCOME_SENT_UNVERIFIED,
         ]
     }
 }
@@ -62135,6 +62239,127 @@ impl ::buffa::ExtensionSet for DashboardHeadingNode {
         &mut self.__buffa_unknown_fields
     }
 }
+/// Explicit optional secondary lock control attached to a cover. Each resource
+/// retains independent observation and execution authorization.
+#[derive(Clone, PartialEq, Default)]
+pub struct DashboardCoverLock {
+    /// Exact authorized lock capability; never inferred from names or devices.
+    ///
+    /// Field 1: `capability`
+    pub capability: ::buffa::alloc::string::String,
+    /// Configured contextual label, for example an electronic inhibition control.
+    ///
+    /// Field 2: `display_name`
+    pub display_name: ::buffa::alloc::string::String,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for DashboardCoverLock {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("DashboardCoverLock")
+            .field("capability", &self.capability)
+            .field("display_name", &self.display_name)
+            .finish()
+    }
+}
+impl DashboardCoverLock {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.DashboardCoverLock";
+}
+::buffa::impl_default_instance!(DashboardCoverLock);
+impl ::buffa::MessageName for DashboardCoverLock {
+    const PACKAGE: &'static str = "home.api.v2";
+    const NAME: &'static str = "DashboardCoverLock";
+    const FULL_NAME: &'static str = "home.api.v2.DashboardCoverLock";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.DashboardCoverLock";
+}
+impl ::buffa::Message for DashboardCoverLock {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.capability.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.capability) as u64;
+        }
+        if !self.display_name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.display_name) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.capability.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.capability, buf);
+        }
+        if !self.display_name.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.display_name, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.capability, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.display_name, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.capability.clear();
+        self.display_name.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for DashboardCoverLock {
+    const PROTO_FQN: &'static str = "home.api.v2.DashboardCoverLock";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
 /// One exact admitted capability; a sibling is never an implicit substitute.
 #[derive(Clone, PartialEq, Default)]
 pub struct DashboardTileNode {
@@ -62165,6 +62390,13 @@ pub struct DashboardTileNode {
         DashboardInteractions,
         ::buffa::Inline<DashboardInteractions>,
     >,
+    /// Explicit cover association; absent when the secondary lock is unreadable.
+    ///
+    /// Field 7: `cover_lock`
+    pub cover_lock: ::buffa::MessageField<
+        DashboardCoverLock,
+        ::buffa::Inline<DashboardCoverLock>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -62177,6 +62409,7 @@ impl ::core::fmt::Debug for DashboardTileNode {
             .field("vertical", &self.vertical)
             .field("hide_observation", &self.hide_observation)
             .field("interactions", &self.interactions)
+            .field("cover_lock", &self.cover_lock)
             .finish()
     }
 }
@@ -62254,6 +62487,14 @@ impl ::buffa::Message for DashboardTileNode {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.cover_lock.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.cover_lock.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -62297,6 +62538,14 @@ impl ::buffa::Message for DashboardTileNode {
                 buf,
             );
             self.interactions.write_to(__cache, buf);
+        }
+        if self.cover_lock.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                7u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.cover_lock.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -62394,6 +62643,17 @@ impl ::buffa::Message for DashboardTileNode {
                     ctx,
                 )?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.cover_lock.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -62408,6 +62668,7 @@ impl ::buffa::Message for DashboardTileNode {
         self.vertical = ::core::option::Option::None;
         self.hide_observation = ::core::option::Option::None;
         self.interactions = ::buffa::MessageField::none();
+        self.cover_lock = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -62450,6 +62711,13 @@ pub struct DashboardRecipeNode {
         DashboardInteractions,
         ::buffa::Inline<DashboardInteractions>,
     >,
+    /// Explicit cover association; absent when the secondary lock is unreadable.
+    ///
+    /// Field 7: `cover_lock`
+    pub cover_lock: ::buffa::MessageField<
+        DashboardCoverLock,
+        ::buffa::Inline<DashboardCoverLock>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -62462,6 +62730,7 @@ impl ::core::fmt::Debug for DashboardRecipeNode {
             .field("features", &self.features)
             .field("presentation", &self.presentation)
             .field("interactions", &self.interactions)
+            .field("cover_lock", &self.cover_lock)
             .finish()
     }
 }
@@ -62526,6 +62795,14 @@ impl ::buffa::Message for DashboardRecipeNode {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.cover_lock.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.cover_lock.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -62572,6 +62849,14 @@ impl ::buffa::Message for DashboardRecipeNode {
                 buf,
             );
             self.interactions.write_to(__cache, buf);
+        }
+        if self.cover_lock.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                7u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.cover_lock.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -62665,6 +62950,17 @@ impl ::buffa::Message for DashboardRecipeNode {
                     ctx,
                 )?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.cover_lock.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -62679,6 +62975,7 @@ impl ::buffa::Message for DashboardRecipeNode {
         self.features.clear();
         self.presentation = ::buffa::EnumValue::from(0);
         self.interactions = ::buffa::MessageField::none();
+        self.cover_lock = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -150567,6 +150864,13 @@ pub mod __buffa {
                 'a,
                 ::buffa::EnumValue<super::super::AlarmState>,
             >,
+            /// Subset requiring an interactive numeric code; empty means no user input.
+            ///
+            /// Field 3: `code_required_operations`
+            pub code_required_operations: ::buffa::RepeatedView<
+                'a,
+                ::buffa::EnumValue<super::super::AlarmOperation>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for AlarmDefinitionView<'a> {
@@ -150671,6 +150975,39 @@ pub mod __buffa {
                             );
                         }
                     }
+                    3u32 => {
+                        if tag.wire_type()
+                            == ::buffa::encoding::WireType::LengthDelimited
+                        {
+                            let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                            view.code_required_operations
+                                .reserve(::buffa::encoding::count_varints(payload));
+                            let mut pcur: &[u8] = payload;
+                            while !pcur.is_empty() {
+                                view.code_required_operations
+                                    .push(
+                                        ::buffa::EnumValue::from(
+                                            ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                        ),
+                                    );
+                            }
+                        } else if tag.wire_type() == ::buffa::encoding::WireType::Varint
+                        {
+                            view.code_required_operations
+                                .push(
+                                    ::buffa::EnumValue::from(
+                                        ::buffa::types::decode_int32(&mut cur)?,
+                                    ),
+                                );
+                        } else {
+                            return Err(
+                                ::buffa::encoding::wire_type_mismatch(
+                                    tag,
+                                    ::buffa::encoding::WireType::LengthDelimited,
+                                ),
+                            );
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -150702,6 +151039,7 @@ pub mod __buffa {
                 ::core::result::Result::Ok(super::super::AlarmDefinition {
                     operations: self.operations.to_vec(),
                     observed_states: self.observed_states.to_vec(),
+                    code_required_operations: self.code_required_operations.to_vec(),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -150729,6 +151067,16 @@ pub mod __buffa {
                 if !self.observed_states.is_empty() {
                     let payload: u64 = self
                         .observed_states
+                        .iter()
+                        .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                        .sum::<u64>();
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(payload) as u64
+                            + payload;
+                }
+                if !self.code_required_operations.is_empty() {
+                    let payload: u64 = self
+                        .code_required_operations
                         .iter()
                         .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                         .sum::<u64>();
@@ -150766,6 +151114,17 @@ pub mod __buffa {
                         .sum::<u64>();
                     ::buffa::types::put_len_delimited_header(2u32, payload, buf);
                     for v in &self.observed_states {
+                        ::buffa::types::encode_int32(v.to_i32(), buf);
+                    }
+                }
+                if !self.code_required_operations.is_empty() {
+                    let payload: u64 = self
+                        .code_required_operations
+                        .iter()
+                        .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                        .sum::<u64>();
+                    ::buffa::types::put_len_delimited_header(3u32, payload, buf);
+                    for v in &self.code_required_operations {
                         ::buffa::types::encode_int32(v.to_i32(), buf);
                     }
                 }
@@ -150887,6 +151246,18 @@ pub mod __buffa {
                 ::buffa::EnumValue<super::super::AlarmState>,
             > {
                 &self.0.reborrow().observed_states
+            }
+            /// Subset requiring an interactive numeric code; empty means no user input.
+            ///
+            /// Field 3: `code_required_operations`
+            #[must_use]
+            pub fn code_required_operations(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                ::buffa::EnumValue<super::super::AlarmOperation>,
+            > {
+                &self.0.reborrow().code_required_operations
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<AlarmDefinitionView<'static>>>
@@ -178873,6 +179244,12 @@ pub mod __buffa {
             ///
             /// Field 6: `etag`
             pub etag: &'a str,
+            /// Numeric alarm credential for this admission only (1..32 ASCII digits).
+            /// Detached before fingerprinting; never persisted, returned, logged or replayed.
+            /// Allowed only for an operation declared in code_required_operations.
+            ///
+            /// Field 15: `ephemeral_alarm_code`
+            pub ephemeral_alarm_code: &'a [u8],
             /// Required physical-intent deadline; enforced again at the point of effect.
             ///
             /// Field 5: `expire_time`
@@ -178942,6 +179319,15 @@ pub mod __buffa {
                             ::buffa::encoding::WireType::LengthDelimited,
                         )?;
                         view.etag = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    15u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.ephemeral_alarm_code = ::buffa::types::borrow_bytes(
+                            &mut cur,
+                        )?;
                     }
                     5u32 => {
                         ::buffa::encoding::check_wire_type(
@@ -179310,6 +179696,7 @@ pub mod __buffa {
                     name: self.name.to_string(),
                     request_id: self.request_id.to_string(),
                     etag: self.etag.to_string(),
+                    ephemeral_alarm_code: (self.ephemeral_alarm_code).to_vec(),
                     expire_time: match self.expire_time.as_option() {
                         Some(v) => {
                             ::buffa::MessageField::<
@@ -179556,6 +179943,13 @@ pub mod __buffa {
                 if !self.etag.is_empty() {
                     size += 1u64 + ::buffa::types::string_encoded_len(&self.etag) as u64;
                 }
+                if !self.ephemeral_alarm_code.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::bytes_encoded_len(
+                                &self.ephemeral_alarm_code,
+                            ) as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -179688,6 +180082,13 @@ pub mod __buffa {
                 if !self.etag.is_empty() {
                     ::buffa::types::put_string_field(6u32, &self.etag, buf);
                 }
+                if !self.ephemeral_alarm_code.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(
+                        15u32,
+                        &self.ephemeral_alarm_code,
+                        buf,
+                    );
+                }
                 self.__buffa_unknown_fields.write_to(buf);
             }
         }
@@ -179807,6 +180208,15 @@ pub mod __buffa {
             #[must_use]
             pub fn etag(&self) -> &'_ str {
                 self.0.reborrow().etag
+            }
+            /// Numeric alarm credential for this admission only (1..32 ASCII digits).
+            /// Detached before fingerprinting; never persisted, returned, logged or replayed.
+            /// Allowed only for an operation declared in code_required_operations.
+            ///
+            /// Field 15: `ephemeral_alarm_code`
+            #[must_use]
+            pub fn ephemeral_alarm_code(&self) -> &'_ [u8] {
+                self.0.reborrow().ephemeral_alarm_code
             }
             /// Required physical-intent deadline; enforced again at the point of effect.
             ///
@@ -215387,6 +215797,276 @@ pub mod __buffa {
             type View<'a> = DashboardHeadingNodeView<'a>;
             type ViewHandle = DashboardHeadingNodeOwnedView;
         }
+        /// Explicit optional secondary lock control attached to a cover. Each resource
+        /// retains independent observation and execution authorization.
+        #[derive(Clone, Debug, Default)]
+        pub struct DashboardCoverLockView<'a> {
+            /// Exact authorized lock capability; never inferred from names or devices.
+            ///
+            /// Field 1: `capability`
+            pub capability: &'a str,
+            /// Configured contextual label, for example an electronic inhibition control.
+            ///
+            /// Field 2: `display_name`
+            pub display_name: &'a str,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for DashboardCoverLockView<'a> {
+            type Owned = super::super::DashboardCoverLock;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.capability = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.display_name = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::DashboardCoverLock,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::DashboardCoverLock,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::DashboardCoverLock {
+                    capability: self.capability.to_string(),
+                    display_name: self.display_name.to_string(),
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for DashboardCoverLockView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.capability.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.capability)
+                                as u64;
+                }
+                if !self.display_name.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.display_name)
+                                as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.capability.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.capability, buf);
+                }
+                if !self.display_name.is_empty() {
+                    ::buffa::types::put_string_field(2u32, &self.display_name, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for DashboardCoverLockView<'a> {
+            const PACKAGE: &'static str = "home.api.v2";
+            const NAME: &'static str = "DashboardCoverLock";
+            const FULL_NAME: &'static str = "home.api.v2.DashboardCoverLock";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.DashboardCoverLock";
+        }
+        ::buffa::impl_default_view_instance!(DashboardCoverLockView);
+        ::buffa::impl_view_reborrow!(DashboardCoverLockView);
+        /** Self-contained, `'static` owned view of a `DashboardCoverLock` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`DashboardCoverLockView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`DashboardCoverLockView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct DashboardCoverLockOwnedView(
+            ::buffa::OwnedView<DashboardCoverLockView<'static>>,
+        );
+        impl DashboardCoverLockOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    DashboardCoverLockOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    DashboardCoverLockOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::DashboardCoverLock,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    DashboardCoverLockOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`DashboardCoverLockView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &DashboardCoverLockView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::DashboardCoverLock {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Exact authorized lock capability; never inferred from names or devices.
+            ///
+            /// Field 1: `capability`
+            #[must_use]
+            pub fn capability(&self) -> &'_ str {
+                self.0.reborrow().capability
+            }
+            /// Configured contextual label, for example an electronic inhibition control.
+            ///
+            /// Field 2: `display_name`
+            #[must_use]
+            pub fn display_name(&self) -> &'_ str {
+                self.0.reborrow().display_name
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<DashboardCoverLockView<'static>>>
+        for DashboardCoverLockOwnedView {
+            fn from(inner: ::buffa::OwnedView<DashboardCoverLockView<'static>>) -> Self {
+                DashboardCoverLockOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<DashboardCoverLockOwnedView>
+        for ::buffa::OwnedView<DashboardCoverLockView<'static>> {
+            fn from(wrapper: DashboardCoverLockOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<DashboardCoverLockView<'static>>>
+        for DashboardCoverLockOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<DashboardCoverLockView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::DashboardCoverLock {
+            type View<'a> = DashboardCoverLockView<'a>;
+            type ViewHandle = DashboardCoverLockOwnedView;
+        }
         /// One exact admitted capability; a sibling is never an implicit substitute.
         #[derive(Clone, Debug, Default)]
         pub struct DashboardTileNodeView<'a> {
@@ -215420,6 +216100,12 @@ pub mod __buffa {
             /// Field 6: `interactions`
             pub interactions: ::buffa::MessageFieldView<
                 super::super::__buffa::view::DashboardInteractionsView<'a>,
+            >,
+            /// Explicit cover association; absent when the secondary lock is unreadable.
+            ///
+            /// Field 7: `cover_lock`
+            pub cover_lock: ::buffa::MessageFieldView<
+                super::super::__buffa::view::DashboardCoverLockView<'a>,
             >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
@@ -215516,6 +216202,31 @@ pub mod __buffa {
                             }
                         }
                     }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.cover_lock.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.cover_lock = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::DashboardCoverLockView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     2u32 => {
                         if tag.wire_type()
                             == ::buffa::encoding::WireType::LengthDelimited
@@ -215592,6 +216303,15 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    cover_lock: match self.cover_lock.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::DashboardCoverLock,
+                                ::buffa::Inline<super::super::DashboardCoverLock>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -215642,6 +216362,14 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                if self.cover_lock.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.cover_lock.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -215686,6 +216414,14 @@ pub mod __buffa {
                         buf,
                     );
                     self.interactions.write_to(__cache, buf);
+                }
+                if self.cover_lock.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.cover_lock.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -215835,6 +216571,17 @@ pub mod __buffa {
             > {
                 &self.0.reborrow().interactions
             }
+            /// Explicit cover association; absent when the secondary lock is unreadable.
+            ///
+            /// Field 7: `cover_lock`
+            #[must_use]
+            pub fn cover_lock(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::DashboardCoverLockView<'_>,
+            > {
+                &self.0.reborrow().cover_lock
+            }
         }
         impl ::core::convert::From<::buffa::OwnedView<DashboardTileNodeView<'static>>>
         for DashboardTileNodeOwnedView {
@@ -215891,6 +216638,12 @@ pub mod __buffa {
             /// Field 6: `interactions`
             pub interactions: ::buffa::MessageFieldView<
                 super::super::__buffa::view::DashboardInteractionsView<'a>,
+            >,
+            /// Explicit cover association; absent when the secondary lock is unreadable.
+            ///
+            /// Field 7: `cover_lock`
+            pub cover_lock: ::buffa::MessageFieldView<
+                super::super::__buffa::view::DashboardCoverLockView<'a>,
             >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
@@ -215987,6 +216740,31 @@ pub mod __buffa {
                             }
                         }
                     }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.cover_lock.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.cover_lock = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::DashboardCoverLockView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     4u32 => {
                         if tag.wire_type()
                             == ::buffa::encoding::WireType::LengthDelimited
@@ -216063,6 +216841,15 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    cover_lock: match self.cover_lock.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::DashboardCoverLock,
+                                ::buffa::Inline<super::super::DashboardCoverLock>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -216118,6 +216905,14 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                if self.cover_lock.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.cover_lock.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -216165,6 +216960,14 @@ pub mod __buffa {
                         buf,
                     );
                     self.interactions.write_to(__cache, buf);
+                }
+                if self.cover_lock.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.cover_lock.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -216313,6 +217116,17 @@ pub mod __buffa {
                 super::super::__buffa::view::DashboardInteractionsView<'_>,
             > {
                 &self.0.reborrow().interactions
+            }
+            /// Explicit cover association; absent when the secondary lock is unreadable.
+            ///
+            /// Field 7: `cover_lock`
+            #[must_use]
+            pub fn cover_lock(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::DashboardCoverLockView<'_>,
+            > {
+                &self.0.reborrow().cover_lock
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<DashboardRecipeNodeView<'static>>>
@@ -297262,6 +298076,10 @@ pub use self::__buffa::view::DashboardStackNodeOwnedView;
 pub use self::__buffa::view::DashboardHeadingNodeView;
 #[doc(inline)]
 pub use self::__buffa::view::DashboardHeadingNodeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DashboardCoverLockView;
+#[doc(inline)]
+pub use self::__buffa::view::DashboardCoverLockOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::DashboardTileNodeView;
 #[doc(inline)]

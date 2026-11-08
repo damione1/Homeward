@@ -58,6 +58,8 @@ message AlarmDefinition {
   repeated AlarmOperation operations = 1;
   // Observed states. Presence preserves unknown, zero and false independently.
   repeated AlarmState observed_states = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Subset requiring an interactive numeric code; empty means no user input.
+  repeated AlarmOperation code_required_operations = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // Alarm Value: closed typed source vocabulary; no label inference.

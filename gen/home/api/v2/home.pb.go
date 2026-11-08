@@ -921,6 +921,10 @@ type ExecuteCapabilityRequest struct {
 	// Definition binding from the authorized capability capture. Required by
 	// live execution admission, after object authorization and syntax parsing.
 	Etag string `protobuf:"bytes,6,opt,name=etag,proto3" json:"etag,omitempty"`
+	// Numeric alarm credential for this admission only (1..32 ASCII digits).
+	// Detached before fingerprinting; never persisted, returned, logged or replayed.
+	// Allowed only for an operation declared in code_required_operations.
+	EphemeralAlarmCode []byte `protobuf:"bytes,15,opt,name=ephemeral_alarm_code,json=ephemeralAlarmCode,proto3" json:"ephemeral_alarm_code,omitempty"`
 	// Required physical-intent deadline; enforced again at the point of effect.
 	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1073,6 +1077,13 @@ func (x *ExecuteCapabilityRequest) GetEtag() string {
 		return x.Etag
 	}
 	return ""
+}
+
+func (x *ExecuteCapabilityRequest) GetEphemeralAlarmCode() []byte {
+	if x != nil {
+		return x.EphemeralAlarmCode
+	}
+	return nil
 }
 
 func (x *ExecuteCapabilityRequest) GetExpireTime() *timestamppb.Timestamp {
@@ -1791,7 +1802,7 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	"percentage\x88\x01\x01\x12E\n" +
 	"\robserved_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\fobservedTime\x12?\n" +
 	"\aquality\x18\x03 \x01(\v2\x1f.home.api.v2.ObservationQualityB\x04\xe2A\x01\x03R\aqualityB\r\n" +
-	"\v_percentage\"\xad\x06\n" +
+	"\v_percentage\"\xe5\x06\n" +
 	"\x18ExecuteCapabilityRequest\x12A\n" +
 	"\x04name\x18\x01 \x01(\tB-\xe2A\x01\x02\xfaA&\n" +
 	"$homeward.damiengoehrig.ca/CapabilityR\x04name\x124\n" +
@@ -1808,7 +1819,8 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	"\x05media\x18\x0e \x01(\v2\x19.home.api.v2.MediaCommandH\x00R\x05media\x12+\n" +
 	"\n" +
 	"request_id\x18\x04 \x01(\tB\f\xe2A\x01\x01\xe2\x8c\xcf\xd7\b\x02\b\x01R\trequestId\x12\x18\n" +
-	"\x04etag\x18\x06 \x01(\tB\x04\xe2A\x01\x01R\x04etag\x12A\n" +
+	"\x04etag\x18\x06 \x01(\tB\x04\xe2A\x01\x01R\x04etag\x126\n" +
+	"\x14ephemeral_alarm_code\x18\x0f \x01(\fB\x04\xe2A\x01\x04R\x12ephemeralAlarmCode\x12A\n" +
 	"\vexpire_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x02R\n" +
 	"expireTimeB\t\n" +
 	"\acommand\"Q\n" +

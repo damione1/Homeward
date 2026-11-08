@@ -266,7 +266,7 @@ func observedCommandOutcome(response *actions.CommandResponse, err error) Comman
 	switch response.Status {
 	case actions.ActionStatus_ACTION_STATUS_ACCEPTED:
 		return CommandAccepted
-	case actions.ActionStatus_ACTION_STATUS_DISPATCHED:
+	case actions.ActionStatus_ACTION_STATUS_DISPATCHED, actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED:
 		return CommandDispatched
 	case actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED:
 		return CommandAcknowledged
@@ -358,7 +358,7 @@ func commandResult(response *actions.CommandResponse, err error) error {
 	}
 	switch response.Status {
 	case actions.ActionStatus_ACTION_STATUS_ACCEPTED, actions.ActionStatus_ACTION_STATUS_DISPATCHED,
-		actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED, actions.ActionStatus_ACTION_STATUS_CONFIRMED:
+		actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED, actions.ActionStatus_ACTION_STATUS_CONFIRMED, actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED:
 		return nil
 	case actions.ActionStatus_ACTION_STATUS_INDETERMINATE:
 		return failure(Indeterminate, nil)

@@ -28,7 +28,8 @@ pub fn status(value: EnumValue<wire::ActionStatus>) -> Result<wire::ActionStatus
             | S::Confirmed
             | S::Failed
             | S::Cancelled
-            | S::Indeterminate),
+            | S::Indeterminate
+            | S::SentUnverified),
         ) => Ok(value),
         EnumValue::Known(S::Unspecified) | EnumValue::Unknown(_) => Err(AdmissionError::Invalid),
     }

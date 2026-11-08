@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/internal/apiresources"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -143,8 +144,22 @@ func ProjectDashboardDefinition(def Definition, options APIProjection) (*api.Das
 						inertNode(node)
 						break
 					}
+					var secondary *api.DashboardCoverLock
+					if card.coverLock != nil {
+						primary, err := uniqueBinding(p.bindings(card.entity), func(b projectedBinding) bool {
+							return b.resource.Name == capability && b.native.Trait() == apiresources.Cover
+						})
+						if err != nil || primary.resource == nil {
+							inertNode(node)
+							break
+						}
+						lock, err := uniqueBinding(p.bindings(card.coverLock.entity), func(b projectedBinding) bool { return b.native.Trait() == apiresources.Lock })
+						if err == nil {
+							secondary = &api.DashboardCoverLock{Capability: lock.resource.Name, DisplayName: card.coverLock.name}
+						}
+					}
 					if card.Kind() == ElementTileCard {
-						tile := &api.DashboardTileNode{Capability: capability, Features: features, Presentation: presentation, Interactions: interactions}
+						tile := &api.DashboardTileNode{CoverLock: secondary, Capability: capability, Features: features, Presentation: presentation, Interactions: interactions}
 						if value, ok := card.Vertical(); ok {
 							tile.Vertical = &value
 						}
@@ -153,7 +168,7 @@ func ProjectDashboardDefinition(def Definition, options APIProjection) (*api.Das
 						}
 						node.Content = &api.DashboardLayoutNode_Tile{Tile: tile}
 					} else {
-						node.Content = &api.DashboardLayoutNode_Recipe{Recipe: &api.DashboardRecipeNode{Kind: nativeRecipeKind(card.Recipe()), Capability: capability, Features: features, Secondary: card.Secondary(), Presentation: presentation, Interactions: interactions}}
+						node.Content = &api.DashboardLayoutNode_Recipe{Recipe: &api.DashboardRecipeNode{CoverLock: secondary, Kind: nativeRecipeKind(card.Recipe()), Capability: capability, Features: features, Secondary: card.Secondary(), Presentation: presentation, Interactions: interactions}}
 					}
 				case ElementWidgetCard:
 					widget, err := p.widget(card, view)

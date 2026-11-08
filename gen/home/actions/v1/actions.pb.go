@@ -94,6 +94,8 @@ const (
 	ActionStatus_ACTION_STATUS_FAILED        ActionStatus = 5
 	ActionStatus_ACTION_STATUS_CANCELLED     ActionStatus = 6
 	ActionStatus_ACTION_STATUS_INDETERMINATE ActionStatus = 7
+	// The driver finished sending; no device ACK or physical result is asserted.
+	ActionStatus_ACTION_STATUS_SENT_UNVERIFIED ActionStatus = 8
 )
 
 // Enum value maps for ActionStatus.
@@ -107,16 +109,18 @@ var (
 		5: "ACTION_STATUS_FAILED",
 		6: "ACTION_STATUS_CANCELLED",
 		7: "ACTION_STATUS_INDETERMINATE",
+		8: "ACTION_STATUS_SENT_UNVERIFIED",
 	}
 	ActionStatus_value = map[string]int32{
-		"ACTION_STATUS_UNSPECIFIED":   0,
-		"ACTION_STATUS_ACCEPTED":      1,
-		"ACTION_STATUS_DISPATCHED":    2,
-		"ACTION_STATUS_ACKNOWLEDGED":  3,
-		"ACTION_STATUS_CONFIRMED":     4,
-		"ACTION_STATUS_FAILED":        5,
-		"ACTION_STATUS_CANCELLED":     6,
-		"ACTION_STATUS_INDETERMINATE": 7,
+		"ACTION_STATUS_UNSPECIFIED":     0,
+		"ACTION_STATUS_ACCEPTED":        1,
+		"ACTION_STATUS_DISPATCHED":      2,
+		"ACTION_STATUS_ACKNOWLEDGED":    3,
+		"ACTION_STATUS_CONFIRMED":       4,
+		"ACTION_STATUS_FAILED":          5,
+		"ACTION_STATUS_CANCELLED":       6,
+		"ACTION_STATUS_INDETERMINATE":   7,
+		"ACTION_STATUS_SENT_UNVERIFIED": 8,
 	}
 )
 
@@ -1027,7 +1031,7 @@ const file_home_actions_v1_actions_proto_rawDesc = "" +
 	"!ERROR_CODE_UNSUPPORTED_CAPABILITY\x10\x02\x12\x1a\n" +
 	"\x16ERROR_CODE_STALE_EPOCH\x10\x03\x12\"\n" +
 	"\x1eERROR_CODE_STALE_CONFIGURATION\x10\x04\x12 \n" +
-	"\x1cERROR_CODE_PERMISSION_DENIED\x10\x05*\xfc\x01\n" +
+	"\x1cERROR_CODE_PERMISSION_DENIED\x10\x05*\x9f\x02\n" +
 	"\fActionStatus\x12\x1d\n" +
 	"\x19ACTION_STATUS_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16ACTION_STATUS_ACCEPTED\x10\x01\x12\x1c\n" +
@@ -1036,7 +1040,8 @@ const file_home_actions_v1_actions_proto_rawDesc = "" +
 	"\x17ACTION_STATUS_CONFIRMED\x10\x04\x12\x18\n" +
 	"\x14ACTION_STATUS_FAILED\x10\x05\x12\x1b\n" +
 	"\x17ACTION_STATUS_CANCELLED\x10\x06\x12\x1f\n" +
-	"\x1bACTION_STATUS_INDETERMINATE\x10\aB<Z:github.com/damione1/Homeward/gen/home/actions/v1;actionsv1b\x06proto3"
+	"\x1bACTION_STATUS_INDETERMINATE\x10\a\x12!\n" +
+	"\x1dACTION_STATUS_SENT_UNVERIFIED\x10\bB<Z:github.com/damione1/Homeward/gen/home/actions/v1;actionsv1b\x06proto3"
 
 var (
 	file_home_actions_v1_actions_proto_rawDescOnce sync.Once

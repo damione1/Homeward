@@ -454,6 +454,16 @@ impl Ui {
             window.set_action_feedback(refusal.message().into())
         });
     }
+    fn refresh_device_presentation(&self) {
+        if let Some(binding) = self
+            .cache_handle
+            .lock()
+            .expect("UI cache handle mutex poisoned")
+            .as_ref()
+        {
+            let _ = binding.handle.viewport(*self.viewport.borrow());
+        }
+    }
     fn prepare_device(
         &self,
         token: i32,
@@ -1360,8 +1370,8 @@ async fn worker(
                 },
                 Some(Intent::Device { epoch, prepared }) => {
                     if let Some(profile)=&profile && profile.epoch==epoch && ui.epoch.load(Ordering::SeqCst)==epoch.0 {
-                        let Prepared{target,request,guard,layout:_}=*prepared;
-                        match profile.actions.submit(request,guard.clone()) {
+                        let Prepared{target,request,guard,layout:_,alarm_code}=*prepared;
+                        match profile.actions.submit_with_alarm_code(request,guard.clone(),alarm_code) {
                             Ok(handle)=>{
                                 let mut updates = handle.subscribe();
                                 profile.devices.remember(target,handle.clone());
@@ -1970,6 +1980,64 @@ pub(crate) fn run_with_lifecycle(
                 step_ui.refuse(ProfileEpoch(step_ui.epoch.load(Ordering::SeqCst)), refusal)
             }
         }
+    });
+    let lock_submit = submit_device.clone();
+    window.on_lock_operation(move |token, generation, operation| {
+        let operation = match operation {
+            crate::ProLockOperation::Lock => home_wire_contract::home::api::v2::LockOperation::Lock,
+            crate::ProLockOperation::Unlock => {
+                home_wire_contract::home::api::v2::LockOperation::Unlock
+            }
+        };
+        lock_submit(token, generation, DeviceIntent::Lock(operation));
+    });
+    let alarm_submit = submit_device.clone();
+    let alarm_ui = ui.clone();
+    window.on_alarm_mode(move |token, generation, choice| {
+        match alarm_ui.current_devices().and_then(|(binding, revision)| {
+            binding
+                .store
+                .alarm_choice(token, generation, revision, choice)
+        }) {
+            Ok(Some(intent)) => alarm_submit(token, generation, intent),
+            Ok(None) => alarm_ui.refresh_device_presentation(),
+            Err(refusal) => {
+                alarm_ui.refuse(ProfileEpoch(alarm_ui.epoch.load(Ordering::SeqCst)), refusal)
+            }
+        }
+    });
+    let alarm_ui = ui.clone();
+    window.on_alarm_digit(move |token, generation, digit| {
+        if let Err(refusal) = alarm_ui.current_devices().and_then(|(binding, revision)| {
+            binding
+                .store
+                .alarm_digit(token, generation, revision, Some(digit))
+        }) {
+            alarm_ui.refuse(ProfileEpoch(alarm_ui.epoch.load(Ordering::SeqCst)), refusal);
+        }
+        alarm_ui.refresh_device_presentation();
+    });
+    let alarm_ui = ui.clone();
+    window.on_alarm_clear(move |token, generation| {
+        if let Err(refusal) = alarm_ui.current_devices().and_then(|(binding, revision)| {
+            binding.store.alarm_digit(token, generation, revision, None)
+        }) {
+            alarm_ui.refuse(ProfileEpoch(alarm_ui.epoch.load(Ordering::SeqCst)), refusal);
+        }
+        alarm_ui.refresh_device_presentation();
+    });
+    let alarm_ui = ui.clone();
+    let alarm_submit = submit_device.clone();
+    window.on_alarm_confirm(move |token, generation| {
+        match alarm_ui.current_devices().and_then(|(binding, revision)| {
+            binding.store.alarm_confirm(token, generation, revision)
+        }) {
+            Ok(intent) => alarm_submit(token, generation, intent),
+            Err(refusal) => {
+                alarm_ui.refuse(ProfileEpoch(alarm_ui.epoch.load(Ordering::SeqCst)), refusal)
+            }
+        }
+        alarm_ui.refresh_device_presentation();
     });
     let choice_ui = ui.clone();
     window.on_device_choice(move |token, generation, choice| {

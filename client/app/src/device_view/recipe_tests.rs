@@ -767,6 +767,7 @@ fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_c
             .window()
             .dispatch_event(WindowEvent::KeyReleased { text: key.into() });
     };
+    key(Key::Tab); // Close -> Back tool -> recipe header.
     key(Key::Tab);
     key(Key::Return);
     assert_eq!(recipes.get(), 1);
@@ -785,7 +786,7 @@ fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_c
     key(Key::Tab);
     key(Key::Return);
     assert_eq!(details.get(), 1);
-    key(Key::Tab); // Details -> Back -> Close -> header, all inside the modal.
+    key(Key::Tab); // Details -> Close -> Back -> header, all inside the modal.
     key(Key::Tab);
     key(Key::Tab);
     key(Key::Return);
@@ -799,6 +800,7 @@ fn popup_native_tabs_cycle_its_actual_controls_and_skip_background_and_revoked_c
     entity.capabilities[0].action_access = wire::ActionAccess::Denied.into();
     publish_focus_view(&window, &scenario, &shared, &store, &entity);
     window.invoke_take_body_focus(crate::BodyFocus::Popup);
+    key(Key::Tab); // Close -> Back tool.
     key(Key::Tab);
     key(Key::Return);
     assert_eq!(recipes.get(), 3);
@@ -906,7 +908,7 @@ fn popup_native_tabs_keep_helper_editors_and_nested_selector_popups_inside_the_m
         settle_focus(&window);
         let revision = shared.lock().unwrap().revision;
         if kind == HelperKind::Select {
-            for key in [Key::Tab, Key::Tab, Key::Return] {
+            for key in [Key::Tab, Key::Tab, Key::Tab, Key::Return] {
                 window
                     .window()
                     .dispatch_event(WindowEvent::KeyPressed { text: key.into() });

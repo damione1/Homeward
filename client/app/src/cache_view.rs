@@ -1157,6 +1157,7 @@ pub(crate) fn render(
             cards
                 .iter()
                 .enumerate()
+                .filter(|(_, row)| !row.detail.associated_only)
                 .map(|(index, row)| {
                     let device = model.devices.row_data(index).expect("published device");
                     crate::device_view::detail::project(

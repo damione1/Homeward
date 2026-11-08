@@ -3,7 +3,6 @@ package mqtt
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"math"
 
 	"github.com/damione1/Homeward/contracts"
@@ -115,9 +114,18 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 	if err != nil {
 		return err
 	}
-	// Reuse only the admitted component's existing subscribed state route.
-	// Peers without an explicit MQTT5 echo continue to have no confirmation.
-	if p.Pilot.allowedObservation(profile.stateTopic) {
+	// A subscribed state topic alone does not declare response correlation.
+	feedback := m.commandFeedback[runtime.key]
+	switch feedback {
+	case feedbackSentUnverified:
+	case feedbackCorrelatedState:
+		if !p.Pilot.allowedObservation(profile.stateTopic) {
+			return integrations.ErrCommandRouteUnavailable
+		}
+	default:
+		return ErrInvalidSettings
+	}
+	if feedback == feedbackCorrelatedState {
 		causality, err := command.Causality()
 		if err != nil {
 			return err
@@ -133,11 +141,13 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 	if !command.ReadyForTransport() {
 		return integrations.ErrCommandRouteUnavailable
 	}
-	writeErr := p.Pilot.WriteCommand(ctx, publication)
-	if errors.Is(writeErr, ErrCommandWriteUncertain) {
-		return writeErr
+	if err := p.Pilot.WriteCommand(ctx, publication); err != nil {
+		return err
 	}
-	return writeErr
+	if feedback == feedbackSentUnverified {
+		return command.SentUnverified()
+	}
+	return nil
 }
 
 func scalarBytes(value scalar) []byte {
