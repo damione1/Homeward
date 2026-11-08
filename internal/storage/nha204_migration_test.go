@@ -193,7 +193,7 @@ func TestNHA204Migration29AtomicRollbackAndResume(t *testing.T) {
 	}
 	// Failure after all of SQL29 and its history insertion must roll back both.
 	failed := append([]migration(nil), migrations...)
-	failed = append(failed, migration{version: Version{30}, sql: `INSERT INTO public.nha204_missing_relation VALUES(1)`})
+	failed = append(failed, migration{version: Version{CurrentVersion().Number() + 1}, sql: `INSERT INTO public.nha204_missing_relation VALUES(1)`})
 	if _, err := s.migrate(ctx, failed); err == nil {
 		t.Fatal("injected failure accepted")
 	}
@@ -205,7 +205,7 @@ func TestNHA204Migration29AtomicRollbackAndResume(t *testing.T) {
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM public.homeward_schema_migrations WHERE version>28`).Scan(&count); err != nil || count != 0 {
 		t.Fatal("failed migration retained history", err)
 	}
-	if version, err := s.Migrate(ctx); err != nil || version.Number() != 29 {
+	if version, err := s.Migrate(ctx); err != nil || version != CurrentVersion() {
 		t.Fatal("resume migration", err)
 	}
 	delete(columns, "homeward_schema_window")
@@ -242,7 +242,7 @@ func TestNHA204Migration29AtomicRollbackAndResume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if version, err := s.Migrate(ctx); err != nil || version.Number() != 29 {
+	if version, err := s.Migrate(ctx); err != nil || version != CurrentVersion() {
 		t.Fatal("reopen migration", err)
 	}
 	nha204AssertSnapshot(t, before, nha204Snapshot(t, ctx, s, columns))

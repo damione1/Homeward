@@ -160,7 +160,7 @@ func calendarAlarm(r rule, occurrence CalendarOccurrence) (calendarKey, time.Tim
 }
 
 func calendarKeyCharge(key calendarKey) int {
-	return 96 + len(key.source.value) + len(key.uid) + len(key.instance) + len(key.trigger)
+	return 224 + len(key.source.value) + len(key.uid) + len(key.instance) + len(key.trigger)
 }
 
 // ReplaceCalendarWindow validates the complete replacement before publishing
@@ -306,6 +306,7 @@ func (s *Service) replaceCalendarWindowLocked(ctx context.Context, window Calend
 		s.rejectCalendarLocked(source, DegradedSource)
 		return nil
 	}
+	preservedDue, preservedKeys := s.preservedCalendarDueLocked(window, now)
 	missed := missedFrom != nil
 	for _, r := range s.plan.rules {
 		if r.trigger.Kind() != ir.TriggerCalendar || r.calendar != source {
@@ -323,8 +324,9 @@ func (s *Service) replaceCalendarWindowLocked(ctx context.Context, window Calend
 				continue
 			}
 			s.seen[key] = struct{}{}
+			s.rememberCalendarMissedLocked(calendarDeliveryKey(key), source, instant)
+			s.enqueueLocked(Result{kind: ResultMissed, automation: r.automation, triggerKey: r.trigger.Key(), at: instant, calendarDelivery: calendarDeliveryKey(key), calendarSource: source, calendarAlarmAt: instant})
 			s.seenBytes += calendarKeyCharge(key)
-			missed = true
 		}
 	}
 	for _, r := range s.plan.rules {
@@ -336,15 +338,16 @@ func (s *Service) replaceCalendarWindowLocked(ctx context.Context, window Calend
 			if err != nil {
 				return err
 			}
-			if instant.After(now) && instant.After(s.lastWall) {
+			if instant.After(now) && instant.After(s.lastWall) || preservedKeys[key] {
 				continue
 			}
 			if _, seen := s.seen[key]; seen {
 				continue
 			}
 			s.seen[key] = struct{}{}
+			s.rememberCalendarMissedLocked(calendarDeliveryKey(key), source, instant)
+			s.enqueueLocked(Result{kind: ResultMissed, automation: r.automation, triggerKey: r.trigger.Key(), at: instant, calendarDelivery: calendarDeliveryKey(key), calendarSource: source, calendarAlarmAt: instant})
 			s.seenBytes += calendarKeyCharge(key)
-			missed = true
 		}
 	}
 	s.windows[source] = window
@@ -354,6 +357,9 @@ func (s *Service) replaceCalendarWindowLocked(ctx context.Context, window Calend
 	}
 	for i, r := range s.plan.rules {
 		if r.trigger.Kind() == ir.TriggerCalendar && r.calendar == source {
+			if preservedDue[i] {
+				continue
+			}
 			delete(s.scheduled, i)
 			delete(s.scheduledMono, i)
 			s.scheduleRuleLocked(i, sample)
@@ -428,9 +434,14 @@ func (s *Service) fireCalendarDueLocked(i int, now time.Time, missedByWallJump b
 		s.seen[key] = struct{}{}
 		s.seenBytes += charge
 		if missedByWallJump || instant.Before(s.lastWall) {
-			s.enqueueLocked(Result{kind: ResultMissed, automation: r.automation, triggerKey: r.trigger.Key(), at: now})
+			s.rememberCalendarMissedLocked(calendarDeliveryKey(key), r.calendar, instant)
+			s.enqueueLocked(Result{kind: ResultMissed, automation: r.automation, triggerKey: r.trigger.Key(), at: now, calendarDelivery: calendarDeliveryKey(key), calendarSource: r.calendar, calendarAlarmAt: instant})
 		} else {
-			s.fireLocked(i, s.cursor, domain.EntityID{}, nil)
+			if s.waitOwners[i] != nil {
+				s.fireLocked(i, s.cursor, domain.EntityID{}, nil)
+			} else {
+				s.enqueueLocked(Result{kind: ResultFired, plan: s.activePlanImage.plan.token, automation: r.automation, triggerKey: r.trigger.Key(), at: now, cursor: s.cursor, calendarDelivery: calendarDeliveryKey(key), calendarSource: r.calendar, calendarAlarmAt: instant})
+			}
 		}
 		if s.suspended {
 			return
