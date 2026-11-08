@@ -296,9 +296,10 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		workdaySettings, workdayEnabled := c.WorkdaySettings()
 		ecobeeSettings, ecobeeEnabled := c.EcobeeSettings()
 		sonosSettings, sonosEnabled := c.SonosSettings()
+		wledSettings, wledEnabled := c.WLEDSettings()
 		androidTVSettings, androidTVEnabled := c.AndroidTVSettings()
 		_, remoteEnabled := c.RemoteCalendarSettings()
-		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() || hasActiveHelpers || solarEnabled || workdayEnabled || remoteEnabled || ecobeeEnabled || sonosEnabled || androidTVEnabled {
+		if mqttEnabled || len(workers) != 0 || neviwebEnabled || hiloEnabled || len(c.EnergyBindings()) != 0 || c.DerivedPowerProfile().Enabled() || hasActiveHelpers || solarEnabled || workdayEnabled || remoteEnabled || ecobeeEnabled || sonosEnabled || androidTVEnabled || wledEnabled {
 			var cloud []neviwebComposition
 			if neviwebEnabled {
 				initial, e := neviweb.InitialSessionValue()
@@ -313,6 +314,11 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 			plan, err = defaultConfiguredRuntimePlanWithManifest(scopeManifest, mqttSettings, mqttEnabled, workers, store, sequence, cloud...)
 			if err != nil {
 				return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+			}
+			if wledEnabled {
+				if err = addConfiguredWLED(&plan, wledSettings); err != nil {
+					return closeRemoteStoreWithRecorder(remoteRuntime, store, recording, err)
+				}
 			}
 			plan.sonosRuntime, err = newNativeSonosRuntime(catalog)
 			if err == nil && sonosEnabled {

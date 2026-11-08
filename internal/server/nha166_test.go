@@ -235,6 +235,7 @@ func TestNHA166MQTTOnlyAdmissionClosesOtherConfiguredSources(t *testing.T) {
 	cases := []struct{ name, raw string }{
 		{"missing_mqtt", strings.SplitN(raw, "mqtt:\n", 2)[0]},
 		{"active_mqtt", strings.Replace(raw, "mode: passive", "mode: active\n will: {topic: 'nha166/presence', payload: offline}", 1)},
+		{"wled", raw + "wled: {instance: demo-wled, controllers: [{address: 192.168.50.20, mac: aabbccddeeff, routes: [{alias: light.demo, label: Demo}]}]}\n"},
 		{"solar", raw + "solar: {latitude: 0, longitude: 0, timezone: UTC}\n"},
 		{"workday", raw + "workday: {timezone: UTC}\n"},
 		{"remote_calendar", raw + "remote_calendar: {label: Synthetic, url: 'https://example.com/calendar.ics', view_timezone: UTC}\n"},
