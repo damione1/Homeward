@@ -51,7 +51,8 @@ func sourceRuntimeResolverFromRecords(records []integrations.RegistryRecord, man
 		if err != nil {
 			return sourceRuntimeResolver{}, err
 		}
-		if _, included := manifest.SourceFor(original); !included {
+		sourceKind, included := manifest.SourceFor(original)
+		if !included {
 			return sourceRuntimeResolver{}, registry.ErrOutsideManifest
 		}
 		if record.Retired() {
@@ -62,6 +63,15 @@ func sourceRuntimeResolverFromRecords(records []integrations.RegistryRecord, man
 				return sourceRuntimeResolver{}, registry.ErrAliasConflict
 			}
 			result.entities[alias] = entity
+			kind, _ := sourceKind.Value()
+			if kind == "local_calendar" || kind == "workday" {
+				value, _ := entity.Value()
+				source, err := automationtriggers.ParseCalendarSourceID("calendar/" + value)
+				if err != nil {
+					return sourceRuntimeResolver{}, err
+				}
+				result.calendars[alias] = source
+			}
 		}
 	}
 	for alias, source := range calendars {

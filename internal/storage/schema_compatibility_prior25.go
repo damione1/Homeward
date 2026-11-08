@@ -40,7 +40,7 @@ func validatePrior25SchemaWindow(ctx context.Context, tx pgx.Tx, current Version
 		return &Error{kind: InconsistentSchema}
 	}
 	build := CurrentSchemaBuild()
-	validRelease := build.version.number == schemaWindowBaseline && build.release == schemaReleaseBaseline
+	validRelease := build.version == latestVersion && build.release == compiledRelease()
 	if !build.Valid() || !validRelease ||
 		build.profile.baseline.number != schemaWindowBaseline || build.profile.successor.number != schemaWindowSuccessor || len(migrations) < int(schemaWindowBaseline) {
 		return failure()
