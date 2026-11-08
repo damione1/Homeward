@@ -48,7 +48,7 @@ func TestNHA011ReadOnlyAdmissionCoversEveryCoreActionBranch(t *testing.T) {
 			d.Constraints = &registry.CapabilityDescription_Switch{Switch: &registry.SwitchConstraints{SetOn: true}}
 		}),
 		base(LightSchema, func(d *registry.CapabilityDescription) {
-			d.Constraints = &registry.CapabilityDescription_Light{Light: &registry.LightConstraints{SetOn: false}}
+			d.Constraints = &registry.CapabilityDescription_Light{Light: &registry.LightConstraints{SetOn: true}}
 		}),
 		base(FanSchema, func(d *registry.CapabilityDescription) {
 			d.Constraints = &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{SetOn: true}}

@@ -215,8 +215,9 @@ func (c *CapabilityCatalog) AdmitReadOnlyDriverCapability(d *registry.Capability
 			return nil
 		}
 	case *registry.CapabilityDescription_Light:
-		// SetLight currently accepts On even without SetOn, so every valid
-		// light declaration is actionable at the catalogue boundary.
+		if !constraints.Light.SetOn && constraints.Light.BrightnessPercent == nil && constraints.Light.ColorTempMireds == nil && !constraints.Light.Rgb && len(constraints.Light.GetPresets().GetChoices()) == 0 {
+			return nil
+		}
 	case *registry.CapabilityDescription_Fan:
 		if !constraints.Fan.SetOn && len(constraints.Fan.GetSpeed().GetChoices()) == 0 && constraints.Fan.Level == nil {
 			return nil

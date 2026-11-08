@@ -942,7 +942,10 @@ func lightState(c discoveryComponent, payload []byte, previous *domain.StateValu
 	if mode == "color_temp" {
 		rgb = nil
 	}
-	if raw, exists := object["color_temp"]; exists && mode != "rgb" {
+	if mode == "brightness" || mode == "onoff" {
+		colorTemp, rgb = nil, nil
+	}
+	if raw, exists := object["color_temp"]; exists && (mode == "" || mode == "color_temp") {
 		if !c.colorTemp {
 			return domain.StateValue{}, errDiscoveryValue
 		}
@@ -958,7 +961,7 @@ func lightState(c discoveryComponent, payload []byte, previous *domain.StateValu
 		colorTemp = &value
 		rgb = nil
 	}
-	if raw, exists := object["color"]; exists && mode != "color_temp" {
+	if raw, exists := object["color"]; exists && (mode == "" || mode == "rgb") {
 		channels, ok := raw.(map[string]any)
 		if !ok || !c.rgb {
 			return domain.StateValue{}, errDiscoveryValue

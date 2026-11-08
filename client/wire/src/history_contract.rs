@@ -207,10 +207,24 @@ fn historical_state(v: &history::HistoricalState) -> bool {
                 && l.on.is_some()
                 && l.brightness_percent
                     .is_none_or(|v| v.is_finite() && (0.0..=100.0).contains(&v))
-                && l.color_temp_mireds
-                    .is_none_or(|v| (1..=i64::from(u32::MAX)).contains(&v))
+                && l.color_temp_mireds.is_none_or(|v| (1..=1000).contains(&v))
+                && !(l.color_temp_mireds.is_some() && l.rgb.is_set())
+                && l.rgb
+                    .as_option()
+                    .is_none_or(|v| crate::api_contract::parse_rgb(v).is_ok())
+                && l.preset
+                    .as_deref()
+                    .is_none_or(|s| home_client_model::api::SelectorKey::try_from(s).is_ok())
         }
-        Some(Value::FanSpeed(f)) => nonzero(*f, history::FanSpeed::Unspecified),
+        Some(Value::Fan(f)) => {
+            f.__buffa_unknown_fields.is_empty()
+                && (f.on.is_some() || f.speed.is_some() || f.level.is_some())
+                && !(f.speed.is_some() && f.level.is_some())
+                && f.level.is_none_or(f64::is_finite)
+                && f.speed
+                    .as_deref()
+                    .is_none_or(|s| home_client_model::api::SelectorKey::try_from(s).is_ok())
+        }
         Some(Value::TemperatureControl(c)) => climate(c),
         Some(Value::Helper(h)) => helper(h),
         Some(Value::Solar(s)) => crate::api_solar_contract::admit_solar_value(s).is_ok(),

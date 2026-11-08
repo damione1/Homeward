@@ -40,6 +40,7 @@ func (k DirectKind) schema() string {
 }
 
 type DirectCapture struct {
+	fanProfile     *fanProfileSnapshot
 	router         *CommandRouter
 	internal       *internalOccurrence
 	kind           DirectKind
@@ -139,7 +140,7 @@ func (r *CommandRouter) CaptureDirect(ctx context.Context, alias domain.HAAlias,
 		if err != nil {
 			return err
 		}
-		capture = DirectCapture{router: r, internal: internal, kind: kind, alias: alias, entity: entity, binding: binding,
+		capture = DirectCapture{fanProfile: h.fanProfiles[entity], router: r, internal: internal, kind: kind, alias: alias, entity: entity, binding: binding,
 			session: session, designated: h.commandOwners[slot],
 			description: proto.Clone(description).(*wireregistry.CapabilityDescription),
 			state:       state, hasState: hasState, epoch: epoch, configRevision: revision}
@@ -267,6 +268,11 @@ func (c DirectCapture) PrepareFan(actor domain.ActorID, id domain.CommandID, exp
 	// A capture only emits source-advertised fields. Power cannot be inferred
 	// from an arbitrary key; a source without power must have a reproducible level.
 	if !c.description.GetFan().SetOn {
+		// Only the explicitly qualified LEAP adapter proves the relation
+		// between its exact Off key and observed power. Generic keys do not.
+		if parts.On != nil && (c.fanProfile == nil || parts.Speed == nil || (*parts.Speed != "Off") != *parts.On) {
+			return PreparedDirect{}, ErrInvalidInput
+		}
 		if parts.Speed == nil && parts.Level == nil {
 			return PreparedDirect{}, ErrInvalidInput
 		}
