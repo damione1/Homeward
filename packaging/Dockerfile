@@ -80,6 +80,10 @@ COPY drivers/esphome /opt/homeward/drivers/esphome
 COPY scope/manifest.json /opt/homeward/scope/manifest.json
 COPY testworker/generated /opt/homeward/testworker/generated
 COPY testworker/schema_digest.py /opt/homeward/testworker/schema_digest.py
+# Git archives may be extracted under a private umask. Namespace packages need
+# traversal by the unprivileged worker, independent of source directory modes.
+RUN find /opt/homeward/testworker -type d -exec chmod 0755 {} + \
+ && find /opt/homeward/testworker -type f -exec chmod 0644 {} +
 COPY --from=build /out/ /usr/local/bin/
 COPY --from=build /seed/ /
 COPY packaging/versions.json /opt/homeward/versions.json

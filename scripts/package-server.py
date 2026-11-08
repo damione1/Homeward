@@ -107,6 +107,11 @@ def main():
     worker_check = """
 import importlib.metadata as m, json, sys, ssl, hashlib, os
 from pathlib import Path
+# Diagnose source-archive permissions before Python hides an inaccessible
+# namespace directory behind ModuleNotFoundError. This runs as the runtime UID.
+for path in Path('/opt/homeward/testworker').rglob('*'):
+ if not os.access(path, os.R_OK | (os.X_OK if path.is_dir() else 0)):
+  raise SystemExit('worker package path inaccessible: ' + str(path))
 import grpc, google.protobuf, pylutron_caseta, orjson, cryptography, cffi
 from drivers.caseta import worker
 from drivers.caseta.config import _manifest_aliases
