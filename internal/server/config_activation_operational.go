@@ -28,6 +28,7 @@ import (
 	"github.com/damione1/Homeward/internal/solar"
 	"github.com/damione1/Homeward/internal/sonos"
 	"github.com/damione1/Homeward/internal/storage"
+	"github.com/damione1/Homeward/internal/wled"
 	"github.com/damione1/Homeward/internal/workday"
 	"github.com/damione1/Homeward/internal/worker"
 	"github.com/damione1/Homeward/scope"
@@ -260,6 +261,20 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 			}
 			if err := addBinding(instance, key, alias); err != nil {
 				return configactivation.OperationalImage{}, err
+			}
+		}
+	}
+	newWLED, hasNewWLED := next.WLEDSettings()
+	if hasNewWLED {
+		instance, err := newWLED.Instance()
+		if err != nil {
+			return configactivation.OperationalImage{}, err
+		}
+		for _, controller := range newWLED.Controllers() {
+			for _, player := range controller.Routes {
+				if err := addBinding(instance, player.SourceKey(controller.MAC), player.Alias); err != nil {
+					return configactivation.OperationalImage{}, err
+				}
 			}
 		}
 	}
@@ -501,6 +516,24 @@ func (c *configuredOperationalCompiler) PrepareOperational(ctx context.Context, 
 		if err != nil {
 			return configactivation.OperationalImage{}, err
 		}
+	}
+	oldWLED, hadWLED := old.WLEDSettings()
+	oldWLEDID, _ := oldWLED.Instance()
+	newWLEDID, _ := newWLED.Instance()
+	if hadWLED != hasNewWLED || !reflect.DeepEqual(oldWLED, newWLED) || forced[oldWLEDID] || forced[newWLEDID] {
+		var spec *integrations.PilotSpec
+		if hasNewWLED {
+			factory, err := wled.Factory(newWLED)
+			if err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+			value, err := integrations.NewPilotSpec(newWLEDID, factory)
+			if err != nil {
+				return configactivation.OperationalImage{}, err
+			}
+			spec = &value
+		}
+		replace(oldWLEDID, hadWLED, spec)
 	}
 	oldSonos, hadSonos := old.SonosSettings()
 	oldSonosID, _ := oldSonos.Instance()

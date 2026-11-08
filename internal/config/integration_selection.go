@@ -25,6 +25,12 @@ func selectEnabledIntegrations(disabled []string, c Config) (Config, error) {
 		off[text] = true
 	}
 	isOff := func(id domain.IntegrationInstanceID) bool { text, _ := id.Value(); return off[text] }
+	if c.wled != nil {
+		id, _ := c.wled.Instance()
+		if isOff(id) {
+			c.wled = nil
+		}
+	}
 	if c.sonos != nil {
 		id, _ := c.sonos.Instance()
 		if isOff(id) {
@@ -101,6 +107,12 @@ func declaredIntegrationInstances(c Config) (map[string]domain.IntegrationInstan
 		}
 		declared[text] = id
 		return nil
+	}
+	if c.wled != nil {
+		id, err := c.wled.Instance()
+		if err != nil || add(id) != nil {
+			return nil, ErrInvalidYAML
+		}
 	}
 	if c.sonos != nil {
 		id, err := c.sonos.Instance()
