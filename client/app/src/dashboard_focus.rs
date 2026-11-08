@@ -54,10 +54,7 @@ impl SavedView {
             query: request.query.clone(),
             layout: match &request.dashboard {
                 LayoutState::Ready(layout) => Some(layout.clone()),
-                LayoutState::Loading
-                | LayoutState::Unavailable
-                | LayoutState::Invalid
-                | LayoutState::Unsupported(_) => None,
+                LayoutState::Loading | LayoutState::Unavailable | LayoutState::Invalid => None,
             },
             room: request.room.clone(),
             native: request.native.clone(),

@@ -5,7 +5,7 @@ use home_wire_contract::{api_environment_contract as admit, home::api::v2 as env
 
 fn condition(value: EnumValue<env::WeatherCondition>) -> Option<StateText> {
     use env::WeatherCondition as C;
-    let (label, literal) = match value {
+    let (label, _literal) = match value {
         EnumValue::Known(C::Unknown) => ("Conditions unknown", "unknown"),
         EnumValue::Known(C::ClearDay) => ("Sunny", "sunny"),
         EnumValue::Known(C::ClearNight) => ("Clear night", "clear-night"),
@@ -24,15 +24,21 @@ fn condition(value: EnumValue<env::WeatherCondition>) -> Option<StateText> {
         EnumValue::Known(C::Exceptional) => ("Exceptional conditions", "exceptional"),
         EnumValue::Known(C::Unspecified) | EnumValue::Unknown(_) => return None,
     };
-    Some(StateText { label, literal })
+    Some(StateText {
+        label,
+        #[cfg(test)]
+        literal: _literal,
+    })
 }
 pub(crate) fn condition_label(value: EnumValue<env::WeatherCondition>) -> &'static str {
     condition(value).map_or("Unsupported condition", |v| v.label)
 }
 
+#[cfg(test)]
 pub(crate) fn weather_literal(value: &env::WeatherValue) -> Option<&'static str> {
     value.condition.and_then(condition).map(|v| v.literal)
 }
+#[cfg(test)]
 pub(crate) fn presence_literal(value: &env::PresenceValue) -> Option<&'static str> {
     if !admit::presence_value(value) {
         return None;

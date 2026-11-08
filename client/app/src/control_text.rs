@@ -3,22 +3,27 @@ use home_wire_contract::{api_controls_contract as admit, home::api::v2 as wire};
 
 pub(crate) struct StateText {
     pub label: &'static str,
+    #[cfg(test)]
     pub literal: &'static str,
 }
 pub(crate) fn cover_state(value: wire::CoverState) -> Option<StateText> {
     use wire::CoverState as S;
-    let (label, literal) = match value {
+    let (label, _literal) = match value {
         S::Open => ("Open", "open"),
         S::Closed => ("Closed", "closed"),
         S::Opening => ("Opening", "opening"),
         S::Closing => ("Closing", "closing"),
         S::Unspecified => return None,
     };
-    Some(StateText { label, literal })
+    Some(StateText {
+        label,
+        #[cfg(test)]
+        literal: _literal,
+    })
 }
 pub(crate) fn lock_state(value: wire::LockState) -> Option<StateText> {
     use wire::LockState as S;
-    let (label, literal) = match value {
+    let (label, _literal) = match value {
         S::Locked => ("Locked", "locked"),
         S::Unlocked => ("Unlocked", "unlocked"),
         S::Locking => ("Locking", "locking"),
@@ -28,11 +33,15 @@ pub(crate) fn lock_state(value: wire::LockState) -> Option<StateText> {
         S::Open => ("Open", "open"),
         S::Unspecified => return None,
     };
-    Some(StateText { label, literal })
+    Some(StateText {
+        label,
+        #[cfg(test)]
+        literal: _literal,
+    })
 }
 pub(crate) fn alarm_state(value: wire::AlarmState) -> Option<StateText> {
     use wire::AlarmState as S;
-    let (label, literal) = match value {
+    let (label, _literal) = match value {
         S::Disarmed => ("Disarmed", "disarmed"),
         S::ArmedHome => ("Armed · home", "armed_home"),
         S::ArmedAway => ("Armed · away", "armed_away"),
@@ -45,7 +54,11 @@ pub(crate) fn alarm_state(value: wire::AlarmState) -> Option<StateText> {
         S::Triggered => ("Alarm triggered", "triggered"),
         S::Unspecified => return None,
     };
-    Some(StateText { label, literal })
+    Some(StateText {
+        label,
+        #[cfg(test)]
+        literal: _literal,
+    })
 }
 pub(crate) fn cover(value: &wire::CoverValue) -> String {
     if !admit::cover_value(value) {

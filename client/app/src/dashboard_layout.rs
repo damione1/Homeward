@@ -395,7 +395,7 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
     };
     let icon = match raw.icon {
         EnumValue::Known(v) => v,
-        _ => return Err(LayoutFailure::Unsupported),
+        EnumValue::Unknown(_) => return Err(LayoutFailure::Unsupported),
     };
     let mut node = Node {
         id: identity(&raw.id)?,
@@ -529,7 +529,8 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
                 EnumValue::Known(wire::DashboardHeadingStyle::Default) => HeadingStyle::Default,
                 EnumValue::Known(wire::DashboardHeadingStyle::Title) => HeadingStyle::Title,
                 EnumValue::Known(wire::DashboardHeadingStyle::Subtitle) => HeadingStyle::Subtitle,
-                _ => return Err(LayoutFailure::Unsupported),
+                EnumValue::Known(wire::DashboardHeadingStyle::Unspecified)
+                | EnumValue::Unknown(_) => return Err(LayoutFailure::Unsupported),
             };
             interactions = v.interactions.as_option()
         }
@@ -738,7 +739,8 @@ fn presentation(
     match value {
         EnumValue::Known(wire::DashboardControlPresentation::Controls) => Ok(false),
         EnumValue::Known(wire::DashboardControlPresentation::Summary) => Ok(true),
-        _ => Err(LayoutFailure::Unsupported),
+        EnumValue::Known(wire::DashboardControlPresentation::Unspecified)
+        | EnumValue::Unknown(_) => Err(LayoutFailure::Unsupported),
     }
 }
 fn features(
@@ -756,6 +758,35 @@ fn features(
         result.push(feature)
     }
     Ok(result)
+}
+
+fn modular_binding(
+    node: &mut Node,
+    family: buffa::EnumValue<wire::ControlVisualFamily>,
+    modules: &[wire::ControlModule],
+) -> Result<(), LayoutFailure> {
+    use home_wire_contract::control_modules_contract as codec;
+    if modules.is_empty() && family.as_known() == Some(wire::ControlVisualFamily::Unspecified) {
+        return Ok(());
+    }
+    if modules.len() > 16 {
+        return Err(LayoutFailure::Invalid);
+    }
+    let family = codec::visual_family(family).map_err(|_| LayoutFailure::Unsupported)?;
+    let parsed = modules
+        .iter()
+        .map(codec::module)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| LayoutFailure::Invalid)?;
+    let mut seen = std::collections::HashSet::new();
+    for module in modules {
+        if !seen.insert((module.capability.clone(), module.role.to_i32())) {
+            return Err(LayoutFailure::Invalid);
+        }
+    }
+    node.control_family = Some(family);
+    node.control_modules = Modules(parsed);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1203,33 +1234,4 @@ pub(crate) mod tests {
         value.nodes.push(tile("overflow"));
         assert_eq!(NativeLayout::try_from(&value), Err(LayoutFailure::Budget));
     }
-}
-
-fn modular_binding(
-    node: &mut Node,
-    family: buffa::EnumValue<wire::ControlVisualFamily>,
-    modules: &[wire::ControlModule],
-) -> Result<(), LayoutFailure> {
-    use home_wire_contract::control_modules_contract as codec;
-    if modules.is_empty() && family.as_known() == Some(wire::ControlVisualFamily::Unspecified) {
-        return Ok(());
-    }
-    if modules.len() > 16 {
-        return Err(LayoutFailure::Invalid);
-    }
-    let family = codec::visual_family(family).map_err(|_| LayoutFailure::Unsupported)?;
-    let parsed = modules
-        .iter()
-        .map(codec::module)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| LayoutFailure::Invalid)?;
-    let mut seen = std::collections::HashSet::new();
-    for module in modules {
-        if !seen.insert((module.capability.clone(), module.role.to_i32())) {
-            return Err(LayoutFailure::Invalid);
-        }
-    }
-    node.control_family = Some(family);
-    node.control_modules = Modules(parsed);
-    Ok(())
 }

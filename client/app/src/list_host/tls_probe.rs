@@ -278,11 +278,10 @@ async fn run(fixture: Fixture) -> Result<()> {
     }
     write(&owner, Write::Save, true).await?;
     write(&owner, Write::Complete(true), true).await?;
-    assert_eq!(
+    assert!(
         rows(&owner.0.state.lock().unwrap())[0]
             .content()
-            .completed(),
-        true
+            .completed()
     );
     write(&owner, Write::Complete(false), true).await?;
     let lease = admit(admin.access(&cancel).await)?;

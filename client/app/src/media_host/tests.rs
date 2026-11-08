@@ -112,16 +112,17 @@ async fn renewal_media_local_visibility_and_fresh_scope_both_wake_the_reader() {
         for foreground in [false, true] {
             owner.foreground(foreground);
         }
-        let mut state = owner.0.state.lock().unwrap();
-        state.active = true;
-        assert!(state.read_pending && state.data.is_none());
-        assert!(state.admits_read(
-            state.generation,
-            &Some(source.clone()),
-            credentials.session.generation()
-        ));
-        state.presentation = None;
-        drop(state);
+        {
+            let mut state = owner.0.state.lock().unwrap();
+            state.active = true;
+            assert!(state.read_pending && state.data.is_none());
+            assert!(state.admits_read(
+                state.generation,
+                &Some(source.clone()),
+                credentials.session.generation()
+            ));
+            state.presentation = None;
+        }
         // Consume previous wake before installing the missing fresh provenance.
         while tokio::time::timeout(Duration::from_millis(1), owner.0.changed.notified())
             .await

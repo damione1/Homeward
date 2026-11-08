@@ -32,8 +32,10 @@ func TestNHA164HistoryGoResponseBytesAndEmptyProgress(t *testing.T) {
 	}
 	traceScope := proto.CloneOf(scope)
 	traceScope.Limits.MaxPoints = 31
-	responses := []proto.Message{&history.QueryObservationsResponse{Scope: scope}, &history.QueryExecutionTracesResponse{Scope: traceScope}}
-	expected := [][]byte{golden, bytes.Replace(golden, []byte{0x08, 0x64}, []byte{0x08, 0x1f}, 1)}
+	responses := []proto.Message{&history.QueryObservationsResponse{Scope: scope}, &history.QueryExecutionTracesResponse{Scope: traceScope, Checkpoint: "0", CommitHigh: "0"}}
+	// Traces additionally carry explicit canonical zero checkpoint and commit high.
+	traceGolden := append(bytes.Replace(golden, []byte{0x08, 0x64}, []byte{0x08, 0x1f}, 1), 0x4a, 0x01, 0x30, 0x52, 0x01, 0x30)
+	expected := [][]byte{golden, traceGolden}
 	for index, response := range responses {
 		if err = AdmitHistoryV2Response(response, home); err != nil {
 			t.Fatal(err)
@@ -54,7 +56,7 @@ func TestNHA164HistoryGoResponseBytesAndEmptyProgress(t *testing.T) {
 	retained := proto.CloneOf(traceScope)
 	retained.Retained = proto.CloneOf(period)
 	retained.NotRetainedPrefix = nil
-	progress := &history.QueryExecutionTracesResponse{Scope: retained, ExecutionEpoch: "opaque-test-selector", NextPageToken: "bounded-physical-progress"}
+	progress := &history.QueryExecutionTracesResponse{Scope: retained, Checkpoint: "0", CommitHigh: "0", ExecutionEpoch: "opaque-test-selector", NextPageToken: "bounded-physical-progress"}
 	if AdmitHistoryV2Response(progress, home) != nil {
 		t.Fatal("empty bounded scan rejected")
 	}

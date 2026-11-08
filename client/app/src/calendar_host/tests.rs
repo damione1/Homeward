@@ -124,6 +124,11 @@ fn remote_and_calculated_sources_never_create_mutations_even_with_allowed_access
             let mut calendar = state.calendar().unwrap().clone();
             calendar.origin = origin.into();
             let query = state.query().unwrap();
+            assert!(
+                CalendarCapture::new(&calendar, &query).is_err(),
+                "remote allowed access is rejected at admission"
+            );
+            calendar.mutation_access = wire::CalendarMutationAccess::Denied.into();
             let mut capture = CalendarCapture::new(&calendar, &query).unwrap();
             capture
                 .push(&wire::QueryOccurrencesResponse {

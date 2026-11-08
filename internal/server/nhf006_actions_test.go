@@ -28,6 +28,7 @@ import (
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	registrywire "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/apitypes"
+	"github.com/damione1/Homeward/internal/config"
 	"github.com/damione1/Homeward/internal/configactivation"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/integrations"
@@ -284,6 +285,22 @@ func TestNHF006ActionServer(t *testing.T) {
 	if len(devices) > 1 && dashboard == nil {
 		t.Fatal("native four-family fixture requires explicit server dashboard source")
 	}
+	if dashboard != nil {
+		// Native publication requires a physical editable workspace. Detached
+		// fixture inputs intentionally do not register configuration RPCs.
+		source, err := settings.startup.CaptureWorkspace()
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(t.TempDir(), "configuration.yaml")
+		if err := os.WriteFile(path, source.Bytes(), 0600); err != nil {
+			t.Fatal(err)
+		}
+		settings.startup, err = config.LoadStartupPaths(path, config.DefaultBootstrapChoice(), nha029TestEnv)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	var host *integrations.Manager
 	factory := RuntimeFactory(func(factoryCtx context.Context, store *storage.Store) (RuntimePlan, error) {
 		manifest, err := registry.LoadManifest(scope.BaselineV1())
@@ -311,6 +328,7 @@ func TestNHF006ActionServer(t *testing.T) {
 			}
 		}
 		return RuntimePlan{Identity: repository, Public: public,
+			SourceFactory: defaultSourceRuntimeFactory(manifest, repository, nil),
 			ConfigureAuthorization: func(_ context.Context, composition AuthorizationComposition) error {
 				if dashboard != nil {
 					dashboard.authority = composition.ViewAuthorizer().(*policyViewAuthorizer).authority
@@ -364,6 +382,7 @@ func TestNHF006ActionServer(t *testing.T) {
 		defer calls.mu.Unlock()
 		result := map[string]any{"server_joined": started == joined, "servers_started": started, "servers_joined": joined, "fake_driver_calls": driver.count.Load(), "command_driver_entries": entries, "execute_request_ids": calls.execute, "get_operation_names": calls.get, "wait_operation_names": calls.wait, "admitted_operations": calls.admitted, "lost_responses": calls.lost.Load(), "refusal_faults": calls.refusalFaults.Load(), "scenario": scenario, "native_login_calls": calls.logins.Load(), "native_open_views": calls.views.Load(), "native_revokes": calls.revokes.Load(), "entity_count": len(devices)}
 		if dashboard != nil {
+			result["dashboard_get_calls"] = dashboard.getCalls.Load()
 		}
 		nhf003WritePrivate(t, out, "result.json", result)
 	}()
@@ -487,10 +506,59 @@ func TestNHF006ActionServer(t *testing.T) {
 	if err != nil || len(page.Msg.Entries) != len(devices) {
 		t.Fatal("effective write permission absent", err)
 	}
-	for _, entity := range page.Msg.Entries {
-		if len(entity.Capabilities) != 1 || entity.Capabilities[0].ActionAccess != api.ActionAccess_ACTION_ACCESS_ALLOWED {
-			t.Fatal("effective per-slot write fact missing")
+	home, err := apitypes.ParseHomeName(homeResp.Msg.Homes[0].Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedTraits := make(map[string]map[string]bool, len(devices))
+	for index, device := range devices {
+		_, id, err := bindings[index].IDs()
+		if err != nil {
+			t.Fatal(err)
 		}
+		name, err := apitypes.EntityNameForIdentity(home, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		traits := map[string]bool{}
+		switch device.kind {
+		case nhf006Light:
+			traits = map[string]bool{"power": true, "level": true, "light_control": true}
+		case nhf006Switch:
+			traits["power"] = true
+		case nhf006Binary:
+			traits["binary_observation"] = true
+		case nhf006Measurement:
+			traits["numeric_measurement"] = true
+		}
+		expectedTraits[name.String()] = traits
+	}
+	for _, entry := range page.Msg.Entries {
+		entityName := entry.GetEntity().GetName()
+		traits, present := expectedTraits[entityName]
+		if !present || len(entry.Capabilities) != len(traits) {
+			t.Fatal("unexpected entity or projected trait cardinality")
+		}
+		delete(expectedTraits, entityName)
+		seenNames := make(map[string]bool)
+		for _, capability := range entry.Capabilities {
+			name, err := apitypes.ParseCapabilityName(capability.GetName())
+			if err != nil || name.Entity().String() != entityName || seenNames[name.String()] || capability.GetEtag() == "" || capability.GetActionAccess() != api.ActionAccess_ACTION_ACCESS_ALLOWED {
+				t.Fatal("effective exact-slot identity or write fact missing")
+			}
+			seenNames[name.String()] = true
+			trait := capability.ProtoReflect().WhichOneof(capability.ProtoReflect().Descriptor().Oneofs().ByName("trait"))
+			if trait == nil || !traits[string(trait.Name())] {
+				t.Fatal("unexpected or duplicate projected trait")
+			}
+			delete(traits, string(trait.Name()))
+		}
+		if len(traits) != 0 {
+			t.Fatal("projected trait missing")
+		}
+	}
+	if len(expectedTraits) != 0 {
+		t.Fatal("expected entity missing")
 	}
 	if dashboard != nil {
 		dashboard.ready(t, ctx, client, base, tokens.AccessToken)

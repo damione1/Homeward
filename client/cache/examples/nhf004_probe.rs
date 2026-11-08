@@ -15,10 +15,10 @@ use home_client_cache::{
     DeliveryTicket, Filter, FrameEffect, LiveView, SnapshotCapture, WatchExit, read_snapshot,
     watch_once,
 };
-use home_client_model::EntityId;
+use home_client_model::api::{EntityName, HomeName};
 use home_client_session::{SecureStore, ServerRevocation, SessionCoordinator, StoreFailure};
-use home_client_transport::{Connection, StateTransport};
-use home_wire_contract::home::state::v1 as wire;
+use home_client_transport::{Connection, EntityViewTransport, HomeTransport};
+use home_wire_contract::home::api::v2 as wire;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
@@ -143,8 +143,10 @@ struct Projection {
 }
 struct Observed {
     latest: Projection,
-    epoch: String,
-    order: Vec<u64>,
+    capture: String,
+    latest_observation: Option<(i64, i32)>,
+    order: Vec<(i64, i32)>,
+    ordered: bool,
     errors: Vec<CacheEvent>,
     first_capabilities: usize,
     live_publications: usize,
@@ -157,8 +159,10 @@ impl Default for Observed {
                 count: 0,
                 sequence: 0,
             },
-            epoch: String::new(),
+            capture: String::new(),
+            latest_observation: None,
             order: Vec::new(),
+            ordered: true,
             errors: Vec::new(),
             first_capabilities: 0,
             live_publications: 0,
@@ -169,7 +173,8 @@ impl Default for Observed {
 async fn owner_case(
     scenario: Scenario,
     session: &SessionCoordinator,
-    transport: StateTransport,
+    transport: EntityViewTransport,
+    homes: HomeTransport,
     fixture: &Fixture,
     control: &mut Control,
 ) -> Result<serde_json::Value> {
@@ -177,32 +182,59 @@ async fn owner_case(
     let queued = Arc::new(Mutex::new(None::<DeliveryTicket<Projection>>));
     let observed_worker = observed.clone();
     let queued_worker = queued.clone();
-    let first_id: EntityId = fixture.first_entity.parse()?;
+    let first_id = EntityName::try_from(fixture.first_entity.as_str())?;
     let (owner, mut errors) = CacheOwner::start(
         session.clone(),
         transport.clone(),
+        homes.clone(),
         Filter::all(),
         move |phase, view, _, _| {
             let mut observed = observed_worker.lock().unwrap();
-            let sequence = view.map_or(0, |view| {
+            // The fixture publishes strictly increasing source timestamps. Count
+            // actual new observations, never decode opaque capture checkpoints.
+            let newest = view.and_then(|view| {
                 view.entities()
-                    .filter_map(|(_, entity)| {
-                        entity.state.as_option().and_then(|state| state.source_seq)
+                    .flat_map(|(_, entry)| &entry.capabilities)
+                    .filter_map(|slot| {
+                        if let Some(wire::capability::Trait::Power(power)) = &slot.r#trait {
+                            power
+                                .observation
+                                .as_option()?
+                                .observed_time
+                                .as_option()
+                                .map(|time| (time.seconds, time.nanos))
+                        } else {
+                            None
+                        }
                     })
                     .max()
-                    .unwrap_or(0)
             });
+            if let Some(newest) = newest {
+                if observed
+                    .latest_observation
+                    .is_some_and(|previous| newest < previous)
+                {
+                    observed.ordered = false;
+                }
+                if observed
+                    .latest_observation
+                    .is_some_and(|previous| newest > previous)
+                {
+                    observed.latest.sequence += 1;
+                    if observed.order.len() < 20_000 {
+                        observed.order.push(newest);
+                    }
+                }
+                observed.latest_observation = Some(newest);
+            }
+            let sequence = observed.latest.sequence;
             let projection = Projection {
                 phase,
                 count: view.map_or(0, |view| view.len()),
                 sequence,
             };
             if let Some(view) = view {
-                let previous = observed.order.last().copied().unwrap_or(0);
-                if sequence > previous && observed.order.len() < 20_000 {
-                    observed.order.push(sequence);
-                }
-                observed.epoch = view.cursor().epoch.clone();
+                observed.capture = view.name().as_str().to_owned();
                 observed.first_capabilities = view
                     .get(&first_id)
                     .map_or(0, |entity| entity.capabilities.len());
@@ -242,7 +274,7 @@ async fn owner_case(
             Scenario::Load => {
                 control.command(Action::Load).await?;
                 until(|| observed.lock().unwrap().latest.sequence == 1000, 70).await?;
-                require(observed.lock().unwrap().order == (1..=1000).collect::<Vec<_>>(), "a native state update was skipped, reordered or duplicated")?;
+                require({ let state = observed.lock().unwrap(); state.ordered && state.order.len() == 1000 && state.order.windows(2).all(|pair| pair[0] < pair[1]) }, "a native state update was skipped, reordered or duplicated")?;
                 let metrics = handle.metrics();
                 require(metrics.pending_notifications == 1 && metrics.coalesced >= 1000 && metrics.delivered == 0, "slow UI queue exceeded its bound or consumed raw frames")?;
                 let ticket = queued.lock().unwrap().take().ok_or("missing coalesced delivery")?;
@@ -251,11 +283,12 @@ async fn owner_case(
                 require(rendered.is_some_and(|p| p.count == 850 && p.sequence == 1000 && p.phase == CachePhase::Live), "slow UI received an old projection")?;
                 require(handle.suspend().await.map_err(|e| format!("suspend: {e:?}"))? == ControlOutcome::Applied, "suspension did not join old readers")?;
                 let paused_order = observed.lock().unwrap().order.len();
-                let next = control.command(Action::Advance).await?;
+                let previous = observed.lock().unwrap().latest.sequence;
+                control.command(Action::Advance).await?;
                 tokio::time::sleep(Duration::from_millis(250)).await;
                 require({ let s = observed.lock().unwrap(); s.order.len() == paused_order && s.latest.count == 0 }, "suspended reader republished")?;
                 handle.resume().map_err(|e| format!("resume: {e:?}"))?;
-                until(|| observed.lock().unwrap().latest.sequence == next, 10).await?;
+                until(|| observed.lock().unwrap().latest.sequence > previous, 10).await?;
                 serde_json::json!({"entities":850,"ordered_updates":1000,"pending_ui_max":1,"coalesced":metrics.coalesced,"suspend_joined":true,"resume_fresh":true})
             }
             Scenario::Recovery => {
@@ -263,27 +296,29 @@ async fn owner_case(
                 // fresh admitted capture must restore Live without user input.
                 let (quiet_count, quiet_sequence) = { let s=observed.lock().unwrap(); (s.live_publications,s.latest.sequence) };
                 until(|| { let s=observed.lock().unwrap();s.live_publications>quiet_count && s.latest.phase==CachePhase::Live && s.latest.sequence==quiet_sequence },40).await?;
-                let next = control.command(Action::Advance).await?;
-                until(|| observed.lock().unwrap().latest.sequence == next, 5).await?;
+                let previous = observed.lock().unwrap().latest.sequence;
+                control.command(Action::Advance).await?;
+                until(|| observed.lock().unwrap().latest.sequence > previous, 5).await?;
                 control.command(Action::Outage).await?;
                 until(|| observed.lock().unwrap().latest.phase == CachePhase::Offline, 5).await?;
                 require(observed.lock().unwrap().latest.count == 850, "ordinary outage erased the dated cache")?;
                 tokio::time::sleep(Duration::from_secs(12)).await;
                 require({let s=observed.lock().unwrap();s.latest.count==850 && s.latest.phase==CachePhase::Offline},"long outage lost saved view or stopped retries")?;
-                let next = control.command(Action::Advance).await?;
+                let previous = observed.lock().unwrap().latest.sequence;
+                control.command(Action::Advance).await?;
                 control.command(Action::Restore).await?;
-                until(|| { let s = observed.lock().unwrap(); s.latest.sequence == next && s.latest.phase == CachePhase::Live }, 12).await?;
-                let old_epoch = observed.lock().unwrap().epoch.clone();
+                until(|| { let s = observed.lock().unwrap(); s.latest.sequence > previous && s.latest.phase == CachePhase::Live }, 12).await?;
+                let old_capture = observed.lock().unwrap().capture.clone();
                 control.command(Action::Restart).await?;
-                until(|| { let s = observed.lock().unwrap(); s.latest.count == 850 && s.epoch != old_epoch }, 25).await?;
-                require({let s=observed.lock().unwrap();s.latest.phase==CachePhase::Live && s.epoch!=old_epoch}, "server restart did not admit a fresh epoch")?;
+                until(|| { let s = observed.lock().unwrap(); s.latest.count == 850 && s.capture != old_capture }, 25).await?;
+                require({let s=observed.lock().unwrap();s.latest.phase==CachePhase::Live && s.capture!=old_capture}, "server restart did not admit a fresh capture incarnation")?;
                 require(handle.suspend().await.map_err(|e| format!("suspend: {e:?}"))? == ControlOutcome::Applied, "replay barrier not joined")?;
                 let lease = session.access(&CancellationToken::new()).await?;
-                let saved = read_snapshot(&transport, &lease, Filter::all(), 256, &CancellationToken::new()).await?;
+                let saved = read_snapshot(&transport, &homes, &lease, Filter::all(), 256, &CancellationToken::new()).await?;
                 control.command(Action::Burst).await?;
                 let mut stale_callbacks = 0;
                 let exit = watch_once(&transport, &lease, saved, Duration::from_secs(10), &CancellationToken::new(), |_| stale_callbacks += 1).await;
-                require(matches!(exit, WatchExit::Resync(reason) if reason == wire::ResyncReason::ReplayExpired) && stale_callbacks == 0, "expired replay published stale data")?;
+                require(matches!(exit, WatchExit::Resync(reason) if reason == wire::ApiErrorReason::ResyncRequired) && stale_callbacks == 0, "expired replay published stale data")?;
                 handle.resume().map_err(|e| format!("resume: {e:?}"))?;
                 until(|| observed.lock().unwrap().latest.count == 850, 10).await?;
                 control.command(Action::Deny).await?;
@@ -301,7 +336,7 @@ async fn owner_case(
                 until(|| observed.lock().unwrap().latest.count == 850, 10).await?;
                 control.command(Action::Withdraw).await?;
                 until(|| { let s=observed.lock().unwrap(); s.latest.count > 0 && s.first_capabilities == 0 }, 10).await?;
-                serde_json::json!({"outage_keeps_dated_view":true,"fresh_snapshot_reconnect":true,"quiet_watch_rotation_without_delta":true,"long_outage_periodic_retry":true,"new_epoch_resync":true,"expired_replay_resync":true,"rights_clear_pending_ui":true,"capability_withdrawal":true})
+                serde_json::json!({"outage_keeps_dated_view":true,"fresh_snapshot_reconnect":true,"quiet_watch_rotation_without_delta":true,"long_outage_periodic_retry":true,"new_capture_resync":true,"expired_replay_resync":true,"rights_clear_pending_ui":true,"capability_withdrawal":true})
             }
             Scenario::LastPageExpired | Scenario::LastPageDenied | Scenario::SlowStream => return Err("wrong owner scenario".into()),
         };
@@ -339,15 +374,34 @@ async fn owner_case(
 async fn last_page_case(
     scenario: Scenario,
     session: &SessionCoordinator,
-    transport: &StateTransport,
+    transport: &EntityViewTransport,
+    homes: &HomeTransport,
     control: &mut Control,
 ) -> Result<serde_json::Value> {
     let lease = session.access(&CancellationToken::new()).await?;
+    let discovered = homes
+        .list_homes(
+            wire::ListHomesRequest {
+                page_size: 1,
+                ..Default::default()
+            },
+            lease.token(),
+            Duration::from_secs(10),
+            &lease.cancellation,
+        )
+        .await?;
+    require(
+        discovered.homes.len() == 1
+            && discovered.next_page_token.is_empty()
+            && discovered.__buffa_unknown_fields.is_empty(),
+        "exact home discovery required",
+    )?;
+    let home = HomeName::try_from(discovered.homes[0].name.as_str())?;
     let first = transport
-        .open_view(
-            wire::OpenViewRequest {
-                filter: wire::ViewFilter::default().into(),
-                page_size: 85,
+        .create_entity_view(
+            wire::CreateEntityViewRequest {
+                parent: home.as_str().to_owned(),
+                entity_view: wire::EntityView::default().into(),
                 ..Default::default()
             },
             lease.token(),
@@ -356,25 +410,25 @@ async fn last_page_case(
         )
         .await?;
     let expires = first
-        .expires_at
+        .expire_time
         .as_option()
         .ok_or("missing server expiry")?
         .clone();
-    let mut capture = SnapshotCapture::begin(Filter::all(), 85, first, &now())?;
+    let mut capture = SnapshotCapture::begin(home, Filter::all(), 85, first, &now())?;
     // Nine of ten real pages (765 entities), with the last page still provisional.
-    for _ in 1..9 {
+    for _ in 0..9 {
         let request = capture
             .next_request()
             .ok_or("capture ended before last-page fault")?;
         let page = transport
-            .read_page(
+            .query_entity_view(
                 request,
                 lease.token(),
                 Duration::from_secs(10),
                 &lease.cancellation,
             )
             .await?;
-        capture.push(page.page.into_option().ok_or("missing page")?, &now())?;
+        capture.push(page, &now())?;
     }
     let request = capture.next_request().ok_or("missing last page")?;
     match scenario {
@@ -399,7 +453,7 @@ async fn last_page_case(
         }
     }
     let response = transport
-        .read_page(
+        .query_entity_view(
             request,
             lease.token(),
             Duration::from_secs(10),
@@ -450,16 +504,32 @@ async fn main() -> Result<()> {
             owner_case(
                 scenario,
                 &session,
-                connection.state(),
+                connection.entity_views(),
+                connection.home(),
                 &fixture,
                 &mut control,
             )
             .await
         }
         Scenario::LastPageExpired | Scenario::LastPageDenied => {
-            last_page_case(scenario, &session, &connection.state(), &mut control).await
+            last_page_case(
+                scenario,
+                &session,
+                &connection.entity_views(),
+                &connection.home(),
+                &mut control,
+            )
+            .await
         }
-        Scenario::SlowStream => slow_stream_case(&session, &connection.state(), &mut control).await,
+        Scenario::SlowStream => {
+            slow_stream_case(
+                &session,
+                &connection.entity_views(),
+                &connection.home(),
+                &mut control,
+            )
+            .await
+        }
     };
     // A failed outage assertion must restore only this fixture's circuit so
     // cleanup can revoke its synthetic credential and preserve the primary error.
@@ -482,12 +552,14 @@ async fn main() -> Result<()> {
 
 async fn slow_stream_case(
     session: &SessionCoordinator,
-    transport: &StateTransport,
+    transport: &EntityViewTransport,
+    homes: &HomeTransport,
     control: &mut Control,
 ) -> Result<serde_json::Value> {
     let lease = session.access(&CancellationToken::new()).await?;
     let view = read_snapshot(
         transport,
+        homes,
         &lease,
         Filter::all(),
         256,
@@ -496,10 +568,10 @@ async fn slow_stream_case(
     .await?;
     control.command(Action::Advance).await?;
     let mut stream = transport
-        .watch_view(
-            wire::WatchViewRequest {
-                cursor: view.cursor().clone().into(),
-                filter: view.filter().to_wire().into(),
+        .watch_entity_view(
+            wire::WatchEntityViewRequest {
+                name: view.name().as_str().to_owned(),
+                resume_token: view.checkpoint().to_owned(),
                 ..Default::default()
             },
             lease.token(),
@@ -521,24 +593,29 @@ async fn slow_stream_case(
     control.command(Action::Burst).await?;
     let mut before_resync = 1;
     loop {
-        let frame = stream
-            .next()
-            .await?
-            .ok_or("slow client ended without resync")?;
-        match live.apply(frame)? {
-            FrameEffect::Applied => {
+        match stream.next().await {
+            Ok(Some(frame)) => {
+                require(
+                    live.apply(frame)? == FrameEffect::Applied,
+                    "invalid slow-client change",
+                )?;
                 before_resync += 1;
                 require(before_resync <= 17001, "unbounded slow-client replay")?;
             }
-            FrameEffect::Resync(reason) => {
+            Err(error) => {
                 require(
-                    reason == wire::ResyncReason::ClientSlow && live.current().is_none(),
-                    "slow client retained an invalid view",
+                    error.api_failure().ok().flatten().is_some_and(|fault| {
+                        fault.reason() == wire::ApiErrorReason::ResyncRequired
+                    }),
+                    "slow client ended without typed resync",
                 )?;
+                // Transport resync is terminal in AIP; erase the retained capture.
+                drop(live);
                 return Ok(
                     serde_json::json!({"real_http_body_paused":true,"client_slow_resync":true,"old_view_erased":true,"frames_before_resync":before_resync}),
                 );
             }
+            Ok(None) => return Err("slow client ended without resync".into()),
         }
     }
 }

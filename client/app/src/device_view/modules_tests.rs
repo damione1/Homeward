@@ -454,3 +454,75 @@ fn observation_publication_preserves_module_models_but_rebinding_replaces_nested
     let new_card = card.ui(Some(&rerolled), &crate::IconGlyph::default());
     assert_ne!(rerolled.modules, new_card.modules);
 }
+
+#[test]
+fn a_module_retains_its_own_source_without_a_principal_node_for_that_entity() {
+    let (mut scenario, principal) = fixture();
+    let mut module_source = principal.clone();
+    module_source.entity.as_option_mut().unwrap().name =
+        "homes/synthetic/entities/module-source-b".into();
+    module_source.capabilities[0].name =
+        format!("{}/capabilities/power", module_source.entity.name);
+    let capability = &mut module_source.capabilities[0];
+    for module in &mut capability.modules {
+        module.capability = capability.name.clone();
+    }
+    let mut unrelated = module_source.clone();
+    unrelated.entity.as_option_mut().unwrap().name =
+        "homes/synthetic/entities/unbound-source-c".into();
+    unrelated.capabilities[0].name = format!("{}/capabilities/power", unrelated.entity.name);
+    let capability = &mut unrelated.capabilities[0];
+    for module in &mut capability.modules {
+        module.capability = capability.name.clone();
+    }
+    let mut layout = scenario.dashboard.layout().unwrap().clone();
+    layout
+        .native
+        .as_mut()
+        .unwrap()
+        .nodes
+        .get_mut(&NodeId::parse("tile").unwrap())
+        .unwrap()
+        .control_modules = Modules(
+        control_modules_contract::capability_modules(&module_source.capabilities[0]).unwrap(),
+    );
+    scenario.dashboard = LayoutState::Ready(Arc::new(layout));
+    let capture = view(
+        &scenario,
+        vec![principal, module_source.clone(), unrelated.clone()],
+    );
+    let store = DeviceStore::default();
+    let projection = store.project(CachePhase::Live, Some(&capture), &scenario);
+    let power = row(&projection, 0);
+    assert_eq!(power.state.access, ProControlAccess::Allowed);
+    let command = store
+        .module_event(0, intent(&power, ProModuleEvent::Power))
+        .unwrap()
+        .unwrap();
+    let prepared = store
+        .prepare(
+            power.state.identity.token,
+            power.state.identity.generation,
+            0,
+            command,
+        )
+        .unwrap();
+    assert_eq!(
+        prepared.request.target().as_str(),
+        module_source.capabilities[0].name
+    );
+    assert!((prepared.guard)());
+    scenario.detail = Some(model::EntityName::try_from(unrelated.entity.name.as_str()).unwrap());
+    let detail = store.project(CachePhase::Live, Some(&capture), &scenario);
+    assert_eq!(detail.rows[0].access, ProControlAccess::Denied);
+    assert!(
+        store
+            .prepare(
+                detail.rows[0].token,
+                detail.rows[0].generation,
+                0,
+                DeviceIntent::Power(crate::device_view::Power::On)
+            )
+            .is_err()
+    );
+}

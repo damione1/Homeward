@@ -1,14 +1,21 @@
-//! Real TLS/controller proof. The in-memory store and loopback fake-device
-//! profile are explicit test doubles, never production credential fallbacks.
+//! Real TLS capability-controller proof on isolated synthetic sources.
+//! MemoryStore is an explicit test double, never a credential fallback.
 #![deny(clippy::wildcard_enum_match_arm)]
-use buffa_types::google::protobuf::Timestamp;
-use home_client_actions::{
-    ActionController, ActionHandle, LiveState, SubmissionState, WriteAccess, write_access,
+use home_client_actions::capabilities::{
+    CapabilityController, CapabilityHandle, CapabilitySnapshot, CapabilitySubmission,
+    CapabilityTracking,
 };
-use home_client_session::{SecureStore, SessionCoordinator, StoreFailure};
+use home_client_actions::{WriteAccess, new_request_id, write_access};
+use home_client_model::api::{
+    CapabilityName, Command, Deadline, DefinitionEtag, EntityViewName, HomeName, Intent, Power,
+};
+use home_client_session::{AccessLease, SecureStore, SessionCoordinator, StoreFailure};
 use home_client_transport::Connection;
-use home_wire_contract::home::{
-    actions::v1 as action, registry::v1 as registry, state::v1 as state,
+use home_wire_contract::{
+    api_command_operations::{CommandCompletion, CommandPhase, admit_command_operation},
+    api_contract::parse_power,
+    google::longrunning as operations,
+    home::api::v2 as wire,
 };
 use serde::Deserialize;
 use std::{
@@ -16,7 +23,7 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
@@ -61,8 +68,8 @@ impl SecureStore for MemoryStore {
     }
 }
 async fn until(
-    handle: &ActionHandle,
-    check: impl Fn(&home_client_actions::ActionSnapshot) -> bool,
+    handle: &CapabilityHandle,
+    check: impl Fn(&CapabilitySnapshot) -> bool,
 ) -> Result<()> {
     let mut updates = handle.subscribe();
     tokio::time::timeout(Duration::from_secs(20), async {
@@ -73,11 +80,107 @@ async fn until(
             updates
                 .changed()
                 .await
-                .map_err(|_| "action updates closed")?;
+                .map_err(|_| "capability updates closed")?;
         }
     })
     .await
-    .map_err(|_| "action predicate timed out")?
+    .map_err(|_| "capability predicate timed out")?
+}
+
+async fn capture(
+    connection: &Connection,
+    lease: &AccessLease,
+    cancel: &CancellationToken,
+) -> Result<(wire::EntityView, wire::EntityViewEntry)> {
+    let homes = connection
+        .home()
+        .list_homes(
+            wire::ListHomesRequest {
+                page_size: 1,
+                ..Default::default()
+            },
+            lease.token(),
+            Duration::from_secs(10),
+            cancel,
+        )
+        .await?;
+    if homes.homes.len() != 1
+        || !homes.next_page_token.is_empty()
+        || !homes.__buffa_unknown_fields.is_empty()
+    {
+        return Err("exact home discovery required".into());
+    }
+    let home = HomeName::try_from(homes.homes[0].name.as_str())?;
+    let resource = connection
+        .entity_views()
+        .create_entity_view(
+            wire::CreateEntityViewRequest {
+                parent: home.as_str().to_owned(),
+                entity_view: wire::EntityView::default().into(),
+                ..Default::default()
+            },
+            lease.token(),
+            Duration::from_secs(10),
+            cancel,
+        )
+        .await?;
+    let name = EntityViewName::try_from(resource.name.as_str())?;
+    if name.home() != home || !resource.__buffa_unknown_fields.is_empty() {
+        return Err("foreign capture".into());
+    }
+    let mut page = connection
+        .entity_views()
+        .query_entity_view(
+            wire::QueryEntityViewRequest {
+                name: resource.name.clone(),
+                page_size: 16,
+                ..Default::default()
+            },
+            lease.token(),
+            Duration::from_secs(10),
+            cancel,
+        )
+        .await?;
+    if page.entries.len() != 1
+        || !page.next_page_token.is_empty()
+        || page.resume_token.is_empty()
+        || !page.__buffa_unknown_fields.is_empty()
+    {
+        return Err("exact complete isolated capture required".into());
+    }
+    Ok((resource, page.entries.remove(0)))
+}
+fn power_slot(entry: &wire::EntityViewEntry) -> Result<(&wire::Capability, Power)> {
+    if entry.capabilities.len() != 1 {
+        return Err("exact one source slot required".into());
+    }
+    let slot = &entry.capabilities[0];
+    let Some(wire::capability::Trait::Power(power)) = &slot.r#trait else {
+        return Err("power source required".into());
+    };
+    if !power.__buffa_unknown_fields.is_empty() || !power.supports_set {
+        return Err("unsupported power definition".into());
+    }
+    let observation = power
+        .observation
+        .as_option()
+        .ok_or("missing observed power")?;
+    let quality = observation
+        .quality
+        .as_option()
+        .ok_or("missing source quality")?;
+    if !observation.__buffa_unknown_fields.is_empty()
+        || !quality.__buffa_unknown_fields.is_empty()
+        || quality.availability != wire::Availability::Available
+        || quality.freshness != wire::Freshness::Current
+        || quality.provenance != wire::Provenance::Observed
+        || observation.observed_time.as_option().is_none()
+    {
+        return Err("unqualified source observation".into());
+    }
+    let value = parse_power(observation.value.ok_or("unknown power")?)
+        .map_err(|_| "unsupported observed power")?;
+    Ok((slot, value))
 }
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
@@ -97,164 +200,252 @@ async fn main() -> Result<()> {
         .map_err(|_| "native login failed")?;
     let cancel = CancellationToken::new();
     let lease = session.access(&cancel).await.map_err(|_| "no session")?;
-    let page = connection
-        .state()
-        .open_view(
-            state::OpenViewRequest {
-                filter: Some(state::ViewFilter::default()).into(),
-                page_size: 16,
-                ..Default::default()
-            },
-            lease.token(),
-            Duration::from_secs(10),
-            &cancel,
-        )
-        .await?;
-    if page.entities.len() != 1 {
-        return Err("exact isolated view required".into());
+    let (view, entry) = capture(&connection, &lease, &cancel).await?;
+    let (slot, observed) = power_slot(&entry)?;
+    assert_eq!(observed, Power::Off);
+    let target = CapabilityName::try_from(slot.name.as_str())?;
+    if target.home() != EntityViewName::try_from(view.name.as_str())?.home()
+        || write_access(&entry, &target) != WriteAccess::Allowed
+    {
+        return Err("exact source permission required".into());
     }
-    let entity = &page.entities[0];
-    let cursor = page.cursor.as_option().ok_or("no view cursor")?;
-    if write_access(entity, "core.switch.v1", "relay") != WriteAccess::Allowed {
-        return Err("server write permission required".into());
-    }
-    let mut request = action::CommandRequest {
-        admission_epoch: cursor.epoch.clone(),
-        config_revision: cursor.config_revision,
-        target: registry::EntityRef {
-            reference: Some(registry::entity_ref::Reference::EntityId(
-                entity.entity_id.clone(),
-            )),
-            ..Default::default()
-        }
-        .into(),
-        capability_schema_id: "core.switch.v1".into(),
-        endpoint: "relay".into(),
-        arguments: action::ActionArgs {
-            arguments: Some(action::action_args::Arguments::SetSwitch(
-                action::SetSwitch {
-                    on: true,
-                    ..Default::default()
-                }
-                .into(),
-            )),
-            ..Default::default()
-        }
-        .into(),
-        ..Default::default()
+    let id = new_request_id().map_err(|e| format!("request identity: {e:?}"))?;
+    let lifetime = if matches!(fixture.scenario, Scenario::Expire) {
+        3
+    } else {
+        30
     };
-    match fixture.scenario {
-        Scenario::Expire => {
-            request.expires_at = Timestamp::from_unix_secs(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)?
-                    .as_secs() as i64
-                    + 3,
-            )
-            .into();
-        }
-        Scenario::Refusal => request.config_revision += 1,
-        Scenario::LostSubmit | Scenario::AckOnly | Scenario::Withdrawn => {}
-    }
-    let (controller, mut notices) = ActionController::start(session.clone(), connection.actions());
-    let drain = tokio::spawn(async move {
-        let mut count = 0;
-        while notices.recv().await.is_some() {
-            count += 1;
-        }
-        count
-    });
+    let now = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())?;
+    let etag = if matches!(fixture.scenario, Scenario::Refusal) {
+        // Deliberate synthetic stale-CAS fault; no old epoch/config wire fields.
+        DefinitionEtag::try_from("W/\"synthetic-stale-definition\"")?
+    } else {
+        DefinitionEtag::try_from(slot.etag.as_str())?
+    };
+    let command = Command::new(
+        target.clone(),
+        Intent::Power(Power::On),
+        Some(id.clone()),
+        Deadline::new(now + lifetime, 0)?,
+    )
+    .with_definition_etag(etag);
+    let controller = CapabilityController::new(
+        session.clone(),
+        connection.capabilities(),
+        connection.operations(),
+        &cancel,
+    );
     let valid = Arc::new(AtomicBool::new(true));
     let check = valid.clone();
+    let source = lease.source_proof();
+    let expiry = view
+        .expire_time
+        .as_option()
+        .ok_or("capture expiry absent")?
+        .seconds;
     let handle = controller
-        .client()
-        .submit(request, Arc::new(move || check.load(Ordering::SeqCst)))
+        .submit(
+            command.clone(),
+            Arc::new(move || {
+                check.load(Ordering::SeqCst)
+                    && source.is_current()
+                    && SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .is_ok_and(|now| {
+                            i64::try_from(now.as_secs()).is_ok_and(|seconds| seconds < expiry)
+                        })
+            }),
+        )
         .map_err(|e| format!("local admission failed: {e:?}"))?;
-    // On a current-thread runtime this revokes the captured generation before the
-    // newly spawned command job gets a chance to wait for a token or dispatch.
     if matches!(fixture.scenario, Scenario::Withdrawn) {
         valid.store(false, Ordering::SeqCst);
     }
-    let id = handle.id().as_str().to_owned();
     match fixture.scenario {
-        Scenario::LostSubmit | Scenario::AckOnly => {
-            until(&handle, |snapshot| {
-                snapshot
-                    .progress
+        Scenario::LostSubmit => {
+            until(&handle, |value| {
+                value.submission == CapabilitySubmission::Uncertain
+            })
+            .await?;
+            assert!(handle.snapshot().operation.is_none());
+            // Explicit read reconciliation after a completely lost response.
+            // The controller stays uncertain; this never adopts or resends a command.
+            let listed = connection
+                .operations()
+                .list_operations(
+                    operations::ListOperationsRequest {
+                        name: target.home().as_str().to_owned(),
+                        filter: format!("metadata.request_id=\"{}\"", id.as_str()),
+                        page_size: 2,
+                        ..Default::default()
+                    },
+                    lease.token(),
+                    Duration::from_secs(10),
+                    &cancel,
+                )
+                .await?;
+            if listed.operations.len() != 1
+                || !listed.next_page_token.is_empty()
+                || !listed.__buffa_unknown_fields.is_empty()
+                || !listed.unreachable.is_empty()
+            {
+                return Err("exact original operation discovery required".into());
+            }
+            let admitted = admit_command_operation(&listed.operations[0], &command, None)
+                .map_err(|e| format!("operation provenance: {e:?}"))?;
+            let raw = connection
+                .operations()
+                .get_operation(
+                    operations::GetOperationRequest {
+                        name: admitted.name().as_str().to_owned(),
+                        ..Default::default()
+                    },
+                    lease.token(),
+                    Duration::from_secs(10),
+                    &cancel,
+                )
+                .await?;
+            let current = admit_command_operation(&raw, &command, Some(&admitted))
+                .map_err(|e| format!("Get provenance: {e:?}"))?;
+            let raw = connection
+                .operations()
+                .wait_operation(
+                    operations::WaitOperationRequest {
+                        name: current.name().as_str().to_owned(),
+                        timeout: buffa_types::google::protobuf::Duration {
+                            seconds: 1,
+                            ..Default::default()
+                        }
+                        .into(),
+                        ..Default::default()
+                    },
+                    lease.token(),
+                    Duration::from_secs(3),
+                    &cancel,
+                )
+                .await?;
+            let next = admit_command_operation(&raw, &command, Some(&current))
+                .map_err(|e| format!("Wait provenance: {e:?}"))?;
+            assert_eq!(next.phase(), CommandPhase::Acknowledged);
+            assert_eq!(next.completion(), &CommandCompletion::Pending);
+            assert_eq!(
+                handle.snapshot().submission,
+                CapabilitySubmission::Uncertain
+            );
+            assert!(handle.snapshot().operation.is_none());
+            handle.stop_tracking();
+            assert_eq!(handle.snapshot().tracking, CapabilityTracking::Stopped);
+        }
+        Scenario::AckOnly | Scenario::Expire => {
+            until(&handle, |value| {
+                value
+                    .operation
                     .as_ref()
-                    .is_some_and(|point| point.status == action::ActionStatus::Acknowledged)
+                    .is_some_and(|op| op.phase() == CommandPhase::Acknowledged)
             })
             .await?;
             let snapshot = handle.snapshot();
-            assert_eq!(snapshot.live, LiveState::Available);
-            match fixture.scenario {
-                Scenario::LostSubmit => assert_eq!(snapshot.submission, SubmissionState::Uncertain),
-                Scenario::AckOnly => assert_eq!(snapshot.submission, SubmissionState::Replied),
-                Scenario::Expire | Scenario::Refusal | Scenario::Withdrawn => unreachable!(),
+            assert_eq!(snapshot.submission, CapabilitySubmission::Accepted);
+            assert_eq!(snapshot.tracking, CapabilityTracking::Live);
+            let op = snapshot
+                .operation
+                .as_ref()
+                .ok_or("missing acknowledged operation")?;
+            let raw = connection
+                .operations()
+                .get_operation(
+                    operations::GetOperationRequest {
+                        name: op.name().as_str().to_owned(),
+                        ..Default::default()
+                    },
+                    lease.token(),
+                    Duration::from_secs(10),
+                    &cancel,
+                )
+                .await?;
+            let read = admit_command_operation(&raw, &command, Some(op))
+                .map_err(|e| format!("Get provenance: {e:?}"))?;
+            assert_eq!(read.phase(), CommandPhase::Acknowledged);
+            if matches!(fixture.scenario, Scenario::Expire) {
+                until(&handle, |value| {
+                    value
+                        .operation
+                        .as_ref()
+                        .is_some_and(|op| op.phase() == CommandPhase::Indeterminate)
+                })
+                .await?;
+                let expired = handle.snapshot();
+                let Some(CommandCompletion::Failure(fault)) =
+                    expired.operation.as_ref().map(|op| op.completion())
+                else {
+                    return Err("expiry needs typed uncertainty".into());
+                };
+                assert_eq!(fault.reason(), wire::ApiErrorReason::EffectOutcomeUnknown);
+            } else {
+                tokio::time::sleep(Duration::from_millis(400)).await;
+                assert_eq!(
+                    handle
+                        .snapshot()
+                        .operation
+                        .as_ref()
+                        .ok_or("ack disappeared")?
+                        .phase(),
+                    CommandPhase::Acknowledged
+                );
+                handle.stop_tracking();
+                assert_eq!(handle.snapshot().tracking, CapabilityTracking::Stopped);
             }
-            tokio::time::sleep(Duration::from_millis(150)).await;
-            assert_eq!(
-                handle.snapshot().progress.as_ref().unwrap().status,
-                action::ActionStatus::Acknowledged
-            );
-            handle.stop_tracking();
-            assert_eq!(handle.snapshot().live, LiveState::Stopped);
-        }
-        Scenario::Expire => {
-            until(&handle, |snapshot| {
-                snapshot
-                    .progress
-                    .as_ref()
-                    .is_some_and(|point| point.status == action::ActionStatus::Indeterminate)
-            })
-            .await?;
         }
         Scenario::Refusal => {
-            until(&handle, |snapshot| {
-                snapshot.response.as_ref().is_some_and(|reply| {
-                    reply.status == action::ActionStatus::Failed
-                        && reply.error.as_option().is_some()
-                })
+            until(&handle, |value| {
+                value.submission == CapabilitySubmission::Rejected
             })
             .await?;
-            assert!(handle.snapshot().progress.is_none());
+            let snapshot = handle.snapshot();
+            assert_eq!(
+                snapshot
+                    .failure
+                    .as_ref()
+                    .ok_or("missing typed stale-CAS refusal")?
+                    .reason(),
+                wire::ApiErrorReason::EtagMismatch
+            );
+            assert!(snapshot.operation.is_none());
         }
         Scenario::Withdrawn => {
-            until(&handle, |snapshot| {
-                snapshot.submission == SubmissionState::NotSent
+            until(&handle, |value| {
+                value.submission == CapabilitySubmission::NotSent
             })
             .await?;
-            assert!(handle.snapshot().response.is_none());
+            assert!(handle.snapshot().operation.is_none());
         }
     }
-    // Observations stay untouched even when a command is ACKed or expires.
-    let observed = connection
-        .state()
-        .open_view(
-            state::OpenViewRequest {
-                filter: Some(state::ViewFilter::default()).into(),
-                page_size: 16,
-                ..Default::default()
-            },
-            lease.token(),
-            Duration::from_secs(10),
-            &cancel,
-        )
-        .await?;
-    assert!(matches!(
-        observed.entities[0]
-            .state
-            .as_option()
-            .and_then(|s| s.value.as_ref()),
-        Some(state::observed_state::Value::SwitchOn(false))
-    ));
-    controller.close().await;
-    drop(handle);
-    drain.await?;
+    let (after, observed) = capture(&connection, &lease, &cancel).await?;
+    let (after_slot, value) = power_slot(&observed)?;
+    assert_eq!(after_slot.name, target.as_str());
+    assert_eq!(
+        value,
+        Power::Off,
+        "ACK/uncertainty is never an observed effect"
+    );
+    for name in [view.name, after.name] {
+        connection
+            .entity_views()
+            .delete_entity_view(
+                wire::DeleteEntityViewRequest {
+                    name,
+                    ..Default::default()
+                },
+                lease.token(),
+                Duration::from_secs(10),
+                &cancel,
+            )
+            .await?;
+    }
+    controller.shutdown().await;
     session.close().await;
     println!(
         "NHF006_RESULT {}",
-        serde_json::json!({"pass":true,"request_id":id,"observed_unchanged":true})
+        serde_json::json!({"pass":true,"request_id":id.as_str(),"observed_unchanged":true})
     );
     Ok(())
 }

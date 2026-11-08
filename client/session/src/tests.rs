@@ -236,7 +236,7 @@ impl AuthApi for TestApi {
         if self.lost_reply.load(Ordering::SeqCst) {
             return Err(ConnectError::unavailable("synthetic lost reply").into());
         }
-        if let Some(detail) = self.refresh_error.lock().unwrap().clone() {
+        if let Some(detail) = *self.refresh_error.lock().unwrap() {
             return Err(canonical_auth_failure(detail));
         }
         if self.bare_refresh_unauthenticated.load(Ordering::SeqCst) {
@@ -904,7 +904,31 @@ async fn preflight_distinguishes_access_refusal_denied_view_and_unavailable_auth
                         .is_ok()
                 );
             }
-            _ => {
+            Reason::Unspecified
+            | Reason::ValidationFailed
+            | Reason::ResourceNotFound
+            | Reason::ResourceAlreadyExists
+            | Reason::RequestIdReused
+            | Reason::EtagMismatch
+            | Reason::ConfigChanged
+            | Reason::TopologyChanged
+            | Reason::CapabilityUnavailable
+            | Reason::SourceReadOnly
+            | Reason::ResyncRequired
+            | Reason::RateLimited
+            | Reason::RequestTooLarge
+            | Reason::StreamCapacity
+            | Reason::QueryBudgetExceeded
+            | Reason::ServiceUnavailable
+            | Reason::RequestCancelled
+            | Reason::RequestDeadlineExceeded
+            | Reason::CommitOutcomeUnknown
+            | Reason::EffectOutcomeUnknown
+            | Reason::InternalFailure
+            | Reason::StoredDataIntegrity
+            | Reason::MethodNotSupported
+            | Reason::StatePreconditionFailed
+            | Reason::ConfigRestartRequired => {
                 unreachable!("not an exercised case")
             }
         }
@@ -1272,12 +1296,13 @@ async fn invalid_refresh_response_retires_publications_without_hiding_the_waiter
     assert!(guard.is_current(fresh.generation));
     assert!(!guard.is_current(old.generation));
     assert!(!old.source_proof().same_presentation(&fresh.source_proof()));
-    let keys = api.renewal_keys.lock().unwrap();
-    assert_eq!(keys.len(), 2);
-    assert_eq!(
-        keys[0], keys[1],
-        "restore retries the same durable operation"
-    );
-    drop(keys);
+    {
+        let keys = api.renewal_keys.lock().unwrap();
+        assert_eq!(keys.len(), 2);
+        assert_eq!(
+            keys[0], keys[1],
+            "restore retries the same durable operation"
+        );
+    }
     owner.close().await;
 }

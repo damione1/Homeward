@@ -50,7 +50,9 @@ fn decode_segment(value: &str) -> Result<String, CalendarError> {
     }
     let bytes: Result<Vec<_>, _> = tail
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|p| Ok(digit(p[0])? * 16 + digit(p[1])?))
         .collect();
     let decoded = String::from_utf8(bytes?).map_err(|_| CalendarError::Name)?;

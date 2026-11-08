@@ -546,14 +546,27 @@ impl DeviceStore {
                     native_indices.insert(node.clone(), cards.len());
                 }
             }
-            let access = if layout.is_some_and(|layout| {
-                layout.native.as_ref().is_none_or(|native| {
-                    native
-                        .nodes
-                        .values()
-                        .any(|node| node.kind == crate::dashboard_layout::Kind::View)
+            // Native/module inputs were admitted against their own exact source above.
+            // General detail cards additionally need a visible source for this entity.
+            let bound = match &source {
+                ControlSource::Native(_) | ControlSource::Module(_, _) => true,
+                ControlSource::General => layout.is_some_and(|layout| {
+                layout.native.as_ref().is_none_or(|_| {
+                    native_nodes.iter().any(|node| {
+                        node.entity.as_ref() == Some(&target.entity())
+                            || node.cover_lock.as_ref().is_some_and(|lock| lock.capability == target)
+                            || node.recipes.as_ref().is_some_and(|recipes| {
+                                recipes.interactions.values().any(|interaction| matches!(
+                                    &interaction.intention,
+                                    home_client_model::dashboard::Intention::Command { capability, .. }
+                                        if capability == &target
+                                ))
+                            })
+                    })
                 })
-            }) {
+                }),
+            };
+            let access = if bound {
                 write_access(entity, &target)
             } else {
                 WriteAccess::Denied
@@ -871,16 +884,15 @@ impl DeviceStore {
                 cards[*index].control_family = modules::family(*family);
                 cards[*index].modules = modules.clone();
             }
-            if request.detail_source.as_ref() == Some(node) {
-                if let Some(index) = cards
+            if request.detail_source.as_ref() == Some(node)
+                && let Some(index) = cards
                     .iter()
                     .take(ordinary_count)
                     .position(|row| !row.detail.associated_only)
-                {
-                    cards[index].modular = true;
-                    cards[index].control_family = modules::family(*family);
-                    cards[index].modules = modules;
-                }
+            {
+                cards[index].modular = true;
+                cards[index].control_family = modules::family(*family);
+                cards[index].modules = modules;
             }
         }
         let recipes = recipes::project(&mut state, phase, view, &native_nodes);
@@ -1185,7 +1197,15 @@ impl DeviceStore {
                 }
                 modules::arguments(slot, command)?
             }
-            intent => {
+            intent @ DeviceIntent::Power(_)
+            | intent @ DeviceIntent::Brightness(_)
+            | intent @ DeviceIntent::ColorTemperature(_)
+            | intent @ DeviceIntent::Climate(_)
+            | intent @ DeviceIntent::FanSpeed(_)
+            | intent @ DeviceIntent::Helper(_)
+            | intent @ DeviceIntent::Cover(_)
+            | intent @ DeviceIntent::Lock(_)
+            | intent @ DeviceIntent::Alarm(_) => {
                 if slot.module.is_some() {
                     return Err(Refusal::Unsupported);
                 }
@@ -1415,6 +1435,7 @@ fn brightness_bounds(row: &mut CardRow, bounds: Option<number::Bounds>) {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn color_temperature_text(value: u32) -> Option<String> {
     light::Mireds::from_wire(value).map(light::Mireds::observation)
 }

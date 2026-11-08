@@ -1373,7 +1373,7 @@ async fn execute_inner(
                         .map_err(|_| Error::Invalid)?;
                     let family = request.configuration_plan.candidate.family;
                     let identity = request.configuration_plan.candidate.identity.clone();
-                    let response = call!(api, build_plan, request);
+                    let response = call!(api, build_plan, *request);
                     config_plans::admit_plan_response(PlanResponse::Build(&response))
                         .map_err(|_| Error::Invalid)?;
                     (family, identity, response)

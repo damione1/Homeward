@@ -151,13 +151,45 @@ fn private(view: &CachedView) -> bool {
 fn weather(view: &CachedView) -> Option<&env::WeatherValue> {
     capabilities(view).find_map(|capability| match capability.r#trait.as_ref()? {
         env::capability::Trait::Weather(value) => value.observation.value.as_option(),
-        _ => None,
+        env::capability::Trait::Power(_)
+        | env::capability::Trait::Level(_)
+        | env::capability::Trait::TemperatureControl(_)
+        | env::capability::Trait::NumericMeasurement(_)
+        | env::capability::Trait::BinaryObservation(_)
+        | env::capability::Trait::LightControl(_)
+        | env::capability::Trait::FanControl(_)
+        | env::capability::Trait::Cover(_)
+        | env::capability::Trait::Lock(_)
+        | env::capability::Trait::Alarm(_)
+        | env::capability::Trait::Helper(_)
+        | env::capability::Trait::Solar(_)
+        | env::capability::Trait::SolarEvent(_)
+        | env::capability::Trait::Presence(_)
+        | env::capability::Trait::PresenceDetails(_)
+        | env::capability::Trait::Opaque(_)
+        | env::capability::Trait::MediaPlayback(_) => None,
     })
 }
 fn solar_events(view: &CachedView) -> impl Iterator<Item = &env::SolarEventValue> {
     capabilities(view).filter_map(|capability| match capability.r#trait.as_ref()? {
         env::capability::Trait::SolarEvent(value) => value.observation.value.as_option(),
-        _ => None,
+        env::capability::Trait::Power(_)
+        | env::capability::Trait::Level(_)
+        | env::capability::Trait::TemperatureControl(_)
+        | env::capability::Trait::NumericMeasurement(_)
+        | env::capability::Trait::BinaryObservation(_)
+        | env::capability::Trait::LightControl(_)
+        | env::capability::Trait::FanControl(_)
+        | env::capability::Trait::Cover(_)
+        | env::capability::Trait::Lock(_)
+        | env::capability::Trait::Alarm(_)
+        | env::capability::Trait::Helper(_)
+        | env::capability::Trait::Solar(_)
+        | env::capability::Trait::Weather(_)
+        | env::capability::Trait::Presence(_)
+        | env::capability::Trait::PresenceDetails(_)
+        | env::capability::Trait::Opaque(_)
+        | env::capability::Trait::MediaPlayback(_) => None,
     })
 }
 fn solar_instant(view: &CachedView) -> Option<(i64, i32)> {
@@ -355,7 +387,7 @@ async fn run(fixture: Fixture) -> Result<()> {
                     .expire_time
                     .as_option()
                     .is_some_and(|time| time.seconds < chrono::Utc::now().timestamp())
-            }) && p.view.as_ref().is_some_and(|v| all_stale(v))
+            }) && p.view.as_ref().is_some_and(all_stale)
         })
         .await?;
     assert!(all_stale(stale.view.as_ref().unwrap()));

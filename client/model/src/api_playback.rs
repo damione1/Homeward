@@ -53,7 +53,9 @@ impl QuantityBounds {
         self.step
     }
     pub fn admits(self, value: u64) -> bool {
-        value >= self.minimum && value <= self.maximum && (value - self.minimum) % self.step == 0
+        value >= self.minimum
+            && value <= self.maximum
+            && (value - self.minimum).is_multiple_of(self.step)
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

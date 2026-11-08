@@ -117,7 +117,9 @@ impl Widget {
             Content::Observations { items } => {
                 items.iter().map(|i| i.field.entity.clone()).collect()
             }
-            _ => Vec::new(),
+            Content::Agenda { .. } | Content::Tasks { .. } | Content::Navigation { .. } => {
+                Vec::new()
+            }
         }
     }
     pub fn destination(&self) -> Option<&Destination> {
@@ -207,7 +209,9 @@ pub(crate) fn destination(
     let presentation = match value.presentation {
         EnumValue::Known(wire::DashboardPresentation::Page) => Presentation::Page,
         EnumValue::Known(wire::DashboardPresentation::Popup) => Presentation::Popup,
-        _ => return Err(LayoutFailure::Unsupported),
+        EnumValue::Known(wire::DashboardPresentation::Unspecified) | EnumValue::Unknown(_) => {
+            return Err(LayoutFailure::Unsupported);
+        }
     };
     Ok(Destination {
         dashboard: DashboardName::try_from(value.dashboard.as_str())
@@ -313,7 +317,8 @@ impl TryFrom<&wire::DashboardWidget> for Widget {
                     EnumValue::Known(wire::DashboardThermostatPresentation::Summary) => {
                         (false, true)
                     }
-                    _ => return Err(LayoutFailure::Unsupported),
+                    EnumValue::Known(wire::DashboardThermostatPresentation::Unspecified)
+                    | EnumValue::Unknown(_) => return Err(LayoutFailure::Unsupported),
                 };
                 Content::Thermostat {
                     entity,
@@ -357,7 +362,8 @@ impl TryFrom<&wire::DashboardWidget> for Widget {
                 let shopping_only = match v.presentation {
                     EnumValue::Known(wire::DashboardTasksPresentation::Preview) => false,
                     EnumValue::Known(wire::DashboardTasksPresentation::Shopping) => true,
-                    _ => return Err(LayoutFailure::Unsupported),
+                    EnumValue::Known(wire::DashboardTasksPresentation::Unspecified)
+                    | EnumValue::Unknown(_) => return Err(LayoutFailure::Unsupported),
                 };
                 Content::Tasks {
                     list: TaskListName::try_from(v.task_list.as_str())
@@ -398,7 +404,7 @@ impl TryFrom<&wire::DashboardWidget> for Widget {
                     text(&item.label, 256, false)?;
                     let icon = match item.icon {
                         EnumValue::Known(v) => v,
-                        _ => return Err(LayoutFailure::Unsupported),
+                        EnumValue::Unknown(_) => return Err(LayoutFailure::Unsupported),
                     };
                     items.push(Observation {
                         field: field(item.field.as_option().ok_or(LayoutFailure::Invalid)?)?,
@@ -437,7 +443,8 @@ mod tests {
         let wire = wire::DashboardWidget {
             content: Some(wire::dashboard_widget::Content::Tasks(Box::new(
                 wire::DashboardTasksWidget {
-                    task_list: "homes/synthetic/taskLists/second-not-first".into(),
+                    task_list: "homes/synthetic/taskLists/id-7365636f6e642d6e6f742d6669727374"
+                        .into(),
                     limit: 7,
                     presentation: wire::DashboardTasksPresentation::Preview.into(),
                     ..Default::default()
@@ -452,7 +459,10 @@ mod tests {
         else {
             panic!("task widget");
         };
-        assert_eq!(list.as_str(), "homes/synthetic/taskLists/second-not-first");
+        assert_eq!(
+            list.as_str(),
+            "homes/synthetic/taskLists/id-7365636f6e642d6e6f742d6669727374"
+        );
         assert_eq!(limit, 7);
         let mut missing = wire.clone();
         if let Some(wire::dashboard_widget::Content::Tasks(v)) = missing.content.as_mut() {

@@ -680,7 +680,17 @@ CREATE TRIGGER command_intention_identity BEFORE UPDATE ON public.command_intent
     FOR EACH ROW EXECUTE FUNCTION public.homeward_command_guard_identity();
 `}, {version: Version{12}, sql: recorderSchemaSQL}, {version: Version{13}, sql: helperValuesSchema}, {version: Version{14}, sql: scheduledJobsSchema}, {version: Version{15}, sql: calendarSchemaSQL}, {version: Version{16}, sql: helperValuesV16 + recorderHelperSchemaSQL}, {version: Version{17}, sql: recorderSolarSchemaSQL}, {version: Version{18}, sql: mfaMigration18SQL}, {version: Version{19}, sql: localListsSchemaSQL}, {version: Version{20}, sql: executionHistorySchemaSQL}, {version: Version{21}, sql: recorderAggregateSchemaSQL}, {version: Version{22}, sql: configActivationSchemaSQL}, {version: Version{23}, sql: remoteCalendarSchemaSQL}, {version: Version{24}, sql: mcpKeysSchemaSQL}, {version: Version{25}, sql: schemaCompatibilitySchemaSQL}, {version: Version{26}, sql: configEditableSourcesSchemaSQL}, {version: Version{27}, sql: recorderControlsSchemaSQL}, {version: Version{28}, sql: recorderEnvironmentSchemaSQL}, {version: Version{29}, sql: apiRegistrySchemaSQL + configurationAPIRequestsSchemaSQL + physicalOperationSchemaSQL + apiAuthResourceNamesSQL + recorderEvidenceSchemaSQL}, {version: Version{30}, sql: calendarDeliverySchemaSQL}, {version: Version{31}, sql: `-- Convert legacy fan observation enum to exact source keys and explicit power.
 -- Algorithm: fan-observation-31-v1; preserve all non-fan wire bytes and verify recorder digests.
-SELECT 1;`}}
+SELECT 1;`}, {version: Version{32}, sql: `
+-- Preserve the response method for unreserved native configuration operations.
+-- Their creation time remains committed_at; no request identity is invented.
+ALTER TABLE public.config_activation_attempts
+    DROP CONSTRAINT config_attempt_api_request_pair,
+    ADD CONSTRAINT config_attempt_api_request_pair CHECK (
+        (api_request_id IS NULL AND api_request_method IS NULL AND api_request_create_time IS NULL)
+        OR (api_request_method IS NOT NULL AND api_request_method BETWEEN 1 AND 7 AND api_request_create_time IS NOT NULL
+            AND (api_request_id IS NOT NULL OR api_request_method BETWEEN 5 AND 7))
+        OR (api_request_id IS NULL AND api_request_method IS NOT NULL AND api_request_method BETWEEN 1 AND 4 AND api_request_create_time IS NULL)
+    );`}}
 
 var latestVersion = migrations[len(migrations)-1].version
 
@@ -750,7 +760,7 @@ func (s *Store) migrate(ctx context.Context, plan []migration) (Version, error) 
 		}
 		return current, nil
 	}
-	if current.number >= schemaWindowBaseline && current.number != 30 && schemaAdmissionInTx(ctx, tx, current) != schemaAdmissionCurrent {
+	if current.number >= schemaWindowBaseline && current.number != 31 && schemaAdmissionInTx(ctx, tx, current) != schemaAdmissionCurrent {
 		if ctx.Err() != nil {
 			return Version{}, ctx.Err()
 		}
@@ -760,6 +770,9 @@ func (s *Store) migrate(ctx context.Context, plan []migration) (Version, error) 
 		return Version{}, err
 	}
 	if err := validatePrior30SchemaWindow(ctx, tx, current); err != nil {
+		return Version{}, err
+	}
+	if err := validatePrior31SchemaWindow(ctx, tx, current); err != nil {
 		return Version{}, err
 	}
 	before := current

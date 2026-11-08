@@ -82,7 +82,6 @@ impl Snapshot {
 
 pub(crate) enum CaptureOutcome {
     Accepted,
-    Changed,
 }
 pub(crate) struct Capture {
     token: CatalogueToken,

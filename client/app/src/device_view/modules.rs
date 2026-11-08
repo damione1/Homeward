@@ -243,7 +243,10 @@ impl DeviceStore {
             ProModuleEvent::Choice => {
                 let choices = match &binding.definition {
                     ModuleDefinition::Steps(v) | ModuleDefinition::Preset(v) => v,
-                    _ => return Err(Refusal::Unsupported),
+                    ModuleDefinition::Power
+                    | ModuleDefinition::Range(_)
+                    | ModuleDefinition::Color { .. }
+                    | ModuleDefinition::Motion(_) => return Err(Refusal::Unsupported),
                 };
                 let index =
                     usize::try_from(event.choice_token).map_err(|_| Refusal::InvalidValue)?;
@@ -287,7 +290,11 @@ impl DeviceStore {
                         temperature_mireds: Some(v),
                         ..
                     } if draft.mode != Some(ProColorMode::Rgb) => v,
-                    _ => return Err(Refusal::Unsupported),
+                    ModuleDefinition::Power
+                    | ModuleDefinition::Steps(_)
+                    | ModuleDefinition::Color { .. }
+                    | ModuleDefinition::Preset(_)
+                    | ModuleDefinition::Motion(_) => return Err(Refusal::Unsupported),
                 };
                 let limits = bounds(range);
                 let value = match event.value.event {
@@ -704,21 +711,20 @@ pub(super) fn project(
             }
             if let Some(T::LightControl(v)) = slot.capability.r#trait.as_ref().filter(|_| known) {
                 if let Some(rgb) = v.observation.rgb.as_option() {
-                    if let (Some(r), Some(g), Some(b)) = (rgb.red, rgb.green, rgb.blue) {
-                        if r <= 255
-                            && g <= 255
-                            && b <= 255
-                            && v.observation.color_temperature_mireds.is_none()
-                        {
-                            row.rgb_known = true;
-                            row.rgb = crate::SrgbColorView {
-                                red: r as i32,
-                                green: g as i32,
-                                blue: b as i32,
-                                alpha: 255,
-                            };
-                            row.observed_color_mode = ProColorMode::Rgb;
-                        }
+                    if let (Some(r), Some(g), Some(b)) = (rgb.red, rgb.green, rgb.blue)
+                        && r <= 255
+                        && g <= 255
+                        && b <= 255
+                        && v.observation.color_temperature_mireds.is_none()
+                    {
+                        row.rgb_known = true;
+                        row.rgb = crate::SrgbColorView {
+                            red: r as i32,
+                            green: g as i32,
+                            blue: b as i32,
+                            alpha: 255,
+                        };
+                        row.observed_color_mode = ProColorMode::Rgb;
                     }
                 } else if v.observation.color_temperature_mireds.is_some() {
                     row.observed_color_mode = ProColorMode::Temperature;

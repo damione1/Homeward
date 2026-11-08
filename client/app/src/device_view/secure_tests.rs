@@ -113,7 +113,21 @@ impl Family {
             C::Cover(c) => c.definition.as_option_mut().unwrap().operations.clear(),
             C::Lock(c) => c.definition.as_option_mut().unwrap().operations.clear(),
             C::Alarm(c) => c.definition.as_option_mut().unwrap().operations.clear(),
-            _ => panic!("fixture family"),
+            C::Power(_)
+            | C::Level(_)
+            | C::TemperatureControl(_)
+            | C::NumericMeasurement(_)
+            | C::BinaryObservation(_)
+            | C::LightControl(_)
+            | C::FanControl(_)
+            | C::Helper(_)
+            | C::Solar(_)
+            | C::SolarEvent(_)
+            | C::Weather(_)
+            | C::Presence(_)
+            | C::PresenceDetails(_)
+            | C::Opaque(_)
+            | C::MediaPlayback(_) => panic!("fixture family"),
         }
         entity.capabilities[0].etag = "withdrawn-operations".into();
     }

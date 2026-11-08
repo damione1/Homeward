@@ -164,7 +164,7 @@ pub fn admit_response(
         EnumValue::Known(K::Create) => K::Create,
         EnumValue::Known(K::Update) => K::Update,
         EnumValue::Known(K::Delete) => K::Delete,
-        _ => return Err(invalid),
+        EnumValue::Known(K::Unspecified) | EnumValue::Unknown(_) => return Err(invalid),
     };
     if (m.target.is_empty() && kind != K::Create)
         || (!m.target.is_empty() && !resource(&m.target, home, "integrationInstances"))

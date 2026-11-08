@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 // Only source setup remains here. All public Dashboard requests are served by
 // the production service composed by Run, from the native published generation.
 type nhf005Dashboard struct {
+	getCalls    atomic.Uint64
 	file        string
 	compilation imported.CompilationProfile
 	catalogue   *nhf007Catalogue
@@ -165,6 +167,7 @@ func (h *nhf005Dashboard) ready(t *testing.T, ctx context.Context, client connec
 	if err != nil || len(page.Msg.Dashboards) == 0 {
 		t.Fatal("native dashboard catalogue readiness", err)
 	}
+	h.getCalls.Add(1)
 	resource, err := service.GetDashboard(ctx, nha056SessionRequest(&api.GetDashboardRequest{Name: page.Msg.Dashboards[0].Name}, token))
 	if err != nil || resource.Msg.Layout == nil || resource.Msg.Etag == "" {
 		t.Fatal("native dashboard resource readiness", err)

@@ -574,7 +574,7 @@ impl Calendars {
                     | CalendarCommand::ApplyRange => unreachable!("calendar mutation branch"),
                 };
                 if let Some(prepared) = prepared {
-                    state.enqueue(Job::Write(prepared));
+                    state.enqueue(Job::Write(Box::new(prepared)));
                 } else {
                     state.notice = "Invalid calendar change or read-only source.".into();
                 }
@@ -640,7 +640,7 @@ impl Calendars {
                 match prepared {
                     Some(prepared) => {
                         state.draft.as_mut().expect("draft").phase = EditPhase::Pending;
-                        state.enqueue(Job::Write(prepared));
+                        state.enqueue(Job::Write(Box::new(prepared)));
                     }
                     None => {
                         state.notice = "Invalid event or read-only source; nothing was sent.".into()

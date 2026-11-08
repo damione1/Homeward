@@ -570,7 +570,7 @@ impl DeviceStore {
             BoundIntent::None | BoundIntent::Unavailable(_) => String::new(),
             BoundIntent::MoreInfo(entity) => format!(
                 "Show Details · {}",
-                snapshot.labels.get(&entity).map_or("Item", String::as_str)
+                snapshot.labels.get(entity).map_or("Item", String::as_str)
             ),
             BoundIntent::Navigate(destination) => format!(
                 "Open · {}",

@@ -9,8 +9,7 @@ import (
 	"testing"
 	"time"
 
-	auth "github.com/damione1/Homeward/gen/home/auth/v1"
-	obs "github.com/damione1/Homeward/gen/home/observability/v1"
+	obs "github.com/damione1/Homeward/gen/home/api/v2"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -31,7 +30,7 @@ func TestNHA166SummaryDistinguishesSamplesRetriesAndUnmeasuredResources(t *testi
 	}
 }
 func TestNHA166DurableLogProjectionOmitsHumanIdentity(t *testing.T) {
-	row := &obs.RuntimeLogRow{Sequence: 1, Event: &obs.RuntimeEvent{Code: obs.LogCode_LOG_CODE_PROCESS_READY, Level: obs.LogLevel_LOG_LEVEL_INFO, Component: obs.LogComponent_LOG_COMPONENT_PROCESS, OccurredAt: timestamppb.New(time.Now()), Author: &obs.RuntimeAuthor{Result: &obs.RuntimeAuthor_HumanAccount{HumanAccount: &auth.AccountId{Value: "NHA166_PRIVATE_HUMAN_ACCOUNT_CANARY"}}}}}
+	row := &obs.ObservationRuntimeLogRow{Sequence: "1", Event: &obs.ObservationRuntimeEvent{Code: obs.ObservationLogCode_OBSERVATION_LOG_CODE_PROCESS_READY, Level: obs.ObservationLogLevel_OBSERVATION_LOG_LEVEL_INFO, Component: obs.ObservationLogComponent_OBSERVATION_LOG_COMPONENT_PROCESS, OccurredAt: timestamppb.New(time.Now()), Author: &obs.ObservationRuntimeAuthor{Result: &obs.ObservationRuntimeAuthor_HumanAccount{HumanAccount: "homes/synthetic/accounts/NHA166_PRIVATE_HUMAN_ACCOUNT_CANARY"}}}}
 	raw, err := sanitizedRuntimeLog(row)
 	if err != nil || strings.Contains(string(raw), "CANARY") || strings.Contains(string(raw), "human") || strings.Contains(string(raw), "author") || !strings.Contains(string(raw), "LOG_CODE_PROCESS_READY") {
 		t.Fatal("durable projection retained a private author or lost finite event", err)

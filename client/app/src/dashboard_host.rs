@@ -21,13 +21,9 @@ fn accept_batch(
 ) -> Result<CaptureOutcome, ReadFailure> {
     for reply in replies {
         if let Some((id, response)) = reply? {
-            match capture
+            capture
                 .insert(&id, &response)
-                .map_err(|_| ReadFailure::Contract)?
-            {
-                CaptureOutcome::Accepted => {}
-                CaptureOutcome::Changed => return Ok(CaptureOutcome::Changed),
-            }
+                .map_err(|_| ReadFailure::Contract)?;
         }
     }
     Ok(CaptureOutcome::Accepted)
@@ -144,7 +140,6 @@ async fn follow(
             let mut capture =
                 Capture::new(&list, view.clone()).map_err(|_| ReadFailure::Contract)?;
             let deadline = std::time::Instant::now() + Duration::from_secs(30);
-            let mut changed_cohort = false;
             for chunk in list.dashboards.chunks(4) {
                 let read = async |metadata: Option<&wire::Dashboard>| {
                     let Some(metadata) = metadata else {
@@ -177,23 +172,7 @@ async fn follow(
                     read(chunk.get(2)),
                     read(chunk.get(3))
                 );
-                match accept_batch(&mut capture, [a, b, c, d])? {
-                    CaptureOutcome::Accepted => {}
-                    CaptureOutcome::Changed => changed_cohort = true,
-                }
-                if changed_cohort {
-                    break;
-                }
-            }
-            if changed_cohort {
-                publish(
-                    lease.generation,
-                    revision,
-                    choices.hidden(),
-                    LayoutState::Loading,
-                );
-                tokio::select! { biased; () = linked.cancelled() => return Ok(()), () = tokio::time::sleep(Duration::from_millis(100)) => {} }
-                continue;
+                accept_batch(&mut capture, [a, b, c, d])?;
             }
             let snapshot = capture.finish().map_err(|_| ReadFailure::Contract)?;
             let layout = catalogue
@@ -256,8 +235,9 @@ pub(crate) async fn run(
                 .source_proof()
                 .is_some_and(|proof| proof.is_current() && proof.generation() == view.generation)
         });
-        if view.phase == Phase::Ready && capture.is_some() {
-            let capture = capture.expect("checked capture");
+        if view.phase == Phase::Ready
+            && let Some(capture) = capture
+        {
             let attempt = cancel.child_token();
             let revision = choices.snapshot().0;
             let succeeded = std::sync::atomic::AtomicBool::new(false);

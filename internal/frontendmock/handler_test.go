@@ -6,24 +6,24 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	obsv1 "github.com/damione1/Homeward/gen/home/observability/v1"
-	"github.com/damione1/Homeward/gen/home/observability/v1/observabilityv1connect"
+	api "github.com/damione1/Homeward/gen/home/api/v2"
+	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 )
 
 func TestSyntheticDiagnosticsOverTLS(t *testing.T) {
 	epoch := [16]byte{1}
 	server := httptest.NewTLSServer(Handler(epoch))
 	defer server.Close()
-	client := observabilityv1connect.NewObservabilityServiceClient(server.Client(), server.URL)
-	response, err := client.GetHealth(context.Background(), connect.NewRequest(&obsv1.GetHealthRequest{}))
+	client := apiv2connect.NewObservabilityServiceClient(server.Client(), server.URL)
+	response, err := client.GetHealth(context.Background(), connect.NewRequest(&api.GetHealthRequest{Name: "homes/synthetic/health"}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := response.Msg.Health
+	h := response.Msg
 	if response.Header().Get("Homeward-Development-Mode") != "mock" || h == nil || len(h.ProcessEpoch.Value) != 16 || h.ProcessEpoch.Value[0] != 1 {
 		t.Fatal("missing isolated mock identity or mode")
 	}
-	if h.Server.Readiness != obsv1.ServerReadiness_SERVER_READINESS_CORE_UNAVAILABLE || h.Server.Generation.GetNotLoaded() == nil || h.Durable.Availability != obsv1.DurableAvailability_DURABLE_AVAILABILITY_NOT_CONFIGURED || h.Recorder.GetNotInstalled() == nil || len(h.Pilots) != 5 {
+	if h.Server.Readiness != api.ObservationServerReadiness_OBSERVATION_SERVER_READINESS_CORE_UNAVAILABLE || h.Server.Generation.GetNotLoaded() == nil || h.Durable.Availability != api.ObservationDurableAvailability_OBSERVATION_DURABLE_AVAILABILITY_NOT_CONFIGURED || h.Recorder.GetNotInstalled() == nil || len(h.Pilots) != 5 {
 		t.Fatal("fixture claims an installed production runtime")
 	}
 	for _, phase := range h.Pilots {

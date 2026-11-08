@@ -209,7 +209,11 @@ fn delete_never_enables_cascade_implicitly() {
     let prepared = PreparedCalendarMutation::delete(&value, false).unwrap();
     match prepared.request {
         Request::Delete(request, _) => assert!(!request.force),
-        _ => panic!("wrong prepared mutation"),
+        Request::Create(..)
+        | Request::Rename(..)
+        | Request::CreateEvent(..)
+        | Request::UpdateEvent(..)
+        | Request::DeleteEvent(..) => panic!("wrong prepared mutation"),
     }
 }
 

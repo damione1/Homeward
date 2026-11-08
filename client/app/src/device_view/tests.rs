@@ -222,6 +222,16 @@ fn visibility_withdraws_a_held_gesture_even_when_a_duplicate_entity_stays_visibl
         .as_option_mut()
         .unwrap()
         .freshness = wire::Freshness::Stale.into();
+    let Some(wire::capability::Trait::Power(power)) = entity.capabilities[1].r#trait.as_mut()
+    else {
+        panic!()
+    };
+    power
+        .observation
+        .get_or_insert_default()
+        .quality
+        .get_or_insert_default()
+        .freshness = wire::Freshness::Stale.into();
     let stale = store.project(
         CachePhase::Live,
         Some(&view(&request, vec![entity.clone()])),
@@ -296,6 +306,18 @@ fn room_cards_follow_server_order_and_reordering_withdraws_a_captured_gesture() 
         EntityName::try_from(first.entity.name.as_str()).unwrap(),
     ])
     .unwrap();
+    let native = layout.native.as_mut().unwrap();
+    let root = native.root(request.room.as_ref()).unwrap().clone();
+    let section = native.nodes[&root].children[0].clone();
+    let first_node = native.nodes[&section].children[0].clone();
+    let mut second_node = native.nodes[&first_node].clone();
+    second_node.id = crate::dashboard_layout::NodeId::parse("ordered-second").unwrap();
+    second_node.entity = Some(EntityName::try_from(second.entity.name.as_str()).unwrap());
+    second_node.capability =
+        Some(CapabilityName::try_from(second.capabilities[0].name.as_str()).unwrap());
+    native.nodes.get_mut(&section).unwrap().children =
+        vec![second_node.id.clone(), first_node.clone()];
+    native.nodes.insert(second_node.id.clone(), second_node);
     request.dashboard = LayoutState::Ready(Arc::new(layout.clone()));
     let mut entities = vec![first.clone(), second.clone()];
     entities.sort_by(|a, b| a.entity.name.cmp(&b.entity.name));
@@ -315,6 +337,15 @@ fn room_cards_follow_server_order_and_reordering_withdraws_a_captured_gesture() 
         EntityName::try_from(second.entity.name.as_str()).unwrap(),
     ])
     .unwrap();
+    layout
+        .native
+        .as_mut()
+        .unwrap()
+        .nodes
+        .get_mut(&section)
+        .unwrap()
+        .children
+        .reverse();
     request.dashboard = LayoutState::Ready(Arc::new(layout));
     let after = store.project(CachePhase::Live, Some(&cache), &request);
     assert_eq!(after.rows[0].title.as_str(), first.entity.display_name);
@@ -491,11 +522,13 @@ fn slider_uses_injected_bounds_and_major_unknown_or_read_only_slots_cannot_write
     }
     let mut future = entity.clone();
     future.capabilities[0].r#trait = Some(wire::capability::Trait::Opaque(Box::default()));
+    let mut unsupported_detail = request.clone();
+    unsupported_detail.detail = Some(EntityName::try_from(future.entity.name.as_str()).unwrap());
     let row = store
         .project(
             CachePhase::Live,
             Some(&view(&request, vec![future])),
-            &request,
+            &unsupported_detail,
         )
         .rows
         .remove(0);
@@ -503,7 +536,7 @@ fn slider_uses_injected_bounds_and_major_unknown_or_read_only_slots_cannot_write
     assert!(!row.can_power && !row.can_brightness);
     assert!(matches!(
         store.prepare(row.token, row.generation, 0, DeviceIntent::Power(Power::On)),
-        Err(Refusal::Unsupported)
+        Err(Refusal::ReadOnly)
     ));
     let mut legacy = entity;
     legacy.capabilities[0].action_access = wire::ActionAccess::Denied.into();
@@ -706,6 +739,50 @@ fn an_unsupported_layout_node_never_enables_commands_through_unbound_navigation(
             )
             .is_err()
     );
+}
+
+#[test]
+fn an_active_sibling_node_cannot_authorize_an_unbound_detail_entity() {
+    let mut request = request();
+    let original = light(&request);
+    let mut sibling = original.clone();
+    sibling.entity.as_option_mut().unwrap().name =
+        "homes/synthetic/entities/unrelated-source".into();
+    sibling.capabilities[0].name = format!("{}/capabilities/power", sibling.entity.name);
+    let mut layout = request.dashboard.layout().unwrap().clone();
+    for node in layout.native.as_mut().unwrap().nodes.values_mut() {
+        if node
+            .entity
+            .as_ref()
+            .is_some_and(|entity| entity.as_str() == original.entity.name)
+        {
+            node.entity = Some(EntityName::try_from(sibling.entity.name.as_str()).unwrap());
+            node.capability =
+                Some(CapabilityName::try_from(sibling.capabilities[0].name.as_str()).unwrap());
+        }
+    }
+    request.dashboard = LayoutState::Ready(Arc::new(layout));
+    let cache = view(&request, vec![original.clone(), sibling]);
+    let store = DeviceStore::default();
+    let active = store.project(CachePhase::Live, Some(&cache), &request);
+    assert!(
+        active
+            .rows
+            .iter()
+            .any(|row| row.access == ProControlAccess::Allowed)
+    );
+    request.detail = Some(EntityName::try_from(original.entity.name.as_str()).unwrap());
+    let unbound = store.project(CachePhase::Live, Some(&cache), &request);
+    assert_eq!(unbound.rows[0].access, ProControlAccess::Denied);
+    assert!(matches!(
+        store.prepare(
+            unbound.rows[0].token,
+            unbound.rows[0].generation,
+            0,
+            DeviceIntent::Power(Power::On)
+        ),
+        Err(Refusal::ReadOnly)
+    ));
 }
 
 fn two_endpoints(request: &ProjectionRequest) -> wire::EntityViewEntry {
@@ -1275,6 +1352,22 @@ fn choice_tokens_cannot_retarget_modes_and_absent_observations_are_removed() {
     assert!(!(prepared.guard)());
 }
 
+fn helper_request() -> fixture::Scenario {
+    let mut request = request();
+    let mut layout = request.dashboard.layout().unwrap().clone();
+    for node in layout.native.as_mut().unwrap().nodes.values_mut() {
+        if let Some(entity) = &node.entity {
+            node.capability = Some(
+                CapabilityName::try_from(
+                    format!("{}/capabilities/helper-value", entity.as_str()).as_str(),
+                )
+                .unwrap(),
+            );
+        }
+    }
+    request.dashboard = LayoutState::Ready(Arc::new(layout));
+    request
+}
 pub(super) fn helper_entity(
     request: &ProjectionRequest,
     kind: home_wire_contract::home::api::v2::HelperKind,
@@ -1369,7 +1462,7 @@ pub(super) fn helper_entity(
 #[test]
 fn helper_editors_preserve_exact_values_and_seal_sql_revision_at_command_admission() {
     use home_wire_contract::home::api::v2::{HelperKind as K, helper_input_value::Value as V};
-    let request = request();
+    let request = helper_request();
     for (kind, input, expected) in [
         (K::Number, "-0,5", V::Number(-0.5)),
         (K::Counter, "9223372036854775806", V::Counter(i64::MAX - 1)),
@@ -1450,7 +1543,7 @@ fn helper_editors_preserve_exact_values_and_seal_sql_revision_at_command_admissi
 #[test]
 fn invalid_helper_text_remains_editable_but_a_sql_revision_change_withdraws_it() {
     use home_wire_contract::home::api::v2::HelperKind as K;
-    let request = request();
+    let request = helper_request();
     for (kind, text) in [
         (K::Number, "0.1"),
         (K::Counter, "9223372036854775808"),
@@ -1525,7 +1618,7 @@ fn helper_boolean_and_button_choices_only_offer_the_advertised_operations() {
     use home_wire_contract::home::api::v2::{
         HelperKind as K, HelperOperation as O, helper_input_value::Value as V,
     };
-    let request = request();
+    let request = helper_request();
     let store = DeviceStore::default();
     let entity = helper_entity(&request, K::Boolean);
     let row = store
@@ -1589,7 +1682,7 @@ fn helper_boolean_and_button_choices_only_offer_the_advertised_operations() {
 #[test]
 fn helper_selector_filters_with_generation_guards_and_never_optimistically_changes_observation() {
     use home_wire_contract::home::api::v2::{HelperKind as K, helper_input_value::Value as V};
-    let request = request();
+    let request = helper_request();
     let entity = helper_entity(&request, K::Select);
     let store = DeviceStore::default();
     let capture = view(&request, vec![entity]);
@@ -1663,7 +1756,7 @@ fn helper_selector_filters_with_generation_guards_and_never_optimistically_chang
 #[test]
 fn helper_controls_require_present_cas_and_never_coerce_a_different_observed_value_kind() {
     use home_wire_contract::home::api::v2::{HelperKind as K, helper_value::Value as V};
-    let request = request();
+    let request = helper_request();
     let store = DeviceStore::default();
     let mut entity = helper_entity(&request, K::Counter);
     {
@@ -2042,16 +2135,70 @@ fn panel_setpoint_step_is_one_complete_typed_intent_and_rejects_an_old_capture()
     );
 }
 
+// The helper-only capture has no power capability. Bind the synthetic server
+// document to the actual helper before joining its capture proof.
+fn joined_helper_fixture(view: &CachedView) -> dashboard::Layout {
+    let mut document = dashboard::fixture_wire();
+    for node in &mut document.layout.get_or_insert_default().nodes {
+        if let Some(wire::dashboard_layout_node::Content::Tile(tile)) = &mut node.content {
+            let target = CapabilityName::try_from(tile.capability.as_str()).unwrap();
+            tile.capability = format!("{}/capabilities/helper-value", target.entity().as_str());
+        }
+    }
+    let response = dashboard::query_fixture(document, view);
+    dashboard::Layout::join(
+        &response,
+        &home_client_model::api::DashboardName::try_from(response.dashboard.name.as_str()).unwrap(),
+        view,
+    )
+    .unwrap()
+}
+
+fn helper_draft_request(view: &CachedView, entity: &wire::EntityViewEntry) -> ProjectionRequest {
+    let layout = joined_helper_fixture(view);
+    let detail = EntityName::try_from(entity.entity.name.as_str()).unwrap();
+    let room = layout
+        .rooms
+        .iter()
+        .find(|room| room.entities.contains(&detail))
+        .expect("the synthetic document explicitly binds the helper's entity")
+        .id
+        .clone();
+    ProjectionRequest {
+        detail: Some(detail),
+        room: Some(room),
+        dashboard: LayoutState::Ready(Arc::new(layout)),
+        ..Default::default()
+    }
+}
+
+fn assert_helper_draft_admitted(store: &DeviceStore, row: &CardRow, request: &ProjectionRequest) {
+    assert_eq!(
+        row.access,
+        crate::ProControlAccess::Allowed,
+        "the draft fixture must start in the helper's visible authorized view"
+    );
+    let state = store.0.lock().unwrap();
+    let slot = active_slot(&state, row.token, row.generation, request.revision).expect(
+        "current joined capture, exact access and helper SQL CAS before the tested gesture",
+    );
+    assert_eq!(Some(&slot.target.entity()), request.detail.as_ref());
+    let wire::capability::Trait::Helper(helper) = slot.capability.r#trait.as_ref().unwrap() else {
+        panic!("the admitted draft target must be the helper");
+    };
+    assert_eq!(helper.observation.value.helper_revision, 7);
+    assert_eq!(
+        helper.observation.observed_time.seconds, 500,
+        "synthetic observation timestamp stays distinct from helper SQL CAS"
+    );
+}
+
 fn draft_rotation_fixture(
     kind: wire::HelperKind,
 ) -> (wire::EntityViewEntry, CachedView, ProjectionRequest) {
     let entity = helper_entity(&request(), kind);
     let first = fixture::capture(vec![entity.clone()]);
-    let request = ProjectionRequest {
-        detail: Some(EntityName::try_from(entity.entity.name.as_str()).unwrap()),
-        dashboard: LayoutState::Ready(Arc::new(dashboard::joined_fixture(&first))),
-        ..Default::default()
-    };
+    let request = helper_draft_request(&first, &entity);
     (entity, first, request)
 }
 
@@ -2067,6 +2214,7 @@ async fn typed_drafts_survive_pending_and_coalesced_capture_rotations_without_ad
                 .project(CachePhase::Live, Some(&first), &request)
                 .rows
                 .remove(0);
+            assert_helper_draft_admitted(&store, &old, &request);
             let text = if kind == wire::HelperKind::Text {
                 "abcdef"
             } else {
@@ -2120,7 +2268,7 @@ async fn typed_drafts_survive_pending_and_coalesced_capture_rotations_without_ad
                 );
             }
             let joined = if pending { &third } else { &second };
-            request.dashboard = LayoutState::Ready(Arc::new(dashboard::joined_fixture(joined)));
+            request.dashboard = LayoutState::Ready(Arc::new(joined_helper_fixture(joined)));
             let fresh = store
                 .project(CachePhase::Live, Some(joined), &request)
                 .rows
@@ -2212,6 +2360,7 @@ async fn draft_archives_cannot_cross_private_clear_scope_contract_or_authority_c
             .project(CachePhase::Live, Some(&first), &request)
             .rows
             .remove(0);
+        assert_helper_draft_admitted(&store, &old, &request);
         assert!(
             store
                 .edit(
@@ -2281,7 +2430,7 @@ async fn draft_archives_cannot_cross_private_clear_scope_contract_or_authority_c
         } else {
             vec![entity]
         });
-        let mut layout = dashboard::joined_fixture(&fresh);
+        let mut layout = joined_helper_fixture(&fresh);
         if change == "document" {
             layout.etag = "new-document".into();
         }
@@ -2306,7 +2455,7 @@ async fn draft_archives_cannot_cross_private_clear_scope_contract_or_authority_c
 async fn archive_expiry_is_independent_of_ui_delivery_and_does_not_own_the_store() {
     let (entity, first, mut request) = draft_rotation_fixture(wire::HelperKind::Text);
     let deadline = chrono::Utc::now() + chrono::Duration::milliseconds(500);
-    let mut layout = dashboard::joined_fixture(&first);
+    let mut layout = joined_helper_fixture(&first);
     layout.binding_expires = Some((
         deadline.timestamp(),
         deadline.timestamp_subsec_nanos() as i32,
@@ -2317,6 +2466,7 @@ async fn archive_expiry_is_independent_of_ui_delivery_and_does_not_own_the_store
         .project(CachePhase::Live, Some(&first), &request)
         .rows
         .remove(0);
+    assert_helper_draft_admitted(&store, &old, &request);
     store
         .edit(
             old.token,
@@ -2348,6 +2498,7 @@ async fn archive_expiry_is_independent_of_ui_delivery_and_does_not_own_the_store
         .project(CachePhase::Live, Some(&first), &request)
         .rows
         .remove(0);
+    assert_helper_draft_admitted(&store, &row, &request);
     store
         .edit(
             row.token,
@@ -2380,6 +2531,7 @@ fn a_detached_draft_without_an_expiry_scheduler_fails_closed() {
         .project(CachePhase::Live, Some(&first), &request)
         .rows
         .remove(0);
+    assert_helper_draft_admitted(&store, &old, &request);
     store
         .edit(
             old.token,
@@ -2410,6 +2562,7 @@ async fn an_old_draft_expiry_cannot_clear_restored_text_or_a_replacement_archive
         .project(CachePhase::Live, Some(&first), &request)
         .rows
         .remove(0);
+    assert_helper_draft_admitted(&store, &row, &request);
     store
         .edit(
             row.token,
@@ -2425,7 +2578,7 @@ async fn an_old_draft_expiry_cannot_clear_restored_text_or_a_replacement_archive
         let saved = state.retained_drafts.as_ref().unwrap();
         (saved.serial, saved.deadline())
     };
-    request.dashboard = LayoutState::Ready(Arc::new(dashboard::joined_fixture(&second)));
+    request.dashboard = LayoutState::Ready(Arc::new(joined_helper_fixture(&second)));
     let fresh = store
         .project(CachePhase::Live, Some(&second), &request)
         .rows
@@ -2455,6 +2608,7 @@ async fn clean_fields_and_incomplete_pointer_gestures_are_not_archived_as_text()
             .project(CachePhase::Live, Some(&first), &request)
             .rows
             .remove(0);
+        assert_helper_draft_admitted(&store, &old, &request);
         let observed = old.values[0].lower.clone();
         if gesture {
             store
@@ -2475,7 +2629,7 @@ async fn clean_fields_and_incomplete_pointer_gestures_are_not_archived_as_text()
         let second = fixture::capture(vec![entity]);
         store.project(CachePhase::Live, Some(&second), &request);
         assert!(store.0.lock().unwrap().retained_drafts.is_none());
-        request.dashboard = LayoutState::Ready(Arc::new(dashboard::joined_fixture(&second)));
+        request.dashboard = LayoutState::Ready(Arc::new(joined_helper_fixture(&second)));
         let fresh = store
             .project(CachePhase::Live, Some(&second), &request)
             .rows
@@ -2503,16 +2657,13 @@ async fn renewal_preserves_only_unarmed_draft_text_with_fresh_capture_admission(
         let first = credentials
             .captured(fixture::capture(vec![entity.clone()]))
             .await;
-        let mut request = ProjectionRequest {
-            detail: Some(EntityName::try_from(entity.entity.name.as_str()).unwrap()),
-            dashboard: LayoutState::Ready(Arc::new(dashboard::joined_fixture(&first))),
-            ..Default::default()
-        };
+        let mut request = helper_draft_request(&first, &entity);
         let store = DeviceStore::default();
         let old = store
             .project(CachePhase::Live, Some(&first), &request)
             .rows
             .remove(0);
+        assert_helper_draft_admitted(&store, &old, &request);
         assert!(
             store
                 .edit(
@@ -2548,7 +2699,7 @@ async fn renewal_preserves_only_unarmed_draft_text_with_fresh_capture_admission(
             assert!(state.context.is_none() && state.retained_drafts.is_some());
         }
         let next = credentials.captured(fixture::capture(vec![entity])).await;
-        request.dashboard = LayoutState::Ready(Arc::new(dashboard::joined_fixture(&next)));
+        request.dashboard = LayoutState::Ready(Arc::new(joined_helper_fixture(&next)));
         let fresh = store
             .project(CachePhase::Live, Some(&next), &request)
             .rows

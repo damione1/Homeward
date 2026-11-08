@@ -85,15 +85,15 @@ impl ChoiceField {
 }
 pub(super) enum Draft {
     Policy(policy::PolicyDraft),
-    Integration(integrations::IntegrationForm),
+    Integration(Box<integrations::IntegrationForm>),
 }
 impl Draft {
     pub fn open(command: &Command) -> Result<Self, &'static str> {
         match command {
             Command::Policy(value) => policy::PolicyDraft::open(value).map(Self::Policy),
-            Command::Integration(value) => {
-                integrations::IntegrationForm::open(value).map(Self::Integration)
-            }
+            Command::Integration(value) => integrations::IntegrationForm::open(value)
+                .map(Box::new)
+                .map(Self::Integration),
         }
     }
     pub fn fields(&self) -> Vec<ProAdminField> {

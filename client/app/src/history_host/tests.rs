@@ -47,54 +47,56 @@ async fn renewal_history_resumes_in_both_orders_and_expiry_keeps_fresh_work() {
                 .unwrap()
                 .reconcile_session(credentials.session.generation());
         }
-        let mut state = owner.0.state.lock().unwrap();
-        assert!(old_cancel.is_cancelled());
-        assert_ne!(state.generation, old_generation);
-        assert!(!state.paused && state.pending.is_some());
-        assert!(!state.admits(state.generation));
-        assert!(state.admits_source(
-            state.generation,
-            &Some(fresh.clone()),
-            credentials.session.generation()
-        ));
-        render::render(
-            &window,
-            render::Projection::new(
+        let (cancel, fresh_data, generation, projection) = {
+            let mut state = owner.0.state.lock().unwrap();
+            assert!(old_cancel.is_cancelled());
+            assert_ne!(state.generation, old_generation);
+            assert!(!state.paused && state.pending.is_some());
+            assert!(!state.admits(state.generation));
+            assert!(state.admits_source(
+                state.generation,
+                &Some(fresh.clone()),
+                credentials.session.generation()
+            ));
+            render::render(
+                &window,
+                render::Projection::new(
+                    &state,
+                    Some((credentials.session.clone(), source.source().generation())),
+                ),
+            );
+            assert_eq!(window.get_history_frame_id(), frame_id);
+            assert!(window.get_history_revalidating());
+            // The fresh read is now in flight. Expiry removes its predecessor's
+            // payload but neither its cancellation token nor its admission.
+            let cancel = state.cancel.clone();
+            let fresh_data = state.data.as_ref().unwrap().clone();
+            state.pending.take();
+            state.expire_display();
+            assert!(state.data.is_none() && state.frame.is_none());
+            assert!(!cancel.is_cancelled());
+            assert!(state.admits_source(
+                state.generation,
+                &Some(fresh.clone()),
+                credentials.session.generation()
+            ));
+            // A fresh response has arrived but its raster worker is delayed.
+            state.data = Some(fresh_data.clone());
+            state.source_generation = Some(credentials.session.generation());
+            state.status = Status::Preparing;
+            state.frame = Some(old_frame);
+            state.render = true;
+            state.renewal = Some(source.bounded((chrono::Utc::now().timestamp() - 1, 0)));
+            let generation = state.generation;
+            let projection = render::Projection::new(
                 &state,
-                Some((credentials.session.clone(), source.source().generation())),
-            ),
-        );
-        assert_eq!(window.get_history_frame_id(), frame_id);
-        assert!(window.get_history_revalidating());
-        // The fresh read is now in flight. Expiry removes its predecessor's
-        // payload but neither its cancellation token nor its admission.
-        let cancel = state.cancel.clone();
-        let fresh_data = state.data.as_ref().unwrap().clone();
-        state.pending.take();
-        state.expire_display();
-        assert!(state.data.is_none() && state.frame.is_none());
-        assert!(!cancel.is_cancelled());
-        assert!(state.admits_source(
-            state.generation,
-            &Some(fresh.clone()),
-            credentials.session.generation()
-        ));
-        // A fresh response has arrived but its raster worker is delayed.
-        state.data = Some(fresh_data.clone());
-        state.source_generation = Some(credentials.session.generation());
-        state.status = Status::Preparing;
-        state.frame = Some(old_frame);
-        state.render = true;
-        state.renewal = Some(source.bounded((chrono::Utc::now().timestamp() - 1, 0)));
-        let generation = state.generation;
-        let projection = render::Projection::new(
-            &state,
-            Some((
-                credentials.session.clone(),
-                credentials.session.generation(),
-            )),
-        );
-        drop(state);
+                Some((
+                    credentials.session.clone(),
+                    credentials.session.generation(),
+                )),
+            );
+            (cancel, fresh_data, generation, projection)
+        };
         let Publication::Schedule(ticket) = owner
             .0
             .mailbox
@@ -108,12 +110,17 @@ async fn renewal_history_resumes_in_both_orders_and_expiry_keeps_fresh_work() {
             0,
             "P1 guard cannot restore an expired P0 raster"
         );
-        let state = owner.0.state.lock().unwrap();
-        assert!(state.frame.is_none() && state.renewal.is_none());
-        assert!(Arc::ptr_eq(state.data.as_ref().unwrap(), &fresh_data));
-        assert!(state.render && !cancel.is_cancelled());
-        assert!(state.admits_source(generation, &Some(fresh), credentials.session.generation()));
-        drop(state);
+        {
+            let state = owner.0.state.lock().unwrap();
+            assert!(state.frame.is_none() && state.renewal.is_none());
+            assert!(Arc::ptr_eq(state.data.as_ref().unwrap(), &fresh_data));
+            assert!(state.render && !cancel.is_cancelled());
+            assert!(state.admits_source(
+                generation,
+                &Some(fresh),
+                credentials.session.generation()
+            ));
+        }
         credentials.session.close().await;
     }
 }
@@ -364,8 +371,8 @@ fn ready_history_state() -> State {
         Data::from_snapshot(
             Arc::new(Snapshot {
                 query,
-                content: Content::Retained(Pages::Observations(
-                    vec![wire::QueryObservationsResponse {
+                content: Content::Retained(Pages::Observations(vec![
+                    wire::QueryObservationsResponse {
                         observations: vec![wire::HistoryObservation {
                             observation_id: format!("{:064x}", 1),
                             descriptor: Some(wire::HistoryNumericDescriptor {
@@ -390,9 +397,8 @@ fn ready_history_state() -> State {
                             ..Default::default()
                         }],
                         ..Default::default()
-                    }]
-                    .into(),
-                )),
+                    },
+                ])),
                 encoded_bytes: 0,
                 points: 1,
             }),

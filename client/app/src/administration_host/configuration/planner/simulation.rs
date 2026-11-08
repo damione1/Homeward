@@ -535,6 +535,20 @@ fn field(field: Field, value: String, editable: bool) -> ProAdminField {
     }
 }
 
+/// Administration-local label for v2 simulation modes; device views own their
+/// separate registry vocabulary.
+fn temperature_mode_label(value: wire::TemperatureMode) -> &'static str {
+    match value {
+        wire::TemperatureMode::Unspecified => "Unspecified",
+        wire::TemperatureMode::Off => "Off",
+        wire::TemperatureMode::Heat => "Heat",
+        wire::TemperatureMode::Cool => "Cool",
+        wire::TemperatureMode::Auto => "Auto",
+        wire::TemperatureMode::Dry => "Dehumidification",
+        wire::TemperatureMode::FanOnly => "Fan Only",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -616,18 +630,5 @@ mod tests {
         invalid.report.as_option_mut().unwrap().hardware_validated = true;
         assert!(!settings.accept(invalid));
         assert!(settings.report.is_none());
-    }
-}
-/// Administration-local label for v2 simulation modes; device views own their
-/// separate registry vocabulary.
-fn temperature_mode_label(value: wire::TemperatureMode) -> &'static str {
-    match value {
-        wire::TemperatureMode::Unspecified => "Unspecified",
-        wire::TemperatureMode::Off => "Off",
-        wire::TemperatureMode::Heat => "Heat",
-        wire::TemperatureMode::Cool => "Cool",
-        wire::TemperatureMode::Auto => "Auto",
-        wire::TemperatureMode::Dry => "Dehumidification",
-        wire::TemperatureMode::FanOnly => "Fan Only",
     }
 }
