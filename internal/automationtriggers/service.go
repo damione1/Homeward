@@ -43,6 +43,9 @@ const (
 // Result is an observation for the future run orchestrator. Reading a fired
 // result grants no command, scene, or script capability.
 type Result struct {
+	calendarSource         CalendarSourceID
+	calendarAlarmAt        time.Time
+	calendarDelivery       [32]byte
 	kind                   ResultKind
 	plan                   *PlanIdentity
 	reason                 DegradedReason
@@ -82,6 +85,9 @@ type calendarKey struct {
 }
 
 type Service struct {
+	calendarMissed                                       map[[32]byte]calendarConsumption
+	calendarClaiming                                     map[[32]byte]calendarConsumption
+	calendarJournal                                      CalendarDeliveryJournal
 	permanentSlots                                       map[int]bool
 	activePlanImage                                      *retainedPlan
 	pendingPlan                                          *PlanRetention
@@ -521,7 +527,36 @@ func (s *Service) NextResult(ctx context.Context) (Result, error) {
 				default:
 				}
 			}
+			journal := s.calendarJournal
+			if journal != nil && result.kind == ResultFired && result.calendarDelivery != ([32]byte{}) {
+				if s.calendarClaiming == nil {
+					s.calendarClaiming = map[[32]byte]calendarConsumption{}
+				}
+				s.calendarClaiming[result.calendarDelivery] = calendarConsumption{result.calendarSource, result.calendarAlarmAt}
+			}
 			s.mu.Unlock()
+			if journal != nil && (result.kind == ResultFired || result.kind == ResultMissed) && result.calendarDelivery != ([32]byte{}) {
+				claimCtx, cancel := context.WithTimeout(ctx, time.Second)
+				claimed, err := journal.ClaimCalendarDelivery(claimCtx, result.calendarDelivery, result.at)
+				cancel()
+				if err != nil || !claimed || ctx.Err() != nil {
+					result.kind = ResultMissed
+				}
+				if result.kind == ResultFired {
+					s.mu.Lock()
+					valid := s.calendarDeliveryCurrentLocked(result)
+					s.mu.Unlock()
+					if !valid || ctx.Err() != nil {
+						result.kind = ResultMissed
+					}
+				}
+				s.mu.Lock()
+				delete(s.calendarClaiming, result.calendarDelivery)
+				if result.kind == ResultMissed && result.calendarSource.Valid() {
+					s.rememberCalendarMissedLocked(result.calendarDelivery, result.calendarSource, result.calendarAlarmAt)
+				}
+				s.mu.Unlock()
+			}
 			return result, nil
 		}
 		closed := s.closed
@@ -538,7 +573,7 @@ func (s *Service) NextResult(ctx context.Context) (Result, error) {
 }
 
 func resultCharge(result Result) int {
-	return 128 + len(result.automation) + len(result.triggerKey) + len(result.payload)
+	return 192 + len(result.calendarSource.value) + len(result.automation) + len(result.triggerKey) + len(result.payload)
 }
 
 func (s *Service) enqueueLocked(result Result) {

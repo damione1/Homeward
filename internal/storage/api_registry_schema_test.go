@@ -44,7 +44,7 @@ INSERT INTO public.registry_aliases(alias,entity_id,current) VALUES('light.synth
 	if err := store.pool.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(t) ORDER BY version)::text FROM public.homeward_schema_migrations t`).Scan(&historical); err != nil {
 		t.Fatal(err)
 	}
-	if version, err := store.Migrate(ctx); err != nil || version.Number() != 29 {
+	if version, err := store.Migrate(ctx); err != nil || version != CurrentVersion() {
 		t.Fatalf("28 -> 29: %v %v", version, err)
 	}
 	var home, id, label, alias, native string

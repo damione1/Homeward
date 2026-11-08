@@ -38,10 +38,11 @@ func (businessResourceClock) Now() time.Time { return time.Now() }
 // Only MediaSession lease metadata belongs here; native pixels/streams stay
 // with the explicitly supplied MediaResourceSource owners.
 type businessResourceRuntime struct {
-	calendars     *calendarResourceHandler
-	media         *mediaResourceHandler
-	ownedCalendar *calendars.Service
-	sessions      *mediasessions.Service
+	calendarBridge *calendarBridge
+	calendars      *calendarResourceHandler
+	media          *mediaResourceHandler
+	ownedCalendar  *calendars.Service
+	sessions       *mediasessions.Service
 }
 
 func newBusinessResourceRuntime(ctx context.Context, lists *listComposition, authority *authorization.Authority, remote *remoteCalendarRuntime, workday workday.CalendarReader, sources []MediaResourceSource) (*businessResourceRuntime, error) {
@@ -101,6 +102,7 @@ func (r *businessResourceRuntime) Close() {
 	if r == nil {
 		return
 	}
+	r.calendarBridge.Close()
 	if r.sessions != nil {
 		r.sessions.Close()
 	}

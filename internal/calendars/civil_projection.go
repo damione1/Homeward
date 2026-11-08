@@ -44,3 +44,23 @@ func (p Point) ResolvedPoint() (LocalDateTime, Instant, bool) {
 	}
 	return p.local, p.resolved, true
 }
+
+// ProjectSpan resolves an all-day span only at the automation boundary using
+// the same pinned timezone rules as occurrence queries. Stored dates stay civil.
+func ProjectSpan(ctx context.Context, span Span, view Zone) (time.Time, time.Time, string, bool, error) {
+	if !span.Valid() || !view.Valid() {
+		return time.Time{}, time.Time{}, "", false, failure(InvalidInput)
+	}
+	if span.kind == Timed {
+		return span.start.value, span.end.value, span.zone.Name(), false, nil
+	}
+	start, ok, err := resolveWallTime(ctx, LocalDateTime{date: span.startDate}, view, true)
+	if err != nil || !ok {
+		return time.Time{}, time.Time{}, "", false, failure(InvalidDate)
+	}
+	end, ok, err := resolveWallTime(ctx, LocalDateTime{date: span.endDate}, view, true)
+	if err != nil || !ok || !end.After(start) {
+		return time.Time{}, time.Time{}, "", false, failure(InvalidDate)
+	}
+	return start, end, view.Name(), true, nil
+}

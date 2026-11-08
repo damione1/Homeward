@@ -627,6 +627,13 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	if err != nil {
 		return closeRemotePreparedRuntime(remoteRuntime, host, authorization, store, err, reactive, recording, nil, sessions.mfa)
 	}
+	if triggers != nil {
+		if err := triggers.AttachCalendarDeliveryJournal(store); err != nil {
+			return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, nil, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
+				return closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
+			})
+		}
+	}
 	if err := remoteRuntime.attach(triggers); err != nil {
 		return closeRemoteTriggerPreparedRuntime(remoteRuntime, host, triggers, nil, plan.AutomationRuns, func(stopCtx context.Context, triggerDone <-chan struct{}) error {
 			return closeRemotePreparedRuntimeWithContext(remoteRuntime, stopCtx, host, authorization, store, err, reactive, recording, nil, sessions.mfa, triggerDone)
@@ -784,6 +791,7 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 	resources, err := newBusinessResourceRuntime(ctx, listRun, sessions.authority, remoteRuntime, plan.WorkdayCalendar, plan.MediaSources)
 	if err == nil {
 		listRun.resources = resources
+		resources.calendarBridge = startCalendarBridge(ctx, resources.calendars, triggers, store, triggerClock)
 		err = resources.Register(plan.Public)
 	}
 	if err != nil {
