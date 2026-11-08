@@ -1011,6 +1011,15 @@ func (m *DiscoveryMapper) observeState(ctx context.Context, host integrations.Se
 
 func (m *DiscoveryMapper) observeStateWithCausality(ctx context.Context, host integrations.SessionHost, runtime *componentRuntime, payload []byte, quality domain.Quality, causality domain.Causality) error {
 	profile := runtime.profile
+	if profile.guardedValueField != "" {
+		object, err := decodeDiscoveryJSON(payload)
+		if err != nil {
+			return errDiscoveryValue
+		}
+		if _, present := object[profile.guardedValueField]; !present {
+			return nil
+		}
+	}
 	var evaluated *template.Result
 	if profile.hasValueTemplate {
 		result, err := templateResult(ctx, profile.valueProgram, payload)

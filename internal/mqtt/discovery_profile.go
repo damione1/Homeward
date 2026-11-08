@@ -7,6 +7,7 @@ import (
 	"errors"
 	"github.com/damione1/Homeward/internal/domain"
 	"io"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -77,6 +78,7 @@ type discoveryComponent struct {
 	hasCommand            bool
 	valueProgram          template.Program
 	hasValueTemplate      bool
+	guardedValueField     string
 	availability          []availabilityConfig
 	availabilityMode      availabilityMode
 	payloadOn             scalar
@@ -663,6 +665,7 @@ func parseDiscoveryComponent(raw map[string]any, inheritedKind componentKind, sh
 		return discoveryComponent{}, err
 	}
 	if templateText != "" {
+		templateText, component.guardedValueField = guardedDiscoveryValue(templateText)
 		component.valueProgram, err = template.Compile(templateText)
 		if err != nil {
 			return discoveryComponent{}, errDiscoveryProfile
@@ -913,4 +916,17 @@ func parseDiscoveryDocument(topic Topic, payload []byte) ([]discoveryComponent, 
 		result = append(result, component)
 	}
 	return result, actions, excluded, nil
+}
+
+// Zigbee2MQTT 2.14.3 homeassistant.ts guards scalar property templates because
+// state packets may contain only unrelated attributes. Admit this bounded form,
+// not arbitrary Jinja blocks. Missing properties must not renew observations.
+var guardedDiscoveryPattern = regexp.MustCompile(`^\s*\{%\s*if\s+(["'])([A-Za-z_][A-Za-z0-9_]{0,127})(["'])\s+in\s+value_json\s*%\}\s*\{\{\s*value_json\[(["'])([A-Za-z_][A-Za-z0-9_]{0,127})(["'])\]\s*\}\}\s*\{%\s*endif\s*%\}\s*$`)
+
+func guardedDiscoveryValue(source string) (string, string) {
+	m := guardedDiscoveryPattern.FindStringSubmatch(source)
+	if m == nil || m[1] != m[3] || m[4] != m[6] || m[2] != m[5] {
+		return source, ""
+	}
+	return `{{ value_json["` + m[2] + `"] }}`, m[2]
 }
