@@ -1187,3 +1187,136 @@ fn room_detail_uses_one_panel_and_keeps_back_distinct_from_close() {
     assert_eq!(*events.borrow(), vec![(true, 3), (false, 4)]);
     window.hide().unwrap();
 }
+
+#[test]
+fn modal_content_respects_dynamic_system_insets_without_shrinking_scrims() {
+    use i_slint_backend_testing::{ElementQuery, TestingBackend, TestingBackendOptions};
+    use i_slint_core::{lengths::LogicalEdges, window::WindowInner};
+    slint::platform::set_platform(Box::new(TestingBackend::new(TestingBackendOptions {
+        mock_time: true,
+        renderer_name: Some("software".into()),
+        ..Default::default()
+    })))
+    .unwrap();
+    let directory = std::env::var_os("HOMEWARD_SYNTHETIC_RENDER_DIR").map(std::path::PathBuf::from);
+    if let Some(directory) = &directory {
+        std::fs::create_dir_all(directory).unwrap();
+    }
+    let window = setup();
+    let (_, panel) = panels()
+        .into_iter()
+        .find(|(name, _)| *name == "alarm")
+        .unwrap();
+    window.set_device_cards(ModelRc::from([panel.device.clone()]));
+    window.set_detail_panels(ModelRc::from([panel]));
+    window.set_native_popup_title("Synthetic room thermostat".into());
+    window.set_native_popup_detail(true);
+    window.set_native_popup_can_back(true);
+    window.set_popup_layout_nodes(ModelRc::from([synthetic_thermostat_popup()]));
+    window.show().unwrap();
+    for (screen, width, height) in [
+        ("phone", 360., 800.),
+        ("tablet", 800., 1100.),
+        ("desktop", 1100., 900.),
+    ] {
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(width, height));
+        for (appearance, dark, large) in [("light100", false, false), ("dark200", true, true)] {
+            window.set_dark_mode(dark);
+            window.set_large_text(large);
+            for room in [false, true] {
+                window.set_page(if room {
+                    ViewPage::Home
+                } else {
+                    ViewPage::Detail
+                });
+                window.set_native_popup(DialogState {
+                    open: room,
+                    topmost: room,
+                    ..Default::default()
+                });
+                // Change the real Window property after opening, then remove the
+                // insets again. This exercises runtime rotation/system-bar updates.
+                for (step, insets) in [
+                    LogicalEdges::default(),
+                    LogicalEdges::new(28., 24., 12., 8.),
+                    LogicalEdges::default(),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    WindowInner::from_pub(window.window()).set_window_item_safe_area(insets);
+                    slint::platform::update_timers_and_animations();
+                    let route = if room { "room" } else { "direct" };
+                    let context = format!("{screen}-{appearance}-{route}-{step}");
+                    let surface = ElementQuery::from_root(&window)
+                        .match_id(if room {
+                            "HomewardWindow::popup-dialog"
+                        } else {
+                            "HomewardWindow::detail-dialog"
+                        })
+                        .find_first()
+                        .expect("actual product modal surface");
+                    let origin = surface.absolute_position();
+                    let size = surface.size();
+                    assert!(
+                        origin.x.abs() < 1. && origin.y.abs() < 1.,
+                        "scrim origin: {context}"
+                    );
+                    assert!(
+                        (size.width - width).abs() < 1. && (size.height - height).abs() < 1.,
+                        "scrim extent: {context}"
+                    );
+                    let area = surface
+                        .query_descendants()
+                        .match_id(if room {
+                            "HomewardPopup::panel"
+                        } else {
+                            "HomewardWindow::detail-scroll"
+                        })
+                        .find_first()
+                        .expect("bounded interactive content");
+                    let origin = area.absolute_position();
+                    let size = area.size();
+                    assert!(
+                        origin.x >= insets.left - 1. && origin.y >= insets.top - 1.,
+                        "content origin: {context} {origin:?}"
+                    );
+                    assert!(
+                        origin.x + size.width <= width - insets.right + 1.
+                            && origin.y + size.height <= height - insets.bottom + 1.,
+                        "content extent: {context} {origin:?} {size:?}"
+                    );
+                    let close = surface
+                        .query_descendants()
+                        .match_inherits("KitPressable")
+                        .match_predicate(|item| {
+                            item.accessible_label()
+                                .is_some_and(|label| label.starts_with("Close"))
+                        })
+                        .find_first()
+                        .expect("modal Close");
+                    let origin = close.absolute_position();
+                    let size = close.size();
+                    assert!(
+                        origin.x >= insets.left
+                            && origin.y >= insets.top
+                            && origin.x + size.width <= width - insets.right
+                            && origin.y + size.height <= height - insets.bottom,
+                        "Close stays outside system UI: {context} {origin:?} {size:?}"
+                    );
+                    if step == 1
+                        && let Some(directory) = &directory
+                    {
+                        save(
+                            &window,
+                            &directory.join(format!("safe-area-{screen}-{appearance}-{route}.png")),
+                        );
+                    }
+                }
+            }
+        }
+    }
+    window.hide().unwrap();
+}

@@ -3,6 +3,10 @@ import { ProDetailPanel, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerI
 import { HomewardDashboard } from "native-dashboard.slint";
 
 export component HomewardPopup inherits KitDialogSurface {
+    // The scrim fills the window; only its interactive panel avoids system UI.
+    in property <Edges> safe-area-insets;
+    private property <length> viewport-width: max(0px, root.width - root.safe-area-insets.left - root.safe-area-insets.right);
+    private property <length> viewport-height: max(0px, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom);
     in property <int> generation;
     in property <string> title;
     in property <bool> detail;
@@ -51,9 +55,10 @@ export component HomewardPopup inherits KitDialogSurface {
         theme: root.theme; title: root.title; close-label: "Close " + root.title;
         notice: root.action-feedback;
         interactive: root.state.open && root.state.topmost && !root.state.busy;
-        width: root.width < 600px ? root.width : max(0px, min(root.width - 48px, root.detail ? 480px : 840px));
-        height: root.width < 600px ? root.height : min(max(0px, root.height - 48px), self.preferred-height);
-        x: (root.width - self.width) / 2; y: (root.height - self.height) / 2;
+        width: root.viewport-width < 600px ? root.viewport-width : max(0px, min(root.viewport-width - 48px, root.detail ? 480px : 840px));
+        height: root.viewport-width < 600px ? root.viewport-height : min(max(0px, root.viewport-height - 48px), self.preferred-height);
+        x: root.safe-area-insets.left + (root.viewport-width - self.width) / 2;
+        y: root.safe-area-insets.top + (root.viewport-height - self.height) / 2;
         tools: root.can-back ? [{token: root.generation, label: "Back", glyph: root.theme.icons.chevron-left}] : [];
         tool-requested(token) => {
             if (root.can-back && token == root.generation) { root.back(token); }

@@ -917,7 +917,7 @@ export component HomewardWindow inherits Window {
     }
     }
 }
-    KitDialogSurface {
+    detail-dialog := KitDialogSurface {
         width: root.width; height: root.height; theme: root.theme;
         state: {open: root.page == ViewPage.detail && root.connected && !root.show-endpoint,topmost: !root.recipe-confirmation.open,busy:false};
         tab-policy: native;
@@ -926,12 +926,12 @@ export component HomewardWindow inherits Window {
             private property <bool> owns-chrome: !root.detail-has-header && !root.media-has-data;
             accessible-role: groupbox;
             accessible-label: root.device-cards.length > 0 ? root.device-cards[0].title : root.detail-title;
-            width: root.width < 600px ? root.width : max(0px,min(root.width - 48px,480px));
-            height: root.width < 600px ? root.height : min(max(0px, root.height - 48px),
+            width: content.width < 600px ? content.width : max(0px,min(content.width - 48px,480px));
+            height: content.width < 600px ? content.height : min(max(0px, content.height - 48px),
                 detail-content.preferred-height + detail-banner.preferred-height + detail-refusal.preferred-height + (self.owns-chrome ? 48px : 0px));
             if self.owns-chrome: KitDialogPanel { theme: root.theme; width: parent.width; height: parent.height; }
             TouchArea { }
-            x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+            x: content.x + (content.width - self.width) / 2; y: content.y + (content.height - self.height) / 2;
             VerticalLayout {
                 padding: parent.owns-chrome ? 20px : 0px; spacing: 0px;
                 if !root.detail-has-header && !root.media-has-data: detail-back := KitButton {
@@ -967,7 +967,7 @@ export component HomewardWindow inherits Window {
                     focus-request: root.detail-focus-request;
                     step(t,g,d) => { root.device-step(t,g,d); }
                     theme: root.theme; viewport-width: detail-scroll.visible-width;
-                    minimum-panel-height: root.width < 600px ? root.height : 0px;
+                    minimum-panel-height: content.width < 600px ? max(0px, content.height - detail-banner.preferred-height - detail-refusal.preferred-height) : 0px;
                     panels: root.detail-panels;
                     dismiss(reason) => { root.go-back(); }
                     interactive: root.dashboard-interactive && root.page == ViewPage.detail; commands-ready: root.commands-ready;
@@ -979,7 +979,7 @@ export component HomewardWindow inherits Window {
                 }
                 if root.media-visible && (root.media-has-data || root.media-notice != "" || root.show-detail-history): HomewardMedia {
                     width: min(detail-scroll.visible-width,480px);
-                    minimum-panel-height: root.width < 600px ? root.height : 0px;
+                    minimum-panel-height: content.width < 600px ? max(0px, content.height - detail-banner.preferred-height - detail-refusal.preferred-height) : 0px;
                     tools: [{token: -1, label: "History and diagnostics", glyph: LucideIcons.rotate-ccw-clock()},
                         {token: root.media-generation, label: "Refresh media", glyph: LucideIcons.refresh-cw()}];
                     tool-requested(token) => { if (token == -1) { root.show-detail-history = !root.show-detail-history; } }
@@ -1021,6 +1021,7 @@ export component HomewardWindow inherits Window {
     }
     }
     popup-dialog := HomewardPopup {
+        safe-area-insets: root.safe-area-insets;
                     step(t,g,d) => { root.device-step(t,g,d); }
         width: root.width; height: root.height; theme: root.theme;
         state: { open: root.native-popup.open, topmost: root.native-popup.topmost && !root.recipe-confirmation.open, busy: root.native-popup.busy };
