@@ -89,11 +89,13 @@ enum AlarmOperation {
 message AlarmConstraints {
   repeated AlarmOperation operations = 1;
   repeated AlarmState observed_states = 2;
+  // Interactive numeric credential required for this subset of operations.
+  repeated AlarmOperation code_required_operations = 3;
 }
 message AlarmValue { AlarmState state = 1; }
 message AlarmAction { AlarmOperation operation = 1; }
 
-// Drivers advertise an operation only when their composed handler can execute
-// it using server-owned configuration. Per-request device codes, unlatching,
-// tilt and other alarm modes are outside this profile, never guessed or coerced.
+// Drivers advertise only operations executable under their explicit credential
+// policy. Interactive codes travel outside durable intentions. Unlatching, tilt
+// and other alarm modes are outside this profile, never guessed or coerced.
 // Every action still crosses ordinary session authorization and core admission.

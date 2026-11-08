@@ -140,6 +140,15 @@ pub(super) struct Alarm {
     operations: Vec<wire::AlarmOperation>,
 }
 impl Alarm {
+    pub fn requires_code(&self, operation: wire::AlarmOperation) -> bool {
+        self.limits
+            .code_required_operations
+            .contains(&operation.into())
+    }
+    pub fn has_code(&self) -> bool {
+        !self.limits.code_required_operations.is_empty()
+    }
+
     pub fn parse(limits: &wire::AlarmDefinition) -> Option<Self> {
         if !admit::alarm_constraints(limits) {
             return None;

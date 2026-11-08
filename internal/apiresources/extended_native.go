@@ -521,6 +521,13 @@ func convertAlarmConstraints(v *controls.AlarmConstraints) (*api.AlarmDefinition
 		return nil, nil
 	}
 	r := &api.AlarmDefinition{}
+	for _, operation := range v.CodeRequiredOperations {
+		converted, err := convertAlarmOperation(operation)
+		if err != nil {
+			return nil, err
+		}
+		r.CodeRequiredOperations = append(r.CodeRequiredOperations, converted)
+	}
 
 	{
 		for _, item := range v.Operations {

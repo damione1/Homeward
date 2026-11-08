@@ -109,6 +109,8 @@ pub enum ActionStatus {
     ACTION_STATUS_FAILED = 5i32,
     ACTION_STATUS_CANCELLED = 6i32,
     ACTION_STATUS_INDETERMINATE = 7i32,
+    /// The driver finished sending; no device ACK or physical result is asserted.
+    ACTION_STATUS_SENT_UNVERIFIED = 8i32,
 }
 impl ActionStatus {
     ///Idiomatic alias for [`Self::ACTION_STATUS_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -135,6 +137,9 @@ impl ActionStatus {
     ///Idiomatic alias for [`Self::ACTION_STATUS_INDETERMINATE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Indeterminate: Self = Self::ACTION_STATUS_INDETERMINATE;
+    ///Idiomatic alias for [`Self::ACTION_STATUS_SENT_UNVERIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SentUnverified: Self = Self::ACTION_STATUS_SENT_UNVERIFIED;
 }
 impl ::core::default::Default for ActionStatus {
     fn default() -> Self {
@@ -152,6 +157,7 @@ impl ::buffa::Enumeration for ActionStatus {
             5i32 => ::core::option::Option::Some(Self::ACTION_STATUS_FAILED),
             6i32 => ::core::option::Option::Some(Self::ACTION_STATUS_CANCELLED),
             7i32 => ::core::option::Option::Some(Self::ACTION_STATUS_INDETERMINATE),
+            8i32 => ::core::option::Option::Some(Self::ACTION_STATUS_SENT_UNVERIFIED),
             _ => ::core::option::Option::None,
         }
     }
@@ -168,6 +174,7 @@ impl ::buffa::Enumeration for ActionStatus {
             Self::ACTION_STATUS_FAILED => "ACTION_STATUS_FAILED",
             Self::ACTION_STATUS_CANCELLED => "ACTION_STATUS_CANCELLED",
             Self::ACTION_STATUS_INDETERMINATE => "ACTION_STATUS_INDETERMINATE",
+            Self::ACTION_STATUS_SENT_UNVERIFIED => "ACTION_STATUS_SENT_UNVERIFIED",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -196,6 +203,9 @@ impl ::buffa::Enumeration for ActionStatus {
             "ACTION_STATUS_INDETERMINATE" => {
                 ::core::option::Option::Some(Self::ACTION_STATUS_INDETERMINATE)
             }
+            "ACTION_STATUS_SENT_UNVERIFIED" => {
+                ::core::option::Option::Some(Self::ACTION_STATUS_SENT_UNVERIFIED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -209,6 +219,7 @@ impl ::buffa::Enumeration for ActionStatus {
             Self::ACTION_STATUS_FAILED,
             Self::ACTION_STATUS_CANCELLED,
             Self::ACTION_STATUS_INDETERMINATE,
+            Self::ACTION_STATUS_SENT_UNVERIFIED,
         ]
     }
 }

@@ -120,6 +120,7 @@ type DiscoveryMapper struct {
 	mode             Mode
 	commands         []TopicFilter
 	transitionLights map[integrations.SourceKey]transitionProfile
+	commandFeedback  map[integrations.SourceKey]commandFeedback
 	repository       discoveryRegistry
 	logger           *slog.Logger
 	journal          *observability.Journal
@@ -148,7 +149,11 @@ func newDiscoveryMapper(settings Settings, repository discoveryRegistry, logger 
 	for key, profile := range settings.transitionLights {
 		optIn[key] = profile
 	}
-	return &DiscoveryMapper{instance: settings.instance, mode: settings.mode, commands: append([]TopicFilter(nil), settings.commands...), transitionLights: optIn, repository: repository, logger: logger, documents: make(map[Topic][]*componentRuntime), documentDigests: make(map[Topic][sha256.Size]byte), snapshots: make(map[Topic]cachedSnapshot), states: make(map[Topic][]*componentRuntime), availabilities: make(map[Topic][]*componentRuntime), entities: make(map[domain.EntityID]*componentRuntime), actionDocuments: make(map[Topic][]actionDeclaration), actionDevices: make(map[domain.DeviceID]*actionDevice), actionRoutes: make(map[Topic][]actionRoute)}, nil
+	feedback := make(map[integrations.SourceKey]commandFeedback, len(settings.commandFeedback))
+	for key, mode := range settings.commandFeedback {
+		feedback[key] = mode
+	}
+	return &DiscoveryMapper{commandFeedback: feedback, instance: settings.instance, mode: settings.mode, commands: append([]TopicFilter(nil), settings.commands...), transitionLights: optIn, repository: repository, logger: logger, documents: make(map[Topic][]*componentRuntime), documentDigests: make(map[Topic][sha256.Size]byte), snapshots: make(map[Topic]cachedSnapshot), states: make(map[Topic][]*componentRuntime), availabilities: make(map[Topic][]*componentRuntime), entities: make(map[domain.EntityID]*componentRuntime), actionDocuments: make(map[Topic][]actionDeclaration), actionDevices: make(map[domain.DeviceID]*actionDevice), actionRoutes: make(map[Topic][]actionRoute)}, nil
 }
 
 func (m *DiscoveryMapper) admitTransition(key integrations.SourceKey, c discoveryComponent) transitionProfile {
@@ -319,7 +324,11 @@ func (m *DiscoveryMapper) Observe(ctx context.Context, host integrations.Session
 	}
 	if components := m.states[topic]; len(components) != 0 {
 		for _, component := range components {
-			if err := m.observeStateWithCausality(ctx, host, component, payload, quality, observation.stateCausality(component.correlationScope)); err != nil {
+			var causality domain.Causality
+			if m.commandFeedback[component.key] == feedbackCorrelatedState {
+				causality = observation.stateCausality(component.correlationScope)
+			}
+			if err := m.observeStateWithCausality(ctx, host, component, payload, quality, causality); err != nil {
 				if errors.Is(err, errDiscoveryHostPublish) || ctx.Err() != nil {
 					return err
 				}

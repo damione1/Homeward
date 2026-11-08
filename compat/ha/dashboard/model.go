@@ -374,7 +374,13 @@ func (v Visibility) clone() Visibility {
 	return v
 }
 
+type coverLock struct {
+	entity domain.HAAlias
+	name   string
+}
+
 type Card struct {
+	coverLock               *coverLock
 	controlPresentation     controlPresentation
 	widget                  *widgetIR
 	widgetAction            string
@@ -462,6 +468,10 @@ func (c Card) Visibility() []Visibility {
 	return out
 }
 func (c Card) clone() Card {
+	if c.coverLock != nil {
+		copy := *c.coverLock
+		c.coverLock = &copy
+	}
 	c.grid.responsiveSpans = c.grid.ResponsiveSpans()
 	if c.widget != nil {
 		c.widget = cloneWidget(c.widget)

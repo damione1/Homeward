@@ -1694,6 +1694,12 @@ pub struct AlarmConstraints {
     pub operations: ::buffa::alloc::vec::Vec<::buffa::EnumValue<AlarmOperation>>,
     /// Field 2: `observed_states`
     pub observed_states: ::buffa::alloc::vec::Vec<::buffa::EnumValue<AlarmState>>,
+    /// Interactive numeric credential required for this subset of operations.
+    ///
+    /// Field 3: `code_required_operations`
+    pub code_required_operations: ::buffa::alloc::vec::Vec<
+        ::buffa::EnumValue<AlarmOperation>,
+    >,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -1702,6 +1708,7 @@ impl ::core::fmt::Debug for AlarmConstraints {
         f.debug_struct("AlarmConstraints")
             .field("operations", &self.operations)
             .field("observed_states", &self.observed_states)
+            .field("code_required_operations", &self.code_required_operations)
             .finish()
     }
 }
@@ -1748,6 +1755,14 @@ impl ::buffa::Message for AlarmConstraints {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if !self.code_required_operations.is_empty() {
+            let payload: u64 = self
+                .code_required_operations
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1777,6 +1792,17 @@ impl ::buffa::Message for AlarmConstraints {
                 .sum::<u64>();
             ::buffa::types::put_len_delimited_header(2u32, payload, buf);
             for v in &self.observed_states {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if !self.code_required_operations.is_empty() {
+            let payload: u64 = self
+                .code_required_operations
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(3u32, payload, buf);
+            for v in &self.code_required_operations {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
@@ -1869,6 +1895,44 @@ impl ::buffa::Message for AlarmConstraints {
                     );
                 }
             }
+            3u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.code_required_operations.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.code_required_operations
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.code_required_operations
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1879,6 +1943,7 @@ impl ::buffa::Message for AlarmConstraints {
     fn clear(&mut self) {
         self.operations.clear();
         self.observed_states.clear();
+        self.code_required_operations.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4263,6 +4328,13 @@ pub mod __buffa {
                 'a,
                 ::buffa::EnumValue<super::super::AlarmState>,
             >,
+            /// Interactive numeric credential required for this subset of operations.
+            ///
+            /// Field 3: `code_required_operations`
+            pub code_required_operations: ::buffa::RepeatedView<
+                'a,
+                ::buffa::EnumValue<super::super::AlarmOperation>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for AlarmConstraintsView<'a> {
@@ -4367,6 +4439,39 @@ pub mod __buffa {
                             );
                         }
                     }
+                    3u32 => {
+                        if tag.wire_type()
+                            == ::buffa::encoding::WireType::LengthDelimited
+                        {
+                            let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                            view.code_required_operations
+                                .reserve(::buffa::encoding::count_varints(payload));
+                            let mut pcur: &[u8] = payload;
+                            while !pcur.is_empty() {
+                                view.code_required_operations
+                                    .push(
+                                        ::buffa::EnumValue::from(
+                                            ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                        ),
+                                    );
+                            }
+                        } else if tag.wire_type() == ::buffa::encoding::WireType::Varint
+                        {
+                            view.code_required_operations
+                                .push(
+                                    ::buffa::EnumValue::from(
+                                        ::buffa::types::decode_int32(&mut cur)?,
+                                    ),
+                                );
+                        } else {
+                            return Err(
+                                ::buffa::encoding::wire_type_mismatch(
+                                    tag,
+                                    ::buffa::encoding::WireType::LengthDelimited,
+                                ),
+                            );
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -4398,6 +4503,7 @@ pub mod __buffa {
                 ::core::result::Result::Ok(super::super::AlarmConstraints {
                     operations: self.operations.to_vec(),
                     observed_states: self.observed_states.to_vec(),
+                    code_required_operations: self.code_required_operations.to_vec(),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -4425,6 +4531,16 @@ pub mod __buffa {
                 if !self.observed_states.is_empty() {
                     let payload: u64 = self
                         .observed_states
+                        .iter()
+                        .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                        .sum::<u64>();
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(payload) as u64
+                            + payload;
+                }
+                if !self.code_required_operations.is_empty() {
+                    let payload: u64 = self
+                        .code_required_operations
                         .iter()
                         .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                         .sum::<u64>();
@@ -4462,6 +4578,17 @@ pub mod __buffa {
                         .sum::<u64>();
                     ::buffa::types::put_len_delimited_header(2u32, payload, buf);
                     for v in &self.observed_states {
+                        ::buffa::types::encode_int32(v.to_i32(), buf);
+                    }
+                }
+                if !self.code_required_operations.is_empty() {
+                    let payload: u64 = self
+                        .code_required_operations
+                        .iter()
+                        .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                        .sum::<u64>();
+                    ::buffa::types::put_len_delimited_header(3u32, payload, buf);
+                    for v in &self.code_required_operations {
                         ::buffa::types::encode_int32(v.to_i32(), buf);
                     }
                 }
@@ -4579,6 +4706,18 @@ pub mod __buffa {
                 ::buffa::EnumValue<super::super::AlarmState>,
             > {
                 &self.0.reborrow().observed_states
+            }
+            /// Interactive numeric credential required for this subset of operations.
+            ///
+            /// Field 3: `code_required_operations`
+            #[must_use]
+            pub fn code_required_operations(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                ::buffa::EnumValue<super::super::AlarmOperation>,
+            > {
+                &self.0.reborrow().code_required_operations
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<AlarmConstraintsView<'static>>>

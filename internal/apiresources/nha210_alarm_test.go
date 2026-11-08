@@ -17,7 +17,7 @@ import (
 func TestNHA210FullAlarmDefinitionSurvivesAPI2ProjectionAndCommandDecoding(t *testing.T) {
 	operations := []controls.AlarmOperation{controls.AlarmOperation_ALARM_OPERATION_ARM_HOME, controls.AlarmOperation_ALARM_OPERATION_ARM_AWAY, controls.AlarmOperation_ALARM_OPERATION_ARM_NIGHT, controls.AlarmOperation_ALARM_OPERATION_DISARM}
 	states := []controls.AlarmState{controls.AlarmState_ALARM_STATE_DISARMED, controls.AlarmState_ALARM_STATE_ARMED_HOME, controls.AlarmState_ALARM_STATE_ARMED_AWAY, controls.AlarmState_ALARM_STATE_ARMED_NIGHT, controls.AlarmState_ALARM_STATE_ARMED_VACATION, controls.AlarmState_ALARM_STATE_ARMED_CUSTOM_BYPASS, controls.AlarmState_ALARM_STATE_PENDING, controls.AlarmState_ALARM_STATE_ARMING, controls.AlarmState_ALARM_STATE_DISARMING, controls.AlarmState_ALARM_STATE_TRIGGERED}
-	d := &registry.CapabilityDescription{SchemaId: contracts.AlarmSchema, Major: 1, Endpoint: "native", DisplayName: "Synthetic alarm", Constraints: &registry.CapabilityDescription_Alarm{Alarm: &controls.AlarmConstraints{Operations: operations, ObservedStates: states}}}
+	d := &registry.CapabilityDescription{SchemaId: contracts.AlarmSchema, Major: 1, Endpoint: "native", DisplayName: "Synthetic alarm", Constraints: &registry.CapabilityDescription_Alarm{Alarm: &controls.AlarmConstraints{Operations: operations, ObservedStates: states, CodeRequiredOperations: []controls.AlarmOperation{controls.AlarmOperation_ALARM_OPERATION_DISARM}}}}
 	catalog, err := contracts.NewCapabilityCatalog(domain.NewUnitCatalog())
 	if err != nil {
 		t.Fatal(err)
@@ -40,6 +40,9 @@ func TestNHA210FullAlarmDefinitionSurvivesAPI2ProjectionAndCommandDecoding(t *te
 	}
 	definition := decoded.GetAlarm().GetDefinition()
 	want := []api.AlarmOperation{api.AlarmOperation_ALARM_OPERATION_ARM_HOME, api.AlarmOperation_ALARM_OPERATION_ARM_AWAY, api.AlarmOperation_ALARM_OPERATION_ARM_NIGHT, api.AlarmOperation_ALARM_OPERATION_DISARM}
+	if len(definition.CodeRequiredOperations) != 1 || definition.CodeRequiredOperations[0] != api.AlarmOperation_ALARM_OPERATION_DISARM {
+		t.Fatal("interactive code policy lost")
+	}
 	if len(definition.Operations) != 4 || len(definition.ObservedStates) != 10 {
 		t.Fatal("API2 dropped advertised operation or state")
 	}

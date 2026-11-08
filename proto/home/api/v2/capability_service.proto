@@ -107,4 +107,6 @@ enum CommandOutcome {
   COMMAND_OUTCOME_CONFIRMED = 1;
   // This source can promise an acknowledgement only; no confirmation invented.
   COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED = 2;
+  // Dispatch finished without a device acknowledgement. Live state is separate.
+  COMMAND_OUTCOME_SENT_UNVERIFIED = 3;
 }

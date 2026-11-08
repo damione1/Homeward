@@ -22,6 +22,12 @@ class Transport(str, enum.Enum):
     PLAINTEXT = "plaintext"
 
 
+class CodeSource(str, enum.Enum):
+    NONE = "none"
+    SERVER = "server"
+    USER = "user"
+
+
 class Operation(str, enum.Enum):
     ARM_HOME = "arm_home"
     ARM_AWAY = "arm_away"
@@ -30,12 +36,13 @@ class Operation(str, enum.Enum):
     OPEN = "open"
     CLOSE = "close"
     STOP = "stop"
+    SET_POSITION = "set_position"
     LOCK = "lock"
     UNLOCK = "unlock"
 
 
 OPERATIONS = {Kind.ALARM: frozenset((Operation.ARM_HOME, Operation.ARM_AWAY, Operation.ARM_NIGHT, Operation.DISARM)),
-              Kind.COVER: frozenset((Operation.OPEN, Operation.CLOSE, Operation.STOP)),
+              Kind.COVER: frozenset((Operation.OPEN, Operation.CLOSE, Operation.STOP, Operation.SET_POSITION)),
               Kind.LOCK: frozenset((Operation.LOCK, Operation.UNLOCK))}
 
 
@@ -47,9 +54,12 @@ class Function:
     source_entity: str
     operations: tuple[Operation, ...]
     code_secret: str | None = None
+    code_source: CodeSource = CodeSource.NONE
 
     def __post_init__(self):
-        if type(self.kind) is not Kind or type(self.key) is not int or not 0 < self.key < 2**32 or \
+        if type(self.kind) is not Kind or type(self.code_source) is not CodeSource or \
+                (self.code_source is CodeSource.SERVER) != (self.code_secret is not None) or \
+                self.kind is not Kind.ALARM and self.code_source is not CodeSource.NONE or type(self.key) is not int or not 0 < self.key < 2**32 or \
                 not all(isinstance(v, str) and ID.fullmatch(v) for v in (self.object_id, self.source_entity)) or \
                 type(self.operations) is not tuple or any(type(op) is not Operation for op in self.operations) or len(set(self.operations)) != len(self.operations) or \
                 not set(self.operations) <= OPERATIONS[self.kind] or \
@@ -113,7 +123,7 @@ def load_settings(path: Path) -> Settings:
         raise ValueError("unexpected settings fields")
     functions = []
     for item in raw.pop("functions"):
-        if set(item) != {"kind", "key", "object_id", "source_entity", "operations", "code_secret"} or type(item["operations"]) is not list:
+        if set(item) != {"kind", "key", "object_id", "source_entity", "operations", "code_secret", "code_source"} or type(item["operations"]) is not list:
             raise ValueError("unexpected function fields")
-        functions.append(Function(**{**item, "kind": Kind(item["kind"]), "operations": tuple(Operation(v) for v in item["operations"])}))
+        functions.append(Function(**{**item, "kind": Kind(item["kind"]), "code_source": CodeSource(item["code_source"]), "operations": tuple(Operation(v) for v in item["operations"])}))
     return Settings(**{**raw, "transport": Transport(raw["transport"])}, functions=tuple(functions))

@@ -60,6 +60,20 @@ func (c AdmittedCommand) Acknowledge() error {
 	return c.tracker.acknowledge(c.progress)
 }
 
+// SentUnverified records only completed transport submission. A fresh matching
+// state is still an observation, not a causal acknowledgement of this command.
+func (c AdmittedCommand) SentUnverified() error {
+	if _, _, err := c.RouteIdentity(); err != nil || c.progress == nil || c.tracker == nil || c.host == nil {
+		return ErrInvalidInput
+	}
+	c.host.mu.Lock()
+	defer c.host.mu.Unlock()
+	if !c.liveOwner() {
+		return ErrInactiveSession
+	}
+	return c.tracker.sent(c.progress)
+}
+
 func (c AdmittedCommand) ConfirmProtocol(qualifier ProtocolConfirmation) error {
 	if _, _, err := c.RouteIdentity(); err != nil || c.progress == nil || c.tracker == nil || c.host == nil || nilInterface(qualifier) {
 		return ErrInvalidInput
@@ -630,6 +644,12 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 		// Once the driver was called, a transport error cannot prove the absence
 		// of a physical effect. Keep the live progression indeterminate.
 		return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_INDETERMINATE}, dispatchErr
+	}
+	r.host.actions.mu.Lock()
+	status := admitted.progress.snapshot.Status
+	r.host.actions.mu.Unlock()
+	if status == actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED {
+		return &actions.CommandResponse{CommandId: wire.CommandId, Status: status}, nil
 	}
 	return &actions.CommandResponse{CommandId: wire.CommandId, Status: actions.ActionStatus_ACTION_STATUS_DISPATCHED}, nil
 }

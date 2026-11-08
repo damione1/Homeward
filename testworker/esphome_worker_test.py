@@ -7,13 +7,13 @@ from unittest.mock import Mock
 
 import aioesphomeapi as esp
 
-from drivers.esphome.config import Function, Kind, Operation, Transport, Settings, load_settings
+from drivers.esphome.config import CodeSource, Function, Kind, Operation, Transport, Settings, load_settings
 from drivers.esphome.worker import (ProtocolFault, controls, description, dispatch,
                                     host_pb2, state_value, timestamp)
 
 
 def function(kind, operations=(), code=None):
-    return Function(kind, 123, "synthetic_control", "control", tuple(Operation(v) for v in operations), code)
+    return Function(kind, 123, "synthetic_control", "control", tuple(Operation(v) for v in operations), code, CodeSource.SERVER if code else CodeSource.NONE)
 
 
 def command(kind, op):
@@ -208,6 +208,102 @@ class ESPHomeControls(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_settings(path)
 
+    def test_interactive_code_policy_and_single_frame_consumption(self):
+        f = dataclasses.replace(function(Kind.ALARM, ("arm_home", "disarm")), code_source=CodeSource.USER)
+        info = esp.AlarmControlPanelInfo(key=123, supported_features=1, requires_code=True)
+        d = description(f, info, None)
+        self.assertEqual(list(d.alarm.code_required_operations), [controls.ALARM_OPERATION_DISARM])
+        client = Mock()
+        frame = command(Kind.ALARM, controls.ALARM_OPERATION_DISARM)
+        frame.ephemeral_alarm_code = b"582901"
+        durable = frame.request.SerializeToString()
+        dispatch(client, f, info, d, None, frame)
+        client.alarm_control_panel_command.assert_called_once_with(123, esp.AlarmControlPanelCommand.DISARM, "582901", device_id=0)
+        self.assertEqual(frame.ephemeral_alarm_code, b"")
+        self.assertNotIn(b"582901", durable)
+        with self.assertRaises(ProtocolFault):
+            dispatch(client, f, info, d, None, frame)
+        self.assertEqual(client.alarm_control_panel_command.call_count, 1)
+        dispatch(client, f, info, d, None, command(Kind.ALARM, controls.ALARM_OPERATION_ARM_HOME))
+        self.assertIsNone(client.alarm_control_panel_command.call_args.args[2])
+        armed = dataclasses.replace(info, requires_code_to_arm=True)
+        self.assertEqual(set(description(f, armed, None).alarm.code_required_operations),
+                         {controls.ALARM_OPERATION_ARM_HOME, controls.ALARM_OPERATION_DISARM})
+
+    def test_interactive_code_refuses_invalid_unneeded_expired_and_foreign_inputs(self):
+        f = dataclasses.replace(function(Kind.ALARM, ("disarm", "arm_home")), code_source=CodeSource.USER)
+        info = esp.AlarmControlPanelInfo(key=123, supported_features=1, requires_code=True)
+        d = description(f, info, None)
+        for code in (b"", b"12x", b"1"*33, bytes([255])):
+            frame = command(Kind.ALARM, controls.ALARM_OPERATION_DISARM)
+            frame.ephemeral_alarm_code = code
+            client = Mock()
+            with self.assertRaises(ProtocolFault): dispatch(client, f, info, d, None, frame)
+            self.assertEqual(frame.ephemeral_alarm_code, b"")
+            self.assertEqual(client.mock_calls, [])
+        frame = command(Kind.ALARM, controls.ALARM_OPERATION_ARM_HOME)
+        frame.ephemeral_alarm_code = b"582901"
+        with self.assertRaises(ProtocolFault): dispatch(Mock(), f, info, d, None, frame)
+        frame = command(Kind.ALARM, controls.ALARM_OPERATION_DISARM)
+        frame.ephemeral_alarm_code = b"582901"
+        frame.request.expires_at.seconds = 1
+        with self.assertRaises(ProtocolFault): dispatch(Mock(), f, info, d, None, frame)
+        self.assertEqual(frame.ephemeral_alarm_code, b"")
+        with self.assertRaises(ValueError):
+            dataclasses.replace(f, code_secret="cannot-fallback")
+
+    def test_all_advertised_cover_buttons_and_position_are_explicit(self):
+        f = function(Kind.COVER, ("open", "close", "stop", "set_position"))
+        info = esp.CoverInfo(key=123, supports_stop=True, supports_position=True)
+        d = description(f, info, None)
+        client = Mock()
+        for operation, expected in ((controls.COVER_OPERATION_OPEN, {"position":1.0}),
+                                    (controls.COVER_OPERATION_CLOSE, {"position":0.0}),
+                                    (controls.COVER_OPERATION_STOP, {"stop":True})):
+            dispatch(client, f, info, d, None, command(Kind.COVER, operation))
+            client.cover_command.assert_called_with(123, **expected, device_id=0)
+        frame = command(Kind.COVER, controls.COVER_OPERATION_CLOSE)
+        frame.request.arguments.cover.position_percent = 37.5
+        dispatch(client, f, info, d, None, frame)
+        client.cover_command.assert_called_with(123, position=0.375, device_id=0)
+        limited = description(f, dataclasses.replace(info, supports_stop=False, supports_position=False), None)
+        self.assertNotIn(controls.COVER_OPERATION_STOP, limited.cover.operations)
+        self.assertFalse(limited.cover.HasField("set_position_percent"))
+        with self.assertRaises(ProtocolFault): dispatch(client, f, info, limited, None, frame)
+        frame.request.arguments.cover.position_percent = float("nan")
+        with self.assertRaises(ProtocolFault): dispatch(client, f, info, d, None, frame)
+        self.assertEqual(client.cover_command.call_count, 4)
+
+    def test_transient_states_remain_observed_and_never_command_outcomes(self):
+        from drivers.esphome.worker import ALARM_STATES
+        f = function(Kind.ALARM)
+        for native, expected in ALARM_STATES.items():
+            observed = state_value(f, esp.AlarmControlPanelInfo(key=123),
+                esp.AlarmControlPanelEntityState(key=123, state=native), esp.APIVersion(1, 10))
+            self.assertEqual(observed.state, expected)
+        f = function(Kind.COVER)
+        for native, expected in ((esp.CoverOperation.IS_OPENING, controls.COVER_STATE_OPENING),
+                                 (esp.CoverOperation.IS_CLOSING, controls.COVER_STATE_CLOSING)):
+            observed = state_value(f, esp.CoverInfo(key=123, supports_position=True),
+                esp.CoverState(key=123, position=0.45, current_operation=native), esp.APIVersion(1, 10))
+            self.assertEqual(observed.state, expected)
+            self.assertAlmostEqual(observed.position_percent, 45.0)
+
+    def test_main_does_not_log_sdk_exception_credentials(self):
+        import contextlib
+        import io
+        from unittest.mock import patch
+        from drivers.esphome import worker
+        output = io.StringIO()
+        with patch.object(worker.sys, "argv", ["worker", "--config", "/synthetic/config.json"]), \
+                patch.object(worker, "load_settings", return_value=None), \
+                patch.object(worker, "run", new=Mock(return_value=None)), \
+                patch.object(worker.asyncio, "run", side_effect=RuntimeError("582901")), \
+                contextlib.redirect_stderr(output), self.assertRaises(SystemExit):
+            worker.main()
+        self.assertNotIn("582901", output.getvalue())
+        self.assertIn("session requires supervision", output.getvalue())
+
 
 class NativeSessionComposition(unittest.IsolatedAsyncioTestCase):
     async def test_noise_failure_never_reconnects_in_plaintext(self):
@@ -314,7 +410,7 @@ class NativeSessionComposition(unittest.IsolatedAsyncioTestCase):
                 await accepted.wait()
                 await asyncio.Event().wait()
             async def CompleteCommand(self, request, context):
-                self_test.assertEqual(request.kind, host_pb2.COMMAND_RESULT_KIND_ACCEPTED)
+                self_test.assertEqual(request.kind, host_pb2.COMMAND_RESULT_KIND_SENT_UNVERIFIED)
                 accepted.set()
                 await client.on_stop(False)
                 return host_pb2.CompleteCommandResponse()

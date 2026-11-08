@@ -158,9 +158,47 @@ impl FeedSource for Reads {
     }
 }
 
-fn capture(dimmer: bool) -> CachedView {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ControlFixture {
+    Power,
+    Dimmer,
+    Alarm,
+}
+fn capture(control: ControlFixture) -> CachedView {
     use crate::device_view::fixture;
-    if dimmer {
+    if control == ControlFixture::Alarm {
+        return fixture::capture(vec![fixture::entry(
+            "homes/synthetic/entities/private-entity-0002",
+            "Alarm",
+            vec![fixture::capability(
+                "homes/synthetic/entities/private-entity-0002/capabilities/power",
+                wire::capability::Trait::Alarm(Box::new(wire::AlarmCapability {
+                    definition: wire::AlarmDefinition {
+                        operations: vec![
+                            wire::AlarmOperation::Disarm.into(),
+                            wire::AlarmOperation::ArmAway.into(),
+                        ],
+                        code_required_operations: vec![wire::AlarmOperation::Disarm.into()],
+                        observed_states: vec![wire::AlarmState::Disarmed.into()],
+                        ..Default::default()
+                    }
+                    .into(),
+                    observation: wire::AlarmObservation {
+                        value: wire::AlarmValue {
+                            state: wire::AlarmState::Disarmed.into(),
+                            ..Default::default()
+                        }
+                        .into(),
+                        quality: fixture::quality().into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                })),
+            )],
+        )]);
+    }
+    if control == ControlFixture::Dimmer {
         return fixture::capture(vec![fixture::entry(
             "homes/synthetic/entities/private-entity-0002",
             "Lamp",
@@ -435,17 +473,23 @@ async fn renewal_owner_expires_without_ui_delivery_and_never_extends_the_old_dea
 
 #[tokio::test]
 async fn credential_renewal_keeps_home_pixels_through_the_real_owner() {
-    renewal_composition(false, false).await;
+    renewal_composition(false, ControlFixture::Power).await;
 }
 #[tokio::test]
 async fn credential_renewal_keeps_detail_pixels_through_the_real_owner() {
-    renewal_composition(true, false).await;
+    renewal_composition(true, ControlFixture::Power).await;
 }
 #[tokio::test]
 async fn credential_renewal_keeps_one_light_dimmer_at_observed_seventy_five_percent() {
-    renewal_composition(true, true).await;
+    renewal_composition(true, ControlFixture::Dimmer).await;
 }
-async fn renewal_composition(detail: bool, dimmer: bool) {
+#[tokio::test]
+async fn keypad_survives_credential_renewal_and_unjoined_capture_through_real_owner() {
+    renewal_composition(true, ControlFixture::Alarm).await;
+}
+async fn renewal_composition(detail: bool, control: ControlFixture) {
+    let dimmer = control == ControlFixture::Dimmer;
+    let alarm = control == ControlFixture::Alarm;
     slint::platform::set_platform(Box::new(i_slint_backend_testing::TestingBackend::new(
         i_slint_backend_testing::TestingBackendOptions {
             mock_time: true,
@@ -484,7 +528,7 @@ async fn renewal_composition(detail: bool, dimmer: bool) {
     .await
     .unwrap()
     .unwrap();
-    let first = capture(dimmer);
+    let first = capture(control);
     let capture_expiry = first.expires().seconds;
     let request = Arc::new(Mutex::new(crate::dashboard::ProjectionRequest {
         dashboard: crate::dashboard::LayoutState::Ready(Arc::new(
@@ -552,7 +596,9 @@ async fn renewal_composition(detail: bool, dimmer: bool) {
         let row = window
             .get_home_layout_nodes()
             .iter()
-            .find(|node| node.device.can_power)
+            .find(|node| {
+                node.device.can_power || alarm && node.device.kind == crate::ProDeviceKind::Alarm
+            })
             .unwrap()
             .device;
         window.invoke_device_details(row.token, row.generation);
@@ -595,12 +641,14 @@ async fn renewal_composition(detail: bool, dimmer: bool) {
         window
             .get_device_cards()
             .iter()
-            .find(|row| row.can_power)
+            .find(|row| row.can_power || alarm && row.kind == crate::ProDeviceKind::Alarm)
             .unwrap()
     } else {
         nodes
             .iter()
-            .find(|node| node.device.can_power)
+            .find(|node| {
+                node.device.can_power || alarm && node.device.kind == crate::ProDeviceKind::Alarm
+            })
             .unwrap()
             .device
     };
@@ -609,14 +657,49 @@ async fn renewal_composition(detail: bool, dimmer: bool) {
             row.token,
             row.generation,
             window.get_projection_version(),
-            crate::device_view::DeviceIntent::Power(if dimmer {
-                crate::device_view::Power::Off
+            if alarm {
+                crate::device_view::DeviceIntent::Alarm(wire::AlarmOperation::ArmAway)
             } else {
-                crate::device_view::Power::On
-            }),
+                crate::device_view::DeviceIntent::Power(if dimmer {
+                    crate::device_view::Power::Off
+                } else {
+                    crate::device_view::Power::On
+                })
+            },
         )
         .unwrap();
     assert!((old_intent.guard)());
+    if alarm {
+        devices
+            .alarm_digit(
+                row.token,
+                row.generation,
+                window.get_projection_version(),
+                Some(0),
+            )
+            .unwrap();
+        owner
+            .handle()
+            .viewport(home_client_cache::Viewport::default())
+            .unwrap();
+        publications
+            .recv()
+            .await
+            .unwrap()
+            .deliver(|generation, projection| {
+                crate::cache_view::render(&window, generation, projection);
+            });
+        assert_eq!(
+            window
+                .get_detail_panels()
+                .row_data(0)
+                .unwrap()
+                .alarm
+                .entered_count,
+            1
+        );
+    }
+    let panels = window.get_detail_panels();
     assert!(
         count > 0,
         "real Home composition starts with server-defined nodes"
@@ -688,7 +771,7 @@ async fn renewal_composition(detail: bool, dimmer: bool) {
         });
         assert_eq!(window.get_home_layout_nodes().row_count(), count);
     }
-    let next = capture(dimmer);
+    let next = capture(control);
     sender
         .send(next.clone())
         .unwrap_or_else(|_| panic!("read source available"));
@@ -743,6 +826,31 @@ async fn renewal_composition(detail: bool, dimmer: bool) {
         assert_light75(&window);
     }
     assert!(!(old_intent.guard)());
+    if alarm {
+        let panel = window.get_detail_panels().row_data(0).unwrap();
+        assert_eq!(
+            panel.alarm.entered_count, 1,
+            "nominal renewal must preserve the masked draft"
+        );
+        assert!(
+            panel.alarm.can_confirm,
+            "protected operation selection must survive too"
+        );
+        let row = panel.device;
+        devices
+            .alarm_digit(
+                row.token,
+                row.generation,
+                window.get_projection_version(),
+                Some(7),
+            )
+            .unwrap();
+        assert!(
+            devices
+                .alarm_confirm(row.token, row.generation, window.get_projection_version())
+                .is_ok()
+        );
+    }
     owner.close().await;
     session.close().await;
 }
@@ -775,4 +883,110 @@ fn snapshot(window: &crate::HomewardWindow, name: &str) {
             .write_image_data(pixels.as_bytes())
             .unwrap();
     }
+}
+
+#[tokio::test]
+async fn keypad_suspension_erases_input_before_coalesced_resume_publications() {
+    use crate::{
+        dashboard::{LayoutState, ProjectionRequest},
+        device_view::DeviceStore,
+    };
+    let credentials = Credentials::new().await;
+    let first = capture(ControlFixture::Alarm);
+    let request = Arc::new(Mutex::new(ProjectionRequest {
+        dashboard: LayoutState::Ready(Arc::new(crate::dashboard::joined_fixture(&first))),
+        ..Default::default()
+    }));
+    let devices = DeviceStore::default();
+    let projected = devices.clone();
+    let (sender, receiver) = mpsc::unbounded_channel();
+    sender
+        .send(first)
+        .unwrap_or_else(|_| panic!("synthetic source alive"));
+    let reads = Arc::new(Reads {
+        captures: tokio::sync::Mutex::new(receiver),
+        watching: Notify::new(),
+    });
+    let (tickets, mut publications) = mpsc::unbounded_channel();
+    let (owner, _) = CacheOwner::start_test_source(
+        credentials.session.clone(),
+        reads.clone(),
+        move |phase, view, _, renewal| {
+            let mut request = request.lock().unwrap();
+            if let Some(view) = view {
+                request.dashboard =
+                    LayoutState::Ready(Arc::new(crate::dashboard::joined_fixture(view)));
+            }
+            projected.project_owner(phase, view, &request, renewal)
+        },
+        move |ticket| {
+            tickets
+                .send(ticket)
+                .unwrap_or_else(|_| panic!("publication receiver alive"));
+        },
+    );
+    owner.handle().activate().unwrap();
+    tokio::time::timeout(Duration::from_secs(5), reads.watching.notified())
+        .await
+        .unwrap();
+    let mut before = None;
+    while before.is_none() {
+        tokio::time::timeout(Duration::from_secs(5), publications.recv())
+            .await
+            .unwrap()
+            .unwrap()
+            .deliver(|_, value| {
+                before = value
+                    .rows
+                    .into_iter()
+                    .find(|row| row.kind == crate::ProDeviceKind::Alarm);
+            });
+    }
+    let before = before.unwrap();
+    devices
+        .alarm_digit(before.token, before.generation, 0, Some(0))
+        .unwrap();
+    assert!(
+        devices
+            .alarm_confirm(before.token, before.generation, 0)
+            .is_ok()
+    );
+    // LifecycleBridge uses this synchronous invalidation before enqueueing the
+    // native event. Resume immediately, without consuming a single UI ticket.
+    owner.handle().invalidate().unwrap();
+    assert!(
+        devices
+            .alarm_confirm(before.token, before.generation, 0)
+            .is_err()
+    );
+    owner.handle().activate().unwrap();
+    sender
+        .send(capture(ControlFixture::Alarm))
+        .unwrap_or_else(|_| panic!("source alive"));
+    tokio::time::timeout(Duration::from_secs(5), reads.watching.notified())
+        .await
+        .unwrap();
+    let mut after = None;
+    while after.is_none() {
+        tokio::time::timeout(Duration::from_secs(5), publications.recv())
+            .await
+            .unwrap()
+            .unwrap()
+            .deliver(|_, value| {
+                after = value
+                    .rows
+                    .into_iter()
+                    .find(|row| row.kind == crate::ProDeviceKind::Alarm);
+            });
+    }
+    let after = after.unwrap();
+    assert_ne!(after.generation, before.generation);
+    assert!(
+        devices
+            .alarm_confirm(after.token, after.generation, 0)
+            .is_err(),
+        "missed Idle publication cannot resurrect the code"
+    );
+    owner.close().await;
+    credentials.session.close().await;
 }

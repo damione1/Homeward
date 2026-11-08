@@ -180,3 +180,26 @@ advertise this capability.
 This condition controls presentation only. Existing state/account predicates,
 exact entity bindings, command admission and confirmation rules remain separate.
 Resizing repacks the visible layout without issuing reads or changing authority.
+
+
+A cover tile or recipe can declare a secondary lock explicitly. The server
+resolves the exact lock capability under its own read authorization; an absent,
+unreadable or ambiguous lock is omitted without redirecting another control.
+The cover and lock keep separate execution permissions and intentions.
+
+```yaml
+- type: tile
+  entity: cover.synthetic_door
+  name: Door
+  cover_lock:
+    entity: lock.synthetic_remote_controls
+    name: Remote controls
+  features:
+    - type: cover-open-close
+    - type: cover-position
+  tap_action: {action: more-info}
+```
+
+The label describes the configured function. A lock capability can control an
+electronic inhibition mechanism; the client does not infer mechanical locking
+from the capability name or its neighboring cover.

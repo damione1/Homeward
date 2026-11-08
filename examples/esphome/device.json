@@ -1,0 +1,20 @@
+{
+  "host": "controller.example",
+  "port": 6053,
+  "expected_mac": "02:00:00:00:00:01",
+  "source_device": "synthetic-controller",
+  "transport": "noise",
+  "noise_secret": "api-noise",
+  "password_secret": null,
+  "functions": [
+    {
+      "kind": "alarm",
+      "key": 101,
+      "object_id": "synthetic_alarm",
+      "source_entity": "alarm",
+      "operations": ["arm_home", "arm_away", "arm_night", "disarm"],
+      "code_source": "user",
+      "code_secret": null
+    }
+  ]
+}

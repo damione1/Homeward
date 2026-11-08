@@ -151,10 +151,10 @@ func TestNHA178FakeBrokerExactSecondsAndDiscoveryWithdrawal(t *testing.T) {
 			Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: light}},
 			ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}
 		response, err := router.Dispatch(context.Background(), actor, request)
-		if expected && (err != nil || response == nil || response.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED) {
+		if expected && (err != nil || response == nil || response.Status != actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED) {
 			t.Fatalf("command %s rejected: %v %v", id, response, err)
 		}
-		if !expected && err == nil && response != nil && response.Status == actions.ActionStatus_ACTION_STATUS_DISPATCHED {
+		if !expected && err == nil && response != nil && response.Status == actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED {
 			t.Fatalf("command %s dispatched after profile withdrawal", id)
 		}
 	}

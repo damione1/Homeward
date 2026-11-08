@@ -186,6 +186,8 @@ pub enum CommandResultKind {
     COMMAND_RESULT_KIND_FAILED = 2i32,
     /// The bridge acknowledged the command, before any observed state.
     COMMAND_RESULT_KIND_ACKNOWLEDGED = 3i32,
+    /// Socket/protocol submission ended without a device acknowledgement.
+    COMMAND_RESULT_KIND_SENT_UNVERIFIED = 4i32,
 }
 impl CommandResultKind {
     ///Idiomatic alias for [`Self::COMMAND_RESULT_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -200,6 +202,9 @@ impl CommandResultKind {
     ///Idiomatic alias for [`Self::COMMAND_RESULT_KIND_ACKNOWLEDGED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Acknowledged: Self = Self::COMMAND_RESULT_KIND_ACKNOWLEDGED;
+    ///Idiomatic alias for [`Self::COMMAND_RESULT_KIND_SENT_UNVERIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SentUnverified: Self = Self::COMMAND_RESULT_KIND_SENT_UNVERIFIED;
 }
 impl ::core::default::Default for CommandResultKind {
     fn default() -> Self {
@@ -213,6 +218,9 @@ impl ::buffa::Enumeration for CommandResultKind {
             1i32 => ::core::option::Option::Some(Self::COMMAND_RESULT_KIND_ACCEPTED),
             2i32 => ::core::option::Option::Some(Self::COMMAND_RESULT_KIND_FAILED),
             3i32 => ::core::option::Option::Some(Self::COMMAND_RESULT_KIND_ACKNOWLEDGED),
+            4i32 => {
+                ::core::option::Option::Some(Self::COMMAND_RESULT_KIND_SENT_UNVERIFIED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -225,6 +233,9 @@ impl ::buffa::Enumeration for CommandResultKind {
             Self::COMMAND_RESULT_KIND_ACCEPTED => "COMMAND_RESULT_KIND_ACCEPTED",
             Self::COMMAND_RESULT_KIND_FAILED => "COMMAND_RESULT_KIND_FAILED",
             Self::COMMAND_RESULT_KIND_ACKNOWLEDGED => "COMMAND_RESULT_KIND_ACKNOWLEDGED",
+            Self::COMMAND_RESULT_KIND_SENT_UNVERIFIED => {
+                "COMMAND_RESULT_KIND_SENT_UNVERIFIED"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -241,6 +252,9 @@ impl ::buffa::Enumeration for CommandResultKind {
             "COMMAND_RESULT_KIND_ACKNOWLEDGED" => {
                 ::core::option::Option::Some(Self::COMMAND_RESULT_KIND_ACKNOWLEDGED)
             }
+            "COMMAND_RESULT_KIND_SENT_UNVERIFIED" => {
+                ::core::option::Option::Some(Self::COMMAND_RESULT_KIND_SENT_UNVERIFIED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -250,6 +264,7 @@ impl ::buffa::Enumeration for CommandResultKind {
             Self::COMMAND_RESULT_KIND_ACCEPTED,
             Self::COMMAND_RESULT_KIND_FAILED,
             Self::COMMAND_RESULT_KIND_ACKNOWLEDGED,
+            Self::COMMAND_RESULT_KIND_SENT_UNVERIFIED,
         ]
     }
 }
@@ -3426,6 +3441,10 @@ pub struct CommandsResponse {
     pub correlation: ::buffa::alloc::string::String,
     /// Field 3: `binding_handle`
     pub binding_handle: ::buffa::alloc::vec::Vec<u8>,
+    /// One-dispatch credential, outside the durable CommandRequest. Never log it.
+    ///
+    /// Field 4: `ephemeral_alarm_code`
+    pub ephemeral_alarm_code: ::buffa::alloc::vec::Vec<u8>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -3435,6 +3454,7 @@ impl ::core::fmt::Debug for CommandsResponse {
             .field("request", &self.request)
             .field("correlation", &self.correlation)
             .field("binding_handle", &self.binding_handle)
+            .field("ephemeral_alarm_code", &self.ephemeral_alarm_code)
             .finish()
     }
 }
@@ -3480,6 +3500,12 @@ impl ::buffa::Message for CommandsResponse {
             size
                 += 1u64 + ::buffa::types::bytes_encoded_len(&self.binding_handle) as u64;
         }
+        if !self.ephemeral_alarm_code.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.ephemeral_alarm_code)
+                        as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3503,6 +3529,13 @@ impl ::buffa::Message for CommandsResponse {
         }
         if !self.binding_handle.is_empty() {
             ::buffa::types::put_shared_bytes_field(3u32, &self.binding_handle, buf);
+        }
+        if !self.ephemeral_alarm_code.is_empty() {
+            ::buffa::types::put_shared_bytes_field(
+                4u32,
+                &self.ephemeral_alarm_code,
+                buf,
+            );
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3542,6 +3575,13 @@ impl ::buffa::Message for CommandsResponse {
                 )?;
                 ::buffa::types::merge_bytes(&mut self.binding_handle, buf)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.ephemeral_alarm_code, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3553,6 +3593,7 @@ impl ::buffa::Message for CommandsResponse {
         self.request = ::buffa::MessageField::none();
         self.correlation.clear();
         self.binding_handle.clear();
+        self.ephemeral_alarm_code.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -10369,6 +10410,10 @@ pub mod __buffa {
             pub correlation: &'a str,
             /// Field 3: `binding_handle`
             pub binding_handle: &'a [u8],
+            /// One-dispatch credential, outside the durable CommandRequest. Never log it.
+            ///
+            /// Field 4: `ephemeral_alarm_code`
+            pub ephemeral_alarm_code: &'a [u8],
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for CommandsResponseView<'a> {
@@ -10446,6 +10491,15 @@ pub mod __buffa {
                         )?;
                         view.binding_handle = ::buffa::types::borrow_bytes(&mut cur)?;
                     }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.ephemeral_alarm_code = ::buffa::types::borrow_bytes(
+                            &mut cur,
+                        )?;
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -10488,6 +10542,7 @@ pub mod __buffa {
                     },
                     correlation: self.correlation.to_string(),
                     binding_handle: (self.binding_handle).to_vec(),
+                    ephemeral_alarm_code: (self.ephemeral_alarm_code).to_vec(),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -10522,6 +10577,13 @@ pub mod __buffa {
                             + ::buffa::types::bytes_encoded_len(&self.binding_handle)
                                 as u64;
                 }
+                if !self.ephemeral_alarm_code.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::bytes_encoded_len(
+                                &self.ephemeral_alarm_code,
+                            ) as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -10548,6 +10610,13 @@ pub mod __buffa {
                     ::buffa::types::put_shared_bytes_field(
                         3u32,
                         &self.binding_handle,
+                        buf,
+                    );
+                }
+                if !self.ephemeral_alarm_code.is_empty() {
+                    ::buffa::types::put_shared_bytes_field(
+                        4u32,
+                        &self.ephemeral_alarm_code,
                         buf,
                     );
                 }
@@ -10666,6 +10735,13 @@ pub mod __buffa {
             #[must_use]
             pub fn binding_handle(&self) -> &'_ [u8] {
                 self.0.reborrow().binding_handle
+            }
+            /// One-dispatch credential, outside the durable CommandRequest. Never log it.
+            ///
+            /// Field 4: `ephemeral_alarm_code`
+            #[must_use]
+            pub fn ephemeral_alarm_code(&self) -> &'_ [u8] {
+                self.0.reborrow().ephemeral_alarm_code
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<CommandsResponseView<'static>>>

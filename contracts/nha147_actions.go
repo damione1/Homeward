@@ -44,7 +44,7 @@ func validActionStatus(status actions.ActionStatus) bool {
 	case actions.ActionStatus_ACTION_STATUS_ACCEPTED, actions.ActionStatus_ACTION_STATUS_DISPATCHED,
 		actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED, actions.ActionStatus_ACTION_STATUS_CONFIRMED,
 		actions.ActionStatus_ACTION_STATUS_FAILED, actions.ActionStatus_ACTION_STATUS_CANCELLED,
-		actions.ActionStatus_ACTION_STATUS_INDETERMINATE:
+		actions.ActionStatus_ACTION_STATUS_INDETERMINATE, actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED:
 		return true
 	case actions.ActionStatus_ACTION_STATUS_UNSPECIFIED:
 		return false

@@ -65,6 +65,11 @@ pub(crate) enum HeadingStyle {
     Subtitle,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CoverLock {
+    pub capability: CapabilityName,
+    pub label: String,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Node {
     pub id: NodeId,
     pub route: Option<crate::dashboard::RoomId>,
@@ -79,6 +84,7 @@ pub(crate) struct Node {
     pub summary_only: bool,
     pub entity: Option<EntityName>,
     pub capability: Option<CapabilityName>,
+    pub cover_lock: Option<CoverLock>,
     pub children: Vec<NodeId>,
     pub diagnostic: String,
     pub columns: Option<u8>,
@@ -403,6 +409,7 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
         summary_only: false,
         entity: None,
         capability: None,
+        cover_lock: None,
         children: Vec::new(),
         diagnostic: String::new(),
         columns: None,
@@ -522,6 +529,27 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
             };
             node.kind = Kind::Tile;
             bind_node(&mut node, &v.capability)?;
+            node.cover_lock = v
+                .cover_lock
+                .as_option()
+                .map(|lock| {
+                    let capability = CapabilityName::try_from(lock.capability.as_str())
+                        .map_err(|_| LayoutFailure::Invalid)?;
+                    if !lock.__buffa_unknown_fields.is_empty()
+                        || lock.display_name.len() > 256
+                        || lock.display_name.contains('\0')
+                        || node.capability.as_ref().is_none_or(|source| {
+                            source.home() != capability.home() || source == &capability
+                        })
+                    {
+                        return Err(LayoutFailure::Invalid);
+                    }
+                    Ok(CoverLock {
+                        capability,
+                        label: lock.display_name.clone(),
+                    })
+                })
+                .transpose()?;
             node.features = features(&v.features)?;
             node.summary_only = presentation(v.presentation)?;
             node.vertical = v.vertical;
@@ -540,6 +568,27 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
             if !v.capability.is_empty() {
                 bind_node(&mut node, &v.capability)?
             };
+            node.cover_lock = v
+                .cover_lock
+                .as_option()
+                .map(|lock| {
+                    let capability = CapabilityName::try_from(lock.capability.as_str())
+                        .map_err(|_| LayoutFailure::Invalid)?;
+                    if !lock.__buffa_unknown_fields.is_empty()
+                        || lock.display_name.len() > 256
+                        || lock.display_name.contains('\0')
+                        || node.capability.as_ref().is_none_or(|source| {
+                            source.home() != capability.home() || source == &capability
+                        })
+                    {
+                        return Err(LayoutFailure::Invalid);
+                    }
+                    Ok(CoverLock {
+                        capability,
+                        label: lock.display_name.clone(),
+                    })
+                })
+                .transpose()?;
             node.features = features(&v.features)?;
             node.summary_only = presentation(v.presentation)?;
             if v.secondary.len() > 512 || v.secondary.contains('\0') {

@@ -34,6 +34,24 @@ fn panels() -> Vec<(&'static str, HomewardDetailRow)> {
         let mut panel = device_view::detail::project(&row, row.ui(None, &Default::default()), None);
         panel.climate.setpoint = "21.5 °C".into();
         panel.climate.current = "20.0 °C".into();
+        panel.climate.activity = "Heating".into();
+        if kind == ProDeviceKind::Climate {
+            panel.has_climate_editor = true;
+            panel.climate_field = ProDeviceValue {
+                token: 0,
+                kind: ProValueKind::Numeric,
+                mode: ProValueMode::Single,
+                label: "Setpoint".into(),
+                lower: "21.5".into(),
+                suffix: "°C".into(),
+                lower_position: 0.55,
+                slider_enabled: true,
+                can_step: true,
+                ..Default::default()
+            };
+            panel.device.value = "20.0".into();
+            panel.device.unit = "°C".into();
+        }
         panel.climate.can_increment = true;
         panel.climate.can_decrement = true;
         panel.climate.modes.rows = ModelRc::from(
@@ -57,25 +75,28 @@ fn panels() -> Vec<(&'static str, HomewardDetailRow)> {
             [
                 ChoiceRow {
                     token: 0,
-                    label: "Off".into(),
+                    label: "High".into(),
                     selected: false,
                     disabled: false,
                 },
                 ChoiceRow {
                     token: 1,
-                    label: "Low".into(),
+                    label: "Medium".into(),
                     selected: true,
                     disabled: false,
                 },
                 ChoiceRow {
                     token: 2,
-                    label: "High".into(),
+                    label: "Low".into(),
                     selected: false,
                     disabled: false,
                 },
             ]
             .as_slice(),
         );
+        if kind == ProDeviceKind::Fan {
+            panel.fan.state_label = "Medium".into();
+        }
         panel.cover.position = 65.;
         panel.cover.position_known = true;
         panel.positioned = true;
@@ -102,6 +123,26 @@ fn panels() -> Vec<(&'static str, HomewardDetailRow)> {
             ]
             .as_slice(),
         );
+        if kind == ProDeviceKind::Cover {
+            panel.associated_lock = ProAssociatedLock {
+                token: 1,
+                generation: 7,
+                title: "Remote controls".into(),
+                state_label: "Unlocked".into(),
+                state: ProCoverLock::Unlocked,
+                can_lock: true,
+                can_unlock: true,
+            };
+            panel.lock_commands_enabled = true;
+        }
+        panel.alarm_code_required = kind == ProDeviceKind::Alarm;
+        panel.alarm.code_length = 4;
+        panel.alarm.code_capacity = 32;
+        panel.alarm.entered_count = 3;
+        panel.alarm.code_label = "3 digits entered".into();
+        panel.alarm.prompt = "Code to disarm".into();
+        panel.alarm.confirm_label = "Disarm".into();
+        panel.alarm.can_confirm = true;
         panel.alarm.condition = ProAlarmCondition::Disarmed;
         panel.alarm.state_label = "Disarmed".into();
         panel.alarm.modes = ModelRc::from(
@@ -181,7 +222,7 @@ fn the_product_light_detail_contains_one_brightness_control() {
 }
 
 #[test]
-fn modal_feedback_stays_below_controls_without_moving_them() {
+fn current_refusals_are_visible_and_history_stays_below_controls() {
     use i_slint_backend_testing::{ElementQuery, TestingBackend, TestingBackendOptions};
     slint::platform::set_platform(Box::new(TestingBackend::new(TestingBackendOptions {
         mock_time: true,
@@ -199,6 +240,12 @@ fn modal_feedback_stays_below_controls_without_moving_them() {
         }
     };
     let dialog = |name: &str| {
+        if name == "Synthetic light" {
+            return ElementQuery::from_root(&window)
+                .match_id("HomewardWindow::detail-scroll")
+                .find_first()
+                .unwrap();
+        }
         let name = name.to_owned();
         ElementQuery::from_root(&window)
             .match_inherits("KitDialogPanel")
@@ -231,36 +278,20 @@ fn modal_feedback_stays_below_controls_without_moving_them() {
             panel_size.height,
         ]
     };
-    let assert_notice = |name: &str, expected: &str, before: [f32; 8]| {
-        let after = geometry(name);
-        for (before, after) in before.into_iter().zip(after) {
-            assert!(
-                (before - after).abs() < 0.1,
-                "feedback moved a control: {before} -> {after}"
-            );
+    let scroll_area = |name: &str| {
+        if name == "Synthetic light" {
+            dialog(name)
+        } else {
+            dialog(name)
+                .query_descendants()
+                .match_inherits("KitScrollArea")
+                .find_first()
+                .unwrap()
         }
-        let notices = dialog(name)
-            .query_descendants()
-            .match_inherits("KitAlert")
-            .find_all();
-        assert_eq!(
-            notices.len(),
-            1,
-            "one notice, no global device-progress duplicate"
-        );
-        assert_eq!(notices[0].accessible_label().as_deref(), Some(expected));
-        assert!(
-            notices[0].absolute_position().y >= after[1] + after[3],
-            "notice follows the slider"
-        );
     };
     let scroll = |name: &str, to_bottom: bool| {
         use slint::platform::WindowEvent;
-        let area = dialog(name)
-            .query_descendants()
-            .match_inherits("KitScrollArea")
-            .find_first()
-            .unwrap();
+        let area = scroll_area(name);
         let origin = area.absolute_position();
         let size = area.size();
         let position =
@@ -275,21 +306,73 @@ fn modal_feedback_stays_below_controls_without_moving_them() {
                 });
             i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(100));
         }
-        if to_bottom {
-            let notice = dialog(name)
-                .query_descendants()
-                .match_inherits("KitAlert")
-                .find_first()
-                .unwrap();
+    };
+    let assert_notice = |name: &str, expected: &str, before: [f32; 8]| {
+        let after = geometry(name);
+        // Content-sized desktop surfaces may grow and recenter. Controls keep
+        // their dimensions and offset within the surface.
+        let relative = |g: [f32; 8]| [g[0] - g[4], g[1] - g[5], g[2], g[3], g[6]];
+        for (before, after) in relative(before).into_iter().zip(relative(after)) {
             assert!(
-                notice.absolute_position().y >= origin.y - 1.,
-                "notice starts inside the viewport"
-            );
-            assert!(
-                notice.absolute_position().y + notice.size().height <= origin.y + size.height + 1.,
-                "the complete notice is reachable"
+                (before - after).abs() < 0.1,
+                "feedback moved a control: {before} -> {after}"
             );
         }
+        let slider = dialog(name)
+            .query_descendants()
+            .match_inherits("KitSlider")
+            .find_first()
+            .unwrap();
+        // TestingBackend excludes clipped descendants. Reveal the real footer
+        // before querying it, while retaining the control handle for geometry.
+        scroll(name, true);
+        let notices = dialog(name)
+            .query_descendants()
+            .match_inherits("KitAlert")
+            .find_all();
+        assert_eq!(
+            notices.len(),
+            1,
+            "one notice for {name}/{expected}, no global device-progress duplicate"
+        );
+        assert_eq!(notices[0].accessible_label().as_deref(), Some(expected));
+        assert!(
+            notices[0].absolute_position().y >= slider.absolute_position().y + slider.size().height,
+            "notice follows the slider"
+        );
+        let area = scroll_area(name);
+        let origin = area.absolute_position();
+        let size = area.size();
+        assert!(
+            notices[0].absolute_position().y >= origin.y - 1.,
+            "notice starts inside viewport"
+        );
+        assert!(
+            notices[0].absolute_position().y + notices[0].size().height
+                <= origin.y + size.height + 1.,
+            "complete notice is reachable"
+        );
+    };
+    let assert_current = |expected: &str, width: f32, height: f32| {
+        slint::platform::update_timers_and_animations();
+        let notices = ElementQuery::from_root(&window)
+            .match_inherits("KitAlert")
+            .find_all();
+        assert_eq!(
+            notices.len(),
+            1,
+            "current refusal is visible without scrolling"
+        );
+        assert_eq!(notices[0].accessible_label().as_deref(), Some(expected));
+        let point = notices[0].absolute_position();
+        let size = notices[0].size();
+        assert!(
+            point.x >= 0.
+                && point.y >= 0.
+                && point.x + size.width <= width + 1.
+                && point.y + size.height <= height + 1.,
+            "current refusal is entirely inside the viewport"
+        );
     };
     for (screen, width, height) in [("phone", 390., 844.), ("tablet", 900., 1400.)] {
         for dark in [false, true] {
@@ -312,11 +395,11 @@ fn modal_feedback_stays_below_controls_without_moving_them() {
                 window.set_detail_panels(ModelRc::from([panel.clone()]));
                 scroll("Synthetic light", false);
                 let before = geometry("Synthetic light");
-                // Refusals before submission have no action row and retain their
-                // global fallback, now following the device/media module.
+                // A current refusal is immediately visible and announced;
+                // historical command detail remains explicitly consulted.
                 window.set_action_feedback(device_view::Refusal::Capacity.message().into());
-                assert_notice("Synthetic light", "Update", before);
-                scroll("Synthetic light", true);
+                render(&format!("{screen}-detail-refusal-before-assert"));
+                assert_current(device_view::Refusal::Capacity.message(), width, height);
                 render(&format!("{screen}-detail-refusal"));
                 window.set_action_feedback("".into());
                 let snapshot = device_view::progress::tests::snapshot(Some(
@@ -327,7 +410,17 @@ fn modal_feedback_stays_below_controls_without_moving_them() {
                 panel.device.action_label = title.into();
                 panel.device.action_detail = detail.into();
                 window.set_detail_panels(ModelRc::from([panel]));
+                scroll("Synthetic light", true);
+                ElementQuery::from_root(&window)
+                    .match_inherits("KitPressable")
+                    .match_predicate(|item| {
+                        item.accessible_label().as_deref() == Some("Last command")
+                    })
+                    .find_first()
+                    .expect("historical command disclosure")
+                    .invoke_accessible_default_action();
                 scroll("Synthetic light", false);
+                render(&format!("{screen}-detail-unconfirmed-before-assert"));
                 assert_notice("Synthetic light", "Change not confirmed", before);
                 scroll("Synthetic light", true);
                 render(&format!("{screen}-detail-unconfirmed"));
@@ -361,10 +454,9 @@ fn modal_feedback_stays_below_controls_without_moving_them() {
                     ..Default::default()
                 });
                 scroll("Synthetic room", false);
-                let before = geometry("Synthetic room");
                 window.set_action_feedback(device_view::Refusal::Capacity.message().into());
-                assert_notice("Synthetic room", "Update", before);
-                scroll("Synthetic room", true);
+                render(&format!("{screen}-room-refusal-before-assert"));
+                assert_current(device_view::Refusal::Capacity.message(), width, height);
                 render(&format!("{screen}-room-refusal"));
             }
         }
@@ -387,7 +479,11 @@ fn render_synthetic_dashboard_families() {
     .unwrap();
     let window = setup();
     window.show().unwrap();
-    for (screen, width, height) in [("desktop", 1280., 900.), ("phone", 390., 844.)] {
+    for (screen, width, height) in [
+        ("desktop", 1280., 900.),
+        ("phone", 390., 844.),
+        ("phone-small", 360., 740.),
+    ] {
         window
             .window()
             .set_size(slint::LogicalSize::new(width, height));
@@ -396,6 +492,42 @@ fn render_synthetic_dashboard_families() {
             for large in [false, true] {
                 window.set_large_text(large);
                 let mut variants = panels();
+                for (name, count) in [
+                    ("alarm-code-4", 4),
+                    ("alarm-code-6", 6),
+                    ("alarm-code-32", 32),
+                ] {
+                    let mut panel = variants
+                        .iter()
+                        .find(|(name, _)| *name == "alarm")
+                        .unwrap()
+                        .1
+                        .clone();
+                    panel.alarm.entered_count = count;
+                    panel.alarm.code_length = count.max(4);
+                    panel.alarm.code_label = format!("{count} digits entered").into();
+                    variants.push((name, panel));
+                }
+                let mut white = variants
+                    .iter()
+                    .find(|(name, _)| *name == "light")
+                    .unwrap()
+                    .1
+                    .clone();
+                white.has_temperature = true;
+                white.temperature_field = ProDeviceValue {
+                    token: 1,
+                    kind: ProValueKind::Numeric,
+                    mode: ProValueMode::Single,
+                    label: "Color temperature".into(),
+                    lower: "3000".into(),
+                    suffix: "K".into(),
+                    lower_position: 0.55,
+                    slider_enabled: true,
+                    can_step: true,
+                    ..Default::default()
+                };
+                variants.push(("light-white", white));
                 let mut close_only = variants
                     .iter()
                     .find(|(name, _)| *name == "cover")
@@ -442,6 +574,15 @@ fn render_synthetic_dashboard_families() {
                     window.set_media_has_data(false);
                     window.set_device_cards(ModelRc::from([panel.device.clone()].as_slice()));
                     window.set_detail_panels(ModelRc::from([panel].as_slice()));
+                    if name == "light-white" {
+                        i_slint_backend_testing::ElementQuery::from_root(&window)
+                            .match_predicate(|item| {
+                                item.accessible_label().as_deref() == Some("White")
+                            })
+                            .find_first()
+                            .expect("white section")
+                            .invoke_accessible_default_action();
+                    }
                     save(
                         &window,
                         &directory.join(format!(
@@ -469,6 +610,10 @@ fn render_synthetic_dashboard_families() {
                 window.set_media_actions(ModelRc::from(
                     [
                         ProMediaAction {
+                            operation: ProMediaOperation::Previous,
+                            label: "Previous".into(),
+                        },
+                        ProMediaAction {
                             operation: ProMediaOperation::Pause,
                             label: "Pause".into(),
                         },
@@ -479,6 +624,18 @@ fn render_synthetic_dashboard_families() {
                     ]
                     .as_slice(),
                 ));
+                window.set_media_values(ModelRc::from([ProDeviceValue {
+                    token: 0,
+                    kind: ProValueKind::Numeric,
+                    mode: ProValueMode::Single,
+                    label: "Volume".into(),
+                    lower: "35".into(),
+                    suffix: "%".into(),
+                    lower_position: 0.35,
+                    slider_enabled: true,
+                    can_step: true,
+                    ..Default::default()
+                }]));
                 window.set_media_progress_known(true);
                 window.set_media_progress(0.4);
                 window.set_media_position_label("1:20".into());
@@ -491,6 +648,27 @@ fn render_synthetic_dashboard_families() {
                         if large { 200 } else { 100 }
                     )),
                 );
+                window.set_page(ViewPage::Home);
+                window.set_native_popup_title("Synthetic room thermostat".into());
+                window.set_native_popup_generation(3);
+                window.set_native_popup_detail(true);
+                window.set_native_popup_can_back(true);
+                window.set_popup_layout_nodes(ModelRc::from([synthetic_thermostat_popup()]));
+                window.set_native_popup(DialogState {
+                    open: true,
+                    topmost: true,
+                    ..Default::default()
+                });
+                save(
+                    &window,
+                    &directory.join(format!(
+                        "{screen}-room-thermostat-{}-{}.png",
+                        if dark { "dark" } else { "light" },
+                        if large { 200 } else { 100 }
+                    )),
+                );
+                window.set_native_popup(DialogState::default());
+                window.set_page(ViewPage::Detail);
             }
         }
     }
@@ -525,70 +703,93 @@ fn render_synthetic_detail_bottoms() {
     })))
     .unwrap();
     let window = setup();
-    window
-        .window()
-        .set_size(slint::LogicalSize::new(1280., 900.));
+
     window.on_device_power(|_, _, _| panic!("scroll must not issue a power intention"));
     window.on_device_brightness(|_, _, _| panic!("scroll must not issue a level intention"));
     window.on_device_edit(|_, _, _, _| panic!("scroll must not issue an edit intention"));
     window.on_device_choice(|_, _, _| panic!("scroll must not issue a choice intention"));
     window.on_device_step(|_, _, _| panic!("scroll must not issue a step intention"));
+    window.on_alarm_confirm(|_, _| panic!("scroll must not submit a code"));
+    window.on_alarm_digit(|_, _, _| panic!("scroll must not enter a digit"));
+    window.on_alarm_mode(|_, _, _| panic!("scroll must not change the alarm mode"));
     window.show().unwrap();
-    for dark in [false, true] {
-        window.set_dark_mode(dark);
-        for large in [false, true] {
-            window.set_large_text(large);
-            for (name, panel) in panels().into_iter().filter(|(name, _)| {
-                matches!(*name, "light" | "cover") || (large && matches!(*name, "fan" | "switch"))
-            }) {
-                window.set_device_cards(ModelRc::from([panel.device.clone()].as_slice()));
-                window.set_detail_panels(ModelRc::from([panel].as_slice()));
-                i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(300));
-                let scroll = ElementQuery::from_root(&window)
-                    .match_id("HomewardWindow::detail-scroll")
-                    .find_first()
-                    .expect("actual product detail scroller");
-                let origin = scroll.absolute_position();
-                let size = scroll.size();
-                // Use the scroller's trailing edge, outside every device
-                // control. This is synthetic wheel navigation, never a tap.
-                let position = slint::LogicalPosition::new(
-                    origin.x + size.width - 2.,
-                    origin.y + size.height / 2.,
-                );
-                for _ in 0..4 {
-                    window
-                        .window()
-                        .dispatch_event(WindowEvent::PointerScrolled {
-                            position,
-                            delta_x: 0.,
-                            delta_y: -4096.,
-                        });
+    for (screen, width, height) in [("desktop", 1280., 900.), ("phone-small", 360., 740.)] {
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(width, height));
+        for dark in [false, true] {
+            window.set_dark_mode(dark);
+            for large in [false, true] {
+                window.set_large_text(large);
+                for (name, panel) in panels()
+                    .into_iter()
+                    .filter(|(name, _)| matches!(*name, "alarm"))
+                {
+                    window.set_device_cards(ModelRc::from([panel.device.clone()].as_slice()));
+                    window.set_detail_panels(ModelRc::from([panel].as_slice()));
                     i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(
-                        100,
+                        300,
                     ));
+                    let scroll = ElementQuery::from_root(&window)
+                        .match_id("HomewardWindow::detail-scroll")
+                        .find_first()
+                        .expect("actual product detail scroller");
+                    let origin = scroll.absolute_position();
+                    let size = scroll.size();
+                    // Use the scroller's trailing edge, outside every device
+                    // control. This is synthetic wheel navigation, never a tap.
+                    let position = slint::LogicalPosition::new(
+                        origin.x + size.width - 2.,
+                        origin.y + size.height / 2.,
+                    );
+                    for _ in 0..4 {
+                        window
+                            .window()
+                            .dispatch_event(WindowEvent::PointerScrolled {
+                                position,
+                                delta_x: 0.,
+                                delta_y: -4096.,
+                            });
+                        i_slint_backend_testing::mock_elapsed_time(
+                            std::time::Duration::from_millis(100),
+                        );
+                    }
+                    let keypad = ElementQuery::from_root(&window)
+                        .match_inherits("KitKeypad")
+                        .find_first()
+                        .expect("real product keypad");
+                    let confirm = keypad
+                        .query_descendants()
+                        .match_inherits("KitPressable")
+                        .match_predicate(|e| {
+                            e.accessible_label()
+                                .is_some_and(|label| label.contains("Disarm"))
+                        })
+                        .find_first()
+                        .expect("the actual confirmation action");
+                    let point = confirm.absolute_position();
+                    let extent = confirm.size();
+                    assert!(
+                        point.y >= origin.y - 1.,
+                        "confirmation starts inside viewport"
+                    );
+                    assert!(
+                        point.y + extent.height <= origin.y + size.height + 1.,
+                        "the complete confirmation action must be reachable by scrolling"
+                    );
+                    assert!(
+                        point.x >= 0. && point.x + extent.width <= width + 1.,
+                        "confirmation is not horizontally clipped"
+                    );
+                    save(
+                        &window,
+                        &directory.join(format!(
+                            "{screen}-{name}-{}-{}-bottom.png",
+                            if dark { "dark" } else { "light" },
+                            if large { 200 } else { 100 }
+                        )),
+                    );
                 }
-                let history = ElementQuery::from_root(&window)
-                    .match_inherits("KitPressable")
-                    .match_predicate(|e| {
-                        e.accessible_label().as_deref() == Some("History and Diagnostics")
-                    })
-                    .find_first()
-                    .expect("product detail footer");
-                assert!(history.absolute_position().y >= origin.y - 1.);
-                assert!(
-                    history.absolute_position().y + history.size().height
-                        <= origin.y + size.height + 1.,
-                    "the complete footer must be inside the scroller"
-                );
-                save(
-                    &window,
-                    &directory.join(format!(
-                        "desktop-{name}-{}-{}-bottom.png",
-                        if dark { "dark" } else { "light" },
-                        if large { 200 } else { 100 }
-                    )),
-                );
             }
         }
     }
@@ -865,7 +1066,7 @@ fn alarm_detail_has_one_close_and_preserves_mode_identity() {
     window.set_detail_panels(ModelRc::from([panel].as_slice()));
     let calls = Rc::new(RefCell::new(Vec::new()));
     let output = calls.clone();
-    window.on_device_choice(move |token, generation, choice| {
+    window.on_alarm_mode(move |token, generation, choice| {
         output.borrow_mut().push((token, generation, choice))
     });
     window.show().unwrap();
@@ -907,4 +1108,215 @@ fn alarm_detail_has_one_close_and_preserves_mode_identity() {
         1,
         "initial detail focus reaches the remaining Close control"
     );
+}
+
+fn synthetic_thermostat_popup() -> ProLayoutNode {
+    let (_, panel) = panels()
+        .into_iter()
+        .find(|(name, _)| *name == "climate")
+        .unwrap();
+    ProLayoutNode {
+        token: 20,
+        generation: 3,
+        kind: ProLayoutKind::Widget,
+        widget: ProDashboardWidget {
+            kind: ProDashboardWidgetKind::Thermostat,
+            detailed: true,
+            data_ready: true,
+            thermostat: panel.device,
+            field: panel.climate_field,
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+#[test]
+fn room_detail_uses_one_panel_and_keeps_back_distinct_from_close() {
+    use i_slint_backend_testing::ElementQuery;
+    use std::{cell::RefCell, rc::Rc};
+    i_slint_backend_testing::init_no_event_loop();
+    let window = setup();
+    window.set_page(ViewPage::Home);
+    window.set_native_popup_title("Synthetic room thermostat".into());
+    window.set_native_popup_generation(3);
+    window.set_native_popup_detail(true);
+    window.set_native_popup_can_back(true);
+    window.set_popup_layout_nodes(ModelRc::from([synthetic_thermostat_popup()]));
+    window.set_native_popup(DialogState {
+        open: true,
+        topmost: true,
+        ..Default::default()
+    });
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let output = events.clone();
+    window.on_native_popup_back(move |generation| output.borrow_mut().push((true, generation)));
+    let output = events.clone();
+    window.on_native_popup_dismiss(move |generation, _| {
+        output.borrow_mut().push((false, generation))
+    });
+    window.show().unwrap();
+    let popup = ElementQuery::from_root(&window)
+        .match_inherits("HomewardPopup")
+        .find_first()
+        .unwrap();
+    assert_eq!(
+        popup
+            .query_descendants()
+            .match_inherits("ProDetailPanel")
+            .find_all()
+            .len(),
+        1
+    );
+    popup
+        .query_descendants()
+        .match_predicate(|item| item.accessible_label().as_deref() == Some("Back"))
+        .find_first()
+        .unwrap()
+        .invoke_accessible_default_action();
+    assert_eq!(*events.borrow(), vec![(true, 3)]);
+    window.set_native_popup_generation(4);
+    popup
+        .query_descendants()
+        .match_predicate(|item| {
+            item.accessible_label().as_deref() == Some("Close Synthetic room thermostat")
+        })
+        .find_first()
+        .unwrap()
+        .invoke_accessible_default_action();
+    assert_eq!(*events.borrow(), vec![(true, 3), (false, 4)]);
+    window.hide().unwrap();
+}
+
+#[test]
+fn modal_content_respects_dynamic_system_insets_without_shrinking_scrims() {
+    use i_slint_backend_testing::{ElementQuery, TestingBackend, TestingBackendOptions};
+    use i_slint_core::{lengths::LogicalEdges, window::WindowInner};
+    slint::platform::set_platform(Box::new(TestingBackend::new(TestingBackendOptions {
+        mock_time: true,
+        renderer_name: Some("software".into()),
+        ..Default::default()
+    })))
+    .unwrap();
+    let directory = std::env::var_os("HOMEWARD_SYNTHETIC_RENDER_DIR").map(std::path::PathBuf::from);
+    if let Some(directory) = &directory {
+        std::fs::create_dir_all(directory).unwrap();
+    }
+    let window = setup();
+    let (_, panel) = panels()
+        .into_iter()
+        .find(|(name, _)| *name == "alarm")
+        .unwrap();
+    window.set_device_cards(ModelRc::from([panel.device.clone()]));
+    window.set_detail_panels(ModelRc::from([panel]));
+    window.set_native_popup_title("Synthetic room thermostat".into());
+    window.set_native_popup_detail(true);
+    window.set_native_popup_can_back(true);
+    window.set_popup_layout_nodes(ModelRc::from([synthetic_thermostat_popup()]));
+    window.show().unwrap();
+    for (screen, width, height) in [
+        ("phone", 360., 800.),
+        ("tablet", 800., 1100.),
+        ("desktop", 1100., 900.),
+    ] {
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(width, height));
+        for (appearance, dark, large) in [("light100", false, false), ("dark200", true, true)] {
+            window.set_dark_mode(dark);
+            window.set_large_text(large);
+            for room in [false, true] {
+                window.set_page(if room {
+                    ViewPage::Home
+                } else {
+                    ViewPage::Detail
+                });
+                window.set_native_popup(DialogState {
+                    open: room,
+                    topmost: room,
+                    ..Default::default()
+                });
+                // Change the real Window property after opening, then remove the
+                // insets again. This exercises runtime rotation/system-bar updates.
+                for (step, insets) in [
+                    LogicalEdges::default(),
+                    LogicalEdges::new(28., 24., 12., 8.),
+                    LogicalEdges::default(),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    WindowInner::from_pub(window.window()).set_window_item_safe_area(insets);
+                    slint::platform::update_timers_and_animations();
+                    let route = if room { "room" } else { "direct" };
+                    let context = format!("{screen}-{appearance}-{route}-{step}");
+                    let surface = ElementQuery::from_root(&window)
+                        .match_id(if room {
+                            "HomewardWindow::popup-dialog"
+                        } else {
+                            "HomewardWindow::detail-dialog"
+                        })
+                        .find_first()
+                        .expect("actual product modal surface");
+                    let origin = surface.absolute_position();
+                    let size = surface.size();
+                    assert!(
+                        origin.x.abs() < 1. && origin.y.abs() < 1.,
+                        "scrim origin: {context}"
+                    );
+                    assert!(
+                        (size.width - width).abs() < 1. && (size.height - height).abs() < 1.,
+                        "scrim extent: {context}"
+                    );
+                    let area = surface
+                        .query_descendants()
+                        .match_id(if room {
+                            "HomewardPopup::panel"
+                        } else {
+                            "HomewardWindow::detail-scroll"
+                        })
+                        .find_first()
+                        .expect("bounded interactive content");
+                    let origin = area.absolute_position();
+                    let size = area.size();
+                    assert!(
+                        origin.x >= insets.left - 1. && origin.y >= insets.top - 1.,
+                        "content origin: {context} {origin:?}"
+                    );
+                    assert!(
+                        origin.x + size.width <= width - insets.right + 1.
+                            && origin.y + size.height <= height - insets.bottom + 1.,
+                        "content extent: {context} {origin:?} {size:?}"
+                    );
+                    let close = surface
+                        .query_descendants()
+                        .match_inherits("KitPressable")
+                        .match_predicate(|item| {
+                            item.accessible_label()
+                                .is_some_and(|label| label.starts_with("Close"))
+                        })
+                        .find_first()
+                        .expect("modal Close");
+                    let origin = close.absolute_position();
+                    let size = close.size();
+                    assert!(
+                        origin.x >= insets.left
+                            && origin.y >= insets.top
+                            && origin.x + size.width <= width - insets.right
+                            && origin.y + size.height <= height - insets.bottom,
+                        "Close stays outside system UI: {context} {origin:?} {size:?}"
+                    );
+                    if step == 1
+                        && let Some(directory) = &directory
+                    {
+                        save(
+                            &window,
+                            &directory.join(format!("safe-area-{screen}-{appearance}-{route}.png")),
+                        );
+                    }
+                }
+            }
+        }
+    }
+    window.hide().unwrap();
 }

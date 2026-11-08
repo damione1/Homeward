@@ -53,6 +53,7 @@ type Input struct {
 	PasswordSecret   string                 `yaml:"password_secret"`
 	Subscriptions    []string               `yaml:"subscriptions"`
 	CommandTopics    []string               `yaml:"command_topics"`
+	CommandFeedback  []CommandFeedbackInput `yaml:"command_feedback"`
 	Z2MReads         []Z2MReadInput         `yaml:"z2m_reads"`
 	TransitionLights []TransitionLightInput `yaml:"transition_lights"`
 	Will             *WillInput             `yaml:"will"`
@@ -154,6 +155,7 @@ type Settings struct {
 	commands         []TopicFilter
 	reads            []z2mRead
 	transitionLights map[integrations.SourceKey]transitionProfile
+	commandFeedback  map[integrations.SourceKey]commandFeedback
 	willTopic        Topic
 	willPayload      []byte
 }
@@ -254,6 +256,9 @@ func ParseSettings(raw Input) (Settings, error) {
 		}
 		s.transitionLights[key] = transitionIkeaDriver30W
 	}
+	if err := s.admitCommandFeedback(raw.CommandFeedback); err != nil {
+		return Settings{}, err
+	}
 	if mode == ModePassive {
 		if raw.Will != nil || len(s.commands) != 0 {
 			return Settings{}, ErrInvalidSettings
@@ -305,7 +310,7 @@ func (s Settings) GoString() string { return s.String() }
 func (s Settings) StrictlyPassive() bool {
 	_, err := s.Instance()
 	return err == nil && s.profile == ProfileMQTT5 && s.mode == ModePassive &&
-		len(s.commands) == 0 && len(s.reads) == 0 && len(s.transitionLights) == 0 && s.willTopic == (Topic{}) && len(s.willPayload) == 0 && len(s.subscriptions) > 0
+		len(s.commands) == 0 && len(s.reads) == 0 && len(s.commandFeedback) == 0 && len(s.transitionLights) == 0 && s.willTopic == (Topic{}) && len(s.willPayload) == 0 && len(s.subscriptions) > 0
 }
 
 // CredentialHandles returns only opaque credential metadata for trusted

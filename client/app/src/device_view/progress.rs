@@ -71,6 +71,13 @@ fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
                 );
             }
             CommandCompletion::Success {
+                outcome: CommandOutcome::SentUnverified,
+                ..
+            } => {
+                // Dispatch completion is terminal for input, never a physical ACK.
+                return (Phase::Idle, "", "");
+            }
+            CommandCompletion::Success {
                 outcome: CommandOutcome::AcknowledgedUnverified,
                 ..
             } => {
@@ -108,14 +115,14 @@ fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
         CapabilityTracking::Stopped => {
             return (
                 Phase::Stopped,
-                "Updates stopped",
+                "Command tracking stopped",
                 "Check the device before trying again.",
             );
         }
         CapabilityTracking::Unavailable => {
             return (
                 Phase::Unavailable,
-                "Update unavailable",
+                "Command status unavailable",
                 "The change has not been confirmed yet.",
             );
         }
@@ -148,7 +155,7 @@ fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
             | CommandPhase::Cancelled
             | CommandPhase::Indeterminate => (
                 Phase::Unavailable,
-                "Update unavailable",
+                "Command status unavailable",
                 "Check the device before trying again.",
             ),
         };
@@ -172,7 +179,7 @@ fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
         CapabilitySubmission::NotSent => (Phase::Refused, "Change not sent", "Please try again."),
         CapabilitySubmission::Closed => (
             Phase::Stopped,
-            "Updates stopped",
+            "Command tracking stopped",
             "Check the device before trying again.",
         ),
     }
@@ -200,6 +207,8 @@ pub(crate) mod tests {
         );
         let phase = if outcome == Some(wire::CommandOutcome::Confirmed) {
             wire::CommandPhase::Confirmed
+        } else if outcome == Some(wire::CommandOutcome::SentUnverified) {
+            wire::CommandPhase::Dispatched
         } else {
             wire::CommandPhase::Acknowledged
         };
@@ -377,6 +386,12 @@ pub(crate) mod tests {
             62.037033,
             "no optimistic observation"
         );
+        ElementQuery::from_root(&window)
+            .match_predicate(|e| e.accessible_label().as_deref() == Some("Last command"))
+            .find_first()
+            .expect("historical command remains consultable")
+            .invoke_accessible_default_action();
+        slint::platform::update_timers_and_animations();
         assert!(
             ElementQuery::from_root(&window)
                 .match_predicate(|e| e
@@ -471,5 +486,18 @@ pub(crate) mod tests {
             let (_, label, detail) = presentation(Some(&progress));
             assert!(!label.is_empty() && !detail.is_empty());
         }
+    }
+}
+
+#[cfg(test)]
+mod dispatch_only_tests {
+    use super::*;
+    #[test]
+    fn sent_without_ack_releases_input_without_claiming_confirmation() {
+        let snapshot = super::tests::snapshot(Some(
+            home_wire_contract::home::api::v2::CommandOutcome::SentUnverified,
+        ));
+        assert_eq!(presentation(Some(&snapshot)), (Phase::Idle, "", ""));
+        assert!(!blocks_input(Some(&snapshot)));
     }
 }

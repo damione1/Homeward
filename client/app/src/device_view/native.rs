@@ -164,6 +164,17 @@ fn reconcile_step(
     }
 }
 fn resolved_step(snapshot: &home_client_actions::capabilities::CapabilitySnapshot) -> bool {
+    if snapshot.operation.as_ref().is_some_and(|operation| {
+        matches!(
+            operation.completion(),
+            home_wire_contract::api_command_operations::CommandCompletion::Success {
+                outcome: home_wire_contract::api_command_operations::CommandOutcome::SentUnverified,
+                ..
+            }
+        )
+    }) {
+        return true;
+    }
     matches!(
         super::progress::presentation(Some(snapshot)).0,
         crate::ProActionPhase::Confirmed

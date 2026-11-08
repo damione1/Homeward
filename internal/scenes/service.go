@@ -578,7 +578,7 @@ func commandMemberResult(item MemberResult, response *actions.CommandResponse, e
 		switch response.Status {
 		case actions.ActionStatus_ACTION_STATUS_ACCEPTED:
 			item.outcome = OutcomeAccepted
-		case actions.ActionStatus_ACTION_STATUS_DISPATCHED:
+		case actions.ActionStatus_ACTION_STATUS_DISPATCHED, actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED:
 			item.outcome = OutcomeDispatched
 		case actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED:
 			item.outcome = OutcomeAcknowledged

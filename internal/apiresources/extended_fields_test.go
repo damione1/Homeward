@@ -25,7 +25,7 @@ func TestNativeMessageFieldProjectionCoverage(t *testing.T) {
 		{(&controls.CoverValue{}).ProtoReflect().Descriptor(), (&api.CoverValue{}).ProtoReflect().Descriptor(), []protoreflect.FieldNumber{1, 2, 3}},
 		{(&controls.LockConstraints{}).ProtoReflect().Descriptor(), (&api.LockDefinition{}).ProtoReflect().Descriptor(), []protoreflect.FieldNumber{1, 2}},
 		{(&controls.LockValue{}).ProtoReflect().Descriptor(), (&api.LockValue{}).ProtoReflect().Descriptor(), []protoreflect.FieldNumber{1}},
-		{(&controls.AlarmConstraints{}).ProtoReflect().Descriptor(), (&api.AlarmDefinition{}).ProtoReflect().Descriptor(), []protoreflect.FieldNumber{1, 2}},
+		{(&controls.AlarmConstraints{}).ProtoReflect().Descriptor(), (&api.AlarmDefinition{}).ProtoReflect().Descriptor(), []protoreflect.FieldNumber{1, 2, 3}},
 		{(&controls.AlarmValue{}).ProtoReflect().Descriptor(), (&api.AlarmValue{}).ProtoReflect().Descriptor(), []protoreflect.FieldNumber{1}},
 		{(&solar.SolarOccurrence{}).ProtoReflect().Descriptor(), (&api.SolarOccurrence{}).ProtoReflect().Descriptor(), []protoreflect.FieldNumber{1, 2}},
 		{(&solar.SolarValue{}).ProtoReflect().Descriptor(), (&api.SolarValue{}).ProtoReflect().Descriptor(), []protoreflect.FieldNumber{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},

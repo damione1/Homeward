@@ -27,6 +27,7 @@ func TestNHA201PhysicalOperationSeparatesACKFromDurableConfirmation(t *testing.T
 	}{
 		{"pending ACK", nil, false, api.CommandPhase_COMMAND_PHASE_ACKNOWLEDGED, 0, false},
 		{"durable confirmation", &actions.CommandResponse{Status: actions.ActionStatus_ACTION_STATUS_CONFIRMED}, true, api.CommandPhase_COMMAND_PHASE_CONFIRMED, api.CommandOutcome_COMMAND_OUTCOME_CONFIRMED, false},
+		{"sent without ACK", &actions.CommandResponse{Status: actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED}, true, api.CommandPhase_COMMAND_PHASE_DISPATCHED, api.CommandOutcome_COMMAND_OUTCOME_SENT_UNVERIFIED, false},
 		{"restart ACK", &actions.CommandResponse{Status: actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED}, true, api.CommandPhase_COMMAND_PHASE_ACKNOWLEDGED, api.CommandOutcome_COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED, false},
 		{"restart dispatch", &actions.CommandResponse{Status: actions.ActionStatus_ACTION_STATUS_DISPATCHED}, true, api.CommandPhase_COMMAND_PHASE_INDETERMINATE, 0, true},
 	} {

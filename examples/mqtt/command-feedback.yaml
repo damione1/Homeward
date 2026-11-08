@@ -1,0 +1,12 @@
+# Fragment of one native MQTT instance configuration.
+# Omit command_feedback for ordinary peers: one QoS 0, non-retained write
+# completes SENT_UNVERIFIED. Live observations remain independent; no replay.
+# Opt in only if this exact configured peer implements MQTT 5 response echo.
+command_feedback:
+  - source_device: synthetic-controller
+    source_entity: synthetic-relay
+    mode: mqtt5_correlated_state
+# The authorized discovery state_topic is used as ResponseTopic. Only fresh,
+# compatible states echoing the current CorrelationData may confirm a command.
+# A subscription or broker acknowledgement does not prove device execution.
+# Unknown modes, duplicate sources and feedback in passive mode are rejected.

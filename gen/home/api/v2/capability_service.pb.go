@@ -107,6 +107,8 @@ const (
 	CommandOutcome_COMMAND_OUTCOME_CONFIRMED CommandOutcome = 1
 	// This source can promise an acknowledgement only; no confirmation invented.
 	CommandOutcome_COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED CommandOutcome = 2
+	// Dispatch finished without a device acknowledgement. Live state is separate.
+	CommandOutcome_COMMAND_OUTCOME_SENT_UNVERIFIED CommandOutcome = 3
 )
 
 // Enum value maps for CommandOutcome.
@@ -115,11 +117,13 @@ var (
 		0: "COMMAND_OUTCOME_UNSPECIFIED",
 		1: "COMMAND_OUTCOME_CONFIRMED",
 		2: "COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED",
+		3: "COMMAND_OUTCOME_SENT_UNVERIFIED",
 	}
 	CommandOutcome_value = map[string]int32{
 		"COMMAND_OUTCOME_UNSPECIFIED":             0,
 		"COMMAND_OUTCOME_CONFIRMED":               1,
 		"COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED": 2,
+		"COMMAND_OUTCOME_SENT_UNVERIFIED":         3,
 	}
 )
 
@@ -334,11 +338,12 @@ const file_home_api_v2_capability_service_proto_rawDesc = "" +
 	"\x17COMMAND_PHASE_CONFIRMED\x10\x04\x12\x18\n" +
 	"\x14COMMAND_PHASE_FAILED\x10\x05\x12\x1b\n" +
 	"\x17COMMAND_PHASE_CANCELLED\x10\x06\x12\x1f\n" +
-	"\x1bCOMMAND_PHASE_INDETERMINATE\x10\a*}\n" +
+	"\x1bCOMMAND_PHASE_INDETERMINATE\x10\a*\xa2\x01\n" +
 	"\x0eCommandOutcome\x12\x1f\n" +
 	"\x1bCOMMAND_OUTCOME_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19COMMAND_OUTCOME_CONFIRMED\x10\x01\x12+\n" +
-	"'COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED\x10\x022\xa9\x02\n" +
+	"'COMMAND_OUTCOME_ACKNOWLEDGED_UNVERIFIED\x10\x02\x12#\n" +
+	"\x1fCOMMAND_OUTCOME_SENT_UNVERIFIED\x10\x032\xa9\x02\n" +
 	"\x11CapabilityService\x12\xf5\x01\n" +
 	"\x11ExecuteCapability\x12%.home.api.v2.ExecuteCapabilityRequest\x1a\x1d.google.longrunning.Operation\"\x99\x01\xcaAD\n" +
 	"%home.api.v2.ExecuteCapabilityResponse\x12\x1bhome.api.v2.CommandMetadata\xdaA\x10name,expire_time\x82\xd3\xe4\x93\x029:\x01*\"4/v2/{name=homes/*/entities/*/capabilities/*}:execute\x1a\x1c\xcaA\x19homeward.damiengoehrig.caB_\n" +

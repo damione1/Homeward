@@ -331,6 +331,15 @@ message DashboardHeadingNode {
   DashboardInteractions interactions = 2;
 }
 
+// Explicit optional secondary lock control attached to a cover. Each resource
+// retains independent observation and execution authorization.
+message DashboardCoverLock {
+  // Exact authorized lock capability; never inferred from names or devices.
+  string capability = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/Capability"];
+  // Configured contextual label, for example an electronic inhibition control.
+  string display_name = 2;
+}
+
 // One exact admitted capability; a sibling is never an implicit substitute.
 message DashboardTileNode {
   // Canonical capability name, independently re-admitted before every gesture.
@@ -345,6 +354,8 @@ message DashboardTileNode {
   optional bool hide_observation = 5;
   // Finite authored gestures; no gesture grants command authority.
   DashboardInteractions interactions = 6;
+  // Explicit cover association; absent when the secondary lock is unreadable.
+  DashboardCoverLock cover_lock = 7;
 }
 
 // A bounded authored recipe, never a downloaded template implementation.
@@ -361,6 +372,8 @@ message DashboardRecipeNode {
   DashboardControlPresentation presentation = 5;
   // Finite authored gestures; no gesture grants command authority.
   DashboardInteractions interactions = 6;
+  // Explicit cover association; absent when the secondary lock is unreadable.
+  DashboardCoverLock cover_lock = 7;
 }
 
 // A popup is a container with a stable local destination identity.

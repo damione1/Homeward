@@ -57,6 +57,11 @@ type nha180Rig struct {
 
 func newNHA180Rig(t *testing.T, optIn bool) *nha180Rig {
 	t.Helper()
+	return newNHA180FeedbackRig(t, optIn, true)
+}
+
+func newNHA180FeedbackRig(t *testing.T, optIn, correlated bool) *nha180Rig {
+	t.Helper()
 	broker := testbroker.Start(t)
 	r := newNHA069Rig(t, ModeActive)
 	key := r.configure("kitchen-driver", "kitchen-device")
@@ -73,6 +78,12 @@ func newNHA180Rig(t *testing.T, optIn bool) *nha180Rig {
 		t.Fatal(err)
 	}
 	input := Input{Profile: "5", Broker: "mqtt://" + broker.Address, Instance: "nha069-synthetic", Mode: "active", UsernameSecret: "mqtt-username", PasswordSecret: "mqtt-password", Subscriptions: []string{"homeassistant/#", "zigbee2mqtt/+/state"}, CommandTopics: []string{"zigbee2mqtt/+/set"}, Will: &WillInput{Topic: "zigbee2mqtt/presence/pilot", Payload: "offline"}}
+	if correlated {
+		input.CommandFeedback = []CommandFeedbackInput{
+			{SourceDevice: "kitchen-device", SourceEntity: "kitchen-driver", Mode: "mqtt5_correlated_state"},
+			{SourceDevice: "switch-profile-device", SourceEntity: "switch-profile-driver", Mode: "mqtt5_correlated_state"},
+		}
+	}
 	if optIn {
 		input.TransitionLights = []TransitionLightInput{{SourceDevice: "kitchen-device", SourceEntity: "kitchen-driver", Profile: ikeaDriver30WProfile}}
 	}

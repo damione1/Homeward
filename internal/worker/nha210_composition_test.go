@@ -26,6 +26,12 @@ import (
 // sequencer and command router are real. Only repository storage and the device
 // peer are in-memory fixtures. This catches admission fences a fake Host omits.
 func TestNHA210ControlsCrossRealHostDiscoveryPublicationAndCommandStream(t *testing.T) {
+	nha211ControlsCrossRealHost(t, wire.CommandResultKind_COMMAND_RESULT_KIND_ACCEPTED)
+}
+func TestNHA211ControlsCrossRealHostSentUnverifiedAndEphemeralCode(t *testing.T) {
+	nha211ControlsCrossRealHost(t, wire.CommandResultKind_COMMAND_RESULT_KIND_SENT_UNVERIFIED)
+}
+func nha211ControlsCrossRealHost(t *testing.T, completion wire.CommandResultKind) {
 	closed := controls.CoverState_COVER_STATE_CLOSED
 	zero := 0.0
 	for _, tc := range []struct {
@@ -146,10 +152,24 @@ func TestNHA210ControlsCrossRealHostDiscoveryPublicationAndCommandStream(t *test
 			entity, _ := identities[0].Entity.Value()
 			request := &actions.CommandRequest{CommandId: "nha210-" + tc.name, AdmissionEpoch: epoch, ConfigRevision: 7, Target: &registry.EntityRef{Reference: &registry.EntityRef_EntityId{EntityId: entity}}, CapabilitySchemaId: tc.description.SchemaId, Endpoint: "native", Arguments: tc.arguments, ExpiresAt: timestamppb.New(time.Now().Add(5 * time.Second))}
 			actor, _ := domain.ParseActorID("trusted-actor")
+			expectedStatus := actions.ActionStatus_ACTION_STATUS_DISPATCHED
+			if completion == wire.CommandResultKind_COMMAND_RESULT_KIND_SENT_UNVERIFIED {
+				expectedStatus = actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED
+			}
+			dispatchContext := ctx
+			if tc.name == "alarm" && completion == wire.CommandResultKind_COMMAND_RESULT_KIND_SENT_UNVERIFIED {
+				commandID, _ := domain.ParseCommandID(request.CommandId)
+				var release func()
+				dispatchContext, release, err = integrations.WithEphemeralAlarmCode(ctx, commandID, actor, identities[0].Entity, controls.AlarmOperation_ALARM_OPERATION_ARM_NIGHT, []byte("582901"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer release()
+			}
 			result := make(chan error, 1)
 			go func() {
-				response, e := service.Dispatch(ctx, actor, request)
-				if e == nil && (response == nil || response.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED) {
+				response, e := service.Dispatch(dispatchContext, actor, request)
+				if e == nil && (response == nil || response.Status != expectedStatus) {
 					e = ErrCommandFailed
 				}
 				result <- e
@@ -161,11 +181,32 @@ func TestNHA210ControlsCrossRealHostDiscoveryPublicationAndCommandStream(t *test
 			if frame.Request.CommandId != request.CommandId || !proto.Equal(frame.Request.Arguments, tc.arguments) {
 				t.Fatal("typed action changed in worker routing")
 			}
-			if _, err = client.CompleteCommand(ctx, nha174Request(&wire.CompleteCommandRequest{CommandId: request.CommandId, Kind: wire.CommandResultKind_COMMAND_RESULT_KIND_ACCEPTED})); err != nil {
+			if tc.name == "alarm" && completion == wire.CommandResultKind_COMMAND_RESULT_KIND_SENT_UNVERIFIED && string(frame.EphemeralAlarmCode) != "582901" {
+				t.Fatal("ephemeral code not transported separately")
+			}
+			if _, err = client.CompleteCommand(ctx, nha174Request(&wire.CompleteCommandRequest{CommandId: request.CommandId, Kind: completion})); err != nil {
 				t.Fatal(err)
 			}
 			if err = <-result; err != nil {
 				t.Fatalf("routed command: %v", err)
+			}
+			// A subsequent unsolicited observation remains publishable, without
+			// rewriting the completed transport fact into causal confirmation.
+			sequence := observation.GetSourceSeq() + 1
+			observation.SourceSeq = &sequence
+			observation.ObservedAt = timestamppb.Now()
+			if _, err = client.Publish(ctx, nha174Request(&wire.PublishRequest{Observation: observation})); err != nil {
+				t.Fatal(err)
+			}
+			commandID, _ := domain.ParseCommandID(request.CommandId)
+			progress, err := host.ActionStatus(commandID)
+			if err != nil || progress.Status != expectedStatus {
+				t.Fatal("late observation changed dispatch guarantee", err)
+			}
+			// Original idempotence is a read even after the credential was consumed.
+			replay, err := service.Dispatch(dispatchContext, actor, request)
+			if err != nil || replay.Status != expectedStatus {
+				t.Fatal("duplicate did not reconcile", err)
 			}
 		})
 	}

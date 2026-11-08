@@ -131,6 +131,9 @@ func physicalOperation(name apitypes.OperationName, status integrations.DurableC
 		}
 		operation.Done = true
 		switch response.Status {
+		case actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED:
+			metadata.Phase = api.CommandPhase_COMMAND_PHASE_DISPATCHED
+			outcome = api.CommandOutcome_COMMAND_OUTCOME_SENT_UNVERIFIED
 		case actions.ActionStatus_ACTION_STATUS_CONFIRMED:
 			metadata.Phase = api.CommandPhase_COMMAND_PHASE_CONFIRMED
 			outcome = api.CommandOutcome_COMMAND_OUTCOME_CONFIRMED

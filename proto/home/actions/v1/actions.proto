@@ -89,6 +89,8 @@ enum ActionStatus {
   ACTION_STATUS_FAILED = 5;
   ACTION_STATUS_CANCELLED = 6;
   ACTION_STATUS_INDETERMINATE = 7;
+  // The driver finished sending; no device ACK or physical result is asserted.
+  ACTION_STATUS_SENT_UNVERIFIED = 8;
 }
 message CommandResponse {
   string command_id = 1;

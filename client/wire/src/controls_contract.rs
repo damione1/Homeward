@@ -119,6 +119,11 @@ pub fn lock_constraints(value: &wire::LockConstraints) -> bool {
 pub fn alarm_constraints(value: &wire::AlarmConstraints) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && options(&value.operations, alarm_operation, 4)
+        && options(&value.code_required_operations, alarm_operation, 4)
+        && value
+            .code_required_operations
+            .iter()
+            .all(|operation| value.operations.contains(operation))
         && options(&value.observed_states, alarm_state, 10)
         && (!value.operations.is_empty() || !value.observed_states.is_empty())
 }

@@ -886,3 +886,378 @@ fn configured_detail_title_keeps_its_exact_opening_node_without_an_entity_overri
     assert!(store.0.lock().unwrap().actions.is_empty());
     window.hide().unwrap();
 }
+
+fn interactive_alarm(request: &ProjectionRequest) -> wire::EntityViewEntry {
+    let mut entity = Family::Alarm.entity(request);
+    let Some(wire::capability::Trait::Alarm(alarm)) = entity.capabilities[0].r#trait.as_mut()
+    else {
+        unreachable!()
+    };
+    alarm
+        .definition
+        .get_or_insert_default()
+        .code_required_operations = vec![wire::AlarmOperation::Disarm.into()];
+    entity
+}
+#[test]
+fn keypad_is_ephemeral_per_operation_and_survives_live_observation_updates() {
+    let request = request();
+    let mut entity = interactive_alarm(&request);
+    let store = DeviceStore::default();
+    let row = first(&store, &request, &entity, CachePhase::Live);
+    assert!(
+        store
+            .alarm_choice(row.token, row.generation, 0, 0)
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        store
+            .prepare(
+                row.token,
+                row.generation,
+                0,
+                DeviceIntent::Alarm(wire::AlarmOperation::Disarm)
+            )
+            .is_err()
+    );
+    // Re-select after the rejected empty submission, then enter across normal observations.
+    store.alarm_choice(row.token, row.generation, 0, 0).unwrap();
+    store
+        .alarm_digit(row.token, row.generation, 0, Some(2))
+        .unwrap();
+    let Some(wire::capability::Trait::Alarm(alarm)) = entity.capabilities[0].r#trait.as_mut()
+    else {
+        unreachable!()
+    };
+    alarm
+        .observation
+        .get_or_insert_default()
+        .quality
+        .get_or_insert_default()
+        .provenance = wire::Provenance::Observed.into();
+    let refreshed = first(&store, &request, &entity, CachePhase::Live);
+    store
+        .alarm_digit(refreshed.token, refreshed.generation, 0, Some(7))
+        .unwrap();
+    let refreshed = first(&store, &request, &entity, CachePhase::Live);
+    let panel = super::detail::project(&refreshed, refreshed.ui(None, &Default::default()), None);
+    assert!(panel.alarm_code_required);
+    assert_eq!(panel.alarm.entered_count, 2);
+    assert!(panel.alarm.can_confirm);
+    let intent = store
+        .alarm_confirm(refreshed.token, refreshed.generation, 0)
+        .unwrap();
+    let prepared = store
+        .prepare(refreshed.token, refreshed.generation, 0, intent)
+        .unwrap();
+    assert!(prepared.alarm_code.is_some());
+    assert!(
+        home_wire_contract::api_contract::encode_command(&prepared.request)
+            .ephemeral_alarm_code
+            .is_empty()
+    );
+    assert!(
+        store
+            .alarm_confirm(refreshed.token, refreshed.generation, 0)
+            .is_err()
+    );
+    let row = first(&store, &request, &entity, CachePhase::Live);
+    assert!(matches!(
+        store.alarm_choice(row.token, row.generation, 0, 1).unwrap(),
+        Some(DeviceIntent::Alarm(wire::AlarmOperation::ArmAway))
+    ));
+    let prepared = store
+        .prepare(
+            row.token,
+            row.generation,
+            0,
+            DeviceIntent::Alarm(wire::AlarmOperation::ArmAway),
+        )
+        .unwrap();
+    assert!(prepared.alarm_code.is_none());
+}
+#[test]
+fn keypad_revocation_close_and_bounds_never_restore_digits() {
+    for revoke in [true, false] {
+        let request = request();
+        let mut entity = interactive_alarm(&request);
+        let store = DeviceStore::default();
+        let row = first(&store, &request, &entity, CachePhase::Live);
+        store.alarm_choice(row.token, row.generation, 0, 0).unwrap();
+        for _ in 0..32 {
+            store
+                .alarm_digit(row.token, row.generation, 0, Some(6))
+                .unwrap();
+        }
+        assert!(
+            store
+                .alarm_digit(row.token, row.generation, 0, Some(0))
+                .is_err()
+        );
+        assert!(
+            store
+                .alarm_digit(row.token, row.generation, 0, Some(-1))
+                .is_err()
+        );
+        if revoke {
+            entity.capabilities[0].action_access = wire::ActionAccess::Denied.into();
+            first(&store, &request, &entity, CachePhase::Live);
+            entity.capabilities[0].action_access = wire::ActionAccess::Allowed.into();
+        } else {
+            store.clear_private();
+        }
+        let restored = first(&store, &request, &entity, CachePhase::Live);
+        let panel = super::detail::project(&restored, restored.ui(None, &Default::default()), None);
+        assert_eq!(panel.alarm.entered_count, 0);
+        assert!(!panel.alarm.can_confirm);
+        assert!(
+            store
+                .alarm_confirm(restored.token, restored.generation, 0)
+                .is_err()
+        );
+    }
+}
+#[test]
+fn explicit_associated_lock_keeps_independent_authority_and_identity() {
+    use crate::dashboard_layout::{CoverLock, FeatureKind, NodeId};
+    use home_client_model::dashboard::CommandKind;
+    let initial = request();
+    let mut entity = Family::Cover.entity(&initial);
+    let mut lock = Family::Lock.entity(&initial).capabilities.remove(0);
+    lock.name = format!("{}/capabilities/remote-controls", entity.entity.name);
+    lock.action_access = wire::ActionAccess::Denied.into();
+    let lock_name = CapabilityName::try_from(lock.name.as_str()).unwrap();
+    entity.capabilities.push(lock);
+    let mut request = native_request(
+        initial,
+        &entity,
+        vec![FeatureKind::CoverOpenClose, FeatureKind::CoverPosition],
+        CommandKind::CoverClose,
+    );
+    let source = NodeId::parse("tile").unwrap();
+    let mut layout = request.dashboard.layout().unwrap().clone();
+    layout
+        .native
+        .as_mut()
+        .unwrap()
+        .nodes
+        .get_mut(&source)
+        .unwrap()
+        .cover_lock = Some(CoverLock {
+        capability: lock_name,
+        label: "Remote controls".into(),
+    });
+    request.dashboard = crate::dashboard::LayoutState::Ready(Arc::new(layout));
+    request.detail = Some(EntityName::try_from(entity.entity.name.as_str()).unwrap());
+    request.detail_source = Some(source);
+    let store = DeviceStore::default();
+    let projection = store.project(
+        CachePhase::Live,
+        Some(&view(&request, vec![entity.clone()])),
+        &request,
+    );
+    let cover = projection
+        .rows
+        .iter()
+        .find(|row| row.kind == ProDeviceKind::Cover)
+        .unwrap();
+    let lock = projection
+        .rows
+        .iter()
+        .find(|row| row.kind == ProDeviceKind::Lock)
+        .unwrap();
+    let panel = super::detail::project(cover, cover.ui(None, &Default::default()), None);
+    assert_eq!(panel.associated_lock.title, "Remote controls");
+    assert_eq!(
+        (
+            panel.associated_lock.token,
+            panel.associated_lock.generation
+        ),
+        (lock.token, lock.generation)
+    );
+    assert_ne!(panel.associated_lock.token, cover.token);
+    assert!(!panel.lock_commands_enabled);
+    assert!(lock.detail.associated_only);
+    assert!(matches!(
+        store.prepare(
+            lock.token,
+            lock.generation,
+            request.revision,
+            DeviceIntent::Lock(wire::LockOperation::Lock)
+        ),
+        Err(Refusal::ReadOnly)
+    ));
+    assert!(
+        store
+            .prepare(
+                cover.token,
+                cover.generation,
+                request.revision,
+                DeviceIntent::Cover(CoverIntent::Operation(wire::CoverOperation::Close))
+            )
+            .is_ok()
+    );
+}
+
+#[test]
+fn keypad_counts_are_adaptive_and_a_rebound_capability_cannot_reuse_input() {
+    let request = request();
+    let mut entity = interactive_alarm(&request);
+    let store = DeviceStore::default();
+    let mut row = first(&store, &request, &entity, CachePhase::Live);
+    // The unique operation requiring a code is selected on the first digit.
+    for count in 1..=32 {
+        store
+            .alarm_digit(row.token, row.generation, 0, Some(5))
+            .unwrap();
+        row = first(&store, &request, &entity, CachePhase::Live);
+        let panel = super::detail::project(&row, row.ui(None, &Default::default()), None);
+        assert_eq!(panel.alarm.entered_count, count);
+        assert_eq!(panel.alarm.code_length, count.max(4));
+        assert_eq!(panel.alarm.code_label, format!("{count} digits entered"));
+        assert!(panel.alarm.can_confirm);
+    }
+    assert!(matches!(
+        store.alarm_confirm(row.token, row.generation, 0),
+        Ok(DeviceIntent::Alarm(wire::AlarmOperation::Disarm))
+    ));
+    let original = entity.capabilities[0].name.clone();
+    entity.capabilities[0].name = format!("{}/capabilities/rebound-alarm", entity.entity.name);
+    let rebound = store.project(
+        CachePhase::Live,
+        Some(&view(&request, vec![entity.clone()])),
+        &request,
+    );
+    assert!(
+        rebound.rows.is_empty(),
+        "the configured capability is no longer available"
+    );
+    entity.capabilities[0].name = original;
+    let restored = first(&store, &request, &entity, CachePhase::Live);
+    let panel = super::detail::project(&restored, restored.ui(None, &Default::default()), None);
+    assert_eq!(panel.alarm.entered_count, 0);
+    assert!(!panel.alarm.can_confirm);
+    assert!(store.alarm_confirm(row.token, row.generation, 0).is_err());
+}
+
+#[tokio::test]
+async fn keypad_archive_is_bounded_and_cannot_restore_across_revocation_or_private_clear() {
+    #[derive(Clone, Copy)]
+    enum Change {
+        None,
+        Denied,
+        Definition,
+        PrivateClear,
+        Offline,
+        Expired,
+    }
+    for change in [
+        Change::None,
+        Change::Denied,
+        Change::Definition,
+        Change::PrivateClear,
+        Change::Offline,
+        Change::Expired,
+    ] {
+        let scenario = request();
+        let mut request = scenario.request.clone();
+        let mut entity = interactive_alarm(&request);
+        let first_view = scenario.view(vec![entity.clone()]);
+        let store = DeviceStore::default();
+        let old = store
+            .project(CachePhase::Live, Some(&first_view), &request)
+            .rows
+            .remove(0);
+        store
+            .alarm_digit(old.token, old.generation, request.revision, Some(0))
+            .unwrap();
+        let pending = fixture::capture(vec![entity.clone()]);
+        assert!(
+            store
+                .project(CachePhase::Live, Some(&pending), &request)
+                .rows
+                .is_empty()
+        );
+        assert!(
+            store
+                .alarm_confirm(old.token, old.generation, request.revision)
+                .is_err()
+        );
+        let (serial, deadline) = {
+            let state = store.0.lock().unwrap();
+            let saved = state.retained_drafts.as_ref().expect("PIN-only archive");
+            assert_ne!(
+                saved.serial, 0,
+                "PIN-only archive arms expiry independently of UI"
+            );
+            (saved.serial, saved.deadline())
+        };
+        store.project(
+            CachePhase::Live,
+            Some(&fixture::capture(vec![entity.clone()])),
+            &request,
+        );
+        {
+            let state = store.0.lock().unwrap();
+            let saved = state.retained_drafts.as_ref().unwrap();
+            assert_eq!(
+                (saved.serial, saved.deadline()),
+                (serial, deadline),
+                "unjoined captures grant no grace"
+            );
+        }
+        match change {
+            Change::None => {}
+            Change::Denied => {
+                entity.capabilities[0].action_access = wire::ActionAccess::Denied.into()
+            }
+            Change::Definition => entity.capabilities[0].etag = "replacement-definition".into(),
+            Change::PrivateClear => store.discard_retained_drafts(),
+            Change::Offline => {
+                store.project(CachePhase::Offline, None, &request);
+            }
+            Change::Expired => {
+                let mut state = store.0.lock().unwrap();
+                assert!(
+                    super::draft_retention::expire(&mut state, serial, deadline, deadline)
+                        .is_none()
+                );
+                assert!(state.retained_drafts.is_none());
+            }
+        }
+        let joined = fixture::capture(vec![entity.clone()]);
+        request.dashboard = crate::dashboard::LayoutState::Ready(Arc::new(
+            crate::dashboard::joined_fixture(&joined),
+        ));
+        let row = store
+            .project(CachePhase::Live, Some(&joined), &request)
+            .rows
+            .remove(0);
+        let panel = super::detail::project(&row, row.ui(None, &Default::default()), None);
+        assert_eq!(
+            panel.alarm.entered_count,
+            if matches!(change, Change::None) { 1 } else { 0 }
+        );
+        assert_eq!(panel.alarm.can_confirm, matches!(change, Change::None));
+        assert!(store.0.lock().unwrap().retained_drafts.is_none());
+        if !matches!(change, Change::None) {
+            entity.capabilities[0].action_access = wire::ActionAccess::Allowed.into();
+            entity.capabilities[0].etag = "capability-definition".into();
+            let restored = fixture::capture(vec![entity]);
+            request.dashboard = crate::dashboard::LayoutState::Ready(Arc::new(
+                crate::dashboard::joined_fixture(&restored),
+            ));
+            let row = store
+                .project(CachePhase::Live, Some(&restored), &request)
+                .rows
+                .remove(0);
+            assert!(
+                store
+                    .alarm_confirm(row.token, row.generation, request.revision)
+                    .is_err(),
+                "reappearance never resurrects a code"
+            );
+        }
+    }
+}

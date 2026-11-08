@@ -2665,6 +2665,62 @@ func (x *DashboardHeadingNode) GetInteractions() *DashboardInteractions {
 	return nil
 }
 
+// Explicit optional secondary lock control attached to a cover. Each resource
+// retains independent observation and execution authorization.
+type DashboardCoverLock struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Exact authorized lock capability; never inferred from names or devices.
+	Capability string `protobuf:"bytes,1,opt,name=capability,proto3" json:"capability,omitempty"`
+	// Configured contextual label, for example an electronic inhibition control.
+	DisplayName   string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DashboardCoverLock) Reset() {
+	*x = DashboardCoverLock{}
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DashboardCoverLock) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DashboardCoverLock) ProtoMessage() {}
+
+func (x *DashboardCoverLock) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DashboardCoverLock.ProtoReflect.Descriptor instead.
+func (*DashboardCoverLock) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *DashboardCoverLock) GetCapability() string {
+	if x != nil {
+		return x.Capability
+	}
+	return ""
+}
+
+func (x *DashboardCoverLock) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
 // One exact admitted capability; a sibling is never an implicit substitute.
 type DashboardTileNode struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2679,14 +2735,16 @@ type DashboardTileNode struct {
 	// Whether to hide the value; this grants no observation authority.
 	HideObservation *bool `protobuf:"varint,5,opt,name=hide_observation,json=hideObservation,proto3,oneof" json:"hide_observation,omitempty"`
 	// Finite authored gestures; no gesture grants command authority.
-	Interactions  *DashboardInteractions `protobuf:"bytes,6,opt,name=interactions,proto3" json:"interactions,omitempty"`
+	Interactions *DashboardInteractions `protobuf:"bytes,6,opt,name=interactions,proto3" json:"interactions,omitempty"`
+	// Explicit cover association; absent when the secondary lock is unreadable.
+	CoverLock     *DashboardCoverLock `protobuf:"bytes,7,opt,name=cover_lock,json=coverLock,proto3" json:"cover_lock,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DashboardTileNode) Reset() {
 	*x = DashboardTileNode{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[20]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2698,7 +2756,7 @@ func (x *DashboardTileNode) String() string {
 func (*DashboardTileNode) ProtoMessage() {}
 
 func (x *DashboardTileNode) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[20]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2711,7 +2769,7 @@ func (x *DashboardTileNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardTileNode.ProtoReflect.Descriptor instead.
 func (*DashboardTileNode) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{20}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *DashboardTileNode) GetCapability() string {
@@ -2756,6 +2814,13 @@ func (x *DashboardTileNode) GetInteractions() *DashboardInteractions {
 	return nil
 }
 
+func (x *DashboardTileNode) GetCoverLock() *DashboardCoverLock {
+	if x != nil {
+		return x.CoverLock
+	}
+	return nil
+}
+
 // A bounded authored recipe, never a downloaded template implementation.
 type DashboardRecipeNode struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2770,14 +2835,16 @@ type DashboardRecipeNode struct {
 	// Explicit control or summary presentation.
 	Presentation DashboardControlPresentation `protobuf:"varint,5,opt,name=presentation,proto3,enum=home.api.v2.DashboardControlPresentation" json:"presentation,omitempty"`
 	// Finite authored gestures; no gesture grants command authority.
-	Interactions  *DashboardInteractions `protobuf:"bytes,6,opt,name=interactions,proto3" json:"interactions,omitempty"`
+	Interactions *DashboardInteractions `protobuf:"bytes,6,opt,name=interactions,proto3" json:"interactions,omitempty"`
+	// Explicit cover association; absent when the secondary lock is unreadable.
+	CoverLock     *DashboardCoverLock `protobuf:"bytes,7,opt,name=cover_lock,json=coverLock,proto3" json:"cover_lock,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DashboardRecipeNode) Reset() {
 	*x = DashboardRecipeNode{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[21]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2789,7 +2856,7 @@ func (x *DashboardRecipeNode) String() string {
 func (*DashboardRecipeNode) ProtoMessage() {}
 
 func (x *DashboardRecipeNode) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[21]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2802,7 +2869,7 @@ func (x *DashboardRecipeNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardRecipeNode.ProtoReflect.Descriptor instead.
 func (*DashboardRecipeNode) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{21}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *DashboardRecipeNode) GetKind() DashboardRecipeKind {
@@ -2847,6 +2914,13 @@ func (x *DashboardRecipeNode) GetInteractions() *DashboardInteractions {
 	return nil
 }
 
+func (x *DashboardRecipeNode) GetCoverLock() *DashboardCoverLock {
+	if x != nil {
+		return x.CoverLock
+	}
+	return nil
+}
+
 // A popup is a container with a stable local destination identity.
 type DashboardPopupNode struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2860,7 +2934,7 @@ type DashboardPopupNode struct {
 
 func (x *DashboardPopupNode) Reset() {
 	*x = DashboardPopupNode{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[22]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2872,7 +2946,7 @@ func (x *DashboardPopupNode) String() string {
 func (*DashboardPopupNode) ProtoMessage() {}
 
 func (x *DashboardPopupNode) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[22]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2885,7 +2959,7 @@ func (x *DashboardPopupNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardPopupNode.ProtoReflect.Descriptor instead.
 func (*DashboardPopupNode) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{22}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *DashboardPopupNode) GetChildren() *DashboardChildren {
@@ -2915,7 +2989,7 @@ type DashboardChipGroupNode struct {
 
 func (x *DashboardChipGroupNode) Reset() {
 	*x = DashboardChipGroupNode{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[23]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2927,7 +3001,7 @@ func (x *DashboardChipGroupNode) String() string {
 func (*DashboardChipGroupNode) ProtoMessage() {}
 
 func (x *DashboardChipGroupNode) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[23]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2940,7 +3014,7 @@ func (x *DashboardChipGroupNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardChipGroupNode.ProtoReflect.Descriptor instead.
 func (*DashboardChipGroupNode) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{23}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *DashboardChipGroupNode) GetChildren() *DashboardChildren {
@@ -2970,7 +3044,7 @@ type DashboardUnsupportedNode struct {
 
 func (x *DashboardUnsupportedNode) Reset() {
 	*x = DashboardUnsupportedNode{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[24]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2982,7 +3056,7 @@ func (x *DashboardUnsupportedNode) String() string {
 func (*DashboardUnsupportedNode) ProtoMessage() {}
 
 func (x *DashboardUnsupportedNode) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[24]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2995,7 +3069,7 @@ func (x *DashboardUnsupportedNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardUnsupportedNode.ProtoReflect.Descriptor instead.
 func (*DashboardUnsupportedNode) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{24}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *DashboardUnsupportedNode) GetDiagnostic() string {
@@ -3025,7 +3099,7 @@ type DashboardScreenVisibility struct {
 
 func (x *DashboardScreenVisibility) Reset() {
 	*x = DashboardScreenVisibility{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[25]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3037,7 +3111,7 @@ func (x *DashboardScreenVisibility) String() string {
 func (*DashboardScreenVisibility) ProtoMessage() {}
 
 func (x *DashboardScreenVisibility) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[25]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3050,7 +3124,7 @@ func (x *DashboardScreenVisibility) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardScreenVisibility.ProtoReflect.Descriptor instead.
 func (*DashboardScreenVisibility) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{25}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *DashboardScreenVisibility) GetMinWidth() int32 {
@@ -3080,7 +3154,7 @@ type DashboardResponsiveSpan struct {
 
 func (x *DashboardResponsiveSpan) Reset() {
 	*x = DashboardResponsiveSpan{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[26]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3092,7 +3166,7 @@ func (x *DashboardResponsiveSpan) String() string {
 func (*DashboardResponsiveSpan) ProtoMessage() {}
 
 func (x *DashboardResponsiveSpan) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[26]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3105,7 +3179,7 @@ func (x *DashboardResponsiveSpan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardResponsiveSpan.ProtoReflect.Descriptor instead.
 func (*DashboardResponsiveSpan) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{26}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *DashboardResponsiveSpan) GetColumns() int32 {
@@ -3135,7 +3209,7 @@ type DashboardFieldBinding struct {
 
 func (x *DashboardFieldBinding) Reset() {
 	*x = DashboardFieldBinding{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[27]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3147,7 +3221,7 @@ func (x *DashboardFieldBinding) String() string {
 func (*DashboardFieldBinding) ProtoMessage() {}
 
 func (x *DashboardFieldBinding) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[27]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3160,7 +3234,7 @@ func (x *DashboardFieldBinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardFieldBinding.ProtoReflect.Descriptor instead.
 func (*DashboardFieldBinding) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{27}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DashboardFieldBinding) GetCapability() string {
@@ -3190,7 +3264,7 @@ type DashboardClockWeatherWidget struct {
 
 func (x *DashboardClockWeatherWidget) Reset() {
 	*x = DashboardClockWeatherWidget{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[28]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3202,7 +3276,7 @@ func (x *DashboardClockWeatherWidget) String() string {
 func (*DashboardClockWeatherWidget) ProtoMessage() {}
 
 func (x *DashboardClockWeatherWidget) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[28]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3215,7 +3289,7 @@ func (x *DashboardClockWeatherWidget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardClockWeatherWidget.ProtoReflect.Descriptor instead.
 func (*DashboardClockWeatherWidget) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{28}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DashboardClockWeatherWidget) GetTimeZone() string {
@@ -3247,7 +3321,7 @@ type DashboardRoomWidget struct {
 
 func (x *DashboardRoomWidget) Reset() {
 	*x = DashboardRoomWidget{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[29]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3259,7 +3333,7 @@ func (x *DashboardRoomWidget) String() string {
 func (*DashboardRoomWidget) ProtoMessage() {}
 
 func (x *DashboardRoomWidget) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[29]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3272,7 +3346,7 @@ func (x *DashboardRoomWidget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardRoomWidget.ProtoReflect.Descriptor instead.
 func (*DashboardRoomWidget) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{29}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *DashboardRoomWidget) GetRoomId() string {
@@ -3309,7 +3383,7 @@ type DashboardActivityBinding struct {
 
 func (x *DashboardActivityBinding) Reset() {
 	*x = DashboardActivityBinding{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[30]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3321,7 +3395,7 @@ func (x *DashboardActivityBinding) String() string {
 func (*DashboardActivityBinding) ProtoMessage() {}
 
 func (x *DashboardActivityBinding) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[30]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3334,7 +3408,7 @@ func (x *DashboardActivityBinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardActivityBinding.ProtoReflect.Descriptor instead.
 func (*DashboardActivityBinding) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{30}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *DashboardActivityBinding) GetField() *DashboardFieldBinding {
@@ -3368,7 +3442,7 @@ type DashboardThermostatWidget struct {
 
 func (x *DashboardThermostatWidget) Reset() {
 	*x = DashboardThermostatWidget{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[31]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3380,7 +3454,7 @@ func (x *DashboardThermostatWidget) String() string {
 func (*DashboardThermostatWidget) ProtoMessage() {}
 
 func (x *DashboardThermostatWidget) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[31]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3393,7 +3467,7 @@ func (x *DashboardThermostatWidget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardThermostatWidget.ProtoReflect.Descriptor instead.
 func (*DashboardThermostatWidget) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{31}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *DashboardThermostatWidget) GetEntity() string {
@@ -3441,7 +3515,7 @@ type DashboardAgendaWidget struct {
 
 func (x *DashboardAgendaWidget) Reset() {
 	*x = DashboardAgendaWidget{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[32]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3453,7 +3527,7 @@ func (x *DashboardAgendaWidget) String() string {
 func (*DashboardAgendaWidget) ProtoMessage() {}
 
 func (x *DashboardAgendaWidget) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[32]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3466,7 +3540,7 @@ func (x *DashboardAgendaWidget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardAgendaWidget.ProtoReflect.Descriptor instead.
 func (*DashboardAgendaWidget) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{32}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *DashboardAgendaWidget) GetCalendar() string {
@@ -3512,7 +3586,7 @@ type DashboardTasksWidget struct {
 
 func (x *DashboardTasksWidget) Reset() {
 	*x = DashboardTasksWidget{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[33]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3524,7 +3598,7 @@ func (x *DashboardTasksWidget) String() string {
 func (*DashboardTasksWidget) ProtoMessage() {}
 
 func (x *DashboardTasksWidget) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[33]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3537,7 +3611,7 @@ func (x *DashboardTasksWidget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardTasksWidget.ProtoReflect.Descriptor instead.
 func (*DashboardTasksWidget) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{33}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *DashboardTasksWidget) GetTaskList() string {
@@ -3572,7 +3646,7 @@ type DashboardSecurityWidget struct {
 
 func (x *DashboardSecurityWidget) Reset() {
 	*x = DashboardSecurityWidget{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[34]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3584,7 +3658,7 @@ func (x *DashboardSecurityWidget) String() string {
 func (*DashboardSecurityWidget) ProtoMessage() {}
 
 func (x *DashboardSecurityWidget) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[34]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3597,7 +3671,7 @@ func (x *DashboardSecurityWidget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardSecurityWidget.ProtoReflect.Descriptor instead.
 func (*DashboardSecurityWidget) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{34}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *DashboardSecurityWidget) GetCapabilities() []string {
@@ -3624,7 +3698,7 @@ type DashboardObservationBinding struct {
 
 func (x *DashboardObservationBinding) Reset() {
 	*x = DashboardObservationBinding{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[35]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3636,7 +3710,7 @@ func (x *DashboardObservationBinding) String() string {
 func (*DashboardObservationBinding) ProtoMessage() {}
 
 func (x *DashboardObservationBinding) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[35]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3649,7 +3723,7 @@ func (x *DashboardObservationBinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardObservationBinding.ProtoReflect.Descriptor instead.
 func (*DashboardObservationBinding) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{35}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *DashboardObservationBinding) GetField() *DashboardFieldBinding {
@@ -3691,7 +3765,7 @@ type DashboardObservationsWidget struct {
 
 func (x *DashboardObservationsWidget) Reset() {
 	*x = DashboardObservationsWidget{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[36]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3703,7 +3777,7 @@ func (x *DashboardObservationsWidget) String() string {
 func (*DashboardObservationsWidget) ProtoMessage() {}
 
 func (x *DashboardObservationsWidget) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[36]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3716,7 +3790,7 @@ func (x *DashboardObservationsWidget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardObservationsWidget.ProtoReflect.Descriptor instead.
 func (*DashboardObservationsWidget) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{36}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *DashboardObservationsWidget) GetItems() []*DashboardObservationBinding {
@@ -3737,7 +3811,7 @@ type DashboardNavigationWidget struct {
 
 func (x *DashboardNavigationWidget) Reset() {
 	*x = DashboardNavigationWidget{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[37]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3749,7 +3823,7 @@ func (x *DashboardNavigationWidget) String() string {
 func (*DashboardNavigationWidget) ProtoMessage() {}
 
 func (x *DashboardNavigationWidget) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[37]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3762,7 +3836,7 @@ func (x *DashboardNavigationWidget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardNavigationWidget.ProtoReflect.Descriptor instead.
 func (*DashboardNavigationWidget) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{37}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *DashboardNavigationWidget) GetDestination() *DashboardDestination {
@@ -3802,7 +3876,7 @@ type DashboardWidget struct {
 
 func (x *DashboardWidget) Reset() {
 	*x = DashboardWidget{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[38]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3814,7 +3888,7 @@ func (x *DashboardWidget) String() string {
 func (*DashboardWidget) ProtoMessage() {}
 
 func (x *DashboardWidget) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[38]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3827,7 +3901,7 @@ func (x *DashboardWidget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardWidget.ProtoReflect.Descriptor instead.
 func (*DashboardWidget) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{38}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *DashboardWidget) GetContent() isDashboardWidget_Content {
@@ -4012,7 +4086,7 @@ type DashboardDestination struct {
 
 func (x *DashboardDestination) Reset() {
 	*x = DashboardDestination{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[39]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4024,7 +4098,7 @@ func (x *DashboardDestination) String() string {
 func (*DashboardDestination) ProtoMessage() {}
 
 func (x *DashboardDestination) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[39]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4037,7 +4111,7 @@ func (x *DashboardDestination) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardDestination.ProtoReflect.Descriptor instead.
 func (*DashboardDestination) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{39}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *DashboardDestination) GetDashboard() string {
@@ -4072,7 +4146,7 @@ type DashboardEntityTarget struct {
 
 func (x *DashboardEntityTarget) Reset() {
 	*x = DashboardEntityTarget{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[40]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4084,7 +4158,7 @@ func (x *DashboardEntityTarget) String() string {
 func (*DashboardEntityTarget) ProtoMessage() {}
 
 func (x *DashboardEntityTarget) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[40]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4097,7 +4171,7 @@ func (x *DashboardEntityTarget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardEntityTarget.ProtoReflect.Descriptor instead.
 func (*DashboardEntityTarget) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{40}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *DashboardEntityTarget) GetEntity() string {
@@ -4120,7 +4194,7 @@ type DashboardCommand struct {
 
 func (x *DashboardCommand) Reset() {
 	*x = DashboardCommand{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[41]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4132,7 +4206,7 @@ func (x *DashboardCommand) String() string {
 func (*DashboardCommand) ProtoMessage() {}
 
 func (x *DashboardCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[41]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4145,7 +4219,7 @@ func (x *DashboardCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardCommand.ProtoReflect.Descriptor instead.
 func (*DashboardCommand) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{41}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *DashboardCommand) GetCapability() string {
@@ -4171,7 +4245,7 @@ type DashboardNoAction struct {
 
 func (x *DashboardNoAction) Reset() {
 	*x = DashboardNoAction{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[42]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4183,7 +4257,7 @@ func (x *DashboardNoAction) String() string {
 func (*DashboardNoAction) ProtoMessage() {}
 
 func (x *DashboardNoAction) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[42]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4196,7 +4270,7 @@ func (x *DashboardNoAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardNoAction.ProtoReflect.Descriptor instead.
 func (*DashboardNoAction) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{42}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{43}
 }
 
 // A local confirmation prompt that grants no command authority.
@@ -4210,7 +4284,7 @@ type DashboardConfirmation struct {
 
 func (x *DashboardConfirmation) Reset() {
 	*x = DashboardConfirmation{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[43]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4222,7 +4296,7 @@ func (x *DashboardConfirmation) String() string {
 func (*DashboardConfirmation) ProtoMessage() {}
 
 func (x *DashboardConfirmation) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[43]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4235,7 +4309,7 @@ func (x *DashboardConfirmation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardConfirmation.ProtoReflect.Descriptor instead.
 func (*DashboardConfirmation) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{43}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *DashboardConfirmation) GetText() string {
@@ -4269,7 +4343,7 @@ type DashboardInteraction struct {
 
 func (x *DashboardInteraction) Reset() {
 	*x = DashboardInteraction{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[44]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4281,7 +4355,7 @@ func (x *DashboardInteraction) String() string {
 func (*DashboardInteraction) ProtoMessage() {}
 
 func (x *DashboardInteraction) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[44]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4294,7 +4368,7 @@ func (x *DashboardInteraction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardInteraction.ProtoReflect.Descriptor instead.
 func (*DashboardInteraction) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{44}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *DashboardInteraction) GetGesture() DashboardGesture {
@@ -4408,7 +4482,7 @@ type DashboardStatePredicate struct {
 
 func (x *DashboardStatePredicate) Reset() {
 	*x = DashboardStatePredicate{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[45]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4420,7 +4494,7 @@ func (x *DashboardStatePredicate) String() string {
 func (*DashboardStatePredicate) ProtoMessage() {}
 
 func (x *DashboardStatePredicate) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[45]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4433,7 +4507,7 @@ func (x *DashboardStatePredicate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardStatePredicate.ProtoReflect.Descriptor instead.
 func (*DashboardStatePredicate) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{45}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *DashboardStatePredicate) GetField() *DashboardFieldBinding {
@@ -4468,7 +4542,7 @@ type DashboardPredicateList struct {
 
 func (x *DashboardPredicateList) Reset() {
 	*x = DashboardPredicateList{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[46]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4480,7 +4554,7 @@ func (x *DashboardPredicateList) String() string {
 func (*DashboardPredicateList) ProtoMessage() {}
 
 func (x *DashboardPredicateList) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[46]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4493,7 +4567,7 @@ func (x *DashboardPredicateList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardPredicateList.ProtoReflect.Descriptor instead.
 func (*DashboardPredicateList) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{46}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *DashboardPredicateList) GetConditions() []*DashboardPredicate {
@@ -4523,7 +4597,7 @@ type DashboardPredicate struct {
 
 func (x *DashboardPredicate) Reset() {
 	*x = DashboardPredicate{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[47]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4535,7 +4609,7 @@ func (x *DashboardPredicate) String() string {
 func (*DashboardPredicate) ProtoMessage() {}
 
 func (x *DashboardPredicate) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[47]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4548,7 +4622,7 @@ func (x *DashboardPredicate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardPredicate.ProtoReflect.Descriptor instead.
 func (*DashboardPredicate) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{47}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *DashboardPredicate) GetCondition() isDashboardPredicate_Condition {
@@ -4644,7 +4718,7 @@ type DashboardInteractions struct {
 
 func (x *DashboardInteractions) Reset() {
 	*x = DashboardInteractions{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[48]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4656,7 +4730,7 @@ func (x *DashboardInteractions) String() string {
 func (*DashboardInteractions) ProtoMessage() {}
 
 func (x *DashboardInteractions) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[48]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4669,7 +4743,7 @@ func (x *DashboardInteractions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardInteractions.ProtoReflect.Descriptor instead.
 func (*DashboardInteractions) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{48}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *DashboardInteractions) GetInteractions() []*DashboardInteraction {
@@ -4692,7 +4766,7 @@ type DashboardLayout struct {
 
 func (x *DashboardLayout) Reset() {
 	*x = DashboardLayout{}
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[49]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4704,7 +4778,7 @@ func (x *DashboardLayout) String() string {
 func (*DashboardLayout) ProtoMessage() {}
 
 func (x *DashboardLayout) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_dashboards_proto_msgTypes[49]
+	mi := &file_home_api_v2_dashboards_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4717,7 +4791,7 @@ func (x *DashboardLayout) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DashboardLayout.ProtoReflect.Descriptor instead.
 func (*DashboardLayout) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{49}
+	return file_home_api_v2_dashboards_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *DashboardLayout) GetViews() []string {
@@ -4871,7 +4945,13 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\finteractions\x18\x02 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractions\"\x98\x01\n" +
 	"\x14DashboardHeadingNode\x128\n" +
 	"\x05style\x18\x01 \x01(\x0e2\".home.api.v2.DashboardHeadingStyleR\x05style\x12F\n" +
-	"\finteractions\x18\x02 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractions\"\xa7\x03\n" +
+	"\finteractions\x18\x02 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractions\"\x82\x01\n" +
+	"\x12DashboardCoverLock\x12I\n" +
+	"\n" +
+	"capability\x18\x01 \x01(\tB)\xfaA&\n" +
+	"$homeward.damiengoehrig.ca/CapabilityR\n" +
+	"capability\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\"\xe7\x03\n" +
 	"\x11DashboardTileNode\x12I\n" +
 	"\n" +
 	"capability\x18\x01 \x01(\tB)\xfaA&\n" +
@@ -4881,9 +4961,11 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\fpresentation\x18\x03 \x01(\x0e2).home.api.v2.DashboardControlPresentationR\fpresentation\x12\x1f\n" +
 	"\bvertical\x18\x04 \x01(\bH\x00R\bvertical\x88\x01\x01\x12.\n" +
 	"\x10hide_observation\x18\x05 \x01(\bH\x01R\x0fhideObservation\x88\x01\x01\x12F\n" +
-	"\finteractions\x18\x06 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractionsB\v\n" +
+	"\finteractions\x18\x06 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractions\x12>\n" +
+	"\n" +
+	"cover_lock\x18\a \x01(\v2\x1f.home.api.v2.DashboardCoverLockR\tcoverLockB\v\n" +
 	"\t_verticalB\x13\n" +
-	"\x11_hide_observation\"\x8a\x03\n" +
+	"\x11_hide_observation\"\xca\x03\n" +
 	"\x13DashboardRecipeNode\x124\n" +
 	"\x04kind\x18\x01 \x01(\x0e2 .home.api.v2.DashboardRecipeKindR\x04kind\x12I\n" +
 	"\n" +
@@ -4893,7 +4975,9 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\tsecondary\x18\x03 \x01(\tR\tsecondary\x12=\n" +
 	"\bfeatures\x18\x04 \x03(\x0e2!.home.api.v2.DashboardFeatureKindR\bfeatures\x12M\n" +
 	"\fpresentation\x18\x05 \x01(\x0e2).home.api.v2.DashboardControlPresentationR\fpresentation\x12F\n" +
-	"\finteractions\x18\x06 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractions\"\x98\x01\n" +
+	"\finteractions\x18\x06 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractions\x12>\n" +
+	"\n" +
+	"cover_lock\x18\a \x01(\v2\x1f.home.api.v2.DashboardCoverLockR\tcoverLock\"\x98\x01\n" +
 	"\x12DashboardPopupNode\x12:\n" +
 	"\bchildren\x18\x01 \x01(\v2\x1e.home.api.v2.DashboardChildrenR\bchildren\x12F\n" +
 	"\finteractions\x18\x02 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractions\"\x9c\x01\n" +
@@ -5153,7 +5237,7 @@ func file_home_api_v2_dashboards_proto_rawDescGZIP() []byte {
 }
 
 var file_home_api_v2_dashboards_proto_enumTypes = make([]protoimpl.EnumInfo, 12)
-var file_home_api_v2_dashboards_proto_msgTypes = make([]protoimpl.MessageInfo, 50)
+var file_home_api_v2_dashboards_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
 var file_home_api_v2_dashboards_proto_goTypes = []any{
 	(DashboardFieldKey)(0),               // 0: home.api.v2.DashboardFieldKey
 	(DashboardHeadingStyle)(0),           // 1: home.api.v2.DashboardHeadingStyle
@@ -5187,161 +5271,164 @@ var file_home_api_v2_dashboards_proto_goTypes = []any{
 	(*DashboardGridNode)(nil),            // 29: home.api.v2.DashboardGridNode
 	(*DashboardStackNode)(nil),           // 30: home.api.v2.DashboardStackNode
 	(*DashboardHeadingNode)(nil),         // 31: home.api.v2.DashboardHeadingNode
-	(*DashboardTileNode)(nil),            // 32: home.api.v2.DashboardTileNode
-	(*DashboardRecipeNode)(nil),          // 33: home.api.v2.DashboardRecipeNode
-	(*DashboardPopupNode)(nil),           // 34: home.api.v2.DashboardPopupNode
-	(*DashboardChipGroupNode)(nil),       // 35: home.api.v2.DashboardChipGroupNode
-	(*DashboardUnsupportedNode)(nil),     // 36: home.api.v2.DashboardUnsupportedNode
-	(*DashboardScreenVisibility)(nil),    // 37: home.api.v2.DashboardScreenVisibility
-	(*DashboardResponsiveSpan)(nil),      // 38: home.api.v2.DashboardResponsiveSpan
-	(*DashboardFieldBinding)(nil),        // 39: home.api.v2.DashboardFieldBinding
-	(*DashboardClockWeatherWidget)(nil),  // 40: home.api.v2.DashboardClockWeatherWidget
-	(*DashboardRoomWidget)(nil),          // 41: home.api.v2.DashboardRoomWidget
-	(*DashboardActivityBinding)(nil),     // 42: home.api.v2.DashboardActivityBinding
-	(*DashboardThermostatWidget)(nil),    // 43: home.api.v2.DashboardThermostatWidget
-	(*DashboardAgendaWidget)(nil),        // 44: home.api.v2.DashboardAgendaWidget
-	(*DashboardTasksWidget)(nil),         // 45: home.api.v2.DashboardTasksWidget
-	(*DashboardSecurityWidget)(nil),      // 46: home.api.v2.DashboardSecurityWidget
-	(*DashboardObservationBinding)(nil),  // 47: home.api.v2.DashboardObservationBinding
-	(*DashboardObservationsWidget)(nil),  // 48: home.api.v2.DashboardObservationsWidget
-	(*DashboardNavigationWidget)(nil),    // 49: home.api.v2.DashboardNavigationWidget
-	(*DashboardWidget)(nil),              // 50: home.api.v2.DashboardWidget
-	(*DashboardDestination)(nil),         // 51: home.api.v2.DashboardDestination
-	(*DashboardEntityTarget)(nil),        // 52: home.api.v2.DashboardEntityTarget
-	(*DashboardCommand)(nil),             // 53: home.api.v2.DashboardCommand
-	(*DashboardNoAction)(nil),            // 54: home.api.v2.DashboardNoAction
-	(*DashboardConfirmation)(nil),        // 55: home.api.v2.DashboardConfirmation
-	(*DashboardInteraction)(nil),         // 56: home.api.v2.DashboardInteraction
-	(*DashboardStatePredicate)(nil),      // 57: home.api.v2.DashboardStatePredicate
-	(*DashboardPredicateList)(nil),       // 58: home.api.v2.DashboardPredicateList
-	(*DashboardPredicate)(nil),           // 59: home.api.v2.DashboardPredicate
-	(*DashboardInteractions)(nil),        // 60: home.api.v2.DashboardInteractions
-	(*DashboardLayout)(nil),              // 61: home.api.v2.DashboardLayout
-	(*timestamppb.Timestamp)(nil),        // 62: google.protobuf.Timestamp
-	(PowerValue)(0),                      // 63: home.api.v2.PowerValue
-	(CoverState)(0),                      // 64: home.api.v2.CoverState
-	(LockState)(0),                       // 65: home.api.v2.LockState
-	(AlarmState)(0),                      // 66: home.api.v2.AlarmState
-	(TemperatureMode)(0),                 // 67: home.api.v2.TemperatureMode
-	(FanSpeed)(0),                        // 68: home.api.v2.FanSpeed
-	(WeatherCondition)(0),                // 69: home.api.v2.WeatherCondition
-	(Residence)(0),                       // 70: home.api.v2.Residence
-	(*emptypb.Empty)(nil),                // 71: google.protobuf.Empty
-	(*durationpb.Duration)(nil),          // 72: google.protobuf.Duration
+	(*DashboardCoverLock)(nil),           // 32: home.api.v2.DashboardCoverLock
+	(*DashboardTileNode)(nil),            // 33: home.api.v2.DashboardTileNode
+	(*DashboardRecipeNode)(nil),          // 34: home.api.v2.DashboardRecipeNode
+	(*DashboardPopupNode)(nil),           // 35: home.api.v2.DashboardPopupNode
+	(*DashboardChipGroupNode)(nil),       // 36: home.api.v2.DashboardChipGroupNode
+	(*DashboardUnsupportedNode)(nil),     // 37: home.api.v2.DashboardUnsupportedNode
+	(*DashboardScreenVisibility)(nil),    // 38: home.api.v2.DashboardScreenVisibility
+	(*DashboardResponsiveSpan)(nil),      // 39: home.api.v2.DashboardResponsiveSpan
+	(*DashboardFieldBinding)(nil),        // 40: home.api.v2.DashboardFieldBinding
+	(*DashboardClockWeatherWidget)(nil),  // 41: home.api.v2.DashboardClockWeatherWidget
+	(*DashboardRoomWidget)(nil),          // 42: home.api.v2.DashboardRoomWidget
+	(*DashboardActivityBinding)(nil),     // 43: home.api.v2.DashboardActivityBinding
+	(*DashboardThermostatWidget)(nil),    // 44: home.api.v2.DashboardThermostatWidget
+	(*DashboardAgendaWidget)(nil),        // 45: home.api.v2.DashboardAgendaWidget
+	(*DashboardTasksWidget)(nil),         // 46: home.api.v2.DashboardTasksWidget
+	(*DashboardSecurityWidget)(nil),      // 47: home.api.v2.DashboardSecurityWidget
+	(*DashboardObservationBinding)(nil),  // 48: home.api.v2.DashboardObservationBinding
+	(*DashboardObservationsWidget)(nil),  // 49: home.api.v2.DashboardObservationsWidget
+	(*DashboardNavigationWidget)(nil),    // 50: home.api.v2.DashboardNavigationWidget
+	(*DashboardWidget)(nil),              // 51: home.api.v2.DashboardWidget
+	(*DashboardDestination)(nil),         // 52: home.api.v2.DashboardDestination
+	(*DashboardEntityTarget)(nil),        // 53: home.api.v2.DashboardEntityTarget
+	(*DashboardCommand)(nil),             // 54: home.api.v2.DashboardCommand
+	(*DashboardNoAction)(nil),            // 55: home.api.v2.DashboardNoAction
+	(*DashboardConfirmation)(nil),        // 56: home.api.v2.DashboardConfirmation
+	(*DashboardInteraction)(nil),         // 57: home.api.v2.DashboardInteraction
+	(*DashboardStatePredicate)(nil),      // 58: home.api.v2.DashboardStatePredicate
+	(*DashboardPredicateList)(nil),       // 59: home.api.v2.DashboardPredicateList
+	(*DashboardPredicate)(nil),           // 60: home.api.v2.DashboardPredicate
+	(*DashboardInteractions)(nil),        // 61: home.api.v2.DashboardInteractions
+	(*DashboardLayout)(nil),              // 62: home.api.v2.DashboardLayout
+	(*timestamppb.Timestamp)(nil),        // 63: google.protobuf.Timestamp
+	(PowerValue)(0),                      // 64: home.api.v2.PowerValue
+	(CoverState)(0),                      // 65: home.api.v2.CoverState
+	(LockState)(0),                       // 66: home.api.v2.LockState
+	(AlarmState)(0),                      // 67: home.api.v2.AlarmState
+	(TemperatureMode)(0),                 // 68: home.api.v2.TemperatureMode
+	(FanSpeed)(0),                        // 69: home.api.v2.FanSpeed
+	(WeatherCondition)(0),                // 70: home.api.v2.WeatherCondition
+	(Residence)(0),                       // 71: home.api.v2.Residence
+	(*emptypb.Empty)(nil),                // 72: google.protobuf.Empty
+	(*durationpb.Duration)(nil),          // 73: google.protobuf.Duration
 }
 var file_home_api_v2_dashboards_proto_depIdxs = []int32{
-	62,  // 0: home.api.v2.Dashboard.update_time:type_name -> google.protobuf.Timestamp
-	61,  // 1: home.api.v2.Dashboard.layout:type_name -> home.api.v2.DashboardLayout
+	63,  // 0: home.api.v2.Dashboard.update_time:type_name -> google.protobuf.Timestamp
+	62,  // 1: home.api.v2.Dashboard.layout:type_name -> home.api.v2.DashboardLayout
 	13,  // 2: home.api.v2.Dashboard.display_profile:type_name -> home.api.v2.DashboardDisplayProfile
 	12,  // 3: home.api.v2.ListDashboardsResponse.dashboards:type_name -> home.api.v2.Dashboard
 	12,  // 4: home.api.v2.QueryDashboardResponse.dashboard:type_name -> home.api.v2.Dashboard
-	62,  // 5: home.api.v2.QueryDashboardResponse.expire_time:type_name -> google.protobuf.Timestamp
-	63,  // 6: home.api.v2.DashboardLiteral.power_value:type_name -> home.api.v2.PowerValue
-	64,  // 7: home.api.v2.DashboardLiteral.cover_state:type_name -> home.api.v2.CoverState
-	65,  // 8: home.api.v2.DashboardLiteral.lock_state:type_name -> home.api.v2.LockState
-	66,  // 9: home.api.v2.DashboardLiteral.alarm_state:type_name -> home.api.v2.AlarmState
-	67,  // 10: home.api.v2.DashboardLiteral.temperature_mode:type_name -> home.api.v2.TemperatureMode
-	68,  // 11: home.api.v2.DashboardLiteral.fan_speed:type_name -> home.api.v2.FanSpeed
-	69,  // 12: home.api.v2.DashboardLiteral.weather_condition:type_name -> home.api.v2.WeatherCondition
-	70,  // 13: home.api.v2.DashboardLiteral.residence:type_name -> home.api.v2.Residence
-	71,  // 14: home.api.v2.DashboardLayoutDimension.full:type_name -> google.protobuf.Empty
-	71,  // 15: home.api.v2.DashboardLayoutDimension.auto:type_name -> google.protobuf.Empty
+	63,  // 5: home.api.v2.QueryDashboardResponse.expire_time:type_name -> google.protobuf.Timestamp
+	64,  // 6: home.api.v2.DashboardLiteral.power_value:type_name -> home.api.v2.PowerValue
+	65,  // 7: home.api.v2.DashboardLiteral.cover_state:type_name -> home.api.v2.CoverState
+	66,  // 8: home.api.v2.DashboardLiteral.lock_state:type_name -> home.api.v2.LockState
+	67,  // 9: home.api.v2.DashboardLiteral.alarm_state:type_name -> home.api.v2.AlarmState
+	68,  // 10: home.api.v2.DashboardLiteral.temperature_mode:type_name -> home.api.v2.TemperatureMode
+	69,  // 11: home.api.v2.DashboardLiteral.fan_speed:type_name -> home.api.v2.FanSpeed
+	70,  // 12: home.api.v2.DashboardLiteral.weather_condition:type_name -> home.api.v2.WeatherCondition
+	71,  // 13: home.api.v2.DashboardLiteral.residence:type_name -> home.api.v2.Residence
+	72,  // 14: home.api.v2.DashboardLayoutDimension.full:type_name -> google.protobuf.Empty
+	72,  // 15: home.api.v2.DashboardLayoutDimension.auto:type_name -> google.protobuf.Empty
 	23,  // 16: home.api.v2.DashboardLayoutNode.source:type_name -> home.api.v2.DashboardLayoutSource
 	11,  // 17: home.api.v2.DashboardLayoutNode.icon:type_name -> home.api.v2.DashboardIcon
 	25,  // 18: home.api.v2.DashboardLayoutNode.placement:type_name -> home.api.v2.DashboardPlacement
-	37,  // 19: home.api.v2.DashboardLayoutNode.screen_visibility:type_name -> home.api.v2.DashboardScreenVisibility
-	59,  // 20: home.api.v2.DashboardLayoutNode.visibility:type_name -> home.api.v2.DashboardPredicate
+	38,  // 19: home.api.v2.DashboardLayoutNode.screen_visibility:type_name -> home.api.v2.DashboardScreenVisibility
+	60,  // 20: home.api.v2.DashboardLayoutNode.visibility:type_name -> home.api.v2.DashboardPredicate
 	27,  // 21: home.api.v2.DashboardLayoutNode.view:type_name -> home.api.v2.DashboardViewNode
 	28,  // 22: home.api.v2.DashboardLayoutNode.section:type_name -> home.api.v2.DashboardSectionNode
 	29,  // 23: home.api.v2.DashboardLayoutNode.grid:type_name -> home.api.v2.DashboardGridNode
 	30,  // 24: home.api.v2.DashboardLayoutNode.horizontal_stack:type_name -> home.api.v2.DashboardStackNode
 	30,  // 25: home.api.v2.DashboardLayoutNode.vertical_stack:type_name -> home.api.v2.DashboardStackNode
 	31,  // 26: home.api.v2.DashboardLayoutNode.heading:type_name -> home.api.v2.DashboardHeadingNode
-	32,  // 27: home.api.v2.DashboardLayoutNode.tile:type_name -> home.api.v2.DashboardTileNode
-	33,  // 28: home.api.v2.DashboardLayoutNode.recipe:type_name -> home.api.v2.DashboardRecipeNode
-	34,  // 29: home.api.v2.DashboardLayoutNode.popup:type_name -> home.api.v2.DashboardPopupNode
-	35,  // 30: home.api.v2.DashboardLayoutNode.chip_group:type_name -> home.api.v2.DashboardChipGroupNode
-	50,  // 31: home.api.v2.DashboardLayoutNode.widget:type_name -> home.api.v2.DashboardWidget
-	36,  // 32: home.api.v2.DashboardLayoutNode.unsupported:type_name -> home.api.v2.DashboardUnsupportedNode
+	33,  // 27: home.api.v2.DashboardLayoutNode.tile:type_name -> home.api.v2.DashboardTileNode
+	34,  // 28: home.api.v2.DashboardLayoutNode.recipe:type_name -> home.api.v2.DashboardRecipeNode
+	35,  // 29: home.api.v2.DashboardLayoutNode.popup:type_name -> home.api.v2.DashboardPopupNode
+	36,  // 30: home.api.v2.DashboardLayoutNode.chip_group:type_name -> home.api.v2.DashboardChipGroupNode
+	51,  // 31: home.api.v2.DashboardLayoutNode.widget:type_name -> home.api.v2.DashboardWidget
+	37,  // 32: home.api.v2.DashboardLayoutNode.unsupported:type_name -> home.api.v2.DashboardUnsupportedNode
 	22,  // 33: home.api.v2.DashboardPlacement.column_span:type_name -> home.api.v2.DashboardLayoutDimension
 	22,  // 34: home.api.v2.DashboardPlacement.row_span:type_name -> home.api.v2.DashboardLayoutDimension
-	38,  // 35: home.api.v2.DashboardPlacement.responsive_spans:type_name -> home.api.v2.DashboardResponsiveSpan
+	39,  // 35: home.api.v2.DashboardPlacement.responsive_spans:type_name -> home.api.v2.DashboardResponsiveSpan
 	26,  // 36: home.api.v2.DashboardViewNode.children:type_name -> home.api.v2.DashboardChildren
 	26,  // 37: home.api.v2.DashboardSectionNode.children:type_name -> home.api.v2.DashboardChildren
 	26,  // 38: home.api.v2.DashboardGridNode.children:type_name -> home.api.v2.DashboardChildren
-	60,  // 39: home.api.v2.DashboardGridNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	61,  // 39: home.api.v2.DashboardGridNode.interactions:type_name -> home.api.v2.DashboardInteractions
 	26,  // 40: home.api.v2.DashboardStackNode.children:type_name -> home.api.v2.DashboardChildren
-	60,  // 41: home.api.v2.DashboardStackNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	61,  // 41: home.api.v2.DashboardStackNode.interactions:type_name -> home.api.v2.DashboardInteractions
 	1,   // 42: home.api.v2.DashboardHeadingNode.style:type_name -> home.api.v2.DashboardHeadingStyle
-	60,  // 43: home.api.v2.DashboardHeadingNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	61,  // 43: home.api.v2.DashboardHeadingNode.interactions:type_name -> home.api.v2.DashboardInteractions
 	6,   // 44: home.api.v2.DashboardTileNode.features:type_name -> home.api.v2.DashboardFeatureKind
 	2,   // 45: home.api.v2.DashboardTileNode.presentation:type_name -> home.api.v2.DashboardControlPresentation
-	60,  // 46: home.api.v2.DashboardTileNode.interactions:type_name -> home.api.v2.DashboardInteractions
-	5,   // 47: home.api.v2.DashboardRecipeNode.kind:type_name -> home.api.v2.DashboardRecipeKind
-	6,   // 48: home.api.v2.DashboardRecipeNode.features:type_name -> home.api.v2.DashboardFeatureKind
-	2,   // 49: home.api.v2.DashboardRecipeNode.presentation:type_name -> home.api.v2.DashboardControlPresentation
-	60,  // 50: home.api.v2.DashboardRecipeNode.interactions:type_name -> home.api.v2.DashboardInteractions
-	26,  // 51: home.api.v2.DashboardPopupNode.children:type_name -> home.api.v2.DashboardChildren
-	60,  // 52: home.api.v2.DashboardPopupNode.interactions:type_name -> home.api.v2.DashboardInteractions
-	26,  // 53: home.api.v2.DashboardChipGroupNode.children:type_name -> home.api.v2.DashboardChildren
-	60,  // 54: home.api.v2.DashboardChipGroupNode.interactions:type_name -> home.api.v2.DashboardInteractions
-	0,   // 55: home.api.v2.DashboardFieldBinding.field:type_name -> home.api.v2.DashboardFieldKey
-	39,  // 56: home.api.v2.DashboardRoomWidget.temperature:type_name -> home.api.v2.DashboardFieldBinding
-	42,  // 57: home.api.v2.DashboardRoomWidget.activity:type_name -> home.api.v2.DashboardActivityBinding
-	39,  // 58: home.api.v2.DashboardActivityBinding.field:type_name -> home.api.v2.DashboardFieldBinding
-	21,  // 59: home.api.v2.DashboardActivityBinding.active_values:type_name -> home.api.v2.DashboardLiteral
-	39,  // 60: home.api.v2.DashboardThermostatWidget.current_temperature:type_name -> home.api.v2.DashboardFieldBinding
-	39,  // 61: home.api.v2.DashboardThermostatWidget.target_temperature:type_name -> home.api.v2.DashboardFieldBinding
-	3,   // 62: home.api.v2.DashboardThermostatWidget.presentation:type_name -> home.api.v2.DashboardThermostatPresentation
-	72,  // 63: home.api.v2.DashboardAgendaWidget.time_window:type_name -> google.protobuf.Duration
-	4,   // 64: home.api.v2.DashboardTasksWidget.presentation:type_name -> home.api.v2.DashboardTasksPresentation
-	39,  // 65: home.api.v2.DashboardObservationBinding.field:type_name -> home.api.v2.DashboardFieldBinding
-	21,  // 66: home.api.v2.DashboardObservationBinding.active_values:type_name -> home.api.v2.DashboardLiteral
-	11,  // 67: home.api.v2.DashboardObservationBinding.icon:type_name -> home.api.v2.DashboardIcon
-	47,  // 68: home.api.v2.DashboardObservationsWidget.items:type_name -> home.api.v2.DashboardObservationBinding
-	51,  // 69: home.api.v2.DashboardNavigationWidget.destination:type_name -> home.api.v2.DashboardDestination
-	40,  // 70: home.api.v2.DashboardWidget.clock_weather:type_name -> home.api.v2.DashboardClockWeatherWidget
-	41,  // 71: home.api.v2.DashboardWidget.room:type_name -> home.api.v2.DashboardRoomWidget
-	43,  // 72: home.api.v2.DashboardWidget.thermostat:type_name -> home.api.v2.DashboardThermostatWidget
-	44,  // 73: home.api.v2.DashboardWidget.agenda:type_name -> home.api.v2.DashboardAgendaWidget
-	45,  // 74: home.api.v2.DashboardWidget.tasks:type_name -> home.api.v2.DashboardTasksWidget
-	46,  // 75: home.api.v2.DashboardWidget.security:type_name -> home.api.v2.DashboardSecurityWidget
-	48,  // 76: home.api.v2.DashboardWidget.observations:type_name -> home.api.v2.DashboardObservationsWidget
-	49,  // 77: home.api.v2.DashboardWidget.navigation:type_name -> home.api.v2.DashboardNavigationWidget
-	51,  // 78: home.api.v2.DashboardWidget.action:type_name -> home.api.v2.DashboardDestination
-	60,  // 79: home.api.v2.DashboardWidget.interactions:type_name -> home.api.v2.DashboardInteractions
-	8,   // 80: home.api.v2.DashboardDestination.presentation:type_name -> home.api.v2.DashboardPresentation
-	9,   // 81: home.api.v2.DashboardCommand.kind:type_name -> home.api.v2.DashboardCommandKind
-	7,   // 82: home.api.v2.DashboardInteraction.gesture:type_name -> home.api.v2.DashboardGesture
-	54,  // 83: home.api.v2.DashboardInteraction.none:type_name -> home.api.v2.DashboardNoAction
-	52,  // 84: home.api.v2.DashboardInteraction.more_info:type_name -> home.api.v2.DashboardEntityTarget
-	51,  // 85: home.api.v2.DashboardInteraction.navigate:type_name -> home.api.v2.DashboardDestination
-	53,  // 86: home.api.v2.DashboardInteraction.command:type_name -> home.api.v2.DashboardCommand
-	55,  // 87: home.api.v2.DashboardInteraction.confirmation:type_name -> home.api.v2.DashboardConfirmation
-	23,  // 88: home.api.v2.DashboardInteraction.source:type_name -> home.api.v2.DashboardLayoutSource
-	39,  // 89: home.api.v2.DashboardStatePredicate.field:type_name -> home.api.v2.DashboardFieldBinding
-	21,  // 90: home.api.v2.DashboardStatePredicate.expected:type_name -> home.api.v2.DashboardLiteral
-	10,  // 91: home.api.v2.DashboardStatePredicate.comparison:type_name -> home.api.v2.DashboardComparison
-	59,  // 92: home.api.v2.DashboardPredicateList.conditions:type_name -> home.api.v2.DashboardPredicate
-	57,  // 93: home.api.v2.DashboardPredicate.state:type_name -> home.api.v2.DashboardStatePredicate
-	58,  // 94: home.api.v2.DashboardPredicate.all:type_name -> home.api.v2.DashboardPredicateList
-	58,  // 95: home.api.v2.DashboardPredicate.any:type_name -> home.api.v2.DashboardPredicateList
-	23,  // 96: home.api.v2.DashboardPredicate.source:type_name -> home.api.v2.DashboardLayoutSource
-	56,  // 97: home.api.v2.DashboardInteractions.interactions:type_name -> home.api.v2.DashboardInteraction
-	24,  // 98: home.api.v2.DashboardLayout.nodes:type_name -> home.api.v2.DashboardLayoutNode
-	14,  // 99: home.api.v2.DashboardService.GetDashboard:input_type -> home.api.v2.GetDashboardRequest
-	15,  // 100: home.api.v2.DashboardService.ListDashboards:input_type -> home.api.v2.ListDashboardsRequest
-	17,  // 101: home.api.v2.DashboardService.WatchDashboards:input_type -> home.api.v2.WatchDashboardsRequest
-	19,  // 102: home.api.v2.DashboardService.QueryDashboard:input_type -> home.api.v2.QueryDashboardRequest
-	12,  // 103: home.api.v2.DashboardService.GetDashboard:output_type -> home.api.v2.Dashboard
-	16,  // 104: home.api.v2.DashboardService.ListDashboards:output_type -> home.api.v2.ListDashboardsResponse
-	18,  // 105: home.api.v2.DashboardService.WatchDashboards:output_type -> home.api.v2.WatchDashboardsResponse
-	20,  // 106: home.api.v2.DashboardService.QueryDashboard:output_type -> home.api.v2.QueryDashboardResponse
-	103, // [103:107] is the sub-list for method output_type
-	99,  // [99:103] is the sub-list for method input_type
-	99,  // [99:99] is the sub-list for extension type_name
-	99,  // [99:99] is the sub-list for extension extendee
-	0,   // [0:99] is the sub-list for field type_name
+	61,  // 46: home.api.v2.DashboardTileNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	32,  // 47: home.api.v2.DashboardTileNode.cover_lock:type_name -> home.api.v2.DashboardCoverLock
+	5,   // 48: home.api.v2.DashboardRecipeNode.kind:type_name -> home.api.v2.DashboardRecipeKind
+	6,   // 49: home.api.v2.DashboardRecipeNode.features:type_name -> home.api.v2.DashboardFeatureKind
+	2,   // 50: home.api.v2.DashboardRecipeNode.presentation:type_name -> home.api.v2.DashboardControlPresentation
+	61,  // 51: home.api.v2.DashboardRecipeNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	32,  // 52: home.api.v2.DashboardRecipeNode.cover_lock:type_name -> home.api.v2.DashboardCoverLock
+	26,  // 53: home.api.v2.DashboardPopupNode.children:type_name -> home.api.v2.DashboardChildren
+	61,  // 54: home.api.v2.DashboardPopupNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	26,  // 55: home.api.v2.DashboardChipGroupNode.children:type_name -> home.api.v2.DashboardChildren
+	61,  // 56: home.api.v2.DashboardChipGroupNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	0,   // 57: home.api.v2.DashboardFieldBinding.field:type_name -> home.api.v2.DashboardFieldKey
+	40,  // 58: home.api.v2.DashboardRoomWidget.temperature:type_name -> home.api.v2.DashboardFieldBinding
+	43,  // 59: home.api.v2.DashboardRoomWidget.activity:type_name -> home.api.v2.DashboardActivityBinding
+	40,  // 60: home.api.v2.DashboardActivityBinding.field:type_name -> home.api.v2.DashboardFieldBinding
+	21,  // 61: home.api.v2.DashboardActivityBinding.active_values:type_name -> home.api.v2.DashboardLiteral
+	40,  // 62: home.api.v2.DashboardThermostatWidget.current_temperature:type_name -> home.api.v2.DashboardFieldBinding
+	40,  // 63: home.api.v2.DashboardThermostatWidget.target_temperature:type_name -> home.api.v2.DashboardFieldBinding
+	3,   // 64: home.api.v2.DashboardThermostatWidget.presentation:type_name -> home.api.v2.DashboardThermostatPresentation
+	73,  // 65: home.api.v2.DashboardAgendaWidget.time_window:type_name -> google.protobuf.Duration
+	4,   // 66: home.api.v2.DashboardTasksWidget.presentation:type_name -> home.api.v2.DashboardTasksPresentation
+	40,  // 67: home.api.v2.DashboardObservationBinding.field:type_name -> home.api.v2.DashboardFieldBinding
+	21,  // 68: home.api.v2.DashboardObservationBinding.active_values:type_name -> home.api.v2.DashboardLiteral
+	11,  // 69: home.api.v2.DashboardObservationBinding.icon:type_name -> home.api.v2.DashboardIcon
+	48,  // 70: home.api.v2.DashboardObservationsWidget.items:type_name -> home.api.v2.DashboardObservationBinding
+	52,  // 71: home.api.v2.DashboardNavigationWidget.destination:type_name -> home.api.v2.DashboardDestination
+	41,  // 72: home.api.v2.DashboardWidget.clock_weather:type_name -> home.api.v2.DashboardClockWeatherWidget
+	42,  // 73: home.api.v2.DashboardWidget.room:type_name -> home.api.v2.DashboardRoomWidget
+	44,  // 74: home.api.v2.DashboardWidget.thermostat:type_name -> home.api.v2.DashboardThermostatWidget
+	45,  // 75: home.api.v2.DashboardWidget.agenda:type_name -> home.api.v2.DashboardAgendaWidget
+	46,  // 76: home.api.v2.DashboardWidget.tasks:type_name -> home.api.v2.DashboardTasksWidget
+	47,  // 77: home.api.v2.DashboardWidget.security:type_name -> home.api.v2.DashboardSecurityWidget
+	49,  // 78: home.api.v2.DashboardWidget.observations:type_name -> home.api.v2.DashboardObservationsWidget
+	50,  // 79: home.api.v2.DashboardWidget.navigation:type_name -> home.api.v2.DashboardNavigationWidget
+	52,  // 80: home.api.v2.DashboardWidget.action:type_name -> home.api.v2.DashboardDestination
+	61,  // 81: home.api.v2.DashboardWidget.interactions:type_name -> home.api.v2.DashboardInteractions
+	8,   // 82: home.api.v2.DashboardDestination.presentation:type_name -> home.api.v2.DashboardPresentation
+	9,   // 83: home.api.v2.DashboardCommand.kind:type_name -> home.api.v2.DashboardCommandKind
+	7,   // 84: home.api.v2.DashboardInteraction.gesture:type_name -> home.api.v2.DashboardGesture
+	55,  // 85: home.api.v2.DashboardInteraction.none:type_name -> home.api.v2.DashboardNoAction
+	53,  // 86: home.api.v2.DashboardInteraction.more_info:type_name -> home.api.v2.DashboardEntityTarget
+	52,  // 87: home.api.v2.DashboardInteraction.navigate:type_name -> home.api.v2.DashboardDestination
+	54,  // 88: home.api.v2.DashboardInteraction.command:type_name -> home.api.v2.DashboardCommand
+	56,  // 89: home.api.v2.DashboardInteraction.confirmation:type_name -> home.api.v2.DashboardConfirmation
+	23,  // 90: home.api.v2.DashboardInteraction.source:type_name -> home.api.v2.DashboardLayoutSource
+	40,  // 91: home.api.v2.DashboardStatePredicate.field:type_name -> home.api.v2.DashboardFieldBinding
+	21,  // 92: home.api.v2.DashboardStatePredicate.expected:type_name -> home.api.v2.DashboardLiteral
+	10,  // 93: home.api.v2.DashboardStatePredicate.comparison:type_name -> home.api.v2.DashboardComparison
+	60,  // 94: home.api.v2.DashboardPredicateList.conditions:type_name -> home.api.v2.DashboardPredicate
+	58,  // 95: home.api.v2.DashboardPredicate.state:type_name -> home.api.v2.DashboardStatePredicate
+	59,  // 96: home.api.v2.DashboardPredicate.all:type_name -> home.api.v2.DashboardPredicateList
+	59,  // 97: home.api.v2.DashboardPredicate.any:type_name -> home.api.v2.DashboardPredicateList
+	23,  // 98: home.api.v2.DashboardPredicate.source:type_name -> home.api.v2.DashboardLayoutSource
+	57,  // 99: home.api.v2.DashboardInteractions.interactions:type_name -> home.api.v2.DashboardInteraction
+	24,  // 100: home.api.v2.DashboardLayout.nodes:type_name -> home.api.v2.DashboardLayoutNode
+	14,  // 101: home.api.v2.DashboardService.GetDashboard:input_type -> home.api.v2.GetDashboardRequest
+	15,  // 102: home.api.v2.DashboardService.ListDashboards:input_type -> home.api.v2.ListDashboardsRequest
+	17,  // 103: home.api.v2.DashboardService.WatchDashboards:input_type -> home.api.v2.WatchDashboardsRequest
+	19,  // 104: home.api.v2.DashboardService.QueryDashboard:input_type -> home.api.v2.QueryDashboardRequest
+	12,  // 105: home.api.v2.DashboardService.GetDashboard:output_type -> home.api.v2.Dashboard
+	16,  // 106: home.api.v2.DashboardService.ListDashboards:output_type -> home.api.v2.ListDashboardsResponse
+	18,  // 107: home.api.v2.DashboardService.WatchDashboards:output_type -> home.api.v2.WatchDashboardsResponse
+	20,  // 108: home.api.v2.DashboardService.QueryDashboard:output_type -> home.api.v2.QueryDashboardResponse
+	105, // [105:109] is the sub-list for method output_type
+	101, // [101:105] is the sub-list for method input_type
+	101, // [101:101] is the sub-list for extension type_name
+	101, // [101:101] is the sub-list for extension extendee
+	0,   // [0:101] is the sub-list for field type_name
 }
 
 func init() { file_home_api_v2_dashboards_proto_init() }
@@ -5386,8 +5473,8 @@ func file_home_api_v2_dashboards_proto_init() {
 		(*DashboardLayoutNode_Unsupported)(nil),
 	}
 	file_home_api_v2_dashboards_proto_msgTypes[17].OneofWrappers = []any{}
-	file_home_api_v2_dashboards_proto_msgTypes[20].OneofWrappers = []any{}
-	file_home_api_v2_dashboards_proto_msgTypes[38].OneofWrappers = []any{
+	file_home_api_v2_dashboards_proto_msgTypes[21].OneofWrappers = []any{}
+	file_home_api_v2_dashboards_proto_msgTypes[39].OneofWrappers = []any{
 		(*DashboardWidget_ClockWeather)(nil),
 		(*DashboardWidget_Room)(nil),
 		(*DashboardWidget_Thermostat)(nil),
@@ -5397,13 +5484,13 @@ func file_home_api_v2_dashboards_proto_init() {
 		(*DashboardWidget_Observations)(nil),
 		(*DashboardWidget_Navigation)(nil),
 	}
-	file_home_api_v2_dashboards_proto_msgTypes[44].OneofWrappers = []any{
+	file_home_api_v2_dashboards_proto_msgTypes[45].OneofWrappers = []any{
 		(*DashboardInteraction_None)(nil),
 		(*DashboardInteraction_MoreInfo)(nil),
 		(*DashboardInteraction_Navigate)(nil),
 		(*DashboardInteraction_Command)(nil),
 	}
-	file_home_api_v2_dashboards_proto_msgTypes[47].OneofWrappers = []any{
+	file_home_api_v2_dashboards_proto_msgTypes[48].OneofWrappers = []any{
 		(*DashboardPredicate_Constant)(nil),
 		(*DashboardPredicate_State)(nil),
 		(*DashboardPredicate_All)(nil),
@@ -5415,7 +5502,7 @@ func file_home_api_v2_dashboards_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_api_v2_dashboards_proto_rawDesc), len(file_home_api_v2_dashboards_proto_rawDesc)),
 			NumEnums:      12,
-			NumMessages:   50,
+			NumMessages:   51,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

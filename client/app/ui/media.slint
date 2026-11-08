@@ -1,10 +1,11 @@
 import { KitTheme, CloseReason } from "@kit";
-import { ProIdentityButton, ProMediaPanel, ProMediaGroup, ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue, ProValueIntent, ProArtworkState } from "@kit-pro";
+import { ProDetailTool, ProIdentityButton, ProMediaPanel, ProMediaGroup, ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue, ProValueIntent, ProArtworkState } from "@kit-pro";
 
 // Product composition only. Content, capabilities, privacy and exact action
 // targets are supplied by the native owner; the Pro owns reusable controls.
 export component HomewardMedia inherits VerticalLayout {
     in property <KitTheme> theme;
+    in property <length> minimum-panel-height;
     in property <string> title;
     in property <int> generation;
     in property <bool> interactive;
@@ -24,6 +25,8 @@ export component HomewardMedia inherits VerticalLayout {
     in property <[string]> members;
     in property <string> notice;
     in property <int> artwork-remaining-ms;
+    in property <[ProDetailTool]> tools;
+    callback tool-requested(int);
     callback dismiss(CloseReason);
     callback operation(int,int,ProMediaOperation);
     callback option(int,int,ProMediaOptionKind,int);
@@ -34,7 +37,12 @@ export component HomewardMedia inherits VerticalLayout {
     spacing: 12px;
     if root.has-data: ProMediaPanel {
         theme: root.theme; media: root.media; actions: root.actions; options: root.options; values: root.values;
-        title: root.title;
+        min-height: root.minimum-panel-height;
+        title: root.title; tools: root.tools;
+        tool-requested(token) => {
+            if (token == root.generation) { if (root.interactive && !root.suspended) { root.reload(root.generation); } }
+            else { root.tool-requested(token); }
+        }
         interactive: root.interactive; commands-enabled: root.editable;
         can-volume: false; can-mute: false;
         dismiss(reason) => { root.dismiss(reason); }
@@ -48,12 +56,6 @@ export component HomewardMedia inherits VerticalLayout {
         theme: root.theme; title: root.group-title; coordinator: root.coordinator; members: root.members;
     }
     if root.notice != "": Text { text: root.notice; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: char-wrap; }
-    ProIdentityButton {
-        theme: root.theme; text: "Refresh Media"; disabled: !root.interactive;
-        generation: root.generation; activation-enabled: !root.suspended;
-        accessible-enabled: !root.suspended && !self.disabled;
-        trigger(t,g) => { if (!root.suspended) { root.reload(g); } }
-    }
     // Expiry does not wait for an in-flight network read or a polling interval.
     Timer {
         running: root.has-data && root.media.artwork-state == ProArtworkState.ready;
