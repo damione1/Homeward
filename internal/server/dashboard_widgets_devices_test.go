@@ -151,11 +151,15 @@ func (d dashboardWidgetsDevice) observation(condition *bool, stale bool) (integr
 	case "alarm":
 		value, err = domain.NewAlarmStateValue(domain.AlarmStateDisarmed)
 	case "fan":
-		speed := nha212FixtureFan(t, "Off")
+		key := "Off"
 		if *d.On {
-			speed = nha212FixtureFan(t, "High")
+			key = "High"
 		}
-		value, err = domain.NewFanStateValue(speed)
+		fan, e := domain.NewFanValue(domain.FanValueInput{On: d.On, Speed: &key})
+		if e != nil {
+			return integrations.StateObservation{}, e
+		}
+		value, err = domain.NewFanStateValue(fan)
 	case "switch":
 		value = domain.NewSwitchValue(*d.On)
 	case "passive":

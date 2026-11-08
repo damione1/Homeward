@@ -154,7 +154,13 @@ func (d nhf008Device) observation() (integrations.StateObservation, error) {
 		}
 		value, err = domain.NewClimateStateValue(climate)
 	case nhf008Fan:
-		value, err = domain.NewFanStateValue(nha212FixtureFan(t, "Off"))
+		key := "Off"
+		on := false
+		fan, e := domain.NewFanValue(domain.FanValueInput{On: &on, Speed: &key})
+		if e != nil {
+			return integrations.StateObservation{}, e
+		}
+		value, err = domain.NewFanStateValue(fan)
 	case nhf008Light:
 		light, e := domain.NewLightValue(domain.LightValueInput{On: false, Brightness: nil, ColorTemperatureMireds: nhf008Pointer(uint32(334))})
 		if e != nil {

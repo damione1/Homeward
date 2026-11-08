@@ -117,8 +117,10 @@ func sameBusinessValue(a, b StateValue) bool {
 		return a.native.(*lockStatePayload).value == b.native.(*lockStatePayload).value
 	case ValueAlarm:
 		return a.native.(*alarmStatePayload).value == b.native.(*alarmStatePayload).value
-	case ValueSwitch, ValueMeasurement, ValueLight, ValueFan, ValueClimate:
-		return a.switchOn == b.switchOn && a.measurement == b.measurement && a.light == b.light && a.fan == b.fan && a.climate == b.climate
+	case ValueLight:
+		return a.light.Equal(b.light)
+	case ValueSwitch, ValueMeasurement, ValueFan, ValueClimate:
+		return a.switchOn == b.switchOn && a.measurement == b.measurement && a.fan == b.fan && a.climate == b.climate
 	case ValueHelper:
 		return a.native.(*helperStatePayload).value == b.native.(*helperStatePayload).value
 	case ValueSolar:

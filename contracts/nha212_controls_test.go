@@ -12,7 +12,7 @@ func TestNHA212NativeFanKeysRangesAndIndependentPower(t *testing.T) {
 	catalog, _ := NewCapabilityCatalog(domain.NewUnitCatalog())
 	entity := testNHA014Entity(t)
 	description := &registry.CapabilityDescription{SchemaId: FanSchema, Major: 1, Endpoint: "drive", DisplayName: "Synthetic fan", Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{SetOn: true, ObservesPower: true, Speed: &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "quiet/7"}, {Key: "boost:91"}, {Key: "night/13"}}}}}}
-	if err := catalog.RegisterDriverCapability(entity, description); err != nil {
+	if err := catalog.ReplaceDriverCapabilitiesBatch([]DriverCapabilityRegistration{{Entity: entity, Description: description}}); err != nil {
 		t.Fatal(err)
 	}
 	value, err := domain.NewFanValue(domain.FanValueInput{On: proto.Bool(false), Speed: proto.String("quiet/7")})
@@ -35,7 +35,7 @@ func TestNHA212NativeFanKeysRangesAndIndependentPower(t *testing.T) {
 	}
 	description.GetFan().Speed = nil
 	description.GetFan().Level = &registry.NumberBounds{Minimum: 3, Maximum: 27, Step: proto.Float64(4)}
-	if err = catalog.RegisterDriverCapability(entity, description); err != nil {
+	if err = catalog.ReplaceDriverCapabilitiesBatch([]DriverCapabilityRegistration{{Entity: entity, Description: description}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, level := range []float64{3, 7, 27, 0, 8, 100} {
@@ -52,7 +52,7 @@ func TestNHA212AtomicColorPresetAdmissionAndAbsence(t *testing.T) {
 	catalog, _ := NewCapabilityCatalog(domain.NewUnitCatalog())
 	entity := testNHA014Entity(t)
 	d := &registry.CapabilityDescription{SchemaId: LightSchema, Major: 1, Endpoint: "light", DisplayName: "Synthetic lamp", Constraints: &registry.CapabilityDescription_Light{Light: &registry.LightConstraints{SetOn: true, Rgb: true, ColorTempMireds: &registry.NumberBounds{Minimum: 100, Maximum: 500}, Presets: &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "scene:night/7"}}}}}}
-	if err := catalog.RegisterDriverCapability(entity, d); err != nil {
+	if err := catalog.ReplaceDriverCapabilitiesBatch([]DriverCapabilityRegistration{{Entity: entity, Description: d}}); err != nil {
 		t.Fatal(err)
 	}
 	valid := &actions.SetLight{On: proto.Bool(true), Rgb: &registry.RgbColor{Red: proto.Uint32(0), Green: proto.Uint32(137), Blue: proto.Uint32(255)}, Preset: proto.String("scene:night/7")}
@@ -79,7 +79,7 @@ func TestNHA212AtomicColorPresetAdmissionAndAbsence(t *testing.T) {
 	}
 	d.GetLight().Rgb = false
 	d.GetLight().Presets = nil
-	if err := catalog.RegisterDriverCapability(entity, d); err != nil {
+	if err := catalog.ReplaceDriverCapabilitiesBatch([]DriverCapabilityRegistration{{Entity: entity, Description: d}}); err != nil {
 		t.Fatal(err)
 	}
 	cmd := testNHA014Command(LightSchema, "light", &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: valid}})

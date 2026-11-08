@@ -1049,7 +1049,7 @@ func (m *DiscoveryMapper) observeStateWithCausality(ctx context.Context, host in
 			direct, directErr := lightState(profile, payload, nil)
 			currentLight, _ := value.Light()
 			directLight, _ := direct.Light()
-			if directErr != nil || currentLight != directLight {
+			if directErr != nil || !currentLight.Equal(directLight) {
 				causality = domain.Causality{}
 			}
 		}

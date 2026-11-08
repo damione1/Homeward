@@ -181,29 +181,17 @@ type LightValueInput struct {
 	Preset                 *string
 }
 type LightValue struct {
-	valid bool
-	input LightValueInput
+	valid, on              bool
+	brightness             float64
+	hasBrightness          bool
+	colorTemperatureMireds uint32
+	hasColorTemperature    bool
+	rgb                    RGB
+	hasRGB                 bool
+	preset                 string
+	hasPreset              bool
 }
 
-func copyLightInput(v LightValueInput) LightValueInput {
-	if v.Brightness != nil {
-		x := *v.Brightness
-		v.Brightness = &x
-	}
-	if v.ColorTemperatureMireds != nil {
-		x := *v.ColorTemperatureMireds
-		v.ColorTemperatureMireds = &x
-	}
-	if v.RGB != nil {
-		x := *v.RGB
-		v.RGB = &x
-	}
-	if v.Preset != nil {
-		x := *v.Preset
-		v.Preset = &x
-	}
-	return v
-}
 func NewLightValue(v LightValueInput) (LightValue, error) {
 	if v.Brightness != nil && (math.IsNaN(*v.Brightness) || math.IsInf(*v.Brightness, 0) || *v.Brightness < 0 || *v.Brightness > 100) {
 		return LightValue{}, ErrInvalidState
@@ -214,17 +202,44 @@ func NewLightValue(v LightValueInput) (LightValue, error) {
 	if v.Preset != nil && !ValidControlKey(*v.Preset) {
 		return LightValue{}, ErrInvalidState
 	}
-	return LightValue{valid: true, input: copyLightInput(v)}, nil
+	out := LightValue{valid: true, on: v.On}
+	if v.Brightness != nil {
+		out.brightness, out.hasBrightness = *v.Brightness, true
+	}
+	if v.ColorTemperatureMireds != nil {
+		out.colorTemperatureMireds, out.hasColorTemperature = *v.ColorTemperatureMireds, true
+	}
+	if v.RGB != nil {
+		out.rgb, out.hasRGB = *v.RGB, true
+	}
+	if v.Preset != nil {
+		out.preset, out.hasPreset = *v.Preset, true
+	}
+	return out, nil
 }
 func (v LightValue) Components() (LightValueInput, error) {
 	if !v.valid {
 		return LightValueInput{}, ErrInvalidState
 	}
-	if _, err := NewLightValue(v.input); err != nil {
-		return LightValueInput{}, err
+	out := LightValueInput{On: v.on}
+	if v.hasBrightness {
+		out.Brightness = &v.brightness
 	}
-	return copyLightInput(v.input), nil
+	if v.hasColorTemperature {
+		out.ColorTemperatureMireds = &v.colorTemperatureMireds
+	}
+	if v.hasRGB {
+		out.RGB = &v.rgb
+	}
+	if v.hasPreset {
+		out.Preset = &v.preset
+	}
+	return out, nil
 }
+
+// Equal compares admitted semantic contents and optional presence. Internal
+// storage is scalar, so pointer allocation never changes observation equality.
+func (v LightValue) Equal(other LightValue) bool { return v.valid && other.valid && v == other }
 
 // ValidControlKey preserves source spelling and order; keys are not labels.
 func ValidControlKey(v string) bool {

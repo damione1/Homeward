@@ -336,7 +336,15 @@ func TestNHA046CasetaFanProfilePreparedAndNativeDirect(t *testing.T) {
 		t.Fatal(err)
 	}
 	directID, _ := domain.ParseCommandID("nha046-native-fan")
-	native, err := direct.PrepareFan(nha022Actor(t), directID, now.Add(time.Minute), nha212FixtureFan(t, "MediumHigh"))
+	if _, err := direct.PrepareFan(nha022Actor(t), directID, now.Add(time.Minute), nha212FixtureFan(t, "MediumHigh")); err == nil {
+		t.Fatal("unprofiled source inferred uncommandable power from a level key")
+	}
+	nativeKey := "MediumHigh"
+	levelOnly, err := domain.NewFanValue(domain.FanValueInput{Speed: &nativeKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	native, err := direct.PrepareFan(nha022Actor(t), directID, now.Add(time.Minute), levelOnly)
 	if err != nil {
 		t.Fatal(err)
 	}

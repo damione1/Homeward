@@ -26,6 +26,7 @@ func nha182CommandCapabilities(descriptions []*registry.CapabilityDescription, s
 			SetOn:             true,
 			BrightnessPercent: &registry.NumberBounds{Minimum: 0, Maximum: 100},
 			ColorTempMireds:   &registry.NumberBounds{Minimum: 250, Maximum: 454},
+			Rgb:               true, Presets: &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "scene:night/7"}, {Key: "steady"}}},
 		})
 	default:
 		return false
@@ -64,7 +65,7 @@ func nha182WaitCommandCapabilities(t *testing.T, r *nha069Rig, tasks *nha068Task
 
 func TestNHA182CommandCapabilityBarrierRejectsEmptyAndPartialDescriptions(t *testing.T) {
 	switchDescription := &registry.CapabilityDescription{SchemaId: contracts.SwitchSchema, Major: 1, Endpoint: "mqtt", Constraints: &registry.CapabilityDescription_Switch{Switch: &registry.SwitchConstraints{SetOn: true}}}
-	lightDescription := &registry.CapabilityDescription{SchemaId: contracts.LightSchema, Major: 1, Endpoint: "mqtt", Constraints: &registry.CapabilityDescription_Light{Light: &registry.LightConstraints{SetOn: true, BrightnessPercent: &registry.NumberBounds{Minimum: 0, Maximum: 100}, ColorTempMireds: &registry.NumberBounds{Minimum: 250, Maximum: 454}}}}
+	lightDescription := &registry.CapabilityDescription{SchemaId: contracts.LightSchema, Major: 1, Endpoint: "mqtt", Constraints: &registry.CapabilityDescription_Light{Light: &registry.LightConstraints{SetOn: true, BrightnessPercent: &registry.NumberBounds{Minimum: 0, Maximum: 100}, ColorTempMireds: &registry.NumberBounds{Minimum: 250, Maximum: 454}, Rgb: true, Presets: &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "scene:night/7"}, {Key: "steady"}}}}}}
 	for _, fixture := range []struct {
 		name, schema string
 		description  *registry.CapabilityDescription

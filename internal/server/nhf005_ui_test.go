@@ -110,7 +110,13 @@ func (p nhf005UIProfile) observation(alias string, sequence *uint64, at time.Tim
 	case nhf005SwitchSample:
 		value = domain.NewSwitchValue(sequence != nil && *sequence%2 != 0)
 	case nhf005FanSample:
-		value, err = domain.NewFanStateValue(nha212FixtureFan(t, "Low"))
+		key := "Low"
+		on := true
+		fan, e := domain.NewFanValue(domain.FanValueInput{On: &on, Speed: &key})
+		if e != nil {
+			return integrations.StateObservation{}, e
+		}
+		value, err = domain.NewFanStateValue(fan)
 	case nhf005ClimateSample:
 		temperature, temperatureErr := domain.NewCelsiusTemperature(21.5)
 		if temperatureErr != nil {
