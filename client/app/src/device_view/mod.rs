@@ -357,7 +357,7 @@ impl DeviceStore {
     ) -> DeviceProjection {
         let mut state = self.0.lock().expect("device store mutex");
         let saved = if state.context.is_some() {
-            draft_retention::Saved::capture(&state)
+            draft_retention::Saved::capture(&mut state)
         } else {
             state.retained_drafts.take()
         }
@@ -592,50 +592,23 @@ impl DeviceStore {
                 };
             }
         }
-        // A fresh capture may rotate UI generations while the same authorized
-        // panel remains open. Move (never clone) digits only across that exact
-        // source/document/revision and capability admission; gaps fail closed.
-        let keep_alarm_scope =
-            state
-                .context
-                .as_ref()
-                .zip(context.as_ref())
-                .is_some_and(|(old, new)| {
-                    old.live()
-                        && new.live()
-                        && old.revision == new.revision
-                        && old.layout.same_document(&new.layout)
-                        && match (&old.source, &new.source) {
-                            (Some(old), Some(new)) => old.same_presentation(new),
-                            (None, None) => cfg!(test),
-                            (Some(_), None) | (None, Some(_)) => false,
-                        }
-                });
-        let old_inputs = std::mem::take(&mut state.alarm_inputs);
-        if keep_alarm_scope {
-            for (generation, input) in old_inputs {
-                let next = state
-                    .context
-                    .as_ref()
-                    .and_then(|old| old.slots.iter().find(|slot| slot.generation == generation))
-                    .and_then(|old| {
-                        context
-                            .as_ref()
-                            .and_then(|new| new.slots.iter().find(|slot| slot.same_admission(old)))
-                    })
-                    .map(|slot| slot.generation);
-                if let Some(next) = next {
-                    state.alarm_inputs.insert(next, input);
-                }
-            }
-        }
+        // An unjoined cohort is not command authority. Secret inputs move via
+        // the bounded archive above and can return only after fresh admission.
+        state.alarm_inputs.clear();
         state.context = context;
         if state.context.is_some() {
-            if let Some(saved) = saved {
+            if let Some(mut saved) = saved {
                 let State {
-                    context, drafts, ..
+                    context,
+                    drafts,
+                    alarm_inputs,
+                    ..
                 } = &mut *state;
-                saved.restore(context.as_ref().expect("fresh context"), drafts);
+                saved.restore(
+                    context.as_ref().expect("fresh context"),
+                    drafts,
+                    alarm_inputs,
+                );
             }
             state.retained_drafts = None;
             state.draft_basis = draft_retention::Basis::new(phase, view, request);

@@ -1,4 +1,4 @@
-//! Ephemeral keypad state is owned by one admitted card generation. Slint sees
+//! Ephemeral keypad state moves only between proven equivalent admissions. Slint sees
 //! only digit counts; no code enters projection models, drafts or command IDs.
 use super::*;
 use zeroize::{Zeroize, Zeroizing};

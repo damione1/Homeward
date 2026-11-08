@@ -1,4 +1,4 @@
-//! Local text survives a capture rotation, without retaining an admission,
+//! Local input survives a capture rotation, without retaining an admission,
 //! gesture, selector session or pending command. The old proof only bounds
 //! these bytes; a joined capture supplies every new command generation.
 use super::*;
@@ -18,6 +18,7 @@ struct Scope {
     query: String,
     room: Option<RoomId>,
     detail: Option<EntityName>,
+    detail_source: Option<crate::dashboard_layout::NodeId>,
     native: Option<Destination>,
 }
 impl From<&ProjectionRequest> for Scope {
@@ -27,6 +28,7 @@ impl From<&ProjectionRequest> for Scope {
             query: request.query.clone(),
             room: request.room.clone(),
             detail: request.detail.clone(),
+            detail_source: request.detail_source.clone(),
             native: request.native.clone(),
         }
     }
@@ -115,13 +117,18 @@ struct Text {
     field: i32,
     draft: panel::Draft,
 }
+struct AlarmInput {
+    binding: Binding,
+    input: alarm_input::Input,
+}
 pub(super) struct Saved {
     pub serial: u64,
     basis: Basis,
     texts: Vec<Text>,
+    alarms: Vec<AlarmInput>,
 }
 impl Saved {
-    pub fn capture(state: &State) -> Option<Self> {
+    pub fn capture(state: &mut State) -> Option<Self> {
         let context = state.context.as_ref()?;
         let basis = state.draft_basis.as_ref()?.clone();
         let texts = context
@@ -145,10 +152,25 @@ impl Saved {
                     })
             })
             .collect::<Vec<_>>();
-        (!texts.is_empty()).then_some(Self {
+        // Move protected input into the same bounded archive. It never enters
+        // a cloned draft, projection, old command or retained admission.
+        let alarms = std::mem::take(&mut state.alarm_inputs)
+            .into_iter()
+            .filter_map(|(generation, input)| {
+                let slot = context.slots.iter().find(|slot| {
+                    slot.generation == generation && slot.access == WriteAccess::Allowed
+                })?;
+                Some(AlarmInput {
+                    binding: Binding::from(slot),
+                    input,
+                })
+            })
+            .collect::<Vec<_>>();
+        (!texts.is_empty() || !alarms.is_empty()).then_some(Self {
             serial: 0,
             basis,
             texts,
+            alarms,
         })
     }
     pub fn permits(
@@ -178,9 +200,10 @@ impl Saved {
         self.basis.deadline
     }
     pub fn restore(
-        &self,
+        &mut self,
         context: &Context,
         drafts: &mut BTreeMap<(CardGeneration, i32), panel::Draft>,
+        alarms: &mut BTreeMap<CardGeneration, alarm_input::Input>,
     ) {
         for slot in &context.slots {
             let binding = Binding::from(slot);
@@ -188,6 +211,15 @@ impl Saved {
                 drafts
                     .entry((slot.generation, text.field))
                     .or_insert_with(|| text.draft.clone());
+            }
+        }
+        for saved in self.alarms.drain(..) {
+            if let Some(slot) = context
+                .slots
+                .iter()
+                .find(|slot| Binding::from(*slot) == saved.binding)
+            {
+                alarms.insert(slot.generation, saved.input);
             }
         }
     }
@@ -222,6 +254,7 @@ impl DeviceStore {
         let mut state = self.0.lock().expect("device store mutex");
         state.retained_drafts = None;
         state.draft_basis = None;
+        state.alarm_inputs.clear();
     }
     pub(super) fn expire_drafts_at(&self, serial: u64, deadline: Stamp) {
         let Some(runtime) = self.1.as_ref() else {

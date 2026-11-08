@@ -1140,3 +1140,124 @@ fn keypad_counts_are_adaptive_and_a_rebound_capability_cannot_reuse_input() {
     assert!(!panel.alarm.can_confirm);
     assert!(store.alarm_confirm(row.token, row.generation, 0).is_err());
 }
+
+#[tokio::test]
+async fn keypad_archive_is_bounded_and_cannot_restore_across_revocation_or_private_clear() {
+    #[derive(Clone, Copy)]
+    enum Change {
+        None,
+        Denied,
+        Definition,
+        PrivateClear,
+        Offline,
+        Expired,
+    }
+    for change in [
+        Change::None,
+        Change::Denied,
+        Change::Definition,
+        Change::PrivateClear,
+        Change::Offline,
+        Change::Expired,
+    ] {
+        let scenario = request();
+        let mut request = scenario.request.clone();
+        let mut entity = interactive_alarm(&request);
+        let first_view = scenario.view(vec![entity.clone()]);
+        let store = DeviceStore::default();
+        let old = store
+            .project(CachePhase::Live, Some(&first_view), &request)
+            .rows
+            .remove(0);
+        store
+            .alarm_digit(old.token, old.generation, request.revision, Some(0))
+            .unwrap();
+        let pending = fixture::capture(vec![entity.clone()]);
+        assert!(
+            store
+                .project(CachePhase::Live, Some(&pending), &request)
+                .rows
+                .is_empty()
+        );
+        assert!(
+            store
+                .alarm_confirm(old.token, old.generation, request.revision)
+                .is_err()
+        );
+        let (serial, deadline) = {
+            let state = store.0.lock().unwrap();
+            let saved = state.retained_drafts.as_ref().expect("PIN-only archive");
+            assert_ne!(
+                saved.serial, 0,
+                "PIN-only archive arms expiry independently of UI"
+            );
+            (saved.serial, saved.deadline())
+        };
+        store.project(
+            CachePhase::Live,
+            Some(&fixture::capture(vec![entity.clone()])),
+            &request,
+        );
+        {
+            let state = store.0.lock().unwrap();
+            let saved = state.retained_drafts.as_ref().unwrap();
+            assert_eq!(
+                (saved.serial, saved.deadline()),
+                (serial, deadline),
+                "unjoined captures grant no grace"
+            );
+        }
+        match change {
+            Change::None => {}
+            Change::Denied => {
+                entity.capabilities[0].action_access = wire::ActionAccess::Denied.into()
+            }
+            Change::Definition => entity.capabilities[0].etag = "replacement-definition".into(),
+            Change::PrivateClear => store.discard_retained_drafts(),
+            Change::Offline => {
+                store.project(CachePhase::Offline, None, &request);
+            }
+            Change::Expired => {
+                let mut state = store.0.lock().unwrap();
+                assert!(
+                    super::draft_retention::expire(&mut state, serial, deadline, deadline)
+                        .is_none()
+                );
+                assert!(state.retained_drafts.is_none());
+            }
+        }
+        let joined = fixture::capture(vec![entity.clone()]);
+        request.dashboard = crate::dashboard::LayoutState::Ready(Arc::new(
+            crate::dashboard::joined_fixture(&joined),
+        ));
+        let row = store
+            .project(CachePhase::Live, Some(&joined), &request)
+            .rows
+            .remove(0);
+        let panel = super::detail::project(&row, row.ui(None, &Default::default()), None);
+        assert_eq!(
+            panel.alarm.entered_count,
+            if matches!(change, Change::None) { 1 } else { 0 }
+        );
+        assert_eq!(panel.alarm.can_confirm, matches!(change, Change::None));
+        assert!(store.0.lock().unwrap().retained_drafts.is_none());
+        if !matches!(change, Change::None) {
+            entity.capabilities[0].action_access = wire::ActionAccess::Allowed.into();
+            entity.capabilities[0].etag = "capability-definition".into();
+            let restored = fixture::capture(vec![entity]);
+            request.dashboard = crate::dashboard::LayoutState::Ready(Arc::new(
+                crate::dashboard::joined_fixture(&restored),
+            ));
+            let row = store
+                .project(CachePhase::Live, Some(&restored), &request)
+                .rows
+                .remove(0);
+            assert!(
+                store
+                    .alarm_confirm(row.token, row.generation, request.revision)
+                    .is_err(),
+                "reappearance never resurrects a code"
+            );
+        }
+    }
+}
