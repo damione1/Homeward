@@ -1204,7 +1204,7 @@ func TestNHA040StateAttributeOnlyAndForPredicate(t *testing.T) {
 	stamp, _ := domain.NewSourceStamp("fixture", nil)
 	lightState := func(brightness float64, revision uint64) domain.ObservedState {
 		t.Helper()
-		light, err := domain.NewLightValue(true, &brightness, nil)
+		light, err := domain.NewLightValue(domain.LightValueInput{On: true, Brightness: &brightness, ColorTemperatureMireds: nil})
 		if err != nil {
 			t.Fatal(err)
 		}

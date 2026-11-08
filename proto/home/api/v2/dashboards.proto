@@ -10,6 +10,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "home/api/v2/extended_traits.proto";
 import "home/api/v2/traits.proto";
+import "home/api/v2/home.proto";
 
 option go_package = "github.com/damione1/Homeward/gen/home/api/v2;apiv2";
 option java_multiple_files = true;
@@ -182,7 +183,7 @@ message DashboardLiteral {
     // Explicit thermostat mode, not inferred activity.
     TemperatureMode temperature_mode = 10;
     // Explicit fan speed, never synthesized into power.
-    FanSpeed fan_speed = 11;
+    string fan_speed = 11;
     // Explicit weather condition.
     WeatherCondition weather_condition = 12;
     // Explicit residence value.
@@ -356,6 +357,8 @@ message DashboardTileNode {
   DashboardInteractions interactions = 6;
   // Explicit cover association; absent when the secondary lock is unreadable.
   DashboardCoverLock cover_lock = 7;
+  ControlVisualFamily visual_family = 8;
+  repeated ControlModule modules = 9;
 }
 
 // A bounded authored recipe, never a downloaded template implementation.
@@ -374,6 +377,8 @@ message DashboardRecipeNode {
   DashboardInteractions interactions = 6;
   // Explicit cover association; absent when the secondary lock is unreadable.
   DashboardCoverLock cover_lock = 7;
+  ControlVisualFamily visual_family = 8;
+  repeated ControlModule modules = 9;
 }
 
 // A popup is a container with a stable local destination identity.

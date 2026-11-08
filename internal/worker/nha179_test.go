@@ -152,7 +152,7 @@ func TestNHA179WorkerDiscoveryJoinsConfiguredSourceToCasetaProfile(t *testing.T)
 		t.Fatal(err)
 	}
 	level := 25.0
-	light, err := domain.NewLightValue(true, &level, nil)
+	light, err := domain.NewLightValue(domain.LightValueInput{On: true, Brightness: &level, ColorTemperatureMireds: nil})
 	if err != nil {
 		t.Fatal(err)
 	}

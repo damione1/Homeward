@@ -55,7 +55,7 @@ func fixture(t *testing.T, label string, availability *domain.Availability) imag
 	}
 	var observed *domain.ObservedState
 	if availability != nil {
-		light, err := domain.NewLightValue(false, pointer(0.0), nil)
+		light, err := domain.NewLightValue(domain.LightValueInput{On: false, Brightness: pointer(0.0), ColorTemperatureMireds: nil})
 		if err != nil {
 			t.Fatal(err)
 		}

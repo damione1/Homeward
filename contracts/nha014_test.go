@@ -282,7 +282,7 @@ func TestNHA014InvalidDeclarations(t *testing.T) {
 	}
 	for _, d := range testNHA014Descriptions(t) {
 		if d.SchemaId == FanSchema {
-			d.GetFan().SpeedOptions = []string{"low", "low"}
+			d.GetFan().Speed = &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "low"}, {Key: "low"}}}
 		}
 		if d.SchemaId == ClimateSchema {
 			d.GetClimate().ModeOptions = append(d.GetClimate().ModeOptions, registry.ClimateMode(999))

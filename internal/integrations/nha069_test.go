@@ -40,7 +40,7 @@ func TestNHA069CorrelatedLightProofRequiresEveryRequestedField(t *testing.T) {
 	id := nha025ID(t, rig.request)
 	quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
 	publishLight := func(b *float64, ct *uint32, cause *domain.Causality) error {
-		light, err := domain.NewLightValue(true, b, ct)
+		light, err := domain.NewLightValue(domain.LightValueInput{On: true, Brightness: b, ColorTemperatureMireds: ct})
 		if err != nil {
 			return err
 		}

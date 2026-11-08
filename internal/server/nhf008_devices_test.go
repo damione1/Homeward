@@ -121,7 +121,7 @@ func (d nhf008Device) capability() *registrywire.CapabilityDescription {
 		result.Constraints = &registrywire.CapabilityDescription_Climate{Climate: c}
 	case nhf008Fan:
 		result.SchemaId = contracts.FanSchema
-		result.Constraints = &registrywire.CapabilityDescription_Fan{Fan: &registrywire.FanConstraints{SetOn: true, SpeedOptions: []string{"Off", "Low", "High"}}}
+		result.Constraints = &registrywire.CapabilityDescription_Fan{Fan: &registrywire.FanConstraints{SetOn: true, ObservesPower: true, Speed: &registrywire.ControlChoices{Choices: []*registrywire.ControlChoice{{Key: "Off"}, {Key: "Low"}, {Key: "High"}}}}}
 	case nhf008Light:
 		result.SchemaId = contracts.LightSchema
 		result.Constraints = &registrywire.CapabilityDescription_Light{Light: &registrywire.LightConstraints{SetOn: true, ColorTempMireds: &registrywire.NumberBounds{Minimum: 250, Maximum: 454, Step: nhf008Pointer(7.)}}}
@@ -154,9 +154,9 @@ func (d nhf008Device) observation() (integrations.StateObservation, error) {
 		}
 		value, err = domain.NewClimateStateValue(climate)
 	case nhf008Fan:
-		value, err = domain.NewFanStateValue(domain.FanSpeedOff)
+		value, err = domain.NewFanStateValue(nha212FixtureFan(t, "Off"))
 	case nhf008Light:
-		light, e := domain.NewLightValue(false, nil, nhf008Pointer(uint32(334)))
+		light, e := domain.NewLightValue(domain.LightValueInput{On: false, Brightness: nil, ColorTemperatureMireds: nhf008Pointer(uint32(334))})
 		if e != nil {
 			return integrations.StateObservation{}, e
 		}

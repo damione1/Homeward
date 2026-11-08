@@ -219,7 +219,8 @@ func formatCurrent(value domain.StateValue) (string, []template.Binding, error) 
 		return text, []template.Binding{{Name: "unit_of_measurement", Value: v}}, nil
 	case domain.ValueLight:
 		light, _ := value.Light()
-		on, _, mireds, err := light.Components()
+		lightParts, lightPartsErr := light.Components()
+		on, mireds, err := lightParts.On, lightParts.ColorTemperatureMireds, lightPartsErr
 		if err != nil {
 			return "", nil, err
 		}
@@ -233,10 +234,14 @@ func formatCurrent(value domain.StateValue) (string, []template.Binding, error) 
 		return "off", attrs, nil
 	case domain.ValueFan:
 		speed, _ := value.Fan()
-		if _, err := speed.String(); err != nil {
+		parts, err := speed.Components()
+		if err != nil {
 			return "", nil, err
 		}
-		if speed == domain.FanSpeedOff {
+		if parts.On == nil {
+			return "unknown", nil, nil
+		}
+		if !*parts.On {
 			return "off", nil, nil
 		}
 		return "on", nil, nil

@@ -15,40 +15,18 @@ import (
 
 var ErrInvalidWireState = errors.New("invalid wire state")
 
-func AdmitWireFanSpeed(speed state.FanSpeed) (domain.FanSpeed, error) {
-	switch speed {
-	case state.FanSpeed_FAN_SPEED_OFF:
-		return domain.FanSpeedOff, nil
-	case state.FanSpeed_FAN_SPEED_LOW:
-		return domain.FanSpeedLow, nil
-	case state.FanSpeed_FAN_SPEED_MEDIUM:
-		return domain.FanSpeedMedium, nil
-	case state.FanSpeed_FAN_SPEED_MEDIUM_HIGH:
-		return domain.FanSpeedMediumHigh, nil
-	case state.FanSpeed_FAN_SPEED_HIGH:
-		return domain.FanSpeedHigh, nil
-	case state.FanSpeed_FAN_SPEED_UNSPECIFIED:
-	default:
+func AdmitWireFanValue(v *state.FanValue) (domain.FanValue, error) {
+	if v == nil || !knownFieldsOnly(v.ProtoReflect()) {
+		return domain.FanValue{}, ErrInvalidWireState
 	}
-	return domain.FanSpeedUnspecified, ErrInvalidWireState
+	return domain.NewFanValue(domain.FanValueInput{On: v.On, Speed: v.Speed, Level: v.Level})
 }
-
-func WireFanSpeed(speed domain.FanSpeed) (state.FanSpeed, error) {
-	switch speed {
-	case domain.FanSpeedOff:
-		return state.FanSpeed_FAN_SPEED_OFF, nil
-	case domain.FanSpeedLow:
-		return state.FanSpeed_FAN_SPEED_LOW, nil
-	case domain.FanSpeedMedium:
-		return state.FanSpeed_FAN_SPEED_MEDIUM, nil
-	case domain.FanSpeedMediumHigh:
-		return state.FanSpeed_FAN_SPEED_MEDIUM_HIGH, nil
-	case domain.FanSpeedHigh:
-		return state.FanSpeed_FAN_SPEED_HIGH, nil
-	case domain.FanSpeedUnspecified:
-	default:
+func WireFanValue(v domain.FanValue) (*state.FanValue, error) {
+	x, err := v.Components()
+	if err != nil {
+		return nil, err
 	}
-	return state.FanSpeed_FAN_SPEED_UNSPECIFIED, ErrInvalidWireState
+	return &state.FanValue{On: x.On, Speed: x.Speed, Level: x.Level}, nil
 }
 
 // StateCapabilityAdmission supplies the capability context missing from state
@@ -330,7 +308,7 @@ func AdmitWireState(wire *state.ObservedState, previous *domain.ObservedState, m
 		if item == nil || item.Light == nil || item.Light.On == nil || len(item.Light.ProtoReflect().GetUnknown()) != 0 {
 			return domain.ObservedState{}, ErrInvalidWireState
 		}
-		light, err := domain.NewLightValue(*item.Light.On, item.Light.BrightnessPercent, item.Light.ColorTempMireds)
+		light, err := AdmitLightValue(item.Light)
 		if err != nil {
 			return domain.ObservedState{}, err
 		}
@@ -349,7 +327,7 @@ func AdmitWireState(wire *state.ObservedState, previous *domain.ObservedState, m
 		if item == nil || item.Fan == nil || len(item.Fan.ProtoReflect().GetUnknown()) != 0 || measurement == nil || measurement.Catalog == nil {
 			return domain.ObservedState{}, ErrInvalidWireState
 		}
-		speed, err := AdmitWireFanSpeed(item.Fan.Speed)
+		speed, err := AdmitWireFanValue(item.Fan)
 		if err != nil || measurement.Endpoint == "" || measurement.Catalog.AdmitDomainFan(entity, measurement.Endpoint, speed) != nil {
 			return domain.ObservedState{}, ErrInvalidWireState
 		}
@@ -525,18 +503,19 @@ func EncodeObservedState(observed domain.ObservedState) (*state.ObservedState, e
 			w.Value = &state.ObservedState_Measurement{Measurement: &state.Measurement{Value: parts.Value, Unit: unit}}
 		case domain.ValueLight:
 			light, _ := value.Light()
-			on, brightness, colorTemp, err := light.Components()
+			lightParts, lightPartsErr := light.Components()
+			on, brightness, colorTemp, err := lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds, lightPartsErr
 			if err != nil {
 				return nil, err
 			}
-			w.Value = &state.ObservedState_Light{Light: &state.LightValue{On: &on, BrightnessPercent: brightness, ColorTempMireds: colorTemp}}
+			w.Value = &state.ObservedState_Light{Light: &state.LightValue{On: &on, BrightnessPercent: brightness, ColorTempMireds: colorTemp, Rgb: WireRGB(lightParts.RGB), Preset: lightParts.Preset}}
 		case domain.ValueFan:
 			speed, _ := value.Fan()
-			wireSpeed, err := WireFanSpeed(speed)
+			wireSpeed, err := WireFanValue(speed)
 			if err != nil {
 				return nil, err
 			}
-			w.Value = &state.ObservedState_Fan{Fan: &state.FanValue{Speed: wireSpeed}}
+			w.Value = &state.ObservedState_Fan{Fan: wireSpeed}
 		case domain.ValueClimate:
 			climate, _ := value.Climate()
 			wireClimate, err := EncodeClimateValue(climate)

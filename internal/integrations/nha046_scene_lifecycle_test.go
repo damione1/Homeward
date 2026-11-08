@@ -236,7 +236,7 @@ func TestNHA046TemporaryPartialResultKeepsMemberRefusal(t *testing.T) {
 	lightAlias, _ := domain.ParseHAAlias("light.nha179")
 	switchAlias, _ := domain.ParseHAAlias("switch.missing")
 	level := 37.5
-	value, err := domain.NewLightValue(true, &level, nil)
+	value, err := domain.NewLightValue(domain.LightValueInput{On: true, Brightness: &level, ColorTemperatureMireds: nil})
 	if err != nil {
 		t.Fatal(err)
 	}

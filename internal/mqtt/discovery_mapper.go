@@ -158,7 +158,7 @@ func newDiscoveryMapper(settings Settings, repository discoveryRegistry, logger 
 
 func (m *DiscoveryMapper) admitTransition(key integrations.SourceKey, c discoveryComponent) transitionProfile {
 	if m.mode != ModeActive || c.kind != componentLight || !c.hasCommand ||
-		!c.brightness || !c.brightnessOnly || c.colorTemp || c.brightnessScale != 254 ||
+		!c.brightness || !c.brightnessOnly || c.colorTemp || c.rgb || len(c.presets) != 0 || c.brightnessScale != 254 ||
 		c.manufacturer != "IKEA" || c.modelID != "ICPSHC24-30EU-IL-1/ICPSHC24-10EU-IL-2" ||
 		c.transitionAdvertised != nil && !*c.transitionAdvertised {
 		return transitionUnspecified
@@ -878,12 +878,16 @@ func lightState(c discoveryComponent, payload []byte, previous *domain.StateValu
 	var oldOn bool
 	var brightness *float64
 	var colorTemp *uint32
+	var rgb *domain.RGB
+	var preset *string
 	if previous != nil {
 		old, ok := previous.Light()
 		if !ok {
 			return domain.StateValue{}, errDiscoveryValue
 		}
-		oldOn, brightness, colorTemp, err = old.Components()
+		lightParts, lightPartsErr := old.Components()
+		oldOn, brightness, colorTemp, err = lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds, lightPartsErr
+		rgb, preset = lightParts.RGB, lightParts.Preset
 		if err != nil {
 			return domain.StateValue{}, err
 		}
@@ -896,7 +900,7 @@ func lightState(c discoveryComponent, payload []byte, previous *domain.StateValu
 		}
 		on = state == "ON"
 		if !on {
-			brightness, colorTemp = nil, nil
+			brightness, colorTemp, rgb, preset = nil, nil, nil, nil
 		}
 	} else if previous == nil {
 		return domain.StateValue{}, errDiscoveryValue
@@ -916,7 +920,29 @@ func lightState(c discoveryComponent, payload []byte, previous *domain.StateValu
 		value := scale * 100 / c.brightnessScale
 		brightness = &value
 	}
-	if raw, exists := object["color_temp"]; exists {
+	mode := ""
+	if raw, exists := object["color_mode"]; exists {
+		var ok bool
+		mode, ok = raw.(string)
+		if !ok || (mode != "rgb" && mode != "color_temp" && mode != "brightness" && mode != "onoff") {
+			return domain.StateValue{}, errDiscoveryValue
+		}
+		if mode == "rgb" && !c.rgb || mode == "color_temp" && !c.colorTemp {
+			return domain.StateValue{}, errDiscoveryValue
+		}
+	}
+	_, hasRGB := object["color"]
+	_, hasTemp := object["color_temp"]
+	if mode == "" && hasRGB && hasTemp {
+		return domain.StateValue{}, errDiscoveryValue
+	}
+	if mode == "rgb" {
+		colorTemp = nil
+	}
+	if mode == "color_temp" {
+		rgb = nil
+	}
+	if raw, exists := object["color_temp"]; exists && mode != "rgb" {
 		if !c.colorTemp {
 			return domain.StateValue{}, errDiscoveryValue
 		}
@@ -930,8 +956,46 @@ func lightState(c discoveryComponent, payload []byte, previous *domain.StateValu
 		}
 		value := uint32(parsed)
 		colorTemp = &value
+		rgb = nil
 	}
-	value, err := domain.NewLightValue(on, brightness, colorTemp)
+	if raw, exists := object["color"]; exists && mode != "color_temp" {
+		channels, ok := raw.(map[string]any)
+		if !ok || !c.rgb {
+			return domain.StateValue{}, errDiscoveryValue
+		}
+		values := [3]uint8{}
+		for i, key := range []string{"r", "g", "b"} {
+			raw, ok := channels[key].(json.Number)
+			if !ok {
+				return domain.StateValue{}, errDiscoveryValue
+			}
+			n, err := strconv.ParseUint(string(raw), 10, 8)
+			if err != nil {
+				return domain.StateValue{}, errDiscoveryValue
+			}
+			values[i] = uint8(n)
+		}
+		rgb = &domain.RGB{Red: values[0], Green: values[1], Blue: values[2]}
+		colorTemp = nil
+	}
+	if raw, exists := object["effect"]; exists {
+		key, ok := raw.(string)
+		if !ok {
+			return domain.StateValue{}, errDiscoveryValue
+		}
+		found := false
+		for _, admitted := range c.presets {
+			if key == admitted {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return domain.StateValue{}, errDiscoveryValue
+		}
+		preset = &key
+	}
+	value, err := domain.NewLightValue(domain.LightValueInput{On: on, Brightness: brightness, ColorTemperatureMireds: colorTemp, RGB: rgb, Preset: preset})
 	if err != nil {
 		return domain.StateValue{}, err
 	}

@@ -58,7 +58,7 @@ func validCasetaHA100V1Description(descriptions []*registry.CapabilityDescriptio
 		return false
 	}
 	light := d.GetLight()
-	if light == nil || !light.SetOn || light.ColorTempMireds != nil || light.BrightnessPercent == nil || light.TransitionSeconds == nil {
+	if light == nil || !light.SetOn || light.ColorTempMireds != nil || light.Rgb || len(light.GetPresets().GetChoices()) != 0 || light.BrightnessPercent == nil || light.TransitionSeconds == nil {
 		return false
 	}
 	b, t := light.BrightnessPercent, light.TransitionSeconds

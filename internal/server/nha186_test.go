@@ -59,7 +59,7 @@ func (p *nha186Lights) Start(ctx context.Context, source integrations.SessionHos
 	}
 	quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
 	level := 0.0
-	light, err := domain.NewLightValue(false, &level, nil)
+	light, err := domain.NewLightValue(domain.LightValueInput{On: false, Brightness: &level, ColorTemperatureMireds: nil})
 	if err != nil {
 		return err
 	}

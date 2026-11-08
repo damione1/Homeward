@@ -132,7 +132,7 @@ func (d dashboardWidgetsDevice) observation(condition *bool, stale bool) (integr
 		}
 		value, err = domain.NewClimateStateValue(climate)
 	case "light":
-		light, e := domain.NewLightValue(*d.On, nhf008Pointer(30.), nil)
+		light, e := domain.NewLightValue(domain.LightValueInput{On: *d.On, Brightness: nhf008Pointer(30.), ColorTemperatureMireds: nil})
 		if e != nil {
 			return integrations.StateObservation{}, e
 		}
@@ -151,9 +151,9 @@ func (d dashboardWidgetsDevice) observation(condition *bool, stale bool) (integr
 	case "alarm":
 		value, err = domain.NewAlarmStateValue(domain.AlarmStateDisarmed)
 	case "fan":
-		speed := domain.FanSpeedOff
+		speed := nha212FixtureFan(t, "Off")
 		if *d.On {
-			speed = domain.FanSpeedHigh
+			speed = nha212FixtureFan(t, "High")
 		}
 		value, err = domain.NewFanStateValue(speed)
 	case "switch":

@@ -114,105 +114,129 @@ const (
 	ValuePresenceDetails
 )
 
-// FanSpeed is closed to the LEAP speeds the Host can prove. The zero value is
-// absent and cannot be published as a present fan reading.
-type FanSpeed uint8
+// FanValue preserves native source identity. A discrete key is never coerced
+// to an evenly spaced percentage, and power is never inferred from that key.
+type FanValueInput struct {
+	On    *bool
+	Speed *string
+	Level *float64
+}
+type FanValue struct {
+	valid, on, hasOn bool
+	speed            string
+	level            float64
+	hasLevel         bool
+}
 
-const (
-	FanSpeedUnspecified FanSpeed = iota
-	FanSpeedOff
-	FanSpeedLow
-	FanSpeedMedium
-	FanSpeedMediumHigh
-	FanSpeedHigh
-)
-
-func ParseFanSpeed(raw string) (FanSpeed, error) {
-	switch raw {
-	case "Off":
-		return FanSpeedOff, nil
-	case "Low":
-		return FanSpeedLow, nil
-	case "Medium":
-		return FanSpeedMedium, nil
-	case "MediumHigh":
-		return FanSpeedMediumHigh, nil
-	case "High":
-		return FanSpeedHigh, nil
-	default:
-		return FanSpeedUnspecified, ErrInvalidState
+func NewFanValue(v FanValueInput) (FanValue, error) {
+	if v.On == nil && v.Speed == nil && v.Level == nil || v.Speed != nil && v.Level != nil {
+		return FanValue{}, ErrInvalidState
 	}
-}
-
-func (s FanSpeed) String() (string, error) {
-	switch s {
-	case FanSpeedOff:
-		return "Off", nil
-	case FanSpeedLow:
-		return "Low", nil
-	case FanSpeedMedium:
-		return "Medium", nil
-	case FanSpeedMediumHigh:
-		return "MediumHigh", nil
-	case FanSpeedHigh:
-		return "High", nil
-	default:
-		return "", ErrInvalidState
+	out := FanValue{valid: true}
+	if v.On != nil {
+		out.on, out.hasOn = *v.On, true
 	}
-}
-
-// LightValue preserves each observed field independently. Off is a present
-// value; absent brightness and color temperature are never filled from zero.
-type LightValue struct {
-	valid           bool
-	on              bool
-	brightness      float64
-	hasBrightness   bool
-	colorTempMireds uint32
-	hasColorTemp    bool
-}
-
-func NewLightValue(on bool, brightness *float64, colorTempMireds *uint32) (LightValue, error) {
-	v := LightValue{valid: true, on: on}
-	if brightness != nil {
-		if math.IsNaN(*brightness) || math.IsInf(*brightness, 0) || *brightness < 0 || *brightness > 100 {
-			return LightValue{}, ErrInvalidState
+	if v.Speed != nil {
+		if !ValidControlKey(*v.Speed) {
+			return FanValue{}, ErrInvalidState
 		}
-		v.brightness, v.hasBrightness = *brightness, true
+		out.speed = *v.Speed
 	}
-	if colorTempMireds != nil {
-		if *colorTempMireds == 0 || *colorTempMireds > 1000 {
-			return LightValue{}, ErrInvalidState
+	if v.Level != nil {
+		if math.IsNaN(*v.Level) || math.IsInf(*v.Level, 0) {
+			return FanValue{}, ErrInvalidState
 		}
-		v.colorTempMireds, v.hasColorTemp = *colorTempMireds, true
+		out.level, out.hasLevel = *v.Level, true
 	}
-	return v, nil
+	return out, nil
 }
-
-func (v LightValue) Components() (bool, *float64, *uint32, error) {
+func (v FanValue) Components() (FanValueInput, error) {
 	if !v.valid {
-		return false, nil, nil, ErrInvalidState
+		return FanValueInput{}, ErrInvalidState
 	}
-	var brightness *float64
-	var colorTemp *uint32
-	if v.hasBrightness {
-		brightness = &v.brightness
+	out := FanValueInput{}
+	if v.hasOn {
+		out.On = &v.on
 	}
-	if v.hasColorTemp {
-		colorTemp = &v.colorTempMireds
+	if v.speed != "" {
+		out.Speed = &v.speed
 	}
-	if _, err := NewLightValue(v.on, brightness, colorTemp); err != nil {
-		return false, nil, nil, err
+	if v.hasLevel {
+		out.Level = &v.level
 	}
-	if brightness != nil {
-		copyValue := *brightness
-		brightness = &copyValue
+	return out, nil
+}
+
+// RGB is a complete source color. The constructor rejects fractional or absent
+// channels at the wire boundary; uint8 preserves the admitted channel bounds.
+type RGB struct{ Red, Green, Blue uint8 }
+
+// LightValueInput preserves source field presence. Temperature and RGB are
+// exclusive color modes; presets are exact source keys, independent of color.
+type LightValueInput struct {
+	On                     bool
+	Brightness             *float64
+	ColorTemperatureMireds *uint32
+	RGB                    *RGB
+	Preset                 *string
+}
+type LightValue struct {
+	valid bool
+	input LightValueInput
+}
+
+func copyLightInput(v LightValueInput) LightValueInput {
+	if v.Brightness != nil {
+		x := *v.Brightness
+		v.Brightness = &x
 	}
-	if colorTemp != nil {
-		copyValue := *colorTemp
-		colorTemp = &copyValue
+	if v.ColorTemperatureMireds != nil {
+		x := *v.ColorTemperatureMireds
+		v.ColorTemperatureMireds = &x
 	}
-	return v.on, brightness, colorTemp, nil
+	if v.RGB != nil {
+		x := *v.RGB
+		v.RGB = &x
+	}
+	if v.Preset != nil {
+		x := *v.Preset
+		v.Preset = &x
+	}
+	return v
+}
+func NewLightValue(v LightValueInput) (LightValue, error) {
+	if v.Brightness != nil && (math.IsNaN(*v.Brightness) || math.IsInf(*v.Brightness, 0) || *v.Brightness < 0 || *v.Brightness > 100) {
+		return LightValue{}, ErrInvalidState
+	}
+	if v.ColorTemperatureMireds != nil && (*v.ColorTemperatureMireds == 0 || *v.ColorTemperatureMireds > 1000 || v.RGB != nil) {
+		return LightValue{}, ErrInvalidState
+	}
+	if v.Preset != nil && !ValidControlKey(*v.Preset) {
+		return LightValue{}, ErrInvalidState
+	}
+	return LightValue{valid: true, input: copyLightInput(v)}, nil
+}
+func (v LightValue) Components() (LightValueInput, error) {
+	if !v.valid {
+		return LightValueInput{}, ErrInvalidState
+	}
+	if _, err := NewLightValue(v.input); err != nil {
+		return LightValueInput{}, err
+	}
+	return copyLightInput(v.input), nil
+}
+
+// ValidControlKey preserves source spelling and order; keys are not labels.
+func ValidControlKey(v string) bool {
+	if len(v) == 0 || len(v) > 16384 || !utf8.ValidString(v) {
+		return false
+	}
+	for _, c := range v {
+		if c == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // StateValue is a closed sum. Its zero value cannot be published. False and
@@ -222,7 +246,7 @@ type StateValue struct {
 	switchOn    bool
 	measurement Measurement
 	light       LightValue
-	fan         FanSpeed
+	fan         FanValue
 	climate     ClimateValue
 	native      nativeStatePayload
 }
@@ -237,14 +261,14 @@ func NewMeasurementValue(measurement Measurement) (StateValue, error) {
 }
 
 func NewLightStateValue(light LightValue) (StateValue, error) {
-	if _, _, _, err := light.Components(); err != nil {
+	if _, err := light.Components(); err != nil {
 		return StateValue{}, err
 	}
 	return StateValue{kind: ValueLight, light: light}, nil
 }
 
-func NewFanStateValue(speed FanSpeed) (StateValue, error) {
-	if _, err := speed.String(); err != nil {
+func NewFanStateValue(speed FanValue) (StateValue, error) {
+	if _, err := speed.Components(); err != nil {
 		return StateValue{}, err
 	}
 	return StateValue{kind: ValueFan, fan: speed}, nil
@@ -269,11 +293,11 @@ func (v StateValue) Kind() (ValueKind, error) {
 			return ValueMeasurement, nil
 		}
 	case ValueLight:
-		if _, _, _, err := v.light.Components(); err == nil {
+		if _, err := v.light.Components(); err == nil {
 			return ValueLight, nil
 		}
 	case ValueFan:
-		if _, err := v.fan.String(); err == nil {
+		if _, err := v.fan.Components(); err == nil {
 			return ValueFan, nil
 		}
 	case ValueClimate:
@@ -297,7 +321,7 @@ func (v StateValue) Measurement() (Measurement, bool) {
 
 func (v StateValue) Light() (LightValue, bool) { return v.light, v.kind == ValueLight }
 
-func (v StateValue) Fan() (FanSpeed, bool) { return v.fan, v.kind == ValueFan }
+func (v StateValue) Fan() (FanValue, bool) { return v.fan, v.kind == ValueFan }
 
 func (v StateValue) Climate() (ClimateValue, bool) { return v.climate, v.kind == ValueClimate }
 

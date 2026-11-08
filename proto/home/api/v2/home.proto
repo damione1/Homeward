@@ -125,6 +125,8 @@ message Capability {
   // supports_set fields do not grant access. Media route dependencies can further
   // deny preparation through the media trait action_access. Rechecked at effect.
   ActionAccess action_access = 21 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Independently bound functional modules; style never grants write authority.
+  repeated ControlModule modules = 22 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Exactly one trait is supplied. Absence is unsupported, never Power OFF.
   oneof trait {
     // Binary controllable power, reusable for a lamp, outlet or fan.
@@ -393,4 +395,37 @@ enum ValidationReason {
   VALIDATION_REASON_INCONSISTENT_FIELDS = 10;
   // An update mask names an unsupported or malformed field selection.
   VALIDATION_REASON_INVALID_MASK = 11;
+}
+
+// Function is independent of display family and retains its exact source slot.
+message ControlModule {
+  string capability = 1 [(google.api.resource_reference).type = "homeward.damiengoehrig.ca/Capability"];
+  string etag = 2;
+  ActionAccess action_access = 3;
+  ControlModuleRole role = 4;
+  oneof definition {
+    bool power = 5;
+    NumberBounds range = 6;
+    ControlChoices steps = 7;
+    ColorDefinition color = 8;
+    ControlChoices preset = 9;
+    CoverDefinition motion = 10;
+  }
+}
+enum ControlModuleRole {
+  CONTROL_MODULE_ROLE_UNSPECIFIED = 0;
+  CONTROL_MODULE_ROLE_POWER = 1;
+  CONTROL_MODULE_ROLE_RANGE = 2;
+  CONTROL_MODULE_ROLE_STEPS = 3;
+  CONTROL_MODULE_ROLE_COLOR = 4;
+  CONTROL_MODULE_ROLE_PRESET = 5;
+  CONTROL_MODULE_ROLE_MOTION = 6;
+}
+enum ControlVisualFamily {
+  CONTROL_VISUAL_FAMILY_UNSPECIFIED = 0;
+  CONTROL_VISUAL_FAMILY_BINARY = 1;
+  CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL = 2;
+  CONTROL_VISUAL_FAMILY_STEPPED_LEVEL = 3;
+  CONTROL_VISUAL_FAMILY_BLIND = 4;
+  CONTROL_VISUAL_FAMILY_GARAGE = 5;
 }

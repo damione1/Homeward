@@ -69,7 +69,7 @@ func TestNHA180CapturedLightTargetAndDedupFence(t *testing.T) {
 	}
 	publish := func(level float64, correlated bool) {
 		t.Helper()
-		light, err := domain.NewLightValue(true, &level, nil)
+		light, err := domain.NewLightValue(domain.LightValueInput{On: true, Brightness: &level, ColorTemperatureMireds: nil})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -23976,100 +23976,6 @@ impl ::buffa::Enumeration for HelperReason {
         &[Self::HELPER_REASON_UNSPECIFIED, Self::HELPER_REASON_NO_AUTHORIZED_TARGET]
     }
 }
-/// Closed observed fan speeds, independent of open source selector keys.
-#[allow(non_camel_case_types)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-#[repr(i32)]
-pub enum FanSpeed {
-    /// No observed value, never an executable default.
-    FAN_SPEED_UNSPECIFIED = 0i32,
-    /// Observed stopped fan.
-    FAN_SPEED_OFF = 1i32,
-    /// Observed low speed.
-    FAN_SPEED_LOW = 2i32,
-    /// Observed medium speed.
-    FAN_SPEED_MEDIUM = 3i32,
-    /// Observed medium-high speed.
-    FAN_SPEED_MEDIUM_HIGH = 4i32,
-    /// Observed high speed.
-    FAN_SPEED_HIGH = 5i32,
-}
-impl FanSpeed {
-    ///Idiomatic alias for [`Self::FAN_SPEED_UNSPECIFIED`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Unspecified: Self = Self::FAN_SPEED_UNSPECIFIED;
-    ///Idiomatic alias for [`Self::FAN_SPEED_OFF`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Off: Self = Self::FAN_SPEED_OFF;
-    ///Idiomatic alias for [`Self::FAN_SPEED_LOW`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Low: Self = Self::FAN_SPEED_LOW;
-    ///Idiomatic alias for [`Self::FAN_SPEED_MEDIUM`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Medium: Self = Self::FAN_SPEED_MEDIUM;
-    ///Idiomatic alias for [`Self::FAN_SPEED_MEDIUM_HIGH`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const MediumHigh: Self = Self::FAN_SPEED_MEDIUM_HIGH;
-    ///Idiomatic alias for [`Self::FAN_SPEED_HIGH`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const High: Self = Self::FAN_SPEED_HIGH;
-}
-impl ::core::default::Default for FanSpeed {
-    fn default() -> Self {
-        Self::FAN_SPEED_UNSPECIFIED
-    }
-}
-impl ::buffa::Enumeration for FanSpeed {
-    fn from_i32(value: i32) -> ::core::option::Option<Self> {
-        match value {
-            0i32 => ::core::option::Option::Some(Self::FAN_SPEED_UNSPECIFIED),
-            1i32 => ::core::option::Option::Some(Self::FAN_SPEED_OFF),
-            2i32 => ::core::option::Option::Some(Self::FAN_SPEED_LOW),
-            3i32 => ::core::option::Option::Some(Self::FAN_SPEED_MEDIUM),
-            4i32 => ::core::option::Option::Some(Self::FAN_SPEED_MEDIUM_HIGH),
-            5i32 => ::core::option::Option::Some(Self::FAN_SPEED_HIGH),
-            _ => ::core::option::Option::None,
-        }
-    }
-    fn to_i32(&self) -> i32 {
-        *self as i32
-    }
-    fn proto_name(&self) -> &'static str {
-        match self {
-            Self::FAN_SPEED_UNSPECIFIED => "FAN_SPEED_UNSPECIFIED",
-            Self::FAN_SPEED_OFF => "FAN_SPEED_OFF",
-            Self::FAN_SPEED_LOW => "FAN_SPEED_LOW",
-            Self::FAN_SPEED_MEDIUM => "FAN_SPEED_MEDIUM",
-            Self::FAN_SPEED_MEDIUM_HIGH => "FAN_SPEED_MEDIUM_HIGH",
-            Self::FAN_SPEED_HIGH => "FAN_SPEED_HIGH",
-        }
-    }
-    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
-        match name {
-            "FAN_SPEED_UNSPECIFIED" => {
-                ::core::option::Option::Some(Self::FAN_SPEED_UNSPECIFIED)
-            }
-            "FAN_SPEED_OFF" => ::core::option::Option::Some(Self::FAN_SPEED_OFF),
-            "FAN_SPEED_LOW" => ::core::option::Option::Some(Self::FAN_SPEED_LOW),
-            "FAN_SPEED_MEDIUM" => ::core::option::Option::Some(Self::FAN_SPEED_MEDIUM),
-            "FAN_SPEED_MEDIUM_HIGH" => {
-                ::core::option::Option::Some(Self::FAN_SPEED_MEDIUM_HIGH)
-            }
-            "FAN_SPEED_HIGH" => ::core::option::Option::Some(Self::FAN_SPEED_HIGH),
-            _ => ::core::option::Option::None,
-        }
-    }
-    fn values() -> &'static [Self] {
-        &[
-            Self::FAN_SPEED_UNSPECIFIED,
-            Self::FAN_SPEED_OFF,
-            Self::FAN_SPEED_LOW,
-            Self::FAN_SPEED_MEDIUM,
-            Self::FAN_SPEED_MEDIUM_HIGH,
-            Self::FAN_SPEED_HIGH,
-        ]
-    }
-}
 /// Cover Definition: closed typed source vocabulary; no label inference.
 #[derive(Clone, PartialEq, Default)]
 pub struct CoverDefinition {
@@ -32694,6 +32600,706 @@ impl ::buffa::ExtensionSet for SelectorDefinition {
         &mut self.__buffa_unknown_fields
     }
 }
+/// Reusable exact source choice; display names never become command keys.
+#[derive(Clone, PartialEq, Default)]
+pub struct ControlChoice {
+    /// Field 1: `key`
+    pub key: ::buffa::alloc::string::String,
+    /// Field 2: `display_name`
+    pub display_name: ::buffa::alloc::string::String,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ControlChoice {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ControlChoice")
+            .field("key", &self.key)
+            .field("display_name", &self.display_name)
+            .finish()
+    }
+}
+impl ControlChoice {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlChoice";
+}
+::buffa::impl_default_instance!(ControlChoice);
+impl ::buffa::MessageName for ControlChoice {
+    const PACKAGE: &'static str = "home.api.v2";
+    const NAME: &'static str = "ControlChoice";
+    const FULL_NAME: &'static str = "home.api.v2.ControlChoice";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlChoice";
+}
+impl ::buffa::Message for ControlChoice {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.key.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.key) as u64;
+        }
+        if !self.display_name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.display_name) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.key.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.key, buf);
+        }
+        if !self.display_name.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.display_name, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.key, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.display_name, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.key.clear();
+        self.display_name.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ControlChoice {
+    const PROTO_FQN: &'static str = "home.api.v2.ControlChoice";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct ControlChoices {
+    /// Field 1: `choices`
+    pub choices: ::buffa::alloc::vec::Vec<ControlChoice>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ControlChoices {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ControlChoices").field("choices", &self.choices).finish()
+    }
+}
+impl ControlChoices {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlChoices";
+}
+::buffa::impl_default_instance!(ControlChoices);
+impl ::buffa::MessageName for ControlChoices {
+    const PACKAGE: &'static str = "home.api.v2";
+    const NAME: &'static str = "ControlChoices";
+    const FULL_NAME: &'static str = "home.api.v2.ControlChoices";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlChoices";
+}
+impl ::buffa::Message for ControlChoices {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.choices {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.choices {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.choices.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.choices.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ControlChoices {
+    const PROTO_FQN: &'static str = "home.api.v2.ControlChoices";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+/// Native continuous/stepped numeric range or ordered source choices.
+#[derive(Clone, PartialEq, Default)]
+pub struct ControlLevelDefinition {
+    pub definition: ::core::option::Option<
+        __buffa::oneof::control_level_definition::Definition,
+    >,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ControlLevelDefinition {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ControlLevelDefinition")
+            .field("definition", &self.definition)
+            .finish()
+    }
+}
+impl ControlLevelDefinition {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlLevelDefinition";
+}
+::buffa::impl_default_instance!(ControlLevelDefinition);
+impl ::buffa::MessageName for ControlLevelDefinition {
+    const PACKAGE: &'static str = "home.api.v2";
+    const NAME: &'static str = "ControlLevelDefinition";
+    const FULL_NAME: &'static str = "home.api.v2.ControlLevelDefinition";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlLevelDefinition";
+}
+impl ::buffa::Message for ControlLevelDefinition {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if let ::core::option::Option::Some(ref v) = self.definition {
+            match v {
+                __buffa::oneof::control_level_definition::Definition::Range(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::control_level_definition::Definition::Steps(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if let ::core::option::Option::Some(ref v) = self.definition {
+            match v {
+                __buffa::oneof::control_level_definition::Definition::Range(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::control_level_definition::Definition::Steps(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::control_level_definition::Definition::Range(
+                        ref mut existing,
+                    ),
+                ) = self.definition
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.definition = ::core::option::Option::Some(
+                        __buffa::oneof::control_level_definition::Definition::Range(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::control_level_definition::Definition::Steps(
+                        ref mut existing,
+                    ),
+                ) = self.definition
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.definition = ::core::option::Option::Some(
+                        __buffa::oneof::control_level_definition::Definition::Steps(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.definition = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ControlLevelDefinition {
+    const PROTO_FQN: &'static str = "home.api.v2.ControlLevelDefinition";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+pub mod control_level_definition {
+    #[allow(unused_imports)]
+    use super::*;
+    #[doc(inline)]
+    pub use super::__buffa::oneof::control_level_definition::Definition;
+    #[doc(inline)]
+    pub use super::__buffa::view::oneof::control_level_definition::Definition as DefinitionView;
+}
+/// Integer channels in \[0,255\]. Missing channels are invalid, not zero.
+#[derive(Clone, PartialEq, Default)]
+pub struct RgbColor {
+    /// Field 1: `red`
+    pub red: ::core::option::Option<u32>,
+    /// Field 2: `green`
+    pub green: ::core::option::Option<u32>,
+    /// Field 3: `blue`
+    pub blue: ::core::option::Option<u32>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for RgbColor {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("RgbColor")
+            .field("red", &self.red)
+            .field("green", &self.green)
+            .field("blue", &self.blue)
+            .finish()
+    }
+}
+impl RgbColor {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.RgbColor";
+}
+impl RgbColor {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::red`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_red(mut self, value: u32) -> Self {
+        self.red = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::green`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_green(mut self, value: u32) -> Self {
+        self.green = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::blue`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_blue(mut self, value: u32) -> Self {
+        self.blue = Some(value);
+        self
+    }
+}
+::buffa::impl_default_instance!(RgbColor);
+impl ::buffa::MessageName for RgbColor {
+    const PACKAGE: &'static str = "home.api.v2";
+    const NAME: &'static str = "RgbColor";
+    const FULL_NAME: &'static str = "home.api.v2.RgbColor";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.RgbColor";
+}
+impl ::buffa::Message for RgbColor {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if let Some(v) = self.red {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.green {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.blue {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if let Some(v) = self.red {
+            ::buffa::types::put_uint32_field(1u32, v, buf);
+        }
+        if let Some(v) = self.green {
+            ::buffa::types::put_uint32_field(2u32, v, buf);
+        }
+        if let Some(v) = self.blue {
+            ::buffa::types::put_uint32_field(3u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.red = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.green = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.blue = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.red = ::core::option::Option::None;
+        self.green = ::core::option::Option::None;
+        self.blue = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for RgbColor {
+    const PROTO_FQN: &'static str = "home.api.v2.RgbColor";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+#[derive(Clone, PartialEq, Default)]
+pub struct ColorDefinition {
+    /// Field 1: `temperature_mireds`
+    pub temperature_mireds: ::buffa::MessageField<
+        NumberBounds,
+        ::buffa::Inline<NumberBounds>,
+    >,
+    /// Field 2: `rgb`
+    pub rgb: bool,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ColorDefinition {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ColorDefinition")
+            .field("temperature_mireds", &self.temperature_mireds)
+            .field("rgb", &self.rgb)
+            .finish()
+    }
+}
+impl ColorDefinition {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ColorDefinition";
+}
+::buffa::impl_default_instance!(ColorDefinition);
+impl ::buffa::MessageName for ColorDefinition {
+    const PACKAGE: &'static str = "home.api.v2";
+    const NAME: &'static str = "ColorDefinition";
+    const FULL_NAME: &'static str = "home.api.v2.ColorDefinition";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ColorDefinition";
+}
+impl ::buffa::Message for ColorDefinition {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.temperature_mireds.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.temperature_mireds.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.rgb {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.temperature_mireds.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.temperature_mireds.write_to(__cache, buf);
+        }
+        if self.rgb {
+            ::buffa::types::put_bool_field(2u32, self.rgb, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.temperature_mireds.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.rgb = ::buffa::types::decode_bool(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.temperature_mireds = ::buffa::MessageField::none();
+        self.rgb = false;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ColorDefinition {
+    const PROTO_FQN: &'static str = "home.api.v2.ColorDefinition";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
 /// Atomic fan controls. Power and speed stay one physical intention.
 #[derive(Clone, PartialEq, Default)]
 pub struct FanControlCapability {
@@ -32703,10 +33309,10 @@ pub struct FanControlCapability {
     pub supports_power: bool,
     /// Exact source speed keys; never guessed from display names.
     ///
-    /// Field 2: `speed`
-    pub speed: ::buffa::MessageField<
-        SelectorDefinition,
-        ::buffa::Inline<SelectorDefinition>,
+    /// Field 2: `level`
+    pub level: ::buffa::MessageField<
+        ControlLevelDefinition,
+        ::buffa::Inline<ControlLevelDefinition>,
     >,
     /// Last qualified speed observation, absent until obtained.
     ///
@@ -32722,7 +33328,7 @@ impl ::core::fmt::Debug for FanControlCapability {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("FanControlCapability")
             .field("supports_power", &self.supports_power)
-            .field("speed", &self.speed)
+            .field("level", &self.level)
             .field("observation", &self.observation)
             .finish()
     }
@@ -32757,9 +33363,9 @@ impl ::buffa::Message for FanControlCapability {
         if self.supports_power {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
-        if self.speed.is_set() {
+        if self.level.is_set() {
             let __slot = __cache.reserve();
-            let inner_size = self.speed.compute_size(__cache);
+            let inner_size = self.level.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -32786,13 +33392,13 @@ impl ::buffa::Message for FanControlCapability {
         if self.supports_power {
             ::buffa::types::put_bool_field(1u32, self.supports_power, buf);
         }
-        if self.speed.is_set() {
+        if self.level.is_set() {
             ::buffa::types::put_len_delimited_header(
                 2u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
-            self.speed.write_to(__cache, buf);
+            self.level.write_to(__cache, buf);
         }
         if self.observation.is_set() {
             ::buffa::types::put_len_delimited_header(
@@ -32828,7 +33434,7 @@ impl ::buffa::Message for FanControlCapability {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 ::buffa::Message::merge_length_delimited(
-                    self.speed.get_or_insert_default(),
+                    self.level.get_or_insert_default(),
                     buf,
                     ctx,
                 )?;
@@ -32853,7 +33459,7 @@ impl ::buffa::Message for FanControlCapability {
     }
     fn clear(&mut self) {
         self.supports_power = false;
-        self.speed = ::buffa::MessageField::none();
+        self.level = ::buffa::MessageField::none();
         self.observation = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
@@ -32873,7 +33479,11 @@ pub struct FanControlObservation {
     /// Observed speed; independent of command selector catalogue.
     ///
     /// Field 1: `speed`
-    pub speed: ::core::option::Option<::buffa::EnumValue<FanSpeed>>,
+    pub speed: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Field 4: `on`
+    pub on: ::core::option::Option<bool>,
+    /// Field 5: `level`
+    pub level: ::core::option::Option<f64>,
     /// Source observation time.
     ///
     /// Field 2: `observed_time`
@@ -32895,6 +33505,8 @@ impl ::core::fmt::Debug for FanControlObservation {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("FanControlObservation")
             .field("speed", &self.speed)
+            .field("on", &self.on)
+            .field("level", &self.level)
             .field("observed_time", &self.observed_time)
             .field("quality", &self.quality)
             .finish()
@@ -32911,8 +33523,25 @@ impl FanControlObservation {
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
     #[inline]
     ///Sets [`Self::speed`] to `Some(value)`, consuming and returning `self`.
-    pub fn with_speed(mut self, value: impl Into<::buffa::EnumValue<FanSpeed>>) -> Self {
+    pub fn with_speed(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
         self.speed = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::on`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_on(mut self, value: bool) -> Self {
+        self.on = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::level`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_level(mut self, value: f64) -> Self {
+        self.level = Some(value);
         self
     }
 }
@@ -32937,7 +33566,7 @@ impl ::buffa::Message for FanControlObservation {
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
         if let Some(ref v) = self.speed {
-            size += 1u64 + ::buffa::types::int32_encoded_len(v.to_i32()) as u64;
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         if self.observed_time.is_set() {
             let __slot = __cache.reserve();
@@ -32955,6 +33584,12 @@ impl ::buffa::Message for FanControlObservation {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.on.is_some() {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.level.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -32966,7 +33601,7 @@ impl ::buffa::Message for FanControlObservation {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if let Some(ref v) = self.speed {
-            ::buffa::types::put_int32_field(1u32, v.to_i32(), buf);
+            ::buffa::types::put_string_field(1u32, v, buf);
         }
         if self.observed_time.is_set() {
             ::buffa::types::put_len_delimited_header(
@@ -32984,6 +33619,12 @@ impl ::buffa::Message for FanControlObservation {
             );
             self.quality.write_to(__cache, buf);
         }
+        if let Some(v) = self.on {
+            ::buffa::types::put_bool_field(4u32, v, buf);
+        }
+        if let Some(v) = self.level {
+            ::buffa::types::put_double_field(5u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -33000,11 +33641,12 @@ impl ::buffa::Message for FanControlObservation {
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
-                    ::buffa::encoding::WireType::Varint,
+                    ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                self.speed = ::core::option::Option::Some(
-                    ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
-                );
+                ::buffa::types::merge_string(
+                    self.speed.get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
             }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -33028,6 +33670,24 @@ impl ::buffa::Message for FanControlObservation {
                     ctx,
                 )?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.on = ::core::option::Option::Some(
+                    ::buffa::types::decode_bool(buf)?,
+                );
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.level = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -33039,6 +33699,8 @@ impl ::buffa::Message for FanControlObservation {
         self.speed = ::core::option::Option::None;
         self.observed_time = ::buffa::MessageField::none();
         self.quality = ::buffa::MessageField::none();
+        self.on = ::core::option::Option::None;
+        self.level = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -33086,6 +33748,10 @@ pub struct LightControlCapability {
         LightControlObservation,
         ::buffa::Inline<LightControlObservation>,
     >,
+    /// Field 6: `rgb`
+    pub rgb: bool,
+    /// Field 7: `presets`
+    pub presets: ::buffa::MessageField<ControlChoices, ::buffa::Inline<ControlChoices>>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -33097,6 +33763,8 @@ impl ::core::fmt::Debug for LightControlCapability {
             .field("color_temperature_mireds", &self.color_temperature_mireds)
             .field("transition_duration_bounds", &self.transition_duration_bounds)
             .field("observation", &self.observation)
+            .field("rgb", &self.rgb)
+            .field("presets", &self.presets)
             .finish()
     }
 }
@@ -33162,6 +33830,17 @@ impl ::buffa::Message for LightControlCapability {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.rgb {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.presets.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.presets.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -33206,6 +33885,17 @@ impl ::buffa::Message for LightControlCapability {
                 buf,
             );
             self.observation.write_to(__cache, buf);
+        }
+        if self.rgb {
+            ::buffa::types::put_bool_field(6u32, self.rgb, buf);
+        }
+        if self.presets.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                7u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.presets.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -33271,6 +33961,24 @@ impl ::buffa::Message for LightControlCapability {
                     ctx,
                 )?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.rgb = ::buffa::types::decode_bool(buf)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.presets.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -33284,6 +33992,8 @@ impl ::buffa::Message for LightControlCapability {
         self.color_temperature_mireds = ::buffa::MessageField::none();
         self.transition_duration_bounds = ::buffa::MessageField::none();
         self.observation = ::buffa::MessageField::none();
+        self.rgb = false;
+        self.presets = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -33325,6 +34035,10 @@ pub struct LightControlObservation {
         ObservationQuality,
         ::buffa::Inline<ObservationQuality>,
     >,
+    /// Field 6: `rgb`
+    pub rgb: ::buffa::MessageField<RgbColor, ::buffa::Inline<RgbColor>>,
+    /// Field 7: `preset`
+    pub preset: ::core::option::Option<::buffa::alloc::string::String>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -33336,6 +34050,8 @@ impl ::core::fmt::Debug for LightControlObservation {
             .field("color_temperature_mireds", &self.color_temperature_mireds)
             .field("observed_time", &self.observed_time)
             .field("quality", &self.quality)
+            .field("rgb", &self.rgb)
+            .field("preset", &self.preset)
             .finish()
     }
 }
@@ -33366,6 +34082,16 @@ impl LightControlObservation {
     ///Sets [`Self::color_temperature_mireds`] to `Some(value)`, consuming and returning `self`.
     pub fn with_color_temperature_mireds(mut self, value: i32) -> Self {
         self.color_temperature_mireds = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::preset`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_preset(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.preset = Some(value.into());
         self
     }
 }
@@ -33414,6 +34140,17 @@ impl ::buffa::Message for LightControlObservation {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.rgb.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.rgb.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if let Some(ref v) = self.preset {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -33448,6 +34185,17 @@ impl ::buffa::Message for LightControlObservation {
                 buf,
             );
             self.quality.write_to(__cache, buf);
+        }
+        if self.rgb.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                6u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.rgb.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.preset {
+            ::buffa::types::put_string_field(7u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -33511,6 +34259,27 @@ impl ::buffa::Message for LightControlObservation {
                     ctx,
                 )?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.rgb.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self.preset.get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -33524,6 +34293,8 @@ impl ::buffa::Message for LightControlObservation {
         self.color_temperature_mireds = ::core::option::Option::None;
         self.observed_time = ::buffa::MessageField::none();
         self.quality = ::buffa::MessageField::none();
+        self.rgb = ::buffa::MessageField::none();
+        self.preset = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -33720,6 +34491,10 @@ pub struct SetLightCommand {
         ::buffa_types::google::protobuf::Duration,
         ::buffa::Inline<::buffa_types::google::protobuf::Duration>,
     >,
+    /// Field 5: `rgb`
+    pub rgb: ::buffa::MessageField<RgbColor, ::buffa::Inline<RgbColor>>,
+    /// Field 6: `preset`
+    pub preset: ::core::option::Option<::buffa::alloc::string::String>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -33730,6 +34505,8 @@ impl ::core::fmt::Debug for SetLightCommand {
             .field("level", &self.level)
             .field("color_temperature_mireds", &self.color_temperature_mireds)
             .field("transition_duration", &self.transition_duration)
+            .field("rgb", &self.rgb)
+            .field("preset", &self.preset)
             .finish()
     }
 }
@@ -33746,6 +34523,16 @@ impl SetLightCommand {
     ///Sets [`Self::color_temperature_mireds`] to `Some(value)`, consuming and returning `self`.
     pub fn with_color_temperature_mireds(mut self, value: i32) -> Self {
         self.color_temperature_mireds = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::preset`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_preset(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.preset = Some(value.into());
         self
     }
 }
@@ -33796,6 +34583,17 @@ impl ::buffa::Message for SetLightCommand {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.rgb.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.rgb.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if let Some(ref v) = self.preset {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -33832,6 +34630,17 @@ impl ::buffa::Message for SetLightCommand {
                 buf,
             );
             self.transition_duration.write_to(__cache, buf);
+        }
+        if self.rgb.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.rgb.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.preset {
+            ::buffa::types::put_string_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -33888,6 +34697,27 @@ impl ::buffa::Message for SetLightCommand {
                     ctx,
                 )?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.rgb.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self.preset.get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -33900,6 +34730,8 @@ impl ::buffa::Message for SetLightCommand {
         self.level = ::buffa::MessageField::none();
         self.color_temperature_mireds = ::core::option::Option::None;
         self.transition_duration = ::buffa::MessageField::none();
+        self.rgb = ::buffa::MessageField::none();
+        self.preset = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -33923,6 +34755,8 @@ pub struct SetFanCommand {
     ///
     /// Field 2: `speed`
     pub speed: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Field 3: `level`
+    pub level: ::core::option::Option<f64>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -33931,6 +34765,7 @@ impl ::core::fmt::Debug for SetFanCommand {
         f.debug_struct("SetFanCommand")
             .field("power", &self.power)
             .field("speed", &self.speed)
+            .field("level", &self.level)
             .finish()
     }
 }
@@ -33950,6 +34785,13 @@ impl SetFanCommand {
         value: impl Into<::buffa::alloc::string::String>,
     ) -> Self {
         self.speed = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::level`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_level(mut self, value: f64) -> Self {
+        self.level = Some(value);
         self
     }
 }
@@ -33984,6 +34826,9 @@ impl ::buffa::Message for SetFanCommand {
         if let Some(ref v) = self.speed {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.level.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -34004,6 +34849,9 @@ impl ::buffa::Message for SetFanCommand {
         }
         if let Some(ref v) = self.speed {
             ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        if let Some(v) = self.level {
+            ::buffa::types::put_double_field(3u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -34039,6 +34887,15 @@ impl ::buffa::Message for SetFanCommand {
                     buf,
                 )?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.level = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -34049,6 +34906,7 @@ impl ::buffa::Message for SetFanCommand {
     fn clear(&mut self) {
         self.power = ::buffa::MessageField::none();
         self.speed = ::core::option::Option::None;
+        self.level = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -37505,6 +38363,220 @@ impl ::buffa::Enumeration for ValidationReason {
         ]
     }
 }
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum ControlModuleRole {
+    CONTROL_MODULE_ROLE_UNSPECIFIED = 0i32,
+    CONTROL_MODULE_ROLE_POWER = 1i32,
+    CONTROL_MODULE_ROLE_RANGE = 2i32,
+    CONTROL_MODULE_ROLE_STEPS = 3i32,
+    CONTROL_MODULE_ROLE_COLOR = 4i32,
+    CONTROL_MODULE_ROLE_PRESET = 5i32,
+    CONTROL_MODULE_ROLE_MOTION = 6i32,
+}
+impl ControlModuleRole {
+    ///Idiomatic alias for [`Self::CONTROL_MODULE_ROLE_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::CONTROL_MODULE_ROLE_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::CONTROL_MODULE_ROLE_POWER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Power: Self = Self::CONTROL_MODULE_ROLE_POWER;
+    ///Idiomatic alias for [`Self::CONTROL_MODULE_ROLE_RANGE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Range: Self = Self::CONTROL_MODULE_ROLE_RANGE;
+    ///Idiomatic alias for [`Self::CONTROL_MODULE_ROLE_STEPS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Steps: Self = Self::CONTROL_MODULE_ROLE_STEPS;
+    ///Idiomatic alias for [`Self::CONTROL_MODULE_ROLE_COLOR`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Color: Self = Self::CONTROL_MODULE_ROLE_COLOR;
+    ///Idiomatic alias for [`Self::CONTROL_MODULE_ROLE_PRESET`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Preset: Self = Self::CONTROL_MODULE_ROLE_PRESET;
+    ///Idiomatic alias for [`Self::CONTROL_MODULE_ROLE_MOTION`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Motion: Self = Self::CONTROL_MODULE_ROLE_MOTION;
+}
+impl ::core::default::Default for ControlModuleRole {
+    fn default() -> Self {
+        Self::CONTROL_MODULE_ROLE_UNSPECIFIED
+    }
+}
+impl ::buffa::Enumeration for ControlModuleRole {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_POWER),
+            2i32 => ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_RANGE),
+            3i32 => ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_STEPS),
+            4i32 => ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_COLOR),
+            5i32 => ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_PRESET),
+            6i32 => ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_MOTION),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::CONTROL_MODULE_ROLE_UNSPECIFIED => "CONTROL_MODULE_ROLE_UNSPECIFIED",
+            Self::CONTROL_MODULE_ROLE_POWER => "CONTROL_MODULE_ROLE_POWER",
+            Self::CONTROL_MODULE_ROLE_RANGE => "CONTROL_MODULE_ROLE_RANGE",
+            Self::CONTROL_MODULE_ROLE_STEPS => "CONTROL_MODULE_ROLE_STEPS",
+            Self::CONTROL_MODULE_ROLE_COLOR => "CONTROL_MODULE_ROLE_COLOR",
+            Self::CONTROL_MODULE_ROLE_PRESET => "CONTROL_MODULE_ROLE_PRESET",
+            Self::CONTROL_MODULE_ROLE_MOTION => "CONTROL_MODULE_ROLE_MOTION",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "CONTROL_MODULE_ROLE_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_UNSPECIFIED)
+            }
+            "CONTROL_MODULE_ROLE_POWER" => {
+                ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_POWER)
+            }
+            "CONTROL_MODULE_ROLE_RANGE" => {
+                ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_RANGE)
+            }
+            "CONTROL_MODULE_ROLE_STEPS" => {
+                ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_STEPS)
+            }
+            "CONTROL_MODULE_ROLE_COLOR" => {
+                ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_COLOR)
+            }
+            "CONTROL_MODULE_ROLE_PRESET" => {
+                ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_PRESET)
+            }
+            "CONTROL_MODULE_ROLE_MOTION" => {
+                ::core::option::Option::Some(Self::CONTROL_MODULE_ROLE_MOTION)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::CONTROL_MODULE_ROLE_UNSPECIFIED,
+            Self::CONTROL_MODULE_ROLE_POWER,
+            Self::CONTROL_MODULE_ROLE_RANGE,
+            Self::CONTROL_MODULE_ROLE_STEPS,
+            Self::CONTROL_MODULE_ROLE_COLOR,
+            Self::CONTROL_MODULE_ROLE_PRESET,
+            Self::CONTROL_MODULE_ROLE_MOTION,
+        ]
+    }
+}
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum ControlVisualFamily {
+    CONTROL_VISUAL_FAMILY_UNSPECIFIED = 0i32,
+    CONTROL_VISUAL_FAMILY_BINARY = 1i32,
+    CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL = 2i32,
+    CONTROL_VISUAL_FAMILY_STEPPED_LEVEL = 3i32,
+    CONTROL_VISUAL_FAMILY_BLIND = 4i32,
+    CONTROL_VISUAL_FAMILY_GARAGE = 5i32,
+}
+impl ControlVisualFamily {
+    ///Idiomatic alias for [`Self::CONTROL_VISUAL_FAMILY_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::CONTROL_VISUAL_FAMILY_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::CONTROL_VISUAL_FAMILY_BINARY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Binary: Self = Self::CONTROL_VISUAL_FAMILY_BINARY;
+    ///Idiomatic alias for [`Self::CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ContinuousLevel: Self = Self::CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL;
+    ///Idiomatic alias for [`Self::CONTROL_VISUAL_FAMILY_STEPPED_LEVEL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SteppedLevel: Self = Self::CONTROL_VISUAL_FAMILY_STEPPED_LEVEL;
+    ///Idiomatic alias for [`Self::CONTROL_VISUAL_FAMILY_BLIND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Blind: Self = Self::CONTROL_VISUAL_FAMILY_BLIND;
+    ///Idiomatic alias for [`Self::CONTROL_VISUAL_FAMILY_GARAGE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Garage: Self = Self::CONTROL_VISUAL_FAMILY_GARAGE;
+}
+impl ::core::default::Default for ControlVisualFamily {
+    fn default() -> Self {
+        Self::CONTROL_VISUAL_FAMILY_UNSPECIFIED
+    }
+}
+impl ::buffa::Enumeration for ControlVisualFamily {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::CONTROL_VISUAL_FAMILY_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::CONTROL_VISUAL_FAMILY_BINARY),
+            2i32 => {
+                ::core::option::Option::Some(
+                    Self::CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL,
+                )
+            }
+            3i32 => {
+                ::core::option::Option::Some(Self::CONTROL_VISUAL_FAMILY_STEPPED_LEVEL)
+            }
+            4i32 => ::core::option::Option::Some(Self::CONTROL_VISUAL_FAMILY_BLIND),
+            5i32 => ::core::option::Option::Some(Self::CONTROL_VISUAL_FAMILY_GARAGE),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::CONTROL_VISUAL_FAMILY_UNSPECIFIED => {
+                "CONTROL_VISUAL_FAMILY_UNSPECIFIED"
+            }
+            Self::CONTROL_VISUAL_FAMILY_BINARY => "CONTROL_VISUAL_FAMILY_BINARY",
+            Self::CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL => {
+                "CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL"
+            }
+            Self::CONTROL_VISUAL_FAMILY_STEPPED_LEVEL => {
+                "CONTROL_VISUAL_FAMILY_STEPPED_LEVEL"
+            }
+            Self::CONTROL_VISUAL_FAMILY_BLIND => "CONTROL_VISUAL_FAMILY_BLIND",
+            Self::CONTROL_VISUAL_FAMILY_GARAGE => "CONTROL_VISUAL_FAMILY_GARAGE",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "CONTROL_VISUAL_FAMILY_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::CONTROL_VISUAL_FAMILY_UNSPECIFIED)
+            }
+            "CONTROL_VISUAL_FAMILY_BINARY" => {
+                ::core::option::Option::Some(Self::CONTROL_VISUAL_FAMILY_BINARY)
+            }
+            "CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL" => {
+                ::core::option::Option::Some(
+                    Self::CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL,
+                )
+            }
+            "CONTROL_VISUAL_FAMILY_STEPPED_LEVEL" => {
+                ::core::option::Option::Some(Self::CONTROL_VISUAL_FAMILY_STEPPED_LEVEL)
+            }
+            "CONTROL_VISUAL_FAMILY_BLIND" => {
+                ::core::option::Option::Some(Self::CONTROL_VISUAL_FAMILY_BLIND)
+            }
+            "CONTROL_VISUAL_FAMILY_GARAGE" => {
+                ::core::option::Option::Some(Self::CONTROL_VISUAL_FAMILY_GARAGE)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::CONTROL_VISUAL_FAMILY_UNSPECIFIED,
+            Self::CONTROL_VISUAL_FAMILY_BINARY,
+            Self::CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL,
+            Self::CONTROL_VISUAL_FAMILY_STEPPED_LEVEL,
+            Self::CONTROL_VISUAL_FAMILY_BLIND,
+            Self::CONTROL_VISUAL_FAMILY_GARAGE,
+        ]
+    }
+}
 /// A persistent installation identity. This server serves exactly one home;
 /// the resource parent is not a multitenancy or cloud-account contract.
 #[derive(Clone, PartialEq, Default)]
@@ -37874,6 +38946,10 @@ pub struct Capability {
     ///
     /// Field 21: `action_access`
     pub action_access: ::buffa::EnumValue<ActionAccess>,
+    /// Independently bound functional modules; style never grants write authority.
+    ///
+    /// Field 22: `modules`
+    pub modules: ::buffa::alloc::vec::Vec<ControlModule>,
     pub r#trait: ::core::option::Option<__buffa::oneof::capability::Trait>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -37884,6 +38960,7 @@ impl ::core::fmt::Debug for Capability {
             .field("name", &self.name)
             .field("etag", &self.etag)
             .field("action_access", &self.action_access)
+            .field("modules", &self.modules)
             .field("trait", &self.r#trait)
             .finish()
     }
@@ -38075,6 +39152,14 @@ impl ::buffa::Message for Capability {
                 size += 2u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        for v in &self.modules {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -38244,6 +39329,14 @@ impl ::buffa::Message for Capability {
             if val != 0 {
                 ::buffa::types::put_int32_field(21u32, val, buf);
             }
+        }
+        for v in &self.modules {
+            ::buffa::types::put_len_delimited_header(
+                22u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -38647,6 +39740,18 @@ impl ::buffa::Message for Capability {
                     ::buffa::types::decode_int32(buf)?,
                 );
             }
+            22u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.modules.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -38659,6 +39764,7 @@ impl ::buffa::Message for Capability {
         self.r#trait = ::core::option::Option::None;
         self.etag.clear();
         self.action_access = ::buffa::EnumValue::from(0);
+        self.modules.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -41278,6 +42384,386 @@ impl ::buffa::ExtensionSet for ListHomesResponse {
     fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
         &mut self.__buffa_unknown_fields
     }
+}
+/// Function is independent of display family and retains its exact source slot.
+#[derive(Clone, PartialEq, Default)]
+pub struct ControlModule {
+    /// Field 1: `capability`
+    pub capability: ::buffa::alloc::string::String,
+    /// Field 2: `etag`
+    pub etag: ::buffa::alloc::string::String,
+    /// Field 3: `action_access`
+    pub action_access: ::buffa::EnumValue<ActionAccess>,
+    /// Field 4: `role`
+    pub role: ::buffa::EnumValue<ControlModuleRole>,
+    pub definition: ::core::option::Option<__buffa::oneof::control_module::Definition>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ControlModule {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ControlModule")
+            .field("capability", &self.capability)
+            .field("etag", &self.etag)
+            .field("action_access", &self.action_access)
+            .field("role", &self.role)
+            .field("definition", &self.definition)
+            .finish()
+    }
+}
+impl ControlModule {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlModule";
+}
+::buffa::impl_default_instance!(ControlModule);
+impl ::buffa::MessageName for ControlModule {
+    const PACKAGE: &'static str = "home.api.v2";
+    const NAME: &'static str = "ControlModule";
+    const FULL_NAME: &'static str = "home.api.v2.ControlModule";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlModule";
+}
+impl ::buffa::Message for ControlModule {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.capability.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.capability) as u64;
+        }
+        if !self.etag.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.etag) as u64;
+        }
+        {
+            let val = self.action_access.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        {
+            let val = self.role.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if let ::core::option::Option::Some(ref v) = self.definition {
+            match v {
+                __buffa::oneof::control_module::Definition::Power(_x) => {
+                    size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                }
+                __buffa::oneof::control_module::Definition::Range(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::control_module::Definition::Steps(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::control_module::Definition::Color(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::control_module::Definition::Preset(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::control_module::Definition::Motion(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.capability.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.capability, buf);
+        }
+        if !self.etag.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.etag, buf);
+        }
+        {
+            let val = self.action_access.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
+        }
+        {
+            let val = self.role.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(4u32, val, buf);
+            }
+        }
+        if let ::core::option::Option::Some(ref v) = self.definition {
+            match v {
+                __buffa::oneof::control_module::Definition::Power(x) => {
+                    ::buffa::types::put_bool_field(5u32, *x, buf);
+                }
+                __buffa::oneof::control_module::Definition::Range(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::control_module::Definition::Steps(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::control_module::Definition::Color(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        8u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::control_module::Definition::Preset(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        9u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::control_module::Definition::Motion(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        10u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.capability, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.etag, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.action_access = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.role = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.definition = ::core::option::Option::Some(
+                    __buffa::oneof::control_module::Definition::Power(
+                        ::buffa::types::decode_bool(buf)?,
+                    ),
+                );
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::control_module::Definition::Range(ref mut existing),
+                ) = self.definition
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.definition = ::core::option::Option::Some(
+                        __buffa::oneof::control_module::Definition::Range(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::control_module::Definition::Steps(ref mut existing),
+                ) = self.definition
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.definition = ::core::option::Option::Some(
+                        __buffa::oneof::control_module::Definition::Steps(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::control_module::Definition::Color(ref mut existing),
+                ) = self.definition
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.definition = ::core::option::Option::Some(
+                        __buffa::oneof::control_module::Definition::Color(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::control_module::Definition::Preset(ref mut existing),
+                ) = self.definition
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.definition = ::core::option::Option::Some(
+                        __buffa::oneof::control_module::Definition::Preset(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::control_module::Definition::Motion(ref mut existing),
+                ) = self.definition
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.definition = ::core::option::Option::Some(
+                        __buffa::oneof::control_module::Definition::Motion(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.capability.clear();
+        self.etag.clear();
+        self.action_access = ::buffa::EnumValue::from(0);
+        self.role = ::buffa::EnumValue::from(0);
+        self.definition = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ControlModule {
+    const PROTO_FQN: &'static str = "home.api.v2.ControlModule";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+pub mod control_module {
+    #[allow(unused_imports)]
+    use super::*;
+    #[doc(inline)]
+    pub use super::__buffa::oneof::control_module::Definition;
+    #[doc(inline)]
+    pub use super::__buffa::view::oneof::control_module::Definition as DefinitionView;
 }
 /// Qualified progress from the existing native command/confirmation owners.
 #[allow(non_camel_case_types)]
@@ -59702,7 +61188,7 @@ impl ::buffa::Message for DashboardLiteral {
                     size += 1u64 + ::buffa::types::int32_encoded_len(x.to_i32()) as u64;
                 }
                 __buffa::oneof::dashboard_literal::Value::FanSpeed(x) => {
-                    size += 1u64 + ::buffa::types::int32_encoded_len(x.to_i32()) as u64;
+                    size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
                 }
                 __buffa::oneof::dashboard_literal::Value::WeatherCondition(x) => {
                     size += 1u64 + ::buffa::types::int32_encoded_len(x.to_i32()) as u64;
@@ -59755,7 +61241,7 @@ impl ::buffa::Message for DashboardLiteral {
                     ::buffa::types::put_int32_field(10u32, x.to_i32(), buf);
                 }
                 __buffa::oneof::dashboard_literal::Value::FanSpeed(x) => {
-                    ::buffa::types::put_int32_field(11u32, x.to_i32(), buf);
+                    ::buffa::types::put_string_field(11u32, x, buf);
                 }
                 __buffa::oneof::dashboard_literal::Value::WeatherCondition(x) => {
                     ::buffa::types::put_int32_field(12u32, x.to_i32(), buf);
@@ -59891,11 +61377,11 @@ impl ::buffa::Message for DashboardLiteral {
             11u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
-                    ::buffa::encoding::WireType::Varint,
+                    ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 self.value = ::core::option::Option::Some(
                     __buffa::oneof::dashboard_literal::Value::FanSpeed(
-                        ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        ::buffa::types::decode_string(buf)?,
                     ),
                 );
             }
@@ -62397,6 +63883,10 @@ pub struct DashboardTileNode {
         DashboardCoverLock,
         ::buffa::Inline<DashboardCoverLock>,
     >,
+    /// Field 8: `visual_family`
+    pub visual_family: ::buffa::EnumValue<ControlVisualFamily>,
+    /// Field 9: `modules`
+    pub modules: ::buffa::alloc::vec::Vec<ControlModule>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -62410,6 +63900,8 @@ impl ::core::fmt::Debug for DashboardTileNode {
             .field("hide_observation", &self.hide_observation)
             .field("interactions", &self.interactions)
             .field("cover_lock", &self.cover_lock)
+            .field("visual_family", &self.visual_family)
+            .field("modules", &self.modules)
             .finish()
     }
 }
@@ -62495,6 +63987,20 @@ impl ::buffa::Message for DashboardTileNode {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        {
+            let val = self.visual_family.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        for v in &self.modules {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -62546,6 +64052,20 @@ impl ::buffa::Message for DashboardTileNode {
                 buf,
             );
             self.cover_lock.write_to(__cache, buf);
+        }
+        {
+            let val = self.visual_family.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(8u32, val, buf);
+            }
+        }
+        for v in &self.modules {
+            ::buffa::types::put_len_delimited_header(
+                9u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -62654,6 +64174,27 @@ impl ::buffa::Message for DashboardTileNode {
                     ctx,
                 )?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.visual_family = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.modules.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -62669,6 +64210,8 @@ impl ::buffa::Message for DashboardTileNode {
         self.hide_observation = ::core::option::Option::None;
         self.interactions = ::buffa::MessageField::none();
         self.cover_lock = ::buffa::MessageField::none();
+        self.visual_family = ::buffa::EnumValue::from(0);
+        self.modules.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -62718,6 +64261,10 @@ pub struct DashboardRecipeNode {
         DashboardCoverLock,
         ::buffa::Inline<DashboardCoverLock>,
     >,
+    /// Field 8: `visual_family`
+    pub visual_family: ::buffa::EnumValue<ControlVisualFamily>,
+    /// Field 9: `modules`
+    pub modules: ::buffa::alloc::vec::Vec<ControlModule>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -62731,6 +64278,8 @@ impl ::core::fmt::Debug for DashboardRecipeNode {
             .field("presentation", &self.presentation)
             .field("interactions", &self.interactions)
             .field("cover_lock", &self.cover_lock)
+            .field("visual_family", &self.visual_family)
+            .field("modules", &self.modules)
             .finish()
     }
 }
@@ -62803,6 +64352,20 @@ impl ::buffa::Message for DashboardRecipeNode {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        {
+            let val = self.visual_family.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        for v in &self.modules {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -62857,6 +64420,20 @@ impl ::buffa::Message for DashboardRecipeNode {
                 buf,
             );
             self.cover_lock.write_to(__cache, buf);
+        }
+        {
+            let val = self.visual_family.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(8u32, val, buf);
+            }
+        }
+        for v in &self.modules {
+            ::buffa::types::put_len_delimited_header(
+                9u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -62961,6 +64538,27 @@ impl ::buffa::Message for DashboardRecipeNode {
                     ctx,
                 )?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.visual_family = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.modules.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -62976,6 +64574,8 @@ impl ::buffa::Message for DashboardRecipeNode {
         self.presentation = ::buffa::EnumValue::from(0);
         self.interactions = ::buffa::MessageField::none();
         self.cover_lock = ::buffa::MessageField::none();
+        self.visual_family = ::buffa::EnumValue::from(0);
+        self.modules.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -75613,8 +77213,13 @@ impl ::buffa::Message for HistoricalState {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
-                __buffa::oneof::historical_state::Value::FanSpeed(x) => {
-                    size += 1u64 + ::buffa::types::int32_encoded_len(x.to_i32()) as u64;
+                __buffa::oneof::historical_state::Value::Fan(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
                 }
                 __buffa::oneof::historical_state::Value::TemperatureControl(x) => {
                     let __slot = __cache.reserve();
@@ -75777,8 +77382,13 @@ impl ::buffa::Message for HistoricalState {
                     );
                     x.write_to(__cache, buf);
                 }
-                __buffa::oneof::historical_state::Value::FanSpeed(x) => {
-                    ::buffa::types::put_int32_field(14u32, x.to_i32(), buf);
+                __buffa::oneof::historical_state::Value::Fan(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        14u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
                 }
                 __buffa::oneof::historical_state::Value::TemperatureControl(x) => {
                     ::buffa::types::put_len_delimited_header(
@@ -75997,13 +77607,22 @@ impl ::buffa::Message for HistoricalState {
             14u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
-                    ::buffa::encoding::WireType::Varint,
+                    ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                self.value = ::core::option::Option::Some(
-                    __buffa::oneof::historical_state::Value::FanSpeed(
-                        ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
-                    ),
-                );
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::historical_state::Value::Fan(ref mut existing),
+                ) = self.value
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.value = ::core::option::Option::Some(
+                        __buffa::oneof::historical_state::Value::Fan(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
             }
             15u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -76415,6 +78034,10 @@ pub struct HistoricalLight {
     ///
     /// Field 3: `color_temp_mireds`
     pub color_temp_mireds: ::core::option::Option<i64>,
+    /// Field 4: `rgb`
+    pub rgb: ::buffa::MessageField<RgbColor, ::buffa::Inline<RgbColor>>,
+    /// Field 5: `preset`
+    pub preset: ::core::option::Option<::buffa::alloc::string::String>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -76424,6 +78047,8 @@ impl ::core::fmt::Debug for HistoricalLight {
             .field("on", &self.on)
             .field("brightness_percent", &self.brightness_percent)
             .field("color_temp_mireds", &self.color_temp_mireds)
+            .field("rgb", &self.rgb)
+            .field("preset", &self.preset)
             .finish()
     }
 }
@@ -76456,6 +78081,16 @@ impl HistoricalLight {
         self.color_temp_mireds = Some(value);
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::preset`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_preset(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.preset = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(HistoricalLight);
 impl ::buffa::MessageName for HistoricalLight {
@@ -76473,7 +78108,7 @@ impl ::buffa::Message for HistoricalLight {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -76486,12 +78121,23 @@ impl ::buffa::Message for HistoricalLight {
         if let Some(v) = self.color_temp_mireds {
             size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
         }
+        if self.rgb.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.rgb.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if let Some(ref v) = self.preset {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -76504,6 +78150,17 @@ impl ::buffa::Message for HistoricalLight {
         }
         if let Some(v) = self.color_temp_mireds {
             ::buffa::types::put_int64_field(3u32, v, buf);
+        }
+        if self.rgb.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.rgb.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.preset {
+            ::buffa::types::put_string_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -76545,6 +78202,27 @@ impl ::buffa::Message for HistoricalLight {
                     ::buffa::types::decode_int64(buf)?,
                 );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.rgb.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self.preset.get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -76556,6 +78234,8 @@ impl ::buffa::Message for HistoricalLight {
         self.on = ::core::option::Option::None;
         self.brightness_percent = ::core::option::Option::None;
         self.color_temp_mireds = ::core::option::Option::None;
+        self.rgb = ::buffa::MessageField::none();
+        self.preset = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -79309,6 +80989,172 @@ impl ::buffa::Message for HistoryTraceLoss {
 }
 impl ::buffa::ExtensionSet for HistoryTraceLoss {
     const PROTO_FQN: &'static str = "home.api.v2.HistoryTraceLoss";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+/// Independent source presence; no current catalogue reinterpretation.
+#[derive(Clone, PartialEq, Default)]
+pub struct HistoricalFan {
+    /// Field 1: `on`
+    pub on: ::core::option::Option<bool>,
+    /// Field 2: `speed`
+    pub speed: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Field 3: `level`
+    pub level: ::core::option::Option<f64>,
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for HistoricalFan {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("HistoricalFan")
+            .field("on", &self.on)
+            .field("speed", &self.speed)
+            .field("level", &self.level)
+            .finish()
+    }
+}
+impl HistoricalFan {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.HistoricalFan";
+}
+impl HistoricalFan {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::on`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_on(mut self, value: bool) -> Self {
+        self.on = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::speed`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_speed(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.speed = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::level`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_level(mut self, value: f64) -> Self {
+        self.level = Some(value);
+        self
+    }
+}
+::buffa::impl_default_instance!(HistoricalFan);
+impl ::buffa::MessageName for HistoricalFan {
+    const PACKAGE: &'static str = "home.api.v2";
+    const NAME: &'static str = "HistoricalFan";
+    const FULL_NAME: &'static str = "home.api.v2.HistoricalFan";
+    const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.HistoricalFan";
+}
+impl ::buffa::Message for HistoricalFan {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.on.is_some() {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.speed {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.level.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if let Some(v) = self.on {
+            ::buffa::types::put_bool_field(1u32, v, buf);
+        }
+        if let Some(ref v) = self.speed {
+            ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        if let Some(v) = self.level {
+            ::buffa::types::put_double_field(3u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.on = ::core::option::Option::Some(
+                    ::buffa::types::decode_bool(buf)?,
+                );
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self.speed.get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.level = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.on = ::core::option::Option::None;
+        self.speed = ::core::option::Option::None;
+        self.level = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for HistoricalFan {
+    const PROTO_FQN: &'static str = "home.api.v2.HistoricalFan";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -167029,6 +168875,1468 @@ pub mod __buffa {
             type View<'a> = SelectorDefinitionView<'a>;
             type ViewHandle = SelectorDefinitionOwnedView;
         }
+        /// Reusable exact source choice; display names never become command keys.
+        #[derive(Clone, Debug, Default)]
+        pub struct ControlChoiceView<'a> {
+            /// Field 1: `key`
+            pub key: &'a str,
+            /// Field 2: `display_name`
+            pub display_name: &'a str,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ControlChoiceView<'a> {
+            type Owned = super::super::ControlChoice;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.key = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.display_name = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ControlChoice,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ControlChoice,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ControlChoice {
+                    key: self.key.to_string(),
+                    display_name: self.display_name.to_string(),
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ControlChoiceView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.key.is_empty() {
+                    size += 1u64 + ::buffa::types::string_encoded_len(&self.key) as u64;
+                }
+                if !self.display_name.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.display_name)
+                                as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.key.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.key, buf);
+                }
+                if !self.display_name.is_empty() {
+                    ::buffa::types::put_string_field(2u32, &self.display_name, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ControlChoiceView<'a> {
+            const PACKAGE: &'static str = "home.api.v2";
+            const NAME: &'static str = "ControlChoice";
+            const FULL_NAME: &'static str = "home.api.v2.ControlChoice";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlChoice";
+        }
+        ::buffa::impl_default_view_instance!(ControlChoiceView);
+        ::buffa::impl_view_reborrow!(ControlChoiceView);
+        /** Self-contained, `'static` owned view of a `ControlChoice` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ControlChoiceView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ControlChoiceView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ControlChoiceOwnedView(
+            ::buffa::OwnedView<ControlChoiceView<'static>>,
+        );
+        impl ControlChoiceOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlChoiceOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlChoiceOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ControlChoice,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlChoiceOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ControlChoiceView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ControlChoiceView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ControlChoice {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `key`
+            #[must_use]
+            pub fn key(&self) -> &'_ str {
+                self.0.reborrow().key
+            }
+            /// Field 2: `display_name`
+            #[must_use]
+            pub fn display_name(&self) -> &'_ str {
+                self.0.reborrow().display_name
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<ControlChoiceView<'static>>>
+        for ControlChoiceOwnedView {
+            fn from(inner: ::buffa::OwnedView<ControlChoiceView<'static>>) -> Self {
+                ControlChoiceOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ControlChoiceOwnedView>
+        for ::buffa::OwnedView<ControlChoiceView<'static>> {
+            fn from(wrapper: ControlChoiceOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<ControlChoiceView<'static>>>
+        for ControlChoiceOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<ControlChoiceView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ControlChoice {
+            type View<'a> = ControlChoiceView<'a>;
+            type ViewHandle = ControlChoiceOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct ControlChoicesView<'a> {
+            /// Field 1: `choices`
+            pub choices: ::buffa::RepeatedView<
+                'a,
+                super::super::__buffa::view::ControlChoiceView<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ControlChoicesView<'a> {
+            type Owned = super::super::ControlChoices;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::core::mem::size_of::<
+                                super::super::__buffa::view::ControlChoiceView,
+                            >(),
+                        )?;
+                        view.choices
+                            .push(
+                                <super::super::__buffa::view::ControlChoiceView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            );
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ControlChoices,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ControlChoices,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ControlChoices {
+                    choices: self
+                        .choices
+                        .iter()
+                        .map(|v| v.to_owned_from_source(__buffa_src))
+                        .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ControlChoicesView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                for v in &self.choices {
+                    let __slot = __cache.reserve();
+                    let inner_size = v.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                for v in &self.choices {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    v.write_to(__cache, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ControlChoicesView<'a> {
+            const PACKAGE: &'static str = "home.api.v2";
+            const NAME: &'static str = "ControlChoices";
+            const FULL_NAME: &'static str = "home.api.v2.ControlChoices";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlChoices";
+        }
+        ::buffa::impl_default_view_instance!(ControlChoicesView);
+        ::buffa::impl_view_reborrow!(ControlChoicesView);
+        /** Self-contained, `'static` owned view of a `ControlChoices` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ControlChoicesView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ControlChoicesView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ControlChoicesOwnedView(
+            ::buffa::OwnedView<ControlChoicesView<'static>>,
+        );
+        impl ControlChoicesOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlChoicesOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlChoicesOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ControlChoices,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlChoicesOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ControlChoicesView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ControlChoicesView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ControlChoices {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `choices`
+            #[must_use]
+            pub fn choices(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                super::super::__buffa::view::ControlChoiceView<'_>,
+            > {
+                &self.0.reborrow().choices
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<ControlChoicesView<'static>>>
+        for ControlChoicesOwnedView {
+            fn from(inner: ::buffa::OwnedView<ControlChoicesView<'static>>) -> Self {
+                ControlChoicesOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ControlChoicesOwnedView>
+        for ::buffa::OwnedView<ControlChoicesView<'static>> {
+            fn from(wrapper: ControlChoicesOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<ControlChoicesView<'static>>>
+        for ControlChoicesOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<ControlChoicesView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ControlChoices {
+            type View<'a> = ControlChoicesView<'a>;
+            type ViewHandle = ControlChoicesOwnedView;
+        }
+        /// Native continuous/stepped numeric range or ordered source choices.
+        #[derive(Clone, Debug, Default)]
+        pub struct ControlLevelDefinitionView<'a> {
+            pub definition: ::core::option::Option<
+                super::super::__buffa::view::oneof::control_level_definition::Definition<
+                    'a,
+                >,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ControlLevelDefinitionView<'a> {
+            type Owned = super::super::ControlLevelDefinition;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::control_level_definition::Definition::Range(
+                                ref mut existing,
+                            ),
+                        ) = view.definition
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.definition = Some(
+                                super::super::__buffa::view::oneof::control_level_definition::Definition::Range(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::NumberBoundsView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::control_level_definition::Definition::Steps(
+                                ref mut existing,
+                            ),
+                        ) = view.definition
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.definition = Some(
+                                super::super::__buffa::view::oneof::control_level_definition::Definition::Steps(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::ControlChoicesView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ControlLevelDefinition,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ControlLevelDefinition,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ControlLevelDefinition {
+                    definition: match self.definition.as_ref() {
+                        ::core::option::Option::Some(v) => {
+                            ::core::option::Option::Some(
+                                match v {
+                                    super::super::__buffa::view::oneof::control_level_definition::Definition::Range(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::control_level_definition::Definition::Range(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::control_level_definition::Definition::Steps(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::control_level_definition::Definition::Steps(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                        ::core::option::Option::None => ::core::option::Option::None,
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ControlLevelDefinitionView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if let ::core::option::Option::Some(ref v) = self.definition {
+                    match v {
+                        super::super::__buffa::view::oneof::control_level_definition::Definition::Range(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::control_level_definition::Definition::Steps(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                    }
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if let ::core::option::Option::Some(ref v) = self.definition {
+                    match v {
+                        super::super::__buffa::view::oneof::control_level_definition::Definition::Range(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                1u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::control_level_definition::Definition::Steps(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                2u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                    }
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ControlLevelDefinitionView<'a> {
+            const PACKAGE: &'static str = "home.api.v2";
+            const NAME: &'static str = "ControlLevelDefinition";
+            const FULL_NAME: &'static str = "home.api.v2.ControlLevelDefinition";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlLevelDefinition";
+        }
+        ::buffa::impl_default_view_instance!(ControlLevelDefinitionView);
+        ::buffa::impl_view_reborrow!(ControlLevelDefinitionView);
+        /** Self-contained, `'static` owned view of a `ControlLevelDefinition` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ControlLevelDefinitionView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ControlLevelDefinitionView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ControlLevelDefinitionOwnedView(
+            ::buffa::OwnedView<ControlLevelDefinitionView<'static>>,
+        );
+        impl ControlLevelDefinitionOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlLevelDefinitionOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlLevelDefinitionOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ControlLevelDefinition,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlLevelDefinitionOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ControlLevelDefinitionView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ControlLevelDefinitionView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ControlLevelDefinition {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Oneof `definition`.
+            #[must_use]
+            pub fn definition(
+                &self,
+            ) -> ::core::option::Option<
+                &super::super::__buffa::view::oneof::control_level_definition::Definition<
+                    '_,
+                >,
+            > {
+                self.0.reborrow().definition.as_ref()
+            }
+        }
+        impl ::core::convert::From<
+            ::buffa::OwnedView<ControlLevelDefinitionView<'static>>,
+        > for ControlLevelDefinitionOwnedView {
+            fn from(
+                inner: ::buffa::OwnedView<ControlLevelDefinitionView<'static>>,
+            ) -> Self {
+                ControlLevelDefinitionOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ControlLevelDefinitionOwnedView>
+        for ::buffa::OwnedView<ControlLevelDefinitionView<'static>> {
+            fn from(wrapper: ControlLevelDefinitionOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<
+            ::buffa::OwnedView<ControlLevelDefinitionView<'static>>,
+        > for ControlLevelDefinitionOwnedView {
+            fn as_ref(
+                &self,
+            ) -> &::buffa::OwnedView<ControlLevelDefinitionView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ControlLevelDefinition {
+            type View<'a> = ControlLevelDefinitionView<'a>;
+            type ViewHandle = ControlLevelDefinitionOwnedView;
+        }
+        /// Integer channels in \[0,255\]. Missing channels are invalid, not zero.
+        #[derive(Clone, Debug, Default)]
+        pub struct RgbColorView<'a> {
+            /// Field 1: `red`
+            pub red: ::core::option::Option<u32>,
+            /// Field 2: `green`
+            pub green: ::core::option::Option<u32>,
+            /// Field 3: `blue`
+            pub blue: ::core::option::Option<u32>,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for RgbColorView<'a> {
+            type Owned = super::super::RgbColor;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.red = Some(::buffa::types::decode_uint32(&mut cur)?);
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.green = Some(::buffa::types::decode_uint32(&mut cur)?);
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.blue = Some(::buffa::types::decode_uint32(&mut cur)?);
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<super::super::RgbColor, ::buffa::DecodeError> {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<super::super::RgbColor, ::buffa::DecodeError> {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::RgbColor {
+                    red: self.red,
+                    green: self.green,
+                    blue: self.blue,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for RgbColorView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if let Some(v) = self.red {
+                    size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+                }
+                if let Some(v) = self.green {
+                    size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+                }
+                if let Some(v) = self.blue {
+                    size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if let Some(v) = self.red {
+                    ::buffa::types::put_uint32_field(1u32, v, buf);
+                }
+                if let Some(v) = self.green {
+                    ::buffa::types::put_uint32_field(2u32, v, buf);
+                }
+                if let Some(v) = self.blue {
+                    ::buffa::types::put_uint32_field(3u32, v, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for RgbColorView<'a> {
+            const PACKAGE: &'static str = "home.api.v2";
+            const NAME: &'static str = "RgbColor";
+            const FULL_NAME: &'static str = "home.api.v2.RgbColor";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.RgbColor";
+        }
+        ::buffa::impl_default_view_instance!(RgbColorView);
+        ::buffa::impl_view_reborrow!(RgbColorView);
+        /** Self-contained, `'static` owned view of a `RgbColor` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`RgbColorView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`RgbColorView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct RgbColorOwnedView(::buffa::OwnedView<RgbColorView<'static>>);
+        impl RgbColorOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    RgbColorOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    RgbColorOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::RgbColor,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    RgbColorOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`RgbColorView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &RgbColorView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::RgbColor {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `red`
+            #[must_use]
+            pub fn red(&self) -> ::core::option::Option<u32> {
+                self.0.reborrow().red
+            }
+            /// Field 2: `green`
+            #[must_use]
+            pub fn green(&self) -> ::core::option::Option<u32> {
+                self.0.reborrow().green
+            }
+            /// Field 3: `blue`
+            #[must_use]
+            pub fn blue(&self) -> ::core::option::Option<u32> {
+                self.0.reborrow().blue
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<RgbColorView<'static>>>
+        for RgbColorOwnedView {
+            fn from(inner: ::buffa::OwnedView<RgbColorView<'static>>) -> Self {
+                RgbColorOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<RgbColorOwnedView>
+        for ::buffa::OwnedView<RgbColorView<'static>> {
+            fn from(wrapper: RgbColorOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<RgbColorView<'static>>>
+        for RgbColorOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<RgbColorView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::RgbColor {
+            type View<'a> = RgbColorView<'a>;
+            type ViewHandle = RgbColorOwnedView;
+        }
+        #[derive(Clone, Debug, Default)]
+        pub struct ColorDefinitionView<'a> {
+            /// Field 1: `temperature_mireds`
+            pub temperature_mireds: ::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'a>,
+            >,
+            /// Field 2: `rgb`
+            pub rgb: bool,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ColorDefinitionView<'a> {
+            type Owned = super::super::ColorDefinition;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.temperature_mireds.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.temperature_mireds = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::NumberBoundsView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.rgb = ::buffa::types::decode_bool(&mut cur)?;
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ColorDefinition,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ColorDefinition,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ColorDefinition {
+                    temperature_mireds: match self.temperature_mireds.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::NumberBounds,
+                                ::buffa::Inline<super::super::NumberBounds>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    rgb: self.rgb,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ColorDefinitionView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.temperature_mireds.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.temperature_mireds.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if self.rgb {
+                    size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if self.temperature_mireds.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        1u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.temperature_mireds.write_to(__cache, buf);
+                }
+                if self.rgb {
+                    ::buffa::types::put_bool_field(2u32, self.rgb, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ColorDefinitionView<'a> {
+            const PACKAGE: &'static str = "home.api.v2";
+            const NAME: &'static str = "ColorDefinition";
+            const FULL_NAME: &'static str = "home.api.v2.ColorDefinition";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ColorDefinition";
+        }
+        ::buffa::impl_default_view_instance!(ColorDefinitionView);
+        ::buffa::impl_view_reborrow!(ColorDefinitionView);
+        /** Self-contained, `'static` owned view of a `ColorDefinition` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ColorDefinitionView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ColorDefinitionView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ColorDefinitionOwnedView(
+            ::buffa::OwnedView<ColorDefinitionView<'static>>,
+        );
+        impl ColorDefinitionOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ColorDefinitionOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ColorDefinitionOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ColorDefinition,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ColorDefinitionOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ColorDefinitionView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ColorDefinitionView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ColorDefinition {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `temperature_mireds`
+            #[must_use]
+            pub fn temperature_mireds(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::NumberBoundsView<'_>,
+            > {
+                &self.0.reborrow().temperature_mireds
+            }
+            /// Field 2: `rgb`
+            #[must_use]
+            pub fn rgb(&self) -> bool {
+                self.0.reborrow().rgb
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<ColorDefinitionView<'static>>>
+        for ColorDefinitionOwnedView {
+            fn from(inner: ::buffa::OwnedView<ColorDefinitionView<'static>>) -> Self {
+                ColorDefinitionOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ColorDefinitionOwnedView>
+        for ::buffa::OwnedView<ColorDefinitionView<'static>> {
+            fn from(wrapper: ColorDefinitionOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<ColorDefinitionView<'static>>>
+        for ColorDefinitionOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<ColorDefinitionView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ColorDefinition {
+            type View<'a> = ColorDefinitionView<'a>;
+            type ViewHandle = ColorDefinitionOwnedView;
+        }
         /// Atomic fan controls. Power and speed stay one physical intention.
         #[derive(Clone, Debug, Default)]
         pub struct FanControlCapabilityView<'a> {
@@ -167038,9 +170346,9 @@ pub mod __buffa {
             pub supports_power: bool,
             /// Exact source speed keys; never guessed from display names.
             ///
-            /// Field 2: `speed`
-            pub speed: ::buffa::MessageFieldView<
-                super::super::__buffa::view::SelectorDefinitionView<'a>,
+            /// Field 2: `level`
+            pub level: ::buffa::MessageFieldView<
+                super::super::__buffa::view::ControlLevelDefinitionView<'a>,
             >,
             /// Last qualified speed observation, absent until obtained.
             ///
@@ -167100,7 +170408,7 @@ pub mod __buffa {
                         )?;
                         let __sub_ctx = ctx.descend()?;
                         let sub = ::buffa::types::borrow_bytes(&mut cur)?;
-                        match view.speed.as_mut() {
+                        match view.level.as_mut() {
                             Some(existing) => {
                                 ::buffa::MessageView::merge_into_view(
                                     existing,
@@ -167109,8 +170417,8 @@ pub mod __buffa {
                                 )?
                             }
                             None => {
-                                view.speed = ::buffa::MessageFieldView::set(
-                                    <super::super::__buffa::view::SelectorDefinitionView as ::buffa::MessageView>::decode_view_ctx(
+                                view.level = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::ControlLevelDefinitionView as ::buffa::MessageView>::decode_view_ctx(
                                         sub,
                                         __sub_ctx,
                                     )?,
@@ -167173,11 +170481,11 @@ pub mod __buffa {
                 let _ = __buffa_src;
                 ::core::result::Result::Ok(super::super::FanControlCapability {
                     supports_power: self.supports_power,
-                    speed: match self.speed.as_option() {
+                    level: match self.level.as_option() {
                         Some(v) => {
                             ::buffa::MessageField::<
-                                super::super::SelectorDefinition,
-                                ::buffa::Inline<super::super::SelectorDefinition>,
+                                super::super::ControlLevelDefinition,
+                                ::buffa::Inline<super::super::ControlLevelDefinition>,
                             >::some(v.to_owned_from_source(__buffa_src)?)
                         }
                         None => ::buffa::MessageField::none(),
@@ -167208,9 +170516,9 @@ pub mod __buffa {
                 if self.supports_power {
                     size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
                 }
-                if self.speed.is_set() {
+                if self.level.is_set() {
                     let __slot = __cache.reserve();
-                    let inner_size = self.speed.compute_size(__cache);
+                    let inner_size = self.level.compute_size(__cache);
                     __cache.set(__slot, inner_size);
                     size
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -167238,13 +170546,13 @@ pub mod __buffa {
                 if self.supports_power {
                     ::buffa::types::put_bool_field(1u32, self.supports_power, buf);
                 }
-                if self.speed.is_set() {
+                if self.level.is_set() {
                     ::buffa::types::put_len_delimited_header(
                         2u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
-                    self.speed.write_to(__cache, buf);
+                    self.level.write_to(__cache, buf);
                 }
                 if self.observation.is_set() {
                     ::buffa::types::put_len_delimited_header(
@@ -167358,14 +170666,14 @@ pub mod __buffa {
             }
             /// Exact source speed keys; never guessed from display names.
             ///
-            /// Field 2: `speed`
+            /// Field 2: `level`
             #[must_use]
-            pub fn speed(
+            pub fn level(
                 &self,
             ) -> &::buffa::MessageFieldView<
-                super::super::__buffa::view::SelectorDefinitionView<'_>,
+                super::super::__buffa::view::ControlLevelDefinitionView<'_>,
             > {
-                &self.0.reborrow().speed
+                &self.0.reborrow().level
             }
             /// Last qualified speed observation, absent until obtained.
             ///
@@ -167410,9 +170718,11 @@ pub mod __buffa {
             /// Observed speed; independent of command selector catalogue.
             ///
             /// Field 1: `speed`
-            pub speed: ::core::option::Option<
-                ::buffa::EnumValue<super::super::FanSpeed>,
-            >,
+            pub speed: ::core::option::Option<&'a str>,
+            /// Field 4: `on`
+            pub on: ::core::option::Option<bool>,
+            /// Field 5: `level`
+            pub level: ::core::option::Option<f64>,
             /// Source observation time.
             ///
             /// Field 2: `observed_time`
@@ -167466,13 +170776,23 @@ pub mod __buffa {
                     1u32 => {
                         ::buffa::encoding::check_wire_type(
                             tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.speed = Some(::buffa::types::borrow_str(&mut cur)?);
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
                             ::buffa::encoding::WireType::Varint,
                         )?;
-                        view.speed = Some(
-                            ::buffa::EnumValue::from(
-                                ::buffa::types::decode_int32(&mut cur)?,
-                            ),
-                        );
+                        view.on = Some(::buffa::types::decode_bool(&mut cur)?);
+                    }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.level = Some(::buffa::types::decode_double(&mut cur)?);
                     }
                     2u32 => {
                         ::buffa::encoding::check_wire_type(
@@ -167553,7 +170873,9 @@ pub mod __buffa {
                 use ::buffa::alloc::string::ToString as _;
                 let _ = __buffa_src;
                 ::core::result::Result::Ok(super::super::FanControlObservation {
-                    speed: self.speed,
+                    speed: self.speed.map(|s| s.to_string()),
+                    on: self.on,
+                    level: self.level,
                     observed_time: match self.observed_time.as_option() {
                         Some(v) => {
                             ::buffa::MessageField::<
@@ -167587,7 +170909,7 @@ pub mod __buffa {
                 use ::buffa::Enumeration as _;
                 let mut size = 0u64;
                 if let Some(ref v) = self.speed {
-                    size += 1u64 + ::buffa::types::int32_encoded_len(v.to_i32()) as u64;
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
                 }
                 if self.observed_time.is_set() {
                     let __slot = __cache.reserve();
@@ -167605,6 +170927,12 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                if self.on.is_some() {
+                    size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                }
+                if self.level.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -167617,7 +170945,7 @@ pub mod __buffa {
                 #[allow(unused_imports)]
                 use ::buffa::Enumeration as _;
                 if let Some(ref v) = self.speed {
-                    ::buffa::types::put_int32_field(1u32, v.to_i32(), buf);
+                    ::buffa::types::put_string_field(1u32, v, buf);
                 }
                 if self.observed_time.is_set() {
                     ::buffa::types::put_len_delimited_header(
@@ -167634,6 +170962,12 @@ pub mod __buffa {
                         buf,
                     );
                     self.quality.write_to(__cache, buf);
+                }
+                if let Some(v) = self.on {
+                    ::buffa::types::put_bool_field(4u32, v, buf);
+                }
+                if let Some(v) = self.level {
+                    ::buffa::types::put_double_field(5u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -167734,10 +171068,18 @@ pub mod __buffa {
             ///
             /// Field 1: `speed`
             #[must_use]
-            pub fn speed(
-                &self,
-            ) -> ::core::option::Option<::buffa::EnumValue<super::super::FanSpeed>> {
+            pub fn speed(&self) -> ::core::option::Option<&'_ str> {
                 self.0.reborrow().speed
+            }
+            /// Field 4: `on`
+            #[must_use]
+            pub fn on(&self) -> ::core::option::Option<bool> {
+                self.0.reborrow().on
+            }
+            /// Field 5: `level`
+            #[must_use]
+            pub fn level(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().level
             }
             /// Source observation time.
             ///
@@ -167818,6 +171160,12 @@ pub mod __buffa {
             /// Field 5: `observation`
             pub observation: ::buffa::MessageFieldView<
                 super::super::__buffa::view::LightControlObservationView<'a>,
+            >,
+            /// Field 6: `rgb`
+            pub rgb: bool,
+            /// Field 7: `presets`
+            pub presets: ::buffa::MessageFieldView<
+                super::super::__buffa::view::ControlChoicesView<'a>,
             >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
@@ -167964,6 +171312,38 @@ pub mod __buffa {
                             }
                         }
                     }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.rgb = ::buffa::types::decode_bool(&mut cur)?;
+                    }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.presets.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.presets = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::ControlChoicesView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -168036,6 +171416,16 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    rgb: self.rgb,
+                    presets: match self.presets.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::ControlChoices,
+                                ::buffa::Inline<super::super::ControlChoices>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -168087,6 +171477,17 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                if self.rgb {
+                    size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                }
+                if self.presets.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.presets.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -168132,6 +171533,17 @@ pub mod __buffa {
                         buf,
                     );
                     self.observation.write_to(__cache, buf);
+                }
+                if self.rgb {
+                    ::buffa::types::put_bool_field(6u32, self.rgb, buf);
+                }
+                if self.presets.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.presets.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -168279,6 +171691,20 @@ pub mod __buffa {
             > {
                 &self.0.reborrow().observation
             }
+            /// Field 6: `rgb`
+            #[must_use]
+            pub fn rgb(&self) -> bool {
+                self.0.reborrow().rgb
+            }
+            /// Field 7: `presets`
+            #[must_use]
+            pub fn presets(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::ControlChoicesView<'_>,
+            > {
+                &self.0.reborrow().presets
+            }
         }
         impl ::core::convert::From<
             ::buffa::OwnedView<LightControlCapabilityView<'static>>,
@@ -168335,6 +171761,12 @@ pub mod __buffa {
             pub quality: ::buffa::MessageFieldView<
                 super::super::__buffa::view::ObservationQualityView<'a>,
             >,
+            /// Field 6: `rgb`
+            pub rgb: ::buffa::MessageFieldView<
+                super::super::__buffa::view::RgbColorView<'a>,
+            >,
+            /// Field 7: `preset`
+            pub preset: ::core::option::Option<&'a str>,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for LightControlObservationView<'a> {
@@ -168448,6 +171880,38 @@ pub mod __buffa {
                             }
                         }
                     }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.rgb.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.rgb = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::RgbColorView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.preset = Some(::buffa::types::borrow_str(&mut cur)?);
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -168498,6 +171962,16 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    rgb: match self.rgb.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::RgbColor,
+                                ::buffa::Inline<super::super::RgbColor>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    preset: self.preset.map(|s| s.to_string()),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -168537,6 +172011,17 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                if self.rgb.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.rgb.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if let Some(ref v) = self.preset {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -168572,6 +172057,17 @@ pub mod __buffa {
                         buf,
                     );
                     self.quality.write_to(__cache, buf);
+                }
+                if self.rgb.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.rgb.write_to(__cache, buf);
+                }
+                if let Some(ref v) = self.preset {
+                    ::buffa::types::put_string_field(7u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -168712,6 +172208,20 @@ pub mod __buffa {
                 super::super::__buffa::view::ObservationQualityView<'_>,
             > {
                 &self.0.reborrow().quality
+            }
+            /// Field 6: `rgb`
+            #[must_use]
+            pub fn rgb(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::RgbColorView<'_>,
+            > {
+                &self.0.reborrow().rgb
+            }
+            /// Field 7: `preset`
+            #[must_use]
+            pub fn preset(&self) -> ::core::option::Option<&'_ str> {
+                self.0.reborrow().preset
             }
         }
         impl ::core::convert::From<
@@ -169097,6 +172607,12 @@ pub mod __buffa {
             pub transition_duration: ::buffa::MessageFieldView<
                 ::buffa_types::google::protobuf::__buffa::view::DurationView<'a>,
             >,
+            /// Field 5: `rgb`
+            pub rgb: ::buffa::MessageFieldView<
+                super::super::__buffa::view::RgbColorView<'a>,
+            >,
+            /// Field 6: `preset`
+            pub preset: ::core::option::Option<&'a str>,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for SetLightCommandView<'a> {
@@ -169219,6 +172735,38 @@ pub mod __buffa {
                             }
                         }
                     }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.rgb.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.rgb = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::RgbColorView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.preset = Some(::buffa::types::borrow_str(&mut cur)?);
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -169276,6 +172824,16 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    rgb: match self.rgb.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::RgbColor,
+                                ::buffa::Inline<super::super::RgbColor>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    preset: self.preset.map(|s| s.to_string()),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -169317,6 +172875,17 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                if self.rgb.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.rgb.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if let Some(ref v) = self.preset {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -169354,6 +172923,17 @@ pub mod __buffa {
                         buf,
                     );
                     self.transition_duration.write_to(__cache, buf);
+                }
+                if self.rgb.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.rgb.write_to(__cache, buf);
+                }
+                if let Some(ref v) = self.preset {
+                    ::buffa::types::put_string_field(6u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -169490,6 +173070,20 @@ pub mod __buffa {
             > {
                 &self.0.reborrow().transition_duration
             }
+            /// Field 5: `rgb`
+            #[must_use]
+            pub fn rgb(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::RgbColorView<'_>,
+            > {
+                &self.0.reborrow().rgb
+            }
+            /// Field 6: `preset`
+            #[must_use]
+            pub fn preset(&self) -> ::core::option::Option<&'_ str> {
+                self.0.reborrow().preset
+            }
         }
         impl ::core::convert::From<::buffa::OwnedView<SetLightCommandView<'static>>>
         for SetLightCommandOwnedView {
@@ -169526,6 +173120,8 @@ pub mod __buffa {
             ///
             /// Field 2: `speed`
             pub speed: ::core::option::Option<&'a str>,
+            /// Field 3: `level`
+            pub level: ::core::option::Option<f64>,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for SetFanCommandView<'a> {
@@ -169596,6 +173192,13 @@ pub mod __buffa {
                         )?;
                         view.speed = Some(::buffa::types::borrow_str(&mut cur)?);
                     }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.level = Some(::buffa::types::decode_double(&mut cur)?);
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -169635,6 +173238,7 @@ pub mod __buffa {
                         None => ::buffa::MessageField::none(),
                     },
                     speed: self.speed.map(|s| s.to_string()),
+                    level: self.level,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -169660,6 +173264,9 @@ pub mod __buffa {
                 if let Some(ref v) = self.speed {
                     size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
                 }
+                if self.level.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -169681,6 +173288,9 @@ pub mod __buffa {
                 }
                 if let Some(ref v) = self.speed {
                     ::buffa::types::put_string_field(2u32, v, buf);
+                }
+                if let Some(v) = self.level {
+                    ::buffa::types::put_double_field(3u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -169794,6 +173404,11 @@ pub mod __buffa {
             #[must_use]
             pub fn speed(&self) -> ::core::option::Option<&'_ str> {
                 self.0.reborrow().speed
+            }
+            /// Field 3: `level`
+            #[must_use]
+            pub fn level(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().level
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<SetFanCommandView<'static>>>
@@ -176407,6 +180022,13 @@ pub mod __buffa {
             ///
             /// Field 21: `action_access`
             pub action_access: ::buffa::EnumValue<super::super::ActionAccess>,
+            /// Independently bound functional modules; style never grants write authority.
+            ///
+            /// Field 22: `modules`
+            pub modules: ::buffa::RepeatedView<
+                'a,
+                super::super::__buffa::view::ControlModuleView<'a>,
+            >,
             pub r#trait: ::core::option::Option<
                 super::super::__buffa::view::oneof::capability::Trait<'a>,
             >,
@@ -176470,6 +180092,26 @@ pub mod __buffa {
                         view.action_access = ::buffa::EnumValue::from(
                             ::buffa::types::decode_int32(&mut cur)?,
                         );
+                    }
+                    22u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::core::mem::size_of::<
+                                super::super::__buffa::view::ControlModuleView,
+                            >(),
+                        )?;
+                        view.modules
+                            .push(
+                                <super::super::__buffa::view::ControlModuleView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            );
                     }
                     2u32 => {
                         ::buffa::encoding::check_wire_type(
@@ -177055,6 +180697,11 @@ pub mod __buffa {
                     name: self.name.to_string(),
                     etag: self.etag.to_string(),
                     action_access: self.action_access,
+                    modules: self
+                        .modules
+                        .iter()
+                        .map(|v| v.to_owned_from_source(__buffa_src))
+                        .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
                     r#trait: match self.r#trait.as_ref() {
                         ::core::option::Option::Some(v) => {
                             ::core::option::Option::Some(
@@ -177436,6 +181083,14 @@ pub mod __buffa {
                         size += 2u64 + ::buffa::types::int32_encoded_len(val) as u64;
                     }
                 }
+                for v in &self.modules {
+                    let __slot = __cache.reserve();
+                    let inner_size = v.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -177643,6 +181298,14 @@ pub mod __buffa {
                         ::buffa::types::put_int32_field(21u32, val, buf);
                     }
                 }
+                for v in &self.modules {
+                    ::buffa::types::put_len_delimited_header(
+                        22u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    v.write_to(__cache, buf);
+                }
                 self.__buffa_unknown_fields.write_to(buf);
             }
         }
@@ -177761,6 +181424,18 @@ pub mod __buffa {
                 &self,
             ) -> ::buffa::EnumValue<super::super::ActionAccess> {
                 self.0.reborrow().action_access
+            }
+            /// Independently bound functional modules; style never grants write authority.
+            ///
+            /// Field 22: `modules`
+            #[must_use]
+            pub fn modules(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                super::super::__buffa::view::ControlModuleView<'_>,
+            > {
+                &self.0.reborrow().modules
             }
             /// Oneof `trait`.
             #[must_use]
@@ -183188,6 +186863,681 @@ pub mod __buffa {
         impl ::buffa::HasMessageView for super::super::ListHomesResponse {
             type View<'a> = ListHomesResponseView<'a>;
             type ViewHandle = ListHomesResponseOwnedView;
+        }
+        /// Function is independent of display family and retains its exact source slot.
+        #[derive(Clone, Debug, Default)]
+        pub struct ControlModuleView<'a> {
+            /// Field 1: `capability`
+            pub capability: &'a str,
+            /// Field 2: `etag`
+            pub etag: &'a str,
+            /// Field 3: `action_access`
+            pub action_access: ::buffa::EnumValue<super::super::ActionAccess>,
+            /// Field 4: `role`
+            pub role: ::buffa::EnumValue<super::super::ControlModuleRole>,
+            pub definition: ::core::option::Option<
+                super::super::__buffa::view::oneof::control_module::Definition<'a>,
+            >,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for ControlModuleView<'a> {
+            type Owned = super::super::ControlModule;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.capability = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.etag = ::buffa::types::borrow_str(&mut cur)?;
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.action_access = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.role = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.definition = Some(
+                            super::super::__buffa::view::oneof::control_module::Definition::Power(
+                                ::buffa::types::decode_bool(&mut cur)?,
+                            ),
+                        );
+                    }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::control_module::Definition::Range(
+                                ref mut existing,
+                            ),
+                        ) = view.definition
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.definition = Some(
+                                super::super::__buffa::view::oneof::control_module::Definition::Range(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::NumberBoundsView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    7u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::control_module::Definition::Steps(
+                                ref mut existing,
+                            ),
+                        ) = view.definition
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.definition = Some(
+                                super::super::__buffa::view::oneof::control_module::Definition::Steps(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::ControlChoicesView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::control_module::Definition::Color(
+                                ref mut existing,
+                            ),
+                        ) = view.definition
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.definition = Some(
+                                super::super::__buffa::view::oneof::control_module::Definition::Color(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::ColorDefinitionView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    9u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::control_module::Definition::Preset(
+                                ref mut existing,
+                            ),
+                        ) = view.definition
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.definition = Some(
+                                super::super::__buffa::view::oneof::control_module::Definition::Preset(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::ControlChoicesView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    10u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::control_module::Definition::Motion(
+                                ref mut existing,
+                            ),
+                        ) = view.definition
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.definition = Some(
+                                super::super::__buffa::view::oneof::control_module::Definition::Motion(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::CoverDefinitionView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::ControlModule,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::ControlModule,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::ControlModule {
+                    capability: self.capability.to_string(),
+                    etag: self.etag.to_string(),
+                    action_access: self.action_access,
+                    role: self.role,
+                    definition: match self.definition.as_ref() {
+                        ::core::option::Option::Some(v) => {
+                            ::core::option::Option::Some(
+                                match v {
+                                    super::super::__buffa::view::oneof::control_module::Definition::Power(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::control_module::Definition::Power(
+                                            *v,
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::control_module::Definition::Range(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::control_module::Definition::Range(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::control_module::Definition::Steps(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::control_module::Definition::Steps(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::control_module::Definition::Color(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::control_module::Definition::Color(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::control_module::Definition::Preset(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::control_module::Definition::Preset(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                    super::super::__buffa::view::oneof::control_module::Definition::Motion(
+                                        v,
+                                    ) => {
+                                        super::super::__buffa::oneof::control_module::Definition::Motion(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                        ::core::option::Option::None => ::core::option::Option::None,
+                    },
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for ControlModuleView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if !self.capability.is_empty() {
+                    size
+                        += 1u64
+                            + ::buffa::types::string_encoded_len(&self.capability)
+                                as u64;
+                }
+                if !self.etag.is_empty() {
+                    size += 1u64 + ::buffa::types::string_encoded_len(&self.etag) as u64;
+                }
+                {
+                    let val = self.action_access.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                {
+                    let val = self.role.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                if let ::core::option::Option::Some(ref v) = self.definition {
+                    match v {
+                        super::super::__buffa::view::oneof::control_module::Definition::Power(
+                            _x,
+                        ) => {
+                            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                        }
+                        super::super::__buffa::view::oneof::control_module::Definition::Range(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::control_module::Definition::Steps(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::control_module::Definition::Color(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::control_module::Definition::Preset(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                        super::super::__buffa::view::oneof::control_module::Definition::Motion(
+                            x,
+                        ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
+                            size
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
+                        }
+                    }
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                __cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if !self.capability.is_empty() {
+                    ::buffa::types::put_string_field(1u32, &self.capability, buf);
+                }
+                if !self.etag.is_empty() {
+                    ::buffa::types::put_string_field(2u32, &self.etag, buf);
+                }
+                {
+                    let val = self.action_access.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(3u32, val, buf);
+                    }
+                }
+                {
+                    let val = self.role.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(4u32, val, buf);
+                    }
+                }
+                if let ::core::option::Option::Some(ref v) = self.definition {
+                    match v {
+                        super::super::__buffa::view::oneof::control_module::Definition::Power(
+                            x,
+                        ) => {
+                            ::buffa::types::put_bool_field(5u32, *x, buf);
+                        }
+                        super::super::__buffa::view::oneof::control_module::Definition::Range(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                6u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::control_module::Definition::Steps(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                7u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::control_module::Definition::Color(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                8u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::control_module::Definition::Preset(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                9u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                        super::super::__buffa::view::oneof::control_module::Definition::Motion(
+                            x,
+                        ) => {
+                            ::buffa::types::put_len_delimited_header(
+                                10u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
+                        }
+                    }
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for ControlModuleView<'a> {
+            const PACKAGE: &'static str = "home.api.v2";
+            const NAME: &'static str = "ControlModule";
+            const FULL_NAME: &'static str = "home.api.v2.ControlModule";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.ControlModule";
+        }
+        ::buffa::impl_default_view_instance!(ControlModuleView);
+        ::buffa::impl_view_reborrow!(ControlModuleView);
+        /** Self-contained, `'static` owned view of a `ControlModule` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ControlModuleView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ControlModuleView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct ControlModuleOwnedView(
+            ::buffa::OwnedView<ControlModuleView<'static>>,
+        );
+        impl ControlModuleOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlModuleOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlModuleOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::ControlModule,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    ControlModuleOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`ControlModuleView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &ControlModuleView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::ControlModule {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `capability`
+            #[must_use]
+            pub fn capability(&self) -> &'_ str {
+                self.0.reborrow().capability
+            }
+            /// Field 2: `etag`
+            #[must_use]
+            pub fn etag(&self) -> &'_ str {
+                self.0.reborrow().etag
+            }
+            /// Field 3: `action_access`
+            #[must_use]
+            pub fn action_access(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::ActionAccess> {
+                self.0.reborrow().action_access
+            }
+            /// Field 4: `role`
+            #[must_use]
+            pub fn role(&self) -> ::buffa::EnumValue<super::super::ControlModuleRole> {
+                self.0.reborrow().role
+            }
+            /// Oneof `definition`.
+            #[must_use]
+            pub fn definition(
+                &self,
+            ) -> ::core::option::Option<
+                &super::super::__buffa::view::oneof::control_module::Definition<'_>,
+            > {
+                self.0.reborrow().definition.as_ref()
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<ControlModuleView<'static>>>
+        for ControlModuleOwnedView {
+            fn from(inner: ::buffa::OwnedView<ControlModuleView<'static>>) -> Self {
+                ControlModuleOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<ControlModuleOwnedView>
+        for ::buffa::OwnedView<ControlModuleView<'static>> {
+            fn from(wrapper: ControlModuleOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<ControlModuleView<'static>>>
+        for ControlModuleOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<ControlModuleView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::ControlModule {
+            type View<'a> = ControlModuleView<'a>;
+            type ViewHandle = ControlModuleOwnedView;
         }
         /// Readable progress of one admitted intention; never a command or a permission.
         /// The metadata type is fixed by ExecuteCapability.operation_info. A caller must
@@ -210810,13 +215160,11 @@ pub mod __buffa {
                     11u32 => {
                         ::buffa::encoding::check_wire_type(
                             tag,
-                            ::buffa::encoding::WireType::Varint,
+                            ::buffa::encoding::WireType::LengthDelimited,
                         )?;
                         view.value = Some(
                             super::super::__buffa::view::oneof::dashboard_literal::Value::FanSpeed(
-                                ::buffa::EnumValue::from(
-                                    ::buffa::types::decode_int32(&mut cur)?,
-                                ),
+                                ::buffa::types::borrow_str(&mut cur)?,
                             ),
                         );
                     }
@@ -210953,7 +215301,7 @@ pub mod __buffa {
                                 v,
                             ) => {
                                 super::super::__buffa::oneof::dashboard_literal::Value::FanSpeed(
-                                    *v,
+                                    v.to_string(),
                                 )
                             }
                             super::super::__buffa::view::oneof::dashboard_literal::Value::WeatherCondition(
@@ -211050,9 +215398,7 @@ pub mod __buffa {
                         super::super::__buffa::view::oneof::dashboard_literal::Value::FanSpeed(
                             x,
                         ) => {
-                            size
-                                += 1u64
-                                    + ::buffa::types::int32_encoded_len(x.to_i32()) as u64;
+                            size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
                         }
                         super::super::__buffa::view::oneof::dashboard_literal::Value::WeatherCondition(
                             x,
@@ -211136,7 +215482,7 @@ pub mod __buffa {
                         super::super::__buffa::view::oneof::dashboard_literal::Value::FanSpeed(
                             x,
                         ) => {
-                            ::buffa::types::put_int32_field(11u32, x.to_i32(), buf);
+                            ::buffa::types::put_string_field(11u32, x, buf);
                         }
                         super::super::__buffa::view::oneof::dashboard_literal::Value::WeatherCondition(
                             x,
@@ -216107,6 +220453,13 @@ pub mod __buffa {
             pub cover_lock: ::buffa::MessageFieldView<
                 super::super::__buffa::view::DashboardCoverLockView<'a>,
             >,
+            /// Field 8: `visual_family`
+            pub visual_family: ::buffa::EnumValue<super::super::ControlVisualFamily>,
+            /// Field 9: `modules`
+            pub modules: ::buffa::RepeatedView<
+                'a,
+                super::super::__buffa::view::ControlModuleView<'a>,
+            >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for DashboardTileNodeView<'a> {
@@ -216227,6 +220580,15 @@ pub mod __buffa {
                             }
                         }
                     }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.visual_family = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
                     2u32 => {
                         if tag.wire_type()
                             == ::buffa::encoding::WireType::LengthDelimited
@@ -216259,6 +220621,26 @@ pub mod __buffa {
                                 ),
                             );
                         }
+                    }
+                    9u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::core::mem::size_of::<
+                                super::super::__buffa::view::ControlModuleView,
+                            >(),
+                        )?;
+                        view.modules
+                            .push(
+                                <super::super::__buffa::view::ControlModuleView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            );
                     }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -216312,6 +220694,12 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    visual_family: self.visual_family,
+                    modules: self
+                        .modules
+                        .iter()
+                        .map(|v| v.to_owned_from_source(__buffa_src))
+                        .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -216370,6 +220758,20 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                {
+                    let val = self.visual_family.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                for v in &self.modules {
+                    let __slot = __cache.reserve();
+                    let inner_size = v.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -216422,6 +220824,20 @@ pub mod __buffa {
                         buf,
                     );
                     self.cover_lock.write_to(__cache, buf);
+                }
+                {
+                    let val = self.visual_family.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(8u32, val, buf);
+                    }
+                }
+                for v in &self.modules {
+                    ::buffa::types::put_len_delimited_header(
+                        9u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    v.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -216582,6 +220998,23 @@ pub mod __buffa {
             > {
                 &self.0.reborrow().cover_lock
             }
+            /// Field 8: `visual_family`
+            #[must_use]
+            pub fn visual_family(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::ControlVisualFamily> {
+                self.0.reborrow().visual_family
+            }
+            /// Field 9: `modules`
+            #[must_use]
+            pub fn modules(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                super::super::__buffa::view::ControlModuleView<'_>,
+            > {
+                &self.0.reborrow().modules
+            }
         }
         impl ::core::convert::From<::buffa::OwnedView<DashboardTileNodeView<'static>>>
         for DashboardTileNodeOwnedView {
@@ -216644,6 +221077,13 @@ pub mod __buffa {
             /// Field 7: `cover_lock`
             pub cover_lock: ::buffa::MessageFieldView<
                 super::super::__buffa::view::DashboardCoverLockView<'a>,
+            >,
+            /// Field 8: `visual_family`
+            pub visual_family: ::buffa::EnumValue<super::super::ControlVisualFamily>,
+            /// Field 9: `modules`
+            pub modules: ::buffa::RepeatedView<
+                'a,
+                super::super::__buffa::view::ControlModuleView<'a>,
             >,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
@@ -216765,6 +221205,15 @@ pub mod __buffa {
                             }
                         }
                     }
+                    8u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.visual_family = ::buffa::EnumValue::from(
+                            ::buffa::types::decode_int32(&mut cur)?,
+                        );
+                    }
                     4u32 => {
                         if tag.wire_type()
                             == ::buffa::encoding::WireType::LengthDelimited
@@ -216797,6 +221246,26 @@ pub mod __buffa {
                                 ),
                             );
                         }
+                    }
+                    9u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        ctx.register_element_memory(
+                            ::core::mem::size_of::<
+                                super::super::__buffa::view::ControlModuleView,
+                            >(),
+                        )?;
+                        view.modules
+                            .push(
+                                <super::super::__buffa::view::ControlModuleView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            );
                     }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -216850,6 +221319,12 @@ pub mod __buffa {
                         }
                         None => ::buffa::MessageField::none(),
                     },
+                    visual_family: self.visual_family,
+                    modules: self
+                        .modules
+                        .iter()
+                        .map(|v| v.to_owned_from_source(__buffa_src))
+                        .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -216913,6 +221388,20 @@ pub mod __buffa {
                         += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                             + inner_size as u64;
                 }
+                {
+                    let val = self.visual_family.to_i32();
+                    if val != 0 {
+                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+                    }
+                }
+                for v in &self.modules {
+                    let __slot = __cache.reserve();
+                    let inner_size = v.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -216968,6 +221457,20 @@ pub mod __buffa {
                         buf,
                     );
                     self.cover_lock.write_to(__cache, buf);
+                }
+                {
+                    let val = self.visual_family.to_i32();
+                    if val != 0 {
+                        ::buffa::types::put_int32_field(8u32, val, buf);
+                    }
+                }
+                for v in &self.modules {
+                    ::buffa::types::put_len_delimited_header(
+                        9u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    v.write_to(__cache, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -217127,6 +221630,23 @@ pub mod __buffa {
                 super::super::__buffa::view::DashboardCoverLockView<'_>,
             > {
                 &self.0.reborrow().cover_lock
+            }
+            /// Field 8: `visual_family`
+            #[must_use]
+            pub fn visual_family(
+                &self,
+            ) -> ::buffa::EnumValue<super::super::ControlVisualFamily> {
+                self.0.reborrow().visual_family
+            }
+            /// Field 9: `modules`
+            #[must_use]
+            pub fn modules(
+                &self,
+            ) -> &::buffa::RepeatedView<
+                '_,
+                super::super::__buffa::view::ControlModuleView<'_>,
+            > {
+                &self.0.reborrow().modules
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<DashboardRecipeNodeView<'static>>>
@@ -237667,15 +242187,33 @@ pub mod __buffa {
                     14u32 => {
                         ::buffa::encoding::check_wire_type(
                             tag,
-                            ::buffa::encoding::WireType::Varint,
+                            ::buffa::encoding::WireType::LengthDelimited,
                         )?;
-                        view.value = Some(
-                            super::super::__buffa::view::oneof::historical_state::Value::FanSpeed(
-                                ::buffa::EnumValue::from(
-                                    ::buffa::types::decode_int32(&mut cur)?,
-                                ),
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        if let Some(
+                            super::super::__buffa::view::oneof::historical_state::Value::Fan(
+                                ref mut existing,
                             ),
-                        );
+                        ) = view.value
+                        {
+                            ::buffa::MessageView::merge_into_view(
+                                &mut **existing,
+                                sub,
+                                __sub_ctx,
+                            )?;
+                        } else {
+                            view.value = Some(
+                                super::super::__buffa::view::oneof::historical_state::Value::Fan(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        <super::super::__buffa::view::HistoricalFanView as ::buffa::MessageView>::decode_view_ctx(
+                                            sub,
+                                            __sub_ctx,
+                                        )?,
+                                    ),
+                                ),
+                            );
+                        }
                     }
                     15u32 => {
                         ::buffa::encoding::check_wire_type(
@@ -238099,11 +242637,13 @@ pub mod __buffa {
                                             ),
                                         )
                                     }
-                                    super::super::__buffa::view::oneof::historical_state::Value::FanSpeed(
+                                    super::super::__buffa::view::oneof::historical_state::Value::Fan(
                                         v,
                                     ) => {
-                                        super::super::__buffa::oneof::historical_state::Value::FanSpeed(
-                                            *v,
+                                        super::super::__buffa::oneof::historical_state::Value::Fan(
+                                            ::buffa::alloc::boxed::Box::new(
+                                                v.to_owned_from_source(__buffa_src)?,
+                                            ),
                                         )
                                     }
                                     super::super::__buffa::view::oneof::historical_state::Value::TemperatureControl(
@@ -238290,12 +242830,15 @@ pub mod __buffa {
                                 += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                                     + inner as u64;
                         }
-                        super::super::__buffa::view::oneof::historical_state::Value::FanSpeed(
+                        super::super::__buffa::view::oneof::historical_state::Value::Fan(
                             x,
                         ) => {
+                            let __slot = __cache.reserve();
+                            let inner = x.compute_size(__cache);
+                            __cache.set(__slot, inner);
                             size
-                                += 1u64
-                                    + ::buffa::types::int32_encoded_len(x.to_i32()) as u64;
+                                += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                                    + inner as u64;
                         }
                         super::super::__buffa::view::oneof::historical_state::Value::TemperatureControl(
                             x,
@@ -238485,10 +243028,15 @@ pub mod __buffa {
                             );
                             x.write_to(__cache, buf);
                         }
-                        super::super::__buffa::view::oneof::historical_state::Value::FanSpeed(
+                        super::super::__buffa::view::oneof::historical_state::Value::Fan(
                             x,
                         ) => {
-                            ::buffa::types::put_int32_field(14u32, x.to_i32(), buf);
+                            ::buffa::types::put_len_delimited_header(
+                                14u32,
+                                u64::from(__cache.consume_next()),
+                                buf,
+                            );
+                            x.write_to(__cache, buf);
                         }
                         super::super::__buffa::view::oneof::historical_state::Value::TemperatureControl(
                             x,
@@ -239092,6 +243640,12 @@ pub mod __buffa {
             ///
             /// Field 3: `color_temp_mireds`
             pub color_temp_mireds: ::core::option::Option<i64>,
+            /// Field 4: `rgb`
+            pub rgb: ::buffa::MessageFieldView<
+                super::super::__buffa::view::RgbColorView<'a>,
+            >,
+            /// Field 5: `preset`
+            pub preset: ::core::option::Option<&'a str>,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for HistoricalLightView<'a> {
@@ -239155,6 +243709,38 @@ pub mod __buffa {
                             ::buffa::types::decode_int64(&mut cur)?,
                         );
                     }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.rgb.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.rgb = ::buffa::MessageFieldView::set(
+                                    <super::super::__buffa::view::RgbColorView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.preset = Some(::buffa::types::borrow_str(&mut cur)?);
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -239187,6 +243773,16 @@ pub mod __buffa {
                     on: self.on,
                     brightness_percent: self.brightness_percent,
                     color_temp_mireds: self.color_temp_mireds,
+                    rgb: match self.rgb.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::RgbColor,
+                                ::buffa::Inline<super::super::RgbColor>,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    preset: self.preset.map(|s| s.to_string()),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -239197,7 +243793,7 @@ pub mod __buffa {
         }
         impl<'a> ::buffa::ViewEncode<'a> for HistoricalLightView<'a> {
             #[allow(clippy::needless_borrow, clippy::let_and_return)]
-            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
                 #[allow(unused_imports)]
                 use ::buffa::Enumeration as _;
                 let mut size = 0u64;
@@ -239210,13 +243806,24 @@ pub mod __buffa {
                 if let Some(v) = self.color_temp_mireds {
                     size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
                 }
+                if self.rgb.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.rgb.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if let Some(ref v) = self.preset {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
             #[allow(clippy::needless_borrow)]
             fn write_to(
                 &self,
-                _cache: &mut ::buffa::SizeCache,
+                __cache: &mut ::buffa::SizeCache,
                 buf: &mut impl ::buffa::EncodeSink,
             ) {
                 #[allow(unused_imports)]
@@ -239229,6 +243836,17 @@ pub mod __buffa {
                 }
                 if let Some(v) = self.color_temp_mireds {
                     ::buffa::types::put_int64_field(3u32, v, buf);
+                }
+                if self.rgb.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.rgb.write_to(__cache, buf);
+                }
+                if let Some(ref v) = self.preset {
+                    ::buffa::types::put_string_field(5u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -239345,6 +243963,20 @@ pub mod __buffa {
             #[must_use]
             pub fn color_temp_mireds(&self) -> ::core::option::Option<i64> {
                 self.0.reborrow().color_temp_mireds
+            }
+            /// Field 4: `rgb`
+            #[must_use]
+            pub fn rgb(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::__buffa::view::RgbColorView<'_>,
+            > {
+                &self.0.reborrow().rgb
+            }
+            /// Field 5: `preset`
+            #[must_use]
+            pub fn preset(&self) -> ::core::option::Option<&'_ str> {
+                self.0.reborrow().preset
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<HistoricalLightView<'static>>>
@@ -244288,6 +248920,282 @@ pub mod __buffa {
         impl ::buffa::HasMessageView for super::super::HistoryTraceLoss {
             type View<'a> = HistoryTraceLossView<'a>;
             type ViewHandle = HistoryTraceLossOwnedView;
+        }
+        /// Independent source presence; no current catalogue reinterpretation.
+        #[derive(Clone, Debug, Default)]
+        pub struct HistoricalFanView<'a> {
+            /// Field 1: `on`
+            pub on: ::core::option::Option<bool>,
+            /// Field 2: `speed`
+            pub speed: ::core::option::Option<&'a str>,
+            /// Field 3: `level`
+            pub level: ::core::option::Option<f64>,
+            pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+        }
+        impl<'a> ::buffa::MessageView<'a> for HistoricalFanView<'a> {
+            type Owned = super::super::HistoricalFan;
+            fn decode_view(
+                buf: &'a [u8],
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                let __limit = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT,
+                );
+                let __elem = ::core::cell::Cell::new(
+                    ::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT,
+                );
+                <Self as ::buffa::MessageView>::decode_view_ctx(
+                    buf,
+                    ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                        .with_element_memory(&__elem),
+                )
+            }
+            fn decode_view_with_ctx(
+                buf: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+            }
+            #[inline]
+            fn merge_view_field(
+                &mut self,
+                tag: ::buffa::encoding::Tag,
+                cur: &'a [u8],
+                before_tag: &'a [u8],
+                ctx: ::buffa::DecodeContext<'_>,
+            ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+                let _ = ctx;
+                #[allow(unused_variables)]
+                let view = self;
+                let mut cur = cur;
+                match tag.field_number() {
+                    1u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Varint,
+                        )?;
+                        view.on = Some(::buffa::types::decode_bool(&mut cur)?);
+                    }
+                    2u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.speed = Some(::buffa::types::borrow_str(&mut cur)?);
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.level = Some(::buffa::types::decode_double(&mut cur)?);
+                    }
+                    _ => {
+                        ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                        let span_len = before_tag.len() - cur.len();
+                        view.__buffa_unknown_fields
+                            .push_record(before_tag, span_len, ctx)?;
+                    }
+                }
+                ::core::result::Result::Ok(cur)
+            }
+            fn to_owned_message(
+                &self,
+            ) -> ::core::result::Result<
+                super::super::HistoricalFan,
+                ::buffa::DecodeError,
+            > {
+                self.to_owned_from_source(None)
+            }
+            #[allow(clippy::useless_conversion, clippy::needless_update)]
+            fn to_owned_from_source(
+                &self,
+                __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+            ) -> ::core::result::Result<
+                super::super::HistoricalFan,
+                ::buffa::DecodeError,
+            > {
+                #[allow(unused_imports)]
+                use ::buffa::alloc::string::ToString as _;
+                let _ = __buffa_src;
+                ::core::result::Result::Ok(super::super::HistoricalFan {
+                    on: self.on,
+                    speed: self.speed.map(|s| s.to_string()),
+                    level: self.level,
+                    __buffa_unknown_fields: self
+                        .__buffa_unknown_fields
+                        .to_owned()?
+                        .into(),
+                    ..::core::default::Default::default()
+                })
+            }
+        }
+        impl<'a> ::buffa::ViewEncode<'a> for HistoricalFanView<'a> {
+            #[allow(clippy::needless_borrow, clippy::let_and_return)]
+            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                let mut size = 0u64;
+                if self.on.is_some() {
+                    size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                }
+                if let Some(ref v) = self.speed {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
+                if self.level.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+                }
+                size += self.__buffa_unknown_fields.encoded_len() as u64;
+                ::buffa::saturate_size(size)
+            }
+            #[allow(clippy::needless_borrow)]
+            fn write_to(
+                &self,
+                _cache: &mut ::buffa::SizeCache,
+                buf: &mut impl ::buffa::EncodeSink,
+            ) {
+                #[allow(unused_imports)]
+                use ::buffa::Enumeration as _;
+                if let Some(v) = self.on {
+                    ::buffa::types::put_bool_field(1u32, v, buf);
+                }
+                if let Some(ref v) = self.speed {
+                    ::buffa::types::put_string_field(2u32, v, buf);
+                }
+                if let Some(v) = self.level {
+                    ::buffa::types::put_double_field(3u32, v, buf);
+                }
+                self.__buffa_unknown_fields.write_to(buf);
+            }
+        }
+        impl<'a> ::buffa::MessageName for HistoricalFanView<'a> {
+            const PACKAGE: &'static str = "home.api.v2";
+            const NAME: &'static str = "HistoricalFan";
+            const FULL_NAME: &'static str = "home.api.v2.HistoricalFan";
+            const TYPE_URL: &'static str = "type.googleapis.com/home.api.v2.HistoricalFan";
+        }
+        ::buffa::impl_default_view_instance!(HistoricalFanView);
+        ::buffa::impl_view_reborrow!(HistoricalFanView);
+        /** Self-contained, `'static` owned view of a `HistoricalFan` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`HistoricalFanView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`HistoricalFanView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+        #[derive(Clone, Debug)]
+        pub struct HistoricalFanOwnedView(
+            ::buffa::OwnedView<HistoricalFanView<'static>>,
+        );
+        impl HistoricalFanOwnedView {
+            /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+            ///
+            /// The view borrows directly from the buffer's data; the buffer is
+            /// retained inside the returned handle.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+            /// protobuf data.
+            pub fn decode(
+                bytes: ::buffa::bytes::Bytes,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    HistoricalFanOwnedView(::buffa::OwnedView::decode(bytes)?),
+                )
+            }
+            /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+            /// max message size).
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+            /// exceeds the configured limits.
+            pub fn decode_with_options(
+                bytes: ::buffa::bytes::Bytes,
+                opts: &::buffa::DecodeOptions,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    HistoricalFanOwnedView(
+                        ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+                    ),
+                )
+            }
+            /// Build from an owned message via an encode → decode round-trip.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+            /// message's encoded size exceeds the 2 GiB protobuf limit, or
+            /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+            /// somehow invalid (should not happen for well-formed messages).
+            pub fn from_owned(
+                msg: &super::super::HistoricalFan,
+            ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+                ::core::result::Result::Ok(
+                    HistoricalFanOwnedView(::buffa::OwnedView::from_owned(msg)?),
+                )
+            }
+            /// Borrow the full [`HistoricalFanView`] with its lifetime tied to `&self`.
+            #[must_use]
+            pub fn view(&self) -> &HistoricalFanView<'_> {
+                self.0.reborrow()
+            }
+            /// Convert to the owned message type.
+            ///
+            /// Infallible: this type's constructors wire-decode their
+            /// buffer, and a view produced by wire decoding always
+            /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+            /// whose contract also governs handles converted from a raw
+            /// [`::buffa::OwnedView`].
+            #[must_use]
+            pub fn to_owned_message(&self) -> super::super::HistoricalFan {
+                self.0.to_owned_message()
+            }
+            /// The underlying bytes buffer.
+            #[must_use]
+            pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+                self.0.bytes()
+            }
+            /// Consume the handle, returning the underlying bytes buffer.
+            #[must_use]
+            pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+                self.0.into_bytes()
+            }
+            /// Field 1: `on`
+            #[must_use]
+            pub fn on(&self) -> ::core::option::Option<bool> {
+                self.0.reborrow().on
+            }
+            /// Field 2: `speed`
+            #[must_use]
+            pub fn speed(&self) -> ::core::option::Option<&'_ str> {
+                self.0.reborrow().speed
+            }
+            /// Field 3: `level`
+            #[must_use]
+            pub fn level(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().level
+            }
+        }
+        impl ::core::convert::From<::buffa::OwnedView<HistoricalFanView<'static>>>
+        for HistoricalFanOwnedView {
+            fn from(inner: ::buffa::OwnedView<HistoricalFanView<'static>>) -> Self {
+                HistoricalFanOwnedView(inner)
+            }
+        }
+        impl ::core::convert::From<HistoricalFanOwnedView>
+        for ::buffa::OwnedView<HistoricalFanView<'static>> {
+            fn from(wrapper: HistoricalFanOwnedView) -> Self {
+                wrapper.0
+            }
+        }
+        impl ::core::convert::AsRef<::buffa::OwnedView<HistoricalFanView<'static>>>
+        for HistoricalFanOwnedView {
+            fn as_ref(&self) -> &::buffa::OwnedView<HistoricalFanView<'static>> {
+                &self.0
+            }
+        }
+        impl ::buffa::HasMessageView for super::super::HistoricalFan {
+            type View<'a> = HistoricalFanView<'a>;
+            type ViewHandle = HistoricalFanOwnedView;
         }
         /// A finite vocabulary on google.longrunning.Operation, backed by the existing
         /// native configuration journal. It neither grants authority nor permits replay
@@ -292175,6 +297083,27 @@ pub mod __buffa {
                     Text(&'a str),
                 }
             }
+            pub mod control_level_definition {
+                #[allow(unused_imports)]
+                use super::*;
+                #[derive(Clone, Debug)]
+                pub enum Definition<'a> {
+                    Range(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::NumberBoundsView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Steps(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::ControlChoicesView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                }
+            }
             pub mod set_temperature_control_command {
                 #[allow(unused_imports)]
                 use super::*;
@@ -292431,6 +297360,49 @@ pub mod __buffa {
                     ),
                 }
             }
+            pub mod control_module {
+                #[allow(unused_imports)]
+                use super::*;
+                #[derive(Clone, Debug)]
+                pub enum Definition<'a> {
+                    Power(bool),
+                    Range(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::NumberBoundsView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Steps(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::ControlChoicesView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Color(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::ColorDefinitionView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Preset(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::ControlChoicesView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                    Motion(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::CoverDefinitionView<
+                                'a,
+                            >,
+                        >,
+                    ),
+                }
+            }
             pub mod configuration_document {
                 #[allow(unused_imports)]
                 use super::*;
@@ -292574,7 +297546,7 @@ pub mod __buffa {
                     TemperatureMode(
                         ::buffa::EnumValue<super::super::super::super::TemperatureMode>,
                     ),
-                    FanSpeed(::buffa::EnumValue<super::super::super::super::FanSpeed>),
+                    FanSpeed(&'a str),
                     WeatherCondition(
                         ::buffa::EnumValue<super::super::super::super::WeatherCondition>,
                     ),
@@ -292911,7 +297883,13 @@ pub mod __buffa {
                             >,
                         >,
                     ),
-                    FanSpeed(::buffa::EnumValue<super::super::super::super::FanSpeed>),
+                    Fan(
+                        ::buffa::alloc::boxed::Box<
+                            super::super::super::super::__buffa::view::HistoricalFanView<
+                                'a,
+                            >,
+                        >,
+                    ),
                     TemperatureControl(
                         ::buffa::alloc::boxed::Box<
                             super::super::super::super::__buffa::view::HistoricalTemperatureControlView<
@@ -294288,6 +299266,38 @@ pub mod __buffa {
                 }
             }
         }
+        pub mod control_level_definition {
+            #[allow(unused_imports)]
+            use super::*;
+            #[derive(Clone, PartialEq, Debug)]
+            pub enum Definition {
+                Range(::buffa::alloc::boxed::Box<super::super::super::NumberBounds>),
+                Steps(::buffa::alloc::boxed::Box<super::super::super::ControlChoices>),
+            }
+            impl ::buffa::Oneof for Definition {}
+            impl From<super::super::super::NumberBounds> for Definition {
+                fn from(v: super::super::super::NumberBounds) -> Self {
+                    Self::Range(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::NumberBounds>
+            for ::core::option::Option<Definition> {
+                fn from(v: super::super::super::NumberBounds) -> Self {
+                    Self::Some(Definition::from(v))
+                }
+            }
+            impl From<super::super::super::ControlChoices> for Definition {
+                fn from(v: super::super::super::ControlChoices) -> Self {
+                    Self::Steps(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::ControlChoices>
+            for ::core::option::Option<Definition> {
+                fn from(v: super::super::super::ControlChoices) -> Self {
+                    Self::Some(Definition::from(v))
+                }
+            }
+        }
         pub mod set_temperature_control_command {
             #[allow(unused_imports)]
             use super::*;
@@ -294739,6 +299749,53 @@ pub mod __buffa {
                 }
             }
         }
+        pub mod control_module {
+            #[allow(unused_imports)]
+            use super::*;
+            #[derive(Clone, PartialEq, Debug)]
+            pub enum Definition {
+                Power(bool),
+                Range(::buffa::alloc::boxed::Box<super::super::super::NumberBounds>),
+                Steps(::buffa::alloc::boxed::Box<super::super::super::ControlChoices>),
+                Color(::buffa::alloc::boxed::Box<super::super::super::ColorDefinition>),
+                Preset(::buffa::alloc::boxed::Box<super::super::super::ControlChoices>),
+                Motion(::buffa::alloc::boxed::Box<super::super::super::CoverDefinition>),
+            }
+            impl ::buffa::Oneof for Definition {}
+            impl From<super::super::super::NumberBounds> for Definition {
+                fn from(v: super::super::super::NumberBounds) -> Self {
+                    Self::Range(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::NumberBounds>
+            for ::core::option::Option<Definition> {
+                fn from(v: super::super::super::NumberBounds) -> Self {
+                    Self::Some(Definition::from(v))
+                }
+            }
+            impl From<super::super::super::ColorDefinition> for Definition {
+                fn from(v: super::super::super::ColorDefinition) -> Self {
+                    Self::Color(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::ColorDefinition>
+            for ::core::option::Option<Definition> {
+                fn from(v: super::super::super::ColorDefinition) -> Self {
+                    Self::Some(Definition::from(v))
+                }
+            }
+            impl From<super::super::super::CoverDefinition> for Definition {
+                fn from(v: super::super::super::CoverDefinition) -> Self {
+                    Self::Motion(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::CoverDefinition>
+            for ::core::option::Option<Definition> {
+                fn from(v: super::super::super::CoverDefinition) -> Self {
+                    Self::Some(Definition::from(v))
+                }
+            }
+        }
         pub mod configuration_document {
             #[allow(unused_imports)]
             use super::*;
@@ -294951,7 +300008,7 @@ pub mod __buffa {
                 TemperatureMode(
                     ::buffa::EnumValue<super::super::super::TemperatureMode>,
                 ),
-                FanSpeed(::buffa::EnumValue<super::super::super::FanSpeed>),
+                FanSpeed(::buffa::alloc::string::String),
                 WeatherCondition(
                     ::buffa::EnumValue<super::super::super::WeatherCondition>,
                 ),
@@ -295479,7 +300536,7 @@ pub mod __buffa {
                     >,
                 ),
                 Light(::buffa::alloc::boxed::Box<super::super::super::HistoricalLight>),
-                FanSpeed(::buffa::EnumValue<super::super::super::FanSpeed>),
+                Fan(::buffa::alloc::boxed::Box<super::super::super::HistoricalFan>),
                 TemperatureControl(
                     ::buffa::alloc::boxed::Box<
                         super::super::super::HistoricalTemperatureControl,
@@ -295519,6 +300576,17 @@ pub mod __buffa {
             impl From<super::super::super::HistoricalLight>
             for ::core::option::Option<Value> {
                 fn from(v: super::super::super::HistoricalLight) -> Self {
+                    Self::Some(Value::from(v))
+                }
+            }
+            impl From<super::super::super::HistoricalFan> for Value {
+                fn from(v: super::super::super::HistoricalFan) -> Self {
+                    Self::Fan(::buffa::alloc::boxed::Box::new(v))
+                }
+            }
+            impl From<super::super::super::HistoricalFan>
+            for ::core::option::Option<Value> {
+                fn from(v: super::super::super::HistoricalFan) -> Self {
                     Self::Some(Value::from(v))
                 }
             }
@@ -297579,6 +302647,26 @@ pub use self::__buffa::view::SelectorDefinitionView;
 #[doc(inline)]
 pub use self::__buffa::view::SelectorDefinitionOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::ControlChoiceView;
+#[doc(inline)]
+pub use self::__buffa::view::ControlChoiceOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ControlChoicesView;
+#[doc(inline)]
+pub use self::__buffa::view::ControlChoicesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ControlLevelDefinitionView;
+#[doc(inline)]
+pub use self::__buffa::view::ControlLevelDefinitionOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RgbColorView;
+#[doc(inline)]
+pub use self::__buffa::view::RgbColorOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ColorDefinitionView;
+#[doc(inline)]
+pub use self::__buffa::view::ColorDefinitionOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::FanControlCapabilityView;
 #[doc(inline)]
 pub use self::__buffa::view::FanControlCapabilityOwnedView;
@@ -297736,6 +302824,10 @@ pub use self::__buffa::view::ListHomesRequestOwnedView;
 pub use self::__buffa::view::ListHomesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListHomesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ControlModuleView;
+#[doc(inline)]
+pub use self::__buffa::view::ControlModuleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::CommandMetadataView;
 #[doc(inline)]
@@ -298368,6 +303460,10 @@ pub use self::__buffa::view::HistoryExecutionTraceOwnedView;
 pub use self::__buffa::view::HistoryTraceLossView;
 #[doc(inline)]
 pub use self::__buffa::view::HistoryTraceLossOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HistoricalFanView;
+#[doc(inline)]
+pub use self::__buffa::view::HistoricalFanOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::IntegrationOperationMetadataView;
 #[doc(inline)]

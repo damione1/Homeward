@@ -111,7 +111,7 @@ func (p *nha029C5RelativePilot) publish(ctx context.Context, percent float64) er
 	if err != nil {
 		return err
 	}
-	light, err := domain.NewLightValue(true, &percent, nil)
+	light, err := domain.NewLightValue(domain.LightValueInput{On: true, Brightness: &percent, ColorTemperatureMireds: nil})
 	if err != nil {
 		return err
 	}

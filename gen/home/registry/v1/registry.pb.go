@@ -840,6 +840,216 @@ func (x *NumberBounds) GetStep() float64 {
 	return 0
 }
 
+// Exact source order and keys. Labels are optional presentation data.
+type ControlChoice struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlChoice) Reset() {
+	*x = ControlChoice{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlChoice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlChoice) ProtoMessage() {}
+
+func (x *ControlChoice) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlChoice.ProtoReflect.Descriptor instead.
+func (*ControlChoice) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ControlChoice) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *ControlChoice) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+type ControlChoices struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Choices       []*ControlChoice       `protobuf:"bytes,1,rep,name=choices,proto3" json:"choices,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlChoices) Reset() {
+	*x = ControlChoices{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlChoices) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlChoices) ProtoMessage() {}
+
+func (x *ControlChoices) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlChoices.ProtoReflect.Descriptor instead.
+func (*ControlChoices) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ControlChoices) GetChoices() []*ControlChoice {
+	if x != nil {
+		return x.Choices
+	}
+	return nil
+}
+
+// Integer channels in [0,255]; all three channels are required at admission.
+type RgbColor struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Red           *uint32                `protobuf:"varint,1,opt,name=red,proto3,oneof" json:"red,omitempty"`
+	Green         *uint32                `protobuf:"varint,2,opt,name=green,proto3,oneof" json:"green,omitempty"`
+	Blue          *uint32                `protobuf:"varint,3,opt,name=blue,proto3,oneof" json:"blue,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RgbColor) Reset() {
+	*x = RgbColor{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RgbColor) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RgbColor) ProtoMessage() {}
+
+func (x *RgbColor) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RgbColor.ProtoReflect.Descriptor instead.
+func (*RgbColor) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RgbColor) GetRed() uint32 {
+	if x != nil && x.Red != nil {
+		return *x.Red
+	}
+	return 0
+}
+
+func (x *RgbColor) GetGreen() uint32 {
+	if x != nil && x.Green != nil {
+		return *x.Green
+	}
+	return 0
+}
+
+func (x *RgbColor) GetBlue() uint32 {
+	if x != nil && x.Blue != nil {
+		return *x.Blue
+	}
+	return 0
+}
+
+type ColorDefinition struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	TemperatureMireds *NumberBounds          `protobuf:"bytes,1,opt,name=temperature_mireds,json=temperatureMireds,proto3" json:"temperature_mireds,omitempty"`
+	Rgb               bool                   `protobuf:"varint,2,opt,name=rgb,proto3" json:"rgb,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ColorDefinition) Reset() {
+	*x = ColorDefinition{}
+	mi := &file_home_registry_v1_registry_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ColorDefinition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ColorDefinition) ProtoMessage() {}
+
+func (x *ColorDefinition) ProtoReflect() protoreflect.Message {
+	mi := &file_home_registry_v1_registry_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ColorDefinition.ProtoReflect.Descriptor instead.
+func (*ColorDefinition) Descriptor() ([]byte, []int) {
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ColorDefinition) GetTemperatureMireds() *NumberBounds {
+	if x != nil {
+		return x.TemperatureMireds
+	}
+	return nil
+}
+
+func (x *ColorDefinition) GetRgb() bool {
+	if x != nil {
+		return x.Rgb
+	}
+	return false
+}
+
 type SwitchConstraints struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SetOn         bool                   `protobuf:"varint,1,opt,name=set_on,json=setOn,proto3" json:"set_on,omitempty"`
@@ -849,7 +1059,7 @@ type SwitchConstraints struct {
 
 func (x *SwitchConstraints) Reset() {
 	*x = SwitchConstraints{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[4]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -861,7 +1071,7 @@ func (x *SwitchConstraints) String() string {
 func (*SwitchConstraints) ProtoMessage() {}
 
 func (x *SwitchConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[4]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -874,7 +1084,7 @@ func (x *SwitchConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SwitchConstraints.ProtoReflect.Descriptor instead.
 func (*SwitchConstraints) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{4}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *SwitchConstraints) GetSetOn() bool {
@@ -890,13 +1100,15 @@ type LightConstraints struct {
 	BrightnessPercent *NumberBounds          `protobuf:"bytes,2,opt,name=brightness_percent,json=brightnessPercent,proto3" json:"brightness_percent,omitempty"`
 	ColorTempMireds   *NumberBounds          `protobuf:"bytes,3,opt,name=color_temp_mireds,json=colorTempMireds,proto3" json:"color_temp_mireds,omitempty"`
 	TransitionSeconds *NumberBounds          `protobuf:"bytes,4,opt,name=transition_seconds,json=transitionSeconds,proto3" json:"transition_seconds,omitempty"`
+	Rgb               bool                   `protobuf:"varint,5,opt,name=rgb,proto3" json:"rgb,omitempty"`
+	Presets           *ControlChoices        `protobuf:"bytes,6,opt,name=presets,proto3" json:"presets,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
 
 func (x *LightConstraints) Reset() {
 	*x = LightConstraints{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[5]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -908,7 +1120,7 @@ func (x *LightConstraints) String() string {
 func (*LightConstraints) ProtoMessage() {}
 
 func (x *LightConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[5]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -921,7 +1133,7 @@ func (x *LightConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LightConstraints.ProtoReflect.Descriptor instead.
 func (*LightConstraints) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{5}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *LightConstraints) GetSetOn() bool {
@@ -952,17 +1164,33 @@ func (x *LightConstraints) GetTransitionSeconds() *NumberBounds {
 	return nil
 }
 
+func (x *LightConstraints) GetRgb() bool {
+	if x != nil {
+		return x.Rgb
+	}
+	return false
+}
+
+func (x *LightConstraints) GetPresets() *ControlChoices {
+	if x != nil {
+		return x.Presets
+	}
+	return nil
+}
+
 type FanConstraints struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SetOn         bool                   `protobuf:"varint,1,opt,name=set_on,json=setOn,proto3" json:"set_on,omitempty"`
-	SpeedOptions  []string               `protobuf:"bytes,2,rep,name=speed_options,json=speedOptions,proto3" json:"speed_options,omitempty"`
+	Speed         *ControlChoices        `protobuf:"bytes,2,opt,name=speed,proto3" json:"speed,omitempty"`
+	Level         *NumberBounds          `protobuf:"bytes,3,opt,name=level,proto3" json:"level,omitempty"`
+	ObservesPower bool                   `protobuf:"varint,4,opt,name=observes_power,json=observesPower,proto3" json:"observes_power,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *FanConstraints) Reset() {
 	*x = FanConstraints{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[6]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -974,7 +1202,7 @@ func (x *FanConstraints) String() string {
 func (*FanConstraints) ProtoMessage() {}
 
 func (x *FanConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[6]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -987,7 +1215,7 @@ func (x *FanConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FanConstraints.ProtoReflect.Descriptor instead.
 func (*FanConstraints) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{6}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *FanConstraints) GetSetOn() bool {
@@ -997,11 +1225,25 @@ func (x *FanConstraints) GetSetOn() bool {
 	return false
 }
 
-func (x *FanConstraints) GetSpeedOptions() []string {
+func (x *FanConstraints) GetSpeed() *ControlChoices {
 	if x != nil {
-		return x.SpeedOptions
+		return x.Speed
 	}
 	return nil
+}
+
+func (x *FanConstraints) GetLevel() *NumberBounds {
+	if x != nil {
+		return x.Level
+	}
+	return nil
+}
+
+func (x *FanConstraints) GetObservesPower() bool {
+	if x != nil {
+		return x.ObservesPower
+	}
+	return false
 }
 
 type ClimateConstraints struct {
@@ -1025,7 +1267,7 @@ type ClimateConstraints struct {
 
 func (x *ClimateConstraints) Reset() {
 	*x = ClimateConstraints{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[7]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1037,7 +1279,7 @@ func (x *ClimateConstraints) String() string {
 func (*ClimateConstraints) ProtoMessage() {}
 
 func (x *ClimateConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[7]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1050,7 +1292,7 @@ func (x *ClimateConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClimateConstraints.ProtoReflect.Descriptor instead.
 func (*ClimateConstraints) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{7}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ClimateConstraints) GetSetpointCelsius() *NumberBounds {
@@ -1147,7 +1389,7 @@ type ClimateTemperatureObservation struct {
 
 func (x *ClimateTemperatureObservation) Reset() {
 	*x = ClimateTemperatureObservation{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[8]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1159,7 +1401,7 @@ func (x *ClimateTemperatureObservation) String() string {
 func (*ClimateTemperatureObservation) ProtoMessage() {}
 
 func (x *ClimateTemperatureObservation) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[8]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1172,7 +1414,7 @@ func (x *ClimateTemperatureObservation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClimateTemperatureObservation.ProtoReflect.Descriptor instead.
 func (*ClimateTemperatureObservation) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{8}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ClimateTemperatureObservation) GetBounds() *NumberBounds {
@@ -1195,7 +1437,7 @@ type ClimateSetpointRangeConstraints struct {
 
 func (x *ClimateSetpointRangeConstraints) Reset() {
 	*x = ClimateSetpointRangeConstraints{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[9]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1207,7 +1449,7 @@ func (x *ClimateSetpointRangeConstraints) String() string {
 func (*ClimateSetpointRangeConstraints) ProtoMessage() {}
 
 func (x *ClimateSetpointRangeConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[9]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1220,7 +1462,7 @@ func (x *ClimateSetpointRangeConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClimateSetpointRangeConstraints.ProtoReflect.Descriptor instead.
 func (*ClimateSetpointRangeConstraints) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{9}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ClimateSetpointRangeConstraints) GetLowCelsius() *NumberBounds {
@@ -1264,7 +1506,7 @@ type MeasurementConstraints struct {
 
 func (x *MeasurementConstraints) Reset() {
 	*x = MeasurementConstraints{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[10]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1276,7 +1518,7 @@ func (x *MeasurementConstraints) String() string {
 func (*MeasurementConstraints) ProtoMessage() {}
 
 func (x *MeasurementConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[10]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1289,7 +1531,7 @@ func (x *MeasurementConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MeasurementConstraints.ProtoReflect.Descriptor instead.
 func (*MeasurementConstraints) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{10}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *MeasurementConstraints) GetUnit() string {
@@ -1336,7 +1578,7 @@ type BinaryConstraints struct {
 
 func (x *BinaryConstraints) Reset() {
 	*x = BinaryConstraints{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[11]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1348,7 +1590,7 @@ func (x *BinaryConstraints) String() string {
 func (*BinaryConstraints) ProtoMessage() {}
 
 func (x *BinaryConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[11]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1361,7 +1603,7 @@ func (x *BinaryConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BinaryConstraints.ProtoReflect.Descriptor instead.
 func (*BinaryConstraints) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{11}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *BinaryConstraints) GetDeviceClass() string {
@@ -1381,7 +1623,7 @@ type ExtensionConstraints struct {
 
 func (x *ExtensionConstraints) Reset() {
 	*x = ExtensionConstraints{}
-	mi := &file_home_registry_v1_registry_proto_msgTypes[12]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1393,7 +1635,7 @@ func (x *ExtensionConstraints) String() string {
 func (*ExtensionConstraints) ProtoMessage() {}
 
 func (x *ExtensionConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_home_registry_v1_registry_proto_msgTypes[12]
+	mi := &file_home_registry_v1_registry_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1406,7 +1648,7 @@ func (x *ExtensionConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtensionConstraints.ProtoReflect.Descriptor instead.
 func (*ExtensionConstraints) Descriptor() ([]byte, []int) {
-	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{12}
+	return file_home_registry_v1_registry_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ExtensionConstraints) GetActionMessage() string {
@@ -1458,17 +1700,36 @@ const file_home_registry_v1_registry_proto_rawDesc = "" +
 	"\aminimum\x18\x01 \x01(\x01R\aminimum\x12\x18\n" +
 	"\amaximum\x18\x02 \x01(\x01R\amaximum\x12\x17\n" +
 	"\x04step\x18\x03 \x01(\x01H\x00R\x04step\x88\x01\x01B\a\n" +
-	"\x05_step\"*\n" +
+	"\x05_step\"D\n" +
+	"\rControlChoice\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\"K\n" +
+	"\x0eControlChoices\x129\n" +
+	"\achoices\x18\x01 \x03(\v2\x1f.home.registry.v1.ControlChoiceR\achoices\"p\n" +
+	"\bRgbColor\x12\x15\n" +
+	"\x03red\x18\x01 \x01(\rH\x00R\x03red\x88\x01\x01\x12\x19\n" +
+	"\x05green\x18\x02 \x01(\rH\x01R\x05green\x88\x01\x01\x12\x17\n" +
+	"\x04blue\x18\x03 \x01(\rH\x02R\x04blue\x88\x01\x01B\x06\n" +
+	"\x04_redB\b\n" +
+	"\x06_greenB\a\n" +
+	"\x05_blue\"r\n" +
+	"\x0fColorDefinition\x12M\n" +
+	"\x12temperature_mireds\x18\x01 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x11temperatureMireds\x12\x10\n" +
+	"\x03rgb\x18\x02 \x01(\bR\x03rgb\"*\n" +
 	"\x11SwitchConstraints\x12\x15\n" +
-	"\x06set_on\x18\x01 \x01(\bR\x05setOn\"\x93\x02\n" +
+	"\x06set_on\x18\x01 \x01(\bR\x05setOn\"\xe1\x02\n" +
 	"\x10LightConstraints\x12\x15\n" +
 	"\x06set_on\x18\x01 \x01(\bR\x05setOn\x12M\n" +
 	"\x12brightness_percent\x18\x02 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x11brightnessPercent\x12J\n" +
 	"\x11color_temp_mireds\x18\x03 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x0fcolorTempMireds\x12M\n" +
-	"\x12transition_seconds\x18\x04 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x11transitionSeconds\"L\n" +
+	"\x12transition_seconds\x18\x04 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x11transitionSeconds\x12\x10\n" +
+	"\x03rgb\x18\x05 \x01(\bR\x03rgb\x12:\n" +
+	"\apresets\x18\x06 \x01(\v2 .home.registry.v1.ControlChoicesR\apresets\"\xbc\x01\n" +
 	"\x0eFanConstraints\x12\x15\n" +
-	"\x06set_on\x18\x01 \x01(\bR\x05setOn\x12#\n" +
-	"\rspeed_options\x18\x02 \x03(\tR\fspeedOptions\"\xca\b\n" +
+	"\x06set_on\x18\x01 \x01(\bR\x05setOn\x126\n" +
+	"\x05speed\x18\x02 \x01(\v2 .home.registry.v1.ControlChoicesR\x05speed\x124\n" +
+	"\x05level\x18\x03 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x05level\x12%\n" +
+	"\x0eobserves_power\x18\x04 \x01(\bR\robservesPower\"\xca\b\n" +
 	"\x12ClimateConstraints\x12I\n" +
 	"\x10setpoint_celsius\x18\x01 \x01(\v2\x1e.home.registry.v1.NumberBoundsR\x0fsetpointCelsius\x12@\n" +
 	"\fmode_options\x18\x02 \x03(\x0e2\x1d.home.registry.v1.ClimateModeR\vmodeOptions\x12L\n" +
@@ -1548,7 +1809,7 @@ func file_home_registry_v1_registry_proto_rawDescGZIP() []byte {
 }
 
 var file_home_registry_v1_registry_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_home_registry_v1_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_home_registry_v1_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_home_registry_v1_registry_proto_goTypes = []any{
 	(ClimateMode)(0),                        // 0: home.registry.v1.ClimateMode
 	(ClimateActivity)(0),                    // 1: home.registry.v1.ClimateActivity
@@ -1559,67 +1820,76 @@ var file_home_registry_v1_registry_proto_goTypes = []any{
 	(*EntityRef)(nil),                       // 6: home.registry.v1.EntityRef
 	(*CapabilityDescription)(nil),           // 7: home.registry.v1.CapabilityDescription
 	(*NumberBounds)(nil),                    // 8: home.registry.v1.NumberBounds
-	(*SwitchConstraints)(nil),               // 9: home.registry.v1.SwitchConstraints
-	(*LightConstraints)(nil),                // 10: home.registry.v1.LightConstraints
-	(*FanConstraints)(nil),                  // 11: home.registry.v1.FanConstraints
-	(*ClimateConstraints)(nil),              // 12: home.registry.v1.ClimateConstraints
-	(*ClimateTemperatureObservation)(nil),   // 13: home.registry.v1.ClimateTemperatureObservation
-	(*ClimateSetpointRangeConstraints)(nil), // 14: home.registry.v1.ClimateSetpointRangeConstraints
-	(*MeasurementConstraints)(nil),          // 15: home.registry.v1.MeasurementConstraints
-	(*BinaryConstraints)(nil),               // 16: home.registry.v1.BinaryConstraints
-	(*ExtensionConstraints)(nil),            // 17: home.registry.v1.ExtensionConstraints
-	(*v1.HelperConstraints)(nil),            // 18: home.helpers.v1.HelperConstraints
-	(*v11.SolarConstraints)(nil),            // 19: home.solar.v1.SolarConstraints
-	(*v11.SolarEventConstraints)(nil),       // 20: home.solar.v1.SolarEventConstraints
-	(*v12.CoverConstraints)(nil),            // 21: home.controls.v1.CoverConstraints
-	(*v12.LockConstraints)(nil),             // 22: home.controls.v1.LockConstraints
-	(*v12.AlarmConstraints)(nil),            // 23: home.controls.v1.AlarmConstraints
-	(*v13.WeatherConstraints)(nil),          // 24: home.environment.v1.WeatherConstraints
-	(*v13.PresenceConstraints)(nil),         // 25: home.environment.v1.PresenceConstraints
-	(*v13.PresenceDetailsConstraints)(nil),  // 26: home.environment.v1.PresenceDetailsConstraints
+	(*ControlChoice)(nil),                   // 9: home.registry.v1.ControlChoice
+	(*ControlChoices)(nil),                  // 10: home.registry.v1.ControlChoices
+	(*RgbColor)(nil),                        // 11: home.registry.v1.RgbColor
+	(*ColorDefinition)(nil),                 // 12: home.registry.v1.ColorDefinition
+	(*SwitchConstraints)(nil),               // 13: home.registry.v1.SwitchConstraints
+	(*LightConstraints)(nil),                // 14: home.registry.v1.LightConstraints
+	(*FanConstraints)(nil),                  // 15: home.registry.v1.FanConstraints
+	(*ClimateConstraints)(nil),              // 16: home.registry.v1.ClimateConstraints
+	(*ClimateTemperatureObservation)(nil),   // 17: home.registry.v1.ClimateTemperatureObservation
+	(*ClimateSetpointRangeConstraints)(nil), // 18: home.registry.v1.ClimateSetpointRangeConstraints
+	(*MeasurementConstraints)(nil),          // 19: home.registry.v1.MeasurementConstraints
+	(*BinaryConstraints)(nil),               // 20: home.registry.v1.BinaryConstraints
+	(*ExtensionConstraints)(nil),            // 21: home.registry.v1.ExtensionConstraints
+	(*v1.HelperConstraints)(nil),            // 22: home.helpers.v1.HelperConstraints
+	(*v11.SolarConstraints)(nil),            // 23: home.solar.v1.SolarConstraints
+	(*v11.SolarEventConstraints)(nil),       // 24: home.solar.v1.SolarEventConstraints
+	(*v12.CoverConstraints)(nil),            // 25: home.controls.v1.CoverConstraints
+	(*v12.LockConstraints)(nil),             // 26: home.controls.v1.LockConstraints
+	(*v12.AlarmConstraints)(nil),            // 27: home.controls.v1.AlarmConstraints
+	(*v13.WeatherConstraints)(nil),          // 28: home.environment.v1.WeatherConstraints
+	(*v13.PresenceConstraints)(nil),         // 29: home.environment.v1.PresenceConstraints
+	(*v13.PresenceDetailsConstraints)(nil),  // 30: home.environment.v1.PresenceDetailsConstraints
 }
 var file_home_registry_v1_registry_proto_depIdxs = []int32{
-	9,  // 0: home.registry.v1.CapabilityDescription.switch:type_name -> home.registry.v1.SwitchConstraints
-	10, // 1: home.registry.v1.CapabilityDescription.light:type_name -> home.registry.v1.LightConstraints
-	11, // 2: home.registry.v1.CapabilityDescription.fan:type_name -> home.registry.v1.FanConstraints
-	12, // 3: home.registry.v1.CapabilityDescription.climate:type_name -> home.registry.v1.ClimateConstraints
-	15, // 4: home.registry.v1.CapabilityDescription.measurement:type_name -> home.registry.v1.MeasurementConstraints
-	16, // 5: home.registry.v1.CapabilityDescription.binary:type_name -> home.registry.v1.BinaryConstraints
-	17, // 6: home.registry.v1.CapabilityDescription.extension:type_name -> home.registry.v1.ExtensionConstraints
-	18, // 7: home.registry.v1.CapabilityDescription.helper:type_name -> home.helpers.v1.HelperConstraints
-	19, // 8: home.registry.v1.CapabilityDescription.solar:type_name -> home.solar.v1.SolarConstraints
-	20, // 9: home.registry.v1.CapabilityDescription.solar_event:type_name -> home.solar.v1.SolarEventConstraints
-	21, // 10: home.registry.v1.CapabilityDescription.cover:type_name -> home.controls.v1.CoverConstraints
-	22, // 11: home.registry.v1.CapabilityDescription.lock:type_name -> home.controls.v1.LockConstraints
-	23, // 12: home.registry.v1.CapabilityDescription.alarm:type_name -> home.controls.v1.AlarmConstraints
-	24, // 13: home.registry.v1.CapabilityDescription.weather:type_name -> home.environment.v1.WeatherConstraints
-	25, // 14: home.registry.v1.CapabilityDescription.presence:type_name -> home.environment.v1.PresenceConstraints
-	26, // 15: home.registry.v1.CapabilityDescription.presence_details:type_name -> home.environment.v1.PresenceDetailsConstraints
-	8,  // 16: home.registry.v1.LightConstraints.brightness_percent:type_name -> home.registry.v1.NumberBounds
-	8,  // 17: home.registry.v1.LightConstraints.color_temp_mireds:type_name -> home.registry.v1.NumberBounds
-	8,  // 18: home.registry.v1.LightConstraints.transition_seconds:type_name -> home.registry.v1.NumberBounds
-	8,  // 19: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
-	0,  // 20: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
-	1,  // 21: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
-	13, // 22: home.registry.v1.ClimateConstraints.observed_temperature_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
-	13, // 23: home.registry.v1.ClimateConstraints.observed_setpoint_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
-	14, // 24: home.registry.v1.ClimateConstraints.observed_setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
-	0,  // 25: home.registry.v1.ClimateConstraints.observed_mode_options:type_name -> home.registry.v1.ClimateMode
-	14, // 26: home.registry.v1.ClimateConstraints.setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
-	2,  // 27: home.registry.v1.ClimateConstraints.fan_target_options:type_name -> home.registry.v1.ClimateFanTarget
-	8,  // 28: home.registry.v1.ClimateConstraints.observed_humidity_percent:type_name -> home.registry.v1.NumberBounds
-	2,  // 29: home.registry.v1.ClimateConstraints.observed_fan_target_options:type_name -> home.registry.v1.ClimateFanTarget
-	8,  // 30: home.registry.v1.ClimateTemperatureObservation.bounds:type_name -> home.registry.v1.NumberBounds
-	8,  // 31: home.registry.v1.ClimateSetpointRangeConstraints.low_celsius:type_name -> home.registry.v1.NumberBounds
-	8,  // 32: home.registry.v1.ClimateSetpointRangeConstraints.high_celsius:type_name -> home.registry.v1.NumberBounds
-	3,  // 33: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
-	4,  // 34: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
-	8,  // 35: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
-	36, // [36:36] is the sub-list for method output_type
-	36, // [36:36] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	13, // 0: home.registry.v1.CapabilityDescription.switch:type_name -> home.registry.v1.SwitchConstraints
+	14, // 1: home.registry.v1.CapabilityDescription.light:type_name -> home.registry.v1.LightConstraints
+	15, // 2: home.registry.v1.CapabilityDescription.fan:type_name -> home.registry.v1.FanConstraints
+	16, // 3: home.registry.v1.CapabilityDescription.climate:type_name -> home.registry.v1.ClimateConstraints
+	19, // 4: home.registry.v1.CapabilityDescription.measurement:type_name -> home.registry.v1.MeasurementConstraints
+	20, // 5: home.registry.v1.CapabilityDescription.binary:type_name -> home.registry.v1.BinaryConstraints
+	21, // 6: home.registry.v1.CapabilityDescription.extension:type_name -> home.registry.v1.ExtensionConstraints
+	22, // 7: home.registry.v1.CapabilityDescription.helper:type_name -> home.helpers.v1.HelperConstraints
+	23, // 8: home.registry.v1.CapabilityDescription.solar:type_name -> home.solar.v1.SolarConstraints
+	24, // 9: home.registry.v1.CapabilityDescription.solar_event:type_name -> home.solar.v1.SolarEventConstraints
+	25, // 10: home.registry.v1.CapabilityDescription.cover:type_name -> home.controls.v1.CoverConstraints
+	26, // 11: home.registry.v1.CapabilityDescription.lock:type_name -> home.controls.v1.LockConstraints
+	27, // 12: home.registry.v1.CapabilityDescription.alarm:type_name -> home.controls.v1.AlarmConstraints
+	28, // 13: home.registry.v1.CapabilityDescription.weather:type_name -> home.environment.v1.WeatherConstraints
+	29, // 14: home.registry.v1.CapabilityDescription.presence:type_name -> home.environment.v1.PresenceConstraints
+	30, // 15: home.registry.v1.CapabilityDescription.presence_details:type_name -> home.environment.v1.PresenceDetailsConstraints
+	9,  // 16: home.registry.v1.ControlChoices.choices:type_name -> home.registry.v1.ControlChoice
+	8,  // 17: home.registry.v1.ColorDefinition.temperature_mireds:type_name -> home.registry.v1.NumberBounds
+	8,  // 18: home.registry.v1.LightConstraints.brightness_percent:type_name -> home.registry.v1.NumberBounds
+	8,  // 19: home.registry.v1.LightConstraints.color_temp_mireds:type_name -> home.registry.v1.NumberBounds
+	8,  // 20: home.registry.v1.LightConstraints.transition_seconds:type_name -> home.registry.v1.NumberBounds
+	10, // 21: home.registry.v1.LightConstraints.presets:type_name -> home.registry.v1.ControlChoices
+	10, // 22: home.registry.v1.FanConstraints.speed:type_name -> home.registry.v1.ControlChoices
+	8,  // 23: home.registry.v1.FanConstraints.level:type_name -> home.registry.v1.NumberBounds
+	8,  // 24: home.registry.v1.ClimateConstraints.setpoint_celsius:type_name -> home.registry.v1.NumberBounds
+	0,  // 25: home.registry.v1.ClimateConstraints.mode_options:type_name -> home.registry.v1.ClimateMode
+	1,  // 26: home.registry.v1.ClimateConstraints.activity_options:type_name -> home.registry.v1.ClimateActivity
+	17, // 27: home.registry.v1.ClimateConstraints.observed_temperature_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
+	17, // 28: home.registry.v1.ClimateConstraints.observed_setpoint_celsius:type_name -> home.registry.v1.ClimateTemperatureObservation
+	18, // 29: home.registry.v1.ClimateConstraints.observed_setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
+	0,  // 30: home.registry.v1.ClimateConstraints.observed_mode_options:type_name -> home.registry.v1.ClimateMode
+	18, // 31: home.registry.v1.ClimateConstraints.setpoint_range_celsius:type_name -> home.registry.v1.ClimateSetpointRangeConstraints
+	2,  // 32: home.registry.v1.ClimateConstraints.fan_target_options:type_name -> home.registry.v1.ClimateFanTarget
+	8,  // 33: home.registry.v1.ClimateConstraints.observed_humidity_percent:type_name -> home.registry.v1.NumberBounds
+	2,  // 34: home.registry.v1.ClimateConstraints.observed_fan_target_options:type_name -> home.registry.v1.ClimateFanTarget
+	8,  // 35: home.registry.v1.ClimateTemperatureObservation.bounds:type_name -> home.registry.v1.NumberBounds
+	8,  // 36: home.registry.v1.ClimateSetpointRangeConstraints.low_celsius:type_name -> home.registry.v1.NumberBounds
+	8,  // 37: home.registry.v1.ClimateSetpointRangeConstraints.high_celsius:type_name -> home.registry.v1.NumberBounds
+	3,  // 38: home.registry.v1.MeasurementConstraints.semantic:type_name -> home.registry.v1.MeasurementSemantic
+	4,  // 39: home.registry.v1.MeasurementConstraints.aggregation:type_name -> home.registry.v1.MeasurementAggregation
+	8,  // 40: home.registry.v1.MeasurementConstraints.value:type_name -> home.registry.v1.NumberBounds
+	41, // [41:41] is the sub-list for method output_type
+	41, // [41:41] is the sub-list for method input_type
+	41, // [41:41] is the sub-list for extension type_name
+	41, // [41:41] is the sub-list for extension extendee
+	0,  // [0:41] is the sub-list for field type_name
 }
 
 func init() { file_home_registry_v1_registry_proto_init() }
@@ -1650,16 +1920,17 @@ func file_home_registry_v1_registry_proto_init() {
 		(*CapabilityDescription_PresenceDetails)(nil),
 	}
 	file_home_registry_v1_registry_proto_msgTypes[3].OneofWrappers = []any{}
-	file_home_registry_v1_registry_proto_msgTypes[9].OneofWrappers = []any{}
-	file_home_registry_v1_registry_proto_msgTypes[11].OneofWrappers = []any{}
-	file_home_registry_v1_registry_proto_msgTypes[12].OneofWrappers = []any{}
+	file_home_registry_v1_registry_proto_msgTypes[6].OneofWrappers = []any{}
+	file_home_registry_v1_registry_proto_msgTypes[13].OneofWrappers = []any{}
+	file_home_registry_v1_registry_proto_msgTypes[15].OneofWrappers = []any{}
+	file_home_registry_v1_registry_proto_msgTypes[16].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_registry_v1_registry_proto_rawDesc), len(file_home_registry_v1_registry_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   13,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

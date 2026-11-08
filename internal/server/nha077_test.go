@@ -331,7 +331,7 @@ func TestNHA077ConfiguredCasetaWorkerTLSHostPostgres(t *testing.T) {
 			return state.CriticalValue()
 		}()
 		if alias == "fan.living_room_ceiling_fan" {
-			if speed, ok := value.Fan(); !ok || speed != domain.FanSpeedOff {
+			if speed, ok := value.Fan(); !ok || speed != nha212FixtureFan(t, "Off") {
 				t.Fatalf("fan initial speed: %v", value)
 			}
 		}
@@ -435,7 +435,7 @@ func TestNHA077ConfiguredCasetaWorkerTLSHostPostgres(t *testing.T) {
 	}
 	fanValue, fresh := fanState.CriticalValue()
 	speed, isFan := fanValue.Fan()
-	if !fresh || !isFan || speed != domain.FanSpeedHigh {
+	if !fresh || !isFan || speed != nha212FixtureFan(t, "High") {
 		t.Fatalf("fan state not complete: %v", fanValue)
 	}
 	awayAlias := "switch.unassigned_smart_away"

@@ -867,7 +867,8 @@ func TestNHA069LightRetainedDeltaAndAvailabilityFreshness(t *testing.T) {
 	if !ok {
 		t.Fatal("lost structured light")
 	}
-	on, brightness, ct, err := light.Components()
+	lightParts, lightPartsErr := light.Components()
+	on, brightness, ct, err := lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds, lightPartsErr
 	if err != nil || !on || brightness != nil || ct != nil {
 		t.Fatalf("stale attributes promoted: %v %v %v %v", on, brightness, ct, err)
 	}
@@ -877,7 +878,9 @@ func TestNHA069LightRetainedDeltaAndAvailabilityFreshness(t *testing.T) {
 		t.Fatal("complete live light missing")
 	}
 	light, _ = live.Light()
-	on, brightness, ct, _ = light.Components()
+	lightParts, lightPartsErr = light.Components()
+	_ = lightPartsErr
+	on, brightness, ct = lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds
 	if !on || brightness == nil || *brightness != 50 || ct == nil || *ct != 300 {
 		t.Fatalf("complete light: %v %v %v", on, brightness, ct)
 	}
@@ -901,7 +904,9 @@ func TestNHA069LightRetainedDeltaAndAvailabilityFreshness(t *testing.T) {
 		t.Fatal("fresh off missing")
 	}
 	light, _ = live.Light()
-	on, brightness, ct, _ = light.Components()
+	lightParts, lightPartsErr = light.Components()
+	_ = lightPartsErr
+	on, brightness, ct = lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds
 	if on || brightness != nil || ct != nil {
 		t.Fatalf("off invented fields: %v %v %v", on, brightness, ct)
 	}

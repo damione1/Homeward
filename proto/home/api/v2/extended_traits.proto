@@ -500,12 +500,36 @@ message SelectorDefinition {
   repeated string options = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
+// Reusable exact source choice; display names never become command keys.
+message ControlChoice {
+  string key = 1;
+  string display_name = 2;
+}
+message ControlChoices { repeated ControlChoice choices = 1; }
+// Native continuous/stepped numeric range or ordered source choices.
+message ControlLevelDefinition {
+  oneof definition {
+    NumberBounds range = 1;
+    ControlChoices steps = 2;
+  }
+}
+// Integer channels in [0,255]. Missing channels are invalid, not zero.
+message RgbColor {
+  optional uint32 red = 1;
+  optional uint32 green = 2;
+  optional uint32 blue = 3;
+}
+message ColorDefinition {
+  NumberBounds temperature_mireds = 1;
+  bool rgb = 2;
+}
+
 // Atomic fan controls. Power and speed stay one physical intention.
 message FanControlCapability {
   // Whether power commands are supported.
   bool supports_power = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Exact source speed keys; never guessed from display names.
-  SelectorDefinition speed = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  ControlLevelDefinition level = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Last qualified speed observation, absent until obtained.
   FanControlObservation observation = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
@@ -513,7 +537,9 @@ message FanControlCapability {
 // A fan speed reading, with an explicitly typed OFF.
 message FanControlObservation {
   // Observed speed; independent of command selector catalogue.
-  optional FanSpeed speed = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  optional string speed = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  optional bool on = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  optional double level = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Source observation time.
   google.protobuf.Timestamp observed_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Independent observation quality.
@@ -532,6 +558,8 @@ message LightControlCapability {
   NumberBounds transition_duration_bounds = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Source observations remain independent of writable fields.
   LightControlObservation observation = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  bool rgb = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  ControlChoices presets = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // Atomic source light frame. A missing field is not a default value.
@@ -546,6 +574,8 @@ message LightControlObservation {
   google.protobuf.Timestamp observed_time = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Independent observation quality.
   ObservationQuality quality = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  RgbColor rgb = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  optional string preset = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // Registered source metadata without an executable public codec. No raw action
@@ -572,6 +602,8 @@ message SetLightCommand {
   optional int32 color_temperature_mireds = 3 [(google.api.field_behavior) = OPTIONAL];
   // Nonnegative transition; absent uses source policy.
   google.protobuf.Duration transition_duration = 4 [(google.api.field_behavior) = OPTIONAL];
+  RgbColor rgb = 5 [(google.api.field_behavior) = OPTIONAL];
+  optional string preset = 6 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // One atomic fan power/selection intention, with at least one explicit field.
@@ -580,6 +612,7 @@ message SetFanCommand {
   SetPowerCommand power = 1 [(google.api.field_behavior) = OPTIONAL];
   // Exact key from the currently advertised source catalogue.
   optional string speed = 2 [(google.api.field_behavior) = OPTIONAL];
+  optional double level = 3 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // One atomic thermal intention. A simple setpoint and pair are mutually
@@ -931,18 +964,3 @@ enum HelperReason {
   HELPER_REASON_NO_AUTHORIZED_TARGET = 1;
 }
 
-// Closed observed fan speeds, independent of open source selector keys.
-enum FanSpeed {
-  // No observed value, never an executable default.
-  FAN_SPEED_UNSPECIFIED = 0;
-  // Observed stopped fan.
-  FAN_SPEED_OFF = 1;
-  // Observed low speed.
-  FAN_SPEED_LOW = 2;
-  // Observed medium speed.
-  FAN_SPEED_MEDIUM = 3;
-  // Observed medium-high speed.
-  FAN_SPEED_MEDIUM_HIGH = 4;
-  // Observed high speed.
-  FAN_SPEED_HIGH = 5;
-}

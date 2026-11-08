@@ -1217,7 +1217,7 @@ type HistoricalState struct {
 	//	*HistoricalState_SwitchOn
 	//	*HistoricalState_Measurement
 	//	*HistoricalState_Light
-	//	*HistoricalState_FanSpeed
+	//	*HistoricalState_Fan
 	//	*HistoricalState_TemperatureControl
 	//	*HistoricalState_Helper
 	//	*HistoricalState_Solar
@@ -1339,13 +1339,13 @@ func (x *HistoricalState) GetLight() *HistoricalLight {
 	return nil
 }
 
-func (x *HistoricalState) GetFanSpeed() FanSpeed {
+func (x *HistoricalState) GetFan() *HistoricalFan {
 	if x != nil {
-		if x, ok := x.Value.(*HistoricalState_FanSpeed); ok {
-			return x.FanSpeed
+		if x, ok := x.Value.(*HistoricalState_Fan); ok {
+			return x.Fan
 		}
 	}
-	return FanSpeed_FAN_SPEED_UNSPECIFIED
+	return nil
 }
 
 func (x *HistoricalState) GetTemperatureControl() *HistoricalTemperatureControl {
@@ -1457,9 +1457,9 @@ type HistoricalState_Light struct {
 	Light *HistoricalLight `protobuf:"bytes,13,opt,name=light,proto3,oneof"`
 }
 
-type HistoricalState_FanSpeed struct {
+type HistoricalState_Fan struct {
 	// The fan speed represented by FanSpeed.
-	FanSpeed FanSpeed `protobuf:"varint,14,opt,name=fan_speed,json=fanSpeed,proto3,enum=home.api.v2.FanSpeed,oneof"`
+	Fan *HistoricalFan `protobuf:"bytes,14,opt,name=fan,proto3,oneof"`
 }
 
 type HistoricalState_TemperatureControl struct {
@@ -1518,7 +1518,7 @@ func (*HistoricalState_Measurement) isHistoricalState_Value() {}
 
 func (*HistoricalState_Light) isHistoricalState_Value() {}
 
-func (*HistoricalState_FanSpeed) isHistoricalState_Value() {}
+func (*HistoricalState_Fan) isHistoricalState_Value() {}
 
 func (*HistoricalState_TemperatureControl) isHistoricalState_Value() {}
 
@@ -1612,7 +1612,9 @@ type HistoricalLight struct {
 	// Value of brightness in percent.
 	BrightnessPercent *float64 `protobuf:"fixed64,2,opt,name=brightness_percent,json=brightnessPercent,proto3,oneof" json:"brightness_percent,omitempty"`
 	// The color temp mireds represented as a bounded nonnegative integer.
-	ColorTempMireds *int64 `protobuf:"varint,3,opt,name=color_temp_mireds,json=colorTempMireds,proto3,oneof" json:"color_temp_mireds,omitempty"`
+	ColorTempMireds *int64    `protobuf:"varint,3,opt,name=color_temp_mireds,json=colorTempMireds,proto3,oneof" json:"color_temp_mireds,omitempty"`
+	Rgb             *RgbColor `protobuf:"bytes,4,opt,name=rgb,proto3" json:"rgb,omitempty"`
+	Preset          *string   `protobuf:"bytes,5,opt,name=preset,proto3,oneof" json:"preset,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1666,6 +1668,20 @@ func (x *HistoricalLight) GetColorTempMireds() int64 {
 		return *x.ColorTempMireds
 	}
 	return 0
+}
+
+func (x *HistoricalLight) GetRgb() *RgbColor {
+	if x != nil {
+		return x.Rgb
+	}
+	return nil
+}
+
+func (x *HistoricalLight) GetPreset() string {
+	if x != nil && x.Preset != nil {
+		return *x.Preset
+	}
+	return ""
 }
 
 // Represents historical temperature control.
@@ -2742,6 +2758,67 @@ func (x *HistoryTraceLoss) GetUncertainEnvelope() bool {
 	return false
 }
 
+// Independent source presence; no current catalogue reinterpretation.
+type HistoricalFan struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	On            *bool                  `protobuf:"varint,1,opt,name=on,proto3,oneof" json:"on,omitempty"`
+	Speed         *string                `protobuf:"bytes,2,opt,name=speed,proto3,oneof" json:"speed,omitempty"`
+	Level         *float64               `protobuf:"fixed64,3,opt,name=level,proto3,oneof" json:"level,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HistoricalFan) Reset() {
+	*x = HistoricalFan{}
+	mi := &file_home_api_v2_history_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HistoricalFan) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HistoricalFan) ProtoMessage() {}
+
+func (x *HistoricalFan) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_history_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HistoricalFan.ProtoReflect.Descriptor instead.
+func (*HistoricalFan) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_history_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *HistoricalFan) GetOn() bool {
+	if x != nil && x.On != nil {
+		return *x.On
+	}
+	return false
+}
+
+func (x *HistoricalFan) GetSpeed() string {
+	if x != nil && x.Speed != nil {
+		return *x.Speed
+	}
+	return ""
+}
+
+func (x *HistoricalFan) GetLevel() float64 {
+	if x != nil && x.Level != nil {
+		return *x.Level
+	}
+	return 0
+}
+
 var File_home_api_v2_history_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_history_proto_rawDesc = "" +
@@ -2796,7 +2873,7 @@ const file_home_api_v2_history_proto_rawDesc = "" +
 	"\vcommit_high\x18\n" +
 	" \x01(\tR\n" +
 	"commitHigh\x125\n" +
-	"\x06losses\x18\v \x03(\v2\x1d.home.api.v2.HistoryTraceLossR\x06losses\"\xcf\t\n" +
+	"\x06losses\x18\v \x03(\v2\x1d.home.api.v2.HistoryTraceLossR\x06losses\"\xc9\t\n" +
 	"\x0fHistoricalState\x129\n" +
 	"\aquality\x18\x01 \x01(\v2\x1f.home.api.v2.ObservationQualityR\aquality\x12?\n" +
 	"\robserved_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\fobservedTime\x12=\n" +
@@ -2806,8 +2883,8 @@ const file_home_api_v2_history_proto_rawDesc = "" +
 	"\x10last_report_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x0elastReportTime\x12\x1d\n" +
 	"\tswitch_on\x18\v \x01(\bH\x00R\bswitchOn\x12F\n" +
 	"\vmeasurement\x18\f \x01(\v2\".home.api.v2.HistoricalMeasurementH\x00R\vmeasurement\x124\n" +
-	"\x05light\x18\r \x01(\v2\x1c.home.api.v2.HistoricalLightH\x00R\x05light\x124\n" +
-	"\tfan_speed\x18\x0e \x01(\x0e2\x15.home.api.v2.FanSpeedH\x00R\bfanSpeed\x12\\\n" +
+	"\x05light\x18\r \x01(\v2\x1c.home.api.v2.HistoricalLightH\x00R\x05light\x12.\n" +
+	"\x03fan\x18\x0e \x01(\v2\x1a.home.api.v2.HistoricalFanH\x00R\x03fan\x12\\\n" +
 	"\x13temperature_control\x18\x0f \x01(\v2).home.api.v2.HistoricalTemperatureControlH\x00R\x12temperatureControl\x122\n" +
 	"\x06helper\x18\x10 \x01(\v2\x18.home.api.v2.HelperValueH\x00R\x06helper\x12/\n" +
 	"\x05solar\x18\x11 \x01(\v2\x17.home.api.v2.SolarValueH\x00R\x05solar\x12?\n" +
@@ -2824,14 +2901,17 @@ const file_home_api_v2_history_proto_rawDesc = "" +
 	"\x05value\x18\x01 \x01(\x01R\x05value\x12\x12\n" +
 	"\x04unit\x18\x02 \x01(\tR\x04unit\x12(\n" +
 	"\rdecimal_value\x18\x03 \x01(\tH\x00R\fdecimalValue\x88\x01\x01B\x10\n" +
-	"\x0e_decimal_value\"\xbf\x01\n" +
+	"\x0e_decimal_value\"\x90\x02\n" +
 	"\x0fHistoricalLight\x12\x13\n" +
 	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x122\n" +
 	"\x12brightness_percent\x18\x02 \x01(\x01H\x01R\x11brightnessPercent\x88\x01\x01\x12/\n" +
-	"\x11color_temp_mireds\x18\x03 \x01(\x03H\x02R\x0fcolorTempMireds\x88\x01\x01B\x05\n" +
+	"\x11color_temp_mireds\x18\x03 \x01(\x03H\x02R\x0fcolorTempMireds\x88\x01\x01\x12'\n" +
+	"\x03rgb\x18\x04 \x01(\v2\x15.home.api.v2.RgbColorR\x03rgb\x12\x1b\n" +
+	"\x06preset\x18\x05 \x01(\tH\x03R\x06preset\x88\x01\x01B\x05\n" +
 	"\x03_onB\x15\n" +
 	"\x13_brightness_percentB\x14\n" +
-	"\x12_color_temp_mireds\"\xf1\x04\n" +
+	"\x12_color_temp_miredsB\t\n" +
+	"\a_preset\"\xf1\x04\n" +
 	"\x1cHistoricalTemperatureControl\x12C\n" +
 	"\x1bcurrent_temperature_celsius\x18\x01 \x01(\x01H\x01R\x19currentTemperatureCelsius\x88\x01\x01\x12+\n" +
 	"\x10setpoint_celsius\x18\x02 \x01(\x01H\x00R\x0fsetpointCelsius\x12U\n" +
@@ -2955,7 +3035,14 @@ const file_home_api_v2_history_proto_rawDesc = "" +
 	"knownCount\x12.\n" +
 	"\x04from\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x04from\x124\n" +
 	"\athrough\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\athrough\x12-\n" +
-	"\x12uncertain_envelope\x18\x05 \x01(\bR\x11uncertainEnvelope*p\n" +
+	"\x12uncertain_envelope\x18\x05 \x01(\bR\x11uncertainEnvelope\"u\n" +
+	"\rHistoricalFan\x12\x13\n" +
+	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x12\x19\n" +
+	"\x05speed\x18\x02 \x01(\tH\x01R\x05speed\x88\x01\x01\x12\x19\n" +
+	"\x05level\x18\x03 \x01(\x01H\x02R\x05level\x88\x01\x01B\x05\n" +
+	"\x03_onB\b\n" +
+	"\x06_speedB\b\n" +
+	"\x06_level*p\n" +
 	"\x11HistoryResolution\x12\"\n" +
 	"\x1eHISTORY_RESOLUTION_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16HISTORY_RESOLUTION_RAW\x10\x01\x12\x1b\n" +
@@ -3049,7 +3136,7 @@ func file_home_api_v2_history_proto_rawDescGZIP() []byte {
 }
 
 var file_home_api_v2_history_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_home_api_v2_history_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_home_api_v2_history_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_home_api_v2_history_proto_goTypes = []any{
 	(HistoryResolution)(0),               // 0: home.api.v2.HistoryResolution
 	(HistoryCoverageVerdict)(0),          // 1: home.api.v2.HistoryCoverageVerdict
@@ -3080,9 +3167,9 @@ var file_home_api_v2_history_proto_goTypes = []any{
 	(*HistoryAggregate)(nil),             // 26: home.api.v2.HistoryAggregate
 	(*HistoryExecutionTrace)(nil),        // 27: home.api.v2.HistoryExecutionTrace
 	(*HistoryTraceLoss)(nil),             // 28: home.api.v2.HistoryTraceLoss
-	(*ObservationQuality)(nil),           // 29: home.api.v2.ObservationQuality
-	(*timestamppb.Timestamp)(nil),        // 30: google.protobuf.Timestamp
-	(FanSpeed)(0),                        // 31: home.api.v2.FanSpeed
+	(*HistoricalFan)(nil),                // 29: home.api.v2.HistoricalFan
+	(*ObservationQuality)(nil),           // 30: home.api.v2.ObservationQuality
+	(*timestamppb.Timestamp)(nil),        // 31: google.protobuf.Timestamp
 	(*HelperValue)(nil),                  // 32: home.api.v2.HelperValue
 	(*SolarValue)(nil),                   // 33: home.api.v2.SolarValue
 	(*SolarEventValue)(nil),              // 34: home.api.v2.SolarEventValue
@@ -3092,16 +3179,17 @@ var file_home_api_v2_history_proto_goTypes = []any{
 	(*WeatherValue)(nil),                 // 38: home.api.v2.WeatherValue
 	(*PresenceValue)(nil),                // 39: home.api.v2.PresenceValue
 	(*PresenceDetailsValue)(nil),         // 40: home.api.v2.PresenceDetailsValue
-	(*TemperatureRange)(nil),             // 41: home.api.v2.TemperatureRange
-	(TemperatureMode)(0),                 // 42: home.api.v2.TemperatureMode
-	(TemperatureActivity)(0),             // 43: home.api.v2.TemperatureActivity
-	(TemperatureFanTarget)(0),            // 44: home.api.v2.TemperatureFanTarget
-	(MeasurementSemantic)(0),             // 45: home.api.v2.MeasurementSemantic
-	(MeasurementAggregation)(0),          // 46: home.api.v2.MeasurementAggregation
-	(RecorderTraceDecision)(0),           // 47: home.api.v2.RecorderTraceDecision
-	(RecorderTraceNodeStage)(0),          // 48: home.api.v2.RecorderTraceNodeStage
-	(RecorderTraceActionKind)(0),         // 49: home.api.v2.RecorderTraceActionKind
-	(RecorderTraceExecutionErrorKind)(0), // 50: home.api.v2.RecorderTraceExecutionErrorKind
+	(*RgbColor)(nil),                     // 41: home.api.v2.RgbColor
+	(*TemperatureRange)(nil),             // 42: home.api.v2.TemperatureRange
+	(TemperatureMode)(0),                 // 43: home.api.v2.TemperatureMode
+	(TemperatureActivity)(0),             // 44: home.api.v2.TemperatureActivity
+	(TemperatureFanTarget)(0),            // 45: home.api.v2.TemperatureFanTarget
+	(MeasurementSemantic)(0),             // 46: home.api.v2.MeasurementSemantic
+	(MeasurementAggregation)(0),          // 47: home.api.v2.MeasurementAggregation
+	(RecorderTraceDecision)(0),           // 48: home.api.v2.RecorderTraceDecision
+	(RecorderTraceNodeStage)(0),          // 49: home.api.v2.RecorderTraceNodeStage
+	(RecorderTraceActionKind)(0),         // 50: home.api.v2.RecorderTraceActionKind
+	(RecorderTraceExecutionErrorKind)(0), // 51: home.api.v2.RecorderTraceExecutionErrorKind
 }
 var file_home_api_v2_history_proto_depIdxs = []int32{
 	20, // 0: home.api.v2.QueryObservationsRequest.period:type_name -> home.api.v2.HistoryPeriod
@@ -3116,15 +3204,15 @@ var file_home_api_v2_history_proto_depIdxs = []int32{
 	27, // 9: home.api.v2.QueryExecutionTracesResponse.execution_traces:type_name -> home.api.v2.HistoryExecutionTrace
 	22, // 10: home.api.v2.QueryExecutionTracesResponse.scope:type_name -> home.api.v2.HistoryReadScope
 	28, // 11: home.api.v2.QueryExecutionTracesResponse.losses:type_name -> home.api.v2.HistoryTraceLoss
-	29, // 12: home.api.v2.HistoricalState.quality:type_name -> home.api.v2.ObservationQuality
-	30, // 13: home.api.v2.HistoricalState.observed_time:type_name -> google.protobuf.Timestamp
-	30, // 14: home.api.v2.HistoricalState.receive_time:type_name -> google.protobuf.Timestamp
-	30, // 15: home.api.v2.HistoricalState.last_change_time:type_name -> google.protobuf.Timestamp
-	30, // 16: home.api.v2.HistoricalState.last_update_time:type_name -> google.protobuf.Timestamp
-	30, // 17: home.api.v2.HistoricalState.last_report_time:type_name -> google.protobuf.Timestamp
+	30, // 12: home.api.v2.HistoricalState.quality:type_name -> home.api.v2.ObservationQuality
+	31, // 13: home.api.v2.HistoricalState.observed_time:type_name -> google.protobuf.Timestamp
+	31, // 14: home.api.v2.HistoricalState.receive_time:type_name -> google.protobuf.Timestamp
+	31, // 15: home.api.v2.HistoricalState.last_change_time:type_name -> google.protobuf.Timestamp
+	31, // 16: home.api.v2.HistoricalState.last_update_time:type_name -> google.protobuf.Timestamp
+	31, // 17: home.api.v2.HistoricalState.last_report_time:type_name -> google.protobuf.Timestamp
 	17, // 18: home.api.v2.HistoricalState.measurement:type_name -> home.api.v2.HistoricalMeasurement
 	18, // 19: home.api.v2.HistoricalState.light:type_name -> home.api.v2.HistoricalLight
-	31, // 20: home.api.v2.HistoricalState.fan_speed:type_name -> home.api.v2.FanSpeed
+	29, // 20: home.api.v2.HistoricalState.fan:type_name -> home.api.v2.HistoricalFan
 	19, // 21: home.api.v2.HistoricalState.temperature_control:type_name -> home.api.v2.HistoricalTemperatureControl
 	32, // 22: home.api.v2.HistoricalState.helper:type_name -> home.api.v2.HelperValue
 	33, // 23: home.api.v2.HistoricalState.solar:type_name -> home.api.v2.SolarValue
@@ -3135,54 +3223,55 @@ var file_home_api_v2_history_proto_depIdxs = []int32{
 	38, // 28: home.api.v2.HistoricalState.weather:type_name -> home.api.v2.WeatherValue
 	39, // 29: home.api.v2.HistoricalState.presence:type_name -> home.api.v2.PresenceValue
 	40, // 30: home.api.v2.HistoricalState.presence_details:type_name -> home.api.v2.PresenceDetailsValue
-	41, // 31: home.api.v2.HistoricalTemperatureControl.setpoint_range_celsius:type_name -> home.api.v2.TemperatureRange
-	42, // 32: home.api.v2.HistoricalTemperatureControl.mode:type_name -> home.api.v2.TemperatureMode
-	43, // 33: home.api.v2.HistoricalTemperatureControl.activity:type_name -> home.api.v2.TemperatureActivity
-	44, // 34: home.api.v2.HistoricalTemperatureControl.fan_target:type_name -> home.api.v2.TemperatureFanTarget
-	30, // 35: home.api.v2.HistoryPeriod.start:type_name -> google.protobuf.Timestamp
-	30, // 36: home.api.v2.HistoryPeriod.end:type_name -> google.protobuf.Timestamp
-	20, // 37: home.api.v2.HistoryReadScope.requested:type_name -> home.api.v2.HistoryPeriod
-	20, // 38: home.api.v2.HistoryReadScope.retained:type_name -> home.api.v2.HistoryPeriod
-	30, // 39: home.api.v2.HistoryReadScope.retention_cutoff:type_name -> google.protobuf.Timestamp
-	30, // 40: home.api.v2.HistoryReadScope.as_of:type_name -> google.protobuf.Timestamp
-	0,  // 41: home.api.v2.HistoryReadScope.resolution:type_name -> home.api.v2.HistoryResolution
-	21, // 42: home.api.v2.HistoryReadScope.limits:type_name -> home.api.v2.HistoryLimits
-	20, // 43: home.api.v2.HistoryReadScope.not_retained_prefix:type_name -> home.api.v2.HistoryPeriod
-	1,  // 44: home.api.v2.HistoryCoverage.verdict:type_name -> home.api.v2.HistoryCoverageVerdict
-	30, // 45: home.api.v2.HistoryCoverage.provenance_started_at:type_name -> google.protobuf.Timestamp
-	16, // 46: home.api.v2.HistoryObservation.state:type_name -> home.api.v2.HistoricalState
-	25, // 47: home.api.v2.HistoryObservation.descriptor:type_name -> home.api.v2.HistoryNumericDescriptor
-	2,  // 48: home.api.v2.HistoryNumericDescriptor.dimension:type_name -> home.api.v2.HistoryDimension
-	45, // 49: home.api.v2.HistoryNumericDescriptor.semantic:type_name -> home.api.v2.MeasurementSemantic
-	46, // 50: home.api.v2.HistoryNumericDescriptor.aggregation:type_name -> home.api.v2.MeasurementAggregation
-	20, // 51: home.api.v2.HistoryAggregate.bucket:type_name -> home.api.v2.HistoryPeriod
-	25, // 52: home.api.v2.HistoryAggregate.descriptor:type_name -> home.api.v2.HistoryNumericDescriptor
-	29, // 53: home.api.v2.HistoryAggregate.quality:type_name -> home.api.v2.ObservationQuality
-	3,  // 54: home.api.v2.HistoryAggregate.reset:type_name -> home.api.v2.HistoryReset
-	4,  // 55: home.api.v2.HistoryAggregate.reasons:type_name -> home.api.v2.HistoryAggregateReason
-	30, // 56: home.api.v2.HistoryExecutionTrace.emission_time:type_name -> google.protobuf.Timestamp
-	47, // 57: home.api.v2.HistoryExecutionTrace.decision:type_name -> home.api.v2.RecorderTraceDecision
-	48, // 58: home.api.v2.HistoryExecutionTrace.node_stage:type_name -> home.api.v2.RecorderTraceNodeStage
-	8,  // 59: home.api.v2.HistoryExecutionTrace.command_outcome:type_name -> home.api.v2.HistoryCommandOutcome
-	5,  // 60: home.api.v2.HistoryExecutionTrace.scene_member_outcome:type_name -> home.api.v2.HistorySceneMemberOutcome
-	6,  // 61: home.api.v2.HistoryExecutionTrace.scene_outcome:type_name -> home.api.v2.HistorySceneOutcome
-	7,  // 62: home.api.v2.HistoryExecutionTrace.script_mode:type_name -> home.api.v2.HistoryScriptMode
-	49, // 63: home.api.v2.HistoryExecutionTrace.action_kind:type_name -> home.api.v2.RecorderTraceActionKind
-	50, // 64: home.api.v2.HistoryExecutionTrace.failure_kind:type_name -> home.api.v2.RecorderTraceExecutionErrorKind
-	9,  // 65: home.api.v2.HistoryTraceLoss.reason:type_name -> home.api.v2.HistoryTraceLossReason
-	30, // 66: home.api.v2.HistoryTraceLoss.from:type_name -> google.protobuf.Timestamp
-	30, // 67: home.api.v2.HistoryTraceLoss.through:type_name -> google.protobuf.Timestamp
-	10, // 68: home.api.v2.HistoryService.QueryObservations:input_type -> home.api.v2.QueryObservationsRequest
-	11, // 69: home.api.v2.HistoryService.QueryAggregates:input_type -> home.api.v2.QueryAggregatesRequest
-	12, // 70: home.api.v2.HistoryService.QueryExecutionTraces:input_type -> home.api.v2.QueryExecutionTracesRequest
-	13, // 71: home.api.v2.HistoryService.QueryObservations:output_type -> home.api.v2.QueryObservationsResponse
-	14, // 72: home.api.v2.HistoryService.QueryAggregates:output_type -> home.api.v2.QueryAggregatesResponse
-	15, // 73: home.api.v2.HistoryService.QueryExecutionTraces:output_type -> home.api.v2.QueryExecutionTracesResponse
-	71, // [71:74] is the sub-list for method output_type
-	68, // [68:71] is the sub-list for method input_type
-	68, // [68:68] is the sub-list for extension type_name
-	68, // [68:68] is the sub-list for extension extendee
-	0,  // [0:68] is the sub-list for field type_name
+	41, // 31: home.api.v2.HistoricalLight.rgb:type_name -> home.api.v2.RgbColor
+	42, // 32: home.api.v2.HistoricalTemperatureControl.setpoint_range_celsius:type_name -> home.api.v2.TemperatureRange
+	43, // 33: home.api.v2.HistoricalTemperatureControl.mode:type_name -> home.api.v2.TemperatureMode
+	44, // 34: home.api.v2.HistoricalTemperatureControl.activity:type_name -> home.api.v2.TemperatureActivity
+	45, // 35: home.api.v2.HistoricalTemperatureControl.fan_target:type_name -> home.api.v2.TemperatureFanTarget
+	31, // 36: home.api.v2.HistoryPeriod.start:type_name -> google.protobuf.Timestamp
+	31, // 37: home.api.v2.HistoryPeriod.end:type_name -> google.protobuf.Timestamp
+	20, // 38: home.api.v2.HistoryReadScope.requested:type_name -> home.api.v2.HistoryPeriod
+	20, // 39: home.api.v2.HistoryReadScope.retained:type_name -> home.api.v2.HistoryPeriod
+	31, // 40: home.api.v2.HistoryReadScope.retention_cutoff:type_name -> google.protobuf.Timestamp
+	31, // 41: home.api.v2.HistoryReadScope.as_of:type_name -> google.protobuf.Timestamp
+	0,  // 42: home.api.v2.HistoryReadScope.resolution:type_name -> home.api.v2.HistoryResolution
+	21, // 43: home.api.v2.HistoryReadScope.limits:type_name -> home.api.v2.HistoryLimits
+	20, // 44: home.api.v2.HistoryReadScope.not_retained_prefix:type_name -> home.api.v2.HistoryPeriod
+	1,  // 45: home.api.v2.HistoryCoverage.verdict:type_name -> home.api.v2.HistoryCoverageVerdict
+	31, // 46: home.api.v2.HistoryCoverage.provenance_started_at:type_name -> google.protobuf.Timestamp
+	16, // 47: home.api.v2.HistoryObservation.state:type_name -> home.api.v2.HistoricalState
+	25, // 48: home.api.v2.HistoryObservation.descriptor:type_name -> home.api.v2.HistoryNumericDescriptor
+	2,  // 49: home.api.v2.HistoryNumericDescriptor.dimension:type_name -> home.api.v2.HistoryDimension
+	46, // 50: home.api.v2.HistoryNumericDescriptor.semantic:type_name -> home.api.v2.MeasurementSemantic
+	47, // 51: home.api.v2.HistoryNumericDescriptor.aggregation:type_name -> home.api.v2.MeasurementAggregation
+	20, // 52: home.api.v2.HistoryAggregate.bucket:type_name -> home.api.v2.HistoryPeriod
+	25, // 53: home.api.v2.HistoryAggregate.descriptor:type_name -> home.api.v2.HistoryNumericDescriptor
+	30, // 54: home.api.v2.HistoryAggregate.quality:type_name -> home.api.v2.ObservationQuality
+	3,  // 55: home.api.v2.HistoryAggregate.reset:type_name -> home.api.v2.HistoryReset
+	4,  // 56: home.api.v2.HistoryAggregate.reasons:type_name -> home.api.v2.HistoryAggregateReason
+	31, // 57: home.api.v2.HistoryExecutionTrace.emission_time:type_name -> google.protobuf.Timestamp
+	48, // 58: home.api.v2.HistoryExecutionTrace.decision:type_name -> home.api.v2.RecorderTraceDecision
+	49, // 59: home.api.v2.HistoryExecutionTrace.node_stage:type_name -> home.api.v2.RecorderTraceNodeStage
+	8,  // 60: home.api.v2.HistoryExecutionTrace.command_outcome:type_name -> home.api.v2.HistoryCommandOutcome
+	5,  // 61: home.api.v2.HistoryExecutionTrace.scene_member_outcome:type_name -> home.api.v2.HistorySceneMemberOutcome
+	6,  // 62: home.api.v2.HistoryExecutionTrace.scene_outcome:type_name -> home.api.v2.HistorySceneOutcome
+	7,  // 63: home.api.v2.HistoryExecutionTrace.script_mode:type_name -> home.api.v2.HistoryScriptMode
+	50, // 64: home.api.v2.HistoryExecutionTrace.action_kind:type_name -> home.api.v2.RecorderTraceActionKind
+	51, // 65: home.api.v2.HistoryExecutionTrace.failure_kind:type_name -> home.api.v2.RecorderTraceExecutionErrorKind
+	9,  // 66: home.api.v2.HistoryTraceLoss.reason:type_name -> home.api.v2.HistoryTraceLossReason
+	31, // 67: home.api.v2.HistoryTraceLoss.from:type_name -> google.protobuf.Timestamp
+	31, // 68: home.api.v2.HistoryTraceLoss.through:type_name -> google.protobuf.Timestamp
+	10, // 69: home.api.v2.HistoryService.QueryObservations:input_type -> home.api.v2.QueryObservationsRequest
+	11, // 70: home.api.v2.HistoryService.QueryAggregates:input_type -> home.api.v2.QueryAggregatesRequest
+	12, // 71: home.api.v2.HistoryService.QueryExecutionTraces:input_type -> home.api.v2.QueryExecutionTracesRequest
+	13, // 72: home.api.v2.HistoryService.QueryObservations:output_type -> home.api.v2.QueryObservationsResponse
+	14, // 73: home.api.v2.HistoryService.QueryAggregates:output_type -> home.api.v2.QueryAggregatesResponse
+	15, // 74: home.api.v2.HistoryService.QueryExecutionTraces:output_type -> home.api.v2.QueryExecutionTracesResponse
+	72, // [72:75] is the sub-list for method output_type
+	69, // [69:72] is the sub-list for method input_type
+	69, // [69:69] is the sub-list for extension type_name
+	69, // [69:69] is the sub-list for extension extendee
+	0,  // [0:69] is the sub-list for field type_name
 }
 
 func init() { file_home_api_v2_history_proto_init() }
@@ -3197,7 +3286,7 @@ func file_home_api_v2_history_proto_init() {
 		(*HistoricalState_SwitchOn)(nil),
 		(*HistoricalState_Measurement)(nil),
 		(*HistoricalState_Light)(nil),
-		(*HistoricalState_FanSpeed)(nil),
+		(*HistoricalState_Fan)(nil),
 		(*HistoricalState_TemperatureControl)(nil),
 		(*HistoricalState_Helper)(nil),
 		(*HistoricalState_Solar)(nil),
@@ -3227,13 +3316,14 @@ func file_home_api_v2_history_proto_init() {
 		(*HistoryExecutionTrace_SceneOutcome)(nil),
 		(*HistoryExecutionTrace_ScriptMode)(nil),
 	}
+	file_home_api_v2_history_proto_msgTypes[19].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_api_v2_history_proto_rawDesc), len(file_home_api_v2_history_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   19,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

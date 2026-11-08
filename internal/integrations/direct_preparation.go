@@ -256,15 +256,23 @@ func (c DirectCapture) PrepareInternalSwitch(ctx context.Context, port *Internal
 	}
 	return c.prepare(domain.ActorID{}, id, expiresAt, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetSwitch{SetSwitch: &actions.SetSwitch{On: on}}})
 }
-func (c DirectCapture) PrepareFan(actor domain.ActorID, id domain.CommandID, expiresAt time.Time, speed domain.FanSpeed) (PreparedDirect, error) {
+func (c DirectCapture) PrepareFan(actor domain.ActorID, id domain.CommandID, expiresAt time.Time, speed domain.FanValue) (PreparedDirect, error) {
 	if c.kind != DirectFan {
 		return PreparedDirect{}, ErrInvalidInput
 	}
-	name, err := speed.String()
+	parts, err := speed.Components()
 	if err != nil {
 		return PreparedDirect{}, err
 	}
-	return c.prepare(actor, id, expiresAt, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{Speed: &name}}})
+	// A capture only emits source-advertised fields. Power cannot be inferred
+	// from an arbitrary key; a source without power must have a reproducible level.
+	if !c.description.GetFan().SetOn {
+		if parts.Speed == nil && parts.Level == nil {
+			return PreparedDirect{}, ErrInvalidInput
+		}
+		parts.On = nil
+	}
+	return c.prepare(actor, id, expiresAt, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{On: parts.On, Speed: parts.Speed, Level: parts.Level}}})
 }
 func (c DirectCapture) prepare(actor domain.ActorID, id domain.CommandID, expiresAt time.Time, args *actions.ActionArgs) (PreparedDirect, error) {
 	if c.router == nil || c.description == nil || !c.hasState || expiresAt.IsZero() || !expiresAt.After(c.router.clock.Now()) {

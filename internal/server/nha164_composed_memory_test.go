@@ -153,11 +153,11 @@ func nha164ComposedHistoryFixture(t *testing.T, points int, escaped ...bool) *nh
 	for i := range descriptions {
 		descriptions[i] = &registry.CapabilityDescription{SchemaId: contracts.SwitchSchema, Major: 1, DisplayName: "Synthetic", Endpoint: fmt.Sprintf("slot-%02d", i), Constraints: &registry.CapabilityDescription_Switch{Switch: &registry.SwitchConstraints{SetOn: true}}}
 	}
-	options := make([]string, 30000)
+	options := make([]*registry.ControlChoice, 256)
 	for i := range options {
-		options[i] = fmt.Sprintf("s%05d", i)
+		options[i] = &registry.ControlChoice{Key: fmt.Sprintf("s%05d", i)}
 	}
-	descriptions[0] = &registry.CapabilityDescription{SchemaId: contracts.FanSchema, Major: 1, DisplayName: "Synthetic fan", Endpoint: "fan", Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{SetOn: true, SpeedOptions: options}}}
+	descriptions[0] = &registry.CapabilityDescription{SchemaId: contracts.FanSchema, Major: 1, DisplayName: "Synthetic fan", Endpoint: "fan", Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{SetOn: true, Speed: &registry.ControlChoices{Choices: options}}}}
 	base, err := sequencer.EstimateTriggerRegistryBytes(record)
 	if err != nil {
 		t.Fatal(err)

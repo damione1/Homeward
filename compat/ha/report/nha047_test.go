@@ -38,7 +38,7 @@ func fanInput(t *testing.T, evidence nha047.Evidence) report.Input {
 	if err != nil {
 		t.Fatal(err)
 	}
-	description := &registryv1.CapabilityDescription{SchemaId: contracts.FanSchema, Major: 1, Endpoint: "speed", DisplayName: "Synthetic Fan", Constraints: &registryv1.CapabilityDescription_Fan{Fan: &registryv1.FanConstraints{SpeedOptions: []string{"Off", "Low", "Medium", "MediumHigh", "High"}}}}
+	description := &registryv1.CapabilityDescription{SchemaId: contracts.FanSchema, Major: 1, Endpoint: "speed", DisplayName: "Synthetic Fan", Constraints: &registryv1.CapabilityDescription_Fan{Fan: &registryv1.FanConstraints{ObservesPower: true, Speed: &registryv1.ControlChoices{Choices: []*registryv1.ControlChoice{{Key: "Off"}, {Key: "Low"}, {Key: "Medium"}, {Key: "MediumHigh"}, {Key: "High"}}}}}}
 	declaration, err := report.NewDeclaration(entity.Alias(), description, report.CasetaHAFan4)
 	if err != nil {
 		t.Fatal(err)

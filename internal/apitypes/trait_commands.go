@@ -2,6 +2,7 @@ package apitypes
 
 import (
 	"github.com/damione1/Homeward/internal/domain"
+	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -22,6 +23,8 @@ type LightInput struct {
 	Brightness             *Percentage
 	ColorTemperatureMireds *int32
 	Transition             *time.Duration
+	RGB                    *domain.RGB
+	Preset                 *SelectorKey
 }
 type LightCommand struct {
 	input LightInput
@@ -29,7 +32,7 @@ type LightCommand struct {
 }
 
 func NewLightCommand(v LightInput) (LightCommand, error) {
-	if v.On == nil && v.Brightness == nil && v.ColorTemperatureMireds == nil {
+	if v.On == nil && v.Brightness == nil && v.ColorTemperatureMireds == nil && v.RGB == nil && v.Preset == nil {
 		return LightCommand{}, ErrIntent
 	}
 	if v.ColorTemperatureMireds != nil && (*v.ColorTemperatureMireds <= 0 || *v.ColorTemperatureMireds > 1000) {
@@ -45,20 +48,23 @@ func NewLightCommand(v LightInput) (LightCommand, error) {
 		x := uint32(*v.ColorTemperatureMireds)
 		color = &x
 	}
-	if _, err := domain.NewLightValue(false, brightness, color); err != nil {
+	if _, err := domain.NewLightValue(domain.LightValueInput{On: false, Brightness: brightness, ColorTemperatureMireds: color, RGB: v.RGB}); err != nil {
 		return LightCommand{}, ErrIntent
 	}
 	if v.Transition != nil && (*v.Transition < 0 || *v.Transition > 6553*time.Second) {
 		return LightCommand{}, ErrIntent
 	}
-	if v.Transition != nil && v.On != nil && !*v.On && (v.Brightness != nil || v.ColorTemperatureMireds != nil) {
+	if v.Transition != nil && v.On != nil && !*v.On && (v.Brightness != nil || v.ColorTemperatureMireds != nil || v.RGB != nil || v.Preset != nil) {
 		return LightCommand{}, ErrIntent
 	}
-	return LightCommand{LightInput{copied(v.On), copied(v.Brightness), copied(v.ColorTemperatureMireds), copied(v.Transition)}, true}, nil
+	if v.Preset != nil && !domain.ValidControlKey(v.Preset.Value()) {
+		return LightCommand{}, ErrIntent
+	}
+	return LightCommand{LightInput{copied(v.On), copied(v.Brightness), copied(v.ColorTemperatureMireds), copied(v.Transition), copied(v.RGB), copied(v.Preset)}, true}, nil
 }
 func (LightCommand) apiIntent() {}
 func (v LightCommand) Input() LightInput {
-	return LightInput{copied(v.input.On), copied(v.input.Brightness), copied(v.input.ColorTemperatureMireds), copied(v.input.Transition)}
+	return LightInput{copied(v.input.On), copied(v.input.Brightness), copied(v.input.ColorTemperatureMireds), copied(v.input.Transition), copied(v.input.RGB), copied(v.input.Preset)}
 }
 func (v LightCommand) Valid() bool { _, err := NewLightCommand(v.input); return v.valid && err == nil }
 
@@ -77,19 +83,22 @@ func (v SelectorKey) Value() string { return v.value }
 type FanCommand struct {
 	on    *bool
 	speed *SelectorKey
+	level *float64
 	valid bool
 }
 
-func NewFanCommand(on *bool, speed *SelectorKey) (FanCommand, error) {
-	if on == nil && speed == nil || speed != nil && speed.value == "" {
+func NewFanCommand(on *bool, speed *SelectorKey, level *float64) (FanCommand, error) {
+	if on == nil && speed == nil && level == nil || speed != nil && (speed.value == "" || level != nil) || level != nil && (math.IsNaN(*level) || math.IsInf(*level, 0)) {
 		return FanCommand{}, ErrIntent
 	}
-	return FanCommand{copied(on), copied(speed), true}, nil
+	return FanCommand{copied(on), copied(speed), copied(level), true}, nil
 }
-func (FanCommand) apiIntent()                     {}
-func (v FanCommand) Input() (*bool, *SelectorKey) { return copied(v.on), copied(v.speed) }
+func (FanCommand) apiIntent() {}
+func (v FanCommand) Input() (*bool, *SelectorKey, *float64) {
+	return copied(v.on), copied(v.speed), copied(v.level)
+}
 func (v FanCommand) Valid() bool {
-	_, err := NewFanCommand(v.on, v.speed)
+	_, err := NewFanCommand(v.on, v.speed, v.level)
 	return v.valid && err == nil
 }
 

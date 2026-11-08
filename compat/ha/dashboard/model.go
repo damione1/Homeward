@@ -379,7 +379,14 @@ type coverLock struct {
 	name   string
 }
 
+type sourceControlModule struct {
+	entity domain.HAAlias
+	role   string
+}
+
 type Card struct {
+	visualFamily            string
+	controlModules          []sourceControlModule
 	coverLock               *coverLock
 	controlPresentation     controlPresentation
 	widget                  *widgetIR
@@ -468,6 +475,7 @@ func (c Card) Visibility() []Visibility {
 	return out
 }
 func (c Card) clone() Card {
+	c.controlModules = append([]sourceControlModule(nil), c.controlModules...)
 	if c.coverLock != nil {
 		copy := *c.coverLock
 		c.coverLock = &copy

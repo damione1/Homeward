@@ -33,7 +33,7 @@ func TestNHA069LightWireRequiresPresenceAndAdvertisedBounds(t *testing.T) {
 	on := false
 	brightness := 0.0
 	ct := uint32(300)
-	light, err := domain.NewLightValue(on, &brightness, &ct)
+	light, err := domain.NewLightValue(domain.LightValueInput{On: on, Brightness: &brightness, ColorTemperatureMireds: &ct})
 	if err != nil {
 		t.Fatal(err)
 	}

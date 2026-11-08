@@ -130,24 +130,24 @@ func (r *CommandRouter) CaptureFan(ctx context.Context, alias domain.HAAlias) (r
 	return capture, err
 }
 
-func (c FanCapture) criticalRevision() (domain.FanSpeed, uint64, error) {
+func (c FanCapture) criticalRevision() (domain.FanValue, uint64, error) {
 	if c.router == nil || c.profile == nil || !c.hasState {
-		return domain.FanSpeedUnspecified, 0, ErrFanObservationUnavailable
+		return domain.FanValue{}, 0, ErrFanObservationUnavailable
 	}
 	_, _, _, _, revision, err := c.state.Components()
 	if err != nil {
-		return domain.FanSpeedUnspecified, 0, ErrFanObservationUnavailable
+		return domain.FanValue{}, 0, ErrFanObservationUnavailable
 	}
 	value, critical := c.state.CriticalValue()
 	if !critical {
-		return domain.FanSpeedUnspecified, 0, ErrFanObservationUnavailable
+		return domain.FanValue{}, 0, ErrFanObservationUnavailable
 	}
 	speed, ok := value.Fan()
 	if !ok {
-		return domain.FanSpeedUnspecified, 0, ErrFanObservationUnavailable
+		return domain.FanValue{}, 0, ErrFanObservationUnavailable
 	}
-	if _, err := speed.String(); err != nil {
-		return domain.FanSpeedUnspecified, 0, ErrFanObservationUnavailable
+	if _, err := speed.Components(); err != nil {
+		return domain.FanValue{}, 0, ErrFanObservationUnavailable
 	}
 	return speed, revision, nil
 }
@@ -196,29 +196,28 @@ func (c FanCapture) PrepareHA(actor domain.ActorID, id domain.CommandID, expires
 	if err != nil {
 		return PreparedFan{}, err
 	}
-	speed := domain.FanSpeedOff
+	speedText := "Off"
 	if on {
 		if percentage == nil {
 			return PreparedFan{}, ErrFanPreparationUnsupported
 		}
 		switch *percentage {
 		case 0:
-			speed = domain.FanSpeedOff
+			speedText = "Off"
 		case 25:
-			speed = domain.FanSpeedLow
+			speedText = "Low"
 		case 50:
-			speed = domain.FanSpeedMedium
+			speedText = "Medium"
 		case 75:
-			speed = domain.FanSpeedMediumHigh
+			speedText = "MediumHigh"
 		case 100:
-			speed = domain.FanSpeedHigh
+			speedText = "High"
 		default:
 			return PreparedFan{}, ErrFanPreparationUnsupported
 		}
 	} else if percentage != nil {
 		return PreparedFan{}, ErrInvalidInput
 	}
-	speedText, _ := speed.String()
 	aliasText, _ := c.alias.Value()
 	wire := &actions.CommandRequest{CommandId: idText, AdmissionEpoch: c.epoch, ConfigRevision: c.configRevision,
 		Target:             &wireregistry.EntityRef{Reference: &wireregistry.EntityRef_HaAlias{HaAlias: aliasText}},
