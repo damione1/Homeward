@@ -201,6 +201,8 @@ type SetLight struct {
 	BrightnessPercent *float64               `protobuf:"fixed64,2,opt,name=brightness_percent,json=brightnessPercent,proto3,oneof" json:"brightness_percent,omitempty"`
 	ColorTempMireds   *uint32                `protobuf:"varint,3,opt,name=color_temp_mireds,json=colorTempMireds,proto3,oneof" json:"color_temp_mireds,omitempty"`
 	TransitionSeconds *float64               `protobuf:"fixed64,4,opt,name=transition_seconds,json=transitionSeconds,proto3,oneof" json:"transition_seconds,omitempty"`
+	Rgb               *v1.RgbColor           `protobuf:"bytes,5,opt,name=rgb,proto3" json:"rgb,omitempty"`
+	Preset            *string                `protobuf:"bytes,6,opt,name=preset,proto3,oneof" json:"preset,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -263,10 +265,25 @@ func (x *SetLight) GetTransitionSeconds() float64 {
 	return 0
 }
 
+func (x *SetLight) GetRgb() *v1.RgbColor {
+	if x != nil {
+		return x.Rgb
+	}
+	return nil
+}
+
+func (x *SetLight) GetPreset() string {
+	if x != nil && x.Preset != nil {
+		return *x.Preset
+	}
+	return ""
+}
+
 type SetFan struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	On            *bool                  `protobuf:"varint,1,opt,name=on,proto3,oneof" json:"on,omitempty"`
 	Speed         *string                `protobuf:"bytes,2,opt,name=speed,proto3,oneof" json:"speed,omitempty"`
+	Level         *float64               `protobuf:"fixed64,3,opt,name=level,proto3,oneof" json:"level,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -313,6 +330,13 @@ func (x *SetFan) GetSpeed() string {
 		return *x.Speed
 	}
 	return ""
+}
+
+func (x *SetFan) GetLevel() float64 {
+	if x != nil && x.Level != nil {
+		return *x.Level
+	}
+	return 0
 }
 
 type SetClimate struct {
@@ -949,21 +973,26 @@ const file_home_actions_v1_actions_proto_rawDesc = "" +
 	"\n" +
 	"\x1dhome/actions/v1/actions.proto\x12\x0fhome.actions.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fhome/registry/v1/registry.proto\x1a\x1dhome/helpers/v1/helpers.proto\x1a\x1fhome/controls/v1/controls.proto\"\x1b\n" +
 	"\tSetSwitch\x12\x0e\n" +
-	"\x02on\x18\x01 \x01(\bR\x02on\"\x83\x02\n" +
+	"\x02on\x18\x01 \x01(\bR\x02on\"\xd9\x02\n" +
 	"\bSetLight\x12\x13\n" +
 	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x122\n" +
 	"\x12brightness_percent\x18\x02 \x01(\x01H\x01R\x11brightnessPercent\x88\x01\x01\x12/\n" +
 	"\x11color_temp_mireds\x18\x03 \x01(\rH\x02R\x0fcolorTempMireds\x88\x01\x01\x122\n" +
-	"\x12transition_seconds\x18\x04 \x01(\x01H\x03R\x11transitionSeconds\x88\x01\x01B\x05\n" +
+	"\x12transition_seconds\x18\x04 \x01(\x01H\x03R\x11transitionSeconds\x88\x01\x01\x12,\n" +
+	"\x03rgb\x18\x05 \x01(\v2\x1a.home.registry.v1.RgbColorR\x03rgb\x12\x1b\n" +
+	"\x06preset\x18\x06 \x01(\tH\x04R\x06preset\x88\x01\x01B\x05\n" +
 	"\x03_onB\x15\n" +
 	"\x13_brightness_percentB\x14\n" +
 	"\x12_color_temp_miredsB\x15\n" +
-	"\x13_transition_seconds\"I\n" +
+	"\x13_transition_secondsB\t\n" +
+	"\a_preset\"n\n" +
 	"\x06SetFan\x12\x13\n" +
 	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x12\x19\n" +
-	"\x05speed\x18\x02 \x01(\tH\x01R\x05speed\x88\x01\x01B\x05\n" +
+	"\x05speed\x18\x02 \x01(\tH\x01R\x05speed\x88\x01\x01\x12\x19\n" +
+	"\x05level\x18\x03 \x01(\x01H\x02R\x05level\x88\x01\x01B\x05\n" +
 	"\x03_onB\b\n" +
-	"\x06_speed\"\x95\x03\n" +
+	"\x06_speedB\b\n" +
+	"\x06_level\"\x95\x03\n" +
 	"\n" +
 	"SetClimate\x12.\n" +
 	"\x10setpoint_celsius\x18\x01 \x01(\x01H\x00R\x0fsetpointCelsius\x88\x01\x01\x126\n" +
@@ -1070,39 +1099,41 @@ var file_home_actions_v1_actions_proto_goTypes = []any{
 	(*ErrorDetail)(nil),           // 9: home.actions.v1.ErrorDetail
 	(*ContractError)(nil),         // 10: home.actions.v1.ContractError
 	(*CommandResponse)(nil),       // 11: home.actions.v1.CommandResponse
-	(v1.ClimateMode)(0),           // 12: home.registry.v1.ClimateMode
-	(v1.ClimateFanTarget)(0),      // 13: home.registry.v1.ClimateFanTarget
-	(*v11.HelperAction)(nil),      // 14: home.helpers.v1.HelperAction
-	(*v12.CoverAction)(nil),       // 15: home.controls.v1.CoverAction
-	(*v12.LockAction)(nil),        // 16: home.controls.v1.LockAction
-	(*v12.AlarmAction)(nil),       // 17: home.controls.v1.AlarmAction
-	(*v1.EntityRef)(nil),          // 18: home.registry.v1.EntityRef
-	(*timestamppb.Timestamp)(nil), // 19: google.protobuf.Timestamp
+	(*v1.RgbColor)(nil),           // 12: home.registry.v1.RgbColor
+	(v1.ClimateMode)(0),           // 13: home.registry.v1.ClimateMode
+	(v1.ClimateFanTarget)(0),      // 14: home.registry.v1.ClimateFanTarget
+	(*v11.HelperAction)(nil),      // 15: home.helpers.v1.HelperAction
+	(*v12.CoverAction)(nil),       // 16: home.controls.v1.CoverAction
+	(*v12.LockAction)(nil),        // 17: home.controls.v1.LockAction
+	(*v12.AlarmAction)(nil),       // 18: home.controls.v1.AlarmAction
+	(*v1.EntityRef)(nil),          // 19: home.registry.v1.EntityRef
+	(*timestamppb.Timestamp)(nil), // 20: google.protobuf.Timestamp
 }
 var file_home_actions_v1_actions_proto_depIdxs = []int32{
-	12, // 0: home.actions.v1.SetClimate.mode:type_name -> home.registry.v1.ClimateMode
-	13, // 1: home.actions.v1.SetClimate.fan_target:type_name -> home.registry.v1.ClimateFanTarget
-	2,  // 2: home.actions.v1.ActionArgs.set_switch:type_name -> home.actions.v1.SetSwitch
-	6,  // 3: home.actions.v1.ActionArgs.extension:type_name -> home.actions.v1.ExtensionPayload
-	3,  // 4: home.actions.v1.ActionArgs.set_light:type_name -> home.actions.v1.SetLight
-	4,  // 5: home.actions.v1.ActionArgs.set_fan:type_name -> home.actions.v1.SetFan
-	5,  // 6: home.actions.v1.ActionArgs.set_climate:type_name -> home.actions.v1.SetClimate
-	14, // 7: home.actions.v1.ActionArgs.helper:type_name -> home.helpers.v1.HelperAction
-	15, // 8: home.actions.v1.ActionArgs.cover:type_name -> home.controls.v1.CoverAction
-	16, // 9: home.actions.v1.ActionArgs.lock:type_name -> home.controls.v1.LockAction
-	17, // 10: home.actions.v1.ActionArgs.alarm:type_name -> home.controls.v1.AlarmAction
-	18, // 11: home.actions.v1.CommandRequest.target:type_name -> home.registry.v1.EntityRef
-	7,  // 12: home.actions.v1.CommandRequest.arguments:type_name -> home.actions.v1.ActionArgs
-	19, // 13: home.actions.v1.CommandRequest.expires_at:type_name -> google.protobuf.Timestamp
-	0,  // 14: home.actions.v1.ContractError.code:type_name -> home.actions.v1.ErrorCode
-	9,  // 15: home.actions.v1.ContractError.detail:type_name -> home.actions.v1.ErrorDetail
-	1,  // 16: home.actions.v1.CommandResponse.status:type_name -> home.actions.v1.ActionStatus
-	10, // 17: home.actions.v1.CommandResponse.error:type_name -> home.actions.v1.ContractError
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	12, // 0: home.actions.v1.SetLight.rgb:type_name -> home.registry.v1.RgbColor
+	13, // 1: home.actions.v1.SetClimate.mode:type_name -> home.registry.v1.ClimateMode
+	14, // 2: home.actions.v1.SetClimate.fan_target:type_name -> home.registry.v1.ClimateFanTarget
+	2,  // 3: home.actions.v1.ActionArgs.set_switch:type_name -> home.actions.v1.SetSwitch
+	6,  // 4: home.actions.v1.ActionArgs.extension:type_name -> home.actions.v1.ExtensionPayload
+	3,  // 5: home.actions.v1.ActionArgs.set_light:type_name -> home.actions.v1.SetLight
+	4,  // 6: home.actions.v1.ActionArgs.set_fan:type_name -> home.actions.v1.SetFan
+	5,  // 7: home.actions.v1.ActionArgs.set_climate:type_name -> home.actions.v1.SetClimate
+	15, // 8: home.actions.v1.ActionArgs.helper:type_name -> home.helpers.v1.HelperAction
+	16, // 9: home.actions.v1.ActionArgs.cover:type_name -> home.controls.v1.CoverAction
+	17, // 10: home.actions.v1.ActionArgs.lock:type_name -> home.controls.v1.LockAction
+	18, // 11: home.actions.v1.ActionArgs.alarm:type_name -> home.controls.v1.AlarmAction
+	19, // 12: home.actions.v1.CommandRequest.target:type_name -> home.registry.v1.EntityRef
+	7,  // 13: home.actions.v1.CommandRequest.arguments:type_name -> home.actions.v1.ActionArgs
+	20, // 14: home.actions.v1.CommandRequest.expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 15: home.actions.v1.ContractError.code:type_name -> home.actions.v1.ErrorCode
+	9,  // 16: home.actions.v1.ContractError.detail:type_name -> home.actions.v1.ErrorDetail
+	1,  // 17: home.actions.v1.CommandResponse.status:type_name -> home.actions.v1.ActionStatus
+	10, // 18: home.actions.v1.CommandResponse.error:type_name -> home.actions.v1.ContractError
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_home_actions_v1_actions_proto_init() }

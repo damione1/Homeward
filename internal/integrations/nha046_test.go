@@ -89,7 +89,7 @@ func TestNHA046PreparedLightCTAndNativeUnits(t *testing.T) {
 	}
 	fraction := 37.5
 	nativeID, _ := domain.ParseCommandID("nha046-native-fraction")
-	native, err := capture.PrepareNative(nha022Actor(t), nativeID, time.Now().Add(time.Minute), true, &fraction, nil, nil)
+	native, err := capture.PrepareNative(nha022Actor(t), nativeID, time.Now().Add(time.Minute), domain.LightValueInput{On: true, Brightness: &fraction}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestNHA046CasetaFanProfilePreparedAndNativeDirect(t *testing.T) {
 	}
 	description := &registry.CapabilityDescription{SchemaId: contracts.FanSchema, Major: 1, Endpoint: "speed",
 		DisplayName: "Synthetic four-speed fan", Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{
-			SetOn: false, SpeedOptions: []string{"Off", "Low", "Medium", "MediumHigh", "High"}}}}
+			SetOn: false, ObservesPower: true, Speed: &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "Off"}, {Key: "Low"}, {Key: "Medium"}, {Key: "MediumHigh"}, {Key: "High"}}}}}}
 	candidate, err := integrations.NewCandidate(key, []*registry.CapabilityDescription{description})
 	if err != nil {
 		t.Fatal(err)
@@ -262,7 +262,7 @@ func TestNHA046CasetaFanProfilePreparedAndNativeDirect(t *testing.T) {
 		t.Fatalf("fan discovery: %v", err)
 	}
 	quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
-	value, _ := domain.NewFanStateValue(domain.FanSpeedLow)
+	value, _ := domain.NewFanStateValue(nha212FixtureFan(t, "Low"))
 	now := time.Now()
 	observation, err := integrations.NewStateObservation("speed", quality, &value, &now, now, nil)
 	if err != nil {
@@ -336,7 +336,15 @@ func TestNHA046CasetaFanProfilePreparedAndNativeDirect(t *testing.T) {
 		t.Fatal(err)
 	}
 	directID, _ := domain.ParseCommandID("nha046-native-fan")
-	native, err := direct.PrepareFan(nha022Actor(t), directID, now.Add(time.Minute), domain.FanSpeedMediumHigh)
+	if _, err := direct.PrepareFan(nha022Actor(t), directID, now.Add(time.Minute), nha212FixtureFan(t, "MediumHigh")); err == nil {
+		t.Fatal("unprofiled source inferred uncommandable power from a level key")
+	}
+	nativeKey := "MediumHigh"
+	levelOnly, err := domain.NewFanValue(domain.FanValueInput{Speed: &nativeKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	native, err := direct.PrepareFan(nha022Actor(t), directID, now.Add(time.Minute), levelOnly)
 	if err != nil {
 		t.Fatal(err)
 	}

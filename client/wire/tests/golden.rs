@@ -183,8 +183,21 @@ fn capability_constraints_and_explicit_off_zero_survive_binary_codec() {
     assert_eq!(roundtrip(&light).observation.brightness_percent, Some(0.0));
     let fan = wire::FanControlCapability {
         supports_power: false,
-        speed: wire::SelectorDefinition {
-            options: vec!["Low".into(), "High".into()],
+        level: wire::ControlLevelDefinition {
+            definition: Some(wire::control_level_definition::Definition::Steps(
+                wire::ControlChoices {
+                    choices: ["Low", "High"]
+                        .into_iter()
+                        .map(|key| wire::ControlChoice {
+                            key: key.into(),
+                            display_name: key.into(),
+                            ..Default::default()
+                        })
+                        .collect(),
+                    ..Default::default()
+                }
+                .into(),
+            )),
             ..Default::default()
         }
         .into(),

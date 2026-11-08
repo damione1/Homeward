@@ -51,7 +51,8 @@ func observedText(attribute ir.TriggerAttribute, state domain.ObservedState) (st
 		if !ok {
 			return "", false
 		}
-		_, brightness, _, err := light.Components()
+		lightParts, lightPartsErr := light.Components()
+		brightness, err := lightParts.Brightness, lightPartsErr
 		if err != nil || brightness == nil {
 			return "", false
 		}
@@ -61,7 +62,8 @@ func observedText(attribute ir.TriggerAttribute, state domain.ObservedState) (st
 		if !ok {
 			return "", false
 		}
-		_, _, temp, err := light.Components()
+		lightParts, lightPartsErr := light.Components()
+		temp, err := lightParts.ColorTemperatureMireds, lightPartsErr
 		if err != nil || temp == nil {
 			return "", false
 		}
@@ -78,7 +80,8 @@ func observedText(attribute ir.TriggerAttribute, state domain.ObservedState) (st
 			return "off", true
 		case kind == domain.ValueLight:
 			light, _ := value.Light()
-			on, _, _, err := light.Components()
+			lightParts, lightPartsErr := light.Components()
+			on, err := lightParts.On, lightPartsErr
 			if err != nil {
 				return "", false
 			}
@@ -95,8 +98,11 @@ func observedText(attribute ir.TriggerAttribute, state domain.ObservedState) (st
 			return strconv.FormatFloat(components.Value, 'f', -1, 64), true
 		case kind == domain.ValueFan:
 			fan, _ := value.Fan()
-			text, err := fan.String()
-			return text, err == nil
+			parts, err := fan.Components()
+			if err != nil || parts.Speed == nil {
+				return "", false
+			}
+			return *parts.Speed, true
 		case kind == domain.ValueClimate:
 			return "", false // No HA climate mode string is inferred from a typed setpoint.
 		case kind == domain.ValueSolar:
@@ -174,7 +180,8 @@ func numericMatch(trigger ir.Trigger, state domain.ObservedState) (float64, bool
 		if !ok {
 			return 0, false, false
 		}
-		_, brightness, _, err := light.Components()
+		lightParts, lightPartsErr := light.Components()
+		brightness, err := lightParts.Brightness, lightPartsErr
 		if err != nil || brightness == nil {
 			return 0, false, false
 		}
@@ -184,7 +191,8 @@ func numericMatch(trigger ir.Trigger, state domain.ObservedState) (float64, bool
 		if !ok {
 			return 0, false, false
 		}
-		_, _, colorTemp, err := light.Components()
+		lightParts, lightPartsErr := light.Components()
+		colorTemp, err := lightParts.ColorTemperatureMireds, lightPartsErr
 		if err != nil || colorTemp == nil {
 			return 0, false, false
 		}

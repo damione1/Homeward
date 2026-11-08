@@ -117,14 +117,14 @@ func AdmitHistoricalState(v *state.ObservedState) error {
 		if x == nil || x.Light == nil || x.Light.On == nil {
 			return ErrInvalidHistoryContract
 		}
-		if _, err := domain.NewLightValue(*x.Light.On, x.Light.BrightnessPercent, x.Light.ColorTempMireds); err != nil {
+		if _, err := AdmitLightValue(x.Light); err != nil {
 			return ErrInvalidHistoryContract
 		}
 	case *state.ObservedState_Fan:
 		if x == nil || x.Fan == nil {
 			return ErrInvalidHistoryContract
 		}
-		if _, err := AdmitWireFanSpeed(x.Fan.Speed); err != nil {
+		if _, err := AdmitWireFanValue(x.Fan); err != nil {
 			return ErrInvalidHistoryContract
 		}
 	case *state.ObservedState_Climate:

@@ -62,7 +62,7 @@ func TestNHA166PreparedLightFanAndSceneRefuseAtCaptureBeforeLedger(t *testing.T)
 	if err := rig.fixture.PublishRegistry(ctx, []integrations.RegistryRecord{nha022Record(t, ids[0], instance, key, "fan.living_room_ceiling_fan", "fan.living_room_ceiling_fan", false)}); err != nil {
 		t.Fatal(err)
 	}
-	description := &registry.CapabilityDescription{SchemaId: contracts.FanSchema, Major: 1, Endpoint: "speed", DisplayName: "Synthetic fan", Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{SpeedOptions: []string{"Off", "Low", "Medium", "MediumHigh", "High"}}}}
+	description := &registry.CapabilityDescription{SchemaId: contracts.FanSchema, Major: 1, Endpoint: "speed", DisplayName: "Synthetic fan", Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{ObservesPower: true, Speed: &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "Off"}, {Key: "Low"}, {Key: "Medium"}, {Key: "MediumHigh"}, {Key: "High"}}}}}}
 	candidate, err := integrations.NewCandidate(key, []*registry.CapabilityDescription{description})
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestNHA166PreparedLightFanAndSceneRefuseAtCaptureBeforeLedger(t *testing.T)
 		t.Fatal(err)
 	}
 	quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
-	value, _ := domain.NewFanStateValue(domain.FanSpeedLow)
+	value, _ := domain.NewFanStateValue(nha212FixtureFan(t, "Low"))
 	now := time.Now()
 	observed, err := integrations.NewStateObservation("speed", quality, &value, &now, now, nil)
 	if err != nil {

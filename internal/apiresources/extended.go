@@ -235,13 +235,15 @@ func projectFan(d *registry.CapabilityDescription, raw *state.ObservedState) ([]
 		return nil, ErrProjection
 	}
 	c := d.GetFan()
-	capability := &api.FanControlCapability{SupportsPower: c.SetOn, Speed: &api.SelectorDefinition{Options: append([]string(nil), c.SpeedOptions...)}}
-	seen := map[string]bool{}
-	for _, key := range c.SpeedOptions {
-		if key == "" || seen[key] {
-			return nil, ErrProjection
+	capability := &api.FanControlCapability{SupportsPower: c.SetOn}
+	if c.Level != nil {
+		value, err := bounds(c.Level)
+		if err != nil {
+			return nil, err
 		}
-		seen[key] = true
+		capability.Level = &api.ControlLevelDefinition{Definition: &api.ControlLevelDefinition_Range{Range: value}}
+	} else if choices := controlChoices(c.Speed); choices != nil {
+		capability.Level = &api.ControlLevelDefinition{Definition: &api.ControlLevelDefinition_Steps{Steps: choices}}
 	}
 	if raw != nil {
 		q, err := quality(raw.Quality)
@@ -250,33 +252,11 @@ func projectFan(d *registry.CapabilityDescription, raw *state.ObservedState) ([]
 		}
 		observation := &api.FanControlObservation{ObservedTime: proto.CloneOf(raw.ObservedAt), Quality: q}
 		if value := raw.GetFan(); value != nil {
-			v, err := fanSpeed(value.Speed)
-			if err != nil {
-				return nil, err
-			}
-			observation.Speed = &v
+			observation.On, observation.Speed, observation.Level = value.On, value.Speed, value.Level
 		}
 		capability.Observation = observation
 	}
 	return []Capability{{trait: Fan, value: &api.Capability{Trait: &api.Capability_FanControl{FanControl: capability}}}}, nil
-}
-func fanSpeed(v state.FanSpeed) (api.FanSpeed, error) {
-	switch v {
-	case state.FanSpeed_FAN_SPEED_OFF:
-		return api.FanSpeed_FAN_SPEED_OFF, nil
-	case state.FanSpeed_FAN_SPEED_LOW:
-		return api.FanSpeed_FAN_SPEED_LOW, nil
-	case state.FanSpeed_FAN_SPEED_MEDIUM:
-		return api.FanSpeed_FAN_SPEED_MEDIUM, nil
-	case state.FanSpeed_FAN_SPEED_MEDIUM_HIGH:
-		return api.FanSpeed_FAN_SPEED_MEDIUM_HIGH, nil
-	case state.FanSpeed_FAN_SPEED_HIGH:
-		return api.FanSpeed_FAN_SPEED_HIGH, nil
-	case state.FanSpeed_FAN_SPEED_UNSPECIFIED:
-		return 0, ErrProjection
-	default:
-		return 0, ErrProjection
-	}
 }
 func lightControl(c *registry.LightConstraints, raw *state.ObservedState) (*api.LightControlCapability, error) {
 	brightness, err := bounds(c.BrightnessPercent)
@@ -291,7 +271,7 @@ func lightControl(c *registry.LightConstraints, raw *state.ObservedState) (*api.
 	if err != nil {
 		return nil, err
 	}
-	result := &api.LightControlCapability{SupportsPower: c.SetOn, BrightnessPercent: brightness, ColorTemperatureMireds: color, TransitionDurationBounds: transition}
+	result := &api.LightControlCapability{SupportsPower: c.SetOn, BrightnessPercent: brightness, ColorTemperatureMireds: color, TransitionDurationBounds: transition, Rgb: c.Rgb, Presets: controlChoices(c.Presets)}
 	if raw != nil {
 		q, err := quality(raw.Quality)
 		if err != nil {
@@ -300,6 +280,8 @@ func lightControl(c *registry.LightConstraints, raw *state.ObservedState) (*api.
 		v := &api.LightControlObservation{ObservedTime: proto.CloneOf(raw.ObservedAt), Quality: q}
 		if x := raw.GetLight(); x != nil {
 			v.On = x.On
+			v.Rgb = projectRGB(x.Rgb)
+			v.Preset = x.Preset
 			v.BrightnessPercent = x.BrightnessPercent
 			if x.ColorTempMireds != nil {
 				if *x.ColorTempMireds > math.MaxInt32 {
@@ -312,4 +294,32 @@ func lightControl(c *registry.LightConstraints, raw *state.ObservedState) (*api.
 		result.Observation = v
 	}
 	return result, nil
+}
+
+func controlChoices(v *registry.ControlChoices) *api.ControlChoices {
+	if v == nil || len(v.Choices) == 0 {
+		return nil
+	}
+	out := &api.ControlChoices{}
+	for _, c := range v.Choices {
+		out.Choices = append(out.Choices, &api.ControlChoice{Key: c.Key, DisplayName: c.DisplayName})
+	}
+	return out
+}
+func containsControlChoice(v *api.ControlChoices, key string) bool {
+	if v == nil {
+		return false
+	}
+	for _, c := range v.Choices {
+		if c != nil && c.Key == key {
+			return true
+		}
+	}
+	return false
+}
+func projectRGB(v *registry.RgbColor) *api.RgbColor {
+	if v == nil {
+		return nil
+	}
+	return &api.RgbColor{Red: v.Red, Green: v.Green, Blue: v.Blue}
 }

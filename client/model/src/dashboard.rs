@@ -188,15 +188,6 @@ pub enum AlarmState {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FanSpeed {
-    Off,
-    Low,
-    Medium,
-    MediumHigh,
-    High,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WeatherCondition {
     Unknown,
     ClearDay,
@@ -237,7 +228,7 @@ pub enum Literal {
     Lock(LockState),
     Alarm(AlarmState),
     TemperatureMode(TemperatureMode),
-    FanSpeed(FanSpeed),
+    FanSpeed(crate::api::SelectorKey),
     WeatherCondition(WeatherCondition),
     Residence(Residence),
 }

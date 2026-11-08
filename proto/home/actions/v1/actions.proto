@@ -15,10 +15,13 @@ message SetLight {
   optional double brightness_percent = 2;
   optional uint32 color_temp_mireds = 3;
   optional double transition_seconds = 4;
+  home.registry.v1.RgbColor rgb = 5;
+  optional string preset = 6;
 }
 message SetFan {
   optional bool on = 1;
   optional string speed = 2;
+  optional double level = 3;
 }
 message SetClimate {
   optional double setpoint_celsius = 1;

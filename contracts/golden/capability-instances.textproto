@@ -17,7 +17,7 @@ capabilities {
   major: 1
   display_name: "Bedroom fan"
   endpoint: "fan"
-  fan { speed_options: "low" speed_options: "high" }
+  fan { speed { choices { key: "low" } choices { key: "high" } } }
 }
 capabilities {
   schema_id: "core.climate.v1"

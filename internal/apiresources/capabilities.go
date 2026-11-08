@@ -111,7 +111,13 @@ type Capability struct {
 
 func (c Capability) Source() authorization.CapabilitySlot { return c.source }
 func (c Capability) Trait() Trait                         { return c.trait }
-func (c Capability) Resource() *api.Capability            { return proto.CloneOf(c.value) }
+func (c Capability) Resource() *api.Capability {
+	value := proto.CloneOf(c.value)
+	if value != nil {
+		value.Modules = projectControlModules(value)
+	}
+	return value
+}
 
 func EntityName(home apitypes.HomeName, id domain.EntityID) (apitypes.EntityName, error) {
 	name, err := apitypes.EntityNameForIdentity(home, id)

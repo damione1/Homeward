@@ -137,7 +137,7 @@ func (d nhf006Device) observation() (integrations.StateObservation, error) {
 	switch d.kind {
 	case nhf006Light:
 		brightness := 30.
-		light, e := domain.NewLightValue(false, &brightness, nil)
+		light, e := domain.NewLightValue(domain.LightValueInput{On: false, Brightness: &brightness, ColorTemperatureMireds: nil})
 		if e != nil {
 			return integrations.StateObservation{}, e
 		}

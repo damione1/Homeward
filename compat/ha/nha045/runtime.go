@@ -316,7 +316,7 @@ func (r *rig) publishLocked(ctx context.Context, alias, state string, brightness
 	if state != "unknown" {
 		v := domain.NewSwitchValue(state == "on")
 		if strings.HasPrefix(alias, "light.") {
-			light, e := domain.NewLightValue(state == "on", brightness, nil)
+			light, e := domain.NewLightValue(domain.LightValueInput{On: state == "on", Brightness: brightness, ColorTemperatureMireds: nil})
 			if e != nil {
 				return e
 			}
@@ -353,7 +353,8 @@ func (r *rig) publishLocked(ctx context.Context, alias, state string, brightness
 			}
 		case kind == domain.ValueLight:
 			light, _ := v.Light()
-			on, b, _, e := light.Components()
+			lightParts, lightPartsErr := light.Components()
+			on, b, e := lightParts.On, lightParts.Brightness, lightPartsErr
 			if e != nil {
 				return e
 			}

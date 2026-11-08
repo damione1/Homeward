@@ -127,7 +127,10 @@ type actionPredicate struct {
 	hasBrightness bool
 	colorTemp     uint32
 	hasColorTemp  bool
-	fanSpeed      domain.FanSpeed
+	rgb           *domain.RGB
+	preset        *string
+	fanSpeed      string
+	fanLevel      *float64
 	hasFanSpeed   bool
 }
 
@@ -143,11 +146,20 @@ func predicateFor(request *actions.CommandRequest) actionPredicate {
 	case *actions.ActionArgs_SetLight:
 		if request.CapabilitySchemaId == contracts.LightSchema && arg != nil && arg.SetLight != nil {
 			light := arg.SetLight
-			if light.On != nil && light.BrightnessPercent == nil && light.ColorTempMireds == nil {
+			if light.On != nil && light.BrightnessPercent == nil && light.ColorTempMireds == nil && light.Rgb == nil && light.Preset == nil {
 				return actionPredicate{kind: proofSwitch, on: *light.On}
 			}
-			if light.On != nil || light.BrightnessPercent != nil || light.ColorTempMireds != nil {
+			if light.On != nil || light.BrightnessPercent != nil || light.ColorTempMireds != nil || light.Rgb != nil || light.Preset != nil {
 				predicate := actionPredicate{kind: proofLight}
+				var err error
+				predicate.rgb, err = contracts.AdmitRGB(light.Rgb)
+				if err != nil {
+					return actionPredicate{}
+				}
+				if light.Preset != nil {
+					key := *light.Preset
+					predicate.preset = &key
+				}
 				if light.On != nil {
 					predicate.on, predicate.hasOn = *light.On, true
 				}
@@ -167,13 +179,16 @@ func predicateFor(request *actions.CommandRequest) actionPredicate {
 				predicate.on, predicate.hasOn = *arg.SetFan.On, true
 			}
 			if arg.SetFan.Speed != nil {
-				var err error
-				predicate.fanSpeed, err = domain.ParseFanSpeed(*arg.SetFan.Speed)
-				if err != nil {
+				if !domain.ValidControlKey(*arg.SetFan.Speed) {
 					return actionPredicate{}
 				}
-				predicate.hasFanSpeed = true
+				predicate.fanSpeed, predicate.hasFanSpeed = *arg.SetFan.Speed, true
 			}
+			if arg.SetFan.Level != nil {
+				n := *arg.SetFan.Level
+				predicate.fanLevel = &n
+			}
+
 			return predicate
 		}
 	case *actions.ActionArgs_Helper:
@@ -478,7 +493,8 @@ func (t *actionTracker) observe(binding Binding, endpoint, schema string, curren
 		on, isSwitch := value.Switch()
 		if !isSwitch && e.schema == contracts.LightSchema {
 			if light, isLight := value.Light(); isLight {
-				on, _, _, err = light.Components()
+				lightParts, lightPartsErr := light.Components()
+				on, err = lightParts.On, lightPartsErr
 				isSwitch = err == nil
 			}
 		}
@@ -491,20 +507,26 @@ func (t *actionTracker) observe(binding Binding, endpoint, schema string, curren
 		if !isLight {
 			return
 		}
-		on, brightness, colorTemp, err := light.Components()
+		lightParts, lightPartsErr := light.Components()
+		on, brightness, colorTemp, err := lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds, lightPartsErr
 		if err != nil || (e.predicate.hasOn && on != e.predicate.on) ||
 			(e.predicate.hasBrightness && (brightness == nil || math.Abs(*brightness-e.predicate.brightness) > 1e-6)) ||
-			(e.predicate.hasColorTemp && (colorTemp == nil || *colorTemp != e.predicate.colorTemp)) {
+			(e.predicate.hasColorTemp && (colorTemp == nil || *colorTemp != e.predicate.colorTemp)) ||
+			(e.predicate.rgb != nil && (lightParts.RGB == nil || *lightParts.RGB != *e.predicate.rgb)) ||
+			(e.predicate.preset != nil && (lightParts.Preset == nil || *lightParts.Preset != *e.predicate.preset)) {
 			return
 		}
 		t.expire(e)
 		t.advance(e, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
 	case proofFan:
 		speed, isFan := value.Fan()
-		if !isFan || (e.predicate.hasFanSpeed && speed != e.predicate.fanSpeed) ||
-			(e.predicate.hasOn && (speed != domain.FanSpeedOff) != e.predicate.on) {
+		parts, err := speed.Components()
+		if !isFan || err != nil || (e.predicate.hasFanSpeed && (parts.Speed == nil || *parts.Speed != e.predicate.fanSpeed)) ||
+			(e.predicate.fanLevel != nil && (parts.Level == nil || *parts.Level != *e.predicate.fanLevel)) ||
+			(e.predicate.hasOn && (parts.On == nil || *parts.On != e.predicate.on)) {
 			return
 		}
+
 		t.expire(e)
 		t.advance(e, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
 	case proofUnavailable:

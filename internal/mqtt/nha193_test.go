@@ -118,7 +118,8 @@ func TestNHA193NativeReadWaitsForDiscoveryAndRealStateAcrossReconnect(t *testing
 		nha193Wait(t, func() bool { _, ok := r.state(key).CriticalValue(); return ok })
 		value, _ := r.state(key).CriticalValue()
 		light, _ := value.Light()
-		on, brightness, _, err := light.Components()
+		lightParts, lightPartsErr := light.Components()
+		on, brightness, err := lightParts.On, lightParts.Brightness, lightPartsErr
 		if err != nil || !on || brightness == nil || *brightness != 50 {
 			t.Fatalf("native report mapping: on=%t brightness=%v err=%v", on, brightness, err)
 		}

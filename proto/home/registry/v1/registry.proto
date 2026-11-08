@@ -53,16 +53,26 @@ message NumberBounds {
   double maximum = 2;
   optional double step = 3;
 }
+// Exact source order and keys. Labels are optional presentation data.
+message ControlChoice { string key = 1; string display_name = 2; }
+message ControlChoices { repeated ControlChoice choices = 1; }
+// Integer channels in [0,255]; all three channels are required at admission.
+message RgbColor { optional uint32 red = 1; optional uint32 green = 2; optional uint32 blue = 3; }
+message ColorDefinition { NumberBounds temperature_mireds = 1; bool rgb = 2; }
 message SwitchConstraints { bool set_on = 1; }
 message LightConstraints {
   bool set_on = 1;
   NumberBounds brightness_percent = 2;
   NumberBounds color_temp_mireds = 3;
   NumberBounds transition_seconds = 4;
+  bool rgb = 5;
+  ControlChoices presets = 6;
 }
 message FanConstraints {
   bool set_on = 1;
-  repeated string speed_options = 2;
+  ControlChoices speed = 2;
+  NumberBounds level = 3;
+  bool observes_power = 4;
 }
 enum ClimateMode {
   CLIMATE_MODE_UNSPECIFIED = 0;

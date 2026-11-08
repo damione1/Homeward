@@ -282,6 +282,36 @@ func parseFeatureKind(value string) FeatureKind {
 
 func (c *compiler) cardExtension(card *Card, entry parser.Entry) (bool, bool) {
 	switch entry.Key {
+	case "visual_family":
+		value, ok := scalarText(entry.Value)
+		if c.profile != CompilationDashboard || !ok || !validVisualFamily(value) || (card.kind != ElementTileCard && card.kind != ElementRecipeCard) {
+			c.unsupported(CodeInvalidValue, entry.Value, "invalid control visual family")
+			return true, true
+		}
+		card.visualFamily = value
+		return true, false
+	case "modules":
+		if c.profile != CompilationDashboard || entry.Value.Kind() != parser.KindSequence || len(entry.Value.Items()) > 16 || (card.kind != ElementTileCard && card.kind != ElementRecipeCard) {
+			c.unsupported(CodeInvalidValue, entry.Value, "modules require bounded explicit entity/role bindings")
+			return true, true
+		}
+		for _, item := range entry.Value.Items() {
+			if item.Kind() != parser.KindMapping || len(item.Entries()) != 2 {
+				c.unsupported(CodeInvalidValue, item, "module requires entity and role")
+				return true, true
+			}
+			entityNode, hasEntity := item.Lookup("entity")
+			roleNode, hasRole := item.Lookup("role")
+			entityText, entityOK := scalarText(entityNode)
+			role, roleOK := scalarText(roleNode)
+			entity, err := domain.ParseHAAlias(entityText)
+			if !hasEntity || !hasRole || !entityOK || !roleOK || err != nil || controlRole(role) == 0 {
+				c.unsupported(CodeInvalidValue, item, "invalid exact module binding")
+				return true, true
+			}
+			card.controlModules = append(card.controlModules, sourceControlModule{entity: entity, role: role})
+		}
+		return true, false
 	case "cover_lock":
 		if c.profile != CompilationDashboard || (card.kind != ElementTileCard && card.kind != ElementRecipeCard) || card.coverLock != nil || entry.Value.Kind() != parser.KindMapping || len(entry.Value.Entries()) != 2 {
 			c.unsupported(CodeInvalidValue, entry.Value, "cover association requires one explicit entity and name")

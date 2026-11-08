@@ -33,7 +33,7 @@ func TestNHA069LightWireRequiresPresenceAndAdvertisedBounds(t *testing.T) {
 	on := false
 	brightness := 0.0
 	ct := uint32(300)
-	light, err := domain.NewLightValue(on, &brightness, &ct)
+	light, err := domain.NewLightValue(domain.LightValueInput{On: on, Brightness: &brightness, ColorTemperatureMireds: &ct})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,9 +56,9 @@ func TestNHA069LightWireRequiresPresenceAndAdvertisedBounds(t *testing.T) {
 	if !ok {
 		t.Fatal("roundtrip value is not a light")
 	}
-	gotOn, gotBrightness, gotCT, err := got.Components()
-	if err != nil || gotOn || gotBrightness == nil || *gotBrightness != 0 || gotCT == nil || *gotCT != 300 {
-		t.Fatalf("off/zero/CT roundtrip: %v %v %v %v", gotOn, gotBrightness, gotCT, err)
+	parts, err := got.Components()
+	if err != nil || parts.On || parts.Brightness == nil || *parts.Brightness != 0 || parts.ColorTemperatureMireds == nil || *parts.ColorTemperatureMireds != 300 {
+		t.Fatalf("off/zero/CT roundtrip: %v %v %v %v", parts.On, parts.Brightness, parts.ColorTemperatureMireds, err)
 	}
 	for name, mutate := range map[string]func(*state.ObservedState){
 		"missing on": func(w *state.ObservedState) { w.GetLight().On = nil },

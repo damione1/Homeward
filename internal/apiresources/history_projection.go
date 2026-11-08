@@ -33,13 +33,10 @@ func ProjectHistoricalState(recorded *state.ObservedState) (*api.HistoricalState
 		out.Value = &api.HistoricalState_Measurement{Measurement: &api.HistoricalMeasurement{Value: v.Value, Unit: v.Unit, DecimalValue: v.DecimalValue}}
 	case *state.ObservedState_Light:
 		v := value.Light
-		out.Value = &api.HistoricalState_Light{Light: &api.HistoricalLight{On: v.On, BrightnessPercent: v.BrightnessPercent, ColorTempMireds: historicalMireds(v.ColorTempMireds)}}
+		out.Value = &api.HistoricalState_Light{Light: &api.HistoricalLight{On: v.On, BrightnessPercent: v.BrightnessPercent, ColorTempMireds: historicalMireds(v.ColorTempMireds), Rgb: projectRGB(v.Rgb), Preset: v.Preset}}
 	case *state.ObservedState_Fan:
-		speed, err := fanSpeed(value.Fan.Speed)
-		if err != nil {
-			return nil, err
-		}
-		out.Value = &api.HistoricalState_FanSpeed{FanSpeed: speed}
+		v := value.Fan
+		out.Value = &api.HistoricalState_Fan{Fan: &api.HistoricalFan{On: v.On, Speed: v.Speed, Level: v.Level}}
 	case *state.ObservedState_Climate:
 		converted, err := historicalTemperature(value.Climate)
 		if err != nil {

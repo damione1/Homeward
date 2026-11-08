@@ -118,7 +118,13 @@ func discoveryDescription(c discoveryComponent, mode Mode, commands []TopicFilte
 		d.Constraints = &wire.CapabilityDescription_Measurement{Measurement: m.constraints}
 	case componentLight:
 		d.SchemaId = contracts.LightSchema
-		light := &wire.LightConstraints{SetOn: canCommand}
+		light := &wire.LightConstraints{SetOn: canCommand, Rgb: c.rgb}
+		if len(c.presets) > 0 {
+			light.Presets = &wire.ControlChoices{}
+			for _, key := range c.presets {
+				light.Presets.Choices = append(light.Presets.Choices, &wire.ControlChoice{Key: key})
+			}
+		}
 		if c.brightness {
 			light.BrightnessPercent = &wire.NumberBounds{Minimum: 0, Maximum: 100}
 		}

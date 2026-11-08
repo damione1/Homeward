@@ -535,7 +535,8 @@ func (r *rig) checkInitial(scenario Case) *Failure {
 				failure := fail(scenario, FailureDiscovery, "light initial value absent")
 				return &failure
 			}
-			on, brightness, colorTemp, err := light.Components()
+			lightParts, lightPartsErr := light.Components()
+			on, brightness, colorTemp, err := lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds, lightPartsErr
 			validColorTemp := colorTemp == nil
 			if r.profile.LightShape() == LightBrightnessAndColorTemp {
 				validColorTemp = colorTemp != nil && *colorTemp == 300

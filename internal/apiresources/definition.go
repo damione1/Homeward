@@ -54,6 +54,8 @@ func (c Capability) BindDefinition(fence DefinitionFence) (Capability, error) {
 	}
 	definition := c.Resource()
 	definition.Etag = ""
+	// Modules are a derived view containing this etag/access, not a second definition.
+	definition.Modules = nil
 	message := definition.ProtoReflect()
 	trait := message.WhichOneof(message.Descriptor().Oneofs().ByName("trait"))
 	if trait == nil {

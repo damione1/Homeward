@@ -71,10 +71,10 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 		if arg.TransitionSeconds != nil {
 			seconds := *arg.TransitionSeconds
 			if profile.admittedTransition != transitionIkeaDriver30W ||
-				arg.On == nil && arg.BrightnessPercent == nil && arg.ColorTempMireds == nil ||
+				arg.On == nil && arg.BrightnessPercent == nil && arg.ColorTempMireds == nil && arg.Rgb == nil && arg.Preset == nil ||
 				math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds < 0 || seconds > 6553 ||
 				math.Abs(seconds*10-math.Round(seconds*10)) > 1e-9 ||
-				arg.ColorTempMireds != nil || arg.On != nil && !*arg.On && arg.BrightnessPercent != nil {
+				arg.ColorTempMireds != nil || arg.Rgb != nil || arg.Preset != nil || arg.On != nil && !*arg.On && arg.BrightnessPercent != nil {
 				return integrations.ErrCommandRouteUnavailable
 			}
 			fields["transition"] = seconds
@@ -99,6 +99,26 @@ func (p *discoveryPilot) Dispatch(ctx context.Context, command integrations.Admi
 				return integrations.ErrCommandRouteUnavailable
 			}
 			fields["color_temp"] = *arg.ColorTempMireds
+		}
+		if arg.Rgb != nil {
+			rgb, err := contracts.AdmitRGB(arg.Rgb)
+			if err != nil || !profile.rgb || arg.ColorTempMireds != nil {
+				return integrations.ErrCommandRouteUnavailable
+			}
+			fields["color"] = map[string]uint8{"r": rgb.Red, "g": rgb.Green, "b": rgb.Blue}
+		}
+		if arg.Preset != nil {
+			found := false
+			for _, key := range profile.presets {
+				if key == *arg.Preset {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return integrations.ErrCommandRouteUnavailable
+			}
+			fields["effect"] = *arg.Preset
 		}
 		if len(fields) == 0 {
 			return integrations.ErrCommandRouteUnavailable

@@ -144,6 +144,11 @@ func ProjectDashboardDefinition(def Definition, options APIProjection) (*api.Das
 						inertNode(node)
 						break
 					}
+					family, modules, err := p.controlComposition(card, capability)
+					if err != nil {
+						inertNode(node)
+						break
+					}
 					var secondary *api.DashboardCoverLock
 					if card.coverLock != nil {
 						primary, err := uniqueBinding(p.bindings(card.entity), func(b projectedBinding) bool {
@@ -159,7 +164,7 @@ func ProjectDashboardDefinition(def Definition, options APIProjection) (*api.Das
 						}
 					}
 					if card.Kind() == ElementTileCard {
-						tile := &api.DashboardTileNode{CoverLock: secondary, Capability: capability, Features: features, Presentation: presentation, Interactions: interactions}
+						tile := &api.DashboardTileNode{VisualFamily: family, Modules: modules, CoverLock: secondary, Capability: capability, Features: features, Presentation: presentation, Interactions: interactions}
 						if value, ok := card.Vertical(); ok {
 							tile.Vertical = &value
 						}
@@ -168,7 +173,7 @@ func ProjectDashboardDefinition(def Definition, options APIProjection) (*api.Das
 						}
 						node.Content = &api.DashboardLayoutNode_Tile{Tile: tile}
 					} else {
-						node.Content = &api.DashboardLayoutNode_Recipe{Recipe: &api.DashboardRecipeNode{CoverLock: secondary, Kind: nativeRecipeKind(card.Recipe()), Capability: capability, Features: features, Secondary: card.Secondary(), Presentation: presentation, Interactions: interactions}}
+						node.Content = &api.DashboardLayoutNode_Recipe{Recipe: &api.DashboardRecipeNode{VisualFamily: family, Modules: modules, CoverLock: secondary, Kind: nativeRecipeKind(card.Recipe()), Capability: capability, Features: features, Secondary: card.Secondary(), Presentation: presentation, Interactions: interactions}}
 					}
 				case ElementWidgetCard:
 					widget, err := p.widget(card, view)

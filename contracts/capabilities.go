@@ -215,10 +215,11 @@ func (c *CapabilityCatalog) AdmitReadOnlyDriverCapability(d *registry.Capability
 			return nil
 		}
 	case *registry.CapabilityDescription_Light:
-		// SetLight currently accepts On even without SetOn, so every valid
-		// light declaration is actionable at the catalogue boundary.
+		if !constraints.Light.SetOn && constraints.Light.BrightnessPercent == nil && constraints.Light.ColorTempMireds == nil && !constraints.Light.Rgb && len(constraints.Light.GetPresets().GetChoices()) == 0 {
+			return nil
+		}
 	case *registry.CapabilityDescription_Fan:
-		if !constraints.Fan.SetOn && len(constraints.Fan.SpeedOptions) == 0 {
+		if !constraints.Fan.SetOn && len(constraints.Fan.GetSpeed().GetChoices()) == 0 && constraints.Fan.Level == nil {
 			return nil
 		}
 	case *registry.CapabilityDescription_Climate:
@@ -373,6 +374,9 @@ func (c *CapabilityCatalog) validateDescription(d *registry.CapabilityDescriptio
 		if constraints == nil || d.SchemaId != LightSchema || constraints.Light == nil {
 			return errors.New("light schema/constraints mismatch")
 		}
+		if !validControlChoices(constraints.Light.Presets) {
+			return ErrInvalidCapability
+		}
 		if b := constraints.Light.BrightnessPercent; b != nil && (!validBounds(b) || b.Minimum < 0 || b.Maximum > 100) {
 			return errors.New("invalid brightness bounds")
 		}
@@ -383,7 +387,7 @@ func (c *CapabilityCatalog) validateDescription(d *registry.CapabilityDescriptio
 			return errors.New("invalid light transition bounds")
 		}
 	case *registry.CapabilityDescription_Fan:
-		if constraints == nil || d.SchemaId != FanSchema || constraints.Fan == nil || !uniqueOptions(constraints.Fan.SpeedOptions) {
+		if constraints == nil || d.SchemaId != FanSchema || constraints.Fan == nil || !validControlChoices(constraints.Fan.Speed) || constraints.Fan.Level != nil && (!validBounds(constraints.Fan.Level) || len(constraints.Fan.GetSpeed().GetChoices()) != 0) {
 			return errors.New("invalid fan constraints")
 		}
 	case *registry.CapabilityDescription_Climate:
@@ -730,7 +734,8 @@ func (c *CapabilityCatalog) AdmitDomainLight(entity domain.EntityID, endpoint st
 	if err != nil {
 		return err
 	}
-	_, brightness, colorTemp, err := light.Components()
+	lightParts, lightPartsErr := light.Components()
+	brightness, colorTemp, err := lightParts.Brightness, lightParts.ColorTemperatureMireds, lightPartsErr
 	if err != nil {
 		return err
 	}
@@ -741,6 +746,9 @@ func (c *CapabilityCatalog) AdmitDomainLight(entity domain.EntityID, endpoint st
 		return errors.New("light capability is not advertised")
 	}
 	constraints := d.GetLight()
+	if lightParts.RGB != nil && !constraints.Rgb || lightParts.Preset != nil && !ContainsControlChoice(constraints.Presets, *lightParts.Preset) {
+		return ErrInvalidCapability
+	}
 	if brightness != nil && !withinBounds(*brightness, constraints.BrightnessPercent) {
 		return errors.New("brightness is outside advertised instance constraints")
 	}
@@ -750,7 +758,7 @@ func (c *CapabilityCatalog) AdmitDomainLight(entity domain.EntityID, endpoint st
 	return nil
 }
 
-func (c *CapabilityCatalog) AdmitDomainFan(entity domain.EntityID, endpoint string, speed domain.FanSpeed) error {
+func (c *CapabilityCatalog) AdmitDomainFan(entity domain.EntityID, endpoint string, speed domain.FanValue) error {
 	if !c.ready() || endpoint == "" {
 		return ErrUninitializedCatalog
 	}
@@ -758,14 +766,14 @@ func (c *CapabilityCatalog) AdmitDomainFan(entity domain.EntityID, endpoint stri
 	if err != nil {
 		return err
 	}
-	name, err := speed.String()
+	parts, err := speed.Components()
 	if err != nil {
 		return err
 	}
 	c.mu.RLock()
 	d := c.instances[id][capabilityKey(FanSchema, endpoint)]
 	c.mu.RUnlock()
-	if d == nil || d.GetFan() == nil || !contains(d.GetFan().SpeedOptions, name) {
+	if d == nil || d.GetFan() == nil || parts.On != nil && !d.GetFan().ObservesPower || parts.Speed != nil && !ContainsControlChoice(d.GetFan().Speed, *parts.Speed) || parts.Level != nil && !withinBounds(*parts.Level, d.GetFan().Level) {
 		return ErrInvalidCapability
 	}
 	return nil
@@ -879,7 +887,7 @@ func (c *CapabilityCatalog) AdmitCapabilityCommand(cmd *actions.CommandRequest, 
 	case *registry.CapabilityDescription_Light:
 		arg := cmd.Arguments.GetSetLight()
 		if arg != nil && arg.TransitionSeconds != nil {
-			if arg.On == nil && arg.BrightnessPercent == nil && arg.ColorTempMireds == nil {
+			if arg.On == nil && arg.BrightnessPercent == nil && arg.ColorTempMireds == nil && arg.Rgb == nil && arg.Preset == nil {
 				return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.set_light.transition_seconds", "transition needs an on, brightness or color temperature target")
 			}
 			if !finite(*arg.TransitionSeconds) || *arg.TransitionSeconds < 0 || *arg.TransitionSeconds > maxLightTransitionSeconds {
@@ -891,11 +899,25 @@ func (c *CapabilityCatalog) AdmitCapabilityCommand(cmd *actions.CommandRequest, 
 			if !withinBounds(*arg.TransitionSeconds, constraints.Light.TransitionSeconds) {
 				return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.set_light.transition_seconds", "transition is outside advertised bounds or step")
 			}
-			if arg.On != nil && !*arg.On && (arg.BrightnessPercent != nil || arg.ColorTempMireds != nil) {
+			if arg.On != nil && !*arg.On && (arg.BrightnessPercent != nil || arg.ColorTempMireds != nil || arg.Rgb != nil || arg.Preset != nil) {
 				return commandError(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "arguments.set_light", "off transition cannot carry brightness or color temperature")
 			}
 		}
-		if arg == nil || (arg.On == nil && arg.BrightnessPercent == nil && arg.ColorTempMireds == nil) {
+		if arg == nil || (arg.On == nil && arg.BrightnessPercent == nil && arg.ColorTempMireds == nil && arg.Rgb == nil && arg.Preset == nil) {
+			break
+		}
+		if arg.On != nil && !constraints.Light.SetOn {
+			break
+		}
+		if arg.Rgb != nil {
+			if !constraints.Light.Rgb || arg.ColorTempMireds != nil {
+				break
+			}
+			if _, err := AdmitRGB(arg.Rgb); err != nil {
+				break
+			}
+		}
+		if arg.Preset != nil && !ContainsControlChoice(constraints.Light.Presets, *arg.Preset) {
 			break
 		}
 		if arg.BrightnessPercent != nil && !withinBounds(*arg.BrightnessPercent, constraints.Light.BrightnessPercent) {
@@ -907,13 +929,16 @@ func (c *CapabilityCatalog) AdmitCapabilityCommand(cmd *actions.CommandRequest, 
 		return nil
 	case *registry.CapabilityDescription_Fan:
 		arg := cmd.Arguments.GetSetFan()
-		if arg == nil || (arg.On == nil && arg.Speed == nil) {
+		if arg == nil || (arg.On == nil && arg.Speed == nil && arg.Level == nil) || arg.Speed != nil && arg.Level != nil {
 			break
 		}
 		if arg.On != nil && !constraints.Fan.SetOn {
 			break
 		}
-		if arg.Speed != nil && !contains(constraints.Fan.SpeedOptions, *arg.Speed) {
+		if arg.Speed != nil && !ContainsControlChoice(constraints.Fan.Speed, *arg.Speed) {
+			break
+		}
+		if arg.Level != nil && !withinBounds(*arg.Level, constraints.Fan.Level) {
 			break
 		}
 		return nil

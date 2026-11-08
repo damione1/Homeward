@@ -101,13 +101,8 @@ class UnsupportedCommand(Exception):
     pass
 
 
-SPEEDS = {
-    FanSpeed.OFF: state_pb2.FAN_SPEED_OFF,
-    FanSpeed.LOW: state_pb2.FAN_SPEED_LOW,
-    FanSpeed.MEDIUM: state_pb2.FAN_SPEED_MEDIUM,
-    FanSpeed.MEDIUM_HIGH: state_pb2.FAN_SPEED_MEDIUM_HIGH,
-    FanSpeed.HIGH: state_pb2.FAN_SPEED_HIGH,
-}
+SPEEDS = tuple(FanSpeed)
+
 SCHEMAS = {FunctionKind.LIGHT: "core.light.v1",
            FunctionKind.SWITCH: "core.switch.v1",
            FunctionKind.SMART_AWAY: "core.switch.v1",
@@ -140,7 +135,8 @@ def description(function):
     if function.kind is FunctionKind.FAN:
         return registry_pb2.CapabilityDescription(**base,
             fan=registry_pb2.FanConstraints(set_on=False,
-                speed_options=[speed.value for speed in SPEEDS]))
+                observes_power=True, speed=registry_pb2.ControlChoices(
+                    choices=[registry_pb2.ControlChoice(key=speed.value) for speed in SPEEDS])))
     return registry_pb2.CapabilityDescription(**base,
         switch=registry_pb2.SwitchConstraints(set_on=True))
 
@@ -200,7 +196,8 @@ class Host:
             observation.light.on = value.value > 0
             observation.light.brightness_percent = value.value
         elif function.kind is FunctionKind.FAN and type(value) is FanState:
-            observation.fan.speed = SPEEDS[value.speed]
+            observation.fan.speed = value.speed.value
+            observation.fan.on = value.speed is not FanSpeed.OFF
         elif function.kind in (FunctionKind.SWITCH, FunctionKind.SMART_AWAY) and type(value) is SwitchState:
             observation.switch_on = value.on
         else:
@@ -296,7 +293,7 @@ def requested_effect(frame, function):
         return effect
     elif function.kind is FunctionKind.FAN:
         arg = request.arguments.set_fan
-        if which == "set_fan" and not arg.HasField("on") and \
+        if which == "set_fan" and not arg.HasField("on") and not arg.HasField("level") and \
                 arg.HasField("speed"):
             try:
                 return FanState(FanSpeed(arg.speed))

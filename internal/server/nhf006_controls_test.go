@@ -144,7 +144,7 @@ func (d *nhf006Driver) confirm(ctx context.Context, source *integrations.Session
 			if args.On != nil {
 				on = *args.On
 			}
-			light, err := domain.NewLightValue(on, &brightness, nil)
+			light, err := domain.NewLightValue(domain.LightValueInput{On: on, Brightness: &brightness, ColorTemperatureMireds: nil})
 			if err != nil {
 				return err
 			}

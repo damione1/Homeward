@@ -42,17 +42,16 @@ message LightValue {
   optional bool on = 1;
   optional double brightness_percent = 2;
   optional uint32 color_temp_mireds = 3;
+  home.registry.v1.RgbColor rgb = 4;
+  optional string preset = 5;
 }
-enum FanSpeed {
-  FAN_SPEED_UNSPECIFIED = 0;
-  FAN_SPEED_OFF = 1;
-  FAN_SPEED_LOW = 2;
-  FAN_SPEED_MEDIUM = 3;
-  FAN_SPEED_MEDIUM_HIGH = 4;
-  FAN_SPEED_HIGH = 5;
+// Power and level are independent. Missing power is never inferred from a key.
+message FanValue {
+  reserved 1;
+  optional bool on = 2;
+  optional string speed = 3;
+  optional double level = 4;
 }
-// A present Off is distinct from an absent or unavailable fan reading.
-message FanValue { FanSpeed speed = 1; }
 // A present range requires both endpoints at operational admission.
 message ClimateSetpointRange {
   optional double low_celsius = 1;

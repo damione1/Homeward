@@ -678,7 +678,9 @@ END
 $$;
 CREATE TRIGGER command_intention_identity BEFORE UPDATE ON public.command_intents
     FOR EACH ROW EXECUTE FUNCTION public.homeward_command_guard_identity();
-`}, {version: Version{12}, sql: recorderSchemaSQL}, {version: Version{13}, sql: helperValuesSchema}, {version: Version{14}, sql: scheduledJobsSchema}, {version: Version{15}, sql: calendarSchemaSQL}, {version: Version{16}, sql: helperValuesV16 + recorderHelperSchemaSQL}, {version: Version{17}, sql: recorderSolarSchemaSQL}, {version: Version{18}, sql: mfaMigration18SQL}, {version: Version{19}, sql: localListsSchemaSQL}, {version: Version{20}, sql: executionHistorySchemaSQL}, {version: Version{21}, sql: recorderAggregateSchemaSQL}, {version: Version{22}, sql: configActivationSchemaSQL}, {version: Version{23}, sql: remoteCalendarSchemaSQL}, {version: Version{24}, sql: mcpKeysSchemaSQL}, {version: Version{25}, sql: schemaCompatibilitySchemaSQL}, {version: Version{26}, sql: configEditableSourcesSchemaSQL}, {version: Version{27}, sql: recorderControlsSchemaSQL}, {version: Version{28}, sql: recorderEnvironmentSchemaSQL}, {version: Version{29}, sql: apiRegistrySchemaSQL + configurationAPIRequestsSchemaSQL + physicalOperationSchemaSQL + apiAuthResourceNamesSQL + recorderEvidenceSchemaSQL}, {version: Version{30}, sql: calendarDeliverySchemaSQL}}
+`}, {version: Version{12}, sql: recorderSchemaSQL}, {version: Version{13}, sql: helperValuesSchema}, {version: Version{14}, sql: scheduledJobsSchema}, {version: Version{15}, sql: calendarSchemaSQL}, {version: Version{16}, sql: helperValuesV16 + recorderHelperSchemaSQL}, {version: Version{17}, sql: recorderSolarSchemaSQL}, {version: Version{18}, sql: mfaMigration18SQL}, {version: Version{19}, sql: localListsSchemaSQL}, {version: Version{20}, sql: executionHistorySchemaSQL}, {version: Version{21}, sql: recorderAggregateSchemaSQL}, {version: Version{22}, sql: configActivationSchemaSQL}, {version: Version{23}, sql: remoteCalendarSchemaSQL}, {version: Version{24}, sql: mcpKeysSchemaSQL}, {version: Version{25}, sql: schemaCompatibilitySchemaSQL}, {version: Version{26}, sql: configEditableSourcesSchemaSQL}, {version: Version{27}, sql: recorderControlsSchemaSQL}, {version: Version{28}, sql: recorderEnvironmentSchemaSQL}, {version: Version{29}, sql: apiRegistrySchemaSQL + configurationAPIRequestsSchemaSQL + physicalOperationSchemaSQL + apiAuthResourceNamesSQL + recorderEvidenceSchemaSQL}, {version: Version{30}, sql: calendarDeliverySchemaSQL}, {version: Version{31}, sql: `-- Convert legacy fan observation enum to exact source keys and explicit power.
+-- Algorithm: fan-observation-31-v1; preserve all non-fan wire bytes and verify recorder digests.
+SELECT 1;`}}
 
 var latestVersion = migrations[len(migrations)-1].version
 
@@ -748,11 +750,17 @@ func (s *Store) migrate(ctx context.Context, plan []migration) (Version, error) 
 		}
 		return current, nil
 	}
-	if current.number >= schemaWindowBaseline && schemaAdmissionInTx(ctx, tx, current) != schemaAdmissionCurrent {
+	if current.number >= schemaWindowBaseline && current.number != 30 && schemaAdmissionInTx(ctx, tx, current) != schemaAdmissionCurrent {
 		if ctx.Err() != nil {
 			return Version{}, ctx.Err()
 		}
 		return Version{}, &Error{kind: InconsistentSchema}
+	}
+	if err := validatePrior29SchemaWindow(ctx, tx, current); err != nil {
+		return Version{}, err
+	}
+	if err := validatePrior30SchemaWindow(ctx, tx, current); err != nil {
+		return Version{}, err
 	}
 	before := current
 	for _, m := range plan {
@@ -767,6 +775,11 @@ func (s *Store) migrate(ctx context.Context, plan []migration) (Version, error) 
 				return Version{}, ctx.Err()
 			}
 			return Version{}, &Error{kind: MigrationFailed}
+		}
+		if m.version.number == 31 {
+			if err := migrateFanObservations31(ctx, tx); err != nil {
+				return Version{}, &Error{kind: MigrationFailed, cause: err}
+			}
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO public.homeward_schema_migrations(version) VALUES ($1)`, m.version.number); err != nil {
 			if ctx.Err() != nil {

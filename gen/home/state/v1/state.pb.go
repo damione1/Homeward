@@ -180,64 +180,6 @@ func (Provenance) EnumDescriptor() ([]byte, []int) {
 	return file_home_state_v1_state_proto_rawDescGZIP(), []int{2}
 }
 
-type FanSpeed int32
-
-const (
-	FanSpeed_FAN_SPEED_UNSPECIFIED FanSpeed = 0
-	FanSpeed_FAN_SPEED_OFF         FanSpeed = 1
-	FanSpeed_FAN_SPEED_LOW         FanSpeed = 2
-	FanSpeed_FAN_SPEED_MEDIUM      FanSpeed = 3
-	FanSpeed_FAN_SPEED_MEDIUM_HIGH FanSpeed = 4
-	FanSpeed_FAN_SPEED_HIGH        FanSpeed = 5
-)
-
-// Enum value maps for FanSpeed.
-var (
-	FanSpeed_name = map[int32]string{
-		0: "FAN_SPEED_UNSPECIFIED",
-		1: "FAN_SPEED_OFF",
-		2: "FAN_SPEED_LOW",
-		3: "FAN_SPEED_MEDIUM",
-		4: "FAN_SPEED_MEDIUM_HIGH",
-		5: "FAN_SPEED_HIGH",
-	}
-	FanSpeed_value = map[string]int32{
-		"FAN_SPEED_UNSPECIFIED": 0,
-		"FAN_SPEED_OFF":         1,
-		"FAN_SPEED_LOW":         2,
-		"FAN_SPEED_MEDIUM":      3,
-		"FAN_SPEED_MEDIUM_HIGH": 4,
-		"FAN_SPEED_HIGH":        5,
-	}
-)
-
-func (x FanSpeed) Enum() *FanSpeed {
-	p := new(FanSpeed)
-	*p = x
-	return p
-}
-
-func (x FanSpeed) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (FanSpeed) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_state_v1_state_proto_enumTypes[3].Descriptor()
-}
-
-func (FanSpeed) Type() protoreflect.EnumType {
-	return &file_home_state_v1_state_proto_enumTypes[3]
-}
-
-func (x FanSpeed) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use FanSpeed.Descriptor instead.
-func (FanSpeed) EnumDescriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{3}
-}
-
 type ActionAccess int32
 
 const (
@@ -271,11 +213,11 @@ func (x ActionAccess) String() string {
 }
 
 func (ActionAccess) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_state_v1_state_proto_enumTypes[4].Descriptor()
+	return file_home_state_v1_state_proto_enumTypes[3].Descriptor()
 }
 
 func (ActionAccess) Type() protoreflect.EnumType {
-	return &file_home_state_v1_state_proto_enumTypes[4]
+	return &file_home_state_v1_state_proto_enumTypes[3]
 }
 
 func (x ActionAccess) Number() protoreflect.EnumNumber {
@@ -284,7 +226,7 @@ func (x ActionAccess) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ActionAccess.Descriptor instead.
 func (ActionAccess) EnumDescriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{4}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{3}
 }
 
 type ResyncReason int32
@@ -347,11 +289,11 @@ func (x ResyncReason) String() string {
 }
 
 func (ResyncReason) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_state_v1_state_proto_enumTypes[5].Descriptor()
+	return file_home_state_v1_state_proto_enumTypes[4].Descriptor()
 }
 
 func (ResyncReason) Type() protoreflect.EnumType {
-	return &file_home_state_v1_state_proto_enumTypes[5]
+	return &file_home_state_v1_state_proto_enumTypes[4]
 }
 
 func (x ResyncReason) Number() protoreflect.EnumNumber {
@@ -360,7 +302,7 @@ func (x ResyncReason) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ResyncReason.Descriptor instead.
 func (ResyncReason) EnumDescriptor() ([]byte, []int) {
-	return file_home_state_v1_state_proto_rawDescGZIP(), []int{5}
+	return file_home_state_v1_state_proto_rawDescGZIP(), []int{4}
 }
 
 type Quality struct {
@@ -489,6 +431,8 @@ type LightValue struct {
 	On                *bool                  `protobuf:"varint,1,opt,name=on,proto3,oneof" json:"on,omitempty"`
 	BrightnessPercent *float64               `protobuf:"fixed64,2,opt,name=brightness_percent,json=brightnessPercent,proto3,oneof" json:"brightness_percent,omitempty"`
 	ColorTempMireds   *uint32                `protobuf:"varint,3,opt,name=color_temp_mireds,json=colorTempMireds,proto3,oneof" json:"color_temp_mireds,omitempty"`
+	Rgb               *v1.RgbColor           `protobuf:"bytes,4,opt,name=rgb,proto3" json:"rgb,omitempty"`
+	Preset            *string                `protobuf:"bytes,5,opt,name=preset,proto3,oneof" json:"preset,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -544,10 +488,26 @@ func (x *LightValue) GetColorTempMireds() uint32 {
 	return 0
 }
 
-// A present Off is distinct from an absent or unavailable fan reading.
+func (x *LightValue) GetRgb() *v1.RgbColor {
+	if x != nil {
+		return x.Rgb
+	}
+	return nil
+}
+
+func (x *LightValue) GetPreset() string {
+	if x != nil && x.Preset != nil {
+		return *x.Preset
+	}
+	return ""
+}
+
+// Power and level are independent. Missing power is never inferred from a key.
 type FanValue struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Speed         FanSpeed               `protobuf:"varint,1,opt,name=speed,proto3,enum=home.state.v1.FanSpeed" json:"speed,omitempty"`
+	On            *bool                  `protobuf:"varint,2,opt,name=on,proto3,oneof" json:"on,omitempty"`
+	Speed         *string                `protobuf:"bytes,3,opt,name=speed,proto3,oneof" json:"speed,omitempty"`
+	Level         *float64               `protobuf:"fixed64,4,opt,name=level,proto3,oneof" json:"level,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -582,11 +542,25 @@ func (*FanValue) Descriptor() ([]byte, []int) {
 	return file_home_state_v1_state_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *FanValue) GetSpeed() FanSpeed {
-	if x != nil {
-		return x.Speed
+func (x *FanValue) GetOn() bool {
+	if x != nil && x.On != nil {
+		return *x.On
 	}
-	return FanSpeed_FAN_SPEED_UNSPECIFIED
+	return false
+}
+
+func (x *FanValue) GetSpeed() string {
+	if x != nil && x.Speed != nil {
+		return *x.Speed
+	}
+	return ""
+}
+
+func (x *FanValue) GetLevel() float64 {
+	if x != nil && x.Level != nil {
+		return *x.Level
+	}
+	return 0
 }
 
 // A present range requires both endpoints at operational admission.
@@ -2035,17 +2009,25 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\x05value\x18\x01 \x01(\x01R\x05value\x12\x12\n" +
 	"\x04unit\x18\x02 \x01(\tR\x04unit\x12(\n" +
 	"\rdecimal_value\x18\x03 \x01(\tH\x00R\fdecimalValue\x88\x01\x01B\x10\n" +
-	"\x0e_decimal_value\"\xba\x01\n" +
+	"\x0e_decimal_value\"\x90\x02\n" +
 	"\n" +
 	"LightValue\x12\x13\n" +
 	"\x02on\x18\x01 \x01(\bH\x00R\x02on\x88\x01\x01\x122\n" +
 	"\x12brightness_percent\x18\x02 \x01(\x01H\x01R\x11brightnessPercent\x88\x01\x01\x12/\n" +
-	"\x11color_temp_mireds\x18\x03 \x01(\rH\x02R\x0fcolorTempMireds\x88\x01\x01B\x05\n" +
+	"\x11color_temp_mireds\x18\x03 \x01(\rH\x02R\x0fcolorTempMireds\x88\x01\x01\x12,\n" +
+	"\x03rgb\x18\x04 \x01(\v2\x1a.home.registry.v1.RgbColorR\x03rgb\x12\x1b\n" +
+	"\x06preset\x18\x05 \x01(\tH\x03R\x06preset\x88\x01\x01B\x05\n" +
 	"\x03_onB\x15\n" +
 	"\x13_brightness_percentB\x14\n" +
-	"\x12_color_temp_mireds\"9\n" +
-	"\bFanValue\x12-\n" +
-	"\x05speed\x18\x01 \x01(\x0e2\x17.home.state.v1.FanSpeedR\x05speed\"\x85\x01\n" +
+	"\x12_color_temp_miredsB\t\n" +
+	"\a_preset\"v\n" +
+	"\bFanValue\x12\x13\n" +
+	"\x02on\x18\x02 \x01(\bH\x00R\x02on\x88\x01\x01\x12\x19\n" +
+	"\x05speed\x18\x03 \x01(\tH\x01R\x05speed\x88\x01\x01\x12\x19\n" +
+	"\x05level\x18\x04 \x01(\x01H\x02R\x05level\x88\x01\x01B\x05\n" +
+	"\x03_onB\b\n" +
+	"\x06_speedB\b\n" +
+	"\x06_levelJ\x04\b\x01\x10\x02\"\x85\x01\n" +
 	"\x14ClimateSetpointRange\x12$\n" +
 	"\vlow_celsius\x18\x01 \x01(\x01H\x00R\n" +
 	"lowCelsius\x88\x01\x01\x12&\n" +
@@ -2183,14 +2165,7 @@ const file_home_state_v1_state_proto_rawDesc = "" +
 	"\x16PROVENANCE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13PROVENANCE_OBSERVED\x10\x01\x12\x17\n" +
 	"\x13PROVENANCE_RESTORED\x10\x02\x12\x18\n" +
-	"\x14PROVENANCE_ESTIMATED\x10\x03*\x90\x01\n" +
-	"\bFanSpeed\x12\x19\n" +
-	"\x15FAN_SPEED_UNSPECIFIED\x10\x00\x12\x11\n" +
-	"\rFAN_SPEED_OFF\x10\x01\x12\x11\n" +
-	"\rFAN_SPEED_LOW\x10\x02\x12\x14\n" +
-	"\x10FAN_SPEED_MEDIUM\x10\x03\x12\x19\n" +
-	"\x15FAN_SPEED_MEDIUM_HIGH\x10\x04\x12\x12\n" +
-	"\x0eFAN_SPEED_HIGH\x10\x05*b\n" +
+	"\x14PROVENANCE_ESTIMATED\x10\x03*b\n" +
 	"\fActionAccess\x12\x1d\n" +
 	"\x19ACTION_ACCESS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14ACTION_ACCESS_DENIED\x10\x01\x12\x19\n" +
@@ -2222,36 +2197,36 @@ func file_home_state_v1_state_proto_rawDescGZIP() []byte {
 	return file_home_state_v1_state_proto_rawDescData
 }
 
-var file_home_state_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_home_state_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
 var file_home_state_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_home_state_v1_state_proto_goTypes = []any{
 	(Availability)(0),                // 0: home.state.v1.Availability
 	(Freshness)(0),                   // 1: home.state.v1.Freshness
 	(Provenance)(0),                  // 2: home.state.v1.Provenance
-	(FanSpeed)(0),                    // 3: home.state.v1.FanSpeed
-	(ActionAccess)(0),                // 4: home.state.v1.ActionAccess
-	(ResyncReason)(0),                // 5: home.state.v1.ResyncReason
-	(*Quality)(nil),                  // 6: home.state.v1.Quality
-	(*Measurement)(nil),              // 7: home.state.v1.Measurement
-	(*LightValue)(nil),               // 8: home.state.v1.LightValue
-	(*FanValue)(nil),                 // 9: home.state.v1.FanValue
-	(*ClimateSetpointRange)(nil),     // 10: home.state.v1.ClimateSetpointRange
-	(*ClimateValue)(nil),             // 11: home.state.v1.ClimateValue
-	(*ObservedState)(nil),            // 12: home.state.v1.ObservedState
-	(*ViewCursor)(nil),               // 13: home.state.v1.ViewCursor
-	(*CapabilityActionAccess)(nil),   // 14: home.state.v1.CapabilityActionAccess
-	(*ViewEntity)(nil),               // 15: home.state.v1.ViewEntity
-	(*ViewFilter)(nil),               // 16: home.state.v1.ViewFilter
-	(*OpenViewRequest)(nil),          // 17: home.state.v1.OpenViewRequest
-	(*OpenViewResponse)(nil),         // 18: home.state.v1.OpenViewResponse
-	(*ReadPageRequest)(nil),          // 19: home.state.v1.ReadPageRequest
-	(*ReadPageResponse)(nil),         // 20: home.state.v1.ReadPageResponse
-	(*ReleaseViewRequest)(nil),       // 21: home.state.v1.ReleaseViewRequest
-	(*ReleaseViewResponse)(nil),      // 22: home.state.v1.ReleaseViewResponse
-	(*WatchViewRequest)(nil),         // 23: home.state.v1.WatchViewRequest
-	(*StateDelta)(nil),               // 24: home.state.v1.StateDelta
-	(*ResyncRequired)(nil),           // 25: home.state.v1.ResyncRequired
-	(*WatchViewResponse)(nil),        // 26: home.state.v1.WatchViewResponse
+	(ActionAccess)(0),                // 3: home.state.v1.ActionAccess
+	(ResyncReason)(0),                // 4: home.state.v1.ResyncReason
+	(*Quality)(nil),                  // 5: home.state.v1.Quality
+	(*Measurement)(nil),              // 6: home.state.v1.Measurement
+	(*LightValue)(nil),               // 7: home.state.v1.LightValue
+	(*FanValue)(nil),                 // 8: home.state.v1.FanValue
+	(*ClimateSetpointRange)(nil),     // 9: home.state.v1.ClimateSetpointRange
+	(*ClimateValue)(nil),             // 10: home.state.v1.ClimateValue
+	(*ObservedState)(nil),            // 11: home.state.v1.ObservedState
+	(*ViewCursor)(nil),               // 12: home.state.v1.ViewCursor
+	(*CapabilityActionAccess)(nil),   // 13: home.state.v1.CapabilityActionAccess
+	(*ViewEntity)(nil),               // 14: home.state.v1.ViewEntity
+	(*ViewFilter)(nil),               // 15: home.state.v1.ViewFilter
+	(*OpenViewRequest)(nil),          // 16: home.state.v1.OpenViewRequest
+	(*OpenViewResponse)(nil),         // 17: home.state.v1.OpenViewResponse
+	(*ReadPageRequest)(nil),          // 18: home.state.v1.ReadPageRequest
+	(*ReadPageResponse)(nil),         // 19: home.state.v1.ReadPageResponse
+	(*ReleaseViewRequest)(nil),       // 20: home.state.v1.ReleaseViewRequest
+	(*ReleaseViewResponse)(nil),      // 21: home.state.v1.ReleaseViewResponse
+	(*WatchViewRequest)(nil),         // 22: home.state.v1.WatchViewRequest
+	(*StateDelta)(nil),               // 23: home.state.v1.StateDelta
+	(*ResyncRequired)(nil),           // 24: home.state.v1.ResyncRequired
+	(*WatchViewResponse)(nil),        // 25: home.state.v1.WatchViewResponse
+	(*v1.RgbColor)(nil),              // 26: home.registry.v1.RgbColor
 	(v1.ClimateMode)(0),              // 27: home.registry.v1.ClimateMode
 	(v1.ClimateActivity)(0),          // 28: home.registry.v1.ClimateActivity
 	(v1.ClimateFanTarget)(0),         // 29: home.registry.v1.ClimateFanTarget
@@ -2273,22 +2248,22 @@ var file_home_state_v1_state_proto_depIdxs = []int32{
 	0,  // 0: home.state.v1.Quality.availability:type_name -> home.state.v1.Availability
 	1,  // 1: home.state.v1.Quality.freshness:type_name -> home.state.v1.Freshness
 	2,  // 2: home.state.v1.Quality.provenance:type_name -> home.state.v1.Provenance
-	3,  // 3: home.state.v1.FanValue.speed:type_name -> home.state.v1.FanSpeed
-	10, // 4: home.state.v1.ClimateValue.setpoint_range_celsius:type_name -> home.state.v1.ClimateSetpointRange
+	26, // 3: home.state.v1.LightValue.rgb:type_name -> home.registry.v1.RgbColor
+	9,  // 4: home.state.v1.ClimateValue.setpoint_range_celsius:type_name -> home.state.v1.ClimateSetpointRange
 	27, // 5: home.state.v1.ClimateValue.mode:type_name -> home.registry.v1.ClimateMode
 	28, // 6: home.state.v1.ClimateValue.activity:type_name -> home.registry.v1.ClimateActivity
 	29, // 7: home.state.v1.ClimateValue.fan_target:type_name -> home.registry.v1.ClimateFanTarget
 	30, // 8: home.state.v1.ObservedState.entity:type_name -> home.registry.v1.EntityRef
-	6,  // 9: home.state.v1.ObservedState.quality:type_name -> home.state.v1.Quality
+	5,  // 9: home.state.v1.ObservedState.quality:type_name -> home.state.v1.Quality
 	31, // 10: home.state.v1.ObservedState.observed_at:type_name -> google.protobuf.Timestamp
 	31, // 11: home.state.v1.ObservedState.received_at:type_name -> google.protobuf.Timestamp
 	31, // 12: home.state.v1.ObservedState.last_changed:type_name -> google.protobuf.Timestamp
 	31, // 13: home.state.v1.ObservedState.last_updated:type_name -> google.protobuf.Timestamp
 	31, // 14: home.state.v1.ObservedState.last_reported:type_name -> google.protobuf.Timestamp
-	7,  // 15: home.state.v1.ObservedState.measurement:type_name -> home.state.v1.Measurement
-	8,  // 16: home.state.v1.ObservedState.light:type_name -> home.state.v1.LightValue
-	9,  // 17: home.state.v1.ObservedState.fan:type_name -> home.state.v1.FanValue
-	11, // 18: home.state.v1.ObservedState.climate:type_name -> home.state.v1.ClimateValue
+	6,  // 15: home.state.v1.ObservedState.measurement:type_name -> home.state.v1.Measurement
+	7,  // 16: home.state.v1.ObservedState.light:type_name -> home.state.v1.LightValue
+	8,  // 17: home.state.v1.ObservedState.fan:type_name -> home.state.v1.FanValue
+	10, // 18: home.state.v1.ObservedState.climate:type_name -> home.state.v1.ClimateValue
 	32, // 19: home.state.v1.ObservedState.helper:type_name -> home.helpers.v1.HelperValue
 	33, // 20: home.state.v1.ObservedState.solar:type_name -> home.solar.v1.SolarValue
 	34, // 21: home.state.v1.ObservedState.solar_event:type_name -> home.solar.v1.SolarEventValue
@@ -2298,25 +2273,25 @@ var file_home_state_v1_state_proto_depIdxs = []int32{
 	38, // 25: home.state.v1.ObservedState.weather:type_name -> home.environment.v1.WeatherValue
 	39, // 26: home.state.v1.ObservedState.presence:type_name -> home.environment.v1.PresenceValue
 	40, // 27: home.state.v1.ObservedState.presence_details:type_name -> home.environment.v1.PresenceDetailsValue
-	4,  // 28: home.state.v1.CapabilityActionAccess.access:type_name -> home.state.v1.ActionAccess
+	3,  // 28: home.state.v1.CapabilityActionAccess.access:type_name -> home.state.v1.ActionAccess
 	41, // 29: home.state.v1.ViewEntity.capabilities:type_name -> home.registry.v1.CapabilityDescription
-	12, // 30: home.state.v1.ViewEntity.state:type_name -> home.state.v1.ObservedState
-	14, // 31: home.state.v1.ViewEntity.action_access:type_name -> home.state.v1.CapabilityActionAccess
-	16, // 32: home.state.v1.OpenViewRequest.filter:type_name -> home.state.v1.ViewFilter
-	13, // 33: home.state.v1.OpenViewResponse.cursor:type_name -> home.state.v1.ViewCursor
-	12, // 34: home.state.v1.OpenViewResponse.states:type_name -> home.state.v1.ObservedState
+	11, // 30: home.state.v1.ViewEntity.state:type_name -> home.state.v1.ObservedState
+	13, // 31: home.state.v1.ViewEntity.action_access:type_name -> home.state.v1.CapabilityActionAccess
+	15, // 32: home.state.v1.OpenViewRequest.filter:type_name -> home.state.v1.ViewFilter
+	12, // 33: home.state.v1.OpenViewResponse.cursor:type_name -> home.state.v1.ViewCursor
+	11, // 34: home.state.v1.OpenViewResponse.states:type_name -> home.state.v1.ObservedState
 	41, // 35: home.state.v1.OpenViewResponse.capabilities:type_name -> home.registry.v1.CapabilityDescription
 	31, // 36: home.state.v1.OpenViewResponse.expires_at:type_name -> google.protobuf.Timestamp
-	15, // 37: home.state.v1.OpenViewResponse.entities:type_name -> home.state.v1.ViewEntity
+	14, // 37: home.state.v1.OpenViewResponse.entities:type_name -> home.state.v1.ViewEntity
 	42, // 38: home.state.v1.OpenViewResponse.display_profile:type_name -> home.environment.v1.DisplayProfile
-	18, // 39: home.state.v1.ReadPageResponse.page:type_name -> home.state.v1.OpenViewResponse
-	13, // 40: home.state.v1.WatchViewRequest.cursor:type_name -> home.state.v1.ViewCursor
-	16, // 41: home.state.v1.WatchViewRequest.filter:type_name -> home.state.v1.ViewFilter
-	12, // 42: home.state.v1.StateDelta.states:type_name -> home.state.v1.ObservedState
-	5,  // 43: home.state.v1.ResyncRequired.reason:type_name -> home.state.v1.ResyncReason
-	13, // 44: home.state.v1.WatchViewResponse.cursor:type_name -> home.state.v1.ViewCursor
-	24, // 45: home.state.v1.WatchViewResponse.delta:type_name -> home.state.v1.StateDelta
-	25, // 46: home.state.v1.WatchViewResponse.resync_required:type_name -> home.state.v1.ResyncRequired
+	17, // 39: home.state.v1.ReadPageResponse.page:type_name -> home.state.v1.OpenViewResponse
+	12, // 40: home.state.v1.WatchViewRequest.cursor:type_name -> home.state.v1.ViewCursor
+	15, // 41: home.state.v1.WatchViewRequest.filter:type_name -> home.state.v1.ViewFilter
+	11, // 42: home.state.v1.StateDelta.states:type_name -> home.state.v1.ObservedState
+	4,  // 43: home.state.v1.ResyncRequired.reason:type_name -> home.state.v1.ResyncReason
+	12, // 44: home.state.v1.WatchViewResponse.cursor:type_name -> home.state.v1.ViewCursor
+	23, // 45: home.state.v1.WatchViewResponse.delta:type_name -> home.state.v1.StateDelta
+	24, // 46: home.state.v1.WatchViewResponse.resync_required:type_name -> home.state.v1.ResyncRequired
 	47, // [47:47] is the sub-list for method output_type
 	47, // [47:47] is the sub-list for method input_type
 	47, // [47:47] is the sub-list for extension type_name
@@ -2331,6 +2306,7 @@ func file_home_state_v1_state_proto_init() {
 	}
 	file_home_state_v1_state_proto_msgTypes[1].OneofWrappers = []any{}
 	file_home_state_v1_state_proto_msgTypes[2].OneofWrappers = []any{}
+	file_home_state_v1_state_proto_msgTypes[3].OneofWrappers = []any{}
 	file_home_state_v1_state_proto_msgTypes[4].OneofWrappers = []any{}
 	file_home_state_v1_state_proto_msgTypes[5].OneofWrappers = []any{
 		(*ClimateValue_SetpointCelsius)(nil),
@@ -2361,7 +2337,7 @@ func file_home_state_v1_state_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_state_v1_state_proto_rawDesc), len(file_home_state_v1_state_proto_rawDesc)),
-			NumEnums:      6,
+			NumEnums:      5,
 			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   0,

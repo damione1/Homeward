@@ -126,14 +126,10 @@ pub fn decode_literal(value: &wire::DashboardLiteral) -> Result<Literal, RecipeF
                 return Err(RecipeFailure::Unsupported);
             }
         }),
-        V::FanSpeed(value) => Literal::FanSpeed(match value.as_known() {
-            Some(wire::FanSpeed::Off) => home_client_model::dashboard::FanSpeed::Off,
-            Some(wire::FanSpeed::Low) => home_client_model::dashboard::FanSpeed::Low,
-            Some(wire::FanSpeed::Medium) => home_client_model::dashboard::FanSpeed::Medium,
-            Some(wire::FanSpeed::MediumHigh) => home_client_model::dashboard::FanSpeed::MediumHigh,
-            Some(wire::FanSpeed::High) => home_client_model::dashboard::FanSpeed::High,
-            Some(wire::FanSpeed::Unspecified) | None => return Err(RecipeFailure::Unsupported),
-        }),
+        V::FanSpeed(value) => Literal::FanSpeed(
+            home_client_model::api::SelectorKey::try_from(value.as_str())
+                .map_err(|_| RecipeFailure::Unsupported)?,
+        ),
         V::WeatherCondition(value) => Literal::WeatherCondition(match value.as_known() {
             Some(wire::WeatherCondition::Unknown) => {
                 home_client_model::dashboard::WeatherCondition::Unknown

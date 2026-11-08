@@ -328,7 +328,7 @@ func (s *Service) prepareMember(ctx context.Context, spec memberSpec,
 			return preparedMember{kind: preparedFan, alias: spec.alias, source: spec.source, fan: prepared}
 		case hascene.MemberSwitch:
 			on, _ := spec.ha.Switch()
-			return s.prepareDirect(ctx, spec, actor, id, expiresAt, on, domain.FanSpeedUnspecified)
+			return s.prepareDirect(ctx, spec, actor, id, expiresAt, on, domain.FanValue{})
 		case hascene.MemberClimate:
 			intent, _ := spec.ha.Climate()
 			_, _, humidity, fanMode, presetMode := intent.Components()
@@ -358,7 +358,8 @@ func (s *Service) prepareMember(ctx context.Context, spec memberSpec,
 			return refused(spec, RefusalCapability, "member", "solar observations cannot be reproduced as commands")
 		case domain.ValueLight:
 			light, _ := spec.native.Light()
-			on, percent, ct, err := light.Components()
+			lightParts, lightPartsErr := light.Components()
+			err := lightPartsErr
 			if err != nil {
 				return refused(spec, RefusalSource, "light", err.Error())
 			}
@@ -366,14 +367,14 @@ func (s *Service) prepareMember(ctx context.Context, spec memberSpec,
 			if err != nil {
 				return refusedCause(spec, RefusalRoute, "light", err)
 			}
-			prepared, err := capture.PrepareNative(actor, id, expiresAt, on, percent, ct, transition)
+			prepared, err := capture.PrepareNative(actor, id, expiresAt, lightParts, transition)
 			if err != nil {
 				return refused(spec, RefusalCapability, "light", err.Error())
 			}
 			return preparedMember{kind: preparedLight, alias: spec.alias, source: spec.source, light: prepared}
 		case domain.ValueSwitch:
 			on, _ := spec.native.Switch()
-			return s.prepareDirect(ctx, spec, actor, id, expiresAt, on, domain.FanSpeedUnspecified)
+			return s.prepareDirect(ctx, spec, actor, id, expiresAt, on, domain.FanValue{})
 		case domain.ValueFan:
 			speed, _ := spec.native.Fan()
 			return s.prepareDirect(ctx, spec, actor, id, expiresAt, false, speed)
@@ -383,9 +384,9 @@ func (s *Service) prepareMember(ctx context.Context, spec memberSpec,
 }
 
 func (s *Service) prepareDirect(ctx context.Context, spec memberSpec, actor domain.ActorID,
-	id domain.CommandID, expiresAt time.Time, switchOn bool, speed domain.FanSpeed) preparedMember {
+	id domain.CommandID, expiresAt time.Time, switchOn bool, speed domain.FanValue) preparedMember {
 	kind := integrations.DirectSwitch
-	if speed != domain.FanSpeedUnspecified {
+	if _, err := speed.Components(); err == nil {
 		kind = integrations.DirectFan
 	}
 	capture, err := s.commands.CaptureDirect(ctx, spec.alias, kind)

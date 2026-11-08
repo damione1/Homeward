@@ -210,93 +210,6 @@ impl ::buffa::Enumeration for Provenance {
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
-pub enum FanSpeed {
-    FAN_SPEED_UNSPECIFIED = 0i32,
-    FAN_SPEED_OFF = 1i32,
-    FAN_SPEED_LOW = 2i32,
-    FAN_SPEED_MEDIUM = 3i32,
-    FAN_SPEED_MEDIUM_HIGH = 4i32,
-    FAN_SPEED_HIGH = 5i32,
-}
-impl FanSpeed {
-    ///Idiomatic alias for [`Self::FAN_SPEED_UNSPECIFIED`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Unspecified: Self = Self::FAN_SPEED_UNSPECIFIED;
-    ///Idiomatic alias for [`Self::FAN_SPEED_OFF`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Off: Self = Self::FAN_SPEED_OFF;
-    ///Idiomatic alias for [`Self::FAN_SPEED_LOW`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Low: Self = Self::FAN_SPEED_LOW;
-    ///Idiomatic alias for [`Self::FAN_SPEED_MEDIUM`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Medium: Self = Self::FAN_SPEED_MEDIUM;
-    ///Idiomatic alias for [`Self::FAN_SPEED_MEDIUM_HIGH`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const MediumHigh: Self = Self::FAN_SPEED_MEDIUM_HIGH;
-    ///Idiomatic alias for [`Self::FAN_SPEED_HIGH`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const High: Self = Self::FAN_SPEED_HIGH;
-}
-impl ::core::default::Default for FanSpeed {
-    fn default() -> Self {
-        Self::FAN_SPEED_UNSPECIFIED
-    }
-}
-impl ::buffa::Enumeration for FanSpeed {
-    fn from_i32(value: i32) -> ::core::option::Option<Self> {
-        match value {
-            0i32 => ::core::option::Option::Some(Self::FAN_SPEED_UNSPECIFIED),
-            1i32 => ::core::option::Option::Some(Self::FAN_SPEED_OFF),
-            2i32 => ::core::option::Option::Some(Self::FAN_SPEED_LOW),
-            3i32 => ::core::option::Option::Some(Self::FAN_SPEED_MEDIUM),
-            4i32 => ::core::option::Option::Some(Self::FAN_SPEED_MEDIUM_HIGH),
-            5i32 => ::core::option::Option::Some(Self::FAN_SPEED_HIGH),
-            _ => ::core::option::Option::None,
-        }
-    }
-    fn to_i32(&self) -> i32 {
-        *self as i32
-    }
-    fn proto_name(&self) -> &'static str {
-        match self {
-            Self::FAN_SPEED_UNSPECIFIED => "FAN_SPEED_UNSPECIFIED",
-            Self::FAN_SPEED_OFF => "FAN_SPEED_OFF",
-            Self::FAN_SPEED_LOW => "FAN_SPEED_LOW",
-            Self::FAN_SPEED_MEDIUM => "FAN_SPEED_MEDIUM",
-            Self::FAN_SPEED_MEDIUM_HIGH => "FAN_SPEED_MEDIUM_HIGH",
-            Self::FAN_SPEED_HIGH => "FAN_SPEED_HIGH",
-        }
-    }
-    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
-        match name {
-            "FAN_SPEED_UNSPECIFIED" => {
-                ::core::option::Option::Some(Self::FAN_SPEED_UNSPECIFIED)
-            }
-            "FAN_SPEED_OFF" => ::core::option::Option::Some(Self::FAN_SPEED_OFF),
-            "FAN_SPEED_LOW" => ::core::option::Option::Some(Self::FAN_SPEED_LOW),
-            "FAN_SPEED_MEDIUM" => ::core::option::Option::Some(Self::FAN_SPEED_MEDIUM),
-            "FAN_SPEED_MEDIUM_HIGH" => {
-                ::core::option::Option::Some(Self::FAN_SPEED_MEDIUM_HIGH)
-            }
-            "FAN_SPEED_HIGH" => ::core::option::Option::Some(Self::FAN_SPEED_HIGH),
-            _ => ::core::option::Option::None,
-        }
-    }
-    fn values() -> &'static [Self] {
-        &[
-            Self::FAN_SPEED_UNSPECIFIED,
-            Self::FAN_SPEED_OFF,
-            Self::FAN_SPEED_LOW,
-            Self::FAN_SPEED_MEDIUM,
-            Self::FAN_SPEED_MEDIUM_HIGH,
-            Self::FAN_SPEED_HIGH,
-        ]
-    }
-}
-#[allow(non_camel_case_types)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-#[repr(i32)]
 pub enum ActionAccess {
     ACTION_ACCESS_UNSPECIFIED = 0i32,
     ACTION_ACCESS_DENIED = 1i32,
@@ -844,6 +757,13 @@ pub struct LightValue {
     pub brightness_percent: ::core::option::Option<f64>,
     /// Field 3: `color_temp_mireds`
     pub color_temp_mireds: ::core::option::Option<u32>,
+    /// Field 4: `rgb`
+    pub rgb: ::buffa::MessageField<
+        super::super::registry::v1::RgbColor,
+        ::buffa::Inline<super::super::registry::v1::RgbColor>,
+    >,
+    /// Field 5: `preset`
+    pub preset: ::core::option::Option<::buffa::alloc::string::String>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -853,6 +773,8 @@ impl ::core::fmt::Debug for LightValue {
             .field("on", &self.on)
             .field("brightness_percent", &self.brightness_percent)
             .field("color_temp_mireds", &self.color_temp_mireds)
+            .field("rgb", &self.rgb)
+            .field("preset", &self.preset)
             .finish()
     }
 }
@@ -885,6 +807,16 @@ impl LightValue {
         self.color_temp_mireds = Some(value);
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::preset`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_preset(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.preset = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(LightValue);
 impl ::buffa::MessageName for LightValue {
@@ -902,7 +834,7 @@ impl ::buffa::Message for LightValue {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -915,12 +847,23 @@ impl ::buffa::Message for LightValue {
         if let Some(v) = self.color_temp_mireds {
             size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
+        if self.rgb.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.rgb.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if let Some(ref v) = self.preset {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -933,6 +876,17 @@ impl ::buffa::Message for LightValue {
         }
         if let Some(v) = self.color_temp_mireds {
             ::buffa::types::put_uint32_field(3u32, v, buf);
+        }
+        if self.rgb.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.rgb.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.preset {
+            ::buffa::types::put_string_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -974,6 +928,27 @@ impl ::buffa::Message for LightValue {
                     ::buffa::types::decode_uint32(buf)?,
                 );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.rgb.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self.preset.get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -985,6 +960,8 @@ impl ::buffa::Message for LightValue {
         self.on = ::core::option::Option::None;
         self.brightness_percent = ::core::option::Option::None;
         self.color_temp_mireds = ::core::option::Option::None;
+        self.rgb = ::buffa::MessageField::none();
+        self.preset = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -997,17 +974,25 @@ impl ::buffa::ExtensionSet for LightValue {
         &mut self.__buffa_unknown_fields
     }
 }
-/// A present Off is distinct from an absent or unavailable fan reading.
+/// Power and level are independent. Missing power is never inferred from a key.
 #[derive(Clone, PartialEq, Default)]
 pub struct FanValue {
-    /// Field 1: `speed`
-    pub speed: ::buffa::EnumValue<FanSpeed>,
+    /// Field 2: `on`
+    pub on: ::core::option::Option<bool>,
+    /// Field 3: `speed`
+    pub speed: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Field 4: `level`
+    pub level: ::core::option::Option<f64>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for FanValue {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("FanValue").field("speed", &self.speed).finish()
+        f.debug_struct("FanValue")
+            .field("on", &self.on)
+            .field("speed", &self.speed)
+            .field("level", &self.level)
+            .finish()
     }
 }
 impl FanValue {
@@ -1016,6 +1001,32 @@ impl FanValue {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/home.state.v1.FanValue";
+}
+impl FanValue {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::on`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_on(mut self, value: bool) -> Self {
+        self.on = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::speed`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_speed(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.speed = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::level`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_level(mut self, value: f64) -> Self {
+        self.level = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(FanValue);
 impl ::buffa::MessageName for FanValue {
@@ -1037,11 +1048,14 @@ impl ::buffa::Message for FanValue {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        {
-            let val = self.speed.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
+        if self.on.is_some() {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.speed {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.level.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -1053,11 +1067,14 @@ impl ::buffa::Message for FanValue {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        {
-            let val = self.speed.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(1u32, val, buf);
-            }
+        if let Some(v) = self.on {
+            ::buffa::types::put_bool_field(2u32, v, buf);
+        }
+        if let Some(ref v) = self.speed {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if let Some(v) = self.level {
+            ::buffa::types::put_double_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1072,13 +1089,32 @@ impl ::buffa::Message for FanValue {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
+            2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
-                self.speed = ::buffa::EnumValue::from(
-                    ::buffa::types::decode_int32(buf)?,
+                self.on = ::core::option::Option::Some(
+                    ::buffa::types::decode_bool(buf)?,
+                );
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self.speed.get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.level = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
                 );
             }
             _ => {
@@ -1089,7 +1125,9 @@ impl ::buffa::Message for FanValue {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.speed = ::buffa::EnumValue::from(0);
+        self.on = ::core::option::Option::None;
+        self.speed = ::core::option::Option::None;
+        self.level = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -5257,6 +5295,12 @@ pub mod __buffa {
             pub brightness_percent: ::core::option::Option<f64>,
             /// Field 3: `color_temp_mireds`
             pub color_temp_mireds: ::core::option::Option<u32>,
+            /// Field 4: `rgb`
+            pub rgb: ::buffa::MessageFieldView<
+                super::super::super::super::registry::v1::__buffa::view::RgbColorView<'a>,
+            >,
+            /// Field 5: `preset`
+            pub preset: ::core::option::Option<&'a str>,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for LightValueView<'a> {
@@ -5320,6 +5364,38 @@ pub mod __buffa {
                             ::buffa::types::decode_uint32(&mut cur)?,
                         );
                     }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.rgb.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.rgb = ::buffa::MessageFieldView::set(
+                                    <super::super::super::super::registry::v1::__buffa::view::RgbColorView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.preset = Some(::buffa::types::borrow_str(&mut cur)?);
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -5346,6 +5422,18 @@ pub mod __buffa {
                     on: self.on,
                     brightness_percent: self.brightness_percent,
                     color_temp_mireds: self.color_temp_mireds,
+                    rgb: match self.rgb.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::super::super::registry::v1::RgbColor,
+                                ::buffa::Inline<
+                                    super::super::super::super::registry::v1::RgbColor,
+                                >,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    preset: self.preset.map(|s| s.to_string()),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -5356,7 +5444,7 @@ pub mod __buffa {
         }
         impl<'a> ::buffa::ViewEncode<'a> for LightValueView<'a> {
             #[allow(clippy::needless_borrow, clippy::let_and_return)]
-            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
                 #[allow(unused_imports)]
                 use ::buffa::Enumeration as _;
                 let mut size = 0u64;
@@ -5369,13 +5457,24 @@ pub mod __buffa {
                 if let Some(v) = self.color_temp_mireds {
                     size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
                 }
+                if self.rgb.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.rgb.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if let Some(ref v) = self.preset {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
             #[allow(clippy::needless_borrow)]
             fn write_to(
                 &self,
-                _cache: &mut ::buffa::SizeCache,
+                __cache: &mut ::buffa::SizeCache,
                 buf: &mut impl ::buffa::EncodeSink,
             ) {
                 #[allow(unused_imports)]
@@ -5388,6 +5487,17 @@ pub mod __buffa {
                 }
                 if let Some(v) = self.color_temp_mireds {
                     ::buffa::types::put_uint32_field(3u32, v, buf);
+                }
+                if self.rgb.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.rgb.write_to(__cache, buf);
+                }
+                if let Some(ref v) = self.preset {
+                    ::buffa::types::put_string_field(5u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -5497,6 +5607,20 @@ pub mod __buffa {
             pub fn color_temp_mireds(&self) -> ::core::option::Option<u32> {
                 self.0.reborrow().color_temp_mireds
             }
+            /// Field 4: `rgb`
+            #[must_use]
+            pub fn rgb(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::super::super::registry::v1::__buffa::view::RgbColorView<'_>,
+            > {
+                &self.0.reborrow().rgb
+            }
+            /// Field 5: `preset`
+            #[must_use]
+            pub fn preset(&self) -> ::core::option::Option<&'_ str> {
+                self.0.reborrow().preset
+            }
         }
         impl ::core::convert::From<::buffa::OwnedView<LightValueView<'static>>>
         for LightValueOwnedView {
@@ -5520,11 +5644,15 @@ pub mod __buffa {
             type View<'a> = LightValueView<'a>;
             type ViewHandle = LightValueOwnedView;
         }
-        /// A present Off is distinct from an absent or unavailable fan reading.
+        /// Power and level are independent. Missing power is never inferred from a key.
         #[derive(Clone, Debug, Default)]
         pub struct FanValueView<'a> {
-            /// Field 1: `speed`
-            pub speed: ::buffa::EnumValue<super::super::FanSpeed>,
+            /// Field 2: `on`
+            pub on: ::core::option::Option<bool>,
+            /// Field 3: `speed`
+            pub speed: ::core::option::Option<&'a str>,
+            /// Field 4: `level`
+            pub level: ::core::option::Option<f64>,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for FanValueView<'a> {
@@ -5563,14 +5691,26 @@ pub mod __buffa {
                 let view = self;
                 let mut cur = cur;
                 match tag.field_number() {
-                    1u32 => {
+                    2u32 => {
                         ::buffa::encoding::check_wire_type(
                             tag,
                             ::buffa::encoding::WireType::Varint,
                         )?;
-                        view.speed = ::buffa::EnumValue::from(
-                            ::buffa::types::decode_int32(&mut cur)?,
-                        );
+                        view.on = Some(::buffa::types::decode_bool(&mut cur)?);
+                    }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.speed = Some(::buffa::types::borrow_str(&mut cur)?);
+                    }
+                    4u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.level = Some(::buffa::types::decode_double(&mut cur)?);
                     }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -5595,7 +5735,9 @@ pub mod __buffa {
                 use ::buffa::alloc::string::ToString as _;
                 let _ = __buffa_src;
                 ::core::result::Result::Ok(super::super::FanValue {
-                    speed: self.speed,
+                    on: self.on,
+                    speed: self.speed.map(|s| s.to_string()),
+                    level: self.level,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -5610,11 +5752,14 @@ pub mod __buffa {
                 #[allow(unused_imports)]
                 use ::buffa::Enumeration as _;
                 let mut size = 0u64;
-                {
-                    let val = self.speed.to_i32();
-                    if val != 0 {
-                        size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-                    }
+                if self.on.is_some() {
+                    size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+                }
+                if let Some(ref v) = self.speed {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
+                if self.level.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
                 }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
@@ -5627,11 +5772,14 @@ pub mod __buffa {
             ) {
                 #[allow(unused_imports)]
                 use ::buffa::Enumeration as _;
-                {
-                    let val = self.speed.to_i32();
-                    if val != 0 {
-                        ::buffa::types::put_int32_field(1u32, val, buf);
-                    }
+                if let Some(v) = self.on {
+                    ::buffa::types::put_bool_field(2u32, v, buf);
+                }
+                if let Some(ref v) = self.speed {
+                    ::buffa::types::put_string_field(3u32, v, buf);
+                }
+                if let Some(v) = self.level {
+                    ::buffa::types::put_double_field(4u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -5726,10 +5874,20 @@ pub mod __buffa {
             pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
                 self.0.into_bytes()
             }
-            /// Field 1: `speed`
+            /// Field 2: `on`
             #[must_use]
-            pub fn speed(&self) -> ::buffa::EnumValue<super::super::FanSpeed> {
+            pub fn on(&self) -> ::core::option::Option<bool> {
+                self.0.reborrow().on
+            }
+            /// Field 3: `speed`
+            #[must_use]
+            pub fn speed(&self) -> ::core::option::Option<&'_ str> {
                 self.0.reborrow().speed
+            }
+            /// Field 4: `level`
+            #[must_use]
+            pub fn level(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().level
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<FanValueView<'static>>>
