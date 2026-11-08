@@ -14,6 +14,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// maxBackupCanonicalBytes bounds the streamed canonical rows across all tables.
+// It is independent of compressed archive/ciphertext limits; restore recomputes
+// the same witnesses through backupTables. No whole-snapshot buffer is allocated.
+const maxBackupCanonicalBytes int64 = 2 << 30
+
 // BackupSource is an immutable copy admitted against one SQL snapshot. Its
 // representation is deliberately redacted; exporting bytes is explicit.
 type BackupSource struct {
@@ -190,7 +195,7 @@ func backupTables(ctx context.Context, tx pgx.Tx) ([]BackupTable, error) {
 				return nil, &Error{kind: ConfigIntegrity}
 			}
 			total += int64(len(raw))
-			if total > 512<<20 || count >= 2000000 {
+			if total > maxBackupCanonicalBytes || count >= 2000000 {
 				rows.Close()
 				return nil, &Error{kind: ConfigInvalid}
 			}
