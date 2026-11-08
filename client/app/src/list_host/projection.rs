@@ -389,6 +389,312 @@ mod tests {
     use slint::ComponentHandle;
 
     #[test]
+    fn grocery_inspector_preserves_list_context_and_drafts_across_sizes() {
+        use i_slint_backend_testing::{ElementQuery, TestingBackend, TestingBackendOptions};
+        use slint::{
+            LogicalSize,
+            platform::{Key, PointerEventButton, WindowEvent},
+        };
+        use std::{cell::RefCell, rc::Rc};
+        slint::platform::set_platform(Box::new(TestingBackend::new(TestingBackendOptions {
+            mock_time: true,
+            renderer_name: Some("software".into()),
+            ..Default::default()
+        })))
+        .unwrap();
+        let directory =
+            std::env::var_os("HOMEWARD_SYNTHETIC_RENDER_DIR").map(std::path::PathBuf::from);
+        if let Some(path) = &directory {
+            std::fs::create_dir_all(path).unwrap();
+        }
+        for large in [false, true] {
+            for dark in [false, true] {
+                for width in [390., 1600.] {
+                    let window = crate::create_window().unwrap();
+                    window.set_access_stage(crate::ProAccessStage::Connected);
+                    window.set_endpoint_ready(true);
+                    window.set_show_endpoint(false);
+                    window.set_page(crate::ViewPage::Lists);
+                    window.set_dark_mode(dark);
+                    window.set_large_text(large);
+                    window.window().set_size(LogicalSize::new(width, 1000.));
+                    let mut state = crate::list_state::tests::ready();
+                    let names: Vec<_> = (0..160)
+                        .map(|i| (format!("item-{i}"), format!("Synthetic item {i}")))
+                        .collect();
+                    let values: Vec<_> = names
+                        .iter()
+                        .map(|(id, name)| (id.as_str(), 1, name.as_str()))
+                        .collect();
+                    state
+                        .publish_items(crate::list_state::tests::items(
+                            crate::list_state::tests::LIST,
+                            11,
+                            &values,
+                        ))
+                        .unwrap();
+                    let state = Rc::new(RefCell::new(state));
+                    render(&window, Projection::new(&state.borrow()));
+                    let weak = window.as_weak();
+                    let owner = state.clone();
+                    window.on_lists_grocery_select(move |_, _, t, g| {
+                        let mut owner = owner.borrow_mut();
+                        owner.select_item(t, g).unwrap();
+                        render(&weak.upgrade().unwrap(), Projection::new(&owner));
+                    });
+                    window.on_lists_action(|_, _, _| panic!("navigation must not write"));
+                    window.on_lists_grocery_complete(|_, _, _, _, _| {
+                        panic!("navigation must not check an item")
+                    });
+                    window.set_lists_add_draft("Unsent addition".into());
+                    window.show().unwrap();
+                    window.invoke_lists_scroll_to(-1200.);
+                    slint::platform::update_timers_and_animations();
+                    let before = window.get_lists_scroll_y();
+                    let page = ElementQuery::from_root(&window)
+                        .match_id("HomewardLists::page")
+                        .find_first()
+                        .unwrap();
+                    let top = page.absolute_position().y;
+                    let bottom = top + page.size().height;
+                    let edit = ElementQuery::from_root(&window)
+                        .match_inherits("IdentityButton")
+                        .match_predicate(move |e| {
+                            e.absolute_position().y >= top
+                                && e.absolute_position().y + e.size().height <= bottom
+                        })
+                        .match_predicate(|e| {
+                            e.accessible_label().is_some_and(|s| {
+                                s.starts_with("Synthetic item") && s.ends_with(" · Edit")
+                            })
+                        })
+                        .find_first()
+                        .expect("visible grocery item edit");
+                    edit.mock_single_click(PointerEventButton::Left);
+                    slint::platform::update_timers_and_animations();
+                    let inspector = ElementQuery::from_root(&window)
+                        .match_id("HomewardLists::inspector")
+                        .find_first()
+                        .unwrap();
+                    let close_label = if width >= 1040. && !large {
+                        "Done Editing"
+                    } else {
+                        "Back to List"
+                    };
+                    let close = ElementQuery::from_root(&window)
+                        .match_inherits("IdentityButton")
+                        .match_predicate(|e| e.accessible_label().as_deref() == Some(close_label))
+                        .find_first()
+                        .unwrap();
+                    assert!(
+                        close.absolute_position().y < 250.,
+                        "editor opens at the viewport, not after 160 items"
+                    );
+                    assert!(inspector.size().width <= width);
+                    if close_label == "Done Editing" {
+                        assert!(
+                            page.absolute_position().x + page.size().width
+                                <= inspector.absolute_position().x,
+                            "list and inspector must not overlap"
+                        );
+                    }
+                    if close_label == "Back to List" {
+                        assert!(
+                            ElementQuery::from_root(&window)
+                                .match_inherits("KitSelectTrigger")
+                                .find_first()
+                                .is_none(),
+                            "narrow background must be inaccessible"
+                        );
+                    }
+                    window.set_lists_draft("Retained edit".into());
+                    if let Some(path) = &directory {
+                        let pixels = window.window().take_snapshot().unwrap();
+                        let name = format!(
+                            "grocery-{width}-{}-{}.png",
+                            if dark { "dark" } else { "light" },
+                            if large { 200 } else { 100 }
+                        );
+                        let mut encoder = png::Encoder::new(
+                            std::fs::File::create(path.join(name)).unwrap(),
+                            pixels.width(),
+                            pixels.height(),
+                        );
+                        encoder.set_color(png::ColorType::Rgba);
+                        encoder.set_depth(png::BitDepth::Eight);
+                        encoder
+                            .write_header()
+                            .unwrap()
+                            .write_image_data(pixels.as_bytes())
+                            .unwrap();
+                    }
+                    // Resize with the same editor and keyed draft still alive.
+                    window.window().set_size(LogicalSize::new(800., 1000.));
+                    slint::platform::update_timers_and_animations();
+                    window.window().dispatch_event(WindowEvent::KeyPressed {
+                        text: Key::Escape.into(),
+                    });
+                    window.window().dispatch_event(WindowEvent::KeyReleased {
+                        text: Key::Escape.into(),
+                    });
+                    slint::platform::update_timers_and_animations();
+                    assert!(
+                        ElementQuery::from_root(&window)
+                            .match_id("HomewardLists::inspector")
+                            .find_first()
+                            .is_none()
+                    );
+                    assert_eq!(window.get_lists_draft().as_str(), "Retained edit");
+                    assert_eq!(window.get_lists_add_draft().as_str(), "Unsent addition");
+                    assert!(
+                        (window.get_lists_scroll_y() - before).abs() < 1.,
+                        "list position survives editing and resizing"
+                    );
+                    assert!(
+                        ElementQuery::from_root(&window)
+                            .match_inherits("KitSelectTrigger")
+                            .find_first()
+                            .is_some()
+                    );
+                    if large && width == 390. {
+                        window.window().set_size(LogicalSize::new(390., 700.));
+                        slint::platform::update_timers_and_animations();
+                        let options = ElementQuery::from_root(&window)
+                            .match_inherits("IdentityButton")
+                            .match_predicate(|e| {
+                                e.accessible_label().as_deref() == Some("List Options")
+                            })
+                            .find_first()
+                            .unwrap();
+                        options.mock_single_click(PointerEventButton::Left);
+                        slint::platform::update_timers_and_animations();
+                        let management = ElementQuery::from_root(&window)
+                            .match_inherits("TextInput")
+                            .match_predicate(|e| {
+                                e.accessible_label().as_deref() == Some("New List")
+                            })
+                            .find_first()
+                            .unwrap();
+                        let manager_top = management.absolute_position().y;
+                        let toolbar_top = options.absolute_position().y;
+                        assert!(manager_top >= page.absolute_position().y);
+                        window.invoke_lists_scroll_to(-200.);
+                        slint::platform::update_timers_and_animations();
+                        assert!(
+                            management.absolute_position().y < manager_top - 100.,
+                            "management fields belong to the page scroll"
+                        );
+                        assert_eq!(
+                            options.absolute_position().y,
+                            toolbar_top,
+                            "list toolbar stays available"
+                        );
+                    }
+                    window.hide().unwrap();
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn inspector_waits_for_requested_identity_and_never_reveals_refused_selection() {
+        use i_slint_backend_testing::ElementQuery;
+        use slint::{LogicalSize, platform::PointerEventButton};
+        use std::{cell::RefCell, rc::Rc};
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        window.set_access_stage(crate::ProAccessStage::Connected);
+        window.set_endpoint_ready(true);
+        window.set_show_endpoint(false);
+        window.set_page(crate::ViewPage::Lists);
+        window.window().set_size(LogicalSize::new(1600., 1000.));
+        let mut state = crate::list_state::tests::ready();
+        let a = state.item_tokens[0];
+        let b = state.item_tokens[1];
+        state
+            .edit(a, state.generation, "Draft for A".into())
+            .unwrap();
+        render(&window, Projection::new(&state));
+        window.set_lists_add_draft("Unsent addition".into());
+        let requests = Rc::new(RefCell::new(Vec::new()));
+        let capture = requests.clone();
+        // Deliberately withhold the acknowledgement, as the real mailbox does.
+        window
+            .on_lists_grocery_select(move |lt, lg, t, g| capture.borrow_mut().push((lt, lg, t, g)));
+        window.on_lists_action(|_, _, _| panic!("selection must not mutate"));
+        window.show().unwrap();
+        slint::platform::update_timers_and_animations();
+        let open = |title: &str| {
+            let label = format!("{title} · Edit");
+            ElementQuery::from_root(&window)
+                .match_inherits("IdentityButton")
+                .match_predicate(|e| e.accessible_label().as_deref() == Some(label.as_str()))
+                .find_first()
+                .unwrap()
+                .mock_single_click(PointerEventButton::Left);
+            slint::platform::update_timers_and_animations();
+        };
+        let hidden = || {
+            assert!(
+                ElementQuery::from_root(&window)
+                    .match_id("HomewardLists::inspector")
+                    .find_first()
+                    .is_none()
+            );
+            assert!(
+                ElementQuery::from_root(&window)
+                    .match_inherits("TextInput")
+                    .match_predicate(|e| e.accessible_label().as_deref() == Some("Item"))
+                    .find_first()
+                    .is_none()
+            );
+        };
+        open("Server two");
+        assert_eq!(requests.borrow().last().unwrap().2, b);
+        hidden();
+        assert_eq!(window.get_lists_draft().as_str(), "Draft for A");
+        let request_generation = state.generation;
+        state.select_item(b, request_generation).unwrap();
+        assert_ne!(state.generation, request_generation);
+        render(&window, Projection::new(&state));
+        slint::platform::update_timers_and_animations();
+        assert!(
+            ElementQuery::from_root(&window)
+                .match_id("HomewardLists::inspector")
+                .find_first()
+                .is_some()
+        );
+        assert_eq!(window.get_lists_task_selection().token, b);
+        assert_eq!(window.get_lists_draft().as_str(), "Server two");
+        assert!(window.get_lists_editor_focused());
+        assert!(window.invoke_dismiss_selection_popover());
+        slint::platform::update_timers_and_animations();
+        open("Server one");
+        state.notice = "Selection refused";
+        render(&window, Projection::new(&state));
+        slint::platform::update_timers_and_animations();
+        hidden();
+        assert!(window.invoke_dismiss_selection_popover());
+        // An acknowledgement after dismissal must not reopen the inspector.
+        state.select_item(a, state.generation).unwrap();
+        render(&window, Projection::new(&state));
+        slint::platform::update_timers_and_animations();
+        hidden();
+        assert_eq!(window.get_lists_draft().as_str(), "Draft for A");
+        assert_eq!(window.get_lists_add_draft().as_str(), "Unsent addition");
+        // A privacy reset cancels a pending target even if that target is later
+        // published by an already queued presentation.
+        open("Server two");
+        window.set_lists_privacy_generation(window.get_lists_privacy_generation() + 1);
+        slint::platform::update_timers_and_animations();
+        state.select_item(b, state.generation).unwrap();
+        render(&window, Projection::new(&state));
+        slint::platform::update_timers_and_animations();
+        hidden();
+        window.hide().unwrap();
+    }
+
+    #[test]
     fn selected_catalogue_identity_is_the_visible_list_selector_label() {
         use i_slint_backend_testing::ElementQuery;
         i_slint_backend_testing::init_no_event_loop();

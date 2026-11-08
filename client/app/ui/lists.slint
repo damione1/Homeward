@@ -1,8 +1,12 @@
 import { KitTheme, KitTextField, KitWrap, KitScrollArea, KitSelect, OptionRow, SelectState, SelectionAvailability, FieldAccess, NavigationStep, ControlSize, ContentItem } from "@kit";
 import { ProTaskList, ProTaskRow, ProTaskAccess, ProTaskAction, ProIdentityButton, ProGroceries, ProGroceryMode, ProGroceryLayout, ProGrocerySuggestion } from "@kit-pro";
 export component HomewardLists inherits Rectangle {
+    horizontal-stretch: 1; vertical-stretch: 1;
+    min-width: 0px; preferred-width: 680px; max-width: 100000px;
+    min-height: 0px; preferred-height: 700px; max-height: 100000px;
     in property <KitTheme> theme;
     in property <int> generation;
+    in property <int> privacy-generation;
     in property <int> list-token;
     in property <int> option-index: -1;
     in property <[ContentItem]> catalog;
@@ -28,7 +32,7 @@ export component HomewardLists inherits Rectangle {
     in-out property <string> rename-draft;
     in-out property <string> add-draft;
     out property <bool> editor-focused: task-list.editor-focused;
-    out property <length> scroll-y: task-list.scroll-y;
+    out property <length> scroll-y: page.content-y;
     pure callback filter-options([OptionRow],string) -> [OptionRow];
     pure callback find-option([OptionRow],string) -> int;
     callback choose(int,int);
@@ -55,17 +59,33 @@ export component HomewardLists inherits Rectangle {
     changed selector-open => { root.selector-query = ""; root.selector-prefix = ""; }
     private property <bool> management-open;
     private property <bool> editor-open;
-    private property <length> editor-scroll-y;
+    // A selection intention is acknowledged by identity, not its old generation:
+    // the owner advances generation when it accepts the selection.
+    private property <int> pending-editor-item;
+    private property <int> pending-editor-list;
+    private property <bool> inspector-visible: root.editor-open && root.task-selected
+        && (root.pending-editor-item == 0 || (root.pending-editor-list == root.list-token && root.pending-editor-item == root.task-selection.token));
+    private property <bool> wide: root.width >= 1040px * root.theme.text-scale;
+    private property <length> inspector-width: root.wide ? min(root.width * 0.42, 480px * root.theme.text-scale) : root.width;
+    private property <bool> list-visible: !root.inspector-visible || root.wide;
     private property <int> editor-item-token: root.task-selected ? root.task-selection.token : 0;
-    changed editor-open => { if (root.editor-open && root.task-selected) { task-list.focus-editor(); } }
-    changed editor-item-token => { if (root.editor-open && root.task-selected) { task-list.focus-editor(); } }
-    function close-editor() { root.editor-open = false; editor-return-focus.focus(); page.content-y = root.editor-scroll-y; }
+    function acknowledge-editor() {
+        if (root.inspector-visible) {
+            root.pending-editor-item = 0; root.pending-editor-list = 0;
+            task-list.focus-editor();
+        }
+    }
+    changed inspector-visible => { root.acknowledge-editor(); }
+    changed editor-item-token => { root.acknowledge-editor(); }
+    function reset-editor() { root.editor-open = false; root.pending-editor-item = 0; root.pending-editor-list = 0; }
+    function close-editor() { root.reset-editor(); list-selector.take-focus(); }
 
     changed generation => { root.selector-open = false; root.selector-query = ""; root.selector-prefix = ""; root.selector-index = 0; }
-    changed list-token => { root.editor-open = false; root.management-open = false; }
-    changed task-selected => { if (!root.task-selected) { root.editor-open = false; } }
-    public function focus-editor() { if (root.editor-open) { task-list.focus-editor(); } }
-    public function scroll-to(y: length) { task-list.scroll-to(y); }
+    changed list-token => { root.reset-editor(); root.management-open = false; page.content-y = 0px; }
+    changed privacy-generation => { root.reset-editor(); }
+    changed task-selected => { if (!root.task-selected && root.editor-open) { root.close-editor(); } }
+    public function focus-editor() { if (root.inspector-visible) { task-list.focus-editor(); } }
+    public function scroll-to(y: length) { page.content-y = y; }
     public function take-focus() { list-selector.take-focus(); }
     public function dismiss-selection-popover() -> bool {
         if (root.selector-open) {
@@ -104,94 +124,124 @@ export component HomewardLists inherits Rectangle {
         active: { present: root.selector-options.length > 0, token: root.selector-options.length > 0 ? root.selector-options[min(root.selector-options.length - 1,max(0,root.selector-index))].token : 0 },
         active-index: root.selector-options.length > 0 ? min(root.selector-options.length - 1,max(0,root.selector-index)) : -1,
     };
-    editor-return-focus := FocusScope { width: 0px; height: 0px; focus-on-tab-navigation: false; }
-    page := KitScrollArea {
-        width: root.width; height: root.height;
-        VerticalLayout {
-            padding: 16px; spacing: 16px; alignment: start;
-            header := VerticalLayout {
+    FocusScope {
+        capture-key-pressed(event) => {
+            if (event.text == Key.Escape && root.editor-open && !root.selector-open) {
+                root.close-editor(); return accept;
+            }
+            return reject;
+        }
+        list-pane := Rectangle {
+            x: 0px; y: 0px;
+            visible: root.list-visible;
+            width: root.wide && root.inspector-visible ? root.width - root.inspector-width - 16px : root.width;
+            height: root.height;
+            VerticalLayout {
                 spacing: 8px;
-                KitWrap {
-                    spacing: 8px;
-                    list-selector := KitSelect {
-                        theme: root.theme; rows: root.selector-options; state: root.selector-state;
-                        placeholder: root.option-index >= 0 && root.option-index < root.options.length && root.options[root.option-index].token == root.list-token ? root.options[root.option-index].label : "Choose a list"; unavailable-label: "Selected list unavailable";
-                        control-size: ControlSize.comfortable; access: root.catalog-ready ? FieldAccess.editable : FieldAccess.disabled;
-                        preferred-width: min(360px,max(160px,root.width - 32px));
-                        open-requested => { root.selector-index = max(0,root.option-index); root.selector-open = !root.selector-open; }
-                        activate(token,generation) => { root.selector-open = false; root.choose(token,generation); }
-                        navigate(step) => { root.selector-step(step); }
-                        query-edited(text) => { root.selector-query = text; root.selector-prefix = ""; root.selector-index = 0; }
-                        typeahead(text) => { root.selector-typeahead(text); }
-                        dismiss(reason) => { root.selector-open = false; }
-                    }
-                    ProIdentityButton {
-                        theme: root.theme; control-size: ControlSize.comfortable;
-                        text: "List Options"; generation: root.generation; disabled: !root.catalog-ready;
-                        trigger(t,g) => { root.management-open = !root.management-open; }
-                    }
-                    ProIdentityButton {
-                        theme: root.theme; control-size: ControlSize.comfortable;
-                        text: "Refresh"; generation: root.generation; disabled: root.busy;
-                        trigger(t,g) => { root.reload(g); }
-                    }
-                }
-                if root.management-open: VerticalLayout {
-                    spacing: 8px;
+                header := VerticalLayout {
+                    spacing: 8px; padding: 16px;
                     KitWrap {
                         spacing: 8px;
-                        KitTextField { theme: root.theme; label: "New List"; text <=> root.create-draft; access: root.catalog-ready ? FieldAccess.editable : FieldAccess.disabled; preferred-width: 240px; }
-                        ProIdentityButton { theme: root.theme; text: "Create List"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.catalog-ready; trigger(t,g) => { root.create(g,root.create-draft); } }
+                        list-selector := KitSelect {
+                            theme: root.theme; rows: root.selector-options; state: root.selector-state;
+                            placeholder: root.option-index >= 0 && root.option-index < root.options.length && root.options[root.option-index].token == root.list-token ? root.options[root.option-index].label : "Choose a list"; unavailable-label: "Selected list unavailable";
+                            control-size: ControlSize.comfortable; access: root.catalog-ready && root.list-visible ? FieldAccess.editable : FieldAccess.disabled;
+                            preferred-width: min(360px,max(160px,list-pane.width - 32px));
+                            open-requested => { root.selector-index = max(0,root.option-index); root.selector-open = !root.selector-open; }
+                            activate(token,generation) => { root.selector-open = false; root.choose(token,generation); }
+                            navigate(step) => { root.selector-step(step); }
+                            query-edited(text) => { root.selector-query = text; root.selector-prefix = ""; root.selector-index = 0; }
+                            typeahead(text) => { root.selector-typeahead(text); }
+                            dismiss(reason) => { root.selector-open = false; }
+                        }
+                        ProIdentityButton {
+                            theme: root.theme; control-size: ControlSize.comfortable;
+                            text: "List Options"; generation: root.generation; disabled: !root.catalog-ready || !root.list-visible;
+                            trigger(t,g) => { root.management-open = !root.management-open; if (root.management-open) { page.content-y = 0px; } }
+                        }
+                        ProIdentityButton {
+                            theme: root.theme; control-size: ControlSize.comfortable;
+                            text: "Refresh"; generation: root.generation; disabled: root.busy || !root.list-visible;
+                            trigger(t,g) => { root.reload(g); }
+                        }
                     }
-                    if root.selected: KitWrap {
-                        spacing: 8px;
-                        KitTextField { theme: root.theme; label: "Rename List"; placeholder: root.title; text <=> root.rename-draft; access: root.write-ready ? FieldAccess.editable : FieldAccess.disabled; preferred-width: 240px; }
-                        ProIdentityButton { theme: root.theme; text: "Rename"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.write-ready; trigger(t,g) => { root.rename(g,root.rename-draft); } }
-                        ProIdentityButton { theme: root.theme; text: "Delete List"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.write-ready; trigger(t,g) => { root.delete(g); } }
+                    if !root.selected: Text { text: root.notice == "" ? "Choose a list to view items and common items." : root.notice; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+                }
+                page := KitScrollArea {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        padding: 16px; alignment: start;
+                        if root.management-open: management := VerticalLayout {
+                            spacing: 8px;
+                            KitWrap {
+                                spacing: 8px;
+                                KitTextField { theme: root.theme; label: "New List"; text <=> root.create-draft; access: root.catalog-ready && root.list-visible ? FieldAccess.editable : FieldAccess.disabled; preferred-width: 240px; }
+                                ProIdentityButton { theme: root.theme; text: "Create List"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.catalog-ready || !root.list-visible; trigger(t,g) => { root.create(g,root.create-draft); } }
+                            }
+                            if root.selected: KitWrap {
+                                spacing: 8px;
+                                KitTextField { theme: root.theme; label: "Rename List"; placeholder: root.title; text <=> root.rename-draft; access: root.write-ready && root.list-visible ? FieldAccess.editable : FieldAccess.disabled; preferred-width: 240px; }
+                                ProIdentityButton { theme: root.theme; text: "Rename"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.write-ready || !root.list-visible; trigger(t,g) => { root.rename(g,root.rename-draft); } }
+                                ProIdentityButton { theme: root.theme; text: "Delete List"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.write-ready || !root.list-visible; trigger(t,g) => { root.delete(g); } }
+                            }
+                        }
+                        if root.selected: ProGroceries {
+                            theme: root.theme; context: { token: root.list-token, generation: root.generation };
+                            mode: ProGroceryMode.editor; layout: ProGroceryLayout.page;
+                            page-viewport-top: page.absolute-position.y;
+                            page-viewport-bottom: page.absolute-position.y + page.visible-height;
+                            rows: root.grocery-rows; suggestions: root.suggestions;
+                            access: root.access; interactive: root.selected && root.list-visible; adding: root.busy;
+                            title: ""; count-label: root.item-count; notice: root.notice;
+                            viewport-width: max(0px,page.visible-width - 32px);
+                            viewport-height: max(360px,page.visible-height - 32px);
+                            draft <=> root.add-draft;
+                            complete(lt,lg,t,g,v) => { root.grocery-complete(lt,lg,t,g,v); }
+                            select(lt,lg,t,g) => { root.pending-editor-list = lt; root.pending-editor-item = t; root.editor-open = true; root.grocery-select(lt,lg,t,g); }
+                            remove(lt,lg,t,g) => { root.grocery-remove(lt,lg,t,g); }
+                            quick-add(lt,lg,t,g) => { root.grocery-quick-add(lt,lg,t,g); }
+                            add(lt,lg,v) => { root.grocery-add(lt,lg,v); }
+                        }
                     }
                 }
-                if !root.selected: Text { text: root.notice == "" ? "Choose a list to view items and common items." : root.notice; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
             }
-            if root.selected: ProGroceries {
-                theme: root.theme; context: { token: root.list-token, generation: root.generation };
-                mode: ProGroceryMode.editor; layout: ProGroceryLayout.page;
-                page-viewport-top: page.absolute-position.y;
-                page-viewport-bottom: page.absolute-position.y + page.visible-height;
-                rows: root.grocery-rows; suggestions: root.suggestions;
-                access: root.access; interactive: root.selected; adding: root.busy;
-                title: ""; count-label: root.item-count; notice: root.notice;
-                viewport-width: max(0px,page.visible-width - 32px);
-                viewport-height: max(360px,page.visible-height - header.preferred-height - 48px);
-                draft <=> root.add-draft;
-                complete(lt,lg,t,g,v) => { root.grocery-complete(lt,lg,t,g,v); }
-                select(lt,lg,t,g) => { root.editor-scroll-y = page.content-y; root.editor-open = true; root.grocery-select(lt,lg,t,g); }
-                remove(lt,lg,t,g) => { root.grocery-remove(lt,lg,t,g); }
-                quick-add(lt,lg,t,g) => { root.grocery-quick-add(lt,lg,t,g); }
-                add(lt,lg,v) => { root.grocery-add(lt,lg,v); }
-            }
-            Rectangle {
-                visible: root.editor-open && root.task-selected;
-                min-height: self.visible ? advanced.preferred-height : 0px;
-                preferred-height: self.visible ? advanced.preferred-height : 0px;
-                max-height: self.visible ? 100000px : 0px;
-                advanced := VerticalLayout {
-                    spacing: 8px;
-                    ProIdentityButton { theme: root.theme; text: "Done Editing"; control-size: ControlSize.comfortable; generation: root.generation; trigger(t,g) => { root.close-editor(); } }
-                    task-list := ProTaskList {
-                        preferred-height: 480px;
-                        theme: root.theme; rows: root.task-selected ? [root.task-selection] : [];
-                        title: "Edit Item"; access: root.access; cached-at: root.cached-at;
-                        offline-label: "Offline · cached on";
-                        selected: root.task-selected; selection: root.task-selection;
-                        active-index: root.task-selected ? 0 : -1; draft <=> root.draft;
-                        empty-label: "No item selected"; edit-label: "Edit"; summary-label: "Item";
-                        save-label: "Save"; remove-label: "Delete"; first-label: "Move First"; up-label: "Move Up"; down-label: "Move Down";
-                        reload-label: "Server Version"; resolve-label: "Keep My Draft";
-                        select(t,g) => { root.select-task(t,g); }
-                        complete(t,g,v) => { root.complete(t,g,v); }
-                        edited(t,g,v) => { root.edit(t,g,v); }
-                        action(t,g,a) => { root.action(t,g,a); }
-                        navigate(step) => { root.navigate(step); }
+        }
+        inspector := Rectangle {
+            visible: root.inspector-visible;
+            x: root.wide ? root.width - root.inspector-width : 0px;
+            width: root.inspector-width; height: root.height;
+            background: root.theme.surface;
+            VerticalLayout {
+                spacing: 8px; padding: 16px;
+                ProIdentityButton {
+                    theme: root.theme; text: root.wide ? "Done Editing" : "Back to List";
+                    control-size: ControlSize.comfortable; generation: root.generation;
+                    trigger(t,g) => { root.close-editor(); }
+                }
+                Text {
+                    text: root.title; color: root.theme.text-secondary;
+                    font-size: 14px * root.theme.text-scale; wrap: word-wrap;
+                }
+                editor-page := KitScrollArea {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        alignment: start;
+                        task-list := ProTaskList {
+                            preferred-height: self.min-height;
+                            theme: root.theme; rows: root.inspector-visible ? [root.task-selection] : [];
+                            title: "Edit Item"; access: root.inspector-visible ? root.access : ProTaskAccess.read-only; cached-at: root.cached-at;
+                            offline-label: "Offline · cached on";
+                            selected: root.inspector-visible; selection: root.task-selection;
+                            active-index: root.task-selected ? 0 : -1; draft <=> root.draft;
+                            empty-label: "No item selected"; edit-label: "Edit"; summary-label: "Item";
+                            save-label: "Save"; remove-label: "Delete"; first-label: "Move First"; up-label: "Move Up"; down-label: "Move Down";
+                            reload-label: "Server Version"; resolve-label: "Keep My Draft";
+                            select(t,g) => { root.select-task(t,g); }
+                            complete(t,g,v) => { root.complete(t,g,v); }
+                            edited(t,g,v) => { root.edit(t,g,v); }
+                            action(t,g,a) => { root.action(t,g,a); }
+                            navigate(step) => { root.navigate(step); }
+                        }
                     }
                 }
             }
