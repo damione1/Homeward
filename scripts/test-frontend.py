@@ -14,6 +14,61 @@ spec.loader.exec_module(frontend)
 
 
 class StorageGuardTests(unittest.TestCase):
+    def test_prepared_inputs_survive_interruption_but_not_identity_changes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = {'frontend_cache': str(root / 'frontend'), 'backend_cache': str(root)}
+            owner_path = root / 'qualification/parallel-cargo-owner.json'
+            process = Mock(pid=123)
+            with patch.object(frontend, 'leases', side_effect=lambda _: contextlib.nullcontext()), \
+                 patch.object(frontend, 'measure', return_value={'within_policy': True}), \
+                 patch.object(frontend, 'sources', return_value='first') as sources, \
+                 patch.object(frontend, 'environment', return_value={}), \
+                 patch.object(frontend, 'refresh_local_inputs') as refresh, \
+                 patch.object(frontend, 'stop_owned_process') as stop, \
+                 patch.object(frontend.subprocess, 'Popen', return_value=process):
+                process.wait.side_effect = KeyboardInterrupt
+                self.assertEqual(frontend.execute(config, ['cargo', 'test'], 0), 1)
+                stop.assert_called_once_with(process)
+                self.assertEqual(refresh.call_count, 1)
+                interrupted = json.loads(owner_path.read_text())
+                self.assertTrue(interrupted['prepared'])
+                self.assertEqual(interrupted['status'], 'invalid')
+                process.wait.side_effect = None
+                process.wait.return_value = 1
+                self.assertEqual(frontend.execute(config, ['cargo', 'test'], 0), 1)
+                self.assertEqual(refresh.call_count, 1)
+                self.assertEqual(json.loads(owner_path.read_text())['status'], 'invalid')
+                process.wait.return_value = 0
+                self.assertEqual(frontend.execute(config, ['cargo', 'test'], 0), 0)
+                self.assertEqual(refresh.call_count, 1)
+                self.assertEqual(json.loads(owner_path.read_text())['status'], 'valid')
+                sources.return_value = 'changed'
+                frontend.execute(config, ['cargo', 'test'], 0)
+                self.assertEqual(refresh.call_count, 2)
+                with patch.object(frontend, 'REPO', root / 'other-checkout'):
+                    frontend.execute(config, ['cargo', 'test'], 0)
+                self.assertEqual(refresh.call_count, 3)
+
+    def test_partial_input_preparation_cannot_be_reused(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = {'frontend_cache': str(root / 'frontend'), 'backend_cache': str(root)}
+            with patch.object(frontend, 'leases', side_effect=lambda _: contextlib.nullcontext()), \
+                 patch.object(frontend, 'measure', return_value={'within_policy': True}), \
+                 patch.object(frontend, 'sources', return_value='same'), \
+                 patch.object(frontend, 'environment', return_value={}), \
+                 patch.object(frontend, 'refresh_local_inputs', side_effect=RuntimeError('partial')) as refresh, \
+                 patch.object(frontend.subprocess, 'Popen') as process:
+                for _ in range(2):
+                    with self.assertRaisesRegex(RuntimeError, 'partial'):
+                        frontend.execute(config, ['cargo', 'test'], 0)
+                    owner = json.loads((root / 'qualification/parallel-cargo-owner.json').read_text())
+                    self.assertFalse(owner['prepared'])
+                    self.assertEqual(owner['status'], 'invalid')
+                self.assertEqual(refresh.call_count, 2)
+                process.assert_not_called()
+
     def test_debug_signing_identity_survives_cache_changes_and_explicit_override_wins(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

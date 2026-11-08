@@ -290,9 +290,18 @@ def execute(config, argv, reserve, uses_cargo=False):
         write(proof / 'previous-cargo-owner.json', previous)
         uses_cargo = uses_cargo or argv[0] in {'cargo', 'make'}
         if uses_cargo:
-            write(owner_path, {'owner': str(REPO), 'key': fingerprint, 'status': 'invalid'})
-        if uses_cargo and (previous.get('owner') != str(REPO) or previous.get('status') != 'valid' or previous.get('key') != fingerprint):
-            refresh_local_inputs(proof)
+            prepared = (previous.get('owner') == str(REPO)
+                        and previous.get('key') == fingerprint
+                        and previous.get('prepared') is True)
+            owner = {'owner': str(REPO), 'key': fingerprint,
+                     'status': 'invalid', 'prepared': prepared}
+            write(owner_path, owner)
+            if not prepared:
+                refresh_local_inputs(proof)
+                # Completed input preparation survives a failed/interrupted job.
+                # Cargo itself tracks incomplete outputs; qualification does not.
+                owner['prepared'] = True
+                write(owner_path, owner)
         write(proof / 'command.json', {'argv': argv, 'cwd': str(REPO), 'source_manifest': fingerprint})
         started = time.monotonic()
         with (proof / 'output.log').open('wb') as log:
@@ -320,7 +329,7 @@ def execute(config, argv, reserve, uses_cargo=False):
             retention = None
             after = measure(config)
             if uses_cargo and code == 0:
-                write(owner_path, {'owner': str(REPO), 'key': fingerprint, 'status': 'valid'})
+                write(owner_path, {**owner, 'status': 'valid'})
             write(proof / 'result.json', {'returncode': code, 'failure': failure,
                   'retention_returncode': retention,
                   'elapsed_seconds': time.monotonic() - started, 'after': after})
