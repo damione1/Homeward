@@ -2806,6 +2806,7 @@ views:
         columns: full
       icon: mdi:garage-variant
     - type: tile
+      name: Garage Door
       entity: cover.demo_garage_door
       grid_options:
         columns: full
