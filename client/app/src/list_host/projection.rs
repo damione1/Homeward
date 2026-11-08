@@ -628,7 +628,7 @@ mod tests {
             let label = format!("{title} · Edit");
             ElementQuery::from_root(&window)
                 .match_inherits("IdentityButton")
-                .match_predicate(|e| e.accessible_label().as_deref() == Some(label.as_str()))
+                .match_predicate(move |e| e.accessible_label().as_deref() == Some(label.as_str()))
                 .find_first()
                 .unwrap()
                 .mock_single_click(PointerEventButton::Left);
