@@ -6,10 +6,10 @@ use home_client_model::api::{
     self as domain, CapabilityName, Command, Deadline, Intent, Percentage, Power, RequestId,
 };
 use home_client_model::api::{
-    AlarmOperation, Celsius, ClockTime, ColorTemperature, CoverIntent, CoverOperation, FanIntent,
-    Finite, HelperIntent, HelperOperation, HelperText, HelperValue, LightIntent, LocalDate,
-    LockOperation, SelectorKey, TemperatureFanTarget, TemperatureMode, TemperatureRange,
-    TemperatureTarget, ThermalIntent, Transition,
+    AlarmOperation, Celsius, ClockTime, ColorTarget, ColorTemperature, CoverIntent, CoverOperation,
+    FanIntent, Finite, HelperIntent, HelperOperation, HelperText, HelperValue, LevelTarget,
+    LightIntent, LocalDate, LockOperation, Rgb8, SelectorKey, TemperatureFanTarget,
+    TemperatureMode, TemperatureRange, TemperatureTarget, ThermalIntent, Transition,
 };
 
 /// Generated boundary error vocabulary; not an independent list of reasons.
@@ -397,7 +397,20 @@ fn parse_light(v: &wire::SetLightCommand) -> Result<LightIntent, Violation> {
     if transition.is_some() && on == Some(false) && (brightness.is_some() || color.is_some()) {
         return Err(reject("light", ViolationKind::InconsistentFields));
     }
-    LightIntent::new(on, brightness, color, transition)
+    let rgb = v.rgb.as_option().map(parse_rgb).transpose()?;
+    if rgb.is_some() && color.is_some() {
+        return Err(reject("light.color", ViolationKind::InconsistentFields));
+    }
+    let color = color
+        .map(ColorTarget::Temperature)
+        .or_else(|| rgb.map(ColorTarget::Rgb));
+    let preset = v
+        .preset
+        .as_deref()
+        .map(SelectorKey::try_from)
+        .transpose()
+        .map_err(|_| reject("light.preset", ViolationKind::OutOfRange))?;
+    LightIntent::new(on, brightness, color, preset, transition)
         .map_err(|_| reject("light", ViolationKind::MissingIntent))
 }
 fn parse_fan(v: &wire::SetFanCommand) -> Result<FanIntent, Violation> {
@@ -419,7 +432,17 @@ fn parse_fan(v: &wire::SetFanCommand) -> Result<FanIntent, Violation> {
                     .map_err(|e| reject("fan.power.value", e.kind))
             })
             .transpose()?,
-        speed,
+        match (speed, v.level) {
+            (Some(_), Some(_)) => {
+                return Err(reject("fan.level", ViolationKind::InconsistentFields));
+            }
+            (Some(key), None) => Some(LevelTarget::Step(key)),
+            (None, Some(value)) => Some(LevelTarget::Range(
+                Finite::try_from(value)
+                    .map_err(|_| reject("fan.level", ViolationKind::OutOfRange))?,
+            )),
+            (None, None) => None,
+        },
     )
     .map_err(|_| reject("fan", ViolationKind::MissingIntent))
 }
@@ -559,7 +582,16 @@ fn encode_light(v: LightIntent) -> wire::SetLightCommand {
                 ..Default::default()
             })
             .into(),
-        color_temperature_mireds: v.color().map(ColorTemperature::mireds),
+        color_temperature_mireds: match v.color() {
+            Some(ColorTarget::Temperature(v)) => Some(v.mireds()),
+            _ => None,
+        },
+        rgb: match v.color() {
+            Some(ColorTarget::Rgb(v)) => Some(encode_rgb(v)),
+            _ => None,
+        }
+        .into(),
+        preset: v.preset().map(|v| v.as_str().into()),
         transition_duration: v
             .transition()
             .map(|v| buffa_types::google::protobuf::Duration {
@@ -585,7 +617,14 @@ pub fn encode_fan(v: &FanIntent) -> wire::SetFanCommand {
                 ..Default::default()
             })
             .into(),
-        speed: v.speed().map(|v| v.as_str().into()),
+        speed: match v.level() {
+            Some(LevelTarget::Step(key)) => Some(key.as_str().into()),
+            _ => None,
+        },
+        level: match v.level() {
+            Some(LevelTarget::Range(value)) => Some(value.value()),
+            _ => None,
+        },
         ..Default::default()
     }
 }
@@ -673,5 +712,84 @@ fn encode_helper(v: &HelperIntent) -> wire::SetHelperCommand {
         value: v.value().map(encode_helper_value).into(),
         expected_helper_revision: Some(v.revision()),
         ..Default::default()
+    }
+}
+
+pub fn parse_rgb(v: &wire::RgbColor) -> Result<Rgb8, Violation> {
+    if !v.__buffa_unknown_fields.is_empty() {
+        return Err(reject("rgb", ViolationKind::OutOfRange));
+    }
+    let channel = |v: Option<u32>| {
+        v.and_then(|v| u8::try_from(v).ok())
+            .ok_or_else(|| reject("rgb", ViolationKind::OutOfRange))
+    };
+    Ok(Rgb8 {
+        red: channel(v.red)?,
+        green: channel(v.green)?,
+        blue: channel(v.blue)?,
+    })
+}
+pub fn encode_rgb(v: Rgb8) -> wire::RgbColor {
+    wire::RgbColor {
+        red: Some(u32::from(v.red)),
+        green: Some(u32::from(v.green)),
+        blue: Some(u32::from(v.blue)),
+        ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod modular_control_tests {
+    use super::*;
+    #[test]
+    fn rgb_preset_remains_one_atomic_intention() {
+        let value = wire::SetLightCommand {
+            rgb: Some(wire::RgbColor {
+                red: Some(0),
+                green: Some(137),
+                blue: Some(255),
+                ..Default::default()
+            })
+            .into(),
+            preset: Some("scene:night/7".into()),
+            ..Default::default()
+        };
+        let admitted = parse_light(&value).unwrap();
+        let encoded = encode_light(admitted);
+        assert_eq!(encoded.rgb, value.rgb);
+        assert_eq!(encoded.preset, value.preset);
+        let mut contradictory = value.clone();
+        contradictory.color_temperature_mireds = Some(300);
+        assert!(parse_light(&contradictory).is_err());
+        let mut invalid = value;
+        invalid.rgb = Some(wire::RgbColor {
+            red: Some(0),
+            green: Some(137),
+            blue: Some(256),
+            ..Default::default()
+        })
+        .into();
+        assert!(parse_light(&invalid).is_err());
+    }
+    #[test]
+    fn exact_fan_key_or_native_range_never_interpolates() {
+        for key in ["quiet/7", "boost:91", "night/13"] {
+            let value = wire::SetFanCommand {
+                speed: Some(key.into()),
+                ..Default::default()
+            };
+            assert_eq!(
+                encode_fan(&parse_fan(&value).unwrap()).speed.as_deref(),
+                Some(key)
+            );
+        }
+        let value = wire::SetFanCommand {
+            level: Some(7.5),
+            ..Default::default()
+        };
+        assert_eq!(encode_fan(&parse_fan(&value).unwrap()).level, Some(7.5));
+        let mut ambiguous = value;
+        ambiguous.speed = Some("7.5".into());
+        assert!(parse_fan(&ambiguous).is_err());
     }
 }

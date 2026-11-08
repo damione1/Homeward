@@ -22,7 +22,7 @@ func TestEveryNativeFamilyHasPublicProjection(t *testing.T) {
 	samples := map[protoreflect.Name]*registry.CapabilityDescription{
 		"switch":           {Constraints: &registry.CapabilityDescription_Switch{Switch: &registry.SwitchConstraints{}}},
 		"light":            {Constraints: &registry.CapabilityDescription_Light{Light: &registry.LightConstraints{SetOn: true}}},
-		"fan":              {Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{SetOn: true, SpeedOptions: []string{"Off", "Low"}}}},
+		"fan":              {Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{SetOn: true, ObservesPower: true, Speed: &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "Off"}, {Key: "Low"}}}}}},
 		"climate":          {Constraints: &registry.CapabilityDescription_Climate{Climate: &registry.ClimateConstraints{}}},
 		"measurement":      {Constraints: &registry.CapabilityDescription_Measurement{Measurement: &registry.MeasurementConstraints{Unit: "W", Semantic: registry.MeasurementSemantic_MEASUREMENT_SEMANTIC_MEASUREMENT, Aggregation: registry.MeasurementAggregation_MEASUREMENT_AGGREGATION_CURRENT}}},
 		"binary":           {Constraints: &registry.CapabilityDescription_Binary{Binary: &registry.BinaryConstraints{}}},

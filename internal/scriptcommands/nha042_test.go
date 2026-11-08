@@ -593,7 +593,7 @@ func nha042MatrixSetup(t *testing.T, completeScene bool) *nha042MatrixRig {
 			}
 		} else {
 			level := 35.0
-			light, err := domain.NewLightValue(true, &level, nil)
+			light, err := domain.NewLightValue(domain.LightValueInput{On: true, Brightness: &level, ColorTemperatureMireds: nil})
 			if err != nil {
 				t.Fatal(err)
 			}

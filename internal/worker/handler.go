@@ -624,7 +624,7 @@ func parseValue(input *wire.Observation) (*domain.StateValue, error) {
 		if value.Light == nil || value.Light.On == nil {
 			return nil, integrations.ErrInvalidInput
 		}
-		light, err := domain.NewLightValue(*value.Light.On, value.Light.BrightnessPercent, value.Light.ColorTempMireds)
+		light, err := contracts.AdmitLightValue(value.Light)
 		if err != nil {
 			return nil, err
 		}
@@ -637,7 +637,7 @@ func parseValue(input *wire.Observation) (*domain.StateValue, error) {
 		if value.Fan == nil {
 			return nil, integrations.ErrInvalidInput
 		}
-		speed, err := contracts.AdmitWireFanSpeed(value.Fan.Speed)
+		speed, err := contracts.AdmitWireFanValue(value.Fan)
 		if err != nil {
 			return nil, err
 		}

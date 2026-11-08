@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"github.com/damione1/Homeward/internal/apitypes"
+	"github.com/damione1/Homeward/internal/domain"
 	"strconv"
 	"strings"
 	"time"
@@ -67,8 +68,34 @@ func historicalPublicState(v *api.HistoricalState) bool {
 	if m := v.GetMeasurement(); m != nil && m.Unit == "" {
 		return false
 	}
-	if light := v.GetLight(); light != nil && (light.On == nil || light.ColorTempMireds != nil && (*light.ColorTempMireds <= 0 || *light.ColorTempMireds > 4294967295) || light.BrightnessPercent != nil && (*light.BrightnessPercent < 0 || *light.BrightnessPercent > 100)) {
-		return false
+	// Historical values validate intrinsic semantics only, never today's
+	// capability catalogue or numeric range.
+	if light := v.GetLight(); light != nil {
+		if light.On == nil {
+			return false
+		}
+		input := domain.LightValueInput{On: *light.On, Brightness: light.BrightnessPercent, Preset: light.Preset}
+		if light.ColorTempMireds != nil {
+			if *light.ColorTempMireds <= 0 || *light.ColorTempMireds > 4294967295 {
+				return false
+			}
+			mireds := uint32(*light.ColorTempMireds)
+			input.ColorTemperatureMireds = &mireds
+		}
+		if rgb := light.Rgb; rgb != nil {
+			if rgb.Red == nil || rgb.Green == nil || rgb.Blue == nil || *rgb.Red > 255 || *rgb.Green > 255 || *rgb.Blue > 255 {
+				return false
+			}
+			input.RGB = &domain.RGB{Red: uint8(*rgb.Red), Green: uint8(*rgb.Green), Blue: uint8(*rgb.Blue)}
+		}
+		if _, err := domain.NewLightValue(input); err != nil {
+			return false
+		}
+	}
+	if fan := v.GetFan(); fan != nil {
+		if _, err := domain.NewFanValue(domain.FanValueInput{On: fan.On, Speed: fan.Speed, Level: fan.Level}); err != nil {
+			return false
+		}
 	}
 	return true
 }

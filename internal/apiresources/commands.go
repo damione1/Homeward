@@ -49,10 +49,14 @@ func NativeArguments(c Capability, intent apitypes.Intent) (*actions.ActionArgs,
 		}
 		x := v.Input()
 		d := c.value.GetLightControl()
-		if d == nil || x.On != nil && !d.SupportsPower || x.Brightness != nil && d.BrightnessPercent == nil || x.ColorTemperatureMireds != nil && d.ColorTemperatureMireds == nil || x.Transition != nil && d.TransitionDurationBounds == nil {
+		if d == nil || x.On != nil && !d.SupportsPower || x.Brightness != nil && d.BrightnessPercent == nil || x.ColorTemperatureMireds != nil && d.ColorTemperatureMireds == nil || x.Transition != nil && d.TransitionDurationBounds == nil || x.RGB != nil && !d.Rgb || x.Preset != nil && !containsControlChoice(d.Presets, x.Preset.Value()) {
 			return nil, ErrUnsupportedTrait
 		}
-		a := &actions.SetLight{On: x.On}
+		a := &actions.SetLight{On: x.On, Rgb: contracts.WireRGB(x.RGB)}
+		if x.Preset != nil {
+			key := x.Preset.Value()
+			a.Preset = &key
+		}
 		if x.Brightness != nil {
 			p := x.Brightness.Value()
 			a.BrightnessPercent = &p
@@ -70,12 +74,12 @@ func NativeArguments(c Capability, intent apitypes.Intent) (*actions.ActionArgs,
 		if c.trait != Fan || schema != contracts.FanSchema || !v.Valid() {
 			return nil, ErrUnsupportedTrait
 		}
-		on, speed := v.Input()
+		on, speed, level := v.Input()
 		d := c.value.GetFanControl()
-		if d == nil || on != nil && !d.SupportsPower || speed != nil && !containsSelector(d.GetSpeed().GetOptions(), speed.Value()) {
+		if d == nil || on != nil && !d.SupportsPower || speed != nil && !containsControlChoice(d.GetLevel().GetSteps(), speed.Value()) || level != nil && d.GetLevel().GetRange() == nil {
 			return nil, ErrUnsupportedTrait
 		}
-		a := &actions.SetFan{On: on}
+		a := &actions.SetFan{On: on, Level: level}
 		if speed != nil {
 			key := speed.Value()
 			a.Speed = &key

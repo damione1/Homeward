@@ -86,7 +86,7 @@ func thermostat() *registry.CapabilityDescription {
 
 func TestLampProjectsSimultaneousOffAndZeroWithoutMakingThemUnknown(t *testing.T) {
 	id := entity(t, "entity-lamp")
-	lightValue, err := domain.NewLightValue(false, ptr(0.0), nil)
+	lightValue, err := domain.NewLightValue(domain.LightValueInput{On: false, Brightness: ptr(0.0), ColorTemperatureMireds: nil})
 	if err != nil {
 		t.Fatal(err)
 	}

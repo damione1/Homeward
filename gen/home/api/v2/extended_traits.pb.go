@@ -1249,71 +1249,6 @@ func (HelperReason) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{18}
 }
 
-// Closed observed fan speeds, independent of open source selector keys.
-type FanSpeed int32
-
-const (
-	// No observed value, never an executable default.
-	FanSpeed_FAN_SPEED_UNSPECIFIED FanSpeed = 0
-	// Observed stopped fan.
-	FanSpeed_FAN_SPEED_OFF FanSpeed = 1
-	// Observed low speed.
-	FanSpeed_FAN_SPEED_LOW FanSpeed = 2
-	// Observed medium speed.
-	FanSpeed_FAN_SPEED_MEDIUM FanSpeed = 3
-	// Observed medium-high speed.
-	FanSpeed_FAN_SPEED_MEDIUM_HIGH FanSpeed = 4
-	// Observed high speed.
-	FanSpeed_FAN_SPEED_HIGH FanSpeed = 5
-)
-
-// Enum value maps for FanSpeed.
-var (
-	FanSpeed_name = map[int32]string{
-		0: "FAN_SPEED_UNSPECIFIED",
-		1: "FAN_SPEED_OFF",
-		2: "FAN_SPEED_LOW",
-		3: "FAN_SPEED_MEDIUM",
-		4: "FAN_SPEED_MEDIUM_HIGH",
-		5: "FAN_SPEED_HIGH",
-	}
-	FanSpeed_value = map[string]int32{
-		"FAN_SPEED_UNSPECIFIED": 0,
-		"FAN_SPEED_OFF":         1,
-		"FAN_SPEED_LOW":         2,
-		"FAN_SPEED_MEDIUM":      3,
-		"FAN_SPEED_MEDIUM_HIGH": 4,
-		"FAN_SPEED_HIGH":        5,
-	}
-)
-
-func (x FanSpeed) Enum() *FanSpeed {
-	p := new(FanSpeed)
-	*p = x
-	return p
-}
-
-func (x FanSpeed) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (FanSpeed) Descriptor() protoreflect.EnumDescriptor {
-	return file_home_api_v2_extended_traits_proto_enumTypes[19].Descriptor()
-}
-
-func (FanSpeed) Type() protoreflect.EnumType {
-	return &file_home_api_v2_extended_traits_proto_enumTypes[19]
-}
-
-func (x FanSpeed) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use FanSpeed.Descriptor instead.
-func (FanSpeed) EnumDescriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{19}
-}
-
 // Cover Definition: closed typed source vocabulary; no label inference.
 type CoverDefinition struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -4563,13 +4498,306 @@ func (x *SelectorDefinition) GetOptions() []string {
 	return nil
 }
 
+// Reusable exact source choice; display names never become command keys.
+type ControlChoice struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlChoice) Reset() {
+	*x = ControlChoice{}
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlChoice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlChoice) ProtoMessage() {}
+
+func (x *ControlChoice) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlChoice.ProtoReflect.Descriptor instead.
+func (*ControlChoice) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *ControlChoice) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *ControlChoice) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+type ControlChoices struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Choices       []*ControlChoice       `protobuf:"bytes,1,rep,name=choices,proto3" json:"choices,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlChoices) Reset() {
+	*x = ControlChoices{}
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlChoices) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlChoices) ProtoMessage() {}
+
+func (x *ControlChoices) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlChoices.ProtoReflect.Descriptor instead.
+func (*ControlChoices) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *ControlChoices) GetChoices() []*ControlChoice {
+	if x != nil {
+		return x.Choices
+	}
+	return nil
+}
+
+// Native continuous/stepped numeric range or ordered source choices.
+type ControlLevelDefinition struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Definition:
+	//
+	//	*ControlLevelDefinition_Range
+	//	*ControlLevelDefinition_Steps
+	Definition    isControlLevelDefinition_Definition `protobuf_oneof:"definition"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlLevelDefinition) Reset() {
+	*x = ControlLevelDefinition{}
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlLevelDefinition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlLevelDefinition) ProtoMessage() {}
+
+func (x *ControlLevelDefinition) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlLevelDefinition.ProtoReflect.Descriptor instead.
+func (*ControlLevelDefinition) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *ControlLevelDefinition) GetDefinition() isControlLevelDefinition_Definition {
+	if x != nil {
+		return x.Definition
+	}
+	return nil
+}
+
+func (x *ControlLevelDefinition) GetRange() *NumberBounds {
+	if x != nil {
+		if x, ok := x.Definition.(*ControlLevelDefinition_Range); ok {
+			return x.Range
+		}
+	}
+	return nil
+}
+
+func (x *ControlLevelDefinition) GetSteps() *ControlChoices {
+	if x != nil {
+		if x, ok := x.Definition.(*ControlLevelDefinition_Steps); ok {
+			return x.Steps
+		}
+	}
+	return nil
+}
+
+type isControlLevelDefinition_Definition interface {
+	isControlLevelDefinition_Definition()
+}
+
+type ControlLevelDefinition_Range struct {
+	Range *NumberBounds `protobuf:"bytes,1,opt,name=range,proto3,oneof"`
+}
+
+type ControlLevelDefinition_Steps struct {
+	Steps *ControlChoices `protobuf:"bytes,2,opt,name=steps,proto3,oneof"`
+}
+
+func (*ControlLevelDefinition_Range) isControlLevelDefinition_Definition() {}
+
+func (*ControlLevelDefinition_Steps) isControlLevelDefinition_Definition() {}
+
+// Integer channels in [0,255]. Missing channels are invalid, not zero.
+type RgbColor struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Red           *uint32                `protobuf:"varint,1,opt,name=red,proto3,oneof" json:"red,omitempty"`
+	Green         *uint32                `protobuf:"varint,2,opt,name=green,proto3,oneof" json:"green,omitempty"`
+	Blue          *uint32                `protobuf:"varint,3,opt,name=blue,proto3,oneof" json:"blue,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RgbColor) Reset() {
+	*x = RgbColor{}
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RgbColor) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RgbColor) ProtoMessage() {}
+
+func (x *RgbColor) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RgbColor.ProtoReflect.Descriptor instead.
+func (*RgbColor) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *RgbColor) GetRed() uint32 {
+	if x != nil && x.Red != nil {
+		return *x.Red
+	}
+	return 0
+}
+
+func (x *RgbColor) GetGreen() uint32 {
+	if x != nil && x.Green != nil {
+		return *x.Green
+	}
+	return 0
+}
+
+func (x *RgbColor) GetBlue() uint32 {
+	if x != nil && x.Blue != nil {
+		return *x.Blue
+	}
+	return 0
+}
+
+type ColorDefinition struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	TemperatureMireds *NumberBounds          `protobuf:"bytes,1,opt,name=temperature_mireds,json=temperatureMireds,proto3" json:"temperature_mireds,omitempty"`
+	Rgb               bool                   `protobuf:"varint,2,opt,name=rgb,proto3" json:"rgb,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ColorDefinition) Reset() {
+	*x = ColorDefinition{}
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ColorDefinition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ColorDefinition) ProtoMessage() {}
+
+func (x *ColorDefinition) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ColorDefinition.ProtoReflect.Descriptor instead.
+func (*ColorDefinition) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *ColorDefinition) GetTemperatureMireds() *NumberBounds {
+	if x != nil {
+		return x.TemperatureMireds
+	}
+	return nil
+}
+
+func (x *ColorDefinition) GetRgb() bool {
+	if x != nil {
+		return x.Rgb
+	}
+	return false
+}
+
 // Atomic fan controls. Power and speed stay one physical intention.
 type FanControlCapability struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Whether power commands are supported.
 	SupportsPower bool `protobuf:"varint,1,opt,name=supports_power,json=supportsPower,proto3" json:"supports_power,omitempty"`
 	// Exact source speed keys; never guessed from display names.
-	Speed *SelectorDefinition `protobuf:"bytes,2,opt,name=speed,proto3" json:"speed,omitempty"`
+	Level *ControlLevelDefinition `protobuf:"bytes,2,opt,name=level,proto3" json:"level,omitempty"`
 	// Last qualified speed observation, absent until obtained.
 	Observation   *FanControlObservation `protobuf:"bytes,3,opt,name=observation,proto3" json:"observation,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -4578,7 +4806,7 @@ type FanControlCapability struct {
 
 func (x *FanControlCapability) Reset() {
 	*x = FanControlCapability{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[47]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4590,7 +4818,7 @@ func (x *FanControlCapability) String() string {
 func (*FanControlCapability) ProtoMessage() {}
 
 func (x *FanControlCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[47]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4603,7 +4831,7 @@ func (x *FanControlCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FanControlCapability.ProtoReflect.Descriptor instead.
 func (*FanControlCapability) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{47}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *FanControlCapability) GetSupportsPower() bool {
@@ -4613,9 +4841,9 @@ func (x *FanControlCapability) GetSupportsPower() bool {
 	return false
 }
 
-func (x *FanControlCapability) GetSpeed() *SelectorDefinition {
+func (x *FanControlCapability) GetLevel() *ControlLevelDefinition {
 	if x != nil {
-		return x.Speed
+		return x.Level
 	}
 	return nil
 }
@@ -4631,7 +4859,9 @@ func (x *FanControlCapability) GetObservation() *FanControlObservation {
 type FanControlObservation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Observed speed; independent of command selector catalogue.
-	Speed *FanSpeed `protobuf:"varint,1,opt,name=speed,proto3,enum=home.api.v2.FanSpeed,oneof" json:"speed,omitempty"`
+	Speed *string  `protobuf:"bytes,1,opt,name=speed,proto3,oneof" json:"speed,omitempty"`
+	On    *bool    `protobuf:"varint,4,opt,name=on,proto3,oneof" json:"on,omitempty"`
+	Level *float64 `protobuf:"fixed64,5,opt,name=level,proto3,oneof" json:"level,omitempty"`
 	// Source observation time.
 	ObservedTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=observed_time,json=observedTime,proto3" json:"observed_time,omitempty"`
 	// Independent observation quality.
@@ -4642,7 +4872,7 @@ type FanControlObservation struct {
 
 func (x *FanControlObservation) Reset() {
 	*x = FanControlObservation{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[48]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4654,7 +4884,7 @@ func (x *FanControlObservation) String() string {
 func (*FanControlObservation) ProtoMessage() {}
 
 func (x *FanControlObservation) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[48]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4667,14 +4897,28 @@ func (x *FanControlObservation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FanControlObservation.ProtoReflect.Descriptor instead.
 func (*FanControlObservation) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{48}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{53}
 }
 
-func (x *FanControlObservation) GetSpeed() FanSpeed {
+func (x *FanControlObservation) GetSpeed() string {
 	if x != nil && x.Speed != nil {
 		return *x.Speed
 	}
-	return FanSpeed_FAN_SPEED_UNSPECIFIED
+	return ""
+}
+
+func (x *FanControlObservation) GetOn() bool {
+	if x != nil && x.On != nil {
+		return *x.On
+	}
+	return false
+}
+
+func (x *FanControlObservation) GetLevel() float64 {
+	if x != nil && x.Level != nil {
+		return *x.Level
+	}
+	return 0
 }
 
 func (x *FanControlObservation) GetObservedTime() *timestamppb.Timestamp {
@@ -4704,13 +4948,15 @@ type LightControlCapability struct {
 	TransitionDurationBounds *NumberBounds `protobuf:"bytes,4,opt,name=transition_duration_bounds,json=transitionDurationBounds,proto3" json:"transition_duration_bounds,omitempty"`
 	// Source observations remain independent of writable fields.
 	Observation   *LightControlObservation `protobuf:"bytes,5,opt,name=observation,proto3" json:"observation,omitempty"`
+	Rgb           bool                     `protobuf:"varint,6,opt,name=rgb,proto3" json:"rgb,omitempty"`
+	Presets       *ControlChoices          `protobuf:"bytes,7,opt,name=presets,proto3" json:"presets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LightControlCapability) Reset() {
 	*x = LightControlCapability{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[49]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4722,7 +4968,7 @@ func (x *LightControlCapability) String() string {
 func (*LightControlCapability) ProtoMessage() {}
 
 func (x *LightControlCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[49]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4735,7 +4981,7 @@ func (x *LightControlCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LightControlCapability.ProtoReflect.Descriptor instead.
 func (*LightControlCapability) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{49}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *LightControlCapability) GetSupportsPower() bool {
@@ -4773,6 +5019,20 @@ func (x *LightControlCapability) GetObservation() *LightControlObservation {
 	return nil
 }
 
+func (x *LightControlCapability) GetRgb() bool {
+	if x != nil {
+		return x.Rgb
+	}
+	return false
+}
+
+func (x *LightControlCapability) GetPresets() *ControlChoices {
+	if x != nil {
+		return x.Presets
+	}
+	return nil
+}
+
 // Atomic source light frame. A missing field is not a default value.
 type LightControlObservation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -4786,13 +5046,15 @@ type LightControlObservation struct {
 	ObservedTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=observed_time,json=observedTime,proto3" json:"observed_time,omitempty"`
 	// Independent observation quality.
 	Quality       *ObservationQuality `protobuf:"bytes,5,opt,name=quality,proto3" json:"quality,omitempty"`
+	Rgb           *RgbColor           `protobuf:"bytes,6,opt,name=rgb,proto3" json:"rgb,omitempty"`
+	Preset        *string             `protobuf:"bytes,7,opt,name=preset,proto3,oneof" json:"preset,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LightControlObservation) Reset() {
 	*x = LightControlObservation{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[50]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4804,7 +5066,7 @@ func (x *LightControlObservation) String() string {
 func (*LightControlObservation) ProtoMessage() {}
 
 func (x *LightControlObservation) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[50]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4817,7 +5079,7 @@ func (x *LightControlObservation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LightControlObservation.ProtoReflect.Descriptor instead.
 func (*LightControlObservation) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{50}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *LightControlObservation) GetOn() bool {
@@ -4855,6 +5117,20 @@ func (x *LightControlObservation) GetQuality() *ObservationQuality {
 	return nil
 }
 
+func (x *LightControlObservation) GetRgb() *RgbColor {
+	if x != nil {
+		return x.Rgb
+	}
+	return nil
+}
+
+func (x *LightControlObservation) GetPreset() string {
+	if x != nil && x.Preset != nil {
+		return *x.Preset
+	}
+	return ""
+}
+
 // Registered source metadata without an executable public codec. No raw action
 // payload or descriptor executable mechanism is exposed through this trait.
 type OpaqueCapability struct {
@@ -4873,7 +5149,7 @@ type OpaqueCapability struct {
 
 func (x *OpaqueCapability) Reset() {
 	*x = OpaqueCapability{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[51]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4885,7 +5161,7 @@ func (x *OpaqueCapability) String() string {
 func (*OpaqueCapability) ProtoMessage() {}
 
 func (x *OpaqueCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[51]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4898,7 +5174,7 @@ func (x *OpaqueCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpaqueCapability.ProtoReflect.Descriptor instead.
 func (*OpaqueCapability) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{51}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *OpaqueCapability) GetSchemaId() string {
@@ -4941,13 +5217,15 @@ type SetLightCommand struct {
 	ColorTemperatureMireds *int32 `protobuf:"varint,3,opt,name=color_temperature_mireds,json=colorTemperatureMireds,proto3,oneof" json:"color_temperature_mireds,omitempty"`
 	// Nonnegative transition; absent uses source policy.
 	TransitionDuration *durationpb.Duration `protobuf:"bytes,4,opt,name=transition_duration,json=transitionDuration,proto3" json:"transition_duration,omitempty"`
+	Rgb                *RgbColor            `protobuf:"bytes,5,opt,name=rgb,proto3" json:"rgb,omitempty"`
+	Preset             *string              `protobuf:"bytes,6,opt,name=preset,proto3,oneof" json:"preset,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
 
 func (x *SetLightCommand) Reset() {
 	*x = SetLightCommand{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[52]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4959,7 +5237,7 @@ func (x *SetLightCommand) String() string {
 func (*SetLightCommand) ProtoMessage() {}
 
 func (x *SetLightCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[52]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4972,7 +5250,7 @@ func (x *SetLightCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetLightCommand.ProtoReflect.Descriptor instead.
 func (*SetLightCommand) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{52}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *SetLightCommand) GetPower() *SetPowerCommand {
@@ -5003,20 +5281,35 @@ func (x *SetLightCommand) GetTransitionDuration() *durationpb.Duration {
 	return nil
 }
 
+func (x *SetLightCommand) GetRgb() *RgbColor {
+	if x != nil {
+		return x.Rgb
+	}
+	return nil
+}
+
+func (x *SetLightCommand) GetPreset() string {
+	if x != nil && x.Preset != nil {
+		return *x.Preset
+	}
+	return ""
+}
+
 // One atomic fan power/selection intention, with at least one explicit field.
 type SetFanCommand struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Shared explicit power intent, independent of source reachability.
 	Power *SetPowerCommand `protobuf:"bytes,1,opt,name=power,proto3" json:"power,omitempty"`
 	// Exact key from the currently advertised source catalogue.
-	Speed         *string `protobuf:"bytes,2,opt,name=speed,proto3,oneof" json:"speed,omitempty"`
+	Speed         *string  `protobuf:"bytes,2,opt,name=speed,proto3,oneof" json:"speed,omitempty"`
+	Level         *float64 `protobuf:"fixed64,3,opt,name=level,proto3,oneof" json:"level,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SetFanCommand) Reset() {
 	*x = SetFanCommand{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[53]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5028,7 +5321,7 @@ func (x *SetFanCommand) String() string {
 func (*SetFanCommand) ProtoMessage() {}
 
 func (x *SetFanCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[53]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5041,7 +5334,7 @@ func (x *SetFanCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetFanCommand.ProtoReflect.Descriptor instead.
 func (*SetFanCommand) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{53}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *SetFanCommand) GetPower() *SetPowerCommand {
@@ -5056,6 +5349,13 @@ func (x *SetFanCommand) GetSpeed() string {
 		return *x.Speed
 	}
 	return ""
+}
+
+func (x *SetFanCommand) GetLevel() float64 {
+	if x != nil && x.Level != nil {
+		return *x.Level
+	}
+	return 0
 }
 
 // One atomic thermal intention. A simple setpoint and pair are mutually
@@ -5079,7 +5379,7 @@ type SetTemperatureControlCommand struct {
 
 func (x *SetTemperatureControlCommand) Reset() {
 	*x = SetTemperatureControlCommand{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[54]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5091,7 +5391,7 @@ func (x *SetTemperatureControlCommand) String() string {
 func (*SetTemperatureControlCommand) ProtoMessage() {}
 
 func (x *SetTemperatureControlCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[54]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5104,7 +5404,7 @@ func (x *SetTemperatureControlCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetTemperatureControlCommand.ProtoReflect.Descriptor instead.
 func (*SetTemperatureControlCommand) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{54}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *SetTemperatureControlCommand) GetSetpoint() isSetTemperatureControlCommand_Setpoint {
@@ -5180,7 +5480,7 @@ type SetCoverCommand struct {
 
 func (x *SetCoverCommand) Reset() {
 	*x = SetCoverCommand{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[55]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5192,7 +5492,7 @@ func (x *SetCoverCommand) String() string {
 func (*SetCoverCommand) ProtoMessage() {}
 
 func (x *SetCoverCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[55]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5205,7 +5505,7 @@ func (x *SetCoverCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCoverCommand.ProtoReflect.Descriptor instead.
 func (*SetCoverCommand) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{55}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *SetCoverCommand) GetTarget() isSetCoverCommand_Target {
@@ -5262,7 +5562,7 @@ type SetLockCommand struct {
 
 func (x *SetLockCommand) Reset() {
 	*x = SetLockCommand{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[56]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5274,7 +5574,7 @@ func (x *SetLockCommand) String() string {
 func (*SetLockCommand) ProtoMessage() {}
 
 func (x *SetLockCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[56]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5287,7 +5587,7 @@ func (x *SetLockCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetLockCommand.ProtoReflect.Descriptor instead.
 func (*SetLockCommand) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{56}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *SetLockCommand) GetOperation() LockOperation {
@@ -5308,7 +5608,7 @@ type SetAlarmCommand struct {
 
 func (x *SetAlarmCommand) Reset() {
 	*x = SetAlarmCommand{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[57]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5320,7 +5620,7 @@ func (x *SetAlarmCommand) String() string {
 func (*SetAlarmCommand) ProtoMessage() {}
 
 func (x *SetAlarmCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[57]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5333,7 +5633,7 @@ func (x *SetAlarmCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAlarmCommand.ProtoReflect.Descriptor instead.
 func (*SetAlarmCommand) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{57}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *SetAlarmCommand) GetOperation() AlarmOperation {
@@ -5359,7 +5659,7 @@ type SetHelperCommand struct {
 
 func (x *SetHelperCommand) Reset() {
 	*x = SetHelperCommand{}
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[58]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5371,7 +5671,7 @@ func (x *SetHelperCommand) String() string {
 func (*SetHelperCommand) ProtoMessage() {}
 
 func (x *SetHelperCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_home_api_v2_extended_traits_proto_msgTypes[58]
+	mi := &file_home_api_v2_extended_traits_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5384,7 +5684,7 @@ func (x *SetHelperCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetHelperCommand.ProtoReflect.Descriptor instead.
 func (*SetHelperCommand) Descriptor() ([]byte, []int) {
-	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{58}
+	return file_home_api_v2_extended_traits_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *SetHelperCommand) GetOperation() HelperOperation {
@@ -5682,46 +5982,80 @@ const file_home_api_v2_extended_traits_proto_rawDesc = "" +
 	"\robserved_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\fobservedTime\x12?\n" +
 	"\aquality\x18\x03 \x01(\v2\x1f.home.api.v2.ObservationQualityB\x04\xe2A\x01\x03R\aquality\"4\n" +
 	"\x12SelectorDefinition\x12\x1e\n" +
-	"\aoptions\x18\x01 \x03(\tB\x04\xe2A\x01\x03R\aoptions\"\xcc\x01\n" +
+	"\aoptions\x18\x01 \x03(\tB\x04\xe2A\x01\x03R\aoptions\"D\n" +
+	"\rControlChoice\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\"F\n" +
+	"\x0eControlChoices\x124\n" +
+	"\achoices\x18\x01 \x03(\v2\x1a.home.api.v2.ControlChoiceR\achoices\"\x8e\x01\n" +
+	"\x16ControlLevelDefinition\x121\n" +
+	"\x05range\x18\x01 \x01(\v2\x19.home.api.v2.NumberBoundsH\x00R\x05range\x123\n" +
+	"\x05steps\x18\x02 \x01(\v2\x1b.home.api.v2.ControlChoicesH\x00R\x05stepsB\f\n" +
+	"\n" +
+	"definition\"p\n" +
+	"\bRgbColor\x12\x15\n" +
+	"\x03red\x18\x01 \x01(\rH\x00R\x03red\x88\x01\x01\x12\x19\n" +
+	"\x05green\x18\x02 \x01(\rH\x01R\x05green\x88\x01\x01\x12\x17\n" +
+	"\x04blue\x18\x03 \x01(\rH\x02R\x04blue\x88\x01\x01B\x06\n" +
+	"\x04_redB\b\n" +
+	"\x06_greenB\a\n" +
+	"\x05_blue\"m\n" +
+	"\x0fColorDefinition\x12H\n" +
+	"\x12temperature_mireds\x18\x01 \x01(\v2\x19.home.api.v2.NumberBoundsR\x11temperatureMireds\x12\x10\n" +
+	"\x03rgb\x18\x02 \x01(\bR\x03rgb\"\xd0\x01\n" +
 	"\x14FanControlCapability\x12+\n" +
-	"\x0esupports_power\x18\x01 \x01(\bB\x04\xe2A\x01\x03R\rsupportsPower\x12;\n" +
-	"\x05speed\x18\x02 \x01(\v2\x1f.home.api.v2.SelectorDefinitionB\x04\xe2A\x01\x03R\x05speed\x12J\n" +
-	"\vobservation\x18\x03 \x01(\v2\".home.api.v2.FanControlObservationB\x04\xe2A\x01\x03R\vobservation\"\xe1\x01\n" +
-	"\x15FanControlObservation\x126\n" +
-	"\x05speed\x18\x01 \x01(\x0e2\x15.home.api.v2.FanSpeedB\x04\xe2A\x01\x03H\x00R\x05speed\x88\x01\x01\x12E\n" +
+	"\x0esupports_power\x18\x01 \x01(\bB\x04\xe2A\x01\x03R\rsupportsPower\x12?\n" +
+	"\x05level\x18\x02 \x01(\v2#.home.api.v2.ControlLevelDefinitionB\x04\xe2A\x01\x03R\x05level\x12J\n" +
+	"\vobservation\x18\x03 \x01(\v2\".home.api.v2.FanControlObservationB\x04\xe2A\x01\x03R\vobservation\"\x97\x02\n" +
+	"\x15FanControlObservation\x12\x1f\n" +
+	"\x05speed\x18\x01 \x01(\tB\x04\xe2A\x01\x03H\x00R\x05speed\x88\x01\x01\x12\x19\n" +
+	"\x02on\x18\x04 \x01(\bB\x04\xe2A\x01\x03H\x01R\x02on\x88\x01\x01\x12\x1f\n" +
+	"\x05level\x18\x05 \x01(\x01B\x04\xe2A\x01\x03H\x02R\x05level\x88\x01\x01\x12E\n" +
 	"\robserved_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\fobservedTime\x12?\n" +
 	"\aquality\x18\x03 \x01(\v2\x1f.home.api.v2.ObservationQualityB\x04\xe2A\x01\x03R\aqualityB\b\n" +
-	"\x06_speed\"\x9d\x03\n" +
+	"\x06_speedB\x05\n" +
+	"\x03_onB\b\n" +
+	"\x06_level\"\xf2\x03\n" +
 	"\x16LightControlCapability\x12+\n" +
 	"\x0esupports_power\x18\x01 \x01(\bB\x04\xe2A\x01\x03R\rsupportsPower\x12N\n" +
 	"\x12brightness_percent\x18\x02 \x01(\v2\x19.home.api.v2.NumberBoundsB\x04\xe2A\x01\x03R\x11brightnessPercent\x12Y\n" +
 	"\x18color_temperature_mireds\x18\x03 \x01(\v2\x19.home.api.v2.NumberBoundsB\x04\xe2A\x01\x03R\x16colorTemperatureMireds\x12]\n" +
 	"\x1atransition_duration_bounds\x18\x04 \x01(\v2\x19.home.api.v2.NumberBoundsB\x04\xe2A\x01\x03R\x18transitionDurationBounds\x12L\n" +
-	"\vobservation\x18\x05 \x01(\v2$.home.api.v2.LightControlObservationB\x04\xe2A\x01\x03R\vobservation\"\xf6\x02\n" +
+	"\vobservation\x18\x05 \x01(\v2$.home.api.v2.LightControlObservationB\x04\xe2A\x01\x03R\vobservation\x12\x16\n" +
+	"\x03rgb\x18\x06 \x01(\bB\x04\xe2A\x01\x03R\x03rgb\x12;\n" +
+	"\apresets\x18\a \x01(\v2\x1b.home.api.v2.ControlChoicesB\x04\xe2A\x01\x03R\apresets\"\xd3\x03\n" +
 	"\x17LightControlObservation\x12\x19\n" +
 	"\x02on\x18\x01 \x01(\bB\x04\xe2A\x01\x03H\x00R\x02on\x88\x01\x01\x128\n" +
 	"\x12brightness_percent\x18\x02 \x01(\x01B\x04\xe2A\x01\x03H\x01R\x11brightnessPercent\x88\x01\x01\x12C\n" +
 	"\x18color_temperature_mireds\x18\x03 \x01(\x05B\x04\xe2A\x01\x03H\x02R\x16colorTemperatureMireds\x88\x01\x01\x12E\n" +
 	"\robserved_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\fobservedTime\x12?\n" +
-	"\aquality\x18\x05 \x01(\v2\x1f.home.api.v2.ObservationQualityB\x04\xe2A\x01\x03R\aqualityB\x05\n" +
+	"\aquality\x18\x05 \x01(\v2\x1f.home.api.v2.ObservationQualityB\x04\xe2A\x01\x03R\aquality\x12-\n" +
+	"\x03rgb\x18\x06 \x01(\v2\x15.home.api.v2.RgbColorB\x04\xe2A\x01\x03R\x03rgb\x12!\n" +
+	"\x06preset\x18\a \x01(\tB\x04\xe2A\x01\x03H\x03R\x06preset\x88\x01\x01B\x05\n" +
 	"\x03_onB\x15\n" +
 	"\x13_brightness_percentB\x1b\n" +
-	"\x19_color_temperature_mireds\"\xbc\x01\n" +
+	"\x19_color_temperature_miredsB\t\n" +
+	"\a_preset\"\xbc\x01\n" +
 	"\x10OpaqueCapability\x12!\n" +
 	"\tschema_id\x18\x01 \x01(\tB\x04\xe2A\x01\x03R\bschemaId\x12)\n" +
 	"\rmajor_version\x18\x02 \x01(\x03B\x04\xe2A\x01\x03R\fmajorVersion\x12'\n" +
 	"\fdisplay_name\x18\x03 \x01(\tB\x04\xe2A\x01\x03R\vdisplayName\x121\n" +
-	"\x11descriptor_sha256\x18\x04 \x01(\fB\x04\xe2A\x01\x03R\x10descriptorSha256\"\xb9\x02\n" +
+	"\x11descriptor_sha256\x18\x04 \x01(\fB\x04\xe2A\x01\x03R\x10descriptorSha256\"\x96\x03\n" +
 	"\x0fSetLightCommand\x128\n" +
 	"\x05power\x18\x01 \x01(\v2\x1c.home.api.v2.SetPowerCommandB\x04\xe2A\x01\x01R\x05power\x128\n" +
 	"\x05level\x18\x02 \x01(\v2\x1c.home.api.v2.SetLevelCommandB\x04\xe2A\x01\x01R\x05level\x12C\n" +
 	"\x18color_temperature_mireds\x18\x03 \x01(\x05B\x04\xe2A\x01\x01H\x00R\x16colorTemperatureMireds\x88\x01\x01\x12P\n" +
-	"\x13transition_duration\x18\x04 \x01(\v2\x19.google.protobuf.DurationB\x04\xe2A\x01\x01R\x12transitionDurationB\x1b\n" +
-	"\x19_color_temperature_mireds\"t\n" +
+	"\x13transition_duration\x18\x04 \x01(\v2\x19.google.protobuf.DurationB\x04\xe2A\x01\x01R\x12transitionDuration\x12-\n" +
+	"\x03rgb\x18\x05 \x01(\v2\x15.home.api.v2.RgbColorB\x04\xe2A\x01\x01R\x03rgb\x12!\n" +
+	"\x06preset\x18\x06 \x01(\tB\x04\xe2A\x01\x01H\x01R\x06preset\x88\x01\x01B\x1b\n" +
+	"\x19_color_temperature_miredsB\t\n" +
+	"\a_preset\"\x9f\x01\n" +
 	"\rSetFanCommand\x128\n" +
 	"\x05power\x18\x01 \x01(\v2\x1c.home.api.v2.SetPowerCommandB\x04\xe2A\x01\x01R\x05power\x12\x1f\n" +
-	"\x05speed\x18\x02 \x01(\tB\x04\xe2A\x01\x01H\x00R\x05speed\x88\x01\x01B\b\n" +
-	"\x06_speed\"\xd0\x02\n" +
+	"\x05speed\x18\x02 \x01(\tB\x04\xe2A\x01\x01H\x00R\x05speed\x88\x01\x01\x12\x1f\n" +
+	"\x05level\x18\x03 \x01(\x01B\x04\xe2A\x01\x01H\x01R\x05level\x88\x01\x01B\b\n" +
+	"\x06_speedB\b\n" +
+	"\x06_level\"\xd0\x02\n" +
 	"\x1cSetTemperatureControlCommand\x12+\n" +
 	"\x10setpoint_celsius\x18\x01 \x01(\x01H\x00R\x0fsetpointCelsius\x12U\n" +
 	"\x16setpoint_range_celsius\x18\x02 \x01(\v2\x1d.home.api.v2.TemperatureRangeH\x00R\x14setpointRangeCelsius\x12;\n" +
@@ -5879,14 +6213,7 @@ const file_home_api_v2_extended_traits_proto_rawDesc = "" +
 	"\x19HELPER_OPERATION_PREVIOUS\x10\b*U\n" +
 	"\fHelperReason\x12\x1d\n" +
 	"\x19HELPER_REASON_UNSPECIFIED\x10\x00\x12&\n" +
-	"\"HELPER_REASON_NO_AUTHORIZED_TARGET\x10\x01*\x90\x01\n" +
-	"\bFanSpeed\x12\x19\n" +
-	"\x15FAN_SPEED_UNSPECIFIED\x10\x00\x12\x11\n" +
-	"\rFAN_SPEED_OFF\x10\x01\x12\x11\n" +
-	"\rFAN_SPEED_LOW\x10\x02\x12\x14\n" +
-	"\x10FAN_SPEED_MEDIUM\x10\x03\x12\x19\n" +
-	"\x15FAN_SPEED_MEDIUM_HIGH\x10\x04\x12\x12\n" +
-	"\x0eFAN_SPEED_HIGH\x10\x05B\\\n" +
+	"\"HELPER_REASON_NO_AUTHORIZED_TARGET\x10\x01B\\\n" +
 	"\x0fcom.home.api.v2B\x13ExtendedTraitsProtoP\x01Z2github.com/damione1/Homeward/gen/home/api/v2;apiv2b\x06proto3"
 
 var (
@@ -5901,8 +6228,8 @@ func file_home_api_v2_extended_traits_proto_rawDescGZIP() []byte {
 	return file_home_api_v2_extended_traits_proto_rawDescData
 }
 
-var file_home_api_v2_extended_traits_proto_enumTypes = make([]protoimpl.EnumInfo, 20)
-var file_home_api_v2_extended_traits_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
+var file_home_api_v2_extended_traits_proto_enumTypes = make([]protoimpl.EnumInfo, 19)
+var file_home_api_v2_extended_traits_proto_msgTypes = make([]protoimpl.MessageInfo, 64)
 var file_home_api_v2_extended_traits_proto_goTypes = []any{
 	(CoverState)(0),                      // 0: home.api.v2.CoverState
 	(CoverOperation)(0),                  // 1: home.api.v2.CoverOperation
@@ -5923,82 +6250,86 @@ var file_home_api_v2_extended_traits_proto_goTypes = []any{
 	(HelperKind)(0),                      // 16: home.api.v2.HelperKind
 	(HelperOperation)(0),                 // 17: home.api.v2.HelperOperation
 	(HelperReason)(0),                    // 18: home.api.v2.HelperReason
-	(FanSpeed)(0),                        // 19: home.api.v2.FanSpeed
-	(*CoverDefinition)(nil),              // 20: home.api.v2.CoverDefinition
-	(*CoverValue)(nil),                   // 21: home.api.v2.CoverValue
-	(*LockDefinition)(nil),               // 22: home.api.v2.LockDefinition
-	(*LockValue)(nil),                    // 23: home.api.v2.LockValue
-	(*AlarmDefinition)(nil),              // 24: home.api.v2.AlarmDefinition
-	(*AlarmValue)(nil),                   // 25: home.api.v2.AlarmValue
-	(*SolarOccurrence)(nil),              // 26: home.api.v2.SolarOccurrence
-	(*SolarValue)(nil),                   // 27: home.api.v2.SolarValue
-	(*SolarEventValue)(nil),              // 28: home.api.v2.SolarEventValue
-	(*SolarDefinition)(nil),              // 29: home.api.v2.SolarDefinition
-	(*SolarEventDefinition)(nil),         // 30: home.api.v2.SolarEventDefinition
-	(*Temperature)(nil),                  // 31: home.api.v2.Temperature
-	(*Wind)(nil),                         // 32: home.api.v2.Wind
-	(*Precipitation)(nil),                // 33: home.api.v2.Precipitation
-	(*ForecastPeriod)(nil),               // 34: home.api.v2.ForecastPeriod
-	(*Forecast)(nil),                     // 35: home.api.v2.Forecast
-	(*WeatherValue)(nil),                 // 36: home.api.v2.WeatherValue
-	(*WeatherDefinition)(nil),            // 37: home.api.v2.WeatherDefinition
-	(*PresenceValue)(nil),                // 38: home.api.v2.PresenceValue
-	(*PresenceDefinition)(nil),           // 39: home.api.v2.PresenceDefinition
-	(*PresenceZone)(nil),                 // 40: home.api.v2.PresenceZone
-	(*Coordinates)(nil),                  // 41: home.api.v2.Coordinates
-	(*PresenceDetailsValue)(nil),         // 42: home.api.v2.PresenceDetailsValue
-	(*PresenceDetailsDefinition)(nil),    // 43: home.api.v2.PresenceDetailsDefinition
-	(*LocalDateTime)(nil),                // 44: home.api.v2.LocalDateTime
-	(*HelperValue)(nil),                  // 45: home.api.v2.HelperValue
-	(*HelperInputValue)(nil),             // 46: home.api.v2.HelperInputValue
-	(*HelperDefinition)(nil),             // 47: home.api.v2.HelperDefinition
-	(*CoverCapability)(nil),              // 48: home.api.v2.CoverCapability
-	(*CoverObservation)(nil),             // 49: home.api.v2.CoverObservation
-	(*LockCapability)(nil),               // 50: home.api.v2.LockCapability
-	(*LockObservation)(nil),              // 51: home.api.v2.LockObservation
-	(*AlarmCapability)(nil),              // 52: home.api.v2.AlarmCapability
-	(*AlarmObservation)(nil),             // 53: home.api.v2.AlarmObservation
-	(*HelperCapability)(nil),             // 54: home.api.v2.HelperCapability
-	(*HelperObservation)(nil),            // 55: home.api.v2.HelperObservation
-	(*SolarCapability)(nil),              // 56: home.api.v2.SolarCapability
-	(*SolarObservation)(nil),             // 57: home.api.v2.SolarObservation
-	(*SolarEventCapability)(nil),         // 58: home.api.v2.SolarEventCapability
-	(*SolarEventObservation)(nil),        // 59: home.api.v2.SolarEventObservation
-	(*WeatherCapability)(nil),            // 60: home.api.v2.WeatherCapability
-	(*WeatherObservation)(nil),           // 61: home.api.v2.WeatherObservation
-	(*PresenceCapability)(nil),           // 62: home.api.v2.PresenceCapability
-	(*PresenceObservation)(nil),          // 63: home.api.v2.PresenceObservation
-	(*PresenceDetailsCapability)(nil),    // 64: home.api.v2.PresenceDetailsCapability
-	(*PresenceDetailsObservation)(nil),   // 65: home.api.v2.PresenceDetailsObservation
-	(*SelectorDefinition)(nil),           // 66: home.api.v2.SelectorDefinition
-	(*FanControlCapability)(nil),         // 67: home.api.v2.FanControlCapability
-	(*FanControlObservation)(nil),        // 68: home.api.v2.FanControlObservation
-	(*LightControlCapability)(nil),       // 69: home.api.v2.LightControlCapability
-	(*LightControlObservation)(nil),      // 70: home.api.v2.LightControlObservation
-	(*OpaqueCapability)(nil),             // 71: home.api.v2.OpaqueCapability
-	(*SetLightCommand)(nil),              // 72: home.api.v2.SetLightCommand
-	(*SetFanCommand)(nil),                // 73: home.api.v2.SetFanCommand
-	(*SetTemperatureControlCommand)(nil), // 74: home.api.v2.SetTemperatureControlCommand
-	(*SetCoverCommand)(nil),              // 75: home.api.v2.SetCoverCommand
-	(*SetLockCommand)(nil),               // 76: home.api.v2.SetLockCommand
-	(*SetAlarmCommand)(nil),              // 77: home.api.v2.SetAlarmCommand
-	(*SetHelperCommand)(nil),             // 78: home.api.v2.SetHelperCommand
-	(*PercentageBounds)(nil),             // 79: home.api.v2.PercentageBounds
-	(*timestamppb.Timestamp)(nil),        // 80: google.protobuf.Timestamp
-	(*date.Date)(nil),                    // 81: google.type.Date
-	(*timeofday.TimeOfDay)(nil),          // 82: google.type.TimeOfDay
-	(*ObservationQuality)(nil),           // 83: home.api.v2.ObservationQuality
-	(*NumberBounds)(nil),                 // 84: home.api.v2.NumberBounds
-	(*SetPowerCommand)(nil),              // 85: home.api.v2.SetPowerCommand
-	(*SetLevelCommand)(nil),              // 86: home.api.v2.SetLevelCommand
-	(*durationpb.Duration)(nil),          // 87: google.protobuf.Duration
-	(*TemperatureRange)(nil),             // 88: home.api.v2.TemperatureRange
-	(TemperatureMode)(0),                 // 89: home.api.v2.TemperatureMode
-	(TemperatureFanTarget)(0),            // 90: home.api.v2.TemperatureFanTarget
+	(*CoverDefinition)(nil),              // 19: home.api.v2.CoverDefinition
+	(*CoverValue)(nil),                   // 20: home.api.v2.CoverValue
+	(*LockDefinition)(nil),               // 21: home.api.v2.LockDefinition
+	(*LockValue)(nil),                    // 22: home.api.v2.LockValue
+	(*AlarmDefinition)(nil),              // 23: home.api.v2.AlarmDefinition
+	(*AlarmValue)(nil),                   // 24: home.api.v2.AlarmValue
+	(*SolarOccurrence)(nil),              // 25: home.api.v2.SolarOccurrence
+	(*SolarValue)(nil),                   // 26: home.api.v2.SolarValue
+	(*SolarEventValue)(nil),              // 27: home.api.v2.SolarEventValue
+	(*SolarDefinition)(nil),              // 28: home.api.v2.SolarDefinition
+	(*SolarEventDefinition)(nil),         // 29: home.api.v2.SolarEventDefinition
+	(*Temperature)(nil),                  // 30: home.api.v2.Temperature
+	(*Wind)(nil),                         // 31: home.api.v2.Wind
+	(*Precipitation)(nil),                // 32: home.api.v2.Precipitation
+	(*ForecastPeriod)(nil),               // 33: home.api.v2.ForecastPeriod
+	(*Forecast)(nil),                     // 34: home.api.v2.Forecast
+	(*WeatherValue)(nil),                 // 35: home.api.v2.WeatherValue
+	(*WeatherDefinition)(nil),            // 36: home.api.v2.WeatherDefinition
+	(*PresenceValue)(nil),                // 37: home.api.v2.PresenceValue
+	(*PresenceDefinition)(nil),           // 38: home.api.v2.PresenceDefinition
+	(*PresenceZone)(nil),                 // 39: home.api.v2.PresenceZone
+	(*Coordinates)(nil),                  // 40: home.api.v2.Coordinates
+	(*PresenceDetailsValue)(nil),         // 41: home.api.v2.PresenceDetailsValue
+	(*PresenceDetailsDefinition)(nil),    // 42: home.api.v2.PresenceDetailsDefinition
+	(*LocalDateTime)(nil),                // 43: home.api.v2.LocalDateTime
+	(*HelperValue)(nil),                  // 44: home.api.v2.HelperValue
+	(*HelperInputValue)(nil),             // 45: home.api.v2.HelperInputValue
+	(*HelperDefinition)(nil),             // 46: home.api.v2.HelperDefinition
+	(*CoverCapability)(nil),              // 47: home.api.v2.CoverCapability
+	(*CoverObservation)(nil),             // 48: home.api.v2.CoverObservation
+	(*LockCapability)(nil),               // 49: home.api.v2.LockCapability
+	(*LockObservation)(nil),              // 50: home.api.v2.LockObservation
+	(*AlarmCapability)(nil),              // 51: home.api.v2.AlarmCapability
+	(*AlarmObservation)(nil),             // 52: home.api.v2.AlarmObservation
+	(*HelperCapability)(nil),             // 53: home.api.v2.HelperCapability
+	(*HelperObservation)(nil),            // 54: home.api.v2.HelperObservation
+	(*SolarCapability)(nil),              // 55: home.api.v2.SolarCapability
+	(*SolarObservation)(nil),             // 56: home.api.v2.SolarObservation
+	(*SolarEventCapability)(nil),         // 57: home.api.v2.SolarEventCapability
+	(*SolarEventObservation)(nil),        // 58: home.api.v2.SolarEventObservation
+	(*WeatherCapability)(nil),            // 59: home.api.v2.WeatherCapability
+	(*WeatherObservation)(nil),           // 60: home.api.v2.WeatherObservation
+	(*PresenceCapability)(nil),           // 61: home.api.v2.PresenceCapability
+	(*PresenceObservation)(nil),          // 62: home.api.v2.PresenceObservation
+	(*PresenceDetailsCapability)(nil),    // 63: home.api.v2.PresenceDetailsCapability
+	(*PresenceDetailsObservation)(nil),   // 64: home.api.v2.PresenceDetailsObservation
+	(*SelectorDefinition)(nil),           // 65: home.api.v2.SelectorDefinition
+	(*ControlChoice)(nil),                // 66: home.api.v2.ControlChoice
+	(*ControlChoices)(nil),               // 67: home.api.v2.ControlChoices
+	(*ControlLevelDefinition)(nil),       // 68: home.api.v2.ControlLevelDefinition
+	(*RgbColor)(nil),                     // 69: home.api.v2.RgbColor
+	(*ColorDefinition)(nil),              // 70: home.api.v2.ColorDefinition
+	(*FanControlCapability)(nil),         // 71: home.api.v2.FanControlCapability
+	(*FanControlObservation)(nil),        // 72: home.api.v2.FanControlObservation
+	(*LightControlCapability)(nil),       // 73: home.api.v2.LightControlCapability
+	(*LightControlObservation)(nil),      // 74: home.api.v2.LightControlObservation
+	(*OpaqueCapability)(nil),             // 75: home.api.v2.OpaqueCapability
+	(*SetLightCommand)(nil),              // 76: home.api.v2.SetLightCommand
+	(*SetFanCommand)(nil),                // 77: home.api.v2.SetFanCommand
+	(*SetTemperatureControlCommand)(nil), // 78: home.api.v2.SetTemperatureControlCommand
+	(*SetCoverCommand)(nil),              // 79: home.api.v2.SetCoverCommand
+	(*SetLockCommand)(nil),               // 80: home.api.v2.SetLockCommand
+	(*SetAlarmCommand)(nil),              // 81: home.api.v2.SetAlarmCommand
+	(*SetHelperCommand)(nil),             // 82: home.api.v2.SetHelperCommand
+	(*PercentageBounds)(nil),             // 83: home.api.v2.PercentageBounds
+	(*timestamppb.Timestamp)(nil),        // 84: google.protobuf.Timestamp
+	(*date.Date)(nil),                    // 85: google.type.Date
+	(*timeofday.TimeOfDay)(nil),          // 86: google.type.TimeOfDay
+	(*ObservationQuality)(nil),           // 87: home.api.v2.ObservationQuality
+	(*NumberBounds)(nil),                 // 88: home.api.v2.NumberBounds
+	(*SetPowerCommand)(nil),              // 89: home.api.v2.SetPowerCommand
+	(*SetLevelCommand)(nil),              // 90: home.api.v2.SetLevelCommand
+	(*durationpb.Duration)(nil),          // 91: google.protobuf.Duration
+	(*TemperatureRange)(nil),             // 92: home.api.v2.TemperatureRange
+	(TemperatureMode)(0),                 // 93: home.api.v2.TemperatureMode
+	(TemperatureFanTarget)(0),            // 94: home.api.v2.TemperatureFanTarget
 }
 var file_home_api_v2_extended_traits_proto_depIdxs = []int32{
 	1,   // 0: home.api.v2.CoverDefinition.operations:type_name -> home.api.v2.CoverOperation
-	79,  // 1: home.api.v2.CoverDefinition.set_position_percent:type_name -> home.api.v2.PercentageBounds
+	83,  // 1: home.api.v2.CoverDefinition.set_position_percent:type_name -> home.api.v2.PercentageBounds
 	0,   // 2: home.api.v2.CoverDefinition.observed_states:type_name -> home.api.v2.CoverState
 	0,   // 3: home.api.v2.CoverValue.state:type_name -> home.api.v2.CoverState
 	3,   // 4: home.api.v2.LockDefinition.operations:type_name -> home.api.v2.LockOperation
@@ -6008,125 +6339,131 @@ var file_home_api_v2_extended_traits_proto_depIdxs = []int32{
 	4,   // 8: home.api.v2.AlarmDefinition.observed_states:type_name -> home.api.v2.AlarmState
 	5,   // 9: home.api.v2.AlarmDefinition.code_required_operations:type_name -> home.api.v2.AlarmOperation
 	4,   // 10: home.api.v2.AlarmValue.state:type_name -> home.api.v2.AlarmState
-	80,  // 11: home.api.v2.SolarOccurrence.event_time:type_name -> google.protobuf.Timestamp
+	84,  // 11: home.api.v2.SolarOccurrence.event_time:type_name -> google.protobuf.Timestamp
 	8,   // 12: home.api.v2.SolarOccurrence.absent:type_name -> home.api.v2.SolarAbsenceReason
 	7,   // 13: home.api.v2.SolarValue.horizon:type_name -> home.api.v2.SolarHorizon
-	26,  // 14: home.api.v2.SolarValue.next_dawn:type_name -> home.api.v2.SolarOccurrence
-	26,  // 15: home.api.v2.SolarValue.next_dusk:type_name -> home.api.v2.SolarOccurrence
-	26,  // 16: home.api.v2.SolarValue.next_midnight:type_name -> home.api.v2.SolarOccurrence
-	26,  // 17: home.api.v2.SolarValue.next_noon:type_name -> home.api.v2.SolarOccurrence
-	26,  // 18: home.api.v2.SolarValue.next_rising:type_name -> home.api.v2.SolarOccurrence
-	26,  // 19: home.api.v2.SolarValue.next_setting:type_name -> home.api.v2.SolarOccurrence
+	25,  // 14: home.api.v2.SolarValue.next_dawn:type_name -> home.api.v2.SolarOccurrence
+	25,  // 15: home.api.v2.SolarValue.next_dusk:type_name -> home.api.v2.SolarOccurrence
+	25,  // 16: home.api.v2.SolarValue.next_midnight:type_name -> home.api.v2.SolarOccurrence
+	25,  // 17: home.api.v2.SolarValue.next_noon:type_name -> home.api.v2.SolarOccurrence
+	25,  // 18: home.api.v2.SolarValue.next_rising:type_name -> home.api.v2.SolarOccurrence
+	25,  // 19: home.api.v2.SolarValue.next_setting:type_name -> home.api.v2.SolarOccurrence
 	6,   // 20: home.api.v2.SolarEventValue.event:type_name -> home.api.v2.SolarEventKind
-	26,  // 21: home.api.v2.SolarEventValue.occurrence:type_name -> home.api.v2.SolarOccurrence
+	25,  // 21: home.api.v2.SolarEventValue.occurrence:type_name -> home.api.v2.SolarOccurrence
 	6,   // 22: home.api.v2.SolarEventDefinition.event:type_name -> home.api.v2.SolarEventKind
 	10,  // 23: home.api.v2.Temperature.unit:type_name -> home.api.v2.TemperatureUnit
 	11,  // 24: home.api.v2.Wind.unit:type_name -> home.api.v2.SpeedUnit
 	12,  // 25: home.api.v2.Precipitation.unit:type_name -> home.api.v2.PrecipitationUnit
-	80,  // 26: home.api.v2.ForecastPeriod.start_time:type_name -> google.protobuf.Timestamp
-	80,  // 27: home.api.v2.ForecastPeriod.end_time:type_name -> google.protobuf.Timestamp
+	84,  // 26: home.api.v2.ForecastPeriod.start_time:type_name -> google.protobuf.Timestamp
+	84,  // 27: home.api.v2.ForecastPeriod.end_time:type_name -> google.protobuf.Timestamp
 	13,  // 28: home.api.v2.ForecastPeriod.kind:type_name -> home.api.v2.ForecastKind
 	9,   // 29: home.api.v2.ForecastPeriod.condition:type_name -> home.api.v2.WeatherCondition
-	31,  // 30: home.api.v2.ForecastPeriod.temperature:type_name -> home.api.v2.Temperature
-	31,  // 31: home.api.v2.ForecastPeriod.low:type_name -> home.api.v2.Temperature
-	31,  // 32: home.api.v2.ForecastPeriod.high:type_name -> home.api.v2.Temperature
-	33,  // 33: home.api.v2.ForecastPeriod.precipitation:type_name -> home.api.v2.Precipitation
-	80,  // 34: home.api.v2.Forecast.issue_time:type_name -> google.protobuf.Timestamp
-	80,  // 35: home.api.v2.Forecast.expire_time:type_name -> google.protobuf.Timestamp
-	34,  // 36: home.api.v2.Forecast.periods:type_name -> home.api.v2.ForecastPeriod
+	30,  // 30: home.api.v2.ForecastPeriod.temperature:type_name -> home.api.v2.Temperature
+	30,  // 31: home.api.v2.ForecastPeriod.low:type_name -> home.api.v2.Temperature
+	30,  // 32: home.api.v2.ForecastPeriod.high:type_name -> home.api.v2.Temperature
+	32,  // 33: home.api.v2.ForecastPeriod.precipitation:type_name -> home.api.v2.Precipitation
+	84,  // 34: home.api.v2.Forecast.issue_time:type_name -> google.protobuf.Timestamp
+	84,  // 35: home.api.v2.Forecast.expire_time:type_name -> google.protobuf.Timestamp
+	33,  // 36: home.api.v2.Forecast.periods:type_name -> home.api.v2.ForecastPeriod
 	9,   // 37: home.api.v2.WeatherValue.condition:type_name -> home.api.v2.WeatherCondition
-	31,  // 38: home.api.v2.WeatherValue.temperature:type_name -> home.api.v2.Temperature
-	32,  // 39: home.api.v2.WeatherValue.wind:type_name -> home.api.v2.Wind
-	35,  // 40: home.api.v2.WeatherValue.forecast:type_name -> home.api.v2.Forecast
+	30,  // 38: home.api.v2.WeatherValue.temperature:type_name -> home.api.v2.Temperature
+	31,  // 39: home.api.v2.WeatherValue.wind:type_name -> home.api.v2.Wind
+	34,  // 40: home.api.v2.WeatherValue.forecast:type_name -> home.api.v2.Forecast
 	14,  // 41: home.api.v2.PresenceValue.residence:type_name -> home.api.v2.Residence
 	15,  // 42: home.api.v2.PresenceValue.confidence:type_name -> home.api.v2.PresenceConfidence
-	40,  // 43: home.api.v2.PresenceDetailsValue.zone:type_name -> home.api.v2.PresenceZone
-	41,  // 44: home.api.v2.PresenceDetailsValue.coordinates:type_name -> home.api.v2.Coordinates
-	81,  // 45: home.api.v2.LocalDateTime.date:type_name -> google.type.Date
-	82,  // 46: home.api.v2.LocalDateTime.time:type_name -> google.type.TimeOfDay
-	80,  // 47: home.api.v2.HelperValue.trigger_time:type_name -> google.protobuf.Timestamp
-	81,  // 48: home.api.v2.HelperValue.date:type_name -> google.type.Date
-	82,  // 49: home.api.v2.HelperValue.time:type_name -> google.type.TimeOfDay
-	44,  // 50: home.api.v2.HelperValue.local_value:type_name -> home.api.v2.LocalDateTime
-	81,  // 51: home.api.v2.HelperInputValue.date:type_name -> google.type.Date
-	82,  // 52: home.api.v2.HelperInputValue.time:type_name -> google.type.TimeOfDay
-	44,  // 53: home.api.v2.HelperInputValue.local_value:type_name -> home.api.v2.LocalDateTime
+	39,  // 43: home.api.v2.PresenceDetailsValue.zone:type_name -> home.api.v2.PresenceZone
+	40,  // 44: home.api.v2.PresenceDetailsValue.coordinates:type_name -> home.api.v2.Coordinates
+	85,  // 45: home.api.v2.LocalDateTime.date:type_name -> google.type.Date
+	86,  // 46: home.api.v2.LocalDateTime.time:type_name -> google.type.TimeOfDay
+	84,  // 47: home.api.v2.HelperValue.trigger_time:type_name -> google.protobuf.Timestamp
+	85,  // 48: home.api.v2.HelperValue.date:type_name -> google.type.Date
+	86,  // 49: home.api.v2.HelperValue.time:type_name -> google.type.TimeOfDay
+	43,  // 50: home.api.v2.HelperValue.local_value:type_name -> home.api.v2.LocalDateTime
+	85,  // 51: home.api.v2.HelperInputValue.date:type_name -> google.type.Date
+	86,  // 52: home.api.v2.HelperInputValue.time:type_name -> google.type.TimeOfDay
+	43,  // 53: home.api.v2.HelperInputValue.local_value:type_name -> home.api.v2.LocalDateTime
 	16,  // 54: home.api.v2.HelperDefinition.kind:type_name -> home.api.v2.HelperKind
 	17,  // 55: home.api.v2.HelperDefinition.operations:type_name -> home.api.v2.HelperOperation
 	18,  // 56: home.api.v2.HelperDefinition.unavailable_reason:type_name -> home.api.v2.HelperReason
-	20,  // 57: home.api.v2.CoverCapability.definition:type_name -> home.api.v2.CoverDefinition
-	49,  // 58: home.api.v2.CoverCapability.observation:type_name -> home.api.v2.CoverObservation
-	21,  // 59: home.api.v2.CoverObservation.value:type_name -> home.api.v2.CoverValue
-	80,  // 60: home.api.v2.CoverObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 61: home.api.v2.CoverObservation.quality:type_name -> home.api.v2.ObservationQuality
-	22,  // 62: home.api.v2.LockCapability.definition:type_name -> home.api.v2.LockDefinition
-	51,  // 63: home.api.v2.LockCapability.observation:type_name -> home.api.v2.LockObservation
-	23,  // 64: home.api.v2.LockObservation.value:type_name -> home.api.v2.LockValue
-	80,  // 65: home.api.v2.LockObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 66: home.api.v2.LockObservation.quality:type_name -> home.api.v2.ObservationQuality
-	24,  // 67: home.api.v2.AlarmCapability.definition:type_name -> home.api.v2.AlarmDefinition
-	53,  // 68: home.api.v2.AlarmCapability.observation:type_name -> home.api.v2.AlarmObservation
-	25,  // 69: home.api.v2.AlarmObservation.value:type_name -> home.api.v2.AlarmValue
-	80,  // 70: home.api.v2.AlarmObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 71: home.api.v2.AlarmObservation.quality:type_name -> home.api.v2.ObservationQuality
-	47,  // 72: home.api.v2.HelperCapability.definition:type_name -> home.api.v2.HelperDefinition
-	55,  // 73: home.api.v2.HelperCapability.observation:type_name -> home.api.v2.HelperObservation
-	45,  // 74: home.api.v2.HelperObservation.value:type_name -> home.api.v2.HelperValue
-	80,  // 75: home.api.v2.HelperObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 76: home.api.v2.HelperObservation.quality:type_name -> home.api.v2.ObservationQuality
-	29,  // 77: home.api.v2.SolarCapability.definition:type_name -> home.api.v2.SolarDefinition
-	57,  // 78: home.api.v2.SolarCapability.observation:type_name -> home.api.v2.SolarObservation
-	27,  // 79: home.api.v2.SolarObservation.value:type_name -> home.api.v2.SolarValue
-	80,  // 80: home.api.v2.SolarObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 81: home.api.v2.SolarObservation.quality:type_name -> home.api.v2.ObservationQuality
-	30,  // 82: home.api.v2.SolarEventCapability.definition:type_name -> home.api.v2.SolarEventDefinition
-	59,  // 83: home.api.v2.SolarEventCapability.observation:type_name -> home.api.v2.SolarEventObservation
-	28,  // 84: home.api.v2.SolarEventObservation.value:type_name -> home.api.v2.SolarEventValue
-	80,  // 85: home.api.v2.SolarEventObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 86: home.api.v2.SolarEventObservation.quality:type_name -> home.api.v2.ObservationQuality
-	37,  // 87: home.api.v2.WeatherCapability.definition:type_name -> home.api.v2.WeatherDefinition
-	61,  // 88: home.api.v2.WeatherCapability.observation:type_name -> home.api.v2.WeatherObservation
-	36,  // 89: home.api.v2.WeatherObservation.value:type_name -> home.api.v2.WeatherValue
-	80,  // 90: home.api.v2.WeatherObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 91: home.api.v2.WeatherObservation.quality:type_name -> home.api.v2.ObservationQuality
-	39,  // 92: home.api.v2.PresenceCapability.definition:type_name -> home.api.v2.PresenceDefinition
-	63,  // 93: home.api.v2.PresenceCapability.observation:type_name -> home.api.v2.PresenceObservation
-	38,  // 94: home.api.v2.PresenceObservation.value:type_name -> home.api.v2.PresenceValue
-	80,  // 95: home.api.v2.PresenceObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 96: home.api.v2.PresenceObservation.quality:type_name -> home.api.v2.ObservationQuality
-	43,  // 97: home.api.v2.PresenceDetailsCapability.definition:type_name -> home.api.v2.PresenceDetailsDefinition
-	65,  // 98: home.api.v2.PresenceDetailsCapability.observation:type_name -> home.api.v2.PresenceDetailsObservation
-	42,  // 99: home.api.v2.PresenceDetailsObservation.value:type_name -> home.api.v2.PresenceDetailsValue
-	80,  // 100: home.api.v2.PresenceDetailsObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 101: home.api.v2.PresenceDetailsObservation.quality:type_name -> home.api.v2.ObservationQuality
-	66,  // 102: home.api.v2.FanControlCapability.speed:type_name -> home.api.v2.SelectorDefinition
-	68,  // 103: home.api.v2.FanControlCapability.observation:type_name -> home.api.v2.FanControlObservation
-	19,  // 104: home.api.v2.FanControlObservation.speed:type_name -> home.api.v2.FanSpeed
-	80,  // 105: home.api.v2.FanControlObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 106: home.api.v2.FanControlObservation.quality:type_name -> home.api.v2.ObservationQuality
-	84,  // 107: home.api.v2.LightControlCapability.brightness_percent:type_name -> home.api.v2.NumberBounds
-	84,  // 108: home.api.v2.LightControlCapability.color_temperature_mireds:type_name -> home.api.v2.NumberBounds
-	84,  // 109: home.api.v2.LightControlCapability.transition_duration_bounds:type_name -> home.api.v2.NumberBounds
-	70,  // 110: home.api.v2.LightControlCapability.observation:type_name -> home.api.v2.LightControlObservation
-	80,  // 111: home.api.v2.LightControlObservation.observed_time:type_name -> google.protobuf.Timestamp
-	83,  // 112: home.api.v2.LightControlObservation.quality:type_name -> home.api.v2.ObservationQuality
-	85,  // 113: home.api.v2.SetLightCommand.power:type_name -> home.api.v2.SetPowerCommand
-	86,  // 114: home.api.v2.SetLightCommand.level:type_name -> home.api.v2.SetLevelCommand
-	87,  // 115: home.api.v2.SetLightCommand.transition_duration:type_name -> google.protobuf.Duration
-	85,  // 116: home.api.v2.SetFanCommand.power:type_name -> home.api.v2.SetPowerCommand
-	88,  // 117: home.api.v2.SetTemperatureControlCommand.setpoint_range_celsius:type_name -> home.api.v2.TemperatureRange
-	89,  // 118: home.api.v2.SetTemperatureControlCommand.mode:type_name -> home.api.v2.TemperatureMode
-	90,  // 119: home.api.v2.SetTemperatureControlCommand.fan_target:type_name -> home.api.v2.TemperatureFanTarget
-	1,   // 120: home.api.v2.SetCoverCommand.operation:type_name -> home.api.v2.CoverOperation
-	3,   // 121: home.api.v2.SetLockCommand.operation:type_name -> home.api.v2.LockOperation
-	5,   // 122: home.api.v2.SetAlarmCommand.operation:type_name -> home.api.v2.AlarmOperation
-	17,  // 123: home.api.v2.SetHelperCommand.operation:type_name -> home.api.v2.HelperOperation
-	46,  // 124: home.api.v2.SetHelperCommand.value:type_name -> home.api.v2.HelperInputValue
-	125, // [125:125] is the sub-list for method output_type
-	125, // [125:125] is the sub-list for method input_type
-	125, // [125:125] is the sub-list for extension type_name
-	125, // [125:125] is the sub-list for extension extendee
-	0,   // [0:125] is the sub-list for field type_name
+	19,  // 57: home.api.v2.CoverCapability.definition:type_name -> home.api.v2.CoverDefinition
+	48,  // 58: home.api.v2.CoverCapability.observation:type_name -> home.api.v2.CoverObservation
+	20,  // 59: home.api.v2.CoverObservation.value:type_name -> home.api.v2.CoverValue
+	84,  // 60: home.api.v2.CoverObservation.observed_time:type_name -> google.protobuf.Timestamp
+	87,  // 61: home.api.v2.CoverObservation.quality:type_name -> home.api.v2.ObservationQuality
+	21,  // 62: home.api.v2.LockCapability.definition:type_name -> home.api.v2.LockDefinition
+	50,  // 63: home.api.v2.LockCapability.observation:type_name -> home.api.v2.LockObservation
+	22,  // 64: home.api.v2.LockObservation.value:type_name -> home.api.v2.LockValue
+	84,  // 65: home.api.v2.LockObservation.observed_time:type_name -> google.protobuf.Timestamp
+	87,  // 66: home.api.v2.LockObservation.quality:type_name -> home.api.v2.ObservationQuality
+	23,  // 67: home.api.v2.AlarmCapability.definition:type_name -> home.api.v2.AlarmDefinition
+	52,  // 68: home.api.v2.AlarmCapability.observation:type_name -> home.api.v2.AlarmObservation
+	24,  // 69: home.api.v2.AlarmObservation.value:type_name -> home.api.v2.AlarmValue
+	84,  // 70: home.api.v2.AlarmObservation.observed_time:type_name -> google.protobuf.Timestamp
+	87,  // 71: home.api.v2.AlarmObservation.quality:type_name -> home.api.v2.ObservationQuality
+	46,  // 72: home.api.v2.HelperCapability.definition:type_name -> home.api.v2.HelperDefinition
+	54,  // 73: home.api.v2.HelperCapability.observation:type_name -> home.api.v2.HelperObservation
+	44,  // 74: home.api.v2.HelperObservation.value:type_name -> home.api.v2.HelperValue
+	84,  // 75: home.api.v2.HelperObservation.observed_time:type_name -> google.protobuf.Timestamp
+	87,  // 76: home.api.v2.HelperObservation.quality:type_name -> home.api.v2.ObservationQuality
+	28,  // 77: home.api.v2.SolarCapability.definition:type_name -> home.api.v2.SolarDefinition
+	56,  // 78: home.api.v2.SolarCapability.observation:type_name -> home.api.v2.SolarObservation
+	26,  // 79: home.api.v2.SolarObservation.value:type_name -> home.api.v2.SolarValue
+	84,  // 80: home.api.v2.SolarObservation.observed_time:type_name -> google.protobuf.Timestamp
+	87,  // 81: home.api.v2.SolarObservation.quality:type_name -> home.api.v2.ObservationQuality
+	29,  // 82: home.api.v2.SolarEventCapability.definition:type_name -> home.api.v2.SolarEventDefinition
+	58,  // 83: home.api.v2.SolarEventCapability.observation:type_name -> home.api.v2.SolarEventObservation
+	27,  // 84: home.api.v2.SolarEventObservation.value:type_name -> home.api.v2.SolarEventValue
+	84,  // 85: home.api.v2.SolarEventObservation.observed_time:type_name -> google.protobuf.Timestamp
+	87,  // 86: home.api.v2.SolarEventObservation.quality:type_name -> home.api.v2.ObservationQuality
+	36,  // 87: home.api.v2.WeatherCapability.definition:type_name -> home.api.v2.WeatherDefinition
+	60,  // 88: home.api.v2.WeatherCapability.observation:type_name -> home.api.v2.WeatherObservation
+	35,  // 89: home.api.v2.WeatherObservation.value:type_name -> home.api.v2.WeatherValue
+	84,  // 90: home.api.v2.WeatherObservation.observed_time:type_name -> google.protobuf.Timestamp
+	87,  // 91: home.api.v2.WeatherObservation.quality:type_name -> home.api.v2.ObservationQuality
+	38,  // 92: home.api.v2.PresenceCapability.definition:type_name -> home.api.v2.PresenceDefinition
+	62,  // 93: home.api.v2.PresenceCapability.observation:type_name -> home.api.v2.PresenceObservation
+	37,  // 94: home.api.v2.PresenceObservation.value:type_name -> home.api.v2.PresenceValue
+	84,  // 95: home.api.v2.PresenceObservation.observed_time:type_name -> google.protobuf.Timestamp
+	87,  // 96: home.api.v2.PresenceObservation.quality:type_name -> home.api.v2.ObservationQuality
+	42,  // 97: home.api.v2.PresenceDetailsCapability.definition:type_name -> home.api.v2.PresenceDetailsDefinition
+	64,  // 98: home.api.v2.PresenceDetailsCapability.observation:type_name -> home.api.v2.PresenceDetailsObservation
+	41,  // 99: home.api.v2.PresenceDetailsObservation.value:type_name -> home.api.v2.PresenceDetailsValue
+	84,  // 100: home.api.v2.PresenceDetailsObservation.observed_time:type_name -> google.protobuf.Timestamp
+	87,  // 101: home.api.v2.PresenceDetailsObservation.quality:type_name -> home.api.v2.ObservationQuality
+	66,  // 102: home.api.v2.ControlChoices.choices:type_name -> home.api.v2.ControlChoice
+	88,  // 103: home.api.v2.ControlLevelDefinition.range:type_name -> home.api.v2.NumberBounds
+	67,  // 104: home.api.v2.ControlLevelDefinition.steps:type_name -> home.api.v2.ControlChoices
+	88,  // 105: home.api.v2.ColorDefinition.temperature_mireds:type_name -> home.api.v2.NumberBounds
+	68,  // 106: home.api.v2.FanControlCapability.level:type_name -> home.api.v2.ControlLevelDefinition
+	72,  // 107: home.api.v2.FanControlCapability.observation:type_name -> home.api.v2.FanControlObservation
+	84,  // 108: home.api.v2.FanControlObservation.observed_time:type_name -> google.protobuf.Timestamp
+	87,  // 109: home.api.v2.FanControlObservation.quality:type_name -> home.api.v2.ObservationQuality
+	88,  // 110: home.api.v2.LightControlCapability.brightness_percent:type_name -> home.api.v2.NumberBounds
+	88,  // 111: home.api.v2.LightControlCapability.color_temperature_mireds:type_name -> home.api.v2.NumberBounds
+	88,  // 112: home.api.v2.LightControlCapability.transition_duration_bounds:type_name -> home.api.v2.NumberBounds
+	74,  // 113: home.api.v2.LightControlCapability.observation:type_name -> home.api.v2.LightControlObservation
+	67,  // 114: home.api.v2.LightControlCapability.presets:type_name -> home.api.v2.ControlChoices
+	84,  // 115: home.api.v2.LightControlObservation.observed_time:type_name -> google.protobuf.Timestamp
+	87,  // 116: home.api.v2.LightControlObservation.quality:type_name -> home.api.v2.ObservationQuality
+	69,  // 117: home.api.v2.LightControlObservation.rgb:type_name -> home.api.v2.RgbColor
+	89,  // 118: home.api.v2.SetLightCommand.power:type_name -> home.api.v2.SetPowerCommand
+	90,  // 119: home.api.v2.SetLightCommand.level:type_name -> home.api.v2.SetLevelCommand
+	91,  // 120: home.api.v2.SetLightCommand.transition_duration:type_name -> google.protobuf.Duration
+	69,  // 121: home.api.v2.SetLightCommand.rgb:type_name -> home.api.v2.RgbColor
+	89,  // 122: home.api.v2.SetFanCommand.power:type_name -> home.api.v2.SetPowerCommand
+	92,  // 123: home.api.v2.SetTemperatureControlCommand.setpoint_range_celsius:type_name -> home.api.v2.TemperatureRange
+	93,  // 124: home.api.v2.SetTemperatureControlCommand.mode:type_name -> home.api.v2.TemperatureMode
+	94,  // 125: home.api.v2.SetTemperatureControlCommand.fan_target:type_name -> home.api.v2.TemperatureFanTarget
+	1,   // 126: home.api.v2.SetCoverCommand.operation:type_name -> home.api.v2.CoverOperation
+	3,   // 127: home.api.v2.SetLockCommand.operation:type_name -> home.api.v2.LockOperation
+	5,   // 128: home.api.v2.SetAlarmCommand.operation:type_name -> home.api.v2.AlarmOperation
+	17,  // 129: home.api.v2.SetHelperCommand.operation:type_name -> home.api.v2.HelperOperation
+	45,  // 130: home.api.v2.SetHelperCommand.value:type_name -> home.api.v2.HelperInputValue
+	131, // [131:131] is the sub-list for method output_type
+	131, // [131:131] is the sub-list for method input_type
+	131, // [131:131] is the sub-list for extension type_name
+	131, // [131:131] is the sub-list for extension extendee
+	0,   // [0:131] is the sub-list for field type_name
 }
 
 func init() { file_home_api_v2_extended_traits_proto_init() }
@@ -6169,26 +6506,31 @@ func file_home_api_v2_extended_traits_proto_init() {
 		(*HelperInputValue_Text)(nil),
 	}
 	file_home_api_v2_extended_traits_proto_msgTypes[27].OneofWrappers = []any{}
-	file_home_api_v2_extended_traits_proto_msgTypes[48].OneofWrappers = []any{}
+	file_home_api_v2_extended_traits_proto_msgTypes[49].OneofWrappers = []any{
+		(*ControlLevelDefinition_Range)(nil),
+		(*ControlLevelDefinition_Steps)(nil),
+	}
 	file_home_api_v2_extended_traits_proto_msgTypes[50].OneofWrappers = []any{}
-	file_home_api_v2_extended_traits_proto_msgTypes[52].OneofWrappers = []any{}
 	file_home_api_v2_extended_traits_proto_msgTypes[53].OneofWrappers = []any{}
-	file_home_api_v2_extended_traits_proto_msgTypes[54].OneofWrappers = []any{
+	file_home_api_v2_extended_traits_proto_msgTypes[55].OneofWrappers = []any{}
+	file_home_api_v2_extended_traits_proto_msgTypes[57].OneofWrappers = []any{}
+	file_home_api_v2_extended_traits_proto_msgTypes[58].OneofWrappers = []any{}
+	file_home_api_v2_extended_traits_proto_msgTypes[59].OneofWrappers = []any{
 		(*SetTemperatureControlCommand_SetpointCelsius)(nil),
 		(*SetTemperatureControlCommand_SetpointRangeCelsius)(nil),
 	}
-	file_home_api_v2_extended_traits_proto_msgTypes[55].OneofWrappers = []any{
+	file_home_api_v2_extended_traits_proto_msgTypes[60].OneofWrappers = []any{
 		(*SetCoverCommand_Operation)(nil),
 		(*SetCoverCommand_PositionPercent)(nil),
 	}
-	file_home_api_v2_extended_traits_proto_msgTypes[58].OneofWrappers = []any{}
+	file_home_api_v2_extended_traits_proto_msgTypes[63].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_api_v2_extended_traits_proto_rawDesc), len(file_home_api_v2_extended_traits_proto_rawDesc)),
-			NumEnums:      20,
-			NumMessages:   59,
+			NumEnums:      19,
+			NumMessages:   64,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

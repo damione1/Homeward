@@ -115,6 +115,125 @@ func (ValidationReason) EnumDescriptor() ([]byte, []int) {
 	return file_home_api_v2_home_proto_rawDescGZIP(), []int{0}
 }
 
+type ControlModuleRole int32
+
+const (
+	ControlModuleRole_CONTROL_MODULE_ROLE_UNSPECIFIED ControlModuleRole = 0
+	ControlModuleRole_CONTROL_MODULE_ROLE_POWER       ControlModuleRole = 1
+	ControlModuleRole_CONTROL_MODULE_ROLE_RANGE       ControlModuleRole = 2
+	ControlModuleRole_CONTROL_MODULE_ROLE_STEPS       ControlModuleRole = 3
+	ControlModuleRole_CONTROL_MODULE_ROLE_COLOR       ControlModuleRole = 4
+	ControlModuleRole_CONTROL_MODULE_ROLE_PRESET      ControlModuleRole = 5
+	ControlModuleRole_CONTROL_MODULE_ROLE_MOTION      ControlModuleRole = 6
+)
+
+// Enum value maps for ControlModuleRole.
+var (
+	ControlModuleRole_name = map[int32]string{
+		0: "CONTROL_MODULE_ROLE_UNSPECIFIED",
+		1: "CONTROL_MODULE_ROLE_POWER",
+		2: "CONTROL_MODULE_ROLE_RANGE",
+		3: "CONTROL_MODULE_ROLE_STEPS",
+		4: "CONTROL_MODULE_ROLE_COLOR",
+		5: "CONTROL_MODULE_ROLE_PRESET",
+		6: "CONTROL_MODULE_ROLE_MOTION",
+	}
+	ControlModuleRole_value = map[string]int32{
+		"CONTROL_MODULE_ROLE_UNSPECIFIED": 0,
+		"CONTROL_MODULE_ROLE_POWER":       1,
+		"CONTROL_MODULE_ROLE_RANGE":       2,
+		"CONTROL_MODULE_ROLE_STEPS":       3,
+		"CONTROL_MODULE_ROLE_COLOR":       4,
+		"CONTROL_MODULE_ROLE_PRESET":      5,
+		"CONTROL_MODULE_ROLE_MOTION":      6,
+	}
+)
+
+func (x ControlModuleRole) Enum() *ControlModuleRole {
+	p := new(ControlModuleRole)
+	*p = x
+	return p
+}
+
+func (x ControlModuleRole) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ControlModuleRole) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_api_v2_home_proto_enumTypes[1].Descriptor()
+}
+
+func (ControlModuleRole) Type() protoreflect.EnumType {
+	return &file_home_api_v2_home_proto_enumTypes[1]
+}
+
+func (x ControlModuleRole) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ControlModuleRole.Descriptor instead.
+func (ControlModuleRole) EnumDescriptor() ([]byte, []int) {
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{1}
+}
+
+type ControlVisualFamily int32
+
+const (
+	ControlVisualFamily_CONTROL_VISUAL_FAMILY_UNSPECIFIED      ControlVisualFamily = 0
+	ControlVisualFamily_CONTROL_VISUAL_FAMILY_BINARY           ControlVisualFamily = 1
+	ControlVisualFamily_CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL ControlVisualFamily = 2
+	ControlVisualFamily_CONTROL_VISUAL_FAMILY_STEPPED_LEVEL    ControlVisualFamily = 3
+	ControlVisualFamily_CONTROL_VISUAL_FAMILY_BLIND            ControlVisualFamily = 4
+	ControlVisualFamily_CONTROL_VISUAL_FAMILY_GARAGE           ControlVisualFamily = 5
+)
+
+// Enum value maps for ControlVisualFamily.
+var (
+	ControlVisualFamily_name = map[int32]string{
+		0: "CONTROL_VISUAL_FAMILY_UNSPECIFIED",
+		1: "CONTROL_VISUAL_FAMILY_BINARY",
+		2: "CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL",
+		3: "CONTROL_VISUAL_FAMILY_STEPPED_LEVEL",
+		4: "CONTROL_VISUAL_FAMILY_BLIND",
+		5: "CONTROL_VISUAL_FAMILY_GARAGE",
+	}
+	ControlVisualFamily_value = map[string]int32{
+		"CONTROL_VISUAL_FAMILY_UNSPECIFIED":      0,
+		"CONTROL_VISUAL_FAMILY_BINARY":           1,
+		"CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL": 2,
+		"CONTROL_VISUAL_FAMILY_STEPPED_LEVEL":    3,
+		"CONTROL_VISUAL_FAMILY_BLIND":            4,
+		"CONTROL_VISUAL_FAMILY_GARAGE":           5,
+	}
+)
+
+func (x ControlVisualFamily) Enum() *ControlVisualFamily {
+	p := new(ControlVisualFamily)
+	*p = x
+	return p
+}
+
+func (x ControlVisualFamily) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ControlVisualFamily) Descriptor() protoreflect.EnumDescriptor {
+	return file_home_api_v2_home_proto_enumTypes[2].Descriptor()
+}
+
+func (ControlVisualFamily) Type() protoreflect.EnumType {
+	return &file_home_api_v2_home_proto_enumTypes[2]
+}
+
+func (x ControlVisualFamily) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ControlVisualFamily.Descriptor instead.
+func (ControlVisualFamily) EnumDescriptor() ([]byte, []int) {
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{2}
+}
+
 // A persistent installation identity. This server serves exactly one home;
 // the resource parent is not a multitenancy or cloud-account contract.
 type Home struct {
@@ -267,6 +386,8 @@ type Capability struct {
 	// supports_set fields do not grant access. Media route dependencies can further
 	// deny preparation through the media trait action_access. Rechecked at effect.
 	ActionAccess ActionAccess `protobuf:"varint,21,opt,name=action_access,json=actionAccess,proto3,enum=home.api.v2.ActionAccess" json:"action_access,omitempty"`
+	// Independently bound functional modules; style never grants write authority.
+	Modules []*ControlModule `protobuf:"bytes,22,rep,name=modules,proto3" json:"modules,omitempty"`
 	// Exactly one trait is supplied. Absence is unsupported, never Power OFF.
 	//
 	// Types that are valid to be assigned to Trait:
@@ -343,6 +464,13 @@ func (x *Capability) GetActionAccess() ActionAccess {
 		return x.ActionAccess
 	}
 	return ActionAccess_ACTION_ACCESS_UNSPECIFIED
+}
+
+func (x *Capability) GetModules() []*ControlModule {
+	if x != nil {
+		return x.Modules
+	}
+	return nil
 }
 
 func (x *Capability) GetTrait() isCapability_Trait {
@@ -1736,6 +1864,185 @@ func (x *ListHomesResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Function is independent of display family and retains its exact source slot.
+type ControlModule struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Capability   string                 `protobuf:"bytes,1,opt,name=capability,proto3" json:"capability,omitempty"`
+	Etag         string                 `protobuf:"bytes,2,opt,name=etag,proto3" json:"etag,omitempty"`
+	ActionAccess ActionAccess           `protobuf:"varint,3,opt,name=action_access,json=actionAccess,proto3,enum=home.api.v2.ActionAccess" json:"action_access,omitempty"`
+	Role         ControlModuleRole      `protobuf:"varint,4,opt,name=role,proto3,enum=home.api.v2.ControlModuleRole" json:"role,omitempty"`
+	// Types that are valid to be assigned to Definition:
+	//
+	//	*ControlModule_Power
+	//	*ControlModule_Range
+	//	*ControlModule_Steps
+	//	*ControlModule_Color
+	//	*ControlModule_Preset
+	//	*ControlModule_Motion
+	Definition    isControlModule_Definition `protobuf_oneof:"definition"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlModule) Reset() {
+	*x = ControlModule{}
+	mi := &file_home_api_v2_home_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlModule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlModule) ProtoMessage() {}
+
+func (x *ControlModule) ProtoReflect() protoreflect.Message {
+	mi := &file_home_api_v2_home_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlModule.ProtoReflect.Descriptor instead.
+func (*ControlModule) Descriptor() ([]byte, []int) {
+	return file_home_api_v2_home_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ControlModule) GetCapability() string {
+	if x != nil {
+		return x.Capability
+	}
+	return ""
+}
+
+func (x *ControlModule) GetEtag() string {
+	if x != nil {
+		return x.Etag
+	}
+	return ""
+}
+
+func (x *ControlModule) GetActionAccess() ActionAccess {
+	if x != nil {
+		return x.ActionAccess
+	}
+	return ActionAccess_ACTION_ACCESS_UNSPECIFIED
+}
+
+func (x *ControlModule) GetRole() ControlModuleRole {
+	if x != nil {
+		return x.Role
+	}
+	return ControlModuleRole_CONTROL_MODULE_ROLE_UNSPECIFIED
+}
+
+func (x *ControlModule) GetDefinition() isControlModule_Definition {
+	if x != nil {
+		return x.Definition
+	}
+	return nil
+}
+
+func (x *ControlModule) GetPower() bool {
+	if x != nil {
+		if x, ok := x.Definition.(*ControlModule_Power); ok {
+			return x.Power
+		}
+	}
+	return false
+}
+
+func (x *ControlModule) GetRange() *NumberBounds {
+	if x != nil {
+		if x, ok := x.Definition.(*ControlModule_Range); ok {
+			return x.Range
+		}
+	}
+	return nil
+}
+
+func (x *ControlModule) GetSteps() *ControlChoices {
+	if x != nil {
+		if x, ok := x.Definition.(*ControlModule_Steps); ok {
+			return x.Steps
+		}
+	}
+	return nil
+}
+
+func (x *ControlModule) GetColor() *ColorDefinition {
+	if x != nil {
+		if x, ok := x.Definition.(*ControlModule_Color); ok {
+			return x.Color
+		}
+	}
+	return nil
+}
+
+func (x *ControlModule) GetPreset() *ControlChoices {
+	if x != nil {
+		if x, ok := x.Definition.(*ControlModule_Preset); ok {
+			return x.Preset
+		}
+	}
+	return nil
+}
+
+func (x *ControlModule) GetMotion() *CoverDefinition {
+	if x != nil {
+		if x, ok := x.Definition.(*ControlModule_Motion); ok {
+			return x.Motion
+		}
+	}
+	return nil
+}
+
+type isControlModule_Definition interface {
+	isControlModule_Definition()
+}
+
+type ControlModule_Power struct {
+	Power bool `protobuf:"varint,5,opt,name=power,proto3,oneof"`
+}
+
+type ControlModule_Range struct {
+	Range *NumberBounds `protobuf:"bytes,6,opt,name=range,proto3,oneof"`
+}
+
+type ControlModule_Steps struct {
+	Steps *ControlChoices `protobuf:"bytes,7,opt,name=steps,proto3,oneof"`
+}
+
+type ControlModule_Color struct {
+	Color *ColorDefinition `protobuf:"bytes,8,opt,name=color,proto3,oneof"`
+}
+
+type ControlModule_Preset struct {
+	Preset *ControlChoices `protobuf:"bytes,9,opt,name=preset,proto3,oneof"`
+}
+
+type ControlModule_Motion struct {
+	Motion *CoverDefinition `protobuf:"bytes,10,opt,name=motion,proto3,oneof"`
+}
+
+func (*ControlModule_Power) isControlModule_Definition() {}
+
+func (*ControlModule_Range) isControlModule_Definition() {}
+
+func (*ControlModule_Steps) isControlModule_Definition() {}
+
+func (*ControlModule_Color) isControlModule_Definition() {}
+
+func (*ControlModule_Preset) isControlModule_Definition() {}
+
+func (*ControlModule_Motion) isControlModule_Definition() {}
+
 var File_home_api_v2_home_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_home_proto_rawDesc = "" +
@@ -1754,12 +2061,13 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	"\vupdate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
 	"updateTime\x12\x12\n" +
 	"\x04etag\x18\x05 \x01(\tR\x04etag:W\xeaAT\n" +
-	" homeward.damiengoehrig.ca/Entity\x12\x1ehomes/{home}/entities/{entity}*\bentities2\x06entity\"\xc9\v\n" +
+	" homeward.damiengoehrig.ca/Entity\x12\x1ehomes/{home}/entities/{entity}*\bentities2\x06entity\"\x85\f\n" +
 	"\n" +
 	"Capability\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12\x12\n" +
 	"\x04etag\x18\a \x01(\tR\x04etag\x12D\n" +
-	"\raction_access\x18\x15 \x01(\x0e2\x19.home.api.v2.ActionAccessB\x04\xe2A\x01\x03R\factionAccess\x124\n" +
+	"\raction_access\x18\x15 \x01(\x0e2\x19.home.api.v2.ActionAccessB\x04\xe2A\x01\x03R\factionAccess\x12:\n" +
+	"\amodules\x18\x16 \x03(\v2\x1a.home.api.v2.ControlModuleB\x04\xe2A\x01\x03R\amodules\x124\n" +
 	"\x05power\x18\x02 \x01(\v2\x1c.home.api.v2.PowerCapabilityH\x00R\x05power\x124\n" +
 	"\x05level\x18\x03 \x01(\v2\x1c.home.api.v2.LevelCapabilityH\x00R\x05level\x12\\\n" +
 	"\x13temperature_control\x18\x04 \x01(\v2).home.api.v2.TemperatureControlCapabilityH\x00R\x12temperatureControl\x12\\\n" +
@@ -1862,7 +2170,24 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	"page_token\x18\x02 \x01(\tB\x04\xe2A\x01\x01R\tpageToken\"d\n" +
 	"\x11ListHomesResponse\x12'\n" +
 	"\x05homes\x18\x01 \x03(\v2\x11.home.api.v2.HomeR\x05homes\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*\xda\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x95\x04\n" +
+	"\rControlModule\x12I\n" +
+	"\n" +
+	"capability\x18\x01 \x01(\tB)\xfaA&\n" +
+	"$homeward.damiengoehrig.ca/CapabilityR\n" +
+	"capability\x12\x12\n" +
+	"\x04etag\x18\x02 \x01(\tR\x04etag\x12>\n" +
+	"\raction_access\x18\x03 \x01(\x0e2\x19.home.api.v2.ActionAccessR\factionAccess\x122\n" +
+	"\x04role\x18\x04 \x01(\x0e2\x1e.home.api.v2.ControlModuleRoleR\x04role\x12\x16\n" +
+	"\x05power\x18\x05 \x01(\bH\x00R\x05power\x121\n" +
+	"\x05range\x18\x06 \x01(\v2\x19.home.api.v2.NumberBoundsH\x00R\x05range\x123\n" +
+	"\x05steps\x18\a \x01(\v2\x1b.home.api.v2.ControlChoicesH\x00R\x05steps\x124\n" +
+	"\x05color\x18\b \x01(\v2\x1c.home.api.v2.ColorDefinitionH\x00R\x05color\x125\n" +
+	"\x06preset\x18\t \x01(\v2\x1b.home.api.v2.ControlChoicesH\x00R\x06preset\x126\n" +
+	"\x06motion\x18\n" +
+	" \x01(\v2\x1c.home.api.v2.CoverDefinitionH\x00R\x06motionB\f\n" +
+	"\n" +
+	"definition*\xda\x03\n" +
 	"\x10ValidationReason\x12!\n" +
 	"\x1dVALIDATION_REASON_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eVALIDATION_REASON_INVALID_NAME\x10\x01\x12$\n" +
@@ -1876,7 +2201,22 @@ const file_home_api_v2_home_proto_rawDesc = "" +
 	" VALIDATION_REASON_INVALID_FORMAT\x10\t\x12)\n" +
 	"%VALIDATION_REASON_INCONSISTENT_FIELDS\x10\n" +
 	"\x12\"\n" +
-	"\x1eVALIDATION_REASON_INVALID_MASK\x10\v2\x9f\a\n" +
+	"\x1eVALIDATION_REASON_INVALID_MASK\x10\v*\xf4\x01\n" +
+	"\x11ControlModuleRole\x12#\n" +
+	"\x1fCONTROL_MODULE_ROLE_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19CONTROL_MODULE_ROLE_POWER\x10\x01\x12\x1d\n" +
+	"\x19CONTROL_MODULE_ROLE_RANGE\x10\x02\x12\x1d\n" +
+	"\x19CONTROL_MODULE_ROLE_STEPS\x10\x03\x12\x1d\n" +
+	"\x19CONTROL_MODULE_ROLE_COLOR\x10\x04\x12\x1e\n" +
+	"\x1aCONTROL_MODULE_ROLE_PRESET\x10\x05\x12\x1e\n" +
+	"\x1aCONTROL_MODULE_ROLE_MOTION\x10\x06*\xf6\x01\n" +
+	"\x13ControlVisualFamily\x12%\n" +
+	"!CONTROL_VISUAL_FAMILY_UNSPECIFIED\x10\x00\x12 \n" +
+	"\x1cCONTROL_VISUAL_FAMILY_BINARY\x10\x01\x12*\n" +
+	"&CONTROL_VISUAL_FAMILY_CONTINUOUS_LEVEL\x10\x02\x12'\n" +
+	"#CONTROL_VISUAL_FAMILY_STEPPED_LEVEL\x10\x03\x12\x1f\n" +
+	"\x1bCONTROL_VISUAL_FAMILY_BLIND\x10\x04\x12 \n" +
+	"\x1cCONTROL_VISUAL_FAMILY_GARAGE\x10\x052\x9f\a\n" +
 	"\vHomeService\x12\\\n" +
 	"\aGetHome\x12\x1b.home.api.v2.GetHomeRequest\x1a\x11.home.api.v2.Home\"!\xdaA\x04name\x82\xd3\xe4\x93\x02\x14\x12\x12/v2/{name=homes/*}\x12`\n" +
 	"\tListHomes\x12\x1d.home.api.v2.ListHomesRequest\x1a\x1e.home.api.v2.ListHomesResponse\"\x14\xdaA\x00\x82\xd3\xe4\x93\x02\v\x12\t/v2/homes\x12m\n" +
@@ -1899,127 +2239,142 @@ func file_home_api_v2_home_proto_rawDescGZIP() []byte {
 	return file_home_api_v2_home_proto_rawDescData
 }
 
-var file_home_api_v2_home_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_home_api_v2_home_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_home_api_v2_home_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_home_api_v2_home_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_home_api_v2_home_proto_goTypes = []any{
 	(ValidationReason)(0),                // 0: home.api.v2.ValidationReason
-	(*Home)(nil),                         // 1: home.api.v2.Home
-	(*Entity)(nil),                       // 2: home.api.v2.Entity
-	(*Capability)(nil),                   // 3: home.api.v2.Capability
-	(*PowerCapability)(nil),              // 4: home.api.v2.PowerCapability
-	(*PowerObservation)(nil),             // 5: home.api.v2.PowerObservation
-	(*LevelCapability)(nil),              // 6: home.api.v2.LevelCapability
-	(*LevelObservation)(nil),             // 7: home.api.v2.LevelObservation
-	(*ExecuteCapabilityRequest)(nil),     // 8: home.api.v2.ExecuteCapabilityRequest
-	(*GetEntityRequest)(nil),             // 9: home.api.v2.GetEntityRequest
-	(*ListEntitiesRequest)(nil),          // 10: home.api.v2.ListEntitiesRequest
-	(*ListEntitiesResponse)(nil),         // 11: home.api.v2.ListEntitiesResponse
-	(*UpdateEntityRequest)(nil),          // 12: home.api.v2.UpdateEntityRequest
-	(*GetCapabilityRequest)(nil),         // 13: home.api.v2.GetCapabilityRequest
-	(*ListCapabilitiesRequest)(nil),      // 14: home.api.v2.ListCapabilitiesRequest
-	(*ListCapabilitiesResponse)(nil),     // 15: home.api.v2.ListCapabilitiesResponse
-	(*GetHomeRequest)(nil),               // 16: home.api.v2.GetHomeRequest
-	(*ListHomesRequest)(nil),             // 17: home.api.v2.ListHomesRequest
-	(*ListHomesResponse)(nil),            // 18: home.api.v2.ListHomesResponse
-	(*timestamppb.Timestamp)(nil),        // 19: google.protobuf.Timestamp
-	(ActionAccess)(0),                    // 20: home.api.v2.ActionAccess
-	(*TemperatureControlCapability)(nil), // 21: home.api.v2.TemperatureControlCapability
-	(*NumericMeasurementCapability)(nil), // 22: home.api.v2.NumericMeasurementCapability
-	(*BinaryObservationCapability)(nil),  // 23: home.api.v2.BinaryObservationCapability
-	(*LightControlCapability)(nil),       // 24: home.api.v2.LightControlCapability
-	(*FanControlCapability)(nil),         // 25: home.api.v2.FanControlCapability
-	(*CoverCapability)(nil),              // 26: home.api.v2.CoverCapability
-	(*LockCapability)(nil),               // 27: home.api.v2.LockCapability
-	(*AlarmCapability)(nil),              // 28: home.api.v2.AlarmCapability
-	(*HelperCapability)(nil),             // 29: home.api.v2.HelperCapability
-	(*SolarCapability)(nil),              // 30: home.api.v2.SolarCapability
-	(*SolarEventCapability)(nil),         // 31: home.api.v2.SolarEventCapability
-	(*WeatherCapability)(nil),            // 32: home.api.v2.WeatherCapability
-	(*PresenceCapability)(nil),           // 33: home.api.v2.PresenceCapability
-	(*PresenceDetailsCapability)(nil),    // 34: home.api.v2.PresenceDetailsCapability
-	(*OpaqueCapability)(nil),             // 35: home.api.v2.OpaqueCapability
-	(*MediaPlaybackCapability)(nil),      // 36: home.api.v2.MediaPlaybackCapability
-	(PowerValue)(0),                      // 37: home.api.v2.PowerValue
-	(*ObservationQuality)(nil),           // 38: home.api.v2.ObservationQuality
-	(*PercentageBounds)(nil),             // 39: home.api.v2.PercentageBounds
-	(*SetPowerCommand)(nil),              // 40: home.api.v2.SetPowerCommand
-	(*SetLevelCommand)(nil),              // 41: home.api.v2.SetLevelCommand
-	(*SetLightCommand)(nil),              // 42: home.api.v2.SetLightCommand
-	(*SetFanCommand)(nil),                // 43: home.api.v2.SetFanCommand
-	(*SetTemperatureControlCommand)(nil), // 44: home.api.v2.SetTemperatureControlCommand
-	(*SetCoverCommand)(nil),              // 45: home.api.v2.SetCoverCommand
-	(*SetLockCommand)(nil),               // 46: home.api.v2.SetLockCommand
-	(*SetAlarmCommand)(nil),              // 47: home.api.v2.SetAlarmCommand
-	(*SetHelperCommand)(nil),             // 48: home.api.v2.SetHelperCommand
-	(*MediaCommand)(nil),                 // 49: home.api.v2.MediaCommand
-	(*fieldmaskpb.FieldMask)(nil),        // 50: google.protobuf.FieldMask
+	(ControlModuleRole)(0),               // 1: home.api.v2.ControlModuleRole
+	(ControlVisualFamily)(0),             // 2: home.api.v2.ControlVisualFamily
+	(*Home)(nil),                         // 3: home.api.v2.Home
+	(*Entity)(nil),                       // 4: home.api.v2.Entity
+	(*Capability)(nil),                   // 5: home.api.v2.Capability
+	(*PowerCapability)(nil),              // 6: home.api.v2.PowerCapability
+	(*PowerObservation)(nil),             // 7: home.api.v2.PowerObservation
+	(*LevelCapability)(nil),              // 8: home.api.v2.LevelCapability
+	(*LevelObservation)(nil),             // 9: home.api.v2.LevelObservation
+	(*ExecuteCapabilityRequest)(nil),     // 10: home.api.v2.ExecuteCapabilityRequest
+	(*GetEntityRequest)(nil),             // 11: home.api.v2.GetEntityRequest
+	(*ListEntitiesRequest)(nil),          // 12: home.api.v2.ListEntitiesRequest
+	(*ListEntitiesResponse)(nil),         // 13: home.api.v2.ListEntitiesResponse
+	(*UpdateEntityRequest)(nil),          // 14: home.api.v2.UpdateEntityRequest
+	(*GetCapabilityRequest)(nil),         // 15: home.api.v2.GetCapabilityRequest
+	(*ListCapabilitiesRequest)(nil),      // 16: home.api.v2.ListCapabilitiesRequest
+	(*ListCapabilitiesResponse)(nil),     // 17: home.api.v2.ListCapabilitiesResponse
+	(*GetHomeRequest)(nil),               // 18: home.api.v2.GetHomeRequest
+	(*ListHomesRequest)(nil),             // 19: home.api.v2.ListHomesRequest
+	(*ListHomesResponse)(nil),            // 20: home.api.v2.ListHomesResponse
+	(*ControlModule)(nil),                // 21: home.api.v2.ControlModule
+	(*timestamppb.Timestamp)(nil),        // 22: google.protobuf.Timestamp
+	(ActionAccess)(0),                    // 23: home.api.v2.ActionAccess
+	(*TemperatureControlCapability)(nil), // 24: home.api.v2.TemperatureControlCapability
+	(*NumericMeasurementCapability)(nil), // 25: home.api.v2.NumericMeasurementCapability
+	(*BinaryObservationCapability)(nil),  // 26: home.api.v2.BinaryObservationCapability
+	(*LightControlCapability)(nil),       // 27: home.api.v2.LightControlCapability
+	(*FanControlCapability)(nil),         // 28: home.api.v2.FanControlCapability
+	(*CoverCapability)(nil),              // 29: home.api.v2.CoverCapability
+	(*LockCapability)(nil),               // 30: home.api.v2.LockCapability
+	(*AlarmCapability)(nil),              // 31: home.api.v2.AlarmCapability
+	(*HelperCapability)(nil),             // 32: home.api.v2.HelperCapability
+	(*SolarCapability)(nil),              // 33: home.api.v2.SolarCapability
+	(*SolarEventCapability)(nil),         // 34: home.api.v2.SolarEventCapability
+	(*WeatherCapability)(nil),            // 35: home.api.v2.WeatherCapability
+	(*PresenceCapability)(nil),           // 36: home.api.v2.PresenceCapability
+	(*PresenceDetailsCapability)(nil),    // 37: home.api.v2.PresenceDetailsCapability
+	(*OpaqueCapability)(nil),             // 38: home.api.v2.OpaqueCapability
+	(*MediaPlaybackCapability)(nil),      // 39: home.api.v2.MediaPlaybackCapability
+	(PowerValue)(0),                      // 40: home.api.v2.PowerValue
+	(*ObservationQuality)(nil),           // 41: home.api.v2.ObservationQuality
+	(*PercentageBounds)(nil),             // 42: home.api.v2.PercentageBounds
+	(*SetPowerCommand)(nil),              // 43: home.api.v2.SetPowerCommand
+	(*SetLevelCommand)(nil),              // 44: home.api.v2.SetLevelCommand
+	(*SetLightCommand)(nil),              // 45: home.api.v2.SetLightCommand
+	(*SetFanCommand)(nil),                // 46: home.api.v2.SetFanCommand
+	(*SetTemperatureControlCommand)(nil), // 47: home.api.v2.SetTemperatureControlCommand
+	(*SetCoverCommand)(nil),              // 48: home.api.v2.SetCoverCommand
+	(*SetLockCommand)(nil),               // 49: home.api.v2.SetLockCommand
+	(*SetAlarmCommand)(nil),              // 50: home.api.v2.SetAlarmCommand
+	(*SetHelperCommand)(nil),             // 51: home.api.v2.SetHelperCommand
+	(*MediaCommand)(nil),                 // 52: home.api.v2.MediaCommand
+	(*fieldmaskpb.FieldMask)(nil),        // 53: google.protobuf.FieldMask
+	(*NumberBounds)(nil),                 // 54: home.api.v2.NumberBounds
+	(*ControlChoices)(nil),               // 55: home.api.v2.ControlChoices
+	(*ColorDefinition)(nil),              // 56: home.api.v2.ColorDefinition
+	(*CoverDefinition)(nil),              // 57: home.api.v2.CoverDefinition
 }
 var file_home_api_v2_home_proto_depIdxs = []int32{
-	19, // 0: home.api.v2.Home.create_time:type_name -> google.protobuf.Timestamp
-	19, // 1: home.api.v2.Entity.create_time:type_name -> google.protobuf.Timestamp
-	19, // 2: home.api.v2.Entity.update_time:type_name -> google.protobuf.Timestamp
-	20, // 3: home.api.v2.Capability.action_access:type_name -> home.api.v2.ActionAccess
-	4,  // 4: home.api.v2.Capability.power:type_name -> home.api.v2.PowerCapability
-	6,  // 5: home.api.v2.Capability.level:type_name -> home.api.v2.LevelCapability
-	21, // 6: home.api.v2.Capability.temperature_control:type_name -> home.api.v2.TemperatureControlCapability
-	22, // 7: home.api.v2.Capability.numeric_measurement:type_name -> home.api.v2.NumericMeasurementCapability
-	23, // 8: home.api.v2.Capability.binary_observation:type_name -> home.api.v2.BinaryObservationCapability
-	24, // 9: home.api.v2.Capability.light_control:type_name -> home.api.v2.LightControlCapability
-	25, // 10: home.api.v2.Capability.fan_control:type_name -> home.api.v2.FanControlCapability
-	26, // 11: home.api.v2.Capability.cover:type_name -> home.api.v2.CoverCapability
-	27, // 12: home.api.v2.Capability.lock:type_name -> home.api.v2.LockCapability
-	28, // 13: home.api.v2.Capability.alarm:type_name -> home.api.v2.AlarmCapability
-	29, // 14: home.api.v2.Capability.helper:type_name -> home.api.v2.HelperCapability
-	30, // 15: home.api.v2.Capability.solar:type_name -> home.api.v2.SolarCapability
-	31, // 16: home.api.v2.Capability.solar_event:type_name -> home.api.v2.SolarEventCapability
-	32, // 17: home.api.v2.Capability.weather:type_name -> home.api.v2.WeatherCapability
-	33, // 18: home.api.v2.Capability.presence:type_name -> home.api.v2.PresenceCapability
-	34, // 19: home.api.v2.Capability.presence_details:type_name -> home.api.v2.PresenceDetailsCapability
-	35, // 20: home.api.v2.Capability.opaque:type_name -> home.api.v2.OpaqueCapability
-	36, // 21: home.api.v2.Capability.media_playback:type_name -> home.api.v2.MediaPlaybackCapability
-	5,  // 22: home.api.v2.PowerCapability.observation:type_name -> home.api.v2.PowerObservation
-	37, // 23: home.api.v2.PowerObservation.value:type_name -> home.api.v2.PowerValue
-	19, // 24: home.api.v2.PowerObservation.observed_time:type_name -> google.protobuf.Timestamp
-	38, // 25: home.api.v2.PowerObservation.quality:type_name -> home.api.v2.ObservationQuality
-	39, // 26: home.api.v2.LevelCapability.bounds:type_name -> home.api.v2.PercentageBounds
-	7,  // 27: home.api.v2.LevelCapability.observation:type_name -> home.api.v2.LevelObservation
-	19, // 28: home.api.v2.LevelObservation.observed_time:type_name -> google.protobuf.Timestamp
-	38, // 29: home.api.v2.LevelObservation.quality:type_name -> home.api.v2.ObservationQuality
-	40, // 30: home.api.v2.ExecuteCapabilityRequest.power:type_name -> home.api.v2.SetPowerCommand
-	41, // 31: home.api.v2.ExecuteCapabilityRequest.level:type_name -> home.api.v2.SetLevelCommand
-	42, // 32: home.api.v2.ExecuteCapabilityRequest.light:type_name -> home.api.v2.SetLightCommand
-	43, // 33: home.api.v2.ExecuteCapabilityRequest.fan:type_name -> home.api.v2.SetFanCommand
-	44, // 34: home.api.v2.ExecuteCapabilityRequest.temperature_control:type_name -> home.api.v2.SetTemperatureControlCommand
-	45, // 35: home.api.v2.ExecuteCapabilityRequest.cover:type_name -> home.api.v2.SetCoverCommand
-	46, // 36: home.api.v2.ExecuteCapabilityRequest.lock:type_name -> home.api.v2.SetLockCommand
-	47, // 37: home.api.v2.ExecuteCapabilityRequest.alarm:type_name -> home.api.v2.SetAlarmCommand
-	48, // 38: home.api.v2.ExecuteCapabilityRequest.helper:type_name -> home.api.v2.SetHelperCommand
-	49, // 39: home.api.v2.ExecuteCapabilityRequest.media:type_name -> home.api.v2.MediaCommand
-	19, // 40: home.api.v2.ExecuteCapabilityRequest.expire_time:type_name -> google.protobuf.Timestamp
-	2,  // 41: home.api.v2.ListEntitiesResponse.entities:type_name -> home.api.v2.Entity
-	2,  // 42: home.api.v2.UpdateEntityRequest.entity:type_name -> home.api.v2.Entity
-	50, // 43: home.api.v2.UpdateEntityRequest.update_mask:type_name -> google.protobuf.FieldMask
-	3,  // 44: home.api.v2.ListCapabilitiesResponse.capabilities:type_name -> home.api.v2.Capability
-	1,  // 45: home.api.v2.ListHomesResponse.homes:type_name -> home.api.v2.Home
-	16, // 46: home.api.v2.HomeService.GetHome:input_type -> home.api.v2.GetHomeRequest
-	17, // 47: home.api.v2.HomeService.ListHomes:input_type -> home.api.v2.ListHomesRequest
-	9,  // 48: home.api.v2.HomeService.GetEntity:input_type -> home.api.v2.GetEntityRequest
-	10, // 49: home.api.v2.HomeService.ListEntities:input_type -> home.api.v2.ListEntitiesRequest
-	12, // 50: home.api.v2.HomeService.UpdateEntity:input_type -> home.api.v2.UpdateEntityRequest
-	13, // 51: home.api.v2.HomeService.GetCapability:input_type -> home.api.v2.GetCapabilityRequest
-	14, // 52: home.api.v2.HomeService.ListCapabilities:input_type -> home.api.v2.ListCapabilitiesRequest
-	1,  // 53: home.api.v2.HomeService.GetHome:output_type -> home.api.v2.Home
-	18, // 54: home.api.v2.HomeService.ListHomes:output_type -> home.api.v2.ListHomesResponse
-	2,  // 55: home.api.v2.HomeService.GetEntity:output_type -> home.api.v2.Entity
-	11, // 56: home.api.v2.HomeService.ListEntities:output_type -> home.api.v2.ListEntitiesResponse
-	2,  // 57: home.api.v2.HomeService.UpdateEntity:output_type -> home.api.v2.Entity
-	3,  // 58: home.api.v2.HomeService.GetCapability:output_type -> home.api.v2.Capability
-	15, // 59: home.api.v2.HomeService.ListCapabilities:output_type -> home.api.v2.ListCapabilitiesResponse
-	53, // [53:60] is the sub-list for method output_type
-	46, // [46:53] is the sub-list for method input_type
-	46, // [46:46] is the sub-list for extension type_name
-	46, // [46:46] is the sub-list for extension extendee
-	0,  // [0:46] is the sub-list for field type_name
+	22, // 0: home.api.v2.Home.create_time:type_name -> google.protobuf.Timestamp
+	22, // 1: home.api.v2.Entity.create_time:type_name -> google.protobuf.Timestamp
+	22, // 2: home.api.v2.Entity.update_time:type_name -> google.protobuf.Timestamp
+	23, // 3: home.api.v2.Capability.action_access:type_name -> home.api.v2.ActionAccess
+	21, // 4: home.api.v2.Capability.modules:type_name -> home.api.v2.ControlModule
+	6,  // 5: home.api.v2.Capability.power:type_name -> home.api.v2.PowerCapability
+	8,  // 6: home.api.v2.Capability.level:type_name -> home.api.v2.LevelCapability
+	24, // 7: home.api.v2.Capability.temperature_control:type_name -> home.api.v2.TemperatureControlCapability
+	25, // 8: home.api.v2.Capability.numeric_measurement:type_name -> home.api.v2.NumericMeasurementCapability
+	26, // 9: home.api.v2.Capability.binary_observation:type_name -> home.api.v2.BinaryObservationCapability
+	27, // 10: home.api.v2.Capability.light_control:type_name -> home.api.v2.LightControlCapability
+	28, // 11: home.api.v2.Capability.fan_control:type_name -> home.api.v2.FanControlCapability
+	29, // 12: home.api.v2.Capability.cover:type_name -> home.api.v2.CoverCapability
+	30, // 13: home.api.v2.Capability.lock:type_name -> home.api.v2.LockCapability
+	31, // 14: home.api.v2.Capability.alarm:type_name -> home.api.v2.AlarmCapability
+	32, // 15: home.api.v2.Capability.helper:type_name -> home.api.v2.HelperCapability
+	33, // 16: home.api.v2.Capability.solar:type_name -> home.api.v2.SolarCapability
+	34, // 17: home.api.v2.Capability.solar_event:type_name -> home.api.v2.SolarEventCapability
+	35, // 18: home.api.v2.Capability.weather:type_name -> home.api.v2.WeatherCapability
+	36, // 19: home.api.v2.Capability.presence:type_name -> home.api.v2.PresenceCapability
+	37, // 20: home.api.v2.Capability.presence_details:type_name -> home.api.v2.PresenceDetailsCapability
+	38, // 21: home.api.v2.Capability.opaque:type_name -> home.api.v2.OpaqueCapability
+	39, // 22: home.api.v2.Capability.media_playback:type_name -> home.api.v2.MediaPlaybackCapability
+	7,  // 23: home.api.v2.PowerCapability.observation:type_name -> home.api.v2.PowerObservation
+	40, // 24: home.api.v2.PowerObservation.value:type_name -> home.api.v2.PowerValue
+	22, // 25: home.api.v2.PowerObservation.observed_time:type_name -> google.protobuf.Timestamp
+	41, // 26: home.api.v2.PowerObservation.quality:type_name -> home.api.v2.ObservationQuality
+	42, // 27: home.api.v2.LevelCapability.bounds:type_name -> home.api.v2.PercentageBounds
+	9,  // 28: home.api.v2.LevelCapability.observation:type_name -> home.api.v2.LevelObservation
+	22, // 29: home.api.v2.LevelObservation.observed_time:type_name -> google.protobuf.Timestamp
+	41, // 30: home.api.v2.LevelObservation.quality:type_name -> home.api.v2.ObservationQuality
+	43, // 31: home.api.v2.ExecuteCapabilityRequest.power:type_name -> home.api.v2.SetPowerCommand
+	44, // 32: home.api.v2.ExecuteCapabilityRequest.level:type_name -> home.api.v2.SetLevelCommand
+	45, // 33: home.api.v2.ExecuteCapabilityRequest.light:type_name -> home.api.v2.SetLightCommand
+	46, // 34: home.api.v2.ExecuteCapabilityRequest.fan:type_name -> home.api.v2.SetFanCommand
+	47, // 35: home.api.v2.ExecuteCapabilityRequest.temperature_control:type_name -> home.api.v2.SetTemperatureControlCommand
+	48, // 36: home.api.v2.ExecuteCapabilityRequest.cover:type_name -> home.api.v2.SetCoverCommand
+	49, // 37: home.api.v2.ExecuteCapabilityRequest.lock:type_name -> home.api.v2.SetLockCommand
+	50, // 38: home.api.v2.ExecuteCapabilityRequest.alarm:type_name -> home.api.v2.SetAlarmCommand
+	51, // 39: home.api.v2.ExecuteCapabilityRequest.helper:type_name -> home.api.v2.SetHelperCommand
+	52, // 40: home.api.v2.ExecuteCapabilityRequest.media:type_name -> home.api.v2.MediaCommand
+	22, // 41: home.api.v2.ExecuteCapabilityRequest.expire_time:type_name -> google.protobuf.Timestamp
+	4,  // 42: home.api.v2.ListEntitiesResponse.entities:type_name -> home.api.v2.Entity
+	4,  // 43: home.api.v2.UpdateEntityRequest.entity:type_name -> home.api.v2.Entity
+	53, // 44: home.api.v2.UpdateEntityRequest.update_mask:type_name -> google.protobuf.FieldMask
+	5,  // 45: home.api.v2.ListCapabilitiesResponse.capabilities:type_name -> home.api.v2.Capability
+	3,  // 46: home.api.v2.ListHomesResponse.homes:type_name -> home.api.v2.Home
+	23, // 47: home.api.v2.ControlModule.action_access:type_name -> home.api.v2.ActionAccess
+	1,  // 48: home.api.v2.ControlModule.role:type_name -> home.api.v2.ControlModuleRole
+	54, // 49: home.api.v2.ControlModule.range:type_name -> home.api.v2.NumberBounds
+	55, // 50: home.api.v2.ControlModule.steps:type_name -> home.api.v2.ControlChoices
+	56, // 51: home.api.v2.ControlModule.color:type_name -> home.api.v2.ColorDefinition
+	55, // 52: home.api.v2.ControlModule.preset:type_name -> home.api.v2.ControlChoices
+	57, // 53: home.api.v2.ControlModule.motion:type_name -> home.api.v2.CoverDefinition
+	18, // 54: home.api.v2.HomeService.GetHome:input_type -> home.api.v2.GetHomeRequest
+	19, // 55: home.api.v2.HomeService.ListHomes:input_type -> home.api.v2.ListHomesRequest
+	11, // 56: home.api.v2.HomeService.GetEntity:input_type -> home.api.v2.GetEntityRequest
+	12, // 57: home.api.v2.HomeService.ListEntities:input_type -> home.api.v2.ListEntitiesRequest
+	14, // 58: home.api.v2.HomeService.UpdateEntity:input_type -> home.api.v2.UpdateEntityRequest
+	15, // 59: home.api.v2.HomeService.GetCapability:input_type -> home.api.v2.GetCapabilityRequest
+	16, // 60: home.api.v2.HomeService.ListCapabilities:input_type -> home.api.v2.ListCapabilitiesRequest
+	3,  // 61: home.api.v2.HomeService.GetHome:output_type -> home.api.v2.Home
+	20, // 62: home.api.v2.HomeService.ListHomes:output_type -> home.api.v2.ListHomesResponse
+	4,  // 63: home.api.v2.HomeService.GetEntity:output_type -> home.api.v2.Entity
+	13, // 64: home.api.v2.HomeService.ListEntities:output_type -> home.api.v2.ListEntitiesResponse
+	4,  // 65: home.api.v2.HomeService.UpdateEntity:output_type -> home.api.v2.Entity
+	5,  // 66: home.api.v2.HomeService.GetCapability:output_type -> home.api.v2.Capability
+	17, // 67: home.api.v2.HomeService.ListCapabilities:output_type -> home.api.v2.ListCapabilitiesResponse
+	61, // [61:68] is the sub-list for method output_type
+	54, // [54:61] is the sub-list for method input_type
+	54, // [54:54] is the sub-list for extension type_name
+	54, // [54:54] is the sub-list for extension extendee
+	0,  // [0:54] is the sub-list for field type_name
 }
 
 func init() { file_home_api_v2_home_proto_init() }
@@ -2064,13 +2419,21 @@ func file_home_api_v2_home_proto_init() {
 		(*ExecuteCapabilityRequest_Helper)(nil),
 		(*ExecuteCapabilityRequest_Media)(nil),
 	}
+	file_home_api_v2_home_proto_msgTypes[18].OneofWrappers = []any{
+		(*ControlModule_Power)(nil),
+		(*ControlModule_Range)(nil),
+		(*ControlModule_Steps)(nil),
+		(*ControlModule_Color)(nil),
+		(*ControlModule_Preset)(nil),
+		(*ControlModule_Motion)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_home_api_v2_home_proto_rawDesc), len(file_home_api_v2_home_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   18,
+			NumEnums:      3,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

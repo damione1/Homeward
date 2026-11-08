@@ -357,7 +357,7 @@ fn features(control: &Control) -> BTreeSet<FeatureKind> {
             if fan.can_power() {
                 result.insert(FeatureKind::Toggle);
             }
-            if !fan.speeds().is_empty() {
+            if !fan.speeds().is_empty() || fan.range().is_some() {
                 result.insert(FeatureKind::FanSpeed);
             }
         }
@@ -1305,8 +1305,21 @@ mod tests {
         let full = Control::Fan(
             Fan::parse(&wire::FanControlCapability {
                 supports_power: true,
-                speed: wire::SelectorDefinition {
-                    options: vec!["Low".into(), "High".into()],
+                level: wire::ControlLevelDefinition {
+                    definition: Some(wire::control_level_definition::Definition::Steps(
+                        wire::ControlChoices {
+                            choices: vec!["Low".into(), "High".into()]
+                                .into_iter()
+                                .map(|key: String| wire::ControlChoice {
+                                    display_name: key.clone(),
+                                    key,
+                                    ..Default::default()
+                                })
+                                .collect(),
+                            ..Default::default()
+                        }
+                        .into(),
+                    )),
                     ..Default::default()
                 }
                 .into(),
@@ -1318,7 +1331,12 @@ mod tests {
         let speed = restrict(&full, &node).unwrap();
         assert!(
             speed
-                .arguments(DeviceIntent::FanSpeed(wire::FanSpeed::High), None)
+                .arguments(
+                    DeviceIntent::FanSpeed(
+                        home_client_model::api::SelectorKey::try_from("High").unwrap()
+                    ),
+                    None
+                )
                 .is_ok()
         );
         assert!(
@@ -1330,7 +1348,12 @@ mod tests {
         let power = restrict(&full, &node).unwrap();
         assert!(
             power
-                .arguments(DeviceIntent::FanSpeed(wire::FanSpeed::High), None)
+                .arguments(
+                    DeviceIntent::FanSpeed(
+                        home_client_model::api::SelectorKey::try_from("High").unwrap()
+                    ),
+                    None
+                )
                 .is_err()
         );
         assert!(
@@ -1493,7 +1516,9 @@ mod tests {
         let Intent::Light(arguments) = command.request.intent() else {
             panic!()
         };
-        assert_eq!(arguments.color().map(|value| value.mireds()), Some(250));
+        assert!(
+            matches!(arguments.color(), Some(home_client_model::api::ColorTarget::Temperature(value)) if value.mireds() == 250)
+        );
         assert!(arguments.on().is_none() && arguments.brightness().is_none());
         let header = &projection.recipes[&NodeId::parse("tile").unwrap()];
         assert_eq!(header.access(Gesture::Tap), GestureAccess::Command);

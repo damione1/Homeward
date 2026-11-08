@@ -281,7 +281,8 @@ impl Climate {
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Fan {
     power: bool,
-    speeds: Vec<wire::FanSpeed>,
+    speeds: Vec<(model::SelectorKey, String)>,
+    range: Option<Bounds>,
 }
 impl Fan {
     pub fn restricted(&self, power: bool, speed: bool) -> Self {
@@ -292,53 +293,55 @@ impl Fan {
             } else {
                 Vec::new()
             },
+            range: if speed { self.range } else { None },
         }
     }
     pub fn can_power(&self) -> bool {
         self.power
     }
-    pub fn speeds(&self) -> &[wire::FanSpeed] {
+    pub fn speeds(&self) -> &[(model::SelectorKey, String)] {
         &self.speeds
     }
-    fn speed_name(speed: wire::FanSpeed) -> Option<&'static str> {
-        match speed {
-            wire::FanSpeed::Off => Some("Off"),
-            wire::FanSpeed::Low => Some("Low"),
-            wire::FanSpeed::Medium => Some("Medium"),
-            wire::FanSpeed::MediumHigh => Some("MediumHigh"),
-            wire::FanSpeed::High => Some("High"),
-            wire::FanSpeed::Unspecified => None,
-        }
+    pub fn range(&self) -> Option<Bounds> {
+        self.range
     }
     pub fn parse(value: &wire::FanControlCapability) -> Option<Self> {
-        let options = value
-            .speed
-            .as_option()
-            .map(|speed| speed.options.as_slice())
-            .unwrap_or(&[]);
-        if !value.__buffa_unknown_fields.is_empty()
-            || value
-                .speed
-                .as_option()
-                .is_some_and(|speed| !speed.__buffa_unknown_fields.is_empty())
-            || options.len() > 5
-        {
+        if !value.__buffa_unknown_fields.is_empty() {
             return None;
         }
-        let mut speeds = Vec::with_capacity(options.len());
-        for value in options {
-            let speed = <wire::FanSpeed as buffa::Enumeration>::values()
-                .iter()
-                .copied()
-                .find(|speed| Self::speed_name(*speed) == Some(value.as_str()))?;
-            if speeds.contains(&speed) {
+        let mut speeds = Vec::new();
+        let mut range = None;
+        if let Some(level) = value.level.as_option() {
+            if !level.__buffa_unknown_fields.is_empty() {
                 return None;
             }
-            speeds.push(speed);
+            match level.definition.as_ref()? {
+                wire::control_level_definition::Definition::Range(v) => {
+                    range = Some(Bounds::parse(v)?)
+                }
+                wire::control_level_definition::Definition::Steps(v) => {
+                    if !v.__buffa_unknown_fields.is_empty()
+                        || v.choices.is_empty()
+                        || v.choices.len() > 256
+                    {
+                        return None;
+                    }
+                    for choice in &v.choices {
+                        let key = model::SelectorKey::try_from(choice.key.as_str()).ok()?;
+                        if !choice.__buffa_unknown_fields.is_empty()
+                            || speeds.iter().any(|(existing, _)| existing == &key)
+                        {
+                            return None;
+                        }
+                        speeds.push((key, choice.display_name.clone()));
+                    }
+                }
+            }
         }
         Some(Self {
             power: value.supports_power,
             speeds,
+            range,
         })
     }
     pub fn power(&self, value: Power) -> Result<model::FanIntent, Refusal> {
@@ -347,16 +350,12 @@ impl Fan {
         }
         model::FanIntent::new(Some(value.on()), None).map_err(|_| Refusal::InvalidValue)
     }
-    pub fn speed(&self, speed: wire::FanSpeed) -> Result<model::FanIntent, Refusal> {
-        if !self.speeds.contains(&speed) {
+    pub fn speed(&self, speed: model::SelectorKey) -> Result<model::FanIntent, Refusal> {
+        if !self.speeds.iter().any(|(key, _)| key == &speed) {
             return Err(Refusal::Unsupported);
         }
-        let name = Self::speed_name(speed).ok_or(Refusal::Unsupported)?;
-        model::FanIntent::new(
-            None,
-            Some(model::SelectorKey::try_from(name).map_err(|_| Refusal::InvalidValue)?),
-        )
-        .map_err(|_| Refusal::InvalidValue)
+        model::FanIntent::new(None, Some(model::LevelTarget::Step(speed)))
+            .map_err(|_| Refusal::InvalidValue)
     }
 }
 
@@ -580,53 +579,41 @@ mod tests {
         );
     }
     #[test]
-    fn fan_power_and_speed_are_distinct_and_unknown_speed_names_never_fall_back() {
+    fn fan_power_and_exact_nonuniform_keys_are_independent() {
         let control = Fan::parse(&wire::FanControlCapability {
             supports_power: true,
-            speed: wire::SelectorDefinition {
-                options: vec!["Low".into(), "High".into()],
+            level: wire::ControlLevelDefinition {
+                definition: Some(wire::control_level_definition::Definition::Steps(
+                    wire::ControlChoices {
+                        choices: ["quiet:7", "boost:29"]
+                            .into_iter()
+                            .map(|key| wire::ControlChoice {
+                                key: key.into(),
+                                display_name: key.into(),
+                                ..Default::default()
+                            })
+                            .collect(),
+                        ..Default::default()
+                    }
+                    .into(),
+                )),
                 ..Default::default()
             }
             .into(),
             ..Default::default()
         })
         .unwrap();
-        let power = control.power(Power::On).unwrap();
-        assert_eq!(power.on(), Some(true));
-        assert!(power.speed().is_none());
-        let speed = control.speed(wire::FanSpeed::High).unwrap();
-        assert_eq!(speed.speed().map(|value| value.as_str()), Some("High"));
+        let power = control.power(Power::Off).unwrap();
+        assert_eq!(power.on(), Some(false));
+        assert!(power.level().is_none());
+        let key = model::SelectorKey::try_from("boost:29").unwrap();
+        let speed = control.speed(key.clone()).unwrap();
+        assert_eq!(speed.level(), Some(&model::LevelTarget::Step(key)));
         assert!(speed.on().is_none());
-        assert!(matches!(
-            control.speed(wire::FanSpeed::Off),
-            Err(Refusal::Unsupported)
-        ));
-        assert!(matches!(
-            control.speed(wire::FanSpeed::Unspecified),
-            Err(Refusal::Unsupported)
-        ));
-        for values in [
-            vec!["Turbo".into()],
-            vec!["Low".into(), "Low".into()],
-            vec![" Low".into()],
-        ] {
-            assert!(
-                Fan::parse(&wire::FanControlCapability {
-                    speed: wire::SelectorDefinition {
-                        options: values,
-                        ..Default::default()
-                    }
-                    .into(),
-                    ..Default::default()
-                })
-                .is_none()
-            );
-        }
-        assert!(matches!(
-            Fan::parse(&wire::FanControlCapability::default())
-                .unwrap()
-                .power(Power::On),
-            Err(Refusal::Unsupported)
-        ));
+        assert!(
+            control
+                .speed(model::SelectorKey::try_from("Boost:29").unwrap())
+                .is_err()
+        );
     }
 }

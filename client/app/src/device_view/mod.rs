@@ -9,6 +9,7 @@ pub(crate) mod detail;
 mod draft_retention;
 mod helper;
 mod light;
+mod modules;
 mod native;
 mod number;
 pub(crate) mod observation;
@@ -52,11 +53,12 @@ pub(crate) enum DeviceIntent {
     Brightness(f64),
     ColorTemperature(light::Mireds),
     Climate(climate::ClimateIntent),
-    FanSpeed(home_wire_contract::home::api::v2::FanSpeed),
+    FanSpeed(home_client_model::api::SelectorKey),
     Helper(helper::HelperIntent),
     Cover(controls::CoverIntent),
     Lock(home_wire_contract::home::api::v2::LockOperation),
     Alarm(home_wire_contract::home::api::v2::AlarmOperation),
+    Module(modules::Command),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Refusal {
@@ -88,6 +90,7 @@ struct Slot {
     access: WriteAccess,
     control: Control,
     helper_revision: Option<helper::HelperRevision>,
+    module: Option<home_client_model::control_modules::ControlModule>,
 }
 impl Slot {
     fn same_admission(&self, other: &Self) -> bool {
@@ -97,12 +100,22 @@ impl Slot {
             && self.access == other.access
             && self.control == other.control
             && self.helper_revision == other.helper_revision
+            && self.module == other.module
+            // A module loses its gesture/transport generation when observation
+            // admission closes. A later fresh report gets another generation;
+            // it cannot revive a previously prepared command or held gesture.
+            && (self.module.is_none()
+                || observation::fresh(&self.capability) == observation::fresh(&other.capability))
     }
 }
 #[derive(Clone, PartialEq, Eq)]
 enum ControlSource {
     General,
     Native(crate::dashboard_layout::NodeId),
+    Module(
+        crate::dashboard_layout::NodeId,
+        home_client_model::control_modules::ModuleRole,
+    ),
 }
 struct CardInput<'a> {
     source: ControlSource,
@@ -186,6 +199,7 @@ struct State {
     alarm_inputs: BTreeMap<CardGeneration, alarm_input::Input>,
     recipe_bindings: recipes::Bindings,
     native_steps: native::Steps,
+    module_drafts: BTreeMap<CardGeneration, modules::Draft>,
 }
 #[derive(Clone)]
 pub(crate) struct DeviceStore(Arc<Mutex<State>>, Option<tokio::runtime::Handle>);
@@ -221,6 +235,7 @@ impl Default for DeviceStore {
                 alarm_inputs: BTreeMap::new(),
                 recipe_bindings: recipes::Bindings::default(),
                 native_steps: native::Steps::default(),
+                module_drafts: BTreeMap::new(),
             })),
             tokio::runtime::Handle::try_current().ok(),
         )
@@ -329,6 +344,7 @@ impl DeviceStore {
         state.context = None;
         state.recipe_bindings = recipes::Bindings::default();
         state.drafts.clear();
+        state.module_drafts.clear();
         state.alarm_inputs.clear();
         state.draft_basis = None;
         state.retained_drafts = None;
@@ -463,6 +479,55 @@ impl DeviceStore {
                 inputs.push(input);
             }
         }
+        let detail_node = request
+            .detail_source
+            .as_ref()
+            .and_then(|id| {
+                layout
+                    .and_then(|l| l.native.as_ref())
+                    .and_then(|n| n.nodes.get(id))
+            })
+            .cloned();
+        let mut module_groups = Vec::new();
+        for node in native_nodes.iter().chain(detail_node.iter()) {
+            if !node.device_card()
+                || node.control_family.is_none()
+                || module_groups.iter().any(|(id, _, _)| id == &node.id)
+            {
+                continue;
+            }
+            let mut bindings = Vec::new();
+            for binding in &node.control_modules.0 {
+                let Some(entity) = view.and_then(|view| view.get(&binding.capability.entity()))
+                else {
+                    continue;
+                };
+                let Some(capability) = entity
+                    .capabilities
+                    .iter()
+                    .find(|c| c.name == binding.capability.as_str())
+                    .filter(|c| modules::current(binding, c))
+                else {
+                    continue;
+                };
+                let Some(input) = CardInput::new(
+                    ControlSource::Module(node.id.clone(), binding.role),
+                    entity.entity.display_name.clone(),
+                    entity,
+                    capability,
+                    Control::parse(capability),
+                ) else {
+                    continue;
+                };
+                bindings.push((inputs.len(), binding.clone()));
+                inputs.push(input);
+            }
+            module_groups.push((
+                node.id.clone(),
+                node.control_family.expect("checked"),
+                bindings,
+            ));
+        }
         let mut ordinary_count = 0;
         let mut native_indices = BTreeMap::new();
         for input in inputs {
@@ -476,6 +541,7 @@ impl DeviceStore {
             } = input;
             match &source {
                 ControlSource::General => ordinary_count += 1,
+                ControlSource::Module(_, _) => {}
                 ControlSource::Native(node) => {
                     native_indices.insert(node.clone(), cards.len());
                 }
@@ -539,8 +605,14 @@ impl DeviceStore {
                 access,
                 control,
                 helper_revision,
+                module: None,
             });
             cards.push(row);
+        }
+        for (_, _, bindings) in &module_groups {
+            for (index, binding) in bindings {
+                slots[*index].module = Some(binding.clone());
+            }
         }
         let mut context = match (view, layout) {
             (Some(view), Some(_)) => Some(Context {
@@ -651,6 +723,9 @@ impl DeviceStore {
             .retain(|generation, _| generations.contains(generation));
         state
             .alarm_inputs
+            .retain(|generation, _| generations.contains(generation));
+        state
+            .module_drafts
             .retain(|generation, _| generations.contains(generation));
         state.native_steps.observed.clear();
         state
@@ -773,6 +848,38 @@ impl DeviceStore {
                     && let Some(row) = cards.iter_mut().find(|row| row.token == lock_row.token)
                 {
                     row.detail.associated_only = true;
+                }
+            }
+        }
+        for (node, family, bindings) in &module_groups {
+            let Some(context) = state.context.as_ref() else {
+                continue;
+            };
+            let modules = bindings
+                .iter()
+                .map(|(index, _)| {
+                    modules::project(
+                        &context.slots[*index],
+                        &cards[*index],
+                        state.module_drafts.get(&context.slots[*index].generation),
+                        ready,
+                    )
+                })
+                .collect::<Vec<_>>();
+            if let Some(index) = native_indices.get(node) {
+                cards[*index].modular = true;
+                cards[*index].control_family = modules::family(*family);
+                cards[*index].modules = modules.clone();
+            }
+            if request.detail_source.as_ref() == Some(node) {
+                if let Some(index) = cards
+                    .iter()
+                    .take(ordinary_count)
+                    .position(|row| !row.detail.associated_only)
+                {
+                    cards[index].modular = true;
+                    cards[index].control_family = modules::family(*family);
+                    cards[index].modules = modules;
                 }
             }
         }
@@ -1069,7 +1176,22 @@ impl DeviceStore {
         } else {
             None
         };
-        let arguments = slot.control.arguments(intent, slot.helper_revision)?;
+        let arguments = match intent {
+            DeviceIntent::Module(command) => {
+                if state.actions.iter().any(|(target, handle)| {
+                    target == &slot.target && progress::blocks_input(Some(&handle.snapshot()))
+                }) {
+                    return Err(Refusal::Capacity);
+                }
+                modules::arguments(slot, command)?
+            }
+            intent => {
+                if slot.module.is_some() {
+                    return Err(Refusal::Unsupported);
+                }
+                slot.control.arguments(intent, slot.helper_revision)?
+            }
+        };
         let request_id = home_client_actions::new_request_id().map_err(|_| Refusal::Unavailable)?;
         let expires = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1250,22 +1372,8 @@ fn card(
             if let Some(T::FanControl(value)) = capability.r#trait.as_ref()
                 && observation::evidence(capability).is_some()
             {
-                match value.observation.speed.and_then(|speed| speed.as_known()) {
-                    Some(wire::FanSpeed::Off) => {
-                        row.power_known = true;
-                        row.power_on = false;
-                    }
-                    Some(
-                        wire::FanSpeed::Low
-                        | wire::FanSpeed::Medium
-                        | wire::FanSpeed::MediumHigh
-                        | wire::FanSpeed::High,
-                    ) => {
-                        row.power_known = true;
-                        row.power_on = true;
-                    }
-                    Some(wire::FanSpeed::Unspecified) | None => {}
-                }
+                row.power_known = value.observation.on.is_some();
+                row.power_on = value.observation.on.unwrap_or(false);
             }
         }
         Control::Helper(helper) => {

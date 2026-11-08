@@ -125,7 +125,7 @@ func TestNHA161Historical29UpgradePreservesData(t *testing.T) {
 		return value
 	}
 	originalHistory := history()
-	if version, err := s.Migrate(ctx); err != nil || version.Number() != 30 {
+	if version, err := s.Migrate(ctx); err != nil || version != CurrentVersion() {
 		t.Fatalf("29→30: %v %v", version, err)
 	}
 	nha204AssertSnapshot(t, before, nha204Snapshot(t, ctx, s, columns))

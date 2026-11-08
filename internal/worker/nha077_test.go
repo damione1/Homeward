@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"google.golang.org/protobuf/proto"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -55,7 +56,7 @@ func TestNHA077UnhandshakenWorkerRejectsFanBeforeHost(t *testing.T) {
 	description := &registry.CapabilityDescription{SchemaId: contracts.FanSchema,
 		Major: 1, Endpoint: "speed", DisplayName: "Synthetic fan",
 		Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{
-			SpeedOptions: []string{"Off", "High"}}}}
+			ObservesPower: true, Speed: &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "Off"}, {Key: "High"}}}}}}
 	key, err := integrations.NewSourceKey("valid-fan-device", "valid-fan-zone")
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +76,7 @@ func TestNHA077UnhandshakenWorkerRejectsFanBeforeHost(t *testing.T) {
 			Availability: state.Availability_AVAILABILITY_AVAILABLE,
 			Freshness:    state.Freshness_FRESHNESS_FRESH,
 			Provenance:   state.Provenance_PROVENANCE_OBSERVED},
-		Value: &wire.Observation_Fan{Fan: &state.FanValue{Speed: state.FanSpeed_FAN_SPEED_OFF}},
+		Value: &wire.Observation_Fan{Fan: &state.FanValue{On: proto.Bool(false), Speed: proto.String("Off")}},
 	}})
 	publish.Header().Set("Authorization", "Bearer "+token)
 	if _, err := rig.pilot.Publish(context.Background(), publish); connect.CodeOf(err) != connect.CodeFailedPrecondition {
@@ -134,7 +135,7 @@ func TestNHA077UnhandshakenDriverRejectsRealAdmittedFan(t *testing.T) {
 	description := &registry.CapabilityDescription{SchemaId: contracts.FanSchema,
 		Major: 1, Endpoint: "speed", DisplayName: "Synthetic fan",
 		Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{
-			SpeedOptions: []string{"Off", "High"}}}}
+			ObservesPower: true, Speed: &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "Off"}, {Key: "High"}}}}}}
 	candidate, err := integrations.NewCandidate(key, []*registry.CapabilityDescription{description})
 	if err != nil {
 		t.Fatal(err)

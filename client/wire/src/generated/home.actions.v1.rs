@@ -329,6 +329,13 @@ pub struct SetLight {
     pub color_temp_mireds: ::core::option::Option<u32>,
     /// Field 4: `transition_seconds`
     pub transition_seconds: ::core::option::Option<f64>,
+    /// Field 5: `rgb`
+    pub rgb: ::buffa::MessageField<
+        super::super::registry::v1::RgbColor,
+        ::buffa::Inline<super::super::registry::v1::RgbColor>,
+    >,
+    /// Field 6: `preset`
+    pub preset: ::core::option::Option<::buffa::alloc::string::String>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -339,6 +346,8 @@ impl ::core::fmt::Debug for SetLight {
             .field("brightness_percent", &self.brightness_percent)
             .field("color_temp_mireds", &self.color_temp_mireds)
             .field("transition_seconds", &self.transition_seconds)
+            .field("rgb", &self.rgb)
+            .field("preset", &self.preset)
             .finish()
     }
 }
@@ -378,6 +387,16 @@ impl SetLight {
         self.transition_seconds = Some(value);
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::preset`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_preset(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.preset = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(SetLight);
 impl ::buffa::MessageName for SetLight {
@@ -395,7 +414,7 @@ impl ::buffa::Message for SetLight {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -411,12 +430,23 @@ impl ::buffa::Message for SetLight {
         if self.transition_seconds.is_some() {
             size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
         }
+        if self.rgb.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.rgb.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if let Some(ref v) = self.preset {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -432,6 +462,17 @@ impl ::buffa::Message for SetLight {
         }
         if let Some(v) = self.transition_seconds {
             ::buffa::types::put_double_field(4u32, v, buf);
+        }
+        if self.rgb.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.rgb.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.preset {
+            ::buffa::types::put_string_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -482,6 +523,27 @@ impl ::buffa::Message for SetLight {
                     ::buffa::types::decode_double(buf)?,
                 );
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.rgb.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self.preset.get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -494,6 +556,8 @@ impl ::buffa::Message for SetLight {
         self.brightness_percent = ::core::option::Option::None;
         self.color_temp_mireds = ::core::option::Option::None;
         self.transition_seconds = ::core::option::Option::None;
+        self.rgb = ::buffa::MessageField::none();
+        self.preset = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -512,6 +576,8 @@ pub struct SetFan {
     pub on: ::core::option::Option<bool>,
     /// Field 2: `speed`
     pub speed: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Field 3: `level`
+    pub level: ::core::option::Option<f64>,
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
@@ -520,6 +586,7 @@ impl ::core::fmt::Debug for SetFan {
         f.debug_struct("SetFan")
             .field("on", &self.on)
             .field("speed", &self.speed)
+            .field("level", &self.level)
             .finish()
     }
 }
@@ -546,6 +613,13 @@ impl SetFan {
         value: impl Into<::buffa::alloc::string::String>,
     ) -> Self {
         self.speed = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::level`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_level(mut self, value: f64) -> Self {
+        self.level = Some(value);
         self
     }
 }
@@ -575,6 +649,9 @@ impl ::buffa::Message for SetFan {
         if let Some(ref v) = self.speed {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.level.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -590,6 +667,9 @@ impl ::buffa::Message for SetFan {
         }
         if let Some(ref v) = self.speed {
             ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        if let Some(v) = self.level {
+            ::buffa::types::put_double_field(3u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -623,6 +703,15 @@ impl ::buffa::Message for SetFan {
                     buf,
                 )?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.level = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -633,6 +722,7 @@ impl ::buffa::Message for SetFan {
     fn clear(&mut self) {
         self.on = ::core::option::Option::None;
         self.speed = ::core::option::Option::None;
+        self.level = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3896,6 +3986,12 @@ pub mod __buffa {
             pub color_temp_mireds: ::core::option::Option<u32>,
             /// Field 4: `transition_seconds`
             pub transition_seconds: ::core::option::Option<f64>,
+            /// Field 5: `rgb`
+            pub rgb: ::buffa::MessageFieldView<
+                super::super::super::super::registry::v1::__buffa::view::RgbColorView<'a>,
+            >,
+            /// Field 6: `preset`
+            pub preset: ::core::option::Option<&'a str>,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for SetLightView<'a> {
@@ -3968,6 +4064,38 @@ pub mod __buffa {
                             ::buffa::types::decode_double(&mut cur)?,
                         );
                     }
+                    5u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        let __sub_ctx = ctx.descend()?;
+                        let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                        match view.rgb.as_mut() {
+                            Some(existing) => {
+                                ::buffa::MessageView::merge_into_view(
+                                    existing,
+                                    sub,
+                                    __sub_ctx,
+                                )?
+                            }
+                            None => {
+                                view.rgb = ::buffa::MessageFieldView::set(
+                                    <super::super::super::super::registry::v1::__buffa::view::RgbColorView as ::buffa::MessageView>::decode_view_ctx(
+                                        sub,
+                                        __sub_ctx,
+                                    )?,
+                                );
+                            }
+                        }
+                    }
+                    6u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        )?;
+                        view.preset = Some(::buffa::types::borrow_str(&mut cur)?);
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -3995,6 +4123,18 @@ pub mod __buffa {
                     brightness_percent: self.brightness_percent,
                     color_temp_mireds: self.color_temp_mireds,
                     transition_seconds: self.transition_seconds,
+                    rgb: match self.rgb.as_option() {
+                        Some(v) => {
+                            ::buffa::MessageField::<
+                                super::super::super::super::registry::v1::RgbColor,
+                                ::buffa::Inline<
+                                    super::super::super::super::registry::v1::RgbColor,
+                                >,
+                            >::some(v.to_owned_from_source(__buffa_src)?)
+                        }
+                        None => ::buffa::MessageField::none(),
+                    },
+                    preset: self.preset.map(|s| s.to_string()),
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -4005,7 +4145,7 @@ pub mod __buffa {
         }
         impl<'a> ::buffa::ViewEncode<'a> for SetLightView<'a> {
             #[allow(clippy::needless_borrow, clippy::let_and_return)]
-            fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+            fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
                 #[allow(unused_imports)]
                 use ::buffa::Enumeration as _;
                 let mut size = 0u64;
@@ -4021,13 +4161,24 @@ pub mod __buffa {
                 if self.transition_seconds.is_some() {
                     size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
                 }
+                if self.rgb.is_set() {
+                    let __slot = __cache.reserve();
+                    let inner_size = self.rgb.compute_size(__cache);
+                    __cache.set(__slot, inner_size);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                            + inner_size as u64;
+                }
+                if let Some(ref v) = self.preset {
+                    size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
             #[allow(clippy::needless_borrow)]
             fn write_to(
                 &self,
-                _cache: &mut ::buffa::SizeCache,
+                __cache: &mut ::buffa::SizeCache,
                 buf: &mut impl ::buffa::EncodeSink,
             ) {
                 #[allow(unused_imports)]
@@ -4043,6 +4194,17 @@ pub mod __buffa {
                 }
                 if let Some(v) = self.transition_seconds {
                     ::buffa::types::put_double_field(4u32, v, buf);
+                }
+                if self.rgb.is_set() {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    self.rgb.write_to(__cache, buf);
+                }
+                if let Some(ref v) = self.preset {
+                    ::buffa::types::put_string_field(6u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -4157,6 +4319,20 @@ pub mod __buffa {
             pub fn transition_seconds(&self) -> ::core::option::Option<f64> {
                 self.0.reborrow().transition_seconds
             }
+            /// Field 5: `rgb`
+            #[must_use]
+            pub fn rgb(
+                &self,
+            ) -> &::buffa::MessageFieldView<
+                super::super::super::super::registry::v1::__buffa::view::RgbColorView<'_>,
+            > {
+                &self.0.reborrow().rgb
+            }
+            /// Field 6: `preset`
+            #[must_use]
+            pub fn preset(&self) -> ::core::option::Option<&'_ str> {
+                self.0.reborrow().preset
+            }
         }
         impl ::core::convert::From<::buffa::OwnedView<SetLightView<'static>>>
         for SetLightOwnedView {
@@ -4186,6 +4362,8 @@ pub mod __buffa {
             pub on: ::core::option::Option<bool>,
             /// Field 2: `speed`
             pub speed: ::core::option::Option<&'a str>,
+            /// Field 3: `level`
+            pub level: ::core::option::Option<f64>,
             pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
         }
         impl<'a> ::buffa::MessageView<'a> for SetFanView<'a> {
@@ -4238,6 +4416,13 @@ pub mod __buffa {
                         )?;
                         view.speed = Some(::buffa::types::borrow_str(&mut cur)?);
                     }
+                    3u32 => {
+                        ::buffa::encoding::check_wire_type(
+                            tag,
+                            ::buffa::encoding::WireType::Fixed64,
+                        )?;
+                        view.level = Some(::buffa::types::decode_double(&mut cur)?);
+                    }
                     _ => {
                         ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                         let span_len = before_tag.len() - cur.len();
@@ -4263,6 +4448,7 @@ pub mod __buffa {
                 ::core::result::Result::Ok(super::super::SetFan {
                     on: self.on,
                     speed: self.speed.map(|s| s.to_string()),
+                    level: self.level,
                     __buffa_unknown_fields: self
                         .__buffa_unknown_fields
                         .to_owned()?
@@ -4283,6 +4469,9 @@ pub mod __buffa {
                 if let Some(ref v) = self.speed {
                     size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
                 }
+                if self.level.is_some() {
+                    size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+                }
                 size += self.__buffa_unknown_fields.encoded_len() as u64;
                 ::buffa::saturate_size(size)
             }
@@ -4299,6 +4488,9 @@ pub mod __buffa {
                 }
                 if let Some(ref v) = self.speed {
                     ::buffa::types::put_string_field(2u32, v, buf);
+                }
+                if let Some(v) = self.level {
+                    ::buffa::types::put_double_field(3u32, v, buf);
                 }
                 self.__buffa_unknown_fields.write_to(buf);
             }
@@ -4402,6 +4594,11 @@ pub mod __buffa {
             #[must_use]
             pub fn speed(&self) -> ::core::option::Option<&'_ str> {
                 self.0.reborrow().speed
+            }
+            /// Field 3: `level`
+            #[must_use]
+            pub fn level(&self) -> ::core::option::Option<f64> {
+                self.0.reborrow().level
             }
         }
         impl ::core::convert::From<::buffa::OwnedView<SetFanView<'static>>>

@@ -521,7 +521,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 				} else if preparedRoute != nil && preparedRoute.kind == preparedCommandDirect {
 					capture := preparedRoute.direct.capture
 					if alias == nil || *alias != capture.alias || capture.entity != entity ||
-						capture.binding != binding || !proto.Equal(description, capture.description) ||
+						capture.binding != binding || (capture.fanProfile != nil && h.fanProfiles[entity] != capture.fanProfile) || !proto.Equal(description, capture.description) ||
 						capture.epoch != wire.AdmissionEpoch || capture.configRevision != wire.ConfigRevision {
 						return ErrCommandRouteUnavailable
 					}

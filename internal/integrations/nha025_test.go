@@ -238,7 +238,7 @@ func TestNHA025PartialStructuredStateNeedsQualifiedProtocolProof(t *testing.T) {
 		arguments    *actions.ActionArgs
 	}{
 		{"light brightness", contracts.LightSchema, &wireregistry.CapabilityDescription{SchemaId: contracts.LightSchema, Major: 1, Endpoint: "relay", DisplayName: "Fake light", Constraints: &wireregistry.CapabilityDescription_Light{Light: &wireregistry.LightConstraints{SetOn: true, BrightnessPercent: &wireregistry.NumberBounds{Minimum: 0, Maximum: 100}}}}, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{On: &on, BrightnessPercent: &brightness}}}},
-		{"fan speed", contracts.FanSchema, &wireregistry.CapabilityDescription{SchemaId: contracts.FanSchema, Major: 1, Endpoint: "relay", DisplayName: "Fake fan", Constraints: &wireregistry.CapabilityDescription_Fan{Fan: &wireregistry.FanConstraints{SetOn: true, SpeedOptions: []string{"medium"}}}}, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{On: &on, Speed: &speed}}}},
+		{"fan speed", contracts.FanSchema, &wireregistry.CapabilityDescription{SchemaId: contracts.FanSchema, Major: 1, Endpoint: "relay", DisplayName: "Fake fan", Constraints: &wireregistry.CapabilityDescription_Fan{Fan: &wireregistry.FanConstraints{SetOn: true, ObservesPower: true, Speed: &wireregistry.ControlChoices{Choices: []*wireregistry.ControlChoice{{Key: "medium"}}}}}}, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{On: &on, Speed: &speed}}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

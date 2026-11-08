@@ -185,7 +185,8 @@ func (c LightCapture) ObservedHABrightness() (uint8, uint64, error) {
 	if err != nil {
 		return 0, 0, ErrLightObservationUnavailable
 	}
-	on, percent, _, err := light.Components()
+	lightParts, lightPartsErr := light.Components()
+	on, percent, err := lightParts.On, lightParts.Brightness, lightPartsErr
 	if err != nil {
 		return 0, 0, ErrLightObservationUnavailable
 	}
@@ -380,7 +381,11 @@ func (c LightCapture) PrepareHAWithCT(actor domain.ActorID, id domain.CommandID,
 
 // PrepareNative is for observed Homeward snapshots, whose brightness is
 // already a native percentage. It never round-trips through HA 0..255.
-func (c LightCapture) PrepareNative(actor domain.ActorID, id domain.CommandID, expiresAt time.Time, on bool, percent *float64, ctMireds *uint32, transition *float64) (PreparedLight, error) {
+func (c LightCapture) PrepareNative(actor domain.ActorID, id domain.CommandID, expiresAt time.Time, value domain.LightValueInput, transition *float64) (PreparedLight, error) {
+	on, percent, ctMireds := value.On, value.Brightness, value.ColorTemperatureMireds
+	if _, err := domain.NewLightValue(value); err != nil {
+		return PreparedLight{}, ErrInvalidInput
+	}
 	if c.router == nil || c.profile == nil || c.description == nil || expiresAt.IsZero() || !expiresAt.After(c.router.clock.Now()) {
 		return PreparedLight{}, ErrInvalidInput
 	}
@@ -395,17 +400,17 @@ func (c LightCapture) PrepareNative(actor domain.ActorID, id domain.CommandID, e
 	if err != nil {
 		return PreparedLight{}, err
 	}
-	if on && percent == nil {
+	if on && percent == nil && ctMireds == nil && value.RGB == nil && value.Preset == nil {
 		return PreparedLight{}, ErrLightPreparationUnsupported
 	}
-	if !on && (percent != nil || ctMireds != nil) {
+	if !on && (percent != nil || ctMireds != nil || value.RGB != nil || value.Preset != nil) {
 		return PreparedLight{}, ErrInvalidInput
 	}
 	if ctMireds != nil && (c.description.GetLight() == nil || c.description.GetLight().ColorTempMireds == nil ||
 		(c.profile.kind == lightProfileMQTT && c.profile.encoding.ikea30W && transition != nil)) {
 		return PreparedLight{}, ErrLightPreparationUnsupported
 	}
-	arg := &actions.SetLight{On: &on}
+	arg := &actions.SetLight{On: &on, Rgb: contracts.WireRGB(value.RGB), Preset: value.Preset}
 	if percent != nil {
 		value := *percent
 		if math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 || value > 100 {

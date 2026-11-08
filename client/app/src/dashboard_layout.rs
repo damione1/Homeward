@@ -69,6 +69,12 @@ pub(crate) struct CoverLock {
     pub capability: CapabilityName,
     pub label: String,
 }
+// Only strictly admitted finite definitions enter this wrapper, so equality
+// is reflexive even though the underlying transport uses f64.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Modules(pub Vec<home_client_model::control_modules::ControlModule>);
+impl Eq for Modules {}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Node {
     pub id: NodeId,
@@ -81,6 +87,8 @@ pub(crate) struct Node {
     pub recipe_kind: Option<RecipeKind>,
     pub recipes: Option<Recipes>,
     pub features: Vec<FeatureKind>,
+    pub control_family: Option<home_client_model::control_modules::VisualFamily>,
+    pub control_modules: Modules,
     pub summary_only: bool,
     pub entity: Option<EntityName>,
     pub capability: Option<CapabilityName>,
@@ -406,6 +414,8 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
         recipe_kind: None,
         recipes: None,
         features: Vec::new(),
+        control_family: None,
+        control_modules: Modules::default(),
         summary_only: false,
         entity: None,
         capability: None,
@@ -528,6 +538,7 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
                 return Err(LayoutFailure::Unsupported);
             };
             node.kind = Kind::Tile;
+            modular_binding(&mut node, v.visual_family, &v.modules)?;
             bind_node(&mut node, &v.capability)?;
             node.cover_lock = v
                 .cover_lock
@@ -561,6 +572,7 @@ fn parse_node(raw: &wire::DashboardLayoutNode) -> Result<Node, LayoutFailure> {
                 return Err(LayoutFailure::Unsupported);
             };
             node.kind = Kind::Recipe;
+            modular_binding(&mut node, v.visual_family, &v.modules)?;
             node.recipe_kind = recipe_kind(v.kind).map_err(|_| LayoutFailure::Unsupported)?;
             if node.recipe_kind.is_none() {
                 return Err(LayoutFailure::Unsupported);
@@ -1191,4 +1203,33 @@ pub(crate) mod tests {
         value.nodes.push(tile("overflow"));
         assert_eq!(NativeLayout::try_from(&value), Err(LayoutFailure::Budget));
     }
+}
+
+fn modular_binding(
+    node: &mut Node,
+    family: buffa::EnumValue<wire::ControlVisualFamily>,
+    modules: &[wire::ControlModule],
+) -> Result<(), LayoutFailure> {
+    use home_wire_contract::control_modules_contract as codec;
+    if modules.is_empty() && family.as_known() == Some(wire::ControlVisualFamily::Unspecified) {
+        return Ok(());
+    }
+    if modules.len() > 16 {
+        return Err(LayoutFailure::Invalid);
+    }
+    let family = codec::visual_family(family).map_err(|_| LayoutFailure::Unsupported)?;
+    let parsed = modules
+        .iter()
+        .map(codec::module)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| LayoutFailure::Invalid)?;
+    let mut seen = std::collections::HashSet::new();
+    for module in modules {
+        if !seen.insert((module.capability.clone(), module.role.to_i32())) {
+            return Err(LayoutFailure::Invalid);
+        }
+    }
+    node.control_family = Some(family);
+    node.control_modules = Modules(parsed);
+    Ok(())
 }

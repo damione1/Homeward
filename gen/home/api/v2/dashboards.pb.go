@@ -1597,13 +1597,13 @@ func (x *DashboardLiteral) GetTemperatureMode() TemperatureMode {
 	return TemperatureMode_TEMPERATURE_MODE_UNSPECIFIED
 }
 
-func (x *DashboardLiteral) GetFanSpeed() FanSpeed {
+func (x *DashboardLiteral) GetFanSpeed() string {
 	if x != nil {
 		if x, ok := x.Value.(*DashboardLiteral_FanSpeed); ok {
 			return x.FanSpeed
 		}
 	}
-	return FanSpeed_FAN_SPEED_UNSPECIFIED
+	return ""
 }
 
 func (x *DashboardLiteral) GetWeatherCondition() WeatherCondition {
@@ -1680,7 +1680,7 @@ type DashboardLiteral_TemperatureMode struct {
 
 type DashboardLiteral_FanSpeed struct {
 	// Explicit fan speed, never synthesized into power.
-	FanSpeed FanSpeed `protobuf:"varint,11,opt,name=fan_speed,json=fanSpeed,proto3,enum=home.api.v2.FanSpeed,oneof"`
+	FanSpeed string `protobuf:"bytes,11,opt,name=fan_speed,json=fanSpeed,proto3,oneof"`
 }
 
 type DashboardLiteral_WeatherCondition struct {
@@ -2738,6 +2738,8 @@ type DashboardTileNode struct {
 	Interactions *DashboardInteractions `protobuf:"bytes,6,opt,name=interactions,proto3" json:"interactions,omitempty"`
 	// Explicit cover association; absent when the secondary lock is unreadable.
 	CoverLock     *DashboardCoverLock `protobuf:"bytes,7,opt,name=cover_lock,json=coverLock,proto3" json:"cover_lock,omitempty"`
+	VisualFamily  ControlVisualFamily `protobuf:"varint,8,opt,name=visual_family,json=visualFamily,proto3,enum=home.api.v2.ControlVisualFamily" json:"visual_family,omitempty"`
+	Modules       []*ControlModule    `protobuf:"bytes,9,rep,name=modules,proto3" json:"modules,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2821,6 +2823,20 @@ func (x *DashboardTileNode) GetCoverLock() *DashboardCoverLock {
 	return nil
 }
 
+func (x *DashboardTileNode) GetVisualFamily() ControlVisualFamily {
+	if x != nil {
+		return x.VisualFamily
+	}
+	return ControlVisualFamily_CONTROL_VISUAL_FAMILY_UNSPECIFIED
+}
+
+func (x *DashboardTileNode) GetModules() []*ControlModule {
+	if x != nil {
+		return x.Modules
+	}
+	return nil
+}
+
 // A bounded authored recipe, never a downloaded template implementation.
 type DashboardRecipeNode struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2838,6 +2854,8 @@ type DashboardRecipeNode struct {
 	Interactions *DashboardInteractions `protobuf:"bytes,6,opt,name=interactions,proto3" json:"interactions,omitempty"`
 	// Explicit cover association; absent when the secondary lock is unreadable.
 	CoverLock     *DashboardCoverLock `protobuf:"bytes,7,opt,name=cover_lock,json=coverLock,proto3" json:"cover_lock,omitempty"`
+	VisualFamily  ControlVisualFamily `protobuf:"varint,8,opt,name=visual_family,json=visualFamily,proto3,enum=home.api.v2.ControlVisualFamily" json:"visual_family,omitempty"`
+	Modules       []*ControlModule    `protobuf:"bytes,9,rep,name=modules,proto3" json:"modules,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2917,6 +2935,20 @@ func (x *DashboardRecipeNode) GetInteractions() *DashboardInteractions {
 func (x *DashboardRecipeNode) GetCoverLock() *DashboardCoverLock {
 	if x != nil {
 		return x.CoverLock
+	}
+	return nil
+}
+
+func (x *DashboardRecipeNode) GetVisualFamily() ControlVisualFamily {
+	if x != nil {
+		return x.VisualFamily
+	}
+	return ControlVisualFamily_CONTROL_VISUAL_FAMILY_UNSPECIFIED
+}
+
+func (x *DashboardRecipeNode) GetModules() []*ControlModule {
+	if x != nil {
+		return x.Modules
 	}
 	return nil
 }
@@ -4812,7 +4844,7 @@ var File_home_api_v2_dashboards_proto protoreflect.FileDescriptor
 
 const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\n" +
-	"\x1chome/api/v2/dashboards.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!home/api/v2/extended_traits.proto\x1a\x18home/api/v2/traits.proto\"\xa2\x03\n" +
+	"\x1chome/api/v2/dashboards.proto\x12\vhome.api.v2\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!home/api/v2/extended_traits.proto\x1a\x18home/api/v2/traits.proto\x1a\x16home/api/v2/home.proto\"\xa2\x03\n" +
 	"\tDashboard\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12'\n" +
 	"\fdisplay_name\x18\x02 \x01(\tB\x04\xe2A\x01\x03R\vdisplayName\x12\x18\n" +
@@ -4859,7 +4891,7 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\fresume_token\x18\x03 \x01(\tR\vresumeToken\x12\x18\n" +
 	"\abinding\x18\x04 \x01(\tR\abinding\x12;\n" +
 	"\vexpire_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"expireTime\"\xca\x05\n" +
+	"expireTime\"\xb3\x05\n" +
 	"\x10DashboardLiteral\x12%\n" +
 	"\rboolean_value\x18\x01 \x01(\bH\x00R\fbooleanValue\x12%\n" +
 	"\rinteger_value\x18\x02 \x01(\x03H\x00R\fintegerValue\x12#\n" +
@@ -4876,8 +4908,8 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\valarm_state\x18\t \x01(\x0e2\x17.home.api.v2.AlarmStateH\x00R\n" +
 	"alarmState\x12I\n" +
 	"\x10temperature_mode\x18\n" +
-	" \x01(\x0e2\x1c.home.api.v2.TemperatureModeH\x00R\x0ftemperatureMode\x124\n" +
-	"\tfan_speed\x18\v \x01(\x0e2\x15.home.api.v2.FanSpeedH\x00R\bfanSpeed\x12L\n" +
+	" \x01(\x0e2\x1c.home.api.v2.TemperatureModeH\x00R\x0ftemperatureMode\x12\x1d\n" +
+	"\tfan_speed\x18\v \x01(\tH\x00R\bfanSpeed\x12L\n" +
 	"\x11weather_condition\x18\f \x01(\x0e2\x1d.home.api.v2.WeatherConditionH\x00R\x10weatherCondition\x126\n" +
 	"\tresidence\x18\r \x01(\x0e2\x16.home.api.v2.ResidenceH\x00R\tresidenceB\a\n" +
 	"\x05value\"\x96\x01\n" +
@@ -4951,7 +4983,7 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"capability\x18\x01 \x01(\tB)\xfaA&\n" +
 	"$homeward.damiengoehrig.ca/CapabilityR\n" +
 	"capability\x12!\n" +
-	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\"\xe7\x03\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\"\xe4\x04\n" +
 	"\x11DashboardTileNode\x12I\n" +
 	"\n" +
 	"capability\x18\x01 \x01(\tB)\xfaA&\n" +
@@ -4963,9 +4995,11 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\x10hide_observation\x18\x05 \x01(\bH\x01R\x0fhideObservation\x88\x01\x01\x12F\n" +
 	"\finteractions\x18\x06 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractions\x12>\n" +
 	"\n" +
-	"cover_lock\x18\a \x01(\v2\x1f.home.api.v2.DashboardCoverLockR\tcoverLockB\v\n" +
+	"cover_lock\x18\a \x01(\v2\x1f.home.api.v2.DashboardCoverLockR\tcoverLock\x12E\n" +
+	"\rvisual_family\x18\b \x01(\x0e2 .home.api.v2.ControlVisualFamilyR\fvisualFamily\x124\n" +
+	"\amodules\x18\t \x03(\v2\x1a.home.api.v2.ControlModuleR\amodulesB\v\n" +
 	"\t_verticalB\x13\n" +
-	"\x11_hide_observation\"\xca\x03\n" +
+	"\x11_hide_observation\"\xc7\x04\n" +
 	"\x13DashboardRecipeNode\x124\n" +
 	"\x04kind\x18\x01 \x01(\x0e2 .home.api.v2.DashboardRecipeKindR\x04kind\x12I\n" +
 	"\n" +
@@ -4977,7 +5011,9 @@ const file_home_api_v2_dashboards_proto_rawDesc = "" +
 	"\fpresentation\x18\x05 \x01(\x0e2).home.api.v2.DashboardControlPresentationR\fpresentation\x12F\n" +
 	"\finteractions\x18\x06 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractions\x12>\n" +
 	"\n" +
-	"cover_lock\x18\a \x01(\v2\x1f.home.api.v2.DashboardCoverLockR\tcoverLock\"\x98\x01\n" +
+	"cover_lock\x18\a \x01(\v2\x1f.home.api.v2.DashboardCoverLockR\tcoverLock\x12E\n" +
+	"\rvisual_family\x18\b \x01(\x0e2 .home.api.v2.ControlVisualFamilyR\fvisualFamily\x124\n" +
+	"\amodules\x18\t \x03(\v2\x1a.home.api.v2.ControlModuleR\amodules\"\x98\x01\n" +
 	"\x12DashboardPopupNode\x12:\n" +
 	"\bchildren\x18\x01 \x01(\v2\x1e.home.api.v2.DashboardChildrenR\bchildren\x12F\n" +
 	"\finteractions\x18\x02 \x01(\v2\".home.api.v2.DashboardInteractionsR\finteractions\"\x9c\x01\n" +
@@ -5308,11 +5344,12 @@ var file_home_api_v2_dashboards_proto_goTypes = []any{
 	(LockState)(0),                       // 66: home.api.v2.LockState
 	(AlarmState)(0),                      // 67: home.api.v2.AlarmState
 	(TemperatureMode)(0),                 // 68: home.api.v2.TemperatureMode
-	(FanSpeed)(0),                        // 69: home.api.v2.FanSpeed
-	(WeatherCondition)(0),                // 70: home.api.v2.WeatherCondition
-	(Residence)(0),                       // 71: home.api.v2.Residence
-	(*emptypb.Empty)(nil),                // 72: google.protobuf.Empty
-	(*durationpb.Duration)(nil),          // 73: google.protobuf.Duration
+	(WeatherCondition)(0),                // 69: home.api.v2.WeatherCondition
+	(Residence)(0),                       // 70: home.api.v2.Residence
+	(*emptypb.Empty)(nil),                // 71: google.protobuf.Empty
+	(ControlVisualFamily)(0),             // 72: home.api.v2.ControlVisualFamily
+	(*ControlModule)(nil),                // 73: home.api.v2.ControlModule
+	(*durationpb.Duration)(nil),          // 74: google.protobuf.Duration
 }
 var file_home_api_v2_dashboards_proto_depIdxs = []int32{
 	63,  // 0: home.api.v2.Dashboard.update_time:type_name -> google.protobuf.Timestamp
@@ -5326,109 +5363,112 @@ var file_home_api_v2_dashboards_proto_depIdxs = []int32{
 	66,  // 8: home.api.v2.DashboardLiteral.lock_state:type_name -> home.api.v2.LockState
 	67,  // 9: home.api.v2.DashboardLiteral.alarm_state:type_name -> home.api.v2.AlarmState
 	68,  // 10: home.api.v2.DashboardLiteral.temperature_mode:type_name -> home.api.v2.TemperatureMode
-	69,  // 11: home.api.v2.DashboardLiteral.fan_speed:type_name -> home.api.v2.FanSpeed
-	70,  // 12: home.api.v2.DashboardLiteral.weather_condition:type_name -> home.api.v2.WeatherCondition
-	71,  // 13: home.api.v2.DashboardLiteral.residence:type_name -> home.api.v2.Residence
-	72,  // 14: home.api.v2.DashboardLayoutDimension.full:type_name -> google.protobuf.Empty
-	72,  // 15: home.api.v2.DashboardLayoutDimension.auto:type_name -> google.protobuf.Empty
-	23,  // 16: home.api.v2.DashboardLayoutNode.source:type_name -> home.api.v2.DashboardLayoutSource
-	11,  // 17: home.api.v2.DashboardLayoutNode.icon:type_name -> home.api.v2.DashboardIcon
-	25,  // 18: home.api.v2.DashboardLayoutNode.placement:type_name -> home.api.v2.DashboardPlacement
-	38,  // 19: home.api.v2.DashboardLayoutNode.screen_visibility:type_name -> home.api.v2.DashboardScreenVisibility
-	60,  // 20: home.api.v2.DashboardLayoutNode.visibility:type_name -> home.api.v2.DashboardPredicate
-	27,  // 21: home.api.v2.DashboardLayoutNode.view:type_name -> home.api.v2.DashboardViewNode
-	28,  // 22: home.api.v2.DashboardLayoutNode.section:type_name -> home.api.v2.DashboardSectionNode
-	29,  // 23: home.api.v2.DashboardLayoutNode.grid:type_name -> home.api.v2.DashboardGridNode
-	30,  // 24: home.api.v2.DashboardLayoutNode.horizontal_stack:type_name -> home.api.v2.DashboardStackNode
-	30,  // 25: home.api.v2.DashboardLayoutNode.vertical_stack:type_name -> home.api.v2.DashboardStackNode
-	31,  // 26: home.api.v2.DashboardLayoutNode.heading:type_name -> home.api.v2.DashboardHeadingNode
-	33,  // 27: home.api.v2.DashboardLayoutNode.tile:type_name -> home.api.v2.DashboardTileNode
-	34,  // 28: home.api.v2.DashboardLayoutNode.recipe:type_name -> home.api.v2.DashboardRecipeNode
-	35,  // 29: home.api.v2.DashboardLayoutNode.popup:type_name -> home.api.v2.DashboardPopupNode
-	36,  // 30: home.api.v2.DashboardLayoutNode.chip_group:type_name -> home.api.v2.DashboardChipGroupNode
-	51,  // 31: home.api.v2.DashboardLayoutNode.widget:type_name -> home.api.v2.DashboardWidget
-	37,  // 32: home.api.v2.DashboardLayoutNode.unsupported:type_name -> home.api.v2.DashboardUnsupportedNode
-	22,  // 33: home.api.v2.DashboardPlacement.column_span:type_name -> home.api.v2.DashboardLayoutDimension
-	22,  // 34: home.api.v2.DashboardPlacement.row_span:type_name -> home.api.v2.DashboardLayoutDimension
-	39,  // 35: home.api.v2.DashboardPlacement.responsive_spans:type_name -> home.api.v2.DashboardResponsiveSpan
-	26,  // 36: home.api.v2.DashboardViewNode.children:type_name -> home.api.v2.DashboardChildren
-	26,  // 37: home.api.v2.DashboardSectionNode.children:type_name -> home.api.v2.DashboardChildren
-	26,  // 38: home.api.v2.DashboardGridNode.children:type_name -> home.api.v2.DashboardChildren
-	61,  // 39: home.api.v2.DashboardGridNode.interactions:type_name -> home.api.v2.DashboardInteractions
-	26,  // 40: home.api.v2.DashboardStackNode.children:type_name -> home.api.v2.DashboardChildren
-	61,  // 41: home.api.v2.DashboardStackNode.interactions:type_name -> home.api.v2.DashboardInteractions
-	1,   // 42: home.api.v2.DashboardHeadingNode.style:type_name -> home.api.v2.DashboardHeadingStyle
-	61,  // 43: home.api.v2.DashboardHeadingNode.interactions:type_name -> home.api.v2.DashboardInteractions
-	6,   // 44: home.api.v2.DashboardTileNode.features:type_name -> home.api.v2.DashboardFeatureKind
-	2,   // 45: home.api.v2.DashboardTileNode.presentation:type_name -> home.api.v2.DashboardControlPresentation
-	61,  // 46: home.api.v2.DashboardTileNode.interactions:type_name -> home.api.v2.DashboardInteractions
-	32,  // 47: home.api.v2.DashboardTileNode.cover_lock:type_name -> home.api.v2.DashboardCoverLock
-	5,   // 48: home.api.v2.DashboardRecipeNode.kind:type_name -> home.api.v2.DashboardRecipeKind
-	6,   // 49: home.api.v2.DashboardRecipeNode.features:type_name -> home.api.v2.DashboardFeatureKind
-	2,   // 50: home.api.v2.DashboardRecipeNode.presentation:type_name -> home.api.v2.DashboardControlPresentation
-	61,  // 51: home.api.v2.DashboardRecipeNode.interactions:type_name -> home.api.v2.DashboardInteractions
-	32,  // 52: home.api.v2.DashboardRecipeNode.cover_lock:type_name -> home.api.v2.DashboardCoverLock
-	26,  // 53: home.api.v2.DashboardPopupNode.children:type_name -> home.api.v2.DashboardChildren
-	61,  // 54: home.api.v2.DashboardPopupNode.interactions:type_name -> home.api.v2.DashboardInteractions
-	26,  // 55: home.api.v2.DashboardChipGroupNode.children:type_name -> home.api.v2.DashboardChildren
-	61,  // 56: home.api.v2.DashboardChipGroupNode.interactions:type_name -> home.api.v2.DashboardInteractions
-	0,   // 57: home.api.v2.DashboardFieldBinding.field:type_name -> home.api.v2.DashboardFieldKey
-	40,  // 58: home.api.v2.DashboardRoomWidget.temperature:type_name -> home.api.v2.DashboardFieldBinding
-	43,  // 59: home.api.v2.DashboardRoomWidget.activity:type_name -> home.api.v2.DashboardActivityBinding
-	40,  // 60: home.api.v2.DashboardActivityBinding.field:type_name -> home.api.v2.DashboardFieldBinding
-	21,  // 61: home.api.v2.DashboardActivityBinding.active_values:type_name -> home.api.v2.DashboardLiteral
-	40,  // 62: home.api.v2.DashboardThermostatWidget.current_temperature:type_name -> home.api.v2.DashboardFieldBinding
-	40,  // 63: home.api.v2.DashboardThermostatWidget.target_temperature:type_name -> home.api.v2.DashboardFieldBinding
-	3,   // 64: home.api.v2.DashboardThermostatWidget.presentation:type_name -> home.api.v2.DashboardThermostatPresentation
-	73,  // 65: home.api.v2.DashboardAgendaWidget.time_window:type_name -> google.protobuf.Duration
-	4,   // 66: home.api.v2.DashboardTasksWidget.presentation:type_name -> home.api.v2.DashboardTasksPresentation
-	40,  // 67: home.api.v2.DashboardObservationBinding.field:type_name -> home.api.v2.DashboardFieldBinding
-	21,  // 68: home.api.v2.DashboardObservationBinding.active_values:type_name -> home.api.v2.DashboardLiteral
-	11,  // 69: home.api.v2.DashboardObservationBinding.icon:type_name -> home.api.v2.DashboardIcon
-	48,  // 70: home.api.v2.DashboardObservationsWidget.items:type_name -> home.api.v2.DashboardObservationBinding
-	52,  // 71: home.api.v2.DashboardNavigationWidget.destination:type_name -> home.api.v2.DashboardDestination
-	41,  // 72: home.api.v2.DashboardWidget.clock_weather:type_name -> home.api.v2.DashboardClockWeatherWidget
-	42,  // 73: home.api.v2.DashboardWidget.room:type_name -> home.api.v2.DashboardRoomWidget
-	44,  // 74: home.api.v2.DashboardWidget.thermostat:type_name -> home.api.v2.DashboardThermostatWidget
-	45,  // 75: home.api.v2.DashboardWidget.agenda:type_name -> home.api.v2.DashboardAgendaWidget
-	46,  // 76: home.api.v2.DashboardWidget.tasks:type_name -> home.api.v2.DashboardTasksWidget
-	47,  // 77: home.api.v2.DashboardWidget.security:type_name -> home.api.v2.DashboardSecurityWidget
-	49,  // 78: home.api.v2.DashboardWidget.observations:type_name -> home.api.v2.DashboardObservationsWidget
-	50,  // 79: home.api.v2.DashboardWidget.navigation:type_name -> home.api.v2.DashboardNavigationWidget
-	52,  // 80: home.api.v2.DashboardWidget.action:type_name -> home.api.v2.DashboardDestination
-	61,  // 81: home.api.v2.DashboardWidget.interactions:type_name -> home.api.v2.DashboardInteractions
-	8,   // 82: home.api.v2.DashboardDestination.presentation:type_name -> home.api.v2.DashboardPresentation
-	9,   // 83: home.api.v2.DashboardCommand.kind:type_name -> home.api.v2.DashboardCommandKind
-	7,   // 84: home.api.v2.DashboardInteraction.gesture:type_name -> home.api.v2.DashboardGesture
-	55,  // 85: home.api.v2.DashboardInteraction.none:type_name -> home.api.v2.DashboardNoAction
-	53,  // 86: home.api.v2.DashboardInteraction.more_info:type_name -> home.api.v2.DashboardEntityTarget
-	52,  // 87: home.api.v2.DashboardInteraction.navigate:type_name -> home.api.v2.DashboardDestination
-	54,  // 88: home.api.v2.DashboardInteraction.command:type_name -> home.api.v2.DashboardCommand
-	56,  // 89: home.api.v2.DashboardInteraction.confirmation:type_name -> home.api.v2.DashboardConfirmation
-	23,  // 90: home.api.v2.DashboardInteraction.source:type_name -> home.api.v2.DashboardLayoutSource
-	40,  // 91: home.api.v2.DashboardStatePredicate.field:type_name -> home.api.v2.DashboardFieldBinding
-	21,  // 92: home.api.v2.DashboardStatePredicate.expected:type_name -> home.api.v2.DashboardLiteral
-	10,  // 93: home.api.v2.DashboardStatePredicate.comparison:type_name -> home.api.v2.DashboardComparison
-	60,  // 94: home.api.v2.DashboardPredicateList.conditions:type_name -> home.api.v2.DashboardPredicate
-	58,  // 95: home.api.v2.DashboardPredicate.state:type_name -> home.api.v2.DashboardStatePredicate
-	59,  // 96: home.api.v2.DashboardPredicate.all:type_name -> home.api.v2.DashboardPredicateList
-	59,  // 97: home.api.v2.DashboardPredicate.any:type_name -> home.api.v2.DashboardPredicateList
-	23,  // 98: home.api.v2.DashboardPredicate.source:type_name -> home.api.v2.DashboardLayoutSource
-	57,  // 99: home.api.v2.DashboardInteractions.interactions:type_name -> home.api.v2.DashboardInteraction
-	24,  // 100: home.api.v2.DashboardLayout.nodes:type_name -> home.api.v2.DashboardLayoutNode
-	14,  // 101: home.api.v2.DashboardService.GetDashboard:input_type -> home.api.v2.GetDashboardRequest
-	15,  // 102: home.api.v2.DashboardService.ListDashboards:input_type -> home.api.v2.ListDashboardsRequest
-	17,  // 103: home.api.v2.DashboardService.WatchDashboards:input_type -> home.api.v2.WatchDashboardsRequest
-	19,  // 104: home.api.v2.DashboardService.QueryDashboard:input_type -> home.api.v2.QueryDashboardRequest
-	12,  // 105: home.api.v2.DashboardService.GetDashboard:output_type -> home.api.v2.Dashboard
-	16,  // 106: home.api.v2.DashboardService.ListDashboards:output_type -> home.api.v2.ListDashboardsResponse
-	18,  // 107: home.api.v2.DashboardService.WatchDashboards:output_type -> home.api.v2.WatchDashboardsResponse
-	20,  // 108: home.api.v2.DashboardService.QueryDashboard:output_type -> home.api.v2.QueryDashboardResponse
-	105, // [105:109] is the sub-list for method output_type
-	101, // [101:105] is the sub-list for method input_type
-	101, // [101:101] is the sub-list for extension type_name
-	101, // [101:101] is the sub-list for extension extendee
-	0,   // [0:101] is the sub-list for field type_name
+	69,  // 11: home.api.v2.DashboardLiteral.weather_condition:type_name -> home.api.v2.WeatherCondition
+	70,  // 12: home.api.v2.DashboardLiteral.residence:type_name -> home.api.v2.Residence
+	71,  // 13: home.api.v2.DashboardLayoutDimension.full:type_name -> google.protobuf.Empty
+	71,  // 14: home.api.v2.DashboardLayoutDimension.auto:type_name -> google.protobuf.Empty
+	23,  // 15: home.api.v2.DashboardLayoutNode.source:type_name -> home.api.v2.DashboardLayoutSource
+	11,  // 16: home.api.v2.DashboardLayoutNode.icon:type_name -> home.api.v2.DashboardIcon
+	25,  // 17: home.api.v2.DashboardLayoutNode.placement:type_name -> home.api.v2.DashboardPlacement
+	38,  // 18: home.api.v2.DashboardLayoutNode.screen_visibility:type_name -> home.api.v2.DashboardScreenVisibility
+	60,  // 19: home.api.v2.DashboardLayoutNode.visibility:type_name -> home.api.v2.DashboardPredicate
+	27,  // 20: home.api.v2.DashboardLayoutNode.view:type_name -> home.api.v2.DashboardViewNode
+	28,  // 21: home.api.v2.DashboardLayoutNode.section:type_name -> home.api.v2.DashboardSectionNode
+	29,  // 22: home.api.v2.DashboardLayoutNode.grid:type_name -> home.api.v2.DashboardGridNode
+	30,  // 23: home.api.v2.DashboardLayoutNode.horizontal_stack:type_name -> home.api.v2.DashboardStackNode
+	30,  // 24: home.api.v2.DashboardLayoutNode.vertical_stack:type_name -> home.api.v2.DashboardStackNode
+	31,  // 25: home.api.v2.DashboardLayoutNode.heading:type_name -> home.api.v2.DashboardHeadingNode
+	33,  // 26: home.api.v2.DashboardLayoutNode.tile:type_name -> home.api.v2.DashboardTileNode
+	34,  // 27: home.api.v2.DashboardLayoutNode.recipe:type_name -> home.api.v2.DashboardRecipeNode
+	35,  // 28: home.api.v2.DashboardLayoutNode.popup:type_name -> home.api.v2.DashboardPopupNode
+	36,  // 29: home.api.v2.DashboardLayoutNode.chip_group:type_name -> home.api.v2.DashboardChipGroupNode
+	51,  // 30: home.api.v2.DashboardLayoutNode.widget:type_name -> home.api.v2.DashboardWidget
+	37,  // 31: home.api.v2.DashboardLayoutNode.unsupported:type_name -> home.api.v2.DashboardUnsupportedNode
+	22,  // 32: home.api.v2.DashboardPlacement.column_span:type_name -> home.api.v2.DashboardLayoutDimension
+	22,  // 33: home.api.v2.DashboardPlacement.row_span:type_name -> home.api.v2.DashboardLayoutDimension
+	39,  // 34: home.api.v2.DashboardPlacement.responsive_spans:type_name -> home.api.v2.DashboardResponsiveSpan
+	26,  // 35: home.api.v2.DashboardViewNode.children:type_name -> home.api.v2.DashboardChildren
+	26,  // 36: home.api.v2.DashboardSectionNode.children:type_name -> home.api.v2.DashboardChildren
+	26,  // 37: home.api.v2.DashboardGridNode.children:type_name -> home.api.v2.DashboardChildren
+	61,  // 38: home.api.v2.DashboardGridNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	26,  // 39: home.api.v2.DashboardStackNode.children:type_name -> home.api.v2.DashboardChildren
+	61,  // 40: home.api.v2.DashboardStackNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	1,   // 41: home.api.v2.DashboardHeadingNode.style:type_name -> home.api.v2.DashboardHeadingStyle
+	61,  // 42: home.api.v2.DashboardHeadingNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	6,   // 43: home.api.v2.DashboardTileNode.features:type_name -> home.api.v2.DashboardFeatureKind
+	2,   // 44: home.api.v2.DashboardTileNode.presentation:type_name -> home.api.v2.DashboardControlPresentation
+	61,  // 45: home.api.v2.DashboardTileNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	32,  // 46: home.api.v2.DashboardTileNode.cover_lock:type_name -> home.api.v2.DashboardCoverLock
+	72,  // 47: home.api.v2.DashboardTileNode.visual_family:type_name -> home.api.v2.ControlVisualFamily
+	73,  // 48: home.api.v2.DashboardTileNode.modules:type_name -> home.api.v2.ControlModule
+	5,   // 49: home.api.v2.DashboardRecipeNode.kind:type_name -> home.api.v2.DashboardRecipeKind
+	6,   // 50: home.api.v2.DashboardRecipeNode.features:type_name -> home.api.v2.DashboardFeatureKind
+	2,   // 51: home.api.v2.DashboardRecipeNode.presentation:type_name -> home.api.v2.DashboardControlPresentation
+	61,  // 52: home.api.v2.DashboardRecipeNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	32,  // 53: home.api.v2.DashboardRecipeNode.cover_lock:type_name -> home.api.v2.DashboardCoverLock
+	72,  // 54: home.api.v2.DashboardRecipeNode.visual_family:type_name -> home.api.v2.ControlVisualFamily
+	73,  // 55: home.api.v2.DashboardRecipeNode.modules:type_name -> home.api.v2.ControlModule
+	26,  // 56: home.api.v2.DashboardPopupNode.children:type_name -> home.api.v2.DashboardChildren
+	61,  // 57: home.api.v2.DashboardPopupNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	26,  // 58: home.api.v2.DashboardChipGroupNode.children:type_name -> home.api.v2.DashboardChildren
+	61,  // 59: home.api.v2.DashboardChipGroupNode.interactions:type_name -> home.api.v2.DashboardInteractions
+	0,   // 60: home.api.v2.DashboardFieldBinding.field:type_name -> home.api.v2.DashboardFieldKey
+	40,  // 61: home.api.v2.DashboardRoomWidget.temperature:type_name -> home.api.v2.DashboardFieldBinding
+	43,  // 62: home.api.v2.DashboardRoomWidget.activity:type_name -> home.api.v2.DashboardActivityBinding
+	40,  // 63: home.api.v2.DashboardActivityBinding.field:type_name -> home.api.v2.DashboardFieldBinding
+	21,  // 64: home.api.v2.DashboardActivityBinding.active_values:type_name -> home.api.v2.DashboardLiteral
+	40,  // 65: home.api.v2.DashboardThermostatWidget.current_temperature:type_name -> home.api.v2.DashboardFieldBinding
+	40,  // 66: home.api.v2.DashboardThermostatWidget.target_temperature:type_name -> home.api.v2.DashboardFieldBinding
+	3,   // 67: home.api.v2.DashboardThermostatWidget.presentation:type_name -> home.api.v2.DashboardThermostatPresentation
+	74,  // 68: home.api.v2.DashboardAgendaWidget.time_window:type_name -> google.protobuf.Duration
+	4,   // 69: home.api.v2.DashboardTasksWidget.presentation:type_name -> home.api.v2.DashboardTasksPresentation
+	40,  // 70: home.api.v2.DashboardObservationBinding.field:type_name -> home.api.v2.DashboardFieldBinding
+	21,  // 71: home.api.v2.DashboardObservationBinding.active_values:type_name -> home.api.v2.DashboardLiteral
+	11,  // 72: home.api.v2.DashboardObservationBinding.icon:type_name -> home.api.v2.DashboardIcon
+	48,  // 73: home.api.v2.DashboardObservationsWidget.items:type_name -> home.api.v2.DashboardObservationBinding
+	52,  // 74: home.api.v2.DashboardNavigationWidget.destination:type_name -> home.api.v2.DashboardDestination
+	41,  // 75: home.api.v2.DashboardWidget.clock_weather:type_name -> home.api.v2.DashboardClockWeatherWidget
+	42,  // 76: home.api.v2.DashboardWidget.room:type_name -> home.api.v2.DashboardRoomWidget
+	44,  // 77: home.api.v2.DashboardWidget.thermostat:type_name -> home.api.v2.DashboardThermostatWidget
+	45,  // 78: home.api.v2.DashboardWidget.agenda:type_name -> home.api.v2.DashboardAgendaWidget
+	46,  // 79: home.api.v2.DashboardWidget.tasks:type_name -> home.api.v2.DashboardTasksWidget
+	47,  // 80: home.api.v2.DashboardWidget.security:type_name -> home.api.v2.DashboardSecurityWidget
+	49,  // 81: home.api.v2.DashboardWidget.observations:type_name -> home.api.v2.DashboardObservationsWidget
+	50,  // 82: home.api.v2.DashboardWidget.navigation:type_name -> home.api.v2.DashboardNavigationWidget
+	52,  // 83: home.api.v2.DashboardWidget.action:type_name -> home.api.v2.DashboardDestination
+	61,  // 84: home.api.v2.DashboardWidget.interactions:type_name -> home.api.v2.DashboardInteractions
+	8,   // 85: home.api.v2.DashboardDestination.presentation:type_name -> home.api.v2.DashboardPresentation
+	9,   // 86: home.api.v2.DashboardCommand.kind:type_name -> home.api.v2.DashboardCommandKind
+	7,   // 87: home.api.v2.DashboardInteraction.gesture:type_name -> home.api.v2.DashboardGesture
+	55,  // 88: home.api.v2.DashboardInteraction.none:type_name -> home.api.v2.DashboardNoAction
+	53,  // 89: home.api.v2.DashboardInteraction.more_info:type_name -> home.api.v2.DashboardEntityTarget
+	52,  // 90: home.api.v2.DashboardInteraction.navigate:type_name -> home.api.v2.DashboardDestination
+	54,  // 91: home.api.v2.DashboardInteraction.command:type_name -> home.api.v2.DashboardCommand
+	56,  // 92: home.api.v2.DashboardInteraction.confirmation:type_name -> home.api.v2.DashboardConfirmation
+	23,  // 93: home.api.v2.DashboardInteraction.source:type_name -> home.api.v2.DashboardLayoutSource
+	40,  // 94: home.api.v2.DashboardStatePredicate.field:type_name -> home.api.v2.DashboardFieldBinding
+	21,  // 95: home.api.v2.DashboardStatePredicate.expected:type_name -> home.api.v2.DashboardLiteral
+	10,  // 96: home.api.v2.DashboardStatePredicate.comparison:type_name -> home.api.v2.DashboardComparison
+	60,  // 97: home.api.v2.DashboardPredicateList.conditions:type_name -> home.api.v2.DashboardPredicate
+	58,  // 98: home.api.v2.DashboardPredicate.state:type_name -> home.api.v2.DashboardStatePredicate
+	59,  // 99: home.api.v2.DashboardPredicate.all:type_name -> home.api.v2.DashboardPredicateList
+	59,  // 100: home.api.v2.DashboardPredicate.any:type_name -> home.api.v2.DashboardPredicateList
+	23,  // 101: home.api.v2.DashboardPredicate.source:type_name -> home.api.v2.DashboardLayoutSource
+	57,  // 102: home.api.v2.DashboardInteractions.interactions:type_name -> home.api.v2.DashboardInteraction
+	24,  // 103: home.api.v2.DashboardLayout.nodes:type_name -> home.api.v2.DashboardLayoutNode
+	14,  // 104: home.api.v2.DashboardService.GetDashboard:input_type -> home.api.v2.GetDashboardRequest
+	15,  // 105: home.api.v2.DashboardService.ListDashboards:input_type -> home.api.v2.ListDashboardsRequest
+	17,  // 106: home.api.v2.DashboardService.WatchDashboards:input_type -> home.api.v2.WatchDashboardsRequest
+	19,  // 107: home.api.v2.DashboardService.QueryDashboard:input_type -> home.api.v2.QueryDashboardRequest
+	12,  // 108: home.api.v2.DashboardService.GetDashboard:output_type -> home.api.v2.Dashboard
+	16,  // 109: home.api.v2.DashboardService.ListDashboards:output_type -> home.api.v2.ListDashboardsResponse
+	18,  // 110: home.api.v2.DashboardService.WatchDashboards:output_type -> home.api.v2.WatchDashboardsResponse
+	20,  // 111: home.api.v2.DashboardService.QueryDashboard:output_type -> home.api.v2.QueryDashboardResponse
+	108, // [108:112] is the sub-list for method output_type
+	104, // [104:108] is the sub-list for method input_type
+	104, // [104:104] is the sub-list for extension type_name
+	104, // [104:104] is the sub-list for extension extendee
+	0,   // [0:104] is the sub-list for field type_name
 }
 
 func init() { file_home_api_v2_dashboards_proto_init() }
@@ -5438,6 +5478,7 @@ func file_home_api_v2_dashboards_proto_init() {
 	}
 	file_home_api_v2_extended_traits_proto_init()
 	file_home_api_v2_traits_proto_init()
+	file_home_api_v2_home_proto_init()
 	file_home_api_v2_dashboards_proto_msgTypes[9].OneofWrappers = []any{
 		(*DashboardLiteral_BooleanValue)(nil),
 		(*DashboardLiteral_IntegerValue)(nil),

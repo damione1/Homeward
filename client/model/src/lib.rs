@@ -70,3 +70,5 @@ pub mod api_content;
 pub mod api_playback;
 
 pub mod decimal_u64;
+
+pub mod control_modules;

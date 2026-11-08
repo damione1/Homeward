@@ -67,7 +67,7 @@ pub(crate) fn literal(view: &CachedView, binding: &FieldBinding) -> Option<Liter
             V::BooleanValue(v.observation.value?)
         }
         (FieldKey::State, T::TemperatureControl(v)) => V::TemperatureMode(v.observation.mode?),
-        (FieldKey::State, T::FanControl(v)) => V::FanSpeed(v.observation.speed?),
+        (FieldKey::State, T::FanControl(v)) => V::FanSpeed(v.observation.speed.clone()?),
         (FieldKey::State, T::Cover(v)) => {
             let value = v.observation.value.as_option()?;
             if !value.__buffa_unknown_fields.is_empty() {

@@ -279,7 +279,7 @@ func (r *nha179Rig) publish(t *testing.T, on bool, percent *float64, freshness d
 
 func (r *nha179Rig) publishQuality(t *testing.T, on bool, percent *float64, quality domain.Quality) {
 	t.Helper()
-	value, err := domain.NewLightValue(on, percent, nil)
+	value, err := domain.NewLightValue(domain.LightValueInput{On: on, Brightness: percent, ColorTemperatureMireds: nil})
 	if err != nil {
 		t.Fatal(err)
 	}

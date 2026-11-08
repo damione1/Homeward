@@ -91,7 +91,7 @@ func (p nhf005UIProfile) capabilities(alias string, index int) []*registryv1.Cap
 		description.Constraints = &registryv1.CapabilityDescription_Climate{Climate: &registryv1.ClimateConstraints{ObservedTemperatureCelsius: &registryv1.ClimateTemperatureObservation{}}}
 	case nhf005FanSample:
 		description.SchemaId = contracts.FanSchema
-		description.Constraints = &registryv1.CapabilityDescription_Fan{Fan: &registryv1.FanConstraints{SpeedOptions: []string{"Off", "Low", "Medium", "MediumHigh", "High"}}}
+		description.Constraints = &registryv1.CapabilityDescription_Fan{Fan: &registryv1.FanConstraints{ObservesPower: true, Speed: &registryv1.ControlChoices{Choices: []*registryv1.ControlChoice{{Key: "Off"}, {Key: "Low"}, {Key: "Medium"}, {Key: "MediumHigh"}, {Key: "High"}}}}}
 	case nhf005SwitchSample, nhf005MissingSample:
 		description.SchemaId = contracts.SwitchSchema
 		description.Constraints = &registryv1.CapabilityDescription_Switch{Switch: &registryv1.SwitchConstraints{SetOn: true}}
@@ -110,7 +110,13 @@ func (p nhf005UIProfile) observation(alias string, sequence *uint64, at time.Tim
 	case nhf005SwitchSample:
 		value = domain.NewSwitchValue(sequence != nil && *sequence%2 != 0)
 	case nhf005FanSample:
-		value, err = domain.NewFanStateValue(domain.FanSpeedLow)
+		key := "Low"
+		on := true
+		fan, e := domain.NewFanValue(domain.FanValueInput{On: &on, Speed: &key})
+		if e != nil {
+			return integrations.StateObservation{}, e
+		}
+		value, err = domain.NewFanStateValue(fan)
 	case nhf005ClimateSample:
 		temperature, temperatureErr := domain.NewCelsiusTemperature(21.5)
 		if temperatureErr != nil {

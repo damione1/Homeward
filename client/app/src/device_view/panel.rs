@@ -125,18 +125,10 @@ pub(super) fn choices(control: &Control) -> Vec<Choice> {
             }
         }
         Control::Fan(fan) => {
-            for speed in fan.speeds() {
-                let label = match *speed {
-                    wire::FanSpeed::Unspecified => "Unspecified",
-                    wire::FanSpeed::Off => "Off",
-                    wire::FanSpeed::Low => "Low",
-                    wire::FanSpeed::Medium => "Medium",
-                    wire::FanSpeed::MediumHigh => "Medium High",
-                    wire::FanSpeed::High => "High",
-                };
+            for (key, label) in fan.speeds() {
                 choices.push(Choice {
                     label: format!("Speed · {label}"),
-                    intent: DeviceIntent::FanSpeed(*speed),
+                    intent: DeviceIntent::FanSpeed(key.clone()),
                 });
             }
         }

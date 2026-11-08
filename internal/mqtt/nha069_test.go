@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"sync"
 	"testing"
 	"time"
@@ -97,7 +98,7 @@ func TestNHA069ActiveCommandRouterWritesOnlyAfterDispatch(t *testing.T) {
 	}
 	t.Cleanup(func() { tasks.close(t, pilot) })
 	broker.Publish(t, "homeassistant/switch/relay/config", []byte(`{"unique_id":"switch-wire","device":{"identifiers":["command-device"]},"state_topic":"zigbee2mqtt/relay/state","command_topic":"zigbee2mqtt/relay/set"}`), true)
-	broker.Publish(t, "homeassistant/light/lamp/config", []byte(`{"unique_id":"light-wire","device":{"identifiers":["command-device"]},"schema":"json","state_topic":"zigbee2mqtt/lamp/state","command_topic":"zigbee2mqtt/lamp/set","brightness":true,"brightness_scale":254,"supported_color_modes":["color_temp"],"min_mireds":250,"max_mireds":454}`), true)
+	broker.Publish(t, "homeassistant/light/lamp/config", []byte(`{"unique_id":"light-wire","device":{"identifiers":["command-device"]},"schema":"json","state_topic":"zigbee2mqtt/lamp/state","command_topic":"zigbee2mqtt/lamp/set","brightness":true,"brightness_scale":254,"supported_color_modes":["color_temp","rgb"],"effect":true,"effect_list":["scene:night/7","steady"],"min_mireds":250,"max_mireds":454}`), true)
 	nha182WaitCommandCapabilities(t, r, tasks, ids[0].Entity, ids[1].Entity)
 	if got := broker.PublishCount(settings.clientID); got != 0 {
 		t.Fatalf("startup/discovery published %d packets", got)
@@ -124,8 +125,13 @@ func TestNHA069ActiveCommandRouterWritesOnlyAfterDispatch(t *testing.T) {
 	}{
 		{"nha069-switch-command", contracts.SwitchSchema, "zigbee2mqtt/relay/set", &actions.ActionArgs{Arguments: &actions.ActionArgs_SetSwitch{SetSwitch: &actions.SetSwitch{On: true}}}},
 		{"nha069-light-command", contracts.LightSchema, "zigbee2mqtt/lamp/set", &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{On: func() *bool { v := true; return &v }(), BrightnessPercent: func() *float64 { v := 50.0; return &v }(), ColorTempMireds: func() *uint32 { v := uint32(300); return &v }()}}}},
+		{"nha212-rgb-preset", contracts.LightSchema, "zigbee2mqtt/lamp/set", &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{On: proto.Bool(true), BrightnessPercent: proto.Float64(75), Rgb: &registry.RgbColor{Red: proto.Uint32(0), Green: proto.Uint32(137), Blue: proto.Uint32(255)}, Preset: proto.String("scene:night/7")}}}},
 	} {
-		entityText, _ := ids[i].Entity.Value()
+		index := i
+		if index > 1 {
+			index = 1
+		}
+		entityText, _ := ids[index].Entity.Value()
 		request := &actions.CommandRequest{CommandId: scenario.id, AdmissionEpoch: epoch, ConfigRevision: 7, Target: &registry.EntityRef{Reference: &registry.EntityRef_EntityId{EntityId: entityText}}, CapabilitySchemaId: scenario.schema, Endpoint: "mqtt", Arguments: scenario.args, ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}
 		response, err := router.Dispatch(context.Background(), actor, request)
 		if err != nil || response == nil || response.Status != actions.ActionStatus_ACTION_STATUS_SENT_UNVERIFIED {
@@ -145,12 +151,41 @@ func TestNHA069ActiveCommandRouterWritesOnlyAfterDispatch(t *testing.T) {
 					t.Fatalf("light payload %q: %v", packet.Payload, err)
 				}
 			}
+			if i == 2 {
+				var fields map[string]any
+				if err := json.Unmarshal(packet.Payload, &fields); err != nil {
+					t.Fatal(err)
+				}
+				color, ok := fields["color"].(map[string]any)
+				if !ok || color["r"] != float64(0) || color["g"] != float64(137) || color["b"] != float64(255) || fields["effect"] != "scene:night/7" || fields["color_temp"] != nil {
+					t.Fatalf("atomic RGB/preset payload: %s", packet.Payload)
+				}
+				fields["color_mode"] = "rgb"
+				observed, _ := json.Marshal(fields)
+				broker.Publish(t, "zigbee2mqtt/lamp/state", observed, false)
+				deadline := time.Now().Add(3 * time.Second)
+				for {
+					current, _ := r.fixture.State(ids[1].Entity)
+					value, present := current.CurrentValue()
+					if present {
+						light, ok := value.Light()
+						parts, err := light.Components()
+						if ok && err == nil && parts.RGB != nil && *parts.RGB == (domain.RGB{Red: 0, Green: 137, Blue: 255}) && parts.Preset != nil && *parts.Preset == "scene:night/7" && parts.ColorTemperatureMireds == nil {
+							break
+						}
+					}
+					if time.Now().After(deadline) {
+						t.Fatal("RGB/preset observation did not roundtrip through isolated broker")
+					}
+					time.Sleep(5 * time.Millisecond)
+				}
+			}
 		case <-time.After(3 * time.Second):
 			t.Fatalf("command %s did not reach isolated broker", scenario.id)
 		}
 	}
-	if got := broker.PublishCount(settings.clientID); got != 2 {
-		t.Fatalf("active pilot published %d packets, want only two dispatched commands", got)
+	if got := broker.PublishCount(settings.clientID); got != 3 {
+		t.Fatalf("active pilot published %d packets, want three atomic dispatched commands", got)
 	}
 	_ = observer.Client.Disconnect(&paho.Disconnect{ReasonCode: 0})
 }
@@ -850,8 +885,8 @@ func TestNHA069LightRetainedDeltaAndAvailabilityFreshness(t *testing.T) {
 	key := r.configure("lamp-unique", "configured-device")
 	discovery := `{"unique_id":"lamp-unique","device":{"identifiers":["other-device","configured-device"],"via_device":"bridge"},"schema":"json","state_topic":"zigbee2mqtt/Lamp","command_topic":"zigbee2mqtt/Lamp/set","brightness":true,"brightness_scale":254,"supported_color_modes":["color_temp"],"min_mireds":250,"max_mireds":454,"effect":true,"effect_list":["blink"],"availability_topic":"zigbee2mqtt/bridge/state"}`
 	r.send("homeassistant/light/lamp/config", discovery, ObservationRestored)
-	if got := r.mapper.Diagnostics(); len(got) != 1 || got[0] != DiagnosticUnsupportedEffect {
-		t.Fatalf("effect diagnostic: %v", got)
+	if got := r.mapper.Diagnostics(); len(got) != 0 {
+		t.Fatalf("supported exact effect catalogue rejected: %v", got)
 	}
 	r.send("zigbee2mqtt/bridge/state", "online", ObservationRestored)
 	r.send("zigbee2mqtt/Lamp", `{"state":"ON","brightness":127,"color_temp":300}`, ObservationRestored)
@@ -867,7 +902,8 @@ func TestNHA069LightRetainedDeltaAndAvailabilityFreshness(t *testing.T) {
 	if !ok {
 		t.Fatal("lost structured light")
 	}
-	on, brightness, ct, err := light.Components()
+	lightParts, lightPartsErr := light.Components()
+	on, brightness, ct, err := lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds, lightPartsErr
 	if err != nil || !on || brightness != nil || ct != nil {
 		t.Fatalf("stale attributes promoted: %v %v %v %v", on, brightness, ct, err)
 	}
@@ -877,7 +913,9 @@ func TestNHA069LightRetainedDeltaAndAvailabilityFreshness(t *testing.T) {
 		t.Fatal("complete live light missing")
 	}
 	light, _ = live.Light()
-	on, brightness, ct, _ = light.Components()
+	lightParts, lightPartsErr = light.Components()
+	_ = lightPartsErr
+	on, brightness, ct = lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds
 	if !on || brightness == nil || *brightness != 50 || ct == nil || *ct != 300 {
 		t.Fatalf("complete light: %v %v %v", on, brightness, ct)
 	}
@@ -901,7 +939,9 @@ func TestNHA069LightRetainedDeltaAndAvailabilityFreshness(t *testing.T) {
 		t.Fatal("fresh off missing")
 	}
 	light, _ = live.Light()
-	on, brightness, ct, _ = light.Components()
+	lightParts, lightPartsErr = light.Components()
+	_ = lightPartsErr
+	on, brightness, ct = lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds
 	if on || brightness != nil || ct != nil {
 		t.Fatalf("off invented fields: %v %v %v", on, brightness, ct)
 	}

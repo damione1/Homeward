@@ -11,11 +11,8 @@ import (
 )
 
 func TestNHA077FanWireAdmissionPreservesOffAndRejectsAbsence(t *testing.T) {
-	if _, err := domain.NewFanStateValue(domain.FanSpeedUnspecified); err == nil {
+	if _, err := domain.NewFanStateValue(domain.FanValue{}); err == nil {
 		t.Fatal("Go zero fan speed admitted as a present state")
-	}
-	if got := state.FanSpeed(0).Descriptor().Values().Len(); got != 6 {
-		t.Fatalf("fan wire enum changed without admission review: %d", got)
 	}
 	catalog, err := NewCapabilityCatalog(domain.NewUnitCatalog())
 	if err != nil {
@@ -25,7 +22,7 @@ func TestNHA077FanWireAdmissionPreservesOffAndRejectsAbsence(t *testing.T) {
 	description := &registry.CapabilityDescription{SchemaId: FanSchema, Major: 1,
 		Endpoint: "speed", DisplayName: "Synthetic fan",
 		Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{
-			SpeedOptions: []string{"Off", "High"}}}}
+			ObservesPower: true, Speed: &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "Off"}, {Key: "High"}}}}}}
 	if err := catalog.RegisterDriverCapability(entity, description); err != nil {
 		t.Fatal(err)
 	}
@@ -34,24 +31,25 @@ func TestNHA077FanWireAdmissionPreservesOffAndRejectsAbsence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	off, err := domain.NewFanStateValue(domain.FanSpeedOff)
+	off, err := domain.NewFanStateValue(nha212FixtureFan(t, "Off"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	wire, _ := testNHA017Wire(t, nil, quality, &off,
 		time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC), 1)
-	if wire.GetFan() == nil || wire.GetFan().Speed != state.FanSpeed_FAN_SPEED_OFF {
+	if wire.GetFan() == nil || wire.GetFan().Speed == nil || *wire.GetFan().Speed != "Off" || wire.GetFan().On == nil || *wire.GetFan().On {
 		t.Fatal("present Off fan state disappeared on wire")
 	}
 	profile := &StateMeasurementAdmission{Catalog: catalog, Endpoint: "speed"}
 	if _, err := AdmitWireState(wire, nil, profile); err != nil {
 		t.Fatalf("present Off fan state rejected: %v", err)
 	}
-	for _, speed := range []state.FanSpeed{state.FanSpeed_FAN_SPEED_UNSPECIFIED, state.FanSpeed(99)} {
-		candidate := proto.Clone(wire).(*state.ObservedState)
+	absent, unknown := "", "uncatalogued"
+	for _, speed := range []*string{&absent, &unknown} {
+		candidate := proto.CloneOf(wire)
 		candidate.GetFan().Speed = speed
 		if _, err := AdmitWireState(candidate, nil, profile); err == nil {
-			t.Fatalf("absent or unknown fan speed %d admitted", speed)
+			t.Fatal("invalid source key admitted")
 		}
 	}
 	missing := proto.Clone(wire).(*state.ObservedState)

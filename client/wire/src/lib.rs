@@ -210,3 +210,5 @@ pub mod content_contract;
 pub mod camera_content;
 
 pub mod media_video_contract;
+
+pub mod control_modules_contract;

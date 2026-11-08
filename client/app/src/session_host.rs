@@ -1931,6 +1931,23 @@ pub(crate) fn run_with_lifecycle(
             );
         }
     };
+    let module_ui = ui.clone();
+    let module_submit = submit_device.clone();
+    window.on_device_module(move |event| {
+        let identity = event.identity.clone();
+        let result = module_ui
+            .current_devices()
+            .and_then(|(binding, revision)| binding.store.module_event(revision, event));
+        module_ui.repaint_devices();
+        match result {
+            Ok(Some(intent)) => module_submit(identity.token, identity.generation, intent),
+            Ok(None) => {}
+            Err(refusal) => module_ui.refuse(
+                ProfileEpoch(module_ui.epoch.load(Ordering::SeqCst)),
+                refusal,
+            ),
+        }
+    });
     let power = submit_device.clone();
     window.on_device_power(move |token, generation, intent| {
         let intent = match intent {

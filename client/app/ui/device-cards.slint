@@ -1,3 +1,4 @@
+import { ProModuleIntent } from "@kit-pro";
 import { KitWrap } from "@kit";
 import { ProDeviceCard, ProDeviceRow, ProPowerIntent, ProValueIntent } from "@kit-pro";
 // Product composition and French labels. Every card's behavior lives in Pro;
@@ -11,6 +12,7 @@ export component HomewardDevices inherits KitWrap {
     callback edit(int,int,int,ProValueIntent);
     callback choose(int,int,int);
     callback power(int,int,ProPowerIntent);
+    callback module-intent(ProModuleIntent);
     callback brightness(int,int,float);
     callback stop-tracking(int,int);
     callback details(int,int);
@@ -27,6 +29,7 @@ export component HomewardDevices inherits KitWrap {
         apply-label: "Apply"; increment-label: "Increase"; decrement-label: "Decrease";
         edit(token,generation,field,intent) => { root.edit(token,generation,field,intent); }
         choose(token,generation,choice) => { root.choose(token,generation,choice); }
+        module-intent(intent) => { root.module-intent(intent); }
         power-requested(token,generation,intent) => { root.power(token,generation,intent); }
         brightness-requested(token,generation,value) => { root.brightness(token,generation,value); }
         stop-tracking(token,generation) => { root.stop-tracking(token,generation); }

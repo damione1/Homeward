@@ -97,7 +97,7 @@ func StaleQuality() (Quality, error) {
 func NewSwitchValue(on bool) StateValue { return domain.NewSwitchValue(on) }
 
 func NewLightValue(on bool, brightness *float64, colorTemp *uint32) (StateValue, error) {
-	light, err := domain.NewLightValue(on, brightness, colorTemp)
+	light, err := domain.NewLightValue(domain.LightValueInput{On: on, Brightness: brightness, ColorTemperatureMireds: colorTemp})
 	if err != nil {
 		return StateValue{}, err
 	}

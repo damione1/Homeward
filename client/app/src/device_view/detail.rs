@@ -161,24 +161,16 @@ impl Metadata {
                     return result;
                 };
                 let selected = observed
-                    .then(|| value.observation.speed.and_then(|v| v.as_known()))
+                    .then(|| value.observation.speed.as_deref())
                     .flatten();
                 result.speeds = fan
                     .speeds()
                     .iter()
                     .enumerate()
-                    .map(|(index, speed)| ChoiceRow {
+                    .map(|(index, (key, label))| ChoiceRow {
                         token: index as i32,
-                        label: match *speed {
-                            wire::FanSpeed::Unspecified => "Unknown",
-                            wire::FanSpeed::Off => "Off",
-                            wire::FanSpeed::Low => "Low",
-                            wire::FanSpeed::Medium => "Medium",
-                            wire::FanSpeed::MediumHigh => "Medium high",
-                            wire::FanSpeed::High => "High",
-                        }
-                        .into(),
-                        selected: selected == Some(*speed),
+                        label: label.clone().into(),
+                        selected: selected == Some(key.as_str()),
                         disabled: false,
                     })
                     .collect();

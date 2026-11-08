@@ -180,7 +180,7 @@ func (r *nha180Rig) status(t *testing.T, id string, want actions.ActionStatus) {
 
 func (r *nha180Rig) correlatedLight(t *testing.T, on bool, brightness *float64) {
 	t.Helper()
-	light, err := domain.NewLightValue(on, brightness, nil)
+	light, err := domain.NewLightValue(domain.LightValueInput{On: on, Brightness: brightness, ColorTemperatureMireds: nil})
 	if err != nil {
 		t.Fatal(err)
 	}

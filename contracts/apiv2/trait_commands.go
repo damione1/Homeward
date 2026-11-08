@@ -46,6 +46,20 @@ func parseLight(v *wire.SetLightCommand) (apitypes.Intent, error) {
 		return nil, reject("light", MissingIntent)
 	}
 	input := apitypes.LightInput{ColorTemperatureMireds: v.ColorTemperatureMireds}
+	if v.Rgb != nil {
+		if v.Rgb.Red == nil || v.Rgb.Green == nil || v.Rgb.Blue == nil || *v.Rgb.Red > 255 || *v.Rgb.Green > 255 || *v.Rgb.Blue > 255 || v.ColorTemperatureMireds != nil {
+			return nil, apitypes.ErrIntent
+		}
+		input.RGB = &domain.RGB{Red: uint8(*v.Rgb.Red), Green: uint8(*v.Rgb.Green), Blue: uint8(*v.Rgb.Blue)}
+	}
+	if v.Preset != nil {
+		key, err := apitypes.NewSelectorKey(*v.Preset)
+		if err != nil {
+			return nil, err
+		}
+		input.Preset = &key
+	}
+
 	if v.Power != nil {
 		p, err := ParsePower(v.Power.Value)
 		if err != nil {
@@ -107,7 +121,7 @@ func parseFan(v *wire.SetFanCommand) (apitypes.Intent, error) {
 		x := p.IsOn()
 		on = &x
 	}
-	result, err := apitypes.NewFanCommand(on, key)
+	result, err := apitypes.NewFanCommand(on, key, v.Level)
 	if err != nil {
 		return nil, reject("fan", MissingIntent)
 	}

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"github.com/damione1/Homeward/internal/domain"
 	"io"
 	"sort"
 	"strconv"
@@ -87,6 +88,8 @@ type discoveryComponent struct {
 	brightnessScale       float64
 	brightnessOnly        bool
 	colorTemp             bool
+	rgb                   bool
+	presets               []string
 	manufacturer          string
 	modelID               string
 	transitionAdvertised  *bool
@@ -732,7 +735,10 @@ func parseDiscoveryComponent(raw map[string]any, inheritedKind componentKind, sh
 				case "brightness":
 				case "onoff":
 					component.brightnessOnly = false
-				case "hs", "rgb", "rgbw", "rgbww", "xy", "white":
+				case "rgb":
+					component.rgb = true
+					component.brightnessOnly = false
+				case "hs", "rgbw", "rgbww", "xy", "white":
 					component.brightnessOnly = false
 					component.unsupportedColorModes = true
 				default:
@@ -751,25 +757,34 @@ func parseDiscoveryComponent(raw map[string]any, inheritedKind componentKind, sh
 		if component.colorTemp && (component.minMireds == 0 || component.maxMireds < component.minMireds || component.maxMireds > 1000) {
 			return discoveryComponent{}, errDiscoveryProfile
 		}
+		effectsEnabled := false
 		if rawEffect, exists := object["effect"]; exists {
 			active, ok := rawEffect.(bool)
 			if !ok {
 				return discoveryComponent{}, errDiscoveryProfile
 			}
-			component.unsupportedEffects = active
+			effectsEnabled = active
 		}
 		if rawEffects, exists := object["effect_list"]; exists {
 			effects, ok := rawEffects.([]any)
 			if !ok || len(effects) > 32 {
 				return discoveryComponent{}, errDiscoveryProfile
 			}
-			for _, effect := range effects {
-				if _, ok := effect.(string); !ok {
+			seen := map[string]bool{}
+			for _, raw := range effects {
+				key, ok := raw.(string)
+				if !ok || !domain.ValidControlKey(key) || seen[key] {
 					return discoveryComponent{}, errDiscoveryProfile
 				}
+				seen[key] = true
+				if effectsEnabled {
+					component.presets = append(component.presets, key)
+				}
 			}
-			component.unsupportedEffects = component.unsupportedEffects || len(effects) != 0
 		}
+		// An effect flag without an exact catalogue grants no preset control.
+		component.unsupportedEffects = effectsEnabled && len(component.presets) == 0
+
 	} else if _, exists := object["brightness"]; exists {
 		return discoveryComponent{}, errDiscoveryProfile
 	}

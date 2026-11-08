@@ -20,16 +20,16 @@ func validCasetaHAFan4V1Description(descriptions []*registry.CapabilityDescripti
 		return false
 	}
 	d := descriptions[0]
-	if d.SchemaId != contracts.FanSchema || d.Major != 1 || d.Endpoint != "speed" || d.GetFan() == nil || d.GetFan().SetOn {
+	if d.SchemaId != contracts.FanSchema || d.Major != 1 || d.Endpoint != "speed" || d.GetFan() == nil || d.GetFan().SetOn || d.GetFan().Level != nil || !d.GetFan().ObservesPower {
 		return false
 	}
-	options := d.GetFan().SpeedOptions
+	options := d.GetFan().GetSpeed().GetChoices()
 	want := [...]string{"Off", "Low", "Medium", "MediumHigh", "High"}
 	if len(options) != len(want) {
 		return false
 	}
 	for i, option := range want {
-		if options[i] != option {
+		if options[i] == nil || options[i].Key != option {
 			return false
 		}
 	}

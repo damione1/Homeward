@@ -188,7 +188,7 @@ func runConsumedScene(ctx context.Context, c Case, consumed parser.SourceFile) (
 		description.Constraints = &registryv1.CapabilityDescription_Light{Light: &registryv1.LightConstraints{SetOn: true, BrightnessPercent: &registryv1.NumberBounds{Minimum: 0, Maximum: 100}, ColorTempMireds: &registryv1.NumberBounds{Minimum: 250, Maximum: 454}}}
 		intent, _ := member.Light()
 		desiredOn, _, _ := intent.Components()
-		light, e := domain.NewLightValue(!desiredOn, nil, nil)
+		light, e := domain.NewLightValue(domain.LightValueInput{On: !desiredOn, Brightness: nil, ColorTemperatureMireds: nil})
 		if e != nil {
 			return nil, e
 		}
@@ -201,13 +201,15 @@ func runConsumedScene(ctx context.Context, c Case, consumed parser.SourceFile) (
 	case hascene.MemberFan:
 		description.SchemaId = contracts.FanSchema
 		description.Endpoint = "speed"
-		description.Constraints = &registryv1.CapabilityDescription_Fan{Fan: &registryv1.FanConstraints{SpeedOptions: []string{"Off", "Low", "Medium", "MediumHigh", "High"}}}
+		description.Constraints = &registryv1.CapabilityDescription_Fan{Fan: &registryv1.FanConstraints{ObservesPower: true, Speed: &registryv1.ControlChoices{Choices: []*registryv1.ControlChoice{{Key: "Off"}, {Key: "Low"}, {Key: "Medium"}, {Key: "MediumHigh"}, {Key: "High"}}}}}
 		intent, _ := member.Fan()
-		initialSpeed := domain.FanSpeedLow
+		initialKey := "Low"
 		if intent.On() {
-			initialSpeed = domain.FanSpeedOff
+			initialKey = "Off"
 		}
-		state, err = domain.NewFanStateValue(initialSpeed)
+		initialOn := initialKey != "Off"
+		initialFan, _ := domain.NewFanValue(domain.FanValueInput{On: &initialOn, Speed: &initialKey})
+		state, err = domain.NewFanStateValue(initialFan)
 	default:
 		return nil, ErrUnavailable
 	}

@@ -1,3 +1,4 @@
+import { ProModuleIntent } from "@kit-pro";
 import { KitDialogSurface, KitButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy, StepDirection } from "@kit";
 import { ProDetailPanel, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProValueIntent, ProGesture } from "@kit-pro";
 import { HomewardDashboard } from "native-dashboard.slint";
@@ -19,6 +20,7 @@ export component HomewardPopup inherits KitDialogSurface {
     callback close(int,CloseReason);
     callback step(int,int,StepDirection);
     callback power(int,int,ProPowerIntent);
+    callback module-intent(ProModuleIntent);
     callback edit(int,int,int,ProValueIntent);
     callback choose(int,int,int);
     callback brightness(int,int,float);
@@ -95,7 +97,8 @@ export component HomewardPopup inherits KitDialogSurface {
                     interactive: root.content-interactive && root.state.open && root.state.topmost && !root.state.busy;
                     commands-enabled: root.commands-enabled;
                     step(t,g,d) => { root.step(t,g,d); }
-            power(token,generation,intent) => { root.power(token,generation,intent); }
+            module-intent(intent) => { root.module-intent(intent); }
+        power(token,generation,intent) => { root.power(token,generation,intent); }
                     edit(token,generation,field,intent) => { root.edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.choose(token,generation,choice); }
                     brightness(token,generation,value) => { root.brightness(token,generation,value); }

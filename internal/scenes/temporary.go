@@ -63,7 +63,7 @@ func NewExplicitSwitch(alias domain.HAAlias, on bool) (ExplicitMember, error) {
 	}
 	return ExplicitMember{alias: alias, value: domain.NewSwitchValue(on), valid: true}, nil
 }
-func NewExplicitFan(alias domain.HAAlias, speed domain.FanSpeed) (ExplicitMember, error) {
+func NewExplicitFan(alias domain.HAAlias, speed domain.FanValue) (ExplicitMember, error) {
 	if !aliasDomain(alias, "fan.") {
 		return ExplicitMember{}, ErrInvalidScene
 	}
@@ -369,7 +369,8 @@ func captureMember(snapshot sequencer.Snapshot, alias domain.HAAlias) (memberSpe
 			break
 		}
 		light, _ := value.Light()
-		on, percent, _, err := light.Components()
+		lightParts, lightPartsErr := light.Components()
+		on, percent, err := lightParts.On, lightParts.Brightness, lightPartsErr
 		if err == nil && (!on || percent != nil && *percent > 0) {
 			return memberSpec{origin: originNative, alias: alias, native: value, capturedRevision: revision}, Omission{}
 		}

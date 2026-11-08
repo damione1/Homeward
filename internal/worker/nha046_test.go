@@ -20,7 +20,7 @@ import (
 func nha046FanDescription() *registry.CapabilityDescription {
 	return &registry.CapabilityDescription{SchemaId: contracts.FanSchema, Major: 1, Endpoint: "speed", DisplayName: "Synthetic Caseta fan",
 		Constraints: &registry.CapabilityDescription_Fan{Fan: &registry.FanConstraints{
-			SetOn: false, SpeedOptions: []string{"Off", "Low", "Medium", "MediumHigh", "High"}}}}
+			SetOn: false, ObservesPower: true, Speed: &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "Off"}, {Key: "Low"}, {Key: "Medium"}, {Key: "MediumHigh"}, {Key: "High"}}}}}}
 }
 
 func TestNHA046CasetaFanBindingRequiresExactNegotiatedHost(t *testing.T) {
@@ -115,7 +115,7 @@ func TestNHA046WorkerDiscoveryJoinsOnlyConfiguredFanSource(t *testing.T) {
 				t.Fatal(err)
 			}
 			bad := proto.Clone(nha046FanDescription()).(*registry.CapabilityDescription)
-			bad.GetFan().SpeedOptions = []string{"Off", "Low", "Medium", "High"}
+			bad.GetFan().Speed = &registry.ControlChoices{Choices: []*registry.ControlChoice{{Key: "Off"}, {Key: "Low"}, {Key: "Medium"}, {Key: "High"}}}
 			badRequest := nha174Request(&wire.DiscoverRequest{Candidates: []*wire.Candidate{{Source: &wire.SourceKey{Device: "synthetic-bridge", Entity: "fan-1"}, Descriptions: []*registry.CapabilityDescription{bad}}}})
 			if response, err := p.Discover(ctx, badRequest); response != nil || connect.CodeOf(err) != connect.CodeFailedPrecondition || !errors.Is(err, ErrCasetaHAFanProfileUnavailable) {
 				t.Fatalf("incompatible descriptor fell back: %v response=%v", err, response)
@@ -128,7 +128,7 @@ func TestNHA046WorkerDiscoveryJoinsOnlyConfiguredFanSource(t *testing.T) {
 				t.Fatal(err)
 			}
 			quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
-			value, _ := domain.NewFanStateValue(domain.FanSpeedLow)
+			value, _ := domain.NewFanStateValue(nha212FixtureFan(t, "Low"))
 			at := time.Now()
 			observation, err := integrations.NewStateObservation("speed", quality, &value, &at, at, nil)
 			if err != nil {

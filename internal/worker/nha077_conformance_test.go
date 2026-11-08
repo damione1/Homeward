@@ -617,11 +617,12 @@ func (a *casetaAdapter) Apply(ctx context.Context, id conformance.CommandID, sti
 		if !ok {
 			return errors.New("partial light requested on switch")
 		}
-		on, _, _, err := light.Components()
+		lightParts, lightPartsErr := light.Components()
+		on, err := lightParts.On, lightPartsErr
 		if err != nil {
 			return err
 		}
-		partial, err := domain.NewLightValue(on, nil, nil)
+		partial, err := domain.NewLightValue(domain.LightValueInput{On: on, Brightness: nil, ColorTemperatureMireds: nil})
 		if err != nil {
 			return err
 		}

@@ -599,7 +599,8 @@ func dashboardWidgetsApply(current domain.StateValue, arguments *actions.ActionA
 		if !ok || action.SetLight == nil {
 			break
 		}
-		on, brightness, color, err := light.Components()
+		lightParts, lightPartsErr := light.Components()
+		on, brightness, color, err := lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds, lightPartsErr
 		if err != nil {
 			return domain.StateValue{}, err
 		}
@@ -612,7 +613,7 @@ func dashboardWidgetsApply(current domain.StateValue, arguments *actions.ActionA
 		if action.SetLight.ColorTempMireds != nil {
 			color = action.SetLight.ColorTempMireds
 		}
-		next, err := domain.NewLightValue(on, brightness, color)
+		next, err := domain.NewLightValue(domain.LightValueInput{On: on, Brightness: brightness, ColorTemperatureMireds: color})
 		if err != nil {
 			return domain.StateValue{}, err
 		}
@@ -622,21 +623,24 @@ func dashboardWidgetsApply(current domain.StateValue, arguments *actions.ActionA
 		if !ok || action.SetFan == nil {
 			break
 		}
+		parts, err := speed.Components()
+		if err != nil {
+			return domain.StateValue{}, err
+		}
 		if action.SetFan.Speed != nil {
-			var err error
-			speed, err = domain.ParseFanSpeed(*action.SetFan.Speed)
-			if err != nil {
-				return domain.StateValue{}, integrations.ErrInvalidInput
-			}
+			parts.Speed, parts.Level = action.SetFan.Speed, nil
+		}
+		if action.SetFan.Level != nil {
+			parts.Level, parts.Speed = action.SetFan.Level, nil
 		}
 		if action.SetFan.On != nil {
-			if !*action.SetFan.On {
-				speed = domain.FanSpeedOff
-			} else if speed == domain.FanSpeedOff {
-				speed = domain.FanSpeedLow
-			}
+			parts.On = action.SetFan.On
 		}
-		return domain.NewFanStateValue(speed)
+		next, err := domain.NewFanValue(parts)
+		if err != nil {
+			return domain.StateValue{}, err
+		}
+		return domain.NewFanStateValue(next)
 	case *actions.ActionArgs_SetClimate:
 		climate, ok := current.Climate()
 		if !ok || action.SetClimate == nil {
@@ -778,8 +782,8 @@ func dashboardWidgetsApply(current domain.StateValue, arguments *actions.ActionA
 	return domain.StateValue{}, errors.New("unsupported synthetic command or incompatible observed value")
 }
 
-func TestDashboardWidgetsFanSimulationUsesCanonicalSpeedNames(t *testing.T) {
-	current, err := domain.NewFanStateValue(domain.FanSpeedHigh)
+func TestDashboardWidgetsFanSimulationPreservesExactSourceKeys(t *testing.T) {
+	current, err := domain.NewFanStateValue(nha212FixtureFan(t, "High"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -787,17 +791,31 @@ func TestDashboardWidgetsFanSimulationUsesCanonicalSpeedNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if speed, ok := next.Fan(); !ok || speed != domain.FanSpeedLow {
+	if speed, ok := next.Fan(); !ok || speed != nha212FixtureFan(t, "Low") {
 		t.Fatal("canonical speed was not observed")
 	}
-	if _, err = dashboardWidgetsApply(current, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{Speed: nhf008Pointer("low")}}}); err == nil {
-		t.Fatal("noncanonical speed admitted")
+	// Simulation preserves the exact source key; capability admission owns
+	// catalogue membership. A generic state model must not impose LEAP names.
+	next, err = dashboardWidgetsApply(current, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{Speed: nhf008Pointer("low")}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed, ok := next.Fan()
+	if !ok {
+		t.Fatal("fan state kind changed")
+	}
+	parts, err := observed.Components()
+	if err != nil || parts.Speed == nil || *parts.Speed != "low" {
+		t.Fatal("exact source key normalized", err)
+	}
+	if _, err = dashboardWidgetsApply(current, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{Speed: nhf008Pointer("")}}}); err == nil {
+		t.Fatal("empty source key admitted")
 	}
 }
 
 func TestDashboardWidgetsSyntheticReadbackPreservesUnchangedFields(t *testing.T) {
 	brightness, color := 35., uint32(300)
-	light, err := domain.NewLightValue(true, &brightness, &color)
+	light, err := domain.NewLightValue(domain.LightValueInput{On: true, Brightness: &brightness, ColorTemperatureMireds: &color})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -814,13 +832,13 @@ func TestDashboardWidgetsSyntheticReadbackPreservesUnchangedFields(t *testing.T)
 	if !ok {
 		t.Fatal("state kind changed")
 	}
-	on, b, c, err := value.Components()
-	if err != nil || !on || b == nil || *b != 65 || c == nil || *c != 300 {
+	parts, err := value.Components()
+	if err != nil || !parts.On || parts.Brightness == nil || *parts.Brightness != 65 || parts.ColorTemperatureMireds == nil || *parts.ColorTemperatureMireds != 300 {
 		t.Fatal("partial command reset unchanged fields")
 	}
 	before, _ := current.Light()
-	_, old, _, _ := before.Components()
-	if old == nil || *old != 35 {
+	old, _ := before.Components()
+	if old.Brightness == nil || *old.Brightness != 35 {
 		t.Fatal("readback mutated the prior observation")
 	}
 	if _, err = dashboardWidgetsApply(current, &actions.ActionArgs{Arguments: &actions.ActionArgs_SetFan{SetFan: &actions.SetFan{Speed: nhf008Pointer("high")}}}); err == nil {

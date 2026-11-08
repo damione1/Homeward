@@ -238,11 +238,10 @@ func typedLiteral(b projectedBinding, field api.DashboardFieldKey, text string) 
 		}
 		result.Value = &api.DashboardLiteral_AlarmState{AlarmState: api.AlarmState(value)}
 	case apiresources.Fan:
-		value, ok := enum(api.FanSpeed_value, "FAN_SPEED_")
-		if !ok {
+		if !domain.ValidControlKey(text) {
 			return nil, ErrUnprojectableRecipe
 		}
-		result.Value = &api.DashboardLiteral_FanSpeed{FanSpeed: api.FanSpeed(value)}
+		result.Value = &api.DashboardLiteral_FanSpeed{FanSpeed: text}
 	case apiresources.Presence:
 		values := map[string]api.Residence{"home": api.Residence_RESIDENCE_HOME, "not_home": api.Residence_RESIDENCE_AWAY, "unknown": api.Residence_RESIDENCE_UNKNOWN}
 		value, ok := values[text]

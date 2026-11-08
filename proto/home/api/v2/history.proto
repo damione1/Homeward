@@ -172,7 +172,7 @@ message HistoricalState {
     // The light represented by HistoricalLight.
     HistoricalLight light = 13;
     // The fan speed represented by FanSpeed.
-    FanSpeed fan_speed = 14;
+    HistoricalFan fan = 14;
     // The temperature control represented by HistoricalTemperatureControl.
     HistoricalTemperatureControl temperature_control = 15;
     // The helper represented by HelperValue.
@@ -214,6 +214,8 @@ message HistoricalLight {
   optional double brightness_percent = 2;
   // The color temp mireds represented as a bounded nonnegative integer.
   optional int64 color_temp_mireds = 3;
+  RgbColor rgb = 4;
+  optional string preset = 5;
 }
 
 // Represents historical temperature control.
@@ -569,4 +571,11 @@ enum HistoryTraceLossReason {
   HISTORY_TRACE_LOSS_REASON_CONTENTION = 3;
   // Selects invalid metadata for history trace loss reason.
   HISTORY_TRACE_LOSS_REASON_INVALID_METADATA = 4;
+}
+
+// Independent source presence; no current catalogue reinterpretation.
+message HistoricalFan {
+ optional bool on = 1;
+ optional string speed = 2;
+ optional double level = 3;
 }

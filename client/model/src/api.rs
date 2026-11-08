@@ -379,24 +379,37 @@ impl ColorTemperature {
         self.0
     }
 }
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Rgb8 {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorTarget {
+    Temperature(ColorTemperature),
+    Rgb(Rgb8),
+}
+#[derive(Debug, Clone, PartialEq)]
 pub struct LightIntent {
     on: Option<bool>,
     brightness: Option<Percentage>,
-    color: Option<ColorTemperature>,
+    color: Option<ColorTarget>,
+    preset: Option<SelectorKey>,
     transition: Option<Transition>,
 }
 impl LightIntent {
     pub fn new(
         on: Option<bool>,
         brightness: Option<Percentage>,
-        color: Option<ColorTemperature>,
+        color: Option<ColorTarget>,
+        preset: Option<SelectorKey>,
         transition: Option<Transition>,
     ) -> Result<Self, AdmissionError> {
-        if on.is_none() && brightness.is_none() && color.is_none()
+        if on.is_none() && brightness.is_none() && color.is_none() && preset.is_none()
             || transition.is_some()
                 && on == Some(false)
-                && (brightness.is_some() || color.is_some())
+                && (brightness.is_some() || color.is_some() || preset.is_some())
         {
             return Err(AdmissionError::Intent);
         }
@@ -404,19 +417,23 @@ impl LightIntent {
             on,
             brightness,
             color,
+            preset,
             transition,
         })
     }
-    pub fn on(self) -> Option<bool> {
+    pub fn on(&self) -> Option<bool> {
         self.on
     }
-    pub fn brightness(self) -> Option<Percentage> {
+    pub fn brightness(&self) -> Option<Percentage> {
         self.brightness
     }
-    pub fn color(self) -> Option<ColorTemperature> {
+    pub fn color(&self) -> Option<ColorTarget> {
         self.color
     }
-    pub fn transition(self) -> Option<Transition> {
+    pub fn preset(&self) -> Option<&SelectorKey> {
+        self.preset.as_ref()
+    }
+    pub fn transition(&self) -> Option<Transition> {
         self.transition
     }
 }
@@ -439,22 +456,27 @@ impl SelectorKey {
     }
 }
 #[derive(Debug, Clone, PartialEq)]
+pub enum LevelTarget {
+    Step(SelectorKey),
+    Range(Finite),
+}
+#[derive(Debug, Clone, PartialEq)]
 pub struct FanIntent {
     on: Option<bool>,
-    speed: Option<SelectorKey>,
+    level: Option<LevelTarget>,
 }
 impl FanIntent {
-    pub fn new(on: Option<bool>, speed: Option<SelectorKey>) -> Result<Self, AdmissionError> {
-        if on.is_none() && speed.is_none() {
+    pub fn new(on: Option<bool>, level: Option<LevelTarget>) -> Result<Self, AdmissionError> {
+        if on.is_none() && level.is_none() {
             return Err(AdmissionError::Intent);
         }
-        Ok(Self { on, speed })
+        Ok(Self { on, level })
     }
     pub fn on(&self) -> Option<bool> {
         self.on
     }
-    pub fn speed(&self) -> Option<&SelectorKey> {
-        self.speed.as_ref()
+    pub fn level(&self) -> Option<&LevelTarget> {
+        self.level.as_ref()
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
