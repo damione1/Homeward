@@ -412,10 +412,10 @@ mod tests {
                 .unwrap(),
             config: crate::dashboard_widgets::Widget {
                 content: Content::Tasks {
-                    list: home_client_model::api_tasks::TaskListName::try_from(
-                        format!("homes/synthetic/taskLists/{list}").as_str(),
-                    )
-                    .unwrap(),
+                    list: home_client_model::api_tasks::TaskListName::new(
+                        home_client_model::api::HomeName::try_from("homes/synthetic").unwrap(),
+                        list.parse().unwrap(),
+                    ),
                     limit: 2,
                     shopping_only: false,
                 },
@@ -436,10 +436,10 @@ mod tests {
             TaskTarget {
                 token: 1,
                 generation: 10,
-                list: home_client_model::api_tasks::TaskListName::try_from(
-                    "homes/synthetic/taskLists/configured-first",
-                )
-                .unwrap(),
+                list: home_client_model::api_tasks::TaskListName::new(
+                    home_client_model::api::HomeName::try_from("homes/synthetic").unwrap(),
+                    "configured-first".parse().unwrap(),
+                ),
                 limit: 2,
                 shopping_only: false,
             },

@@ -79,12 +79,39 @@ impl Field {
                     home_client_model::dashboard::Literal::Number(value) => {
                         Some(number(value.value()))
                     }
-                    _ => None,
+                    home_client_model::dashboard::Literal::Boolean(_)
+                    | home_client_model::dashboard::Literal::Integer(_)
+                    | home_client_model::dashboard::Literal::Text(_)
+                    | home_client_model::dashboard::Literal::Decimal(_)
+                    | home_client_model::dashboard::Literal::Power(_)
+                    | home_client_model::dashboard::Literal::Cover(_)
+                    | home_client_model::dashboard::Literal::Lock(_)
+                    | home_client_model::dashboard::Literal::Alarm(_)
+                    | home_client_model::dashboard::Literal::TemperatureMode(_)
+                    | home_client_model::dashboard::Literal::FanSpeed(_)
+                    | home_client_model::dashboard::Literal::WeatherCondition(_)
+                    | home_client_model::dashboard::Literal::Residence(_) => None,
                 }
             }
             FieldKey::Measurement => match capability.r#trait.as_ref()? {
                 wire::capability::Trait::NumericMeasurement(_) => Some(value_text(capability)),
-                _ => None,
+                wire::capability::Trait::Power(_)
+                | wire::capability::Trait::Level(_)
+                | wire::capability::Trait::TemperatureControl(_)
+                | wire::capability::Trait::BinaryObservation(_)
+                | wire::capability::Trait::LightControl(_)
+                | wire::capability::Trait::FanControl(_)
+                | wire::capability::Trait::Cover(_)
+                | wire::capability::Trait::Lock(_)
+                | wire::capability::Trait::Alarm(_)
+                | wire::capability::Trait::Helper(_)
+                | wire::capability::Trait::Solar(_)
+                | wire::capability::Trait::SolarEvent(_)
+                | wire::capability::Trait::Weather(_)
+                | wire::capability::Trait::Presence(_)
+                | wire::capability::Trait::PresenceDetails(_)
+                | wire::capability::Trait::Opaque(_)
+                | wire::capability::Trait::MediaPlayback(_) => None,
             },
             FieldKey::State | FieldKey::Value => Some(value_text(capability)),
         }

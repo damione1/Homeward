@@ -59,13 +59,7 @@ pub(crate) struct Room {
     pub label: String,
     pub entities: RoomEntities,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Icon {
-    Home,
-    Information,
-    Clock,
-    Grid,
-}
+pub(crate) use wire::DashboardIcon as Icon;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Observation {
     pub id: ObservationId,
@@ -246,32 +240,27 @@ pub(crate) enum LayoutState {
     Loading,
     Unavailable,
     Invalid,
-    Unsupported(Arc<str>),
     Ready(Arc<Layout>),
 }
 impl LayoutState {
-    pub fn unsupported(_value: &wire::Dashboard) -> Self {
-        Self::Unsupported("Unsupported dashboard configuration.".into())
-    }
     pub fn message(&self) -> &str {
         match self {
             Self::Loading => "Loading the dashboard from the server…",
             Self::Unavailable => "The server provides no authorized dashboard.",
             Self::Invalid => "This version cannot display the dashboard definition.",
-            Self::Unsupported(message) => message,
             Self::Ready(_) => "Syncing the dashboard and observations…",
         }
     }
     pub fn layout(&self) -> Option<&Layout> {
         match self {
             Self::Ready(layout) => Some(layout),
-            Self::Loading | Self::Unavailable | Self::Invalid | Self::Unsupported(_) => None,
+            Self::Loading | Self::Unavailable | Self::Invalid => None,
         }
     }
     pub fn shared_layout(&self) -> Option<Arc<Layout>> {
         match self {
             Self::Ready(layout) => Some(layout.clone()),
-            Self::Loading | Self::Unavailable | Self::Invalid | Self::Unsupported(_) => None,
+            Self::Loading | Self::Unavailable | Self::Invalid => None,
         }
     }
 }
@@ -482,7 +471,7 @@ mod tests {
         bytes.extend_from_slice(&[0x98, 0x06, 0x01]);
         let document = wire::Dashboard::decode_from_slice(&bytes).unwrap();
         assert_eq!(Layout::try_from(&document), Err(LayoutFailure::Unsupported));
-        let unsupported = LayoutState::unsupported(&document);
+        let unsupported = LayoutState::Invalid;
         assert!(unsupported.layout().is_none());
         assert!(!unsupported.message().is_empty());
     }

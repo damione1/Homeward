@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	imported "github.com/damione1/Homeward/compat/ha/dashboard"
 	api "github.com/damione1/Homeward/gen/home/api/v2"
 	"github.com/damione1/Homeward/gen/home/api/v2/apiv2connect"
 	"go.yaml.in/yaml/v3"
@@ -103,7 +104,7 @@ func (p *nhf005Publication) publish(ctx context.Context, identity, file, owner, 
 		hasProfile = hasProfile || metadata.Content[i].Value == "profile"
 	}
 	if !hasProfile {
-		set("profile", "homeward-dashboard-2")
+		set("profile", imported.DashboardProfile)
 	}
 	if routePrefix != "" {
 		var rewrite func(*yaml.Node)
@@ -141,6 +142,9 @@ func (p *nhf005Publication) publish(ctx context.Context, identity, file, owner, 
 	plan, err := plans.CreateConfigurationPlan(ctx, nha056SessionRequest(&api.CreateConfigurationPlanRequest{Parent: p.home, ConfigurationPlan: &api.ConfigurationPlan{Candidate: candidate}}, p.token))
 	if err != nil {
 		return fmt.Errorf("dashboard plan: %w", err)
+	}
+	if plan.Msg.State != api.ConfigurationPlanState_CONFIGURATION_PLAN_STATE_ADMITTED {
+		return fmt.Errorf("dashboard plan not admitted: state=%s diagnostics=%v", plan.Msg.State, plan.Msg.Diagnostics)
 	}
 	request := nha055Request(before, candidate, plan.Msg)
 	var previous *api.DocumentVersion

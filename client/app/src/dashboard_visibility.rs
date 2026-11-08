@@ -45,7 +45,9 @@ pub(crate) fn literal(view: &CachedView, binding: &FieldBinding) -> Option<Liter
             wire::temperature_control_observation::Setpoint::SetpointCelsius(v) => {
                 V::NumberValue(*v)
             }
-            _ => return None,
+            wire::temperature_control_observation::Setpoint::SetpointRangeCelsius(_) => {
+                return None;
+            }
         },
         (FieldKey::Measurement | FieldKey::Value, T::NumericMeasurement(v)) => {
             // Exact decimals remain independent of floating-point rounding, but
@@ -114,7 +116,10 @@ pub(crate) fn literal(view: &CachedView, binding: &FieldBinding) -> Option<Liter
                 wire::helper_value::Value::Number(v) => V::NumberValue(*v),
                 wire::helper_value::Value::Text(v)
                 | wire::helper_value::Value::SelectedOption(v) => V::TextValue(v.clone()),
-                _ => return None,
+                wire::helper_value::Value::TriggerTime(_)
+                | wire::helper_value::Value::Date(_)
+                | wire::helper_value::Value::Time(_)
+                | wire::helper_value::Value::LocalValue(_) => return None,
             }
         }
         _ => return None,
@@ -148,7 +153,7 @@ pub(crate) fn project(
     let states = if phase == CachePhase::Live {
         dependencies
             .into_iter()
-            .filter_map(|id| Some((id.clone(), literal(view, &id)?)))
+            .filter_map(|id| Some((id.clone(), literal(view, id)?)))
             .collect()
     } else {
         BTreeMap::new()

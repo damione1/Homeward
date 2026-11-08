@@ -88,7 +88,7 @@ pub(super) enum Operation {
     History(HistoryQuery),
     Apply(Box<home_wire_contract::home::api::v2::ApplyConfigurationPlanRequest>),
     Rollback(Box<home_wire_contract::home::api::v2::RollbackConfigurationRequest>),
-    Build(wire::CreateConfigurationPlanRequest),
+    Build(Box<wire::CreateConfigurationPlanRequest>),
     Revalidate(wire::RevalidateConfigurationPlanRequest),
     Simulate(home_wire_contract::home::api::v2::SimulateConfigurationPlanRequest),
 }
@@ -345,7 +345,7 @@ impl Editor {
                     let mut request = candidate.build_request();
                     request.request_id =
                         home_client_actions::new_request_id().ok()?.as_str().into();
-                    return Some(Operation::Build(request));
+                    return Some(Operation::Build(Box::new(request)));
                 }
                 let Some(plan) = &self.plan else {
                     return None;

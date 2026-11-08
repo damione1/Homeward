@@ -27,7 +27,7 @@ pub(super) enum Open {
 pub(super) enum Job {
     Open(CalendarEventName, Open),
     Resolve(crate::calendar::Boundary, wire::ResolveCalendarTimeRequest),
-    Write(PreparedCalendarMutation),
+    Write(Box<PreparedCalendarMutation>),
 }
 pub(super) struct State {
     pub generation: i32,

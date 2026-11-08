@@ -115,6 +115,32 @@ struct HomeProjection {
     detail: Option<[String; 4]>,
 }
 
+/// Weak provenance of the currently displayed capture, never the capture itself.
+pub(crate) fn presentation_source(
+    window: &HomewardWindow,
+) -> Option<home_client_cache::PresentationSource> {
+    let rows = window.get_cache_rows();
+    rows.as_any()
+        .downcast_ref::<CacheRows>()?
+        .state
+        .borrow()
+        .presentation
+        .clone()
+}
+pub(crate) fn presentation_remaining(
+    source: &home_client_cache::PresentationSource,
+) -> Option<std::time::Duration> {
+    if !source.source().presentation_continues() {
+        return None;
+    }
+    let now = chrono::Utc::now();
+    let (seconds, nanos) = source.deadline();
+    let remaining = i128::from(seconds - now.timestamp()) * 1_000_000_000
+        + i128::from(nanos - now.timestamp_subsec_nanos() as i32);
+    (remaining > 0)
+        .then(|| std::time::Duration::from_nanos(u64::try_from(remaining).unwrap_or(u64::MAX)))
+}
+
 #[cfg(test)]
 pub(crate) fn project(
     phase: CachePhase,
@@ -362,9 +388,6 @@ pub(crate) fn project_owner(
     }
 }
 
-fn on_off(value: bool) -> &'static str {
-    if value { "On" } else { "Off" }
-}
 pub(crate) fn bounded(text: &str) -> String {
     match text.char_indices().nth(256) {
         Some((end, _)) => format!("{}…", &text[..end]),
@@ -1120,12 +1143,10 @@ pub(crate) fn render(
             title: item.label.as_str().into(),
             value: item.value.as_str().into(),
             description: item.description.as_str().into(),
-            glyph: match item.icon {
-                Icon::Home => window.global::<KitGlyphs>().invoke_home(),
-                Icon::Information => window.global::<KitGlyphs>().invoke_information(),
-                Icon::Clock => window.global::<KitGlyphs>().invoke_clock(),
-                Icon::Grid => window.global::<KitGlyphs>().invoke_grid(),
-            },
+            glyph: crate::dashboard_icons::glyph(
+                item.icon,
+                &window.global::<KitGlyphs>().invoke_information(),
+            ),
             available: item.id.is_some(),
             active: false,
         })
@@ -2894,7 +2915,14 @@ mod tests {
                     }
                     .into(),
                 ),
-                _ => panic!("fixture only declares four closed node variants"),
+                Kind::Grid
+                | Kind::HorizontalStack
+                | Kind::VerticalStack
+                | Kind::Recipe
+                | Kind::Popup
+                | Kind::ChipGroup
+                | Kind::Tile
+                | Kind::Widget => panic!("fixture only declares four closed node variants"),
             };
             let mut result = strict_node(id, payload);
             result.display_name = title.into();
@@ -3243,30 +3271,4 @@ mod tests {
                 .is_none()
         );
     }
-}
-
-/// Weak provenance of the currently displayed capture, never the capture itself.
-pub(crate) fn presentation_source(
-    window: &HomewardWindow,
-) -> Option<home_client_cache::PresentationSource> {
-    let rows = window.get_cache_rows();
-    rows.as_any()
-        .downcast_ref::<CacheRows>()?
-        .state
-        .borrow()
-        .presentation
-        .clone()
-}
-pub(crate) fn presentation_remaining(
-    source: &home_client_cache::PresentationSource,
-) -> Option<std::time::Duration> {
-    if !source.source().presentation_continues() {
-        return None;
-    }
-    let now = chrono::Utc::now();
-    let (seconds, nanos) = source.deadline();
-    let remaining = i128::from(seconds - now.timestamp()) * 1_000_000_000
-        + i128::from(nanos - now.timestamp_subsec_nanos() as i32);
-    (remaining > 0)
-        .then(|| std::time::Duration::from_nanos(u64::try_from(remaining).unwrap_or(u64::MAX)))
 }

@@ -112,7 +112,6 @@ fn retryable(error: &Failure) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use buffa::MessageName;
     use connectrpc::{ConnectError, ErrorDetail};
     use home_wire_contract::google::rpc::ErrorInfo;
 

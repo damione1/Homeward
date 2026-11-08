@@ -212,16 +212,15 @@ pub fn admit_command_operation(
         live: value.live_progress_available,
         completion,
     };
-    if let Some(prior) = previous {
-        if prior.name != operation.name
+    if let Some(prior) = previous
+        && (prior.name != operation.name
             || prior.target != operation.target
             || prior.request_id != operation.request_id
             || prior.created != operation.created
             || (prior.done() && prior != &operation)
-            || operation.phase.rank() < prior.phase.rank()
-        {
-            return Err(InvalidOperation::Inconsistent);
-        }
+            || operation.phase.rank() < prior.phase.rank())
+    {
+        return Err(InvalidOperation::Inconsistent);
     }
     Ok(operation)
 }

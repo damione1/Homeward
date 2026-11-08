@@ -365,9 +365,7 @@ fn generation(value: &obs::ObservationGenerationPresence) -> bool {
     value.__buffa_unknown_fields.is_empty()
         && match &value.result {
             Some(Result::Present(value)) => {
-                value.value > 0
-                    && value.value <= i64::MAX
-                    && value.__buffa_unknown_fields.is_empty()
+                value.value > 0 && value.__buffa_unknown_fields.is_empty()
             }
             Some(Result::NotLoaded(value)) => empty(value),
             None => false,

@@ -221,8 +221,7 @@ fn trace() -> obs::QueryRunTraceResponse {
 }
 
 fn trace_page(value: &mut obs::QueryRunTraceResponse) -> &mut obs::QueryRunTraceResponse {
-    let page = value;
-    page
+    value
 }
 
 #[test]

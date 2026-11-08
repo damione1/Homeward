@@ -285,7 +285,8 @@ func normalizedConfigurationRequest(raw proto.Message) ([]byte, error) {
 // original operation; it cannot recreate the candidate or extend its receipt.
 func (h *configDocumentsHandler) prepareConfigurationRequest(ctx context.Context, method storage.ConfigurationAPIMethod, requestID string, raw proto.Message) (context.Context, *longrunningpb.Operation, error) {
 	if requestID == "" {
-		return ctx, nil, nil
+		prepared, err := storage.WithConfigurationOperationMethod(ctx, method)
+		return prepared, nil, err
 	}
 	id, err := apitypes.ParseRequestID(requestID)
 	if err != nil {

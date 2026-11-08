@@ -13,6 +13,10 @@ fn fixture(
 ) -> (Scenario, wire::EntityViewEntry, DeviceStore) {
     let mut request = request();
     let mut entity = light(&request);
+    entity.capabilities.push(super::fixture::power(
+        &format!("{}/capabilities/power-state", entity.entity.name),
+        Some(wire::PowerValue::Off),
+    ));
     set_power(&mut entity, false);
     let mut layout = request.dashboard.layout().unwrap().clone();
     let mut native =
@@ -59,12 +63,32 @@ fn capability_name() -> CapabilityName {
 }
 fn power_field() -> FieldBinding {
     FieldBinding {
-        capability: capability_name(),
+        capability: CapabilityName::try_from(
+            format!("{}/capabilities/power-state", entity_id().as_str()).as_str(),
+        )
+        .unwrap(),
         field: FieldKey::State,
     }
 }
 fn set_power(entity: &mut wire::EntityViewEntry, on: bool) {
     light_mut(entity).observation.get_or_insert_default().on = Some(on);
+    if let Some(capability) = entity
+        .capabilities
+        .iter_mut()
+        .find(|c| c.name.ends_with("/power-state"))
+    {
+        let Some(wire::capability::Trait::Power(value)) = capability.r#trait.as_mut() else {
+            panic!("power observation fixture")
+        };
+        value.observation.get_or_insert_default().value = Some(
+            if on {
+                wire::PowerValue::On
+            } else {
+                wire::PowerValue::Off
+            }
+            .into(),
+        );
+    }
 }
 
 fn project(
@@ -1331,7 +1355,7 @@ fn permission_and_exact_capability_cannot_fall_back_to_a_sibling_target() {
             .is_err()
     );
     entity.capabilities = vec![original];
-    entity.capabilities[0].r#trait = None;
+    entity.capabilities[0].r#trait = Some(wire::capability::Trait::Opaque(Box::default()));
     let unknown = project(&store, &request, &entity);
     assert_eq!(
         recipe(&unknown).access(Gesture::Tap),

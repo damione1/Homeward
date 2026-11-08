@@ -104,41 +104,63 @@ func TestDashboardWidgetsProductionPublicationWatchAndSourcePrivacy(t *testing.T
 			if !frame.Invalidated {
 				t.Fatal("publication did not invalidate the catalogue")
 			}
-			listed, err := client.ListDashboards(f.ctx, nha056SessionRequest(&wire.ListDashboardsRequest{Parent: f.home}, f.token))
-			if err != nil || len(listed.Msg.Dashboards) != 1 || listed.Msg.NextPageToken != "" {
-				t.Fatal("List after publication invalidation", err)
-			}
-			next := listed.Msg
-			response, err := client.GetDashboard(f.ctx, nha056SessionRequest(&wire.GetDashboardRequest{Name: next.Dashboards[0].Name}, f.token))
-			if err != nil {
-				t.Fatal("Get after publication", err)
-			}
-			latest, resume = response.Msg, next.ResumeToken
-			if resume == "" || resume == beforeResume || latest.Etag == before.Etag || previous.Revision <= beforeVersion {
-				t.Fatal("same-source activation reused an earlier dashboard cohort", label)
-			}
-			if bytes.Equal(previousRaw, beforeRaw) != (label == "Configuration A") {
-				t.Fatal("source byte identity differs from repeated-A/replacement-B publication", label)
-			}
-			createdView, err := viewAPI.CreateEntityView(f.ctx, nha056SessionRequest(&api.CreateEntityViewRequest{Parent: homeName, EntityView: &api.EntityView{}}, f.token))
-			if err != nil {
-				t.Fatal("authorized entity view capture after publication", err)
-			}
-			page, err := viewAPI.QueryEntityView(f.ctx, nha056SessionRequest(&api.QueryEntityViewRequest{Name: createdView.Msg.GetName(), PageSize: 16}, f.token))
-			if err != nil || page.Msg.GetResumeToken() == "" {
-				t.Fatal("authorized entity view query after publication", err)
-			}
-			if _, err = viewAPI.DeleteEntityView(f.ctx, nha056SessionRequest(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, f.token)); err != nil {
-				t.Fatal(err)
-			}
 		case err := <-watchError:
-			cancel()
-			t.Fatal(err)
+			// A publication suspends native capture admission. A watch can
+			// therefore lose its cohort before its replacement capture opens.
+			// Admit only the typed read recovery contract, never a bare status.
+			reason := nha147FailureKind(t, err)
+			if !(connect.CodeOf(err) == connect.CodeUnavailable && reason == api.ApiErrorReason_API_ERROR_REASON_SERVICE_UNAVAILABLE) &&
+				!(connect.CodeOf(err) == connect.CodeFailedPrecondition && reason == api.ApiErrorReason_API_ERROR_REASON_RESYNC_REQUIRED) {
+				t.Fatal("unexpected publication watch interruption", err)
+			}
 		case <-watchCtx.Done():
 			cancel()
 			t.Fatal("watch missed publication", label)
 		}
 		cancel()
+		listed, err := client.ListDashboards(f.ctx, nha056SessionRequest(&wire.ListDashboardsRequest{Parent: f.home}, f.token))
+		if err != nil || len(listed.Msg.Dashboards) != 1 || listed.Msg.NextPageToken != "" {
+			t.Fatal("List after publication invalidation", err)
+		}
+		next := listed.Msg
+		response, err := client.GetDashboard(f.ctx, nha056SessionRequest(&wire.GetDashboardRequest{Name: next.Dashboards[0].Name}, f.token))
+		if err != nil {
+			t.Fatal("Get after publication", err)
+		}
+		latest, resume = response.Msg, next.ResumeToken
+		if resume == "" || resume == beforeResume || latest.Etag == before.Etag || previous.Revision <= beforeVersion {
+			t.Fatal("same-source activation reused an earlier dashboard cohort", label)
+		}
+		if bytes.Equal(previousRaw, beforeRaw) != (label == "Configuration A") {
+			t.Fatal("source byte identity differs from repeated-A/replacement-B publication", label)
+		}
+		createdView, err := viewAPI.CreateEntityView(f.ctx, nha056SessionRequest(&api.CreateEntityViewRequest{Parent: homeName, EntityView: &api.EntityView{}}, f.token))
+		if err != nil {
+			t.Fatal("authorized entity view capture after publication", err)
+		}
+		page, err := viewAPI.QueryEntityView(f.ctx, nha056SessionRequest(&api.QueryEntityViewRequest{Name: createdView.Msg.GetName(), PageSize: 16}, f.token))
+		if err != nil || page.Msg.GetResumeToken() == "" {
+			t.Fatal("authorized entity view query after publication", err)
+		}
+		if _, err = viewAPI.DeleteEntityView(f.ctx, nha056SessionRequest(&api.DeleteEntityViewRequest{Name: createdView.Msg.GetName()}, f.token)); err != nil {
+			t.Fatal(err)
+		}
+
+		// Recovery must not lose the publication or revive the prior cohort.
+		staleCtx, stopStale := context.WithTimeout(f.ctx, 2*time.Second)
+		stale, staleErr := client.WatchDashboards(staleCtx, nha056SessionRequest(&wire.WatchDashboardsRequest{Parent: f.home, ResumeToken: beforeResume}, f.token))
+		if staleErr == nil {
+			if stale.Receive() {
+				stopStale()
+				t.Fatal("old checkpoint streamed after fresh publication")
+			}
+			staleErr = stale.Err()
+			_ = stale.Close()
+		}
+		stopStale()
+		if connect.CodeOf(staleErr) != connect.CodeFailedPrecondition || nha147FailureKind(t, staleErr) != api.ApiErrorReason_API_ERROR_REASON_RESYNC_REQUIRED {
+			t.Fatal("old checkpoint did not require a fresh cohort", staleErr)
+		}
 	}
 
 	// A user with an own-dashboard policy must not become the owner merely

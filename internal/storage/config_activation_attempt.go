@@ -38,6 +38,18 @@ func RandomActivationAttemptID() (ActivationAttemptID, error) {
 func (id ActivationAttemptID) Valid() bool    { return id.value != ([16]byte{}) }
 func (id ActivationAttemptID) String() string { return hex.EncodeToString(id.value[:]) }
 
+type configurationOperationMethodKey struct{}
+
+// WithConfigurationOperationMethod carries response identity for a native
+// configuration commit without request-id reservation. It grants no authority;
+// the native activation still admits and audits its original author.
+func WithConfigurationOperationMethod(ctx context.Context, method ConfigurationAPIMethod) (context.Context, error) {
+	if ctx == nil || !method.Valid() || integrationAPIMethod(method) {
+		return nil, &Error{kind: ConfigInvalid}
+	}
+	return context.WithValue(ctx, configurationOperationMethodKey{}, method), nil
+}
+
 type configActivationReceipt struct {
 	id            ActivationAttemptID
 	expected      ExpectedConfigActive
@@ -69,6 +81,9 @@ func (c *ConfigTx) RecordActivationAttempt(id ActivationAttemptID, metadata Conf
 		return &Error{kind: ConfigInvalid}
 	}
 	var apiID, apiMethod, apiCreated any
+	if method, present := c.ctx.Value(configurationOperationMethodKey{}).(ConfigurationAPIMethod); present {
+		apiMethod = int16(method)
+	}
 	if execution, present := ConfigurationAPIExecutionFromContext(c.ctx); present {
 		if execution.record.attempt != id || execution.record.account != execution.request.account {
 			return configRequestError(ConfigurationRequestIntegrity)
@@ -197,7 +212,7 @@ func (a ConfigActivationAttempt) CommittedAt() time.Time            { return a.c
 func (a ConfigActivationAttempt) Author() ConfigAuthor              { return a.author }
 func (a ConfigActivationAttempt) Source() ConfigSource              { return a.source }
 func (a ConfigActivationAttempt) CreateTime() time.Time {
-	if a.apiMethod.Valid() {
+	if !a.apiCreated.IsZero() {
 		return a.apiCreated
 	}
 	return a.committed
@@ -268,7 +283,11 @@ func (s *Store) ReadActivationAttempt(ctx context.Context, id ActivationAttemptI
 	}
 	result := ConfigActivationAttempt{id: id, committed: committed}
 	if apiID != nil || apiMethod != nil || apiCreated != nil {
-		if apiMethod == nil || apiCreated == nil || *apiMethod < 1 || *apiMethod > 255 || apiCreated.IsZero() {
+		if apiMethod == nil || *apiMethod < 1 || *apiMethod > 255 {
+			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+		}
+		result.apiMethod = ConfigurationAPIMethod(*apiMethod)
+		if !result.apiMethod.Valid() {
 			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
 		}
 		if apiID != nil {
@@ -276,12 +295,13 @@ func (s *Store) ReadActivationAttempt(ctx context.Context, id ActivationAttemptI
 			if err != nil {
 				return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
 			}
-		} else if !integrationAPIMethod(ConfigurationAPIMethod(*apiMethod)) {
-			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
 		}
-		result.apiMethod = ConfigurationAPIMethod(*apiMethod)
-		result.apiCreated = *apiCreated
-		if !result.apiMethod.Valid() {
+		if apiCreated != nil {
+			if apiCreated.IsZero() || (apiID == nil && !integrationAPIMethod(result.apiMethod)) {
+				return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
+			}
+			result.apiCreated = *apiCreated
+		} else if apiID != nil || integrationAPIMethod(result.apiMethod) {
 			return ConfigActivationAttempt{}, false, &Error{kind: ConfigIntegrity}
 		}
 	}

@@ -77,8 +77,12 @@ func (f *nha055PublicationFixture) startRun(t *testing.T) {
 	ready := make(chan net.Addr, 1)
 	actual := make(chan *observationRuntime, 1)
 	owners := make(chan *configactivation.Owner, 1)
+	observed := make(chan nha162ObservedRun, 1)
 	go func() {
 		run.done <- runWithDependencies(ctx, f.startup, (&net.ListenConfig{}).Listen, func(address net.Addr) { ready <- address }, nil, runDependencies{
+			observeLists: func(lists *listComposition, sessions *sessionCoordinator) {
+				observed <- nha162ObservedRun{lists, sessions}
+			},
 			observeRuntime:          func(runtime *observationRuntime) { actual <- runtime },
 			observeRemoteActivation: func(owner *configactivation.Owner) { owners <- owner },
 		})
@@ -97,6 +101,11 @@ func (f *nha055PublicationFixture) startRun(t *testing.T) {
 		t.Fatal("composed default Run exited before READY", err)
 	case <-time.After(12 * time.Second):
 		t.Fatal("composed default Run did not reach READY")
+	}
+	select {
+	case run.observed = <-observed:
+	default:
+		t.Fatal("READY without actual list and session owners")
 	}
 	select {
 	case f.actual = <-actual:

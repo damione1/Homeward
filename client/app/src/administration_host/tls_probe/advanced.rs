@@ -273,7 +273,7 @@ async fn integrations(
     session: &SessionCoordinator,
 ) {
     let opaque = "nha148-opaque";
-    integration(owner, &opaque).await;
+    integration(owner, opaque).await;
     let value = detail(owner);
     assert!(value.instance.integration_type.is_empty());
     assert!(value.kind.is_err());
@@ -294,7 +294,7 @@ async fn integrations(
     saved(owner).await;
     // The worker remains disabled until it is deleted: no executable launches.
     let workday = "homeward-workday-v1";
-    integration(owner, &workday).await;
+    integration(owner, workday).await;
     let original = detail(owner);
     owner.action(0, generation(owner), ProAdminAction::Save);
     edit(owner, Field::Fragment, "timezone: NHF018_not_a_timezone\n");
@@ -303,7 +303,7 @@ async fn integrations(
     edit(owner, Field::Fragment, "timezone: UTC\n");
     confirm(owner);
     saved(owner).await;
-    integration(owner, &workday).await;
+    integration(owner, workday).await;
     assert!(
         std::str::from_utf8(&public(&detail(owner)).yaml_source)
             .unwrap()
@@ -312,7 +312,7 @@ async fn integrations(
     owner.action(0, generation(owner), ProAdminAction::Enable);
     confirm(owner);
     saved(owner).await;
-    integration(owner, &workday).await;
+    integration(owner, workday).await;
     assert_eq!(
         detail(owner).instance.desired_state,
         integration::IntegrationDesiredState::Enabled
@@ -320,7 +320,7 @@ async fn integrations(
     owner.action(0, generation(owner), ProAdminAction::Disable);
     confirm(owner);
     saved(owner).await;
-    integration(owner, &workday).await;
+    integration(owner, workday).await;
     let current = detail(owner);
     owner.action(0, generation(owner), ProAdminAction::Save);
     let cancel = CancellationToken::new();
@@ -346,7 +346,7 @@ async fn integrations(
     confirm(owner);
     outcome(owner, MutationState::Conflict).await;
     close(owner).await;
-    integration(owner, &workday).await;
+    integration(owner, workday).await;
     owner.action(0, generation(owner), ProAdminAction::Save);
     edit(
         owner,
@@ -386,7 +386,7 @@ async fn integrations(
     confirm(owner);
     saved(owner).await;
     let mqtt = "nha148-mqtt";
-    integration(owner, &mqtt).await;
+    integration(owner, mqtt).await;
     let original = detail(owner);
     assert_eq!(
         original.instance.desired_state,
@@ -402,7 +402,7 @@ async fn integrations(
     );
     confirm(owner);
     saved(owner).await;
-    integration(owner, &mqtt).await;
+    integration(owner, mqtt).await;
     let updated = detail(owner);
     assert_eq!(
         public(&updated).secrets,

@@ -443,10 +443,11 @@ pub(super) async fn operational_capture(
             if !seen.insert(document.name.clone()) || seen.len() > crate::administration::MAX_ROWS {
                 return Err(ReadError::Invalid);
             }
-            if document.kind == wire::DocumentKind::OperationalYaml && document.active {
-                if found.replace(document.name).is_some() {
-                    return Err(ReadError::Invalid);
-                }
+            if document.kind == wire::DocumentKind::OperationalYaml
+                && document.active
+                && found.replace(document.name).is_some()
+            {
+                return Err(ReadError::Invalid);
             }
         }
         if page.next_page_token.is_empty() {

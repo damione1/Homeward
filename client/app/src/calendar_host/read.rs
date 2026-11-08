@@ -357,7 +357,7 @@ impl Calendars {
                         .expect("calendar state")
                         .owns_write(context)
                 });
-                let outcome = prepared
+                let outcome = (*prepared)
                     .submit(&api, &session, &cancel, guard, receipt_current)
                     .await;
                 let mut state = self.0.state.lock().expect("calendar state");
