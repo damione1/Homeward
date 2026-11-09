@@ -36,6 +36,25 @@ func (z Zone) LocalDateContext(ctx context.Context, instant time.Time) (CivilDat
 	return local.date, nil
 }
 
+// LocalTime projects an admitted instant using this zone's pinned data. It does
+// not resolve an ambiguous wall clock again, so an explicit fold is preserved.
+func (z Zone) LocalTime(ctx context.Context, instant Instant) (LocalDateTime, error) {
+	if err := contextValid(ctx); err != nil {
+		return LocalDateTime{}, err
+	}
+	if !z.Valid() || !instant.Valid() {
+		return LocalDateTime{}, failure(InvalidDate)
+	}
+	local, err := z.localAt(ctx, instant.value)
+	if err != nil {
+		return LocalDateTime{}, err
+	}
+	if !local.Valid() {
+		return LocalDateTime{}, failure(InvalidDate)
+	}
+	return local, nil
+}
+
 // ResolvedPoint exposes scalar admitted copies for an imported recurrence
 // identity with an explicit instant. Civil points deliberately return false.
 func (p Point) ResolvedPoint() (LocalDateTime, Instant, bool) {

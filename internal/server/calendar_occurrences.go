@@ -29,12 +29,40 @@ func occurrenceParent(raw string) (calendarnames.CalendarName, *calendarnames.Ev
 	}
 	return event.Parent(), &event, nil
 }
+
+// Occurrence spans are a view in the request zone. Event definitions and
+// recurrence identities retain their original source-local semantics.
+func calendarOccurrenceSpan(ctx context.Context, value calendars.Span, zone calendars.Zone) (*api.CalendarSpan, error) {
+	if !zone.Valid() {
+		return nil, taskInvalid()
+	}
+	if value.Kind() == calendars.AllDay {
+		return calendarWireSpan(ctx, value)
+	}
+	start, end, _, ok := value.Instants()
+	if !ok {
+		return nil, taskInvalid()
+	}
+	localStart, err := zone.LocalTime(ctx, start)
+	if err != nil {
+		return nil, err
+	}
+	localEnd, err := zone.LocalTime(ctx, end)
+	if err != nil {
+		return nil, err
+	}
+	return &api.CalendarSpan{Value: &api.CalendarSpan_Times{Times: &api.CalendarTimeSpan{
+		StartLocal: calendarWireCivil(localStart), EndLocal: calendarWireCivil(localEnd),
+		StartTime: calendarWireInstant(start), EndTime: calendarWireInstant(end), TimeZone: zone.Name(),
+	}}}, nil
+}
+
 func calendarOccurrenceWire(ctx context.Context, parent calendarnames.CalendarName, value calendars.Occurrence, zone calendars.Zone) (*api.Occurrence, error) {
 	event, err := calendarnames.Event(parent, value.ID().Event().UID())
 	if err != nil {
 		return nil, err
 	}
-	span, err := calendarWireSpan(ctx, value.Span())
+	span, err := calendarOccurrenceSpan(ctx, value.Span(), zone)
 	if err != nil {
 		return nil, err
 	}
