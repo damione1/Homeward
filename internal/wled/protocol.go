@@ -153,7 +153,7 @@ func description(r RouteInput, d document, presets *registry.ControlChoices) *re
 	} else if s, ok := d.find(*r.Segment); ok {
 		light.Rgb = d.rgb(s)
 	}
-	return &registry.CapabilityDescription{SchemaId: contracts.LightSchema, Major: 1, Endpoint: "light", DisplayName: r.Label, Constraints: &registry.CapabilityDescription_Light{Light: light}}
+	return &registry.CapabilityDescription{SchemaId: contracts.LightSchema, Major: 1, Endpoint: r.component(), DisplayName: r.Label, Constraints: &registry.CapabilityDescription_Light{Light: light}}
 }
 func containsPreset(c *registry.ControlChoices, key string) bool {
 	for _, v := range c.GetChoices() {
