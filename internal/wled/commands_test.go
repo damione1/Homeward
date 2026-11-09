@@ -23,6 +23,7 @@ type transport struct {
 	mu     sync.Mutex
 	d      document
 	writes int
+	bodies []map[string]any
 	mode   string
 }
 
@@ -50,9 +51,10 @@ func (f *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 			return nil, io.ErrUnexpectedEOF
 		}
 		type change struct {
-			On         *bool   `json:"on"`
-			Brightness *uint32 `json:"bri"`
-			Preset     *int    `json:"ps"`
+			On         *bool      `json:"on"`
+			Brightness *uint32    `json:"bri"`
+			Preset     *int       `json:"ps"`
+			Colors     [][]uint32 `json:"col"`
 		}
 		var a struct {
 			change
@@ -61,9 +63,12 @@ func (f *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 				ID uint32 `json:"id"`
 			} `json:"seg"`
 		}
-		if json.NewDecoder(r.Body).Decode(&a) != nil {
+		raw, readErr := io.ReadAll(r.Body)
+		var body map[string]any
+		if readErr != nil || json.Unmarshal(raw, &body) != nil || json.Unmarshal(raw, &a) != nil {
 			return nil, ErrUnavailable
 		}
+		f.bodies = append(f.bodies, body)
 		if f.mode != "ack-only" {
 			apply := func(change change, on **bool, bri **uint32) {
 				if change.Brightness != nil {
@@ -83,6 +88,9 @@ func (f *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 					seg := &f.d.State.Segments[i]
 					if *seg.ID == update.ID {
 						apply(update.change, &seg.On, &seg.Brightness)
+						if update.Colors != nil {
+							seg.Colors = update.Colors
+						}
 					}
 				}
 			}
@@ -119,28 +127,37 @@ type rig struct {
 
 func newRig(t *testing.T) rig { return newRouteRig(t, nil) }
 func newRouteRig(t *testing.T, segmentID *uint32) rig {
+	return newRoutesRig(t, []RouteInput{{Alias: "light.demo", Label: "Demo", Segment: segmentID}})
+}
+func newRoutesRig(t *testing.T, routes []RouteInput) rig {
 	t.Helper()
 	host, fixture, e := fake.NewCommandFixture()
 	if e != nil {
 		t.Fatal(e)
 	}
-	settings, e := ParseSettings(Input{Instance: "demo-wled", Controllers: []ControllerInput{{Address: "192.168.50.20", MAC: "aabbccddeeff", Routes: []RouteInput{{Alias: "light.demo", Label: "Demo", Segment: segmentID}}}}})
+	settings, e := ParseSettings(Input{Instance: "demo-wled", Controllers: []ControllerInput{{Address: "192.168.50.20", MAC: "aabbccddeeff", Routes: routes}}})
 	if e != nil {
 		t.Fatal(e)
 	}
 	instance, _ := settings.Instance()
 	input := settings.Controllers()[0]
-	key := input.Routes[0].SourceKey(input.MAC)
-	resolved, e := fixture.Resolve(context.Background(), instance, []integrations.SourceKey{key})
+	keys := make([]integrations.SourceKey, len(routes))
+	for i, r := range routes {
+		keys[i] = r.SourceKey(input.MAC)
+	}
+	resolved, e := fixture.Resolve(context.Background(), instance, keys)
 	if e != nil {
 		t.Fatal(e)
 	}
-	alias, _ := domain.ParseHAAlias(input.Routes[0].Alias)
-	record, e := integrations.NewRegistryRecord(resolved[0].Device, resolved[0].Entity, instance, key, alias, alias, []domain.HAAlias{alias}, false)
-	if e != nil {
-		t.Fatal(e)
+	records := make([]integrations.RegistryRecord, len(routes))
+	for i, r := range routes {
+		alias, _ := domain.ParseHAAlias(r.Alias)
+		records[i], e = integrations.NewRegistryRecord(resolved[i].Device, resolved[i].Entity, instance, keys[i], alias, alias, []domain.HAAlias{alias}, false)
+		if e != nil {
+			t.Fatal(e)
+		}
 	}
-	if e = fixture.PublishRegistry(context.Background(), []integrations.RegistryRecord{record}); e != nil {
+	if e = fixture.PublishRegistry(context.Background(), records); e != nil {
 		t.Fatal(e)
 	}
 	session, e := host.OpenSession(instance)
@@ -157,7 +174,7 @@ func newRouteRig(t *testing.T, segmentID *uint32) rig {
 		t.Fatal(e)
 	}
 	p.refresh(c)
-	if len(c.routes) != 1 {
+	if len(c.routes) != len(routes) {
 		t.Fatal("no admitted native route")
 	}
 	service, e := integrations.NewVolatileCommandService(host, generation{}, integrations.DefaultVolatileCommandLimits())
@@ -167,7 +184,7 @@ func newRouteRig(t *testing.T, segmentID *uint32) rig {
 	actor, _ := domain.ParseActorID("wled-test")
 	epoch, _ := fixture.CurrentAdmissionEpoch()
 	entity, _ := resolved[0].Entity.Value()
-	request := &actions.CommandRequest{CommandId: "wled-test-command", AdmissionEpoch: epoch, ConfigRevision: 7, Target: &registry.EntityRef{Reference: &registry.EntityRef_EntityId{EntityId: entity}}, CapabilitySchemaId: "core.light.v1", Endpoint: "light", ExpiresAt: timestamppb.New(time.Now().Add(time.Second)), Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{BrightnessPercent: proto.Float64(50)}}}}
+	request := &actions.CommandRequest{CommandId: "wled-test-command", AdmissionEpoch: epoch, ConfigRevision: 7, Target: &registry.EntityRef{Reference: &registry.EntityRef_EntityId{EntityId: entity}}, CapabilitySchemaId: "core.light.v1", Endpoint: c.routes[resolved[0].Entity].description.Endpoint, ExpiresAt: timestamppb.New(time.Now().Add(time.Second)), Arguments: &actions.ActionArgs{Arguments: &actions.ActionArgs_SetLight{SetLight: &actions.SetLight{BrightnessPercent: proto.Float64(50)}}}}
 	return rig{p, c, f, host, service, actor, request}
 }
 func TestNHA083HostLedgerQuantizedReadbackAndNoReplay(t *testing.T) {

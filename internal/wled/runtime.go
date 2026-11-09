@@ -222,7 +222,7 @@ func (p *pilot) publish(ctx context.Context, r route, d *document) error {
 		availability, freshness = domain.AvailabilityAvailable, domain.FreshnessFresh
 	}
 	q, _ := domain.NewQuality(availability, freshness, domain.ProvenanceObserved)
-	o, e := integrations.NewStateObservation("light", q, value, at, now, nil)
+	o, e := integrations.NewStateObservation(r.input.component(), q, value, at, now, nil)
 	if e != nil {
 		return e
 	}

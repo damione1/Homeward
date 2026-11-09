@@ -65,7 +65,7 @@ func (p *pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 		return e
 	}
 	request, e := command.Request()
-	if e != nil || request.CapabilitySchemaId != contracts.LightSchema || request.Endpoint != "light" || request.ExpiresAt == nil || request.ExpiresAt.CheckValid() != nil {
+	if e != nil || request.CapabilitySchemaId != contracts.LightSchema || request.ExpiresAt == nil || request.ExpiresAt.CheckValid() != nil {
 		return ErrUnavailable
 	}
 	p.mu.Lock()
@@ -92,6 +92,9 @@ func (p *pilot) Dispatch(ctx context.Context, command integrations.AdmittedComma
 			continue
 		}
 		defer unlock(c)
+		if request.Endpoint != r.input.component() || request.Endpoint != r.description.Endpoint {
+			return ErrUnavailable
+		}
 		if !current() || c.last.IsZero() || time.Since(c.last) > 30*time.Second {
 			return ErrUnavailable
 		}
