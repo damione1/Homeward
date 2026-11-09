@@ -929,6 +929,7 @@ fn deferred_dashboard_publication(
     guard: GenerationGuard,
     presentation: crate::dashboard::SharedRequest,
     choices: crate::dashboard_selection::Choices,
+    profile_publish: Arc<dyn Fn(Generation, crate::environment_view::ProfileZone) + Send + Sync>,
     ticket: DeliveryTicket<DashboardPublication>,
 ) -> impl FnOnce(HomewardWindow) + Send {
     // Android may retain this queue after an Activity closes. Publication must
@@ -950,6 +951,16 @@ fn deferred_dashboard_publication(
                 catalogue,
                 layout,
             );
+            let zone = presentation
+                .lock()
+                .expect("presentation request mutex poisoned")
+                .dashboard
+                .layout()
+                .filter(|layout| layout.publication_current())
+                .map_or(crate::environment_view::ProfileZone::Missing, |layout| {
+                    layout.profile_zone
+                });
+            profile_publish(generation, zone);
         });
     }
 }
@@ -1151,7 +1162,13 @@ async fn install_profile(
                 );
                 dashboard_ui.post(
                     epoch,
-                    deferred_dashboard_publication(guard, presentation, choices, ticket),
+                    deferred_dashboard_publication(
+                        guard,
+                        presentation,
+                        choices,
+                        dashboard_ui.calendars.display_profile_publisher(),
+                        ticket,
+                    ),
                 );
             },
         )
@@ -2162,6 +2179,7 @@ mod tests {
         let generation = owner.generation();
         let presentation = Arc::new(Mutex::new(ProjectionRequest::default()));
         let choices = Choices::default();
+        let published_zones = Arc::new(Mutex::new(Vec::new()));
         let pending = |guard| {
             let mailbox = ProjectionMailbox::new();
             let Publication::Schedule(ticket) = mailbox.publish(
@@ -2181,6 +2199,12 @@ mod tests {
                     guard,
                     presentation.clone(),
                     choices.clone(),
+                    {
+                        let published_zones = published_zones.clone();
+                        Arc::new(move |source, zone| {
+                            published_zones.lock().unwrap().push((source, zone))
+                        })
+                    },
                     ticket,
                 ),
             )
@@ -2211,6 +2235,10 @@ mod tests {
             presentation.lock().unwrap().dashboard,
             LayoutState::Unavailable
         ));
+        assert_eq!(
+            *published_zones.lock().unwrap(),
+            vec![(generation, crate::environment_view::ProfileZone::Missing)]
+        );
         presentation.lock().unwrap().dashboard = LayoutState::Loading;
         let (_closed_mailbox, closed) = pending(owner.generation_guard());
         let (_orphaned_mailbox, orphaned) = pending(owner.generation_guard());
@@ -2223,6 +2251,7 @@ mod tests {
             presentation.lock().unwrap().dashboard,
             LayoutState::Loading
         ));
+        assert_eq!(published_zones.lock().unwrap().len(), 1);
 
         // Keep the actual UI publication alive, as an Android queue may do.
         // It must neither retain the OS lease nor publish after its owner dies.
@@ -2239,6 +2268,7 @@ mod tests {
             presentation.lock().unwrap().dashboard,
             LayoutState::Loading
         ));
+        assert_eq!(published_zones.lock().unwrap().len(), 1);
     }
 
     #[tokio::test]

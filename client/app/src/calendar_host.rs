@@ -18,11 +18,11 @@ use home_client_model::{
     api_calendars::{CalendarEventName, CalendarName},
     calendars::CivilDate,
 };
-use home_client_session::{Phase, SessionCoordinator};
+use home_client_session::{Generation, Phase, SessionCoordinator};
 use home_client_transport::CalendarTransport;
 use home_wire_contract::{calendars_contract as admit, home::api::v2 as wire};
 use slint::ComponentHandle;
-use state::{Job, Open, State, Status};
+use state::{Activity, Job, Open, State, Status};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
@@ -48,6 +48,37 @@ fn boundary(value: ProAgendaBoundary) -> Boundary {
     }
 }
 impl Calendars {
+    pub(crate) fn display_profile_publisher(
+        &self,
+    ) -> Arc<dyn Fn(Generation, crate::environment_view::ProfileZone) + Send + Sync> {
+        let weak = Arc::downgrade(&self.0);
+        Arc::new(move |source, zone| {
+            if let Some(inner) = weak.upgrade() {
+                Calendars(inner).display_profile(source, zone);
+            }
+        })
+    }
+    fn display_profile(&self, source: Generation, profile: crate::environment_view::ProfileZone) {
+        if self.0.widget.is_some() {
+            return;
+        }
+        let mut state = self.0.state.lock().expect("calendar state");
+        if self
+            .0
+            .session
+            .lock()
+            .expect("calendar session")
+            .as_ref()
+            .is_some_and(|session| !session.is_current(source))
+        {
+            return;
+        }
+        if !state.apply_profile(source, profile) {
+            return;
+        }
+        self.publish(&state);
+        self.0.changed.notify_one();
+    }
     fn new(window: Option<slint::Weak<HomewardWindow>>) -> Self {
         Self::with_widget(window, None)
     }
@@ -233,8 +264,9 @@ impl Calendars {
         window.on_calendars_day(move |token, generation| {
             let mut state = owner.0.state.lock().expect("calendar state");
             if generation != state.generation
-                || !state.ready
-                || state.busy
+                || !state.active
+                || !state.interactive
+                || state.busy()
                 || !(100..107).contains(&token)
             {
                 return;
@@ -242,12 +274,10 @@ impl Calendars {
             let date = chrono::NaiveDate::parse_from_str(&state.start, "%Y-%m-%d")
                 .ok()
                 .and_then(|date| date.checked_add_days(chrono::Days::new((token - 100) as u64)));
-            if let Some(date) = date.and_then(|date| date.to_string().parse().ok()) {
-                state.day = Some(date);
-                state.active_index = None;
-                state.draft = None;
-                state.bump();
+            if let Some(date) = date {
+                state.focus_period(date, ProAgendaMode::Day);
                 owner.publish(&state);
+                owner.0.changed.notify_one();
             }
         });
         let owner = this.clone();
@@ -354,17 +384,22 @@ impl Calendars {
             return;
         }
         state.interactive = active;
+        if active {
+            state.catalog_needed = true;
+            state.reset_reads();
+        }
         if !active {
+            state.uncertain |= state.activity == Activity::Write && state.job.is_none();
             state.reset_reads();
             state.job = None;
-            state.busy = false;
+            state.activity = Activity::Idle;
         }
         self.publish(&state);
         self.0.changed.notify_one();
     }
     fn choose(&self, token: i32, generation: i32) {
         let mut state = self.0.state.lock().expect("calendar state");
-        if !state.active || !state.interactive || generation != state.generation || state.busy {
+        if !state.active || !state.interactive || generation != state.generation || state.busy() {
             return;
         }
         let Some(id) = token
@@ -382,6 +417,7 @@ impl Calendars {
         state.selected = Some(id);
         state.snapshot = None;
         state.draft = None;
+        state.occurrence = None;
         state.active_index = None;
         state.reset_reads();
         self.publish(&state);
@@ -389,10 +425,10 @@ impl Calendars {
     }
     fn select(&self, token: i32, generation: i32) {
         let mut state = self.0.state.lock().expect("calendar state");
-        if generation != state.generation || !state.ready || !state.interactive || state.busy {
+        if generation != state.generation || !state.ready || !state.interactive || state.busy() {
             return;
         }
-        let Some((index, key)) = token
+        let Some((index, key, occurrence)) = token
             .checked_sub(1)
             .and_then(|index| usize::try_from(index).ok())
             .and_then(|index| {
@@ -401,16 +437,24 @@ impl Calendars {
                     .as_ref()?
                     .occurrences()
                     .get(index)
-                    .and_then(|row| CalendarEventName::try_from(row.calendar_event.as_str()).ok())
-                    .map(|key| (index, key))
+                    .and_then(|row| {
+                        CalendarEventName::try_from(row.calendar_event.as_str())
+                            .ok()
+                            .map(|key| (index, key, row.clone()))
+                    })
             })
         else {
             return;
         };
         state.active_index = Some(index);
         state.draft = None;
+        state.occurrence = None;
         state.draft_token = token;
-        state.enqueue(Job::Open(key, Open::Replace));
+        if state.editable() {
+            state.enqueue(Job::Open(key, Open::Replace));
+        } else {
+            state.occurrence = Some(occurrence);
+        }
         self.publish(&state);
         self.0.changed.notify_one();
     }
@@ -439,31 +483,30 @@ impl Calendars {
     }
     fn mode(&self, mode: ProAgendaMode) {
         let mut state = self.0.state.lock().expect("calendar state");
-        if !state.active || !state.interactive || !state.ready || state.busy {
+        if !state.active || !state.interactive || state.busy() {
             return;
         }
-        state.week = match mode {
-            ProAgendaMode::List => false,
-            ProAgendaMode::Week => true,
-        };
-        if state.week {
-            let Some(end) = chrono::NaiveDate::parse_from_str(&state.start, "%Y-%m-%d")
+        if mode == ProAgendaMode::List {
+            state.mode = mode;
+            state.bump();
+        } else {
+            let today = state
+                .zone
+                .parse::<home_client_model::local_time::DisplayTimeZone>()
                 .ok()
-                .and_then(|date| date.checked_add_days(chrono::Days::new(7)))
-            else {
+                .map(|zone| zone.local(crate::environment_view::now()).date());
+            let anchor = if mode == ProAgendaMode::Day {
+                today
+                    .filter(|day| *day >= state.start && *day < state.end)
+                    .unwrap_or_else(|| state.start.clone())
+            } else {
+                state.start.clone()
+            };
+            let Some(date) = chrono::NaiveDate::parse_from_str(&anchor, "%Y-%m-%d").ok() else {
                 return;
             };
-            if state.end != end.to_string() {
-                state.end = end.to_string();
-                state.snapshot = None;
-                state.status = Status::Loading;
-                state.reset_reads();
-            }
+            state.focus_period(date, mode);
         }
-        state.day = None;
-        state.active_index = None;
-        state.draft = None;
-        state.bump();
         self.publish(&state);
         self.0.changed.notify_one();
     }
@@ -483,10 +526,45 @@ impl Calendars {
     }
     fn command(&self, g: i32, command: CalendarCommand, a: &str, b: &str, c: &str) {
         let mut state = self.0.state.lock().expect("calendar state");
-        if g != state.generation || !state.interactive || state.busy {
+        if g != state.generation || !state.interactive || state.busy() {
             return;
         }
         match command {
+            CalendarCommand::PreviousWeek | CalendarCommand::Today | CalendarCommand::NextWeek => {
+                let Some(start) = chrono::NaiveDate::parse_from_str(&state.start, "%Y-%m-%d").ok()
+                else {
+                    return;
+                };
+                let step = state.period_days();
+                let next = match command {
+                    CalendarCommand::PreviousWeek => {
+                        start.checked_sub_days(chrono::Days::new(step))
+                    }
+                    CalendarCommand::NextWeek => start.checked_add_days(chrono::Days::new(step)),
+                    CalendarCommand::Today => state
+                        .zone
+                        .parse::<home_client_model::local_time::DisplayTimeZone>()
+                        .ok()
+                        .and_then(|zone| {
+                            chrono::NaiveDate::parse_from_str(
+                                &zone.local(crate::environment_view::now()).date(),
+                                "%Y-%m-%d",
+                            )
+                            .ok()
+                        }),
+                    CalendarCommand::Create
+                    | CalendarCommand::Rename
+                    | CalendarCommand::Remove
+                    | CalendarCommand::Reload
+                    | CalendarCommand::NewEvent
+                    | CalendarCommand::ApplyRange => unreachable!("navigation branch"),
+                };
+                if let Some(next) = next {
+                    let mode = state.mode;
+                    state.focus_period(next, mode);
+                }
+            }
+
             CalendarCommand::Reload => {
                 self.0.retry.store(true, Ordering::SeqCst);
                 state.catalog_needed = true;
@@ -496,49 +574,40 @@ impl Calendars {
                 state.notice.clear();
             }
             CalendarCommand::ApplyRange => {
-                let parsed = a.parse::<CivilDate>();
+                let start = chrono::NaiveDate::parse_from_str(a, "%Y-%m-%d").ok();
+                let zone = home_client_model::api_calendars::CalendarZone::try_from(c);
                 let end = if b.is_empty() {
-                    chrono::NaiveDate::parse_from_str(a, "%Y-%m-%d")
-                        .ok()
-                        .and_then(|date| date.checked_add_days(chrono::Days::new(7)))
-                        .map(|date| date.to_string())
+                    start.and_then(|date| {
+                        date.checked_add_days(chrono::Days::new(state.period_days()))
+                    })
                 } else {
-                    Some(b.to_owned())
+                    chrono::NaiveDate::parse_from_str(b, "%Y-%m-%d").ok()
                 };
-                if parsed.is_err()
-                    || end
-                        .as_deref()
-                        .is_none_or(|end| end.parse::<CivilDate>().is_err())
+                if let Some((start, end)) = start
+                    .zip(end)
+                    .filter(|(start, end)| *end > *start && (*end - *start).num_days() <= 366)
+                    .filter(|_| zone.is_ok())
                 {
-                    state.notice = "Invalid calendar dates; no reading request was sent.".into();
-                } else {
-                    let (old_start, old_end, old_zone) =
-                        (state.start.clone(), state.end.clone(), state.zone.clone());
-                    state.start = a.into();
-                    state.end = end.expect("checked civil end");
                     state.zone = c.into();
-                    if state.query().is_some() {
-                        if chrono::NaiveDate::parse_from_str(&state.start, "%Y-%m-%d")
-                            .ok()
-                            .and_then(|date| date.checked_add_days(chrono::Days::new(7)))
-                            .is_none_or(|end| end.to_string() != state.end)
-                        {
-                            state.week = false;
-                        }
-                        state.status = Status::Loading;
-                        state.draft = None;
-                        state.snapshot = None;
-                        state.day = None;
-                        state.reset_reads();
+                    if b.is_empty() {
+                        let mode = state.mode;
+                        state.focus_period(start, mode);
                     } else {
-                        state.start = old_start;
-                        state.end = old_end;
-                        state.zone = old_zone;
-                        state.notice =
-                            "Invalid range (maximum 366 days) or missing time zone.".into();
+                        state.mode = ProAgendaMode::List;
+                        state.start = start.to_string();
+                        state.end = end.to_string();
+                        state.snapshot = None;
+                        state.draft = None;
+                        state.occurrence = None;
+                        state.active_index = None;
+                        state.reset_reads();
                     }
+                    state.notice.clear();
+                } else {
+                    state.notice = "Invalid range (maximum 366 days) or missing time zone.".into();
                 }
             }
+
             CalendarCommand::NewEvent => {
                 if !state.editable() || !state.present() {
                     return;
@@ -551,6 +620,7 @@ impl Calendars {
                 };
                 state.bump();
                 state.draft_token = 0;
+                state.occurrence = None;
                 state.draft = Some(Draft::new(parent, &date));
             }
             CalendarCommand::Create | CalendarCommand::Rename | CalendarCommand::Remove => {
@@ -571,7 +641,10 @@ impl Calendars {
                         .and_then(|current| PreparedCalendarMutation::delete(&current, false).ok()),
                     CalendarCommand::Reload
                     | CalendarCommand::NewEvent
-                    | CalendarCommand::ApplyRange => unreachable!("calendar mutation branch"),
+                    | CalendarCommand::ApplyRange
+                    | CalendarCommand::PreviousWeek
+                    | CalendarCommand::Today
+                    | CalendarCommand::NextWeek => unreachable!("calendar mutation branch"),
                 };
                 if let Some(prepared) = prepared {
                     state.enqueue(Job::Write(Box::new(prepared)));
@@ -585,15 +658,20 @@ impl Calendars {
     }
     fn action(&self, t: i32, g: i32, action: ProAgendaAction) {
         let mut state = self.0.state.lock().expect("calendar state");
-        if g != state.generation || t != state.draft_token || !state.interactive || state.busy {
+        if g != state.generation || t != state.draft_token || !state.interactive || state.busy() {
             return;
         }
         match action {
             ProAgendaAction::Cancel => {
                 state.draft = None;
+                state.occurrence = None;
                 state.bump();
             }
             ProAgendaAction::Reload | ProAgendaAction::Rebase => {
+                if state.occurrence.is_some() && action == ProAgendaAction::Reload {
+                    state.status = Status::Loading;
+                    state.reset_reads();
+                }
                 if let Some(key) = state.draft.as_ref().and_then(|draft| draft.key.clone()) {
                     state.enqueue(Job::Open(
                         key,

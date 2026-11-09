@@ -63,7 +63,7 @@ impl Calendars {
             if state.context != context {
                 return;
             }
-            state.busy = false;
+            state.activity = Activity::Idle;
         }
         self.failed(context, status);
     }
@@ -73,8 +73,17 @@ impl Calendars {
             return;
         }
         match status {
-            Status::Denied | Status::Unsupported | Status::Invalid => {
+            Status::Denied => {
                 state.clear_private();
+                let _ = self.0.mailbox.invalidate();
+            }
+            Status::Unsupported | Status::Invalid => {
+                let session = self.0.session.lock().expect("calendar session").clone();
+                if let Some(session) = session {
+                    state.change_generation(session.generation(), &session);
+                } else {
+                    state.clear_private();
+                }
                 let _ = self.0.mailbox.invalidate();
             }
             Status::Offline => {
@@ -85,7 +94,8 @@ impl Calendars {
                 state.snapshot = None;
                 state.ready = false;
                 state.draft = None;
-                state.busy = false;
+                state.occurrence = None;
+                state.activity = Activity::Idle;
                 state.bump();
             }
             Status::Loading | Status::Ready => return,
@@ -247,6 +257,7 @@ impl Calendars {
             };
             state.snapshot = None;
             state.draft = None;
+            state.occurrence = None;
         }
         self.pin_widget(&mut state);
         state.reset_reads();
@@ -364,7 +375,7 @@ impl Calendars {
                 if state.context != context {
                     return;
                 }
-                state.busy = false;
+                state.activity = Activity::Idle;
                 let phase = match outcome {
                     CalendarWriteOutcome::Committed(result) => {
                         use home_client_actions::calendars::ConfirmedMutation;
@@ -388,6 +399,7 @@ impl Calendars {
                             ConfirmedMutation::Event(_) | ConfirmedMutation::DeletedEvent(_) => {}
                         }
                         state.draft = None;
+                        state.occurrence = None;
                         state.snapshot = None;
                         state.reset_reads();
                         state.notice.clear();
@@ -588,7 +600,7 @@ impl Calendars {
                 let view = *phases.borrow();
                 if view.generation != source {
                     source = view.generation;
-                    state.clear_private();
+                    state.change_generation(view.generation, &session);
                     state.status = Status::Loading;
                     let _ = self.0.mailbox.invalidate();
                 }
