@@ -130,7 +130,7 @@ async fn until(owner: &Calendars, label: &str, predicate: impl Fn(&State) -> boo
             s.status,
             s.active,
             s.ready,
-            s.busy,
+            s.busy(),
             s.uncertain,
             s.snapshot.as_ref().map_or(0, |v| v.occurrences().len()),
             s.draft.is_some(),
@@ -139,11 +139,11 @@ async fn until(owner: &Calendars, label: &str, predicate: impl Fn(&State) -> boo
     }
 }
 fn ready(s: &State) -> bool {
-    s.active && s.ready && !s.busy && s.status == Status::Ready
+    s.active && s.ready && !s.busy() && s.status == Status::Ready
 }
 async fn choose(owner: &Calendars, id: &str) {
     until(owner, "catalog", |s| {
-        s.active && !s.busy && !s.catalog.is_empty()
+        s.active && !s.busy() && !s.catalog.is_empty()
     })
     .await;
     let (token, generation) = {
@@ -389,7 +389,7 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
     .unwrap();
     action(&owner, ProAgendaAction::Save);
     until(&owner, "server CAS conflict", |s| {
-        !s.busy
+        !s.busy()
             && s.draft
                 .as_ref()
                 .is_some_and(|d| d.phase == EditPhase::Conflict)
@@ -442,7 +442,7 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
     edit(&owner, "Committed but reply lost");
     controls.send(Control::LoseNextReply).await;
     action(&owner, ProAgendaAction::Save);
-    until(&owner, "unknown commit", |s| !s.busy && s.uncertain).await;
+    until(&owner, "unknown commit", |s| !s.busy() && s.uncertain).await;
     action(&owner, ProAgendaAction::Save);
     assert_eq!(
         controls.stats().await.mutation_requests,
@@ -659,7 +659,7 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
     command(&owner, CalendarCommand::Remove, "", "", "");
     until(&owner, "calendar tombstone", |s| {
         s.active
-            && !s.busy
+            && !s.busy()
             && s.calendar().is_none()
             && s.catalog.iter().all(|source| {
                 !source.materialized

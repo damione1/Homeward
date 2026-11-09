@@ -211,6 +211,7 @@ fn field(value: &str) -> bool {
             | "ecobee"
             | "disabled_integrations"
             | "remote_calendar"
+            | "display_profile"
             | "external_worker_bindings"
             | "external_worker_processes"
             | "mqtt"
@@ -331,6 +332,7 @@ fn plan(value: &wire::ConfigurationPlan) -> bool {
             || (((change.field == "android_tv" || change.field == "sonos")
                 || change.field == "ecobee"
                 || change.field == "remote_calendar"
+                || change.field == "display_profile"
                 || change.field == "disabled_integrations")
                 && family != wire::ConfigurationPlanSourceFamily::Operational)
             || change.field.as_str() <= previous
@@ -536,6 +538,18 @@ mod remote_calendar_tests {
             receipt: "a".repeat(80),
             ..Default::default()
         };
+        let mut profile = plan.clone();
+        profile.changes[0].field = "display_profile".into();
+        assert!(admit_plan_response(PlanResponse::Build(&profile)).is_ok());
+        profile.changes[0].field = "display_profile.time_zone".into();
+        assert!(admit_plan_response(PlanResponse::Build(&profile)).is_err());
+        profile.changes[0].field = "display_profile".into();
+        profile.family = wire::ConfigurationPlanSourceFamily::Dashboard.into();
+        profile.identity = "dashboard.preview".into();
+        profile.schema_version = "homeward-dashboard-1".into();
+        profile.effect = wire::ConfigurationPlanEffect::Dashboard.into();
+        profile.changes[0].effect = wire::ConfigurationPlanEffect::Dashboard.into();
+        assert!(admit_plan_response(PlanResponse::Build(&profile)).is_err());
         let mut response = plan;
         assert!(admit_plan_response(PlanResponse::Build(&response)).is_ok());
         let admitted_author = response.author.clone();

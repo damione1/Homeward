@@ -14,7 +14,7 @@ export { ProAdminFieldKind } from "@kit-pro";
 export { IconGlyph, KitGlyphs, TableColumn, ChoiceIcon } from "@kit";
 import { ProVideoAction } from "@kit-pro";
 import { ProCameraPresentation, ProCameraEventRow, ProCameraState } from "@kit-pro";
-import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro";
+import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaColumn, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro";
 import { CivilDateView, LocalDateTimeView, LocalTimeView, ZonedTimePresentation, ZonedDateTimeDraft, AmbiguousTimeChoice, CalendarDay, CalendarNavigation } from "@kit";
 import { HomewardHistory, HistoryPresentation, HistoryStatistic } from "history.slint";
 import { HomewardMedia } from "media.slint";
@@ -608,6 +608,7 @@ export component HomewardWindow inherits Window {
         width: content.width; height: content.height;
         visible: root.connected && !root.show-endpoint;
         theme: root.theme; product-name: "Homeward"; brand-glyph: LucideNavigation.compass(); workspace-label: root.dashboard-title;
+        header-visible: root.page != ViewPage.calendars;
         floating-navigation: true; compact-breakpoint: 600px;
         subtitle: root.page == ViewPage.home ? "" : root.local-date;
         navigation-glyphs: [KitGlyphs.home(), LucideHome.door-open(), KitGlyphs.cart(), LucideTime.calendar-days(), LucideDevices.video(), KitGlyphs.settings()];

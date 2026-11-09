@@ -3,7 +3,7 @@ use home_client_actions::calendars::PreparedCalendarMutation;
 use home_client_cache::calendars::CalendarReadSnapshot;
 use home_client_model::{
     api_calendars::{CalendarEventName, CalendarName},
-    calendars::{CalendarId, CivilDate},
+    calendars::CalendarId,
 };
 use home_client_session::Generation;
 use home_wire_contract::{calendars_contract as admit, home::api::v2 as wire};
@@ -29,6 +29,13 @@ pub(super) enum Job {
     Resolve(crate::calendar::Boundary, wire::ResolveCalendarTimeRequest),
     Write(Box<PreparedCalendarMutation>),
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum Activity {
+    #[default]
+    Idle,
+    Read,
+    Write,
+}
 pub(super) struct State {
     pub generation: i32,
     pub privacy_generation: i32,
@@ -46,20 +53,21 @@ pub(super) struct State {
     pub start: String,
     pub end: String,
     pub zone: String,
-    pub week: bool,
-    pub day: Option<CivilDate>,
+    pub profile_received: bool,
+    pub server_profile: Option<(Generation, crate::environment_view::ProfileZone)>,
+    pub mode: crate::ProAgendaMode,
     pub active_index: Option<usize>,
     pub draft: Option<Draft>,
+    pub occurrence: Option<wire::Occurrence>,
     pub draft_token: i32,
     pub notice: String,
     pub job: Option<Job>,
-    pub busy: bool,
+    pub activity: Activity,
     pub uncertain: bool,
     pub query_override: Option<wire::QueryOccurrencesRequest>,
 }
 impl Default for State {
     fn default() -> Self {
-        let today = chrono::Local::now().date_naive();
         Self {
             generation: 1,
             privacy_generation: 1,
@@ -74,26 +82,92 @@ impl Default for State {
             selected: None,
             snapshot: None,
             ready: false,
-            start: today.to_string(),
-            end: today
-                .checked_add_days(chrono::Days::new(7))
-                .unwrap_or(today)
-                .to_string(),
-            zone: "UTC".into(),
-            week: false,
-            day: None,
+            start: String::new(),
+            end: String::new(),
+            zone: String::new(),
+            profile_received: false,
+            server_profile: None,
+            mode: crate::ProAgendaMode::Week,
             active_index: None,
             draft: None,
+            occurrence: None,
             draft_token: 0,
             notice: String::new(),
             job: None,
-            busy: false,
+            activity: Activity::Idle,
             uncertain: false,
             query_override: None,
         }
     }
 }
 impl State {
+    pub fn apply_profile(
+        &mut self,
+        source: Generation,
+        profile: crate::environment_view::ProfileZone,
+    ) -> bool {
+        self.server_profile = Some((source, profile));
+        let zone = match profile {
+            crate::environment_view::ProfileZone::Known(zone) => Some(zone),
+            crate::environment_view::ProfileZone::Missing
+            | crate::environment_view::ProfileZone::Unsupported => None,
+        };
+        let name = zone.map_or("", |zone| zone.name());
+        if self.profile_received && self.zone == name {
+            return false;
+        }
+        let interrupted_write = self.activity == Activity::Write && self.job.is_none();
+        self.uncertain |= interrupted_write;
+        self.job = None;
+        self.activity = Activity::Idle;
+        self.query_override = None;
+        self.profile_received = true;
+        self.zone = name.into();
+        self.snapshot = None;
+        self.draft = None;
+        self.occurrence = None;
+        self.active_index = None;
+        if let Some(today) = zone.and_then(|zone| {
+            chrono::NaiveDate::parse_from_str(
+                &zone.local(crate::environment_view::now()).date(),
+                "%Y-%m-%d",
+            )
+            .ok()
+        }) {
+            let mode = self.mode;
+            self.focus_period(today, mode);
+            if !self.uncertain {
+                self.notice.clear();
+            }
+            if interrupted_write {
+                self.notice =
+                    "Calendar operation interrupted · refresh explicitly before another change."
+                        .into();
+            }
+        } else {
+            self.start.clear();
+            self.end.clear();
+            self.notice = "Calendar time zone is not configured by the server.".into();
+        }
+        self.reset_reads();
+        true
+    }
+    pub fn change_generation(
+        &mut self,
+        source: Generation,
+        session: &home_client_session::SessionCoordinator,
+    ) {
+        let current = self
+            .server_profile
+            .filter(|(generation, _)| *generation == source && session.is_current(source));
+        self.clear_private();
+        if let Some((generation, profile)) = current {
+            self.apply_profile(generation, profile);
+        }
+    }
+    pub fn busy(&self) -> bool {
+        self.activity != Activity::Idle
+    }
     pub fn bump(&mut self) {
         self.generation = if self.generation > 0 {
             self.generation.checked_add(1).unwrap_or(0)
@@ -115,13 +189,21 @@ impl State {
         self.privacy_generation = self.privacy_generation.checked_add(1).unwrap_or(0);
         self.reset_reads();
         self.catalog.clear();
+        self.zone.clear();
+        self.profile_received = false;
+        self.server_profile = None;
+        self.notice.clear();
+        self.start.clear();
+        self.end.clear();
         self.snapshot = None;
         self.draft = None;
+        self.occurrence = None;
         self.active_index = None;
         self.selected = None;
         self.source = None;
+        self.query_override = None;
         self.job = None;
-        self.busy = false;
+        self.activity = Activity::Idle;
         self.catalog_needed = true;
         self.uncertain = false;
     }
@@ -208,18 +290,21 @@ impl State {
         generation == self.generation
             && token == self.draft_token
             && self.editable()
-            && !self.busy
+            && !self.busy()
             && self
                 .draft
                 .as_ref()
                 .is_some_and(|draft| matches!(draft.phase, EditPhase::Ready | EditPhase::Conflict))
     }
     pub fn enqueue(&mut self, job: Job) -> bool {
-        if self.busy || !self.active || !self.interactive {
+        if self.busy() || !self.active || !self.interactive {
             return false;
         }
+        self.activity = match &job {
+            Job::Write(_) => Activity::Write,
+            Job::Open(_, _) | Job::Resolve(_, _) => Activity::Read,
+        };
         self.job = Some(job);
-        self.busy = true;
         true
     }
     /// A Watch publication may supersede the visual generation while this read
@@ -229,11 +314,14 @@ impl State {
         if self.context != context {
             return false;
         }
-        self.busy = false;
+        self.activity = Activity::Idle;
         self.generation == generation
     }
     pub fn owns_write(&self, context: u64) -> bool {
-        self.context == context && self.active && self.interactive && self.busy
+        self.context == context
+            && self.active
+            && self.interactive
+            && self.activity == Activity::Write
     }
     pub fn snapshot(&mut self, snapshot: Arc<CalendarReadSnapshot>, source: Generation) {
         let Ok(version) = admit::calendar_version(snapshot.calendar()) else {
@@ -262,6 +350,22 @@ impl State {
                 metadata.provenance = snapshot.calendar().provenance;
             }
         }
+        if let Some(selected) = &self.occurrence {
+            let matched = snapshot.occurrences().iter().enumerate().find(|(_, row)| {
+                row.calendar_event == selected.calendar_event
+                    && row.recurrence_point == selected.recurrence_point
+            });
+            let index = matched.map(|(index, _)| index);
+            if self.active_index != index {
+                self.bump();
+            }
+            self.active_index = index;
+            self.draft_token = index
+                .and_then(|index| i32::try_from(index).ok())
+                .and_then(|index| index.checked_add(1))
+                .unwrap_or(0);
+            self.occurrence = matched.map(|(_, row)| row.clone());
+        }
         self.snapshot = Some(snapshot);
         self.source = Some(source);
         self.ready = true;
@@ -269,24 +373,47 @@ impl State {
     }
     pub fn row_indices(&self) -> Vec<usize> {
         self.snapshot.as_ref().map_or_else(Vec::new, |snapshot| {
-            snapshot
-                .occurrences()
-                .iter()
-                .enumerate()
-                .filter_map(|(index, row)| {
-                    let span = admit::span(&row.span).ok()?;
-                    let date = span
-                        .date_bounds()
-                        .map(|(start, _)| start)
-                        .or_else(|| span.timed().map(|time| time.start_local().date()))?;
-                    if self.week && self.day.is_some_and(|day| day != date) {
-                        None
-                    } else {
-                        Some(index)
-                    }
-                })
-                .collect()
+            (0..snapshot.occurrences().len()).collect()
         })
+    }
+    pub fn focus_period(&mut self, date: chrono::NaiveDate, mode: crate::ProAgendaMode) -> bool {
+        use chrono::Datelike;
+        let days = match mode {
+            crate::ProAgendaMode::Day => 1,
+            crate::ProAgendaMode::Week => 7,
+            crate::ProAgendaMode::List => self.period_days(),
+        };
+        let start = match mode {
+            crate::ProAgendaMode::Week => date.checked_sub_days(chrono::Days::new(u64::from(
+                date.weekday().num_days_from_monday(),
+            ))),
+            crate::ProAgendaMode::Day | crate::ProAgendaMode::List => Some(date),
+        };
+        let Some((start, end)) = start.and_then(|start| {
+            start
+                .checked_add_days(chrono::Days::new(days))
+                .map(|end| (start, end))
+        }) else {
+            return false;
+        };
+        self.mode = mode;
+        self.start = start.to_string();
+        self.end = end.to_string();
+        self.snapshot = None;
+        self.draft = None;
+        self.occurrence = None;
+        self.active_index = None;
+        self.status = Status::Loading;
+        self.reset_reads();
+        true
+    }
+    pub fn period_days(&self) -> u64 {
+        chrono::NaiveDate::parse_from_str(&self.start, "%Y-%m-%d")
+            .ok()
+            .zip(chrono::NaiveDate::parse_from_str(&self.end, "%Y-%m-%d").ok())
+            .and_then(|(start, end)| u64::try_from((end - start).num_days()).ok())
+            .filter(|days| *days > 0)
+            .unwrap_or(7)
     }
 }
 

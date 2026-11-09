@@ -1,8 +1,9 @@
 use super::state::{State, Status};
 use crate::{
     CalendarDay, CalendarDraftView, CalendarPresentation, CivilDateView, ContentItem,
-    HomewardWindow, LocalDateTimeView, LocalTimeView, ProAgendaAccess, ProAgendaDay, ProAgendaMode,
-    ProAgendaPhase, ProAgendaRow, ProAgendaTemporalKind, ZonedTimePresentation,
+    HomewardWindow, LocalDateTimeView, LocalTimeView, ProAgendaAccess, ProAgendaColumn,
+    ProAgendaDay, ProAgendaMode, ProAgendaPhase, ProAgendaRow, ProAgendaTemporalKind,
+    ZonedTimePresentation,
     calendar::{Draft, EditPhase, Resolution, Temporal},
 };
 use chrono::Datelike;
@@ -33,10 +34,10 @@ pub(super) struct Projection {
     start: String,
     end: String,
     zone: String,
-    week: bool,
-    day: Option<home_client_model::calendars::CivilDate>,
+    mode: ProAgendaMode,
     active_index: Option<usize>,
     draft: Option<Draft>,
+    occurrence: Option<wire::Occurrence>,
     draft_token: i32,
     notice: String,
 }
@@ -53,16 +54,16 @@ impl Projection {
             indices: state.row_indices(),
             editable: state.editable(),
             ready: state.ready,
-            busy: state.busy,
+            busy: state.busy(),
             active: state.active,
             status: state.status,
             start: state.start.clone(),
             end: state.end.clone(),
             zone: state.zone.clone(),
-            week: state.week,
-            day: state.day,
+            mode: state.mode,
             active_index: state.active_index,
             draft: state.draft.clone(),
+            occurrence: state.occurrence.clone(),
             draft_token: state.draft_token,
             notice: state.notice.clone(),
         }
@@ -134,6 +135,62 @@ fn resolution(value: &Resolution) -> (ZonedTimePresentation, String) {
         ),
     }
 }
+fn occurrence_view(
+    row: &wire::Occurrence,
+    token: i32,
+    generation: i32,
+    access: ProAgendaAccess,
+) -> CalendarDraftView {
+    let mut view = CalendarDraftView {
+        selected: true,
+        token,
+        generation,
+        title: "Occurrence".into(),
+        existing: true,
+        access: if access == ProAgendaAccess::Offline {
+            access
+        } else {
+            ProAgendaAccess::ReadOnly
+        },
+        summary: row.summary.clone().into(),
+        description: row.description.clone().into(),
+        location: row.location.clone().into(),
+        phase: ProAgendaPhase::Ready,
+        ..Default::default()
+    };
+    match &row.span.value {
+        Some(wire::calendar_span::Value::Dates(span)) => {
+            view.kind = ProAgendaTemporalKind::AllDay;
+            view.start_date = admit::date(&span.start_date)
+                .map(|date| date.to_string())
+                .unwrap_or_default()
+                .into();
+            view.end_date = admit::date(&span.end_date)
+                .map(|date| date.to_string())
+                .unwrap_or_default()
+                .into();
+            view.accepted_start = local(&view.start_date, "");
+            view.accepted_end = local(&view.end_date, "");
+        }
+        Some(wire::calendar_span::Value::Times(span)) => {
+            view.kind = ProAgendaTemporalKind::Timed;
+            let start = admit::civil_text(&span.start_local).unwrap_or_default();
+            let end = admit::civil_text(&span.end_local).unwrap_or_default();
+            view.start_date = start.get(..10).unwrap_or_default().into();
+            view.end_date = end.get(..10).unwrap_or_default().into();
+            view.start_time = start.get(11..).unwrap_or_default().into();
+            view.end_time = end.get(11..).unwrap_or_default().into();
+            view.zone = row.time_zone.clone().into();
+            view.accepted_start = local(&view.start_date, &view.start_time);
+            view.accepted_end = local(&view.end_date, &view.end_time);
+            view.start_resolution = ZonedTimePresentation::Unique;
+            view.end_resolution = ZonedTimePresentation::Unique;
+        }
+        None => return CalendarDraftView::default(),
+    }
+    view
+}
+
 fn editor(value: &Projection) -> CalendarDraftView {
     let access = if !value.active || !value.ready || value.status != Status::Ready {
         ProAgendaAccess::Offline
@@ -142,6 +199,9 @@ fn editor(value: &Projection) -> CalendarDraftView {
     } else {
         ProAgendaAccess::ReadOnly
     };
+    if let Some(occurrence) = &value.occurrence {
+        return occurrence_view(occurrence, value.draft_token, value.generation, access);
+    }
     let Some(draft) = &value.draft else {
         return CalendarDraftView {
             access,
@@ -155,6 +215,17 @@ fn editor(value: &Projection) -> CalendarDraftView {
         access,
         phase: phase(draft.phase),
         existing: draft.existing,
+        title: if draft
+            .original
+            .recurrence_rule
+            .as_deref()
+            .is_some_and(|rule| !rule.is_empty())
+        {
+            "Event series"
+        } else {
+            "Event"
+        }
+        .into(),
         summary: draft.original.summary.clone().into(),
         description: draft.original.description.clone().into(),
         location: draft.original.location.clone().into(),
@@ -208,6 +279,14 @@ struct Rows {
     draft: Option<(CalendarEventName, EditPhase)>,
     notify: ModelNotify,
 }
+fn timed_label(start: &str, end: &str) -> Option<String> {
+    Some(if start.get(..10)? == end.get(..10)? {
+        format!("{}–{}", start.get(11..16)?, end.get(11..16)?)
+    } else {
+        format!("{} – {}", start.get(..16)?, end.get(..16)?)
+    })
+}
+
 impl Model for Rows {
     type Data = ProAgendaRow;
     fn row_count(&self) -> usize {
@@ -231,7 +310,7 @@ impl Model for Rows {
                 let end = admit::civil_text(&span.end_local).ok()?;
                 (
                     start.get(..10)?.to_owned(),
-                    format!("{} – {} · {}", start.get(11..)?, end, span.time_zone),
+                    timed_label(&start, &end)?,
                     ProAgendaTemporalKind::Timed,
                 )
             }
@@ -273,6 +352,36 @@ impl Model for Rows {
         self
     }
 }
+// Membership is a civil presentation of the server-resolved span. Exclusive
+// ends are preserved, including midnight and all-day multi-day occurrences.
+pub(super) fn occurrence_on_day(row: &wire::Occurrence, day: chrono::NaiveDate) -> bool {
+    match &row.span.value {
+        Some(wire::calendar_span::Value::Dates(span)) => {
+            let bounds = admit::date(&span.start_date)
+                .ok()
+                .zip(admit::date(&span.end_date).ok());
+            bounds.is_some_and(|(start, end)| {
+                start.to_string() <= day.to_string() && day.to_string() < end.to_string()
+            })
+        }
+        Some(wire::calendar_span::Value::Times(span)) => {
+            let bounds = admit::civil_text(&span.start_local)
+                .ok()
+                .zip(admit::civil_text(&span.end_local).ok());
+            bounds.is_some_and(|(start, end)| {
+                let lower = format!("{day}T00:00:00");
+                let upper = day
+                    .checked_add_days(chrono::Days::new(1))
+                    .map(|day| format!("{day}T00:00:00"));
+                upper.is_some_and(|upper| {
+                    start < upper && (end > lower || (start == end && start >= lower))
+                })
+            })
+        }
+        None => false,
+    }
+}
+
 fn source(
     origin: buffa::EnumValue<wire::CalendarOrigin>,
     provenance: buffa::EnumValue<wire::CalendarProvenance>,
@@ -319,7 +428,10 @@ fn quality(snapshot: &CalendarReadSnapshot) -> &'static str {
     }
 }
 pub(super) fn render(window: &HomewardWindow, value: Projection) {
-    if ((!value.catalog.is_empty() || value.snapshot.is_some() || value.draft.is_some())
+    if ((!value.catalog.is_empty()
+        || value.snapshot.is_some()
+        || value.draft.is_some()
+        || value.occurrence.is_some())
         && (value.source.is_none() || value.session.is_none()))
         || value.source.is_some_and(|generation| {
             value
@@ -403,7 +515,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                     snapshot: snapshot.clone(),
                     indices: value.indices.clone(),
                     generation: value.generation,
-                    draft,
+                    draft: draft.clone(),
                     notify: ModelNotify::default(),
                 })
             }
@@ -411,23 +523,100 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         None => ModelRc::default(),
     };
     let start = chrono::NaiveDate::parse_from_str(&value.start, "%Y-%m-%d").ok();
-    let days = start.map_or_else(Vec::new, |start| {
-        (0..7)
-            .filter_map(|offset| {
-                start
-                    .checked_add_days(chrono::Days::new(offset))
-                    .map(|day| ProAgendaDay {
-                        token: 100 + offset as i32,
-                        generation: value.generation,
-                        date: date(&day.to_string()),
-                        label: day.format("%d/%m").to_string().into(),
-                        selected: value
-                            .day
-                            .is_some_and(|selected| selected.to_string() == day.to_string()),
-                    })
+    let days: Vec<ProAgendaDay> = start.map_or_else(
+        || {
+            (0..7)
+                .map(|offset| ProAgendaDay {
+                    token: 100 + offset,
+                    generation: value.generation,
+                    label: "—".into(),
+                    ..Default::default()
+                })
+                .collect()
+        },
+        |start| {
+            (0..if value.mode == ProAgendaMode::Day {
+                1
+            } else {
+                7
             })
-            .collect()
-    });
+                .filter_map(|offset| {
+                    start
+                        .checked_add_days(chrono::Days::new(offset))
+                        .map(|day| ProAgendaDay {
+                            token: 100 + offset as i32,
+                            generation: value.generation,
+                            date: date(&day.to_string()),
+                            label: day.format("%d/%m").to_string().into(),
+                            selected: value.mode == ProAgendaMode::Day,
+                        })
+                })
+                .collect()
+        },
+    );
+    let mut active_column_claimed = false;
+    let columns = days
+        .iter()
+        .map(|day| {
+            let Some(day_date) = chrono::NaiveDate::from_ymd_opt(
+                day.date.year,
+                day.date.month as u32,
+                day.date.day as u32,
+            ) else {
+                return ProAgendaColumn {
+                    day: day.clone(),
+                    active_index: -1,
+                    ..Default::default()
+                };
+            };
+            let indices = value.snapshot.as_ref().map_or_else(Vec::new, |snapshot| {
+                snapshot
+                    .occurrences()
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, row)| occurrence_on_day(row, day_date).then_some(index))
+                    .collect()
+            });
+            let active_index = if active_column_claimed {
+                -1
+            } else {
+                value
+                    .active_index
+                    .and_then(|active| indices.iter().position(|index| *index == active))
+                    .map_or(-1, |index| index as i32)
+            };
+            active_column_claimed |= active_index >= 0;
+            let column_rows = value
+                .snapshot
+                .as_ref()
+                .map_or_else(ModelRc::default, |snapshot| {
+                    ModelRc::new(Rows {
+                        snapshot: snapshot.clone(),
+                        indices,
+                        generation: value.generation,
+                        draft: draft.clone(),
+                        notify: ModelNotify::default(),
+                    })
+                });
+            ProAgendaColumn {
+                active: active_index >= 0,
+                active_index,
+                day: ProAgendaDay {
+                    label: day_date.day().to_string().into(),
+                    ..day.clone()
+                },
+                weekday: day_date.format("%a").to_string().into(),
+                today: value
+                    .zone
+                    .parse::<home_client_model::local_time::DisplayTimeZone>()
+                    .ok()
+                    .is_some_and(|zone| {
+                        zone.local(crate::environment_view::now()).date() == day_date.to_string()
+                    }),
+                rows: column_rows,
+            }
+        })
+        .collect::<Vec<_>>();
     let calendar_days = start
         .and_then(|day| day.with_day(1))
         .map_or_else(Vec::new, |first| {
@@ -449,7 +638,14 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                                     enabled: true,
                                     selected: Some(day) == start,
                                     in_range: day.month() == first.month(),
-                                    today: day == chrono::Local::now().date_naive(),
+                                    today: value
+                                        .zone
+                                        .parse::<home_client_model::local_time::DisplayTimeZone>()
+                                        .ok()
+                                        .is_some_and(|zone| {
+                                            zone.local(crate::environment_view::now()).date()
+                                                == day.to_string()
+                                        }),
                                 })
                         })
                         .collect()
@@ -493,12 +689,43 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     } else {
         &value.notice
     };
+    let notice = if value.status == Status::Ready
+        && let Some(snapshot) = value
+            .snapshot
+            .as_deref()
+            .filter(|snapshot| !snapshot_fresh(snapshot))
+    {
+        if notice.is_empty() {
+            quality(snapshot).to_owned()
+        } else {
+            format!("{notice}\n{}", quality(snapshot))
+        }
+    } else {
+        notice.to_owned()
+    };
     let frame = CalendarPresentation {
         generation: value.generation,
         privacy_generation: value.privacy_generation,
         catalog: ModelRc::from(catalog.as_slice()),
         rows,
         days: ModelRc::from(days.as_slice()),
+        columns: ModelRc::from(columns.as_slice()),
+        period: start
+            .map_or_else(
+                || "Calendar".into(),
+                |start| {
+                    format!(
+                        "{} – {}",
+                        start.format("%B %-d"),
+                        chrono::NaiveDate::parse_from_str(&value.end, "%Y-%m-%d")
+                            .ok()
+                            .and_then(|end| end.checked_sub_days(chrono::Days::new(1)))
+                            .unwrap_or(start)
+                            .format("%B %-d, %Y")
+                    )
+                },
+            )
+            .into(),
         selected: value.selected.is_some(),
         calendar_token,
         present,
@@ -541,11 +768,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         start: value.start.clone().into(),
         end: value.end.clone().into(),
         zone: value.zone.clone().into(),
-        mode: if value.week {
-            ProAgendaMode::Week
-        } else {
-            ProAgendaMode::List
-        },
+        mode: value.mode,
         active_index,
         editor: editor(&value),
         calendar_days: ModelRc::from(calendar_days.as_slice()),
@@ -704,5 +927,64 @@ impl Model for WidgetRows {
     }
     fn model_tracker(&self) -> &dyn ModelTracker {
         &self.notify
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn labels_preserve_the_end_date_when_an_event_crosses_midnight() {
+        assert_eq!(
+            super::timed_label("2026-11-02T09:00:00", "2026-11-02T10:00:00").as_deref(),
+            Some("09:00–10:00")
+        );
+        assert_eq!(
+            super::timed_label("2026-11-02T09:00:00", "2026-11-03T09:00:00").as_deref(),
+            Some("2026-11-02T09:00 – 2026-11-03T09:00")
+        );
+    }
+
+    use super::*;
+    #[test]
+    fn civil_columns_keep_exclusive_ends_and_cross_midnight_membership() {
+        let day = |text: &str| chrono::NaiveDate::parse_from_str(text, "%Y-%m-%d").unwrap();
+        let all_day = wire::Occurrence {
+            span: wire::CalendarSpan {
+                value: Some(wire::calendar_span::Value::Dates(Box::new(
+                    wire::CalendarDateSpan {
+                        start_date: admit::date_wire("2026-10-31".parse().unwrap()).into(),
+                        end_date: admit::date_wire("2026-11-03".parse().unwrap()).into(),
+                        ..Default::default()
+                    },
+                ))),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert!(occurrence_on_day(&all_day, day("2026-11-02")));
+        assert!(!occurrence_on_day(&all_day, day("2026-11-03")));
+        let mut timed = wire::Occurrence {
+            span: wire::CalendarSpan {
+                value: Some(wire::calendar_span::Value::Times(Box::new(
+                    wire::CalendarTimeSpan {
+                        start_local: admit::parse_civil("2026-11-01T23:00:00").unwrap().into(),
+                        end_local: admit::parse_civil("2026-11-02T00:00:00").unwrap().into(),
+                        ..Default::default()
+                    },
+                ))),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert!(occurrence_on_day(&timed, day("2026-11-01")));
+        assert!(!occurrence_on_day(&timed, day("2026-11-02")));
+        if let Some(wire::calendar_span::Value::Times(span)) =
+            &mut timed.span.as_option_mut().unwrap().value
+        {
+            span.end_local = admit::parse_civil("2026-11-02T00:30:00").unwrap().into();
+        }
+        assert!(occurrence_on_day(&timed, day("2026-11-02")));
     }
 }
