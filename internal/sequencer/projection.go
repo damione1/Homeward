@@ -198,11 +198,25 @@ func (s *Sequencer) AcceptDiscovery(ctx context.Context, declarations []integrat
 			}
 		}
 	}
-	for entity, descriptions := range staged {
-		s.capabilities[entity] = descriptions
+	// Repeated discovery still crosses every identity/admission check above.
+	// Only a changed public declaration invalidates frozen views and routes;
+	// Host session bindings and private command encodings are owned separately.
+	changed := make([]integrations.DiscoveryDeclaration, 0, len(declarations))
+	for _, declaration := range declarations {
+		_, entity, _, _, _ := declaration.Identity()
+		if !sameCapabilitySet(s.capabilities[entity], staged[entity]) {
+			changed = append(changed, declaration)
+		}
+	}
+	if len(changed) == 0 {
+		return nil
+	}
+	for _, declaration := range changed {
+		_, entity, _, _, _ := declaration.Identity()
+		s.capabilities[entity] = staged[entity]
 	}
 	s.rebuildCommandRoutes()
-	s.publish(s.append(Entry{kind: KindCapabilities, receivedAt: at, capabilities: append([]integrations.DiscoveryDeclaration(nil), declarations...)}))
+	s.publish(s.append(Entry{kind: KindCapabilities, receivedAt: at, capabilities: changed}))
 	return nil
 }
 
@@ -225,4 +239,23 @@ func (s *Sequencer) WithdrawDiscovery(ctx context.Context, entity domain.EntityI
 	s.rebuildCommandRoutes()
 	s.publish(s.append(Entry{kind: KindCapabilities, receivedAt: at}))
 	return nil
+}
+
+// Descriptor order is not catalogue identity. All descriptor fields, including
+// optional presence, display metadata and constraints, remain significant.
+func sameCapabilitySet(left, right []*wireregistry.CapabilityDescription) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	type slot struct{ schema, endpoint string }
+	bySlot := make(map[slot]*wireregistry.CapabilityDescription, len(left))
+	for _, description := range left {
+		bySlot[slot{description.SchemaId, description.Endpoint}] = description
+	}
+	for _, description := range right {
+		if !proto.Equal(bySlot[slot{description.SchemaId, description.Endpoint}], description) {
+			return false
+		}
+	}
+	return true
 }
