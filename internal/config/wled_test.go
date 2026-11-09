@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"errors"
+	"strings"
+	"testing"
+)
 
 func TestWLEDSelectionValidatesDisabledDeclarations(t *testing.T) {
 	source := "wled:\n  instance: demo-wled\n  controllers:\n    - address: 192.168.50.20\n      mac: aabbccddeeff\n      routes:\n        - {alias: light.demo, label: Demo}\n"
@@ -29,5 +33,23 @@ func TestWLEDSelectionValidatesDisabledDeclarations(t *testing.T) {
 		if _, e = parse(raw); e == nil {
 			t.Fatal("invalid declaration admitted")
 		}
+	}
+}
+
+func TestNHA217WLEDDeclarationCannotBeIgnoredByBootstrap(t *testing.T) {
+	launch := strings.SplitN(string(nha029Combined(t.TempDir())), "\nworkday:", 2)[0] + "\n"
+	if _, err := ParseBootstrapLaunchWithEnv([]byte(launch), nha029Lookup); err != nil {
+		t.Fatal("valid launch fixture", err)
+	}
+	declaration := "wled:\n  instance: synthetic-wled\n  controllers:\n    - address: 192.168.50.20\n      mac: aabbccddeeff\n      routes:\n        - {alias: light.demo, label: Synthetic strip}\n"
+	operational, err := ParseOperationalWithEnv([]byte(declaration), nha029Lookup)
+	if err != nil {
+		t.Fatal("valid operational declaration", err)
+	}
+	if _, present := operational.WLEDSettings(); !present {
+		t.Fatal("operational WLED lost")
+	}
+	if _, err := ParseBootstrapLaunchWithEnv([]byte(launch+declaration), nha029Lookup); !errors.Is(err, ErrInvalidYAML) {
+		t.Fatal("bootstrap silently ignored WLED declaration", err)
 	}
 }

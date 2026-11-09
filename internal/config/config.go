@@ -159,7 +159,7 @@ func ParseBootstrapLaunchWithEnv(data []byte, lookup func(string) (string, bool)
 	if err != nil {
 		return Config{}, err
 	}
-	if raw.MQTT != nil || raw.Neviweb != nil || raw.Hilo != nil || raw.Ecobee != nil || raw.Energy != nil ||
+	if raw.WLED != nil || raw.MQTT != nil || raw.Neviweb != nil || raw.Hilo != nil || raw.Ecobee != nil || raw.Energy != nil ||
 		raw.RemoteCalendar.Kind != 0 || raw.DerivedPower.Kind != 0 || raw.Solar.Kind != 0 || raw.Workday.Kind != 0 || raw.Workers != nil || raw.DisabledIntegrations != nil {
 		return Config{}, ErrInvalidYAML
 	}
