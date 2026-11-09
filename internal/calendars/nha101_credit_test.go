@@ -13,13 +13,13 @@ func TestNHA101DomainWorkRefusalPrecedesMaskCredit(t *testing.T) {
 	defer release()
 	owner := admissionFrom(owned)
 	anchor := nha100Local(t, "2007-03-11T02:00:00")
-	rule, err := parseObservanceRule("FREQ=YEARLY;BYMONTH=3;BYDAY=2SU", anchor)
+	rule, err := parseObservanceRule(context.Background(), "FREQ=YEARLY;BYMONTH=3;BYDAY=2SU", anchor)
 	if err != nil {
 		t.Fatal(err)
 	}
 	zone := &embeddedZone{observances: []embeddedObservance{{anchor: anchor, rule: rule}}}
 	budget := newBudget(owned)
-	budget.work = 31900000 // fewer units left than one admitted Next charge
+	budget.work = 32000000 - 1 // fewer units left than any admitted Next charge
 	owned = withCalendarBudget(owned, budget)
 	err = zone.ensure(owned, 9999)
 	t.Logf("work-refusal observation=%+v error=%v", owner.observation, err)

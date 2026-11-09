@@ -81,7 +81,7 @@ func zoneBudget(ctx context.Context) *calculationBudget {
 	return newBudget(ctx)
 }
 func validOffset(v int) bool { return v > -24*3600 && v < 24*3600 }
-func parseObservanceRule(raw string, anchor LocalDateTime) (observanceRule, error) {
+func parseObservanceRule(ctx context.Context, raw string, anchor LocalDateTime) (observanceRule, error) {
 	if raw == "" {
 		return observanceRule{}, nil
 	}
@@ -183,6 +183,10 @@ func parseObservanceRule(raw string, anchor LocalDateTime) (observanceRule, erro
 	}
 	if selectorSeen && p["BYMONTH"] == "" {
 		return observanceRule{}, failure(UnsupportedObservanceRule)
+	}
+	// Certify one complete Gregorian cycle once, before any producer work.
+	if err := zoneBudget(ctx).charge(400, false); err != nil {
+		return observanceRule{}, err
 	}
 	cert, e := certifyAnnualShape(shape)
 	if e != nil {
@@ -303,7 +307,7 @@ func AdmitEmbeddedZone(ctx context.Context, input EmbeddedZoneInput) (Zone, erro
 		return Zone{}, scopeErr
 	}
 	defer release()
-	ctx = owned
+	ctx = withCalendarBudget(owned, zoneBudget(owned))
 	if err := contextValid(ctx); err != nil {
 		return Zone{}, err
 	}
@@ -330,7 +334,7 @@ func AdmitEmbeddedZone(ctx context.Context, input EmbeddedZoneInput) (Zone, erro
 		if !raw.Anchor.Valid() || !validOffset(raw.OffsetFrom) || !validOffset(raw.OffsetTo) || len(raw.RDates) > 256 {
 			return Zone{}, failure(InvalidZone)
 		}
-		rule, err := parseObservanceRule(raw.Rule, raw.Anchor)
+		rule, err := parseObservanceRule(ctx, raw.Rule, raw.Anchor)
 		if err != nil {
 			return Zone{}, err
 		}
@@ -437,13 +441,17 @@ func (z *embeddedZone) ensure(ctx context.Context, year int) error {
 				return err
 			}
 		} else {
+			nextWork, err := o.rule.certificate.nextWork()
+			if err != nil {
+				return err
+			}
 			var next *pinnedNext
 			var credit observanceMaskCredit
 			lastYear := int(o.anchor.date.year)
 			first := true
 			for {
 				// Refusal precedes all new iterator/mask credit and Next.
-				if err := b.charge(146400, false); err != nil {
+				if err := b.charge(nextWork, false); err != nil {
 					return err
 				}
 				if next == nil {
