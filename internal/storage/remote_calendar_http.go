@@ -339,7 +339,7 @@ func (a RemoteCalendarHTTPAdmission) valid() bool {
 	return (a.kind == remoteHTTPRepresentation || a.kind == remoteHTTPRevalidation) && remoteKey(a.digest)
 }
 func (o RemoteCalendarObservation) AdmitsRepresentation(bodyDigest [32]byte) bool {
-	return o.Valid() && (!o.http.Present() || o.admission.kind == remoteHTTPRepresentation && o.admission.digest == bodyDigest)
+	return o.Valid() && (o.admission == (RemoteCalendarHTTPAdmission{}) || o.admission.kind == remoteHTTPRepresentation && o.admission.digest == bodyDigest)
 }
 func NewRemoteCalendarHTTPObservation(source RemoteCalendarScope, id [32]byte, at, until time.Time, validators RemoteCalendarValidators, metadata RemoteCalendarHTTPMetadata, admission RemoteCalendarHTTPAdmission) (RemoteCalendarObservation, error) {
 	o, e := NewRemoteCalendarObservation(source, id, at, until, validators)
@@ -348,5 +348,24 @@ func NewRemoteCalendarHTTPObservation(source RemoteCalendarScope, id [32]byte, a
 	}
 	o.http = metadata
 	o.admission = admission
+	return o, nil
+}
+
+// NewRemoteCalendarImportObservation binds explicitly requested application
+// data to the exact response body. No HTTP metadata or validator can be supplied;
+// persisted images require a full representation on every subsequent poll.
+func NewRemoteCalendarImportObservation(source RemoteCalendarScope, id [32]byte, at, until time.Time, bodyDigest [32]byte) (RemoteCalendarObservation, error) {
+	validators, err := NewRemoteCalendarValidators(RemoteValidatorsNone, "", time.Time{})
+	if err != nil {
+		return RemoteCalendarObservation{}, err
+	}
+	o, err := NewRemoteCalendarObservation(source, id, at, until, validators)
+	if err != nil {
+		return RemoteCalendarObservation{}, err
+	}
+	o.admission, err = RemoteCalendarHTTPRepresentation(bodyDigest)
+	if err != nil || !o.Valid() {
+		return RemoteCalendarObservation{}, remoteFailure(RemoteCalendarInvalid)
+	}
 	return o, nil
 }

@@ -318,7 +318,16 @@ func NewRemoteCalendarObservation(source RemoteCalendarScope, id [32]byte, at, f
 	return o, nil
 }
 func (o RemoteCalendarObservation) Valid() bool {
-	return o.source.Valid() && remoteKey(o.id) && remoteStamp(o.at) && remoteStamp(o.freshUntil) && !o.freshUntil.Before(o.at) && !o.freshUntil.After(o.at.Add(24*time.Hour)) && o.validators.Valid() && o.http.Valid() && (o.http.Present() && o.admission.valid() || !o.http.Present() && o.admission == (RemoteCalendarHTTPAdmission{}))
+	if !o.source.Valid() || !remoteKey(o.id) || !remoteStamp(o.at) || !remoteStamp(o.freshUntil) || o.freshUntil.Before(o.at) || o.freshUntil.After(o.at.Add(24*time.Hour)) || !o.validators.Valid() || !o.http.Valid() {
+		return false
+	}
+	if o.http.Present() {
+		return o.admission.valid()
+	}
+	if o.admission == (RemoteCalendarHTTPAdmission{}) {
+		return true
+	}
+	return o.admission.kind == remoteHTTPRepresentation && o.admission.valid() && o.validators.kind == RemoteValidatorsNone
 }
 func (o RemoteCalendarObservation) Source() RemoteCalendarScope  { return o.source }
 func (o RemoteCalendarObservation) ID() ([32]byte, bool)         { return o.id, o.Valid() }
@@ -757,7 +766,7 @@ func validatorSQL(v RemoteCalendarValidators) (any, any) {
 	return etag, modified
 }
 func (s *Store) ReplaceRemoteCalendar(ctx context.Context, expected RemoteCalendarExpected, o RemoteCalendarObservation, p RemoteCalendarPayload) (RemoteCalendarCommit, RemoteCalendarHeader, error) {
-	if !o.Valid() || o.http.Present() && o.admission.kind != remoteHTTPRepresentation || len(p.data) < 20 || !p.counts.Valid() || p.charge < remoteMinimumCharge(int64(len(p.data)), p.counts) || p.charge > 33554432 || sha256.Sum256(p.data) != p.digest {
+	if !o.Valid() || o.admission.valid() && o.admission.kind != remoteHTTPRepresentation || len(p.data) < 20 || !p.counts.Valid() || p.charge < remoteMinimumCharge(int64(len(p.data)), p.counts) || p.charge > 33554432 || sha256.Sum256(p.data) != p.digest {
 		return RemoteCalendarCommit{}, RemoteCalendarHeader{}, remoteFailure(RemoteCalendarInvalid)
 	}
 	var result RemoteCalendarHeader
@@ -785,7 +794,7 @@ func (s *Store) ReplaceRemoteCalendar(ctx context.Context, expected RemoteCalend
 	return RemoteCalendarCommit{binding: result.binding, source: o.source.key, digest: result.digest, observation: o.id, revision: result.revision}, result, nil
 }
 func (s *Store) RevalidateRemoteCalendar(ctx context.Context, expected RemoteCalendarExpected, o RemoteCalendarObservation, sent RemoteCalendarValidators, digest [32]byte) (RemoteCalendarCommit, RemoteCalendarHeader, error) {
-	if !o.Valid() || o.http.Present() && (o.admission.kind != remoteHTTPRevalidation || o.admission.digest != digest) || !sent.Valid() || sent.kind == RemoteValidatorsNone || !remoteKey(digest) {
+	if !o.Valid() || o.admission.valid() && (o.admission.kind != remoteHTTPRevalidation || o.admission.digest != digest) || !sent.Valid() || sent.kind == RemoteValidatorsNone || !remoteKey(digest) {
 		return RemoteCalendarCommit{}, RemoteCalendarHeader{}, remoteFailure(RemoteCalendarInvalid)
 	}
 	var result RemoteCalendarHeader

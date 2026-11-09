@@ -160,18 +160,42 @@ func (a ConditionalAuth) String() string               { return "conditional aut
 func (a ConditionalAuth) GoString() string             { return a.String() }
 func (a ConditionalAuth) MarshalJSON() ([]byte, error) { return []byte(`"[redacted]"`), nil }
 
+type conditionalRetentionMode uint8
+
+const (
+	conditionalHTTPRetention conditionalRetentionMode = iota + 1
+	conditionalApplicationImport
+)
+
+type conditionalRetentionPolicy struct {
+	mode            conditionalRetentionMode
+	poll, freshness time.Duration
+}
+
+func (p conditionalRetentionPolicy) valid() bool {
+	switch p.mode {
+	case conditionalHTTPRetention:
+		return p.poll == 0 && p.freshness == 0
+	case conditionalApplicationImport:
+		return p.poll >= time.Minute && p.poll <= 24*time.Hour && p.freshness >= p.poll && p.freshness <= 24*time.Hour && p.poll%time.Second == 0 && p.freshness%time.Second == 0
+	default:
+		return false
+	}
+}
+
 type ConditionalSettings struct {
 	source      SourceKey
 	resource    ConditionalResource
 	auth        ConditionalAuth
 	destination ConditionalDestination
 	profile     [32]byte
+	retention   conditionalRetentionPolicy
 }
 
 // profile identifies the admitted parser/projection configuration, excluding
 // the display label. YAML admission will live in remotecalendar (T2).
 func NewConditionalSettings(source SourceKey, resource ConditionalResource, auth ConditionalAuth, destination ConditionalDestination, profile [32]byte) (ConditionalSettings, error) {
-	s := ConditionalSettings{source: source, resource: resource, auth: auth, destination: destination, profile: profile}
+	s := ConditionalSettings{source: source, resource: resource, auth: auth, destination: destination, profile: profile, retention: conditionalRetentionPolicy{mode: conditionalHTTPRetention}}
 	if !s.valid() {
 		return ConditionalSettings{}, conditionalFailure(ConditionalInvalid)
 	}
@@ -191,8 +215,27 @@ func NewConditionalSettings(source SourceKey, resource ConditionalResource, auth
 }
 func (s ConditionalSettings) valid() bool {
 	_, _, e := s.source.Components()
-	return e == nil && s.resource.valid() && s.auth.valid() && s.destination.valid() && s.profile != ([32]byte{})
+	return e == nil && s.resource.valid() && s.auth.valid() && s.destination.valid() && s.profile != ([32]byte{}) && s.retention.valid()
 }
+
+// WithApplicationImport explicitly selects application synchronization instead
+// of HTTP caching. The caller owns the bounded poll/freshness policy. Persisted
+// data is a parsed calendar image; HTTP responses and validators are not reused.
+func (s ConditionalSettings) WithApplicationImport(poll, freshness time.Duration) (ConditionalSettings, error) {
+	policy := conditionalRetentionPolicy{mode: conditionalApplicationImport, poll: poll, freshness: freshness}
+	if !s.valid() || s.retention.mode != conditionalHTTPRetention || !policy.valid() {
+		return ConditionalSettings{}, conditionalFailure(ConditionalInvalid)
+	}
+	h := sha256.New()
+	h.Write(s.profile[:])
+	conditionalHashPart(h, "calendar-application-import/1")
+	conditionalHashPart(h, poll.String())
+	conditionalHashPart(h, freshness.String())
+	copy(s.profile[:], h.Sum(nil))
+	s.retention = policy
+	return s, nil
+}
+
 func (s ConditionalSettings) String() string               { return "conditional settings [redacted]" }
 func (s ConditionalSettings) GoString() string             { return s.String() }
 func (s ConditionalSettings) MarshalJSON() ([]byte, error) { return []byte(`"[redacted]"`), nil }
@@ -489,6 +532,9 @@ func (c *conditionalHTTP) Prepare(ctx context.Context, entity domain.EntityID) (
 		return ConditionalAttempt{}, e
 	}
 	header := http.Header{"Accept": []string{"text/calendar"}, "User-Agent": []string{"Homeward-RemoteCalendar/1"}}
+	if settings.retention.mode == conditionalApplicationImport {
+		header.Set("Cache-Control", "no-cache, no-store")
+	}
 	switch settings.auth.kind {
 	case conditionalAuthNone:
 	case conditionalAuthBasic:
@@ -606,7 +652,7 @@ func (c *conditionalHTTP) ObserveConditional(ctx context.Context, attempt Condit
 	request := a.request
 	request.header = request.header.Clone()
 	sent, _ := storage.NewRemoteCalendarValidators(storage.RemoteValidatorsNone, "", time.Time{})
-	conditional := selection.Conditional(a.scope)
+	conditional := c.settings.retention.mode == conditionalHTTPRetention && selection.Conditional(a.scope)
 	profile := conditionalRepresentationProfile()
 	if p, present := selection.Metadata().Profile(); !present || p != profile {
 		conditional = false
@@ -668,24 +714,34 @@ func (c *conditionalHTTP) ObserveConditional(ctx context.Context, attempt Condit
 		}
 		previous = selection.Metadata()
 	}
-	metadata, until, e := parseConditionalMetadata(response.header, previous, now, delay, profile)
-	if e != nil {
-		return reject(e)
-	}
-	validators, e := conditionalResponseValidators(response.header, sent, kind)
-	if e != nil {
-		return reject(e)
-	}
-	admission := storage.RemoteCalendarHTTPAdmission{}
-	if kind == ConditionalRepresentation200 {
-		admission, e = storage.RemoteCalendarHTTPRepresentation(sha256.Sum256(response.body))
+	var observation storage.RemoteCalendarObservation
+	var until time.Time
+	if c.settings.retention.mode == conditionalApplicationImport {
+		// A complete200 is consumed as explicitly configured application data,
+		// never stored as an HTTP response. No header/validator survives here.
+		until = now.Add(c.settings.retention.freshness)
+		observation, e = storage.NewRemoteCalendarImportObservation(a.scope, a.id, now, until, sha256.Sum256(response.body))
 	} else {
-		admission, e = storage.RemoteCalendarHTTPRevalidation(selected)
+		var metadata storage.RemoteCalendarHTTPMetadata
+		metadata, until, e = parseConditionalMetadata(response.header, previous, now, delay, profile)
+		if e != nil {
+			return reject(e)
+		}
+		validators, err := conditionalResponseValidators(response.header, sent, kind)
+		if err != nil {
+			return reject(err)
+		}
+		admission := storage.RemoteCalendarHTTPAdmission{}
+		if kind == ConditionalRepresentation200 {
+			admission, e = storage.RemoteCalendarHTTPRepresentation(sha256.Sum256(response.body))
+		} else {
+			admission, e = storage.RemoteCalendarHTTPRevalidation(selected)
+		}
+		if e != nil {
+			return reject(conditionalFailure(ConditionalInvalid))
+		}
+		observation, e = storage.NewRemoteCalendarHTTPObservation(a.scope, a.id, now, until, validators, metadata, admission)
 	}
-	if e != nil {
-		return reject(conditionalFailure(ConditionalInvalid))
-	}
-	observation, e := storage.NewRemoteCalendarHTTPObservation(a.scope, a.id, now, until, validators, metadata, admission)
 	if e != nil {
 		return reject(conditionalFailure(ConditionalInvalid))
 	}

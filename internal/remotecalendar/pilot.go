@@ -18,10 +18,11 @@ type cadence struct {
 	poll, renew, expiry             time.Time
 	pollMono, renewMono, expiryMono time.Duration
 	armed, window                   bool
+	interval                        time.Duration
 }
 
 func (c *cadence) pollSucceeded(now time.Time, mono time.Duration, until time.Time) {
-	delay := nominalPoll
+	delay := c.interval
 	if d := until.Sub(now); d > 0 && d < delay {
 		delay = d
 	}
@@ -49,8 +50,8 @@ func (c *cadence) due(now time.Time, mono time.Duration, fresh bool) intent {
 	return intentNone
 }
 func (c *cadence) deferPoll(now time.Time, mono time.Duration) {
-	c.poll = now.Add(nominalPoll)
-	c.pollMono = mono + nominalPoll
+	c.poll = now.Add(c.interval)
+	c.pollMono = mono + c.interval
 	c.armed = true
 }
 
@@ -113,6 +114,7 @@ func (p *Pilot) Start(ctx context.Context, host integrations.SessionHost, tasks 
 		return failure(Transport)
 	}
 	r := &sourceRun{source: p.source, clock: p.clock, ctx: runctx, cancel: cancel, http: port, wake: make(chan struct{}, 1), events: make(chan workerEvent, 1), done: make(chan struct{}), tasks: 2, reject: storage.PreserveAdmittedValidators, reason: calendars.RemoteReasonUnavailable, lastWall: p.clock.Now(), lastMono: p.clock.MonoNow()}
+	r.cadence.interval = p.source.settings.pollInterval
 	r.cadence.deferPoll(r.lastWall, r.lastMono)
 	p.run = r
 	if e = tasks.Go(r.workerLoop); e != nil {

@@ -8,6 +8,8 @@ import (
 	"github.com/damione1/Homeward/internal/storage"
 	"go.yaml.in/yaml/v3"
 	"net/netip"
+	"strconv"
+	"time"
 )
 
 type remoteCalendarSettings = remotecalendar.Settings
@@ -61,7 +63,7 @@ func parseRemoteCalendarInput(node yaml.Node) (*remoteCalendarSettings, error) {
 	if node.Kind == 0 {
 		return nil, nil
 	}
-	fields, err := remoteCalendarMap(node, "label", "url", "secret_url", "auth", "network", "floating_timezone", "view_timezone")
+	fields, err := remoteCalendarMap(node, "label", "url", "secret_url", "auth", "network", "floating_timezone", "view_timezone", "import")
 	if err != nil {
 		return nil, ErrInvalidYAML
 	}
@@ -178,6 +180,34 @@ func parseRemoteCalendarInput(node yaml.Node) (*remoteCalendarSettings, error) {
 	settings, err := remotecalendar.NewSettings(instance, key, label, resource, auth, destination, projection, view)
 	if err != nil {
 		return nil, ErrInvalidYAML
+	}
+	if node := fields["import"]; node != nil {
+		values, e := remoteCalendarMap(*node, "poll_seconds", "freshness_seconds")
+		if e != nil || len(values) != 2 {
+			return nil, ErrInvalidYAML
+		}
+		duration := func(node *yaml.Node) (time.Duration, error) {
+			if node == nil || node.Kind != yaml.ScalarNode || node.Tag != "!!int" {
+				return 0, ErrInvalidYAML
+			}
+			seconds, err := strconv.ParseInt(node.Value, 10, 32)
+			if err != nil || seconds < 60 || seconds > 86400 {
+				return 0, ErrInvalidYAML
+			}
+			return time.Duration(seconds) * time.Second, nil
+		}
+		poll, e := duration(values["poll_seconds"])
+		if e != nil {
+			return nil, ErrInvalidYAML
+		}
+		freshness, e := duration(values["freshness_seconds"])
+		if e != nil {
+			return nil, ErrInvalidYAML
+		}
+		settings, err = settings.WithApplicationImport(poll, freshness)
+		if err != nil {
+			return nil, ErrInvalidYAML
+		}
 	}
 	return &settings, nil
 }
