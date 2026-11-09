@@ -117,6 +117,13 @@ struct Text {
     field: i32,
     draft: panel::Draft,
 }
+// Only the nonsecret choice of editor is retained; every input draft and
+// gesture remains owned by its original admission generation.
+struct RangePresentation {
+    binding: Binding,
+    module: home_client_model::control_modules::ControlModule,
+    mode: crate::ProRangeEditorMode,
+}
 struct AlarmInput {
     binding: Binding,
     input: alarm_input::Input,
@@ -126,6 +133,7 @@ pub(super) struct Saved {
     basis: Basis,
     texts: Vec<Text>,
     alarms: Vec<AlarmInput>,
+    ranges: Vec<RangePresentation>,
 }
 impl Saved {
     pub fn capture(state: &mut State) -> Option<Self> {
@@ -152,6 +160,24 @@ impl Saved {
                     })
             })
             .collect::<Vec<_>>();
+        let ranges = context
+            .slots
+            .iter()
+            .filter_map(|slot| {
+                let module = slot.module.as_ref()?;
+                let draft = state.module_drafts.get(&slot.generation)?;
+                (slot.access == WriteAccess::Allowed
+                    && module.allowed
+                    && observation::fresh(&slot.capability)
+                    && modules::current(module, &slot.capability)
+                    && draft.range_editor_mode == crate::ProRangeEditorMode::Exact)
+                    .then(|| RangePresentation {
+                        binding: Binding::from(slot),
+                        module: module.clone(),
+                        mode: draft.range_editor_mode,
+                    })
+            })
+            .collect::<Vec<_>>();
         // Move protected input into the same bounded archive. It never enters
         // a cloned draft, projection, old command or retained admission.
         let alarms = std::mem::take(&mut state.alarm_inputs)
@@ -166,11 +192,12 @@ impl Saved {
                 })
             })
             .collect::<Vec<_>>();
-        (!texts.is_empty() || !alarms.is_empty()).then_some(Self {
+        (!texts.is_empty() || !alarms.is_empty() || !ranges.is_empty()).then_some(Self {
             serial: 0,
             basis,
             texts,
             alarms,
+            ranges,
         })
     }
     pub fn permits(
@@ -204,6 +231,7 @@ impl Saved {
         context: &Context,
         drafts: &mut BTreeMap<(CardGeneration, i32), panel::Draft>,
         alarms: &mut BTreeMap<CardGeneration, alarm_input::Input>,
+        module_drafts: &mut BTreeMap<CardGeneration, modules::Draft>,
     ) {
         for slot in &context.slots {
             let binding = Binding::from(slot);
@@ -211,6 +239,19 @@ impl Saved {
                 drafts
                     .entry((slot.generation, text.field))
                     .or_insert_with(|| text.draft.clone());
+            }
+        }
+        for saved in &self.ranges {
+            if let Some(slot) = context.slots.iter().find(|slot| {
+                Binding::from(*slot) == saved.binding
+                    && slot.module.as_ref() == Some(&saved.module)
+                    && observation::fresh(&slot.capability)
+                    && modules::current(&saved.module, &slot.capability)
+            }) {
+                module_drafts
+                    .entry(slot.generation)
+                    .or_default()
+                    .range_editor_mode = saved.mode;
             }
         }
         for saved in self.alarms.drain(..) {

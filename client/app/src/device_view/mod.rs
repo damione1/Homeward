@@ -687,12 +687,14 @@ impl DeviceStore {
                     context,
                     drafts,
                     alarm_inputs,
+                    module_drafts,
                     ..
                 } = &mut *state;
                 saved.restore(
                     context.as_ref().expect("fresh context"),
                     drafts,
                     alarm_inputs,
+                    module_drafts,
                 );
             }
             state.retained_drafts = None;

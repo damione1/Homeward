@@ -526,3 +526,100 @@ fn a_module_retains_its_own_source_without_a_principal_node_for_that_entity() {
             .is_err()
     );
 }
+
+#[test]
+fn exact_range_mode_survives_only_equivalent_fresh_capture_without_draft_or_gesture() {
+    for change in ["same", "permission", "etag", "document"] {
+        let (mut scenario, mut entity) = fixture();
+        let store = DeviceStore::default();
+        let first = view(&scenario, vec![entity.clone()]);
+        let old = row(&store.project(CachePhase::Live, Some(&first), &scenario), 1);
+        let mut mode = intent(&old, ProModuleEvent::RangeEditorMode);
+        mode.range_editor_mode = crate::ProRangeEditorMode::Exact;
+        assert!(store.module_event(0, mode.clone()).unwrap().is_none());
+        let mut gesture = intent(&old, ProModuleEvent::Numeric);
+        gesture.value.event = ProValueEvent::Draft;
+        gesture.value.lower = "45".into();
+        assert!(store.module_event(0, gesture.clone()).unwrap().is_none());
+        gesture.value.event = ProValueEvent::Start;
+        assert!(store.module_event(0, gesture.clone()).unwrap().is_none());
+        gesture.value.event = ProValueEvent::Position;
+        gesture.value.position = 0.5;
+        assert!(store.module_event(0, gesture.clone()).unwrap().is_none());
+
+        let capability = &mut entity.capabilities[0];
+        if change == "permission" {
+            capability.action_access = wire::ActionAccess::Denied.into();
+        }
+        if change == "etag" {
+            capability.etag = "replacement-native-definition".into();
+        }
+        for module in &mut capability.modules {
+            module.action_access = capability.action_access;
+            module.etag = capability.etag.clone();
+        }
+        let native_modules =
+            Modules(control_modules_contract::capability_modules(capability).unwrap());
+        let second = fixture::capture(vec![entity.clone()]);
+        let mut joined = crate::dashboard::joined_fixture(&second);
+        joined.native = scenario.dashboard.layout().unwrap().native.clone();
+        if change == "document" {
+            joined.etag = "replacement-dashboard".into();
+        }
+        joined
+            .native
+            .as_mut()
+            .unwrap()
+            .nodes
+            .get_mut(&NodeId::parse("tile").unwrap())
+            .unwrap()
+            .control_modules = native_modules;
+        scenario.dashboard = LayoutState::Ready(Arc::new(joined));
+        let fresh = row(
+            &store.project(CachePhase::Live, Some(&second), &scenario),
+            1,
+        );
+        assert_ne!(
+            fresh.state.identity.generation,
+            old.state.identity.generation
+        );
+        assert_eq!(
+            fresh.range_editor_mode,
+            if change == "same" {
+                crate::ProRangeEditorMode::Exact
+            } else {
+                crate::ProRangeEditorMode::Slider
+            },
+            "{change}"
+        );
+        assert_eq!(
+            fresh.range.lower, "30",
+            "typed draft never crosses the capture"
+        );
+        assert!(
+            store.module_event(0, mode).is_err(),
+            "old identity loses admission"
+        );
+        gesture.value.event = ProValueEvent::Commit;
+        assert!(store.module_event(0, gesture.clone()).is_err());
+        gesture.identity = fresh.state.identity.clone();
+        assert!(
+            store.module_event(0, gesture).is_err(),
+            "no held gesture was retained"
+        );
+        assert!(
+            store
+                .module_event(0, intent(&fresh, ProModuleEvent::Cancel))
+                .unwrap()
+                .is_none()
+        );
+        let after_cancel = row(
+            &store.project(CachePhase::Live, Some(&second), &scenario),
+            1,
+        );
+        assert_eq!(
+            after_cancel.range_editor_mode, fresh.range_editor_mode,
+            "context cancellation clears drafts, not numeric presentation"
+        );
+    }
+}
