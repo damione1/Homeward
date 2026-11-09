@@ -79,7 +79,7 @@ func TestNHA213Migration32PreservesLedgerAndStrictMethodShape(t *testing.T) {
 	if _, err = store.pool.Exec(ctx, `UPDATE public.homeward_schema_window SET migration_plan=$1`, plan[:]); err != nil {
 		t.Fatal(err)
 	}
-	if v, err := store.Migrate(ctx); err != nil || v.Number() != 32 {
+	if v, err := store.Migrate(ctx); err != nil || v != CurrentVersion() {
 		t.Fatal("migration32", v, err)
 	}
 	if after := nha213LedgerSnapshot(t, ctx, store); before != after {

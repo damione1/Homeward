@@ -1,11 +1,11 @@
 package storage
 
-// SQL32 persists response methods for native configuration operations without
-// request IDs. SQL31 is authenticated for migration, not admitted as a writer.
-const schemaWindowBaseline uint32 = 31
-const schemaWindowSuccessor uint32 = 32
-const schemaWindowBaselineRelease = "homeward-window-31-32-baseline"
-const schemaWindowSuccessorRelease = "homeward-window-31-32-successor"
+// SQL33 upgrades persisted compiler inputs to the current fan wire contract.
+// SQL32 is authenticated only for migration, never admitted as a writer.
+const schemaWindowBaseline uint32 = 32
+const schemaWindowSuccessor uint32 = 33
+const schemaWindowBaselineRelease = "homeward-window-32-33-baseline"
+const schemaWindowSuccessorRelease = "homeward-window-32-33-successor"
 const compiledSchemaReleaseID = schemaWindowSuccessorRelease
 const compiledMinimumReaderID = schemaWindowSuccessorRelease
 const compiledMinimumWriterID = schemaWindowSuccessorRelease

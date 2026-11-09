@@ -690,7 +690,9 @@ ALTER TABLE public.config_activation_attempts
         OR (api_request_method IS NOT NULL AND api_request_method BETWEEN 1 AND 7 AND api_request_create_time IS NOT NULL
             AND (api_request_id IS NOT NULL OR api_request_method BETWEEN 5 AND 7))
         OR (api_request_id IS NULL AND api_request_method IS NOT NULL AND api_request_method BETWEEN 1 AND 4 AND api_request_create_time IS NULL)
-    );`}}
+    );`}, {version: Version{33}, sql: `-- Migrate historical fan CapabilityDescription bytes in persisted compiler contexts.
+-- Algorithm: compilation-context-fan-33-v1; retain all generation/source/manifest identities.
+SELECT 1;`}}
 
 var latestVersion = migrations[len(migrations)-1].version
 
@@ -760,7 +762,7 @@ func (s *Store) migrate(ctx context.Context, plan []migration) (Version, error) 
 		}
 		return current, nil
 	}
-	if current.number >= schemaWindowBaseline && current.number != 31 && schemaAdmissionInTx(ctx, tx, current) != schemaAdmissionCurrent {
+	if current.number >= schemaWindowBaseline && current.number != 32 && schemaAdmissionInTx(ctx, tx, current) != schemaAdmissionCurrent {
 		if ctx.Err() != nil {
 			return Version{}, ctx.Err()
 		}
@@ -773,6 +775,9 @@ func (s *Store) migrate(ctx context.Context, plan []migration) (Version, error) 
 		return Version{}, err
 	}
 	if err := validatePrior31SchemaWindow(ctx, tx, current); err != nil {
+		return Version{}, err
+	}
+	if err := validatePrior32SchemaWindow(ctx, tx, current); err != nil {
 		return Version{}, err
 	}
 	before := current
@@ -791,6 +796,11 @@ func (s *Store) migrate(ctx context.Context, plan []migration) (Version, error) 
 		}
 		if m.version.number == 31 {
 			if err := migrateFanObservations31(ctx, tx); err != nil {
+				return Version{}, &Error{kind: MigrationFailed, cause: err}
+			}
+		}
+		if m.version.number == 33 {
+			if err := migrateCompilationContexts33(ctx, tx); err != nil {
 				return Version{}, &Error{kind: MigrationFailed, cause: err}
 			}
 		}
