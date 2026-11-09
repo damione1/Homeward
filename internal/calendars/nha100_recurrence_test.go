@@ -260,8 +260,14 @@ func TestNHA100ExceptionsOverlapAndCopies(t *testing.T) {
 	if !copy.additions[0].Valid() {
 		t.Fatal("constructor retained caller slice")
 	}
-	invalid := nha100Point(t, AllDay, "2026-02-01")
-	_, err := NewEvent(context.Background(), EventInput{Summary: "Synthetic", Span: e.span, Rule: e.rule, Exclusions: []Point{invalid}})
+	// Non-member EXDATE is a retained set subtraction; malformed identities
+	// still fail admission independently of recurrence membership.
+	outside := nha100Point(t, AllDay, "2026-02-01")
+	kept, err := NewEvent(context.Background(), EventInput{Summary: "Synthetic", Span: e.span, Rule: e.rule, Exclusions: []Point{outside}})
+	if err != nil || len(kept.Exclusions()) != 1 || kept.Exclusions()[0] != outside {
+		t.Fatal("non-member exclusion lost", err)
+	}
+	_, err = NewEvent(context.Background(), EventInput{Summary: "Synthetic", Span: e.span, Rule: e.rule, Exclusions: []Point{{}}})
 	nha100Code(t, err, InvalidOccurrence)
 }
 func TestNHA100StrictRejectionsAndBudgets(t *testing.T) {
