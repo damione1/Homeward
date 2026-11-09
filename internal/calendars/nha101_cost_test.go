@@ -91,7 +91,8 @@ func TestNHA101CostFarRefusalDoesNotPublishPartialIndex(t *testing.T) {
 		}
 	}
 	image.close()
-	nha100Code(t, err, BudgetExceeded)
+	// Precise work credit reaches the unchanged4096transition capacity first.
+	nha100Code(t, err, CapacityExceeded)
 	if delta > observation.ReservedBytes || observation.ReservedBytes > parseReservationLimit {
 		t.Fatal("far calculation exceeded owned reservation")
 	}

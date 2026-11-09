@@ -24,8 +24,9 @@ type annualShape struct {
 	weekday  time.Weekday
 }
 type annualCertificate struct {
-	admitted bool
-	shape    annualShape
+	admitted   bool
+	shape      annualShape
+	maxYearGap int
 }
 
 var errAnnualInvalid = errors.New("preflight: invalid annual shape")
@@ -73,16 +74,29 @@ func certifyAnnualShape(s annualShape) (annualCertificate, error) {
 	default:
 		return annualCertificate{}, errAnnualInvalid
 	}
-	// Fixed Gregorian cycle, at most400 scalar predicate checks; no Next.
+	// Gregorian predicates repeat every400 years. Record the largest cyclic
+	// distance between years containing a candidate, including the wrap. This
+	// certifies bounded producer work; it does not emit recurrence instances.
+	first, previous, gap := 0, 0, 0
 	for year := 2000; year < 2400; year++ {
-		if _, ok := s.candidateDay(year); ok {
-			return annualCertificate{admitted: true, shape: s}, nil
+		if _, ok := s.candidateDay(year); !ok {
+			continue
 		}
+		if first == 0 {
+			first = year
+		} else {
+			gap = max(gap, year-previous)
+		}
+		previous = year
 	}
-	return annualCertificate{}, errAnnualEmpty
+	if first == 0 {
+		return annualCertificate{}, errAnnualEmpty
+	}
+	gap = max(gap, first+400-previous)
+	return annualCertificate{admitted: true, shape: s, maxYearGap: gap}, nil
 }
 func (c annualCertificate) checkAnchor(anchor time.Time) error {
-	if !c.admitted || anchor.Year() < 1 || anchor.Year() > 9999 || anchor.Month() != c.shape.month || anchor.Nanosecond() != 0 {
+	if !c.admitted || c.maxYearGap < 1 || c.maxYearGap > 400 || anchor.Year() < 1 || anchor.Year() > 9999 || anchor.Month() != c.shape.month || anchor.Nanosecond() != 0 {
 		return errAnnualAnchor
 	}
 	day, ok := c.shape.candidateDay(anchor.Year())
@@ -90,4 +104,15 @@ func (c annualCertificate) checkAnchor(anchor time.Time) error {
 		return errAnnualAnchor
 	}
 	return nil
+}
+
+// rrule-go v1.8.2 scans at most maxYearGap yearly daysets before the next
+// candidate, then may rebuild the following year's masks before returning.
+// Charge both before calling the upstream iterator. Memory credit remains the
+// existing conservative400year prefix and is accounted independently.
+func (c annualCertificate) nextWork() (int64, error) {
+	if !c.admitted || c.maxYearGap < 1 || c.maxYearGap > 400 {
+		return 0, failure(InconsistentObservance)
+	}
+	return int64(c.maxYearGap+1) * 366, nil
 }

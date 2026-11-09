@@ -76,7 +76,7 @@ func TestNHA101DomainEmptyPredicateBeforeProducer(t *testing.T) {
 	defer owner.close()
 	ctx := context.WithValue(context.Background(), admissionKey{}, owner)
 	anchor := nha100Local(t, "2026-02-28T02:00:00")
-	_, e = parseObservanceRule("FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30", anchor)
+	_, e = parseObservanceRule(context.Background(), "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30", anchor)
 	nha100Code(t, e, InconsistentObservance)
 	if owner.observation.RuleConstructors != 0 || owner.observation.NextCalls != 0 {
 		t.Fatal("empty predicate reached producer")
