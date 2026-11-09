@@ -198,7 +198,7 @@ func compile(candidate Candidate, manifest registry.Manifest) (image, Diagnostic
 		if e != nil {
 			return image{}, InvalidSchema
 		}
-		operationalFields := map[string]bool{"wled": true, "android_tv": true, "sonos": true, "mqtt": true, "ecobee": true, "neviweb": true, "hilo": true, "energy": true, "derived_power": true, "solar": true, "workday": true, "external_workers": true, "remote_calendar": true, "disabled_integrations": true}
+		operationalFields := map[string]bool{"wled": true, "android_tv": true, "sonos": true, "mqtt": true, "ecobee": true, "neviweb": true, "hilo": true, "energy": true, "derived_power": true, "solar": true, "workday": true, "external_workers": true, "remote_calendar": true, "display_profile": true, "disabled_integrations": true}
 		launchFields := map[string]bool{"scope_revision": true, "backup_recovery_recipient": true, "backups": true, "listen": true, "postgres": true, "data_dir": true, "public": true, "recorder": true}
 		for i := 0; i < len(node.Content); i += 2 {
 			key := node.Content[i].Value
