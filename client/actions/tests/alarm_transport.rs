@@ -140,6 +140,9 @@ fn uncertainty() -> Vec<u8> {
     serde_json::to_vec(&error).unwrap()
 }
 fn fixture(reply: Reply) -> Fixture {
+    fixture_with_light(reply, false)
+}
+fn fixture_with_light(reply: Reply, light: bool) -> Fixture {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
     let origin = format!("https://{}", listener.local_addr().unwrap());
@@ -260,15 +263,46 @@ fn fixture(reply: Reply) -> Fixture {
                 }
                 "/home.api.v2.CapabilityService/ExecuteCapability" => {
                     let input = api::ExecuteCapabilityRequest::decode_from_slice(body).unwrap();
-                    assert_eq!(
-                        input.ephemeral_alarm_code, CODE,
-                        "leading zero must survive serialization"
-                    );
-                    assert!(
-                        matches!(input.command,Some(api::execute_capability_request::Command::Alarm(ref value)) if value.operation.as_known()==Some(api::AlarmOperation::Disarm))
-                    );
+                    if light {
+                        assert!(input.ephemeral_alarm_code.is_empty());
+                        assert!(matches!(input.command,
+                            Some(api::execute_capability_request::Command::Light(ref value))
+                            if value.power.value.as_known() == Some(api::PowerValue::On)));
+                    } else {
+                        assert_eq!(
+                            input.ephemeral_alarm_code, CODE,
+                            "leading zero must survive serialization"
+                        );
+                        assert!(matches!(input.command,
+                            Some(api::execute_capability_request::Command::Alarm(ref value))
+                            if value.operation.as_known()==Some(api::AlarmOperation::Disarm)));
+                    }
                     observed.executions.fetch_add(1, Ordering::SeqCst);
                     last = Some(operation(&input.name, &input.request_id));
+                    if light {
+                        let created = Timestamp::from_unix_secs(now());
+                        let terminal = last.as_mut().unwrap();
+                        terminal.metadata = any(
+                            "home.api.v2.CommandMetadata",
+                            api::CommandMetadata {
+                                capability: input.name.clone(),
+                                request_id: input.request_id.clone(),
+                                create_time: created.clone().into(),
+                                phase: api::CommandPhase::Confirmed.into(),
+                                ..Default::default()
+                            },
+                        )
+                        .into();
+                        terminal.result = Some(lro::operation::Result::Response(Box::new(any(
+                            "home.api.v2.ExecuteCapabilityResponse",
+                            api::ExecuteCapabilityResponse {
+                                capability: input.name.clone(),
+                                outcome: api::CommandOutcome::Confirmed.into(),
+                                // Native confirmation need not supply observed_time.
+                                ..Default::default()
+                            },
+                        ))));
+                    }
                     match reply {
                         Reply::Sent => (
                             "200 OK",
@@ -429,4 +463,52 @@ async fn ephemeral_alarm_code_uses_one_tls_post_and_never_enters_recovery_or_sna
         session.close().await;
         drop(server);
     }
+}
+
+#[tokio::test]
+async fn confirmed_light_response_without_observed_time_completes_without_tracking_error() {
+    let server = fixture_with_light(Reply::Sent, true);
+    let connection = Connection::new(&server.origin, CA).unwrap();
+    let session = SessionCoordinator::new(connection.auth(), Arc::new(MemoryStore::default()));
+    session
+        .login("synthetic".into(), Zeroizing::new("synthetic".into()))
+        .await
+        .unwrap();
+    let cancel = CancellationToken::new();
+    let controller = CapabilityController::new(
+        session,
+        connection.capabilities(),
+        connection.operations(),
+        &cancel,
+    );
+    let command = Command::new(
+        CapabilityName::try_from("homes/synthetic/entities/light/capabilities/controller").unwrap(),
+        Intent::Light(
+            home_client_model::api::LightIntent::new(Some(true), None, None, None, None).unwrap(),
+        ),
+        Some(home_client_actions::new_request_id().unwrap()),
+        Deadline::new(now() + 30, 0).unwrap(),
+    )
+    .with_definition_etag(DefinitionEtag::try_from("synthetic-light-definition").unwrap());
+    let handle = controller.submit(command, Arc::new(|| true)).unwrap();
+    finished(&handle).await;
+    let snapshot = handle.snapshot();
+    assert_eq!(snapshot.submission, CapabilitySubmission::Accepted);
+    assert_eq!(snapshot.tracking, CapabilityTracking::Complete);
+    assert!(snapshot.issue.is_none(), "{snapshot:?}");
+    assert!(snapshot.failure.is_none());
+    assert!(matches!(
+        snapshot.operation.as_ref().unwrap().completion(),
+        CommandCompletion::Success {
+            outcome: CommandOutcome::Confirmed,
+            ..
+        }
+    ));
+    assert_eq!(server.counts.executions.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        server.counts.reads.load(Ordering::SeqCst),
+        0,
+        "terminal Execute requires no GetOperation or WaitOperation"
+    );
+    cancel.cancel();
 }

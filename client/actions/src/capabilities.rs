@@ -102,6 +102,29 @@ impl Entry {
             }
             let mut next = (**current).clone();
             change(&mut next);
+            #[cfg(debug_assertions)]
+            {
+                // Closed enums and booleans only: never format the snapshot,
+                // operation, resource identity or an external error message.
+                let diagnostic = |value: &CapabilitySnapshot| {
+                    (
+                        value.submission,
+                        value.tracking,
+                        value.issue,
+                        value.operation.is_some(),
+                        value.operation.as_ref().is_some_and(|operation| operation.done()),
+                        value.operation.as_ref().is_some_and(|operation| operation.live_progress_available()),
+                    )
+                };
+                let before = diagnostic(current.as_ref());
+                let after = diagnostic(&next);
+                if before != after {
+                    eprintln!(
+                        "homeward-command: submission={:?} tracking={:?} issue={:?} operation_present={} done={} live={}",
+                        after.0, after.1, after.2, after.3, after.4, after.5
+                    );
+                }
+            }
             *current = Arc::new(next)
         });
     }

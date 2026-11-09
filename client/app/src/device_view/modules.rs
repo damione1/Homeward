@@ -31,6 +31,7 @@ pub(super) struct Draft {
     pub gesture: Option<f64>,
     pub active: bool,
     pub mode: Option<ProColorMode>,
+    pub range_editor_mode: crate::ProRangeEditorMode,
 }
 
 pub(super) fn current(binding: &ControlModule, capability: &wire::Capability) -> bool {
@@ -163,7 +164,10 @@ impl DeviceStore {
         let mut state = self.0.lock().expect("device store mutex");
         let local = matches!(
             event.event,
-            ProModuleEvent::ColorMode | ProModuleEvent::Cancel
+            ProModuleEvent::ColorMode
+                | ProModuleEvent::RangeEditorMode
+                | ProModuleEvent::Cancel
+                | ProModuleEvent::ContextCancel
         ) || (event.event == ProModuleEvent::Numeric
             && event.value.event == ProValueEvent::Cancel);
         let slot = if local {
@@ -213,8 +217,44 @@ impl DeviceStore {
             return Ok(None);
         }
         let value = match event.event {
+            ProModuleEvent::ContextCancel => {
+                // A fresh context owns admission; only the independently
+                // retained exact Range text survives its gesture cancellation.
+                let text = (matches!(binding.definition, ModuleDefinition::Range(_))
+                    && draft.range_editor_mode == crate::ProRangeEditorMode::Exact)
+                    .then(|| draft.text.take())
+                    .flatten();
+                *draft = Draft {
+                    text,
+                    range_editor_mode: draft.range_editor_mode,
+                    ..Draft::default()
+                };
+                return Ok(None);
+            }
             ProModuleEvent::Cancel => {
-                *draft = Draft::default();
+                // Cancellation discards input and admission-owned gestures,
+                // not the host's independent choice of numeric presentation.
+                *draft = Draft {
+                    range_editor_mode: draft.range_editor_mode,
+                    ..Draft::default()
+                };
+                return Ok(None);
+            }
+            ProModuleEvent::RangeEditorMode => {
+                if !matches!(
+                    &binding.definition,
+                    ModuleDefinition::Range(_)
+                        | ModuleDefinition::Color {
+                            temperature_mireds: Some(_),
+                            ..
+                        }
+                ) {
+                    return Err(Refusal::Unsupported);
+                }
+                draft.range_editor_mode = event.range_editor_mode;
+                draft.text = None;
+                draft.gesture = None;
+                draft.active = false;
                 return Ok(None);
             }
             ProModuleEvent::ColorMode => {
@@ -539,6 +579,7 @@ pub(crate) struct Row {
     role: ProControlRole,
     power: crate::ProPowerReading,
     range: crate::ProDeviceValue,
+    range_editor_mode: crate::ProRangeEditorMode,
     choices: Vec<crate::ProDeviceChoice>,
     temperature_supported: bool,
     rgb_supported: bool,
@@ -558,6 +599,7 @@ impl Row {
             role: self.role,
             power: self.power,
             range: self.range.clone(),
+            range_editor_mode: self.range_editor_mode,
             choices: super::presentation::nested(&self.choices, previous.map(|row| &row.choices)),
             temperature_supported: self.temperature_supported,
             rgb_supported: self.rgb_supported,
@@ -584,6 +626,9 @@ pub(super) fn project(
     let known = super::observation::evidence(&slot.capability).is_some();
     let fresh = super::observation::fresh(&slot.capability);
     let mut row = Row {
+        range_editor_mode: draft
+            .map(|draft| draft.range_editor_mode)
+            .unwrap_or_default(),
         state: crate::ProModuleState {
             identity: crate::ProIdentity {
                 token: card.token,
