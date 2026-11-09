@@ -223,8 +223,10 @@ func walkBase(ctx context.Context, event Event, ceiling Point, budget *calculati
 	}
 }
 
-// validateEvent checks all target identities in one shared walk, not once per
-// exception. Added dates are explicit DATE/DATE-TIME values, not COUNT members.
+// validateEvent checks override identities in one shared walk. EXDATE values
+// subtract from the RRULE/RDATE union (RFC5545 3.8.5.1); a valid exclusion need
+// not be a current member and is retained if the rule is later extended.
+// Added dates are explicit DATE/DATE-TIME values, not COUNT members.
 func validateEvent(ctx context.Context, event Event, budget *calculationBudget) error {
 	if !event.Valid() {
 		return failure(InvalidInput)
@@ -255,12 +257,6 @@ func validateEvent(ctx context.Context, event Event, budget *calculationBudget) 
 		}
 		key := startKey(span)
 		pointKeys[point] = key
-		if !known[point] {
-			targets[point] = true
-			if point.wall().compare(ceiling.wall()) > 0 {
-				ceiling = point
-			}
-		}
 		return nil
 	}
 	for _, point := range event.exclusions {
@@ -271,6 +267,13 @@ func validateEvent(ctx context.Context, event Event, budget *calculationBudget) 
 	for _, exception := range event.exceptions {
 		if err := register(exception.original); err != nil {
 			return err
+		}
+		point := exception.original
+		if !known[point] {
+			targets[point] = true
+			if point.wall().compare(ceiling.wall()) > 0 {
+				ceiling = point
+			}
 		}
 	}
 	// An explicit exclusion and an override of the same instant are ambiguous
