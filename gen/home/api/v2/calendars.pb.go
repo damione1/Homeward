@@ -1159,9 +1159,11 @@ type Occurrence struct {
 	CalendarEvent string `protobuf:"bytes,1,opt,name=calendar_event,json=calendarEvent,proto3" json:"calendar_event,omitempty"`
 	// Original series recurrence identity, including imported explicit fold choice.
 	RecurrencePoint *CalendarRecurrencePoint `protobuf:"bytes,2,opt,name=recurrence_point,json=recurrencePoint,proto3" json:"recurrence_point,omitempty"`
-	// Atomic temporal span with one explicit civil or instant kind.
+	// Timed local values and their zone are projected into the query time_zone;
+	// exact instants are preserved. All-day dates remain civil and unchanged.
 	Span *CalendarSpan `protobuf:"bytes,3,opt,name=span,proto3" json:"span,omitempty"`
-	// Explicit IANA time zone; never inferred from the server or device.
+	// Explicit query IANA time zone; never inferred from the server or device.
+	// CalendarEvent retains its original span and recurrence identity.
 	TimeZone string `protobuf:"bytes,4,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
 	// Bounded human-readable title.
 	Summary string `protobuf:"bytes,5,opt,name=summary,proto3" json:"summary,omitempty"`

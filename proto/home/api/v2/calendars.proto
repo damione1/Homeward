@@ -282,9 +282,11 @@ message Occurrence {
   ];
   // Original series recurrence identity, including imported explicit fold choice.
   CalendarRecurrencePoint recurrence_point = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
-  // Atomic temporal span with one explicit civil or instant kind.
+  // Timed local values and their zone are projected into the query time_zone;
+  // exact instants are preserved. All-day dates remain civil and unchanged.
   CalendarSpan span = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
-  // Explicit IANA time zone; never inferred from the server or device.
+  // Explicit query IANA time zone; never inferred from the server or device.
+  // CalendarEvent retains its original span and recurrence identity.
   string time_zone = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
   // Bounded human-readable title.
   string summary = 5 [(google.api.field_behavior) = OUTPUT_ONLY];

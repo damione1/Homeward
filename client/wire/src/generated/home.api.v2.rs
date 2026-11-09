@@ -13868,11 +13868,13 @@ pub struct Occurrence {
         CalendarRecurrencePoint,
         ::buffa::Inline<CalendarRecurrencePoint>,
     >,
-    /// Atomic temporal span with one explicit civil or instant kind.
+    /// Timed local values and their zone are projected into the query time_zone;
+    /// exact instants are preserved. All-day dates remain civil and unchanged.
     ///
     /// Field 3: `span`
     pub span: ::buffa::MessageField<CalendarSpan, ::buffa::Inline<CalendarSpan>>,
-    /// Explicit IANA time zone; never inferred from the server or device.
+    /// Explicit query IANA time zone; never inferred from the server or device.
+    /// CalendarEvent retains its original span and recurrence identity.
     ///
     /// Field 4: `time_zone`
     pub time_zone: ::buffa::alloc::string::String,
@@ -136451,13 +136453,15 @@ pub mod __buffa {
             pub recurrence_point: ::buffa::MessageFieldView<
                 super::super::__buffa::view::CalendarRecurrencePointView<'a>,
             >,
-            /// Atomic temporal span with one explicit civil or instant kind.
+            /// Timed local values and their zone are projected into the query time_zone;
+            /// exact instants are preserved. All-day dates remain civil and unchanged.
             ///
             /// Field 3: `span`
             pub span: ::buffa::MessageFieldView<
                 super::super::__buffa::view::CalendarSpanView<'a>,
             >,
-            /// Explicit IANA time zone; never inferred from the server or device.
+            /// Explicit query IANA time zone; never inferred from the server or device.
+            /// CalendarEvent retains its original span and recurrence identity.
             ///
             /// Field 4: `time_zone`
             pub time_zone: &'a str,
@@ -136852,7 +136856,8 @@ pub mod __buffa {
             > {
                 &self.0.reborrow().recurrence_point
             }
-            /// Atomic temporal span with one explicit civil or instant kind.
+            /// Timed local values and their zone are projected into the query time_zone;
+            /// exact instants are preserved. All-day dates remain civil and unchanged.
             ///
             /// Field 3: `span`
             #[must_use]
@@ -136863,7 +136868,8 @@ pub mod __buffa {
             > {
                 &self.0.reborrow().span
             }
-            /// Explicit IANA time zone; never inferred from the server or device.
+            /// Explicit query IANA time zone; never inferred from the server or device.
+            /// CalendarEvent retains its original span and recurrence identity.
             ///
             /// Field 4: `time_zone`
             #[must_use]
