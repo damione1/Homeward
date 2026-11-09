@@ -117,12 +117,13 @@ struct Text {
     field: i32,
     draft: panel::Draft,
 }
-// Only the nonsecret choice of editor is retained; every input draft and
-// gesture remains owned by its original admission generation.
+// Retain the nonsecret editor choice and exact Range text under the same
+// bounded source/binding guards. Gestures and command admission never transfer.
 struct RangePresentation {
     binding: Binding,
     module: home_client_model::control_modules::ControlModule,
     mode: crate::ProRangeEditorMode,
+    text: Option<String>,
 }
 struct AlarmInput {
     binding: Binding,
@@ -175,6 +176,12 @@ impl Saved {
                         binding: Binding::from(slot),
                         module: module.clone(),
                         mode: draft.range_editor_mode,
+                        text: matches!(
+                            module.definition,
+                            home_client_model::control_modules::ModuleDefinition::Range(_)
+                        )
+                        .then(|| draft.text.clone())
+                        .flatten(),
                     })
             })
             .collect::<Vec<_>>();
@@ -248,10 +255,11 @@ impl Saved {
                     && observation::fresh(&slot.capability)
                     && modules::current(&saved.module, &slot.capability)
             }) {
-                module_drafts
-                    .entry(slot.generation)
-                    .or_default()
-                    .range_editor_mode = saved.mode;
+                let draft = module_drafts.entry(slot.generation).or_default();
+                draft.range_editor_mode = saved.mode;
+                if draft.text.is_none() {
+                    draft.text = saved.text.clone();
+                }
             }
         }
         for saved in self.alarms.drain(..) {

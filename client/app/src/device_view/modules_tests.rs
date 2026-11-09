@@ -528,7 +528,7 @@ fn a_module_retains_its_own_source_without_a_principal_node_for_that_entity() {
 }
 
 #[test]
-fn exact_range_mode_survives_only_equivalent_fresh_capture_without_draft_or_gesture() {
+fn exact_range_text_survives_only_equivalent_fresh_capture_without_gesture() {
     for change in ["same", "permission", "etag", "document"] {
         let (mut scenario, mut entity) = fixture();
         let store = DeviceStore::default();
@@ -593,8 +593,9 @@ fn exact_range_mode_survives_only_equivalent_fresh_capture_without_draft_or_gest
             "{change}"
         );
         assert_eq!(
-            fresh.range.lower, "30",
-            "typed draft never crosses the capture"
+            fresh.range.lower,
+            if change == "same" { "45" } else { "30" },
+            "only an equivalent fresh admission retains exact Range text"
         );
         assert!(
             store.module_event(0, mode).is_err(),
@@ -609,6 +610,20 @@ fn exact_range_mode_survives_only_equivalent_fresh_capture_without_draft_or_gest
         );
         assert!(
             store
+                .module_event(0, intent(&fresh, ProModuleEvent::ContextCancel))
+                .unwrap()
+                .is_none()
+        );
+        let rebound = row(
+            &store.project(CachePhase::Live, Some(&second), &scenario),
+            1,
+        );
+        assert_eq!(
+            rebound.range.lower, fresh.range.lower,
+            "context cancels gestures, not readmitted text"
+        );
+        assert!(
+            store
                 .module_event(0, intent(&fresh, ProModuleEvent::Cancel))
                 .unwrap()
                 .is_none()
@@ -618,8 +633,82 @@ fn exact_range_mode_survives_only_equivalent_fresh_capture_without_draft_or_gest
             1,
         );
         assert_eq!(
+            after_cancel.range.lower, "30",
+            "explicit cancellation restores observation"
+        );
+        assert_eq!(
             after_cancel.range_editor_mode, fresh.range_editor_mode,
-            "context cancellation clears drafts, not numeric presentation"
+            "explicit cancellation clears drafts, not numeric presentation"
         );
     }
+}
+
+#[test]
+fn exact_numeric_draft_survives_viewport_and_equivalent_capture_with_fresh_admission() {
+    let (mut scenario, entity) = fixture();
+    let store = DeviceStore::default();
+    let first = view(&scenario, vec![entity.clone()]);
+    let initial = row(&store.project(CachePhase::Live, Some(&first), &scenario), 1);
+    let mut mode = intent(&initial, ProModuleEvent::RangeEditorMode);
+    mode.range_editor_mode = crate::ProRangeEditorMode::Exact;
+    assert!(store.module_event(0, mode).unwrap().is_none());
+    let mut draft = intent(&initial, ProModuleEvent::Numeric);
+    draft.value.event = ProValueEvent::Draft;
+    draft.value.lower = "50".into();
+    assert!(store.module_event(0, draft.clone()).unwrap().is_none());
+    for viewport in [
+        home_client_cache::Viewport::new(0, 1).unwrap(),
+        home_client_cache::Viewport::new(1, 8).unwrap(),
+    ] {
+        let _ = crate::cache_view::project_devices(
+            CachePhase::Live,
+            Some(&first),
+            viewport,
+            &scenario,
+            &store,
+        );
+        let same = row(&store.project(CachePhase::Live, Some(&first), &scenario), 1);
+        assert_eq!(same.state.identity, initial.state.identity);
+        assert_eq!(
+            same.range.lower, "50",
+            "viewport alone must preserve the draft"
+        );
+    }
+    let second = fixture::capture(vec![entity]);
+    let mut joined = crate::dashboard::joined_fixture(&second);
+    joined.native = scenario.dashboard.layout().unwrap().native.clone();
+    scenario.dashboard = LayoutState::Ready(Arc::new(joined));
+    let fresh = row(
+        &store.project(CachePhase::Live, Some(&second), &scenario),
+        1,
+    );
+    assert_ne!(
+        fresh.state.identity.generation,
+        initial.state.identity.generation
+    );
+    assert_eq!(fresh.range_editor_mode, crate::ProRangeEditorMode::Exact);
+    assert_eq!(
+        fresh.range.lower, "50",
+        "fresh equivalent capture must not replace a typed target with observation"
+    );
+    draft.value.event = ProValueEvent::Submit;
+    assert!(
+        store.module_event(0, draft.clone()).is_err(),
+        "old admission must remain invalid"
+    );
+    draft.identity = fresh.state.identity.clone();
+    draft.value.lower = fresh.range.lower.clone();
+    let command = store.module_event(0, draft).unwrap().unwrap();
+    let prepared = store
+        .prepare(
+            fresh.state.identity.token,
+            fresh.state.identity.generation,
+            0,
+            command,
+        )
+        .unwrap();
+    let wire = home_wire_contract::api_contract::encode_command(&prepared.request);
+    assert!(
+        matches!(wire.command, Some(wire::execute_capability_request::Command::Light(v)) if v.level.target == Some(wire::set_level_command::Target::Percentage(50.)))
+    );
 }

@@ -164,7 +164,10 @@ impl DeviceStore {
         let mut state = self.0.lock().expect("device store mutex");
         let local = matches!(
             event.event,
-            ProModuleEvent::ColorMode | ProModuleEvent::RangeEditorMode | ProModuleEvent::Cancel
+            ProModuleEvent::ColorMode
+                | ProModuleEvent::RangeEditorMode
+                | ProModuleEvent::Cancel
+                | ProModuleEvent::ContextCancel
         ) || (event.event == ProModuleEvent::Numeric
             && event.value.event == ProValueEvent::Cancel);
         let slot = if local {
@@ -214,6 +217,20 @@ impl DeviceStore {
             return Ok(None);
         }
         let value = match event.event {
+            ProModuleEvent::ContextCancel => {
+                // A fresh context owns admission; only the independently
+                // retained exact Range text survives its gesture cancellation.
+                let text = (matches!(binding.definition, ModuleDefinition::Range(_))
+                    && draft.range_editor_mode == crate::ProRangeEditorMode::Exact)
+                    .then(|| draft.text.take())
+                    .flatten();
+                *draft = Draft {
+                    text,
+                    range_editor_mode: draft.range_editor_mode,
+                    ..Draft::default()
+                };
+                return Ok(None);
+            }
             ProModuleEvent::Cancel => {
                 // Cancellation discards input and admission-owned gestures,
                 // not the host's independent choice of numeric presentation.
