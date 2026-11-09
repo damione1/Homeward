@@ -33,6 +33,7 @@ import (
 type Config struct {
 	declaredOperational *Config
 	remoteCalendar      *remoteCalendarSettings
+	displayTimeZone     string
 	backupRecovery      *backuparchive.RecoveryPublic
 	backupProviders     backups.Configuration
 	scopeRevision       scope.Revision
@@ -65,6 +66,7 @@ func Parse(data []byte) (Config, error) { return ParseWithEnv(data, os.LookupEnv
 type rawConfig struct {
 	DisabledIntegrations    []string                `yaml:"disabled_integrations"`
 	RemoteCalendar          yaml.Node               `yaml:"remote_calendar"`
+	DisplayProfile          yaml.Node               `yaml:"display_profile"`
 	ScopeRevision           yaml.Node               `yaml:"scope_revision"`
 	BackupRecoveryRecipient yaml.Node               `yaml:"backup_recovery_recipient"`
 	Backups                 yaml.Node               `yaml:"backups"`
@@ -134,6 +136,7 @@ func ParseWithEnv(data []byte, lookup func(string) (string, bool)) (Config, erro
 	launch.workers, launch.energy, launch.derivedPower = operational.workers, operational.energy, operational.derivedPower
 	launch.solar, launch.workday = operational.solar, operational.workday
 	launch.remoteCalendar = operational.remoteCalendar
+	launch.displayTimeZone = operational.displayTimeZone
 	launch.declaredOperational = operational.declaredOperational
 	return launch, nil
 }
@@ -160,7 +163,7 @@ func ParseBootstrapLaunchWithEnv(data []byte, lookup func(string) (string, bool)
 		return Config{}, err
 	}
 	if raw.WLED != nil || raw.MQTT != nil || raw.Neviweb != nil || raw.Hilo != nil || raw.Ecobee != nil || raw.Energy != nil ||
-		raw.RemoteCalendar.Kind != 0 || raw.DerivedPower.Kind != 0 || raw.Solar.Kind != 0 || raw.Workday.Kind != 0 || raw.Workers != nil || raw.DisabledIntegrations != nil {
+		raw.DisplayProfile.Kind != 0 || raw.RemoteCalendar.Kind != 0 || raw.DerivedPower.Kind != 0 || raw.Solar.Kind != 0 || raw.Workday.Kind != 0 || raw.Workers != nil || raw.DisabledIntegrations != nil {
 		return Config{}, ErrInvalidYAML
 	}
 	return parseLaunch(raw, lookup)
@@ -218,6 +221,10 @@ func parseOperational(raw rawConfig) (Config, error) {
 	}
 	var result Config
 	var err error
+	result.displayTimeZone, err = parseDisplayProfile(raw.DisplayProfile)
+	if err != nil {
+		return Config{}, err
+	}
 	result.remoteCalendar, err = parseRemoteCalendarInput(raw.RemoteCalendar)
 	if err != nil {
 		return Config{}, err

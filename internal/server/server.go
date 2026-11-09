@@ -823,6 +823,9 @@ func runWithDependencies(ctx context.Context, startup config.StartupInputs, list
 		})
 	}
 	if activation != nil {
+		if nilReactiveInterface(plan.DisplayProfiles) {
+			plan.DisplayProfiles = activation
+		}
 		core, coreErr := prepareCoreRPC(ctx, sessions, sequence, plan.Identity, activation, commands, plan.DisplayProfiles)
 		if coreErr == nil {
 			core.media = dependencies.mediaProjector

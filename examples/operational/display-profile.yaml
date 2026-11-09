@@ -1,0 +1,7 @@
+# Merge this fragment into the installation's operational configuration and
+# publish it through the native configuration workflow with current preconditions.
+# The explicit house presentation zone is independent of calendar/widget zones.
+# Remove display_profile to leave presentation unconfigured; there is no implicit
+# server or device timezone. This is synthetic example configuration.
+display_profile:
+  time_zone: Europe/Paris

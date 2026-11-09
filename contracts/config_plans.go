@@ -114,7 +114,7 @@ func planEffect(f wire.ConfigurationPlanSourceFamily, e wire.ConfigurationPlanEf
 }
 func planField(s string) bool {
 	switch s {
-	case "wled", "android_tv", "sonos", "ecobee", "disabled_integrations", "remote_calendar", "external_worker_bindings", "external_worker_processes", "mqtt", "neviweb", "hilo", "energy", "derived_power", "solar", "workday", "external_workers", "launch_ignored", "input_boolean", "input_number", "counter", "input_button", "input_datetime", "input_select", "input_text", "group", "human_policy", "technical_ownership", "dashboard_views", "dashboard_strategy", "run_triggers", "run_conditions", "run_actions", "run_policy", "run_variables", "run_metadata", "scene_members", "scene_metadata", "definition":
+	case "wled", "android_tv", "sonos", "ecobee", "disabled_integrations", "remote_calendar", "display_profile", "external_worker_bindings", "external_worker_processes", "mqtt", "neviweb", "hilo", "energy", "derived_power", "solar", "workday", "external_workers", "launch_ignored", "input_boolean", "input_number", "counter", "input_button", "input_datetime", "input_select", "input_text", "group", "human_policy", "technical_ownership", "dashboard_views", "dashboard_strategy", "run_triggers", "run_conditions", "run_actions", "run_policy", "run_variables", "run_metadata", "scene_members", "scene_metadata", "definition":
 		return true
 	default:
 		return false
@@ -153,7 +153,7 @@ func planMetadata(v *wire.ConfigurationPlan) bool {
 	maximum := wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE
 	previous := ""
 	for _, change := range v.Changes {
-		if change == nil || !planField(change.Field) || ((change.Field == "wled" || change.Field == "android_tv" || change.Field == "sonos" || change.Field == "ecobee" || change.Field == "remote_calendar" || change.Field == "disabled_integrations") && v.Family != wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL) || change.Field <= previous || !planEffect(v.Family, change.Effect) || change.Effect == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE || change.Effect > v.Effect || change.ReferencesAdded < 0 || change.ReferencesAdded > 4096 || change.ReferencesRemoved < 0 || change.ReferencesRemoved > 4096 {
+		if change == nil || !planField(change.Field) || ((change.Field == "wled" || change.Field == "android_tv" || change.Field == "sonos" || change.Field == "ecobee" || change.Field == "remote_calendar" || change.Field == "display_profile" || change.Field == "disabled_integrations") && v.Family != wire.ConfigurationPlanSourceFamily_CONFIGURATION_PLAN_SOURCE_FAMILY_OPERATIONAL) || change.Field <= previous || !planEffect(v.Family, change.Effect) || change.Effect == wire.ConfigurationPlanEffect_CONFIGURATION_PLAN_EFFECT_NONE || change.Effect > v.Effect || change.ReferencesAdded < 0 || change.ReferencesAdded > 4096 || change.ReferencesRemoved < 0 || change.ReferencesRemoved > 4096 {
 			return false
 		}
 		previous = change.Field
