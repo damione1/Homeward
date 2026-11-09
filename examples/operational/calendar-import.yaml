@@ -1,0 +1,18 @@
+# Synthetic fragment: merge into the private operational configuration and
+# publish with the native configuration API's current preconditions.
+remote_calendar:
+  label: Example calendar
+  url: https://calendar.example.invalid/events.ics
+  view_timezone: Europe/Paris
+  # Explicit application synchronization: retain parsed events independently of
+  # HTTP cache directives. Every poll fetches a complete response; no HTTP body,
+  # headers or validators are cached. Use the provider's supported poll cadence.
+  import:
+    poll_seconds: 14400
+    freshness_seconds: 14400
+# Omitting import retains strict HTTP cache policy, including no-store refusal.
+# An authenticated/private subscription URL belongs in the existing secret
+# owner; replace url with secret_url naming that provisioned secret handle.
+# Removing the subscription stops synchronization and active exposure. The
+# last parsed image remains in the existing database/backup retention lifecycle;
+# removing configuration is not a request to erase historical stored data.

@@ -12,6 +12,7 @@ import (
 	"hash"
 	"reflect"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -98,13 +99,14 @@ func (p FloatingProjection) valid() bool {
 }
 
 type Settings struct {
-	instance    domain.IntegrationInstanceID
-	source      integrations.SourceKey
-	label       string
-	conditional integrations.ConditionalSettings
-	projection  FloatingProjection
-	view        calendars.Zone
-	admitted    bool
+	instance     domain.IntegrationInstanceID
+	source       integrations.SourceKey
+	label        string
+	conditional  integrations.ConditionalSettings
+	projection   FloatingProjection
+	view         calendars.Zone
+	admitted     bool
+	pollInterval time.Duration
 }
 
 func hashPart(h hash.Hash, s string) {
@@ -136,12 +138,12 @@ func NewSettings(instance domain.IntegrationInstanceID, source integrations.Sour
 	if e != nil {
 		return Settings{}, failure(Invalid)
 	}
-	return Settings{instance: instance, source: source, label: strings.Clone(label), conditional: c, projection: projection, view: view, admitted: true}, nil
+	return Settings{instance: instance, source: source, label: strings.Clone(label), conditional: c, projection: projection, view: view, admitted: true, pollInterval: nominalPoll}, nil
 }
 func (s Settings) Valid() bool {
 	_, e := s.instance.Value()
 	_, _, k := s.source.Components()
-	return s.admitted && e == nil && k == nil && s.projection.valid() && s.view.Valid()
+	return s.admitted && e == nil && k == nil && s.projection.valid() && s.view.Valid() && s.pollInterval >= time.Minute && s.pollInterval <= 24*time.Hour
 }
 func (s Settings) Identity() (domain.IntegrationInstanceID, integrations.SourceKey, error) {
 	if !s.Valid() {
@@ -152,3 +154,17 @@ func (s Settings) Identity() (domain.IntegrationInstanceID, integrations.SourceK
 func (s Settings) String() string               { return "remote calendar settings [redacted]" }
 func (s Settings) GoString() string             { return s.String() }
 func (s Settings) MarshalJSON() ([]byte, error) { return []byte(`"[redacted]"`), nil }
+
+// WithApplicationImport opts into retaining parsed calendar data independently
+// of HTTP cache directives, with explicit bounded synchronization deadlines.
+func (s Settings) WithApplicationImport(poll, freshness time.Duration) (Settings, error) {
+	if !s.Valid() {
+		return Settings{}, failure(Invalid)
+	}
+	conditional, err := s.conditional.WithApplicationImport(poll, freshness)
+	if err != nil {
+		return Settings{}, failure(Invalid)
+	}
+	s.conditional, s.pollInterval = conditional, poll
+	return s, nil
+}

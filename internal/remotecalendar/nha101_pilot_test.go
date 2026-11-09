@@ -49,7 +49,7 @@ func (*nha101Publisher) Replace(context.Context, PublicationWindow) error      {
 func (*nha101Publisher) Degrade(context.Context, calendars.RemoteReason) error { return nil }
 func TestNHA101PilotCadence12h24hAndCollisionPriority(t *testing.T) {
 	now := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
-	c := cadence{}
+	c := cadence{interval: nominalPoll}
 	c.pollSucceeded(now, 0, now.Add(24*time.Hour))
 	c.windowSucceeded(now, 0)
 	if got := c.due(now.Add(12*time.Hour), 12*time.Hour, true); got != intentRenewWindow {
@@ -245,18 +245,19 @@ func nha101Eventually(t *testing.T, fn func() bool) {
 }
 
 type nha101LiveRig struct {
-	ctx      context.Context
-	store    *storage.Store
-	manifest registry.Manifest
-	instance domain.IntegrationInstanceID
-	key      integrations.SourceKey
-	entity   domain.EntityID
-	clock    *nha101LiveClock
-	private  string
-	phase    *nha101Phase
-	resource *integrations.ConditionalResource
-	auth     *integrations.ConditionalAuth
-	disabled bool
+	ctx                         context.Context
+	store                       *storage.Store
+	manifest                    registry.Manifest
+	instance                    domain.IntegrationInstanceID
+	key                         integrations.SourceKey
+	entity                      domain.EntityID
+	clock                       *nha101LiveClock
+	private                     string
+	phase                       *nha101Phase
+	resource                    *integrations.ConditionalResource
+	auth                        *integrations.ConditionalAuth
+	disabled                    bool
+	importPoll, importFreshness time.Duration
 }
 
 func nha101LiveSetup(t *testing.T) nha101LiveRig {
@@ -342,6 +343,12 @@ func (f nha101LiveRig) start(t *testing.T, url string, pub *nha101RecordingPubli
 	settings, e := NewSettings(f.instance, f.key, "Synthetic family", resource, auth, destination, NoFloatingProjection(), zone)
 	if e != nil {
 		t.Fatal(e)
+	}
+	if f.importPoll != 0 {
+		settings, e = settings.WithApplicationImport(f.importPoll, f.importFreshness)
+		if e != nil {
+			t.Fatal(e)
+		}
 	}
 	policy, e := integrations.NewCloudPolicy(integrations.DefaultCloudLimits(), nil, f.clock, nha101CloudTimer{f.clock}, integrations.RandomJitter{})
 	if e != nil {
