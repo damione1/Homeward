@@ -22,7 +22,7 @@ Thank you for wanting to contribute. [Issues](https://github.com/damione1/Homewa
 
 ## Native development evaluation
 
-The frontend consumes Slint Kit 0.7.1 and a matching local Slint Kit Pro checkout.
+The frontend consumes Slint Kit 0.7.2 and a matching local Slint Kit Pro checkout.
 Configure both source trees before Cargo loads the workspace. The sibling
 `slint-kit` alias keeps the runtime and build crates on one canonical source.
 Each window initializes the shared services once with

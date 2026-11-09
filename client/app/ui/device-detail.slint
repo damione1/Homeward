@@ -1,4 +1,4 @@
-import { ProControlModules, ProControlDensity, ProModuleIntent, ProDetailPanel } from "@kit-pro";
+import { ProControlModules, ProModulePresentation, ProControlDensity, ProModuleIntent, ProDetailPanel } from "@kit-pro";
 import { KitTheme, KitAlert, KitButton, CloseReason, StepDirection, RangeThumb } from "@kit";
 import { ProDeviceRow, ProDeviceValue, ProDeviceKind, ProDeviceControls, ProValueMode, ProActionPhase, ProControlAccess,
     ProLightPanel, ProLight, ProSwitchPanel, ProSwitch, ProFanPanel, ProFan, ProClimatePanel, ProClimate,
@@ -63,6 +63,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             interactive: root.interactive;
             ProControlModules {
                 theme: root.theme; context: {token: device.token,generation:device.generation};
+                presentation: device.kind == ProDeviceKind.light ? ProModulePresentation.light-panel : ProModulePresentation.list;
                 family: device.control-family; density: ProControlDensity.detail; modules: device.modules;
                 commands-enabled: root.commands-ready;
                 interactive: root.interactive;
