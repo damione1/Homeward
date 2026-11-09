@@ -33,7 +33,7 @@ chrono = { version = "=0.4.45", default-features = false, features = ["clock"] }
 rustls-pemfile = "2"
 url = "2"
 png = "=0.18.1"
-slint-kit = { path = "../../.tools/frontend-kits/slint-kit/crates/kit" }
+slint-kit = { version = "=0.7.2", path = "../../.tools/frontend-kits/slint-kit/crates/kit" }
 slint-kit-pro = { path = "../../.tools/frontend-kits/pro/crates/kit-pro" }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
