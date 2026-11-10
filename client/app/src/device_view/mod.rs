@@ -188,6 +188,7 @@ impl Context {
     }
 }
 struct State {
+    temporal: Vec<(usize, crate::environment_view::Presentation, Option<String>)>,
     serial: CardGeneration,
     context: Option<Context>,
     actions: VecDeque<(CapabilityName, CapabilityHandle)>,
@@ -224,6 +225,7 @@ impl Default for DeviceStore {
     fn default() -> Self {
         Self(
             Arc::new(Mutex::new(State {
+                temporal: Vec::new(),
                 serial: CardGeneration(0),
                 context: None,
                 actions: VecDeque::new(),
@@ -339,9 +341,46 @@ fn selected<'a>(
         .collect()
 }
 impl DeviceStore {
+    pub fn temporal_changed(
+        &self,
+        revision: i32,
+        now: home_client_model::local_time::UtcInstant,
+    ) -> bool {
+        let state = self.0.lock().expect("device store mutex");
+        let Some(context) = state
+            .context
+            .as_ref()
+            .filter(|context| context.revision == revision && context.source_current())
+        else {
+            return false;
+        };
+        // Comparing a clock tick never consumes a pending change. Only a new
+        // projection replaces the values below; offline readings still age.
+        state
+            .temporal
+            .iter()
+            .any(|(index, environment, freshness)| {
+                let slot = &context.slots[*index];
+                let Control::ReadOnly(kind) = slot.control else {
+                    return false;
+                };
+                let zone = context.layout.profile_zone;
+                *environment
+                    != crate::environment_view::project(kind, Some(&slot.capability), zone, now)
+                    || freshness.as_ref().is_some_and(|freshness| {
+                        *freshness
+                            != crate::environment_view::observed_age(
+                                Some(&slot.capability),
+                                zone,
+                                now,
+                            )
+                    })
+            })
+    }
     pub fn clear_private(&self) {
         let mut state = self.0.lock().expect("device store mutex");
         state.context = None;
+        state.temporal.clear();
         state.recipe_bindings = recipes::Bindings::default();
         state.drafts.clear();
         state.module_drafts.clear();
@@ -371,7 +410,24 @@ impl DeviceStore {
         request: &ProjectionRequest,
         renewal: Option<&home_client_cache::PresentationSource>,
     ) -> DeviceProjection {
+        self.project_owner_at(
+            phase,
+            view,
+            request,
+            renewal,
+            crate::environment_view::now(),
+        )
+    }
+    fn project_owner_at(
+        &self,
+        phase: CachePhase,
+        view: Option<&CachedView>,
+        request: &ProjectionRequest,
+        renewal: Option<&home_client_cache::PresentationSource>,
+        now: home_client_model::local_time::UtcInstant,
+    ) -> DeviceProjection {
         let mut state = self.0.lock().expect("device store mutex");
+        state.temporal.clear();
         let saved = if state.context.is_some() {
             draft_retention::Saved::capture(&mut state)
         } else {
@@ -579,7 +635,6 @@ impl DeviceStore {
                 let zone = layout.map_or(crate::environment_view::ProfileZone::Missing, |layout| {
                     layout.profile_zone
                 });
-                let now = crate::environment_view::now();
                 row.environment =
                     crate::environment_view::project(*kind, Some(capability), zone, now);
                 row.freshness =
@@ -681,6 +736,37 @@ impl DeviceStore {
         // the bounded archive above and can return only after fresh admission.
         state.alarm_inputs.clear();
         state.context = context;
+        state.temporal = state
+            .context
+            .as_ref()
+            .map(|context| {
+                context
+                    .slots
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, slot)| {
+                        let displayed = match &slot.source {
+                            ControlSource::General => {
+                                request.detail.is_some() || context.layout.native.is_none()
+                            }
+                            ControlSource::Native(_) => true,
+                            ControlSource::Module(_, _) => false,
+                        };
+                        displayed && matches!(slot.control, Control::ReadOnly(_))
+                    })
+                    .map(|(index, _)| {
+                        (
+                            index,
+                            cards[index].environment.clone(),
+                            (matches!(context.slots[index].source, ControlSource::General)
+                                && request.detail.is_none()
+                                && context.layout.native.is_none())
+                            .then(|| cards[index].freshness.to_string()),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         if state.context.is_some() {
             if let Some(mut saved) = saved {
                 let State {

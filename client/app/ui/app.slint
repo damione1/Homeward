@@ -171,6 +171,9 @@ export component HomewardWindow inherits Window {
     in-out property <bool> large-text;
     in-out property <bool> reduced-motion: true;
 
+    callback lists-interactive(bool);
+    private property <bool> list-interactive: root.content-interactive && root.page == ViewPage.lists;
+    changed list-interactive => { root.lists-interactive(root.list-interactive); }
     in property <int> lists-generation;
     in-out property <int> lists-privacy-generation;
     in-out property <int> lists-list-token;

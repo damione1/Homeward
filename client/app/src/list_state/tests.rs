@@ -498,3 +498,19 @@ fn committed_list_changes_are_silent_while_busy_and_error_states_are_preserved()
             .any(|draft| draft.text == "Local draft")
     );
 }
+
+#[test]
+fn page_suspension_rejects_new_commands_but_preserves_consumed_write_admission() {
+    let mut state = ready();
+    let prepared = state
+        .prepare(state.generation, Write::Add("Synthetic pending".into()))
+        .unwrap();
+    state.interactive = false;
+    assert!(state.admits(prepared.context, prepared.id));
+    assert!(matches!(
+        state.prepare(state.generation, Write::Add("Rejected".into())),
+        Err(Refusal::Stale)
+    ));
+    state.clear();
+    assert!(!state.admits(prepared.context, prepared.id));
+}

@@ -17,7 +17,11 @@ use home_wire_contract::{calendars_contract as admit, home::api::v2 as wire};
 use slint::{Model, ModelNotify, ModelRc, ModelTracker};
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub(super) struct Projection {
+    today: Option<chrono::NaiveDate>,
+    fresh: bool,
+    source_current: bool,
     generation: i32,
     privacy_generation: i32,
     source: Option<Generation>,
@@ -43,7 +47,15 @@ pub(super) struct Projection {
 }
 impl Projection {
     pub fn new(state: &State, session: Option<SessionCoordinator>) -> Self {
+        let now = std::time::SystemTime::now();
         Self {
+            today: today(&state.zone, now),
+            fresh: state.fresh_at(now),
+            source_current: state.source.is_some_and(|source| {
+                session
+                    .as_ref()
+                    .is_some_and(|session| session.is_current(source))
+            }),
             generation: state.generation,
             privacy_generation: state.privacy_generation,
             source: state.source,
@@ -67,6 +79,68 @@ impl Projection {
             draft_token: state.draft_token,
             notice: state.notice.clone(),
         }
+    }
+    /// Compare before cloning a draft/catalogue or allocating occurrence indices.
+    /// The mailbox generation is checked separately by the owner: invalidation
+    /// must always publish a purge, even when its visible fields are equal.
+    pub(super) fn matches(&self, state: &State, session: Option<&SessionCoordinator>) -> bool {
+        let now = std::time::SystemTime::now();
+        self.generation == state.generation
+            && self.privacy_generation == state.privacy_generation
+            && self.source == state.source
+            && self.source_current
+                == state
+                    .source
+                    .is_some_and(|source| session.is_some_and(|session| session.is_current(source)))
+            && self.catalog == state.catalog
+            && self.selected == state.selected
+            && match (&self.snapshot, &state.snapshot) {
+                (Some(old), Some(new)) => Arc::ptr_eq(old, new),
+                (None, None) => true,
+                (Some(_), None) | (None, Some(_)) => false,
+            }
+            && self.editable == state.editable()
+            && self.ready == state.ready
+            && self.busy == state.busy()
+            && self.active == state.active
+            && self.status == state.status
+            && self.start == state.start
+            && self.end == state.end
+            && self.zone == state.zone
+            && self.mode == state.mode
+            && self.active_index == state.active_index
+            && self.draft == state.draft
+            && self.occurrence == state.occurrence
+            && self.draft_token == state.draft_token
+            && self.notice == state.notice
+            && self.today == today(&state.zone, now)
+            && self.fresh == state.fresh_at(now)
+    }
+}
+fn today(zone: &str, now: std::time::SystemTime) -> Option<chrono::NaiveDate> {
+    let now: chrono::DateTime<chrono::Utc> = now.into();
+    let instant = home_client_model::local_time::UtcInstant::new(
+        now.timestamp(),
+        now.timestamp_subsec_nanos() as i32,
+    )
+    .ok()?;
+    let zone = zone
+        .parse::<home_client_model::local_time::DisplayTimeZone>()
+        .ok()?;
+    chrono::NaiveDate::parse_from_str(&zone.local(instant).date(), "%Y-%m-%d").ok()
+}
+// Models contain presentation rows, never admission state. A newly admitted
+// snapshot still updates the owner/authority even when its rows are identical.
+fn same_rows(old: &Arc<CalendarReadSnapshot>, new: &Arc<CalendarReadSnapshot>) -> bool {
+    Arc::ptr_eq(old, new)
+        || (old.calendar().name == new.calendar().name && old.occurrences() == new.occurrences())
+}
+fn stable_model<T: Clone + PartialEq + 'static>(previous: &ModelRc<T>, rows: Vec<T>) -> ModelRc<T> {
+    if let Some(model) = previous.as_any().downcast_ref::<slint::VecModel<T>>() {
+        crate::cache_view::sync(model, rows);
+        previous.clone()
+    } else {
+        ModelRc::new(slint::VecModel::from(rows))
     }
 }
 fn date(value: &str) -> CivilDateView {
@@ -405,11 +479,13 @@ fn source(
     format!("{origin}{provenance}")
 }
 fn snapshot_fresh(snapshot: &CalendarReadSnapshot) -> bool {
+    snapshot_fresh_at(snapshot, std::time::SystemTime::now())
+}
+fn snapshot_fresh_at(snapshot: &CalendarReadSnapshot, now: std::time::SystemTime) -> bool {
     snapshot.freshness() == home_client_cache::calendars::CalendarFreshness::Fresh
         && snapshot.expiry_bounds().all(|until| {
             chrono::DateTime::parse_from_rfc3339(until).is_ok_and(|until| {
-                std::time::SystemTime::from(until.with_timezone(&chrono::Utc))
-                    > std::time::SystemTime::now()
+                std::time::SystemTime::from(until.with_timezone(&chrono::Utc)) > now
             })
         })
 }
@@ -425,6 +501,13 @@ fn quality(snapshot: &CalendarReadSnapshot) -> &'static str {
                 "Outdated data"
             }
         }
+    }
+}
+fn projected_quality(snapshot: &CalendarReadSnapshot, fresh: bool) -> &'static str {
+    if snapshot.freshness() == home_client_cache::calendars::CalendarFreshness::Fresh && !fresh {
+        "Outdated data"
+    } else {
+        quality(snapshot)
     }
 }
 pub(super) fn render(window: &HomewardWindow, value: Projection) {
@@ -496,6 +579,14 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         .draft
         .as_ref()
         .and_then(|draft| draft.key.clone().map(|key| (key, draft.phase)));
+    let previous_snapshot = previous
+        .rows
+        .as_any()
+        .downcast_ref::<Rows>()
+        .map(|rows| &rows.snapshot);
+    let same_snapshot_rows = previous_snapshot
+        .zip(value.snapshot.as_ref())
+        .is_some_and(|(old, new)| same_rows(old, new));
     let rows = match &value.snapshot {
         Some(snapshot) => {
             let same = previous
@@ -503,7 +594,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                 .as_any()
                 .downcast_ref::<Rows>()
                 .is_some_and(|old| {
-                    Arc::ptr_eq(&old.snapshot, snapshot)
+                    same_snapshot_rows
                         && old.generation == value.generation
                         && old.indices == value.indices
                         && old.draft == draft
@@ -557,7 +648,8 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     let mut active_column_claimed = false;
     let columns = days
         .iter()
-        .map(|day| {
+        .enumerate()
+        .map(|(column_index, day)| {
             let Some(day_date) = chrono::NaiveDate::from_ymd_opt(
                 day.date.year,
                 day.date.month as u32,
@@ -569,14 +661,30 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                     ..Default::default()
                 };
             };
-            let indices = value.snapshot.as_ref().map_or_else(Vec::new, |snapshot| {
-                snapshot
-                    .occurrences()
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, row)| occurrence_on_day(row, day_date).then_some(index))
-                    .collect()
-            });
+            let old_column = previous.columns.row_data(column_index);
+            let old_rows = old_column
+                .as_ref()
+                .filter(|old| old.day.date == day.date)
+                .and_then(|old| old.rows.as_any().downcast_ref::<Rows>());
+            // Selection, availability and notices do not repartition a snapshot.
+            let same_partition = same_snapshot_rows
+                && old_rows
+                    .zip(previous_snapshot)
+                    .is_some_and(|(old, snapshot)| Arc::ptr_eq(&old.snapshot, snapshot));
+            let indices = if same_partition {
+                old_rows.expect("matching column snapshot").indices.clone()
+            } else {
+                value.snapshot.as_ref().map_or_else(Vec::new, |snapshot| {
+                    snapshot
+                        .occurrences()
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(index, row)| {
+                            occurrence_on_day(row, day_date).then_some(index)
+                        })
+                        .collect()
+                })
+            };
             let active_index = if active_column_claimed {
                 -1
             } else {
@@ -590,13 +698,21 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                 .snapshot
                 .as_ref()
                 .map_or_else(ModelRc::default, |snapshot| {
-                    ModelRc::new(Rows {
-                        snapshot: snapshot.clone(),
-                        indices,
-                        generation: value.generation,
-                        draft: draft.clone(),
-                        notify: ModelNotify::default(),
-                    })
+                    if same_partition
+                        && old_rows.is_some_and(|old| {
+                            old.generation == value.generation && old.draft == draft
+                        })
+                    {
+                        old_column.as_ref().expect("matching column").rows.clone()
+                    } else {
+                        ModelRc::new(Rows {
+                            snapshot: snapshot.clone(),
+                            indices,
+                            generation: value.generation,
+                            draft: draft.clone(),
+                            notify: ModelNotify::default(),
+                        })
+                    }
                 });
             ProAgendaColumn {
                 active: active_index >= 0,
@@ -606,13 +722,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                     ..day.clone()
                 },
                 weekday: day_date.format("%a").to_string().into(),
-                today: value
-                    .zone
-                    .parse::<home_client_model::local_time::DisplayTimeZone>()
-                    .ok()
-                    .is_some_and(|zone| {
-                        zone.local(crate::environment_view::now()).date() == day_date.to_string()
-                    }),
+                today: value.today == Some(day_date),
                 rows: column_rows,
             }
         })
@@ -638,14 +748,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                                     enabled: true,
                                     selected: Some(day) == start,
                                     in_range: day.month() == first.month(),
-                                    today: value
-                                        .zone
-                                        .parse::<home_client_model::local_time::DisplayTimeZone>()
-                                        .ok()
-                                        .is_some_and(|zone| {
-                                            zone.local(crate::environment_view::now()).date()
-                                                == day.to_string()
-                                        }),
+                                    today: value.today == Some(day),
                                 })
                         })
                         .collect()
@@ -693,23 +796,26 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         && let Some(snapshot) = value
             .snapshot
             .as_deref()
-            .filter(|snapshot| !snapshot_fresh(snapshot))
+            .filter(|snapshot| !value.fresh || !snapshot_fresh(snapshot))
     {
         if notice.is_empty() {
-            quality(snapshot).to_owned()
+            projected_quality(snapshot, value.fresh).to_owned()
         } else {
-            format!("{notice}\n{}", quality(snapshot))
+            format!("{notice}\n{}", projected_quality(snapshot, value.fresh))
         }
     } else {
         notice.to_owned()
     };
+    // VecModel notifications may synchronously re-evaluate bound controls.
+    // Fence them together with the scalar publication, not just the final setter.
+    window.set_calendars_publishing(true);
     let frame = CalendarPresentation {
         generation: value.generation,
         privacy_generation: value.privacy_generation,
-        catalog: ModelRc::from(catalog.as_slice()),
+        catalog: stable_model(&previous.catalog, catalog),
         rows,
-        days: ModelRc::from(days.as_slice()),
-        columns: ModelRc::from(columns.as_slice()),
+        days: stable_model(&previous.days, days),
+        columns: stable_model(&previous.columns, columns),
         period: start
             .map_or_else(
                 || "Calendar".into(),
@@ -742,7 +848,10 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                     value
                         .snapshot
                         .as_ref()
-                        .map_or("Loading", |snapshot| quality(snapshot))
+                        .map_or("Loading", |snapshot| projected_quality(
+                            snapshot,
+                            value.fresh
+                        ))
                 )
             })
             .into(),
@@ -771,7 +880,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         mode: value.mode,
         active_index,
         editor: editor(&value),
-        calendar_days: ModelRc::from(calendar_days.as_slice()),
+        calendar_days: stable_model(&previous.calendar_days, calendar_days.clone()),
         calendar_title: start
             .map_or_else(String::new, |date| date.format("%Y-%m").to_string())
             .into(),
@@ -781,7 +890,6 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             .map_or(-1, |i| i as i32),
         accepted_date: date(&value.start),
     };
-    window.set_calendars_publishing(true);
     let editor = frame.editor.clone();
     window.set_calendars(frame);
     draft_values(window, &editor);
@@ -816,7 +924,7 @@ pub(super) fn render_widget(
         current_session && value.active && snapshot.calendar().name == target.calendar.as_str()
     });
     let present = snapshot.is_some();
-    let fresh = snapshot.is_some_and(|snapshot| snapshot_fresh(snapshot));
+    let fresh = value.fresh && snapshot.is_some_and(|snapshot| snapshot_fresh(snapshot));
     let ready = current_session
         && value.active
         && value.ready
@@ -843,10 +951,29 @@ pub(super) fn render_widget(
         }
         .into()
     };
+    let previous = crate::cache_view::widget_agenda_rows(window, target.token, target.generation);
     let rows = snapshot.map_or_else(ModelRc::default, |snapshot| {
+        let indices = value
+            .indices
+            .iter()
+            .copied()
+            .take(target.limit)
+            .collect::<Vec<_>>();
+        if previous
+            .as_any()
+            .downcast_ref::<WidgetRows>()
+            .is_some_and(|old| {
+                same_rows(&old.snapshot, snapshot)
+                    && old.indices == indices
+                    && old.generation == value.generation
+                    && old.zone == target.zone
+            })
+        {
+            return previous.clone();
+        }
         ModelRc::new(WidgetRows {
             snapshot: snapshot.clone(),
-            indices: value.indices.into_iter().take(target.limit).collect(),
+            indices,
             generation: value.generation,
             zone: target.zone,
             notify: ModelNotify::default(),
@@ -927,6 +1054,9 @@ impl Model for WidgetRows {
     }
     fn model_tracker(&self) -> &dyn ModelTracker {
         &self.notify
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

@@ -2140,10 +2140,18 @@ mod back_tests {
             ready: true,
             generation: 9,
             title: "Synthetic calendar".into(),
+            zone: "Etc/UTC".into(),
             ..Default::default()
         });
         window.invoke_quick_navigation(ViewPage::Calendars);
         window.show().unwrap();
+        let settings = ElementQuery::from_root(&window)
+            .match_inherits("KitIconButton")
+            .match_predicate(|item| item.accessible_label().as_deref() == Some("Calendar Settings"))
+            .find_first()
+            .unwrap();
+        settings.mock_single_click(PointerEventButton::Left);
+        slint::platform::update_timers_and_animations();
         let button = ElementQuery::from_root(&window)
             .match_inherits("KitButton")
             .match_predicate(|item| item.accessible_label().as_deref() == Some("Open Calendar"))

@@ -8,6 +8,7 @@ use home_client_model::lists::ItemKey;
 use slint::{Model, ModelNotify, ModelRc, ModelTracker};
 use std::{collections::BTreeMap, sync::Arc};
 
+#[derive(Clone)]
 pub(super) struct Projection {
     generation: i32,
     privacy_generation: i32,
@@ -31,7 +32,7 @@ impl Projection {
             generation: state.generation,
             privacy_generation: state.privacy_generation,
             list_token: state.selected_list_token(),
-            active: state.active && state.foreground,
+            active: state.active && state.foreground && state.interactive,
             catalog: state.catalog.clone(),
             items: state.items.clone(),
             catalog_tokens: state.catalog_tokens.clone(),
@@ -48,6 +49,45 @@ impl Projection {
                 .collect::<Vec<_>>()
                 .join(" "),
         }
+    }
+    pub(super) fn same(&self, other: &Self) -> bool {
+        self.generation == other.generation
+            && self.privacy_generation == other.privacy_generation
+            && self.list_token == other.list_token
+            && self.active == other.active
+            && same_snapshot(&self.catalog, &other.catalog)
+            && same_snapshot(&self.items, &other.items)
+            && self.catalog_tokens == other.catalog_tokens
+            && self.item_tokens == other.item_tokens
+            && self.catalog_phase == other.catalog_phase
+            && self.item_phase == other.item_phase
+            && self.selected == other.selected
+            && self.drafts == other.drafts
+            && self.busy == other.busy
+            && self.notice == other.notice
+            && self.confirmed_add == other.confirmed_add
+    }
+    fn same_tasks(&self, other: &Self) -> bool {
+        self.generation == other.generation
+            && same_snapshot(&self.items, &other.items)
+            && self.item_tokens == other.item_tokens
+            && self.busy == other.busy
+            && (!self.busy || self.selected == other.selected)
+            && self.drafts.len() == other.drafts.len()
+            && self.drafts.iter().all(|(key, draft)| {
+                other
+                    .drafts
+                    .get(key)
+                    .is_some_and(|value| value.phase == draft.phase)
+            })
+    }
+    fn same_catalog(&self, other: &Self) -> bool {
+        self.generation == other.generation
+            && self.active == other.active
+            && self.busy == other.busy
+            && self.catalog_phase == other.catalog_phase
+            && self.catalog_tokens == other.catalog_tokens
+            && same_snapshot(&self.catalog, &other.catalog)
     }
     fn rows(&self) -> &[Arc<home_client_model::api_tasks::TaskResource>] {
         self.items
@@ -101,6 +141,13 @@ impl Projection {
         })
     }
 }
+fn same_snapshot(a: &Option<Arc<ListReadSnapshot>>, b: &Option<Arc<ListReadSnapshot>>) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+        (None, None) => true,
+        _ => false,
+    }
+}
 struct Tasks {
     view: Arc<Projection>,
     notify: ModelNotify,
@@ -115,6 +162,9 @@ impl Model for Tasks {
     }
     fn model_tracker(&self) -> &dyn ModelTracker {
         &self.notify
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 struct Catalog {
@@ -136,6 +186,9 @@ impl Model for GroceryRows {
     }
     fn model_tracker(&self) -> &dyn ModelTracker {
         &self.notify
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 struct CommonRows {
@@ -170,6 +223,9 @@ impl Model for CommonRows {
     }
     fn model_tracker(&self) -> &dyn ModelTracker {
         &self.notify
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 fn visible_indices(view: &Projection, shopping_only: bool, limit: usize) -> Vec<usize> {
@@ -209,6 +265,9 @@ impl Model for Catalog {
     }
     fn model_tracker(&self) -> &dyn ModelTracker {
         &self.notify
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 pub(super) fn render(window: &HomewardWindow, projection: Projection) {
@@ -315,10 +374,17 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
         .unwrap_or_default();
     window.set_lists_cached_at(cached.into());
     window.set_lists_notice(view.notice.clone().into());
-    window.set_lists_catalog(ModelRc::new(Catalog {
-        view: view.clone(),
-        notify: ModelNotify::default(),
-    }));
+    let catalog = window.get_lists_catalog();
+    if !catalog
+        .as_any()
+        .downcast_ref::<Catalog>()
+        .is_some_and(|old| old.view.same_catalog(&view))
+    {
+        window.set_lists_catalog(ModelRc::new(Catalog {
+            view: view.clone(),
+            notify: ModelNotify::default(),
+        }));
+    }
     let options = view
         .catalog
         .as_ref()
@@ -340,26 +406,50 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
                 .collect(),
             CapturedRows::Items { .. } => Vec::new(),
         });
-    window.set_lists_options(ModelRc::new(slint::VecModel::from(options)));
+    let previous_options = window.get_lists_options();
+    if !previous_options.iter().eq(options.iter().cloned()) {
+        window.set_lists_options(ModelRc::new(slint::VecModel::from(options)));
+    }
     window.set_lists_option_index(
         view.catalog_tokens
             .iter()
             .position(|token| *token == view.list_token)
             .map_or(-1, |index| index as i32),
     );
-    window.set_lists_grocery_rows(ModelRc::new(GroceryRows {
-        indices: visible_indices(&view, true, usize::MAX),
-        view: view.clone(),
-        notify: ModelNotify::default(),
-    }));
-    window.set_lists_suggestions(ModelRc::new(CommonRows {
-        view: view.clone(),
-        notify: ModelNotify::default(),
-    }));
-    window.set_lists_tasks(ModelRc::new(Tasks {
-        view: view.clone(),
-        notify: ModelNotify::default(),
-    }));
+    let grocery = window.get_lists_grocery_rows();
+    if !grocery
+        .as_any()
+        .downcast_ref::<GroceryRows>()
+        .is_some_and(|old| old.view.same_tasks(&view))
+    {
+        window.set_lists_grocery_rows(ModelRc::new(GroceryRows {
+            indices: visible_indices(&view, true, usize::MAX),
+            view: view.clone(),
+            notify: ModelNotify::default(),
+        }));
+    }
+    let suggestions = window.get_lists_suggestions();
+    if !suggestions
+        .as_any()
+        .downcast_ref::<CommonRows>()
+        .is_some_and(|old| old.view.active == view.active && old.view.same_tasks(&view))
+    {
+        window.set_lists_suggestions(ModelRc::new(CommonRows {
+            view: view.clone(),
+            notify: ModelNotify::default(),
+        }));
+    }
+    let tasks = window.get_lists_tasks();
+    if !tasks
+        .as_any()
+        .downcast_ref::<Tasks>()
+        .is_some_and(|old| old.view.same_tasks(&view))
+    {
+        window.set_lists_tasks(ModelRc::new(Tasks {
+            view: view.clone(),
+            notify: ModelNotify::default(),
+        }));
+    }
     window.set_lists_task_selected(selected.is_some());
     window.set_lists_active_index(selected.map_or(-1, |index| index as i32));
     window.set_lists_task_selection(selection.clone());
@@ -947,11 +1037,20 @@ pub(super) fn render_widget(
         ProTaskAccess::Editable
     };
     let view = Arc::new(projection);
-    let rows = ModelRc::new(WidgetTasks {
-        indices: visible_indices(&view, target.shopping_only, target.limit),
-        view,
-        notify: ModelNotify::default(),
-    });
+    let previous = crate::cache_view::widget_task_rows(window, target.token, target.generation);
+    let rows = if previous
+        .as_any()
+        .downcast_ref::<WidgetTasks>()
+        .is_some_and(|old| old.view.active == view.active && old.view.same_tasks(&view))
+    {
+        previous
+    } else {
+        ModelRc::new(WidgetTasks {
+            indices: visible_indices(&view, target.shopping_only, target.limit),
+            view,
+            notify: ModelNotify::default(),
+        })
+    };
     crate::cache_view::publish_widget_tasks(
         window,
         target.token,
@@ -984,6 +1083,9 @@ impl Model for WidgetTasks {
     }
     fn model_tracker(&self) -> &dyn ModelTracker {
         &self.notify
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -1072,5 +1174,51 @@ mod widget_tests {
             4,
             "filtering never rewrites server count"
         );
+    }
+}
+
+#[cfg(test)]
+mod stability_tests {
+    use super::*;
+    #[test]
+    fn task_models_survive_unchanged_publication_and_local_draft_text_edits() {
+        i_slint_backend_testing::init_no_event_loop();
+        let window = crate::create_window().unwrap();
+        let mut state = crate::list_state::tests::ready();
+        render(&window, Projection::new(&state));
+        let tasks = window.get_lists_tasks();
+        let grocery = window.get_lists_grocery_rows();
+        let catalog = window.get_lists_catalog();
+        let options = window.get_lists_options();
+        for _ in 0..20 {
+            render(&window, Projection::new(&state));
+        }
+        assert!(tasks == window.get_lists_tasks());
+        assert!(grocery == window.get_lists_grocery_rows());
+        assert!(catalog == window.get_lists_catalog());
+        assert!(options == window.get_lists_options());
+        state
+            .edit(state.item_tokens[0], state.generation, "Draft one".into())
+            .unwrap();
+        render(&window, Projection::new(&state));
+        let draft_tasks = window.get_lists_tasks();
+        let scroll = window.get_lists_scroll_y();
+        state
+            .edit(state.item_tokens[0], state.generation, "Draft two".into())
+            .unwrap();
+        render(&window, Projection::new(&state));
+        assert!(draft_tasks == window.get_lists_tasks());
+        assert_eq!(window.get_lists_draft(), "Draft two");
+        assert_eq!(window.get_lists_scroll_y(), scroll);
+        let projection = Projection::new(&state);
+        assert!(projection.same(&Projection::new(&state)));
+        state.interactive = false;
+        assert!(!projection.same(&Projection::new(&state)));
+        render(&window, Projection::new(&state));
+        assert!(
+            draft_tasks == window.get_lists_tasks(),
+            "hiding a page retains row identity"
+        );
+        assert!(!window.get_lists_write_ready());
     }
 }

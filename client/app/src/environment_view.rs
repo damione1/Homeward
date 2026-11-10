@@ -129,7 +129,7 @@ fn fact(label: &str, value: String) -> ProEnvironmentFact {
     }
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub(crate) struct Weather {
     temperature: String,
     condition: String,
@@ -139,7 +139,7 @@ pub(crate) struct Weather {
     provenance: String,
     notice: String,
 }
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub(crate) struct Solar {
     clock: String,
     date: String,
@@ -148,7 +148,7 @@ pub(crate) struct Solar {
     events: Vec<ProEnvironmentFact>,
     notice: String,
 }
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub(crate) enum Presentation {
     #[default]
     Absent,

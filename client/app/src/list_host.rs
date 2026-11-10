@@ -12,7 +12,7 @@ use crate::{
     list_state::{Freshness, Prepared, Refusal, State, Write},
 };
 use home_client_cache::lists::{CapturedRows, ListReadEvent, ListReadExit, Scope, read_lists_once};
-use home_client_cache::{DeliveryTicket, ProjectionMailbox, Publication};
+use home_client_cache::{DeliveryTicket, ProjectionGeneration, ProjectionMailbox, Publication};
 use home_client_session::{Generation, GenerationGuard, Phase, SessionCoordinator};
 use home_client_transport::TaskTransport;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -68,6 +68,7 @@ pub(crate) struct Lists(Arc<Inner>);
 struct Inner {
     state: Mutex<State>,
     mailbox: ProjectionMailbox<projection::Projection>,
+    published: Mutex<Option<(ProjectionGeneration, projection::Projection)>>,
     window: Option<slint::Weak<HomewardWindow>>,
     changed: Notify,
     retry: AtomicBool,
@@ -83,9 +84,12 @@ impl Lists {
         window: Option<slint::Weak<HomewardWindow>>,
         widget: Option<crate::dashboard_widget_host::TaskTarget>,
     ) -> Self {
+        let mut state = State::default();
+        state.interactive = widget.is_some();
         Self(Arc::new(Inner {
-            state: Mutex::new(State::default()),
+            state: Mutex::new(state),
             mailbox: ProjectionMailbox::new(),
+            published: Mutex::new(None),
             window,
             changed: Notify::new(),
             retry: AtomicBool::new(false),
@@ -96,7 +100,9 @@ impl Lists {
     }
     #[cfg(test)]
     pub(crate) fn detached() -> Self {
-        Self::new(None)
+        let owner = Self::new(None);
+        owner.0.state.lock().expect("list state").interactive = true;
+        owner
     }
     pub(crate) fn for_widget(
         window: Option<slint::Weak<HomewardWindow>>,
@@ -144,6 +150,8 @@ impl Lists {
         window.on_lists_filter_options(filter_options);
         window.on_lists_find_option(find_option);
         let this = Self::new(Some(window.as_weak()));
+        let owner = this.clone();
+        window.on_lists_interactive(move |active| owner.interactive(active));
         let owner = this.clone();
         window.on_lists_choose(move |token, generation| {
             owner.update(|state| state.select_list(token, generation));
@@ -242,9 +250,16 @@ impl Lists {
     }
     fn publish(&self, state: &State) {
         let value = projection::Projection::new(state);
-        if let Publication::Schedule(ticket) =
-            self.0.mailbox.publish(self.0.mailbox.generation(), value)
+        let generation = self.0.mailbox.generation();
+        let mut previous = self.0.published.lock().expect("list publication");
+        if previous
+            .as_ref()
+            .is_some_and(|(old_generation, old)| *old_generation == generation && old.same(&value))
         {
+            return;
+        }
+        *previous = Some((generation, value.clone()));
+        if let Publication::Schedule(ticket) = self.0.mailbox.publish(generation, value) {
             let Some(window) = &self.0.window else {
                 return;
             };
@@ -285,6 +300,23 @@ impl Lists {
             let _ = self.0.mailbox.invalidate();
         }
         state.foreground = foreground;
+        self.publish(&state);
+        self.0.changed.notify_one();
+    }
+    fn interactive(&self, active: bool) {
+        let mut state = self.0.state.lock().expect("list state mutex");
+        if state.interactive == active {
+            return;
+        }
+        state.interactive = active;
+        if active {
+            // Keep drafts, tokens and consumed mutations. New writes wait for
+            // fresh reads after this page is admitted again.
+            state.catalog_phase = Freshness::Syncing;
+            if state.selected_list.is_some() {
+                state.item_phase = Freshness::Syncing;
+            }
+        }
         self.publish(&state);
         self.0.changed.notify_one();
     }
@@ -404,14 +436,17 @@ impl Lists {
         let mut source = phases.borrow().generation;
         let mut context = None;
         let mut tasks = JoinSet::new();
+        let mut writes = JoinSet::new();
         let mut attempt = cancel.child_token();
+        let mut write_attempt = cancel.child_token();
+        let mut write_context = None;
         loop {
             if self.0.retry.swap(false, Ordering::SeqCst) {
                 let _ = session.allow_new_view_attempt().await;
             }
-            let (active, next, selected) = {
+            let (active, reading, next, selected, generation) = {
                 let mut state = self.0.state.lock().expect("list state mutex");
-                if self.0.widget.is_some() && source != phases.borrow().generation {
+                if source != phases.borrow().generation {
                     source = phases.borrow().generation;
                     state.clear();
                     let _ = self.0.mailbox.invalidate();
@@ -434,13 +469,30 @@ impl Lists {
                     state.selected_list = Some(target.list.native_id().clone());
                     state.item_phase = Freshness::Syncing;
                 }
-                (active, state.context, state.selected_list.clone())
+                (
+                    active,
+                    active && state.interactive,
+                    state.context,
+                    state.selected_list.clone(),
+                    phases.borrow().generation,
+                )
             };
-            if !active || context != Some(next) {
+            // Visibility only owns read subscriptions. Already consumed writes
+            // keep their receipt until authority/context or lifecycle is lost.
+            let authority = active.then_some((generation, next));
+            if write_context != authority {
+                write_attempt.cancel();
+                while writes.join_next().await.is_some() {}
+                write_context = authority;
+                if authority.is_some() {
+                    write_attempt = cancel.child_token();
+                }
+            }
+            if !reading || context != Some(next) {
                 attempt.cancel();
                 while tasks.join_next().await.is_some() {}
                 context = None;
-                if active {
+                if reading {
                     attempt = cancel.child_token();
                     context = Some(next);
                     let owner = self.clone();
@@ -473,8 +525,8 @@ impl Lists {
                 () = self.0.changed.notified() => {}
                 command = commands.recv() => {
                     let Some(prepared) = command else { break };
-                    let owner = self.clone(); let credential = session.clone(); let api = transport.clone(); let stop = attempt.clone();
-                    tasks.spawn(async move {
+                    let owner = self.clone(); let credential = session.clone(); let api = transport.clone(); let stop = write_attempt.clone();
+                    writes.spawn(async move {
                         let (context,id) = (prepared.context,prepared.id);
                         let admission = owner.clone();
                         let result = prepared.mutation.submit(&api,&credential,&stop,Arc::new(move || admission.0.state.lock().expect("list state mutex").admits(context,id)&&admission.widget_source_current())).await;
@@ -484,13 +536,65 @@ impl Lists {
                     });
                 }
                 _ = tasks.join_next(), if !tasks.is_empty() => {}
+                _ = writes.join_next(), if !writes.is_empty() => {}
             }
         }
         attempt.cancel();
+        write_attempt.cancel();
         while tasks.join_next().await.is_some() {}
+        while writes.join_next().await.is_some() {}
         *self.0.commands.lock().expect("list commands mutex") = None;
         self.clear();
         *self.0.session.lock().expect("list session") = None;
+    }
+    fn read_recovery(
+        &self,
+        scope: &Scope,
+        context: u64,
+        session: &SessionCoordinator,
+        generation: Generation,
+        cancel: &CancellationToken,
+        recovery: recovery::Recovery,
+    ) -> bool {
+        use recovery::Recovery;
+        {
+            let mut state = self.0.state.lock().expect("list state mutex");
+            if state.context != context
+                || cancel.is_cancelled()
+                || !state.interactive
+                || !state.active
+                || !state.foreground
+                || !session.is_current(generation)
+            {
+                return false;
+            }
+            match recovery {
+                Recovery::Offline => {
+                    match scope {
+                        Scope::Catalog => state.catalog_phase = Freshness::Offline,
+                        Scope::Items(_) => state.item_phase = Freshness::Offline,
+                    }
+                    state.read_notice = "Connection interrupted. Dated cache is read-only; pending writes will not be replayed.";
+                }
+                Recovery::Reconnect => match scope {
+                    Scope::Catalog => state.catalog_phase = Freshness::Syncing,
+                    Scope::Items(_) => state.item_phase = Freshness::Syncing,
+                },
+                Recovery::Reset => {
+                    state.reset_for_resync();
+                    let _ = self.0.mailbox.invalidate();
+                }
+                Recovery::Stop => {
+                    state.clear();
+                    state.blocked = true;
+                    state.read_notice =
+                        "Lists must be reloaded. Previous private data was removed.";
+                    let _ = self.0.mailbox.invalidate();
+                }
+            }
+            self.publish(&state);
+        }
+        true
     }
     async fn read(
         &self,
@@ -505,7 +609,9 @@ impl Lists {
             let result = read_lists_once(&transport, &lease, scope.clone(), &cancel, |event| {
                 let mut state = self.0.state.lock().expect("list state mutex");
                 if state.context != context
+                    || cancel.is_cancelled()
                     || !state.active
+                    || !state.interactive
                     || !state.foreground
                     || !session.is_current(lease.generation)
                 {
@@ -583,36 +689,15 @@ impl Lists {
                 ListReadExit::Ended | ListReadExit::Resync => Recovery::Reset,
                 ListReadExit::Contract(_) => Recovery::Stop,
             };
-            {
-                let mut state = self.0.state.lock().expect("list state mutex");
-                if state.context != context {
-                    return;
-                }
-                match recovery {
-                    Recovery::Offline => {
-                        match scope {
-                            Scope::Catalog => state.catalog_phase = Freshness::Offline,
-                            Scope::Items(_) => state.item_phase = Freshness::Offline,
-                        }
-                        state.read_notice = "Connection interrupted. Dated cache is read-only; pending writes will not be replayed.";
-                    }
-                    Recovery::Reconnect => match scope {
-                        Scope::Catalog => state.catalog_phase = Freshness::Syncing,
-                        Scope::Items(_) => state.item_phase = Freshness::Syncing,
-                    },
-                    Recovery::Reset => {
-                        state.reset_for_resync();
-                        let _ = self.0.mailbox.invalidate();
-                    }
-                    Recovery::Stop => {
-                        state.clear();
-                        state.blocked = true;
-                        state.read_notice =
-                            "Lists must be reloaded. Previous private data was removed.";
-                        let _ = self.0.mailbox.invalidate();
-                    }
-                }
-                self.publish(&state);
+            if !self.read_recovery(
+                &scope,
+                context,
+                &session,
+                lease.generation,
+                &cancel,
+                recovery,
+            ) {
+                return;
             }
             if matches!(recovery, Recovery::Reset | Recovery::Stop) {
                 self.0.changed.notify_one();
@@ -626,7 +711,7 @@ impl Lists {
 #[cfg(test)]
 mod widget_tests {
     use super::*;
-    struct EmptyStore;
+    pub(super) struct EmptyStore;
     impl home_client_session::SecureStore for EmptyStore {
         fn load(
             &self,
@@ -826,5 +911,53 @@ mod selector_search_tests {
         assert_eq!(rows.row_count(), 2);
         assert_eq!(find_option(rows.clone(), "ha".into()), 1);
         assert_eq!(find_option(rows, "gr".into()), -1);
+    }
+}
+
+#[cfg(test)]
+mod suspension_tests {
+    use super::*;
+    #[test]
+    fn cancelled_read_recovery_cannot_clear_hidden_drafts_or_consumed_writes() {
+        let connection =
+            home_client_transport::Connection::new("https://127.0.0.1:1", &[]).unwrap();
+        let session =
+            SessionCoordinator::new(connection.auth(), Arc::new(widget_tests::EmptyStore));
+        for recovery in [
+            recovery::Recovery::Reset,
+            recovery::Recovery::Stop,
+            recovery::Recovery::Offline,
+        ] {
+            let owner = Lists::detached();
+            let (context, prepared, key) = {
+                let mut state = owner.0.state.lock().unwrap();
+                *state = crate::list_state::tests::ready();
+                let (token, generation) = (state.item_tokens[0], state.generation);
+                state
+                    .edit(token, generation, "Synthetic draft".into())
+                    .unwrap();
+                let prepared = state.prepare(generation, Write::Save).unwrap();
+                (
+                    state.context,
+                    prepared,
+                    state.selected_item.clone().unwrap(),
+                )
+            };
+            let cancel = CancellationToken::new();
+            owner.interactive(false);
+            cancel.cancel();
+            assert!(!owner.read_recovery(
+                &Scope::Catalog,
+                context,
+                &session,
+                session.generation(),
+                &cancel,
+                recovery
+            ));
+            let state = owner.0.state.lock().unwrap();
+            assert_eq!(state.drafts[&key].text, "Synthetic draft");
+            assert!(state.admits(prepared.context, prepared.id));
+            assert_eq!(state.context, context);
+        }
     }
 }

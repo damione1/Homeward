@@ -285,13 +285,18 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
         .unwrap();
     assert_eq!(session.subscribe().borrow().phase, Phase::Ready);
     let owner = Calendars::detached();
-    {
-        let mut s = owner.0.state.lock().unwrap();
-        s.start = "2026-11-01".into();
-        s.end = "2026-11-08".into();
-        s.zone = "America/Toronto".into();
-    }
     owner.interactive(true);
+    owner.display_profile(
+        session.generation(),
+        crate::environment_view::ProfileZone::Known("America/Toronto".parse().unwrap()),
+    );
+    command(
+        &owner,
+        CalendarCommand::ApplyRange,
+        "2026-11-01",
+        "2026-11-08",
+        "America/Toronto",
+    );
     let cancel = CancellationToken::new();
     let worker = tokio::spawn({
         let owner = owner.clone();
@@ -455,7 +460,7 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
     .await;
     controls.send(Control::RestoreNetwork).await;
     until(&owner, "unknown warning survives read recovery", |s| {
-        ready(s) && s.uncertain && s.notice.contains("Résultat du commit inconnu")
+        ready(s) && s.uncertain && s.notice == "Save outcome unknown · no automatic resubmission. Reload explicitly before submitting another action."
     })
     .await;
     assert_eq!(
@@ -626,9 +631,10 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
         controls.stats().await.mutation_requests,
         7 + SETUP_MUTATIONS
     );
-    assert!(
-        !owner.0.state.lock().unwrap().notice.contains("Hors ligne"),
-        "recovery removes stale offline notice"
+    assert_eq!(
+        owner.0.state.lock().unwrap().status,
+        Status::Ready,
+        "read availability is projected from status after recovery"
     );
     controls.send(Control::RevokeRead).await;
     until(&owner, "revocation purge", |s| {
@@ -636,6 +642,20 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
     })
     .await;
     controls.send(Control::AllowRead).await;
+    // Denial purges the server display context too. This headless fixture must
+    // supply the current context explicitly again, just like a new accepted
+    // dashboard publication; it must never rely on a device-zone fallback.
+    owner.display_profile(
+        session.generation(),
+        crate::environment_view::ProfileZone::Known("America/Toronto".parse().unwrap()),
+    );
+    command(
+        &owner,
+        CalendarCommand::ApplyRange,
+        "2026-11-01",
+        "2026-11-08",
+        "America/Toronto",
+    );
     command(&owner, CalendarCommand::Reload, "", "", "");
     until(&owner, "explicit authorized reread", ready).await;
     assert_eq!(
@@ -656,8 +676,57 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
                 .is_some_and(|v| v.display_name == "Owner renamed calendar")
     })
     .await;
+    let before_delete = owner.0.state.lock().unwrap().calendar().unwrap().clone();
     command(&owner, CalendarCommand::Remove, "", "", "");
-    until(&owner, "calendar tombstone", |s| {
+    until(&owner, "nonempty calendar deletion refused", |s| {
+        ready(s)
+            && !s.uncertain
+            && s.notice == "Change rejected by the server; it will not be resubmitted."
+            && s.calendar().is_some_and(|calendar| {
+                calendar.name == before_delete.name && calendar.etag == before_delete.etag
+            })
+            && s.snapshot
+                .as_ref()
+                .is_some_and(|snapshot| !snapshot.occurrences().is_empty())
+    })
+    .await;
+    assert_eq!(
+        controls.stats().await.mutation_requests,
+        9 + SETUP_MUTATIONS
+    );
+    // This separate synthetic client explicitly opts into cascading deletion.
+    // The UI owner's default Remove must never imply that destructive intent.
+    let lease = session.access(&cancel).await.unwrap();
+    let current = api
+        .get_calendar(
+            wire::GetCalendarRequest {
+                name: before_delete.name,
+                ..Default::default()
+            },
+            lease.token(),
+            Duration::from_secs(8),
+            &cancel,
+        )
+        .await
+        .unwrap();
+    api.delete_calendar(
+        wire::DeleteCalendarRequest {
+            name: current.name,
+            etag: current.etag,
+            force: true,
+            request_id: home_client_actions::new_request_id()
+                .unwrap()
+                .as_str()
+                .to_owned(),
+            ..Default::default()
+        },
+        lease.token(),
+        Duration::from_secs(8),
+        &cancel,
+    )
+    .await
+    .unwrap();
+    until(&owner, "external calendar tombstone", |s| {
         s.active
             && !s.busy()
             && s.calendar().is_none()
@@ -677,7 +746,7 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
     );
     assert_eq!(
         controls.stats().await.mutation_requests,
-        9 + SETUP_MUTATIONS
+        10 + SETUP_MUTATIONS
     );
     cancel.cancel();
     tokio::time::timeout(Duration::from_secs(8), worker)
@@ -686,9 +755,9 @@ async fn actual_calendar_owner_tls_cas_uncertainty_and_revocation() {
         .unwrap();
     let stats = controls.stats().await;
     assert_eq!(stats.active_streams, 0);
-    assert_eq!(stats.mutation_requests, 9 + SETUP_MUTATIONS);
+    assert_eq!(stats.mutation_requests, 10 + SETUP_MUTATIONS);
     assert!(owner.0.state.lock().unwrap().snapshot.is_none());
     println!(
-        "NHF015_OWNER_TLS_PASS cas_explicit_rebase_unknown_no_replay_fold_gap_readonly_offline_revocation_calendar_crud_joined"
+        "NHF015_OWNER_TLS_PASS cas_explicit_rebase_unknown_no_replay_fold_gap_readonly_offline_revocation_calendar_rename_nonempty_refusal_external_tombstone_joined"
     );
 }

@@ -1,5 +1,6 @@
 //! A session-owned calendar reader/editor. Only reads reconnect; prepared writes
 //! are consumed once, and every asynchronous result is fenced by view context.
+mod deadlines;
 mod read;
 mod render;
 mod state;
@@ -13,7 +14,7 @@ use crate::{
     calendar::{Boundary, Draft, EditPhase, Field},
 };
 use home_client_actions::calendars::{CalendarWriteOutcome, PreparedCalendarMutation};
-use home_client_cache::{ProjectionMailbox, Publication};
+use home_client_cache::{ProjectionGeneration, ProjectionMailbox, Publication};
 use home_client_model::{
     api_calendars::{CalendarEventName, CalendarName},
     calendars::CivilDate,
@@ -36,6 +37,7 @@ struct Inner {
     state: Mutex<State>,
     changed: Notify,
     mailbox: ProjectionMailbox<render::Projection>,
+    published: Mutex<Option<(ProjectionGeneration, render::Projection)>>,
     session: Mutex<Option<SessionCoordinator>>,
     window: Option<slint::Weak<HomewardWindow>>,
     retry: AtomicBool,
@@ -90,6 +92,7 @@ impl Calendars {
             state: Mutex::new(State::default()),
             changed: Notify::new(),
             mailbox: ProjectionMailbox::new(),
+            published: Mutex::new(None),
             session: Mutex::new(None),
             window,
             retry: AtomicBool::new(false),
@@ -139,16 +142,7 @@ impl Calendars {
             && state.interactive
             && state.status == Status::Ready
             && self.0.widget.as_ref().is_some_and(|target| {
-                let fresh = state.snapshot.as_ref().is_some_and(|snapshot| {
-                    snapshot.freshness() == home_client_cache::calendars::CalendarFreshness::Fresh
-                        && snapshot.expiry_bounds().all(|until| {
-                            chrono::DateTime::parse_from_rfc3339(until).is_ok_and(|until| {
-                                std::time::SystemTime::from(until.with_timezone(&chrono::Utc))
-                                    > std::time::SystemTime::now()
-                            })
-                        })
-                });
-                fresh
+                state.fresh_at(std::time::SystemTime::now())
                     && generation == state.generation
                     && state
                         .row_indices()
@@ -343,11 +337,19 @@ impl Calendars {
     }
     fn publish(&self, state: &State) {
         let session = self.0.session.lock().expect("calendar session").clone();
+        let generation = self.0.mailbox.generation();
+        let mut published = self.0.published.lock().expect("calendar publication");
+        if published
+            .as_ref()
+            .is_some_and(|(old_generation, previous)| {
+                *old_generation == generation && previous.matches(state, session.as_ref())
+            })
+        {
+            return;
+        }
         let projection = render::Projection::new(state, session);
-        if let Publication::Schedule(ticket) = self
-            .0
-            .mailbox
-            .publish(self.0.mailbox.generation(), projection)
+        *published = Some((generation, projection.clone()));
+        if let Publication::Schedule(ticket) = self.0.mailbox.publish(generation, projection)
             && let Some(window) = &self.0.window
         {
             let target = self.0.widget.clone();

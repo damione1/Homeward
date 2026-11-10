@@ -644,7 +644,7 @@ impl CacheRows {
     }
 }
 
-fn sync<T: Clone + PartialEq + 'static>(model: &slint::VecModel<T>, rows: Vec<T>) {
+pub(crate) fn sync<T: Clone + PartialEq + 'static>(model: &slint::VecModel<T>, rows: Vec<T>) {
     if model.row_count() != rows.len() {
         model.set_vec(rows);
     } else {
@@ -1481,6 +1481,15 @@ fn refresh_widget_focus(window: &HomewardWindow) {
     window.set_widget_item_focus(item_focus);
     window.set_widget_focus(focus);
 }
+pub(crate) fn widget_task_rows(
+    window: &HomewardWindow,
+    token: i32,
+    generation: i32,
+) -> ModelRc<crate::ProTaskRow> {
+    widget_row(window, token, generation)
+        .filter(|(_, _, row)| row.widget.kind == crate::ProDashboardWidgetKind::Tasks)
+        .map_or_else(ModelRc::default, |(_, _, row)| row.widget.tasks)
+}
 pub(crate) fn publish_widget_tasks(
     window: &HomewardWindow,
     token: i32,
@@ -1496,12 +1505,29 @@ pub(crate) fn publish_widget_tasks(
     if row.widget.kind != crate::ProDashboardWidgetKind::Tasks {
         return;
     }
+    if row.widget.tasks == tasks
+        && row.widget.task_access == access
+        && row.widget.data_ready == ready
+        && row.widget.status.as_str() == status
+    {
+        return;
+    }
     row.widget.tasks = tasks;
     row.widget.task_access = access;
     row.widget.data_ready = ready;
     row.widget.status = status.into();
     model.set_row_data(index, row);
 }
+pub(crate) fn widget_agenda_rows(
+    window: &HomewardWindow,
+    token: i32,
+    generation: i32,
+) -> ModelRc<crate::ProAgendaRow> {
+    widget_row(window, token, generation)
+        .filter(|(_, _, row)| row.widget.kind == crate::ProDashboardWidgetKind::Agenda)
+        .map_or_else(ModelRc::default, |(_, _, row)| row.widget.agenda)
+}
+
 pub(crate) fn publish_widget_agenda(
     window: &HomewardWindow,
     token: i32,
@@ -1514,6 +1540,12 @@ pub(crate) fn publish_widget_agenda(
         return;
     };
     if row.widget.kind != crate::ProDashboardWidgetKind::Agenda {
+        return;
+    }
+    if row.widget.agenda == agenda
+        && row.widget.data_ready == ready
+        && row.widget.status.as_str() == status
+    {
         return;
     }
     row.widget.agenda = agenda;

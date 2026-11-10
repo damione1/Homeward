@@ -1,5 +1,5 @@
 //! Profile-based display of absolute timestamps. No location or system timezone.
-use chrono::{DateTime, FixedOffset, Offset, Timelike, Utc};
+use chrono::{DateTime, FixedOffset, Offset, TimeZone, Timelike, Utc};
 use chrono_tz::Tz;
 use std::{fmt, num::NonZeroU64, str::FromStr};
 
@@ -68,6 +68,46 @@ impl FromStr for DisplayTimeZone {
 impl DisplayTimeZone {
     pub fn name(self) -> &'static str {
         self.0.name()
+    }
+
+    /// Next civil date boundary for display scheduling only. This does not
+    /// resolve an event time or assume that a day lasts twenty-four hours.
+    /// Missing midnight (including an entirely skipped date) advances to the
+    /// first valid local instant; repeated midnight uses its first occurrence.
+    pub fn next_date_change(self, after: UtcInstant) -> Option<UtcInstant> {
+        let next = after
+            .0
+            .with_timezone(&self.0)
+            .date_naive()
+            .succ_opt()?
+            .and_hms_opt(0, 0, 0)?;
+        let resolve = |local| self.0.from_local_datetime(&local).earliest();
+        if let Some(value) = resolve(next) {
+            return (value > after.0).then_some(UtcInstant(value.with_timezone(&Utc)));
+        }
+        // IANA gaps can skip a whole civil date. Find a valid upper bound,
+        // then the exact second ending that gap without polling the UI.
+        let mut upper = None;
+        for hours in 1..=48 {
+            let candidate = next.checked_add_signed(chrono::Duration::hours(hours))?;
+            if resolve(candidate).is_some() {
+                upper = Some(hours * 3600);
+                break;
+            }
+        }
+        let mut high = upper?;
+        let mut low = 0;
+        while high - low > 1 {
+            let middle = low + (high - low) / 2;
+            let candidate = next.checked_add_signed(chrono::Duration::seconds(middle))?;
+            if resolve(candidate).is_some() {
+                high = middle;
+            } else {
+                low = middle;
+            }
+        }
+        let value = resolve(next.checked_add_signed(chrono::Duration::seconds(high))?)?;
+        (value > after.0).then_some(UtcInstant(value.with_timezone(&Utc)))
     }
 
     /// Conversion changes presentation only; it never reinterprets a local time.
@@ -214,5 +254,42 @@ mod tests {
                 .date(),
             "1970-01-01"
         );
+    }
+    #[test]
+    fn display_date_deadlines_follow_short_long_missing_and_repeated_midnights() {
+        for (zone, start, expected) in [
+            (
+                "America/Toronto",
+                "2026-03-08T05:00:00Z",
+                "2026-03-09T04:00:00Z",
+            ),
+            (
+                "America/Toronto",
+                "2026-11-01T04:00:00Z",
+                "2026-11-02T05:00:00Z",
+            ),
+            (
+                "America/Havana",
+                "2026-03-07T17:00:00Z",
+                "2026-03-08T05:00:00Z",
+            ),
+            (
+                "America/Havana",
+                "2026-10-31T16:00:00Z",
+                "2026-11-01T04:00:00Z",
+            ),
+            (
+                "Pacific/Apia",
+                "2011-12-29T22:00:00Z",
+                "2011-12-30T10:00:00Z",
+            ),
+        ] {
+            let zone: DisplayTimeZone = zone.parse().unwrap();
+            let next = zone.next_date_change(at(start)).unwrap();
+            assert_eq!(next, at(expected), "{}", zone.name());
+            assert_ne!(zone.local(at(start)).date(), zone.local(next).date());
+            let previous = UtcInstant::new(next.seconds() - 1, 0).unwrap();
+            assert_eq!(zone.local(at(start)).date(), zone.local(previous).date());
+        }
     }
 }

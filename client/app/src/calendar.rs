@@ -26,7 +26,7 @@ pub(crate) enum EditPhase {
     Conflict,
     Unknown,
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct Candidate {
     pub instant: String,
 }
@@ -37,7 +37,7 @@ impl Candidate {
         })
     }
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) enum Resolution {
     Unresolved,
     Accepted(String),
@@ -64,7 +64,7 @@ impl Resolution {
         }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct Wall {
     pub date: String,
     pub time: String,
@@ -82,7 +82,7 @@ impl Wall {
         }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) enum Temporal {
     AllDay {
         start: String,
@@ -94,7 +94,7 @@ pub(crate) enum Temporal {
         zone: String,
     },
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct Draft {
     pub key: Option<CalendarEventName>,
     pub parent: CalendarName,
