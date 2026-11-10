@@ -383,6 +383,21 @@ struct Ui {
     cameras: crate::camera_host::Cameras,
     administration: crate::administration_host::Administration,
 }
+fn device_time_visible(page: crate::ViewPage, room: crate::RoomView, popup: bool) -> bool {
+    if popup {
+        return true;
+    }
+    match page {
+        crate::ViewPage::Home | crate::ViewPage::Detail => true,
+        crate::ViewPage::Room => room == crate::RoomView::Cards,
+        crate::ViewPage::Rooms
+        | crate::ViewPage::Inventory
+        | crate::ViewPage::Lists
+        | crate::ViewPage::Calendars
+        | crate::ViewPage::Cameras
+        | crate::ViewPage::Settings => false,
+    }
+}
 impl Ui {
     fn current_devices(&self) -> Result<(DeviceBinding, i32), Refusal> {
         let epoch = ProfileEpoch(self.epoch.load(Ordering::SeqCst));
@@ -399,6 +414,24 @@ impl Ui {
             .expect("presentation request mutex poisoned")
             .revision;
         Ok((binding, revision))
+    }
+    fn refresh_device_time(&self, window: &HomewardWindow) {
+        if *self.lifecycle.borrow() != Lifecycle::Foreground
+            || !device_time_visible(
+                window.get_page(),
+                window.get_room_view(),
+                window.get_native_popup().open,
+            )
+        {
+            return;
+        }
+        if let Ok((binding, revision)) = self.current_devices()
+            && binding
+                .store
+                .temporal_changed(revision, crate::environment_view::now())
+        {
+            self.repaint_devices();
+        }
     }
     fn repaint_devices(&self) {
         let binding = self
@@ -1732,7 +1765,7 @@ pub(crate) fn run_with_lifecycle(
     let update_clock = move || {
         if let Some(window) = clock_window.upgrade() {
             cache_view::refresh_clock(&window);
-            clock_ui.repaint_devices();
+            clock_ui.refresh_device_time(&window);
         }
     };
     update_clock();
@@ -2427,6 +2460,30 @@ mod tests {
         drop(callback);
     }
 
+    #[test]
+    fn device_clock_refresh_only_visits_visible_device_surfaces() {
+        use crate::{RoomView, ViewPage};
+        for page in [
+            ViewPage::Calendars,
+            ViewPage::Lists,
+            ViewPage::Rooms,
+            ViewPage::Inventory,
+            ViewPage::Cameras,
+            ViewPage::Settings,
+        ] {
+            assert!(!device_time_visible(page, RoomView::Cards, false));
+            assert!(
+                device_time_visible(page, RoomView::Cards, true),
+                "a visible popup owns its readings regardless of the background page"
+            );
+        }
+        for page in [ViewPage::Home, ViewPage::Detail] {
+            assert!(device_time_visible(page, RoomView::Cards, false));
+        }
+        assert!(!device_time_visible(ViewPage::Room, RoomView::List, false));
+        assert!(device_time_visible(ViewPage::Room, RoomView::Cards, false));
+        assert!(device_time_visible(ViewPage::Room, RoomView::List, true));
+    }
     #[test]
     fn saved_offline_session_stays_connected_and_can_start_or_resume_one_read() {
         i_slint_backend_testing::init_no_event_loop();

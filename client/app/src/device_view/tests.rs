@@ -2833,3 +2833,259 @@ fn climate_panel_keeps_observed_setpoint_distinct_from_ambient_and_quality_notic
     }
     assert!(super::observation::quality_notice(capability).contains("Stale"));
 }
+
+fn temporal_fixture(
+    value: wire::capability::Trait,
+    now: home_client_model::local_time::UtcInstant,
+) -> (DeviceStore, CachedView, fixture::Scenario) {
+    let mut scenario = request();
+    let mut layout = scenario.dashboard.layout().unwrap().clone();
+    layout.profile_zone =
+        crate::environment_view::ProfileZone::Known("America/Toronto".parse().unwrap());
+    layout.native = None; // Exercise the legacy card that actually displays observed_age.
+    scenario.dashboard = LayoutState::Ready(Arc::new(layout));
+    let name = light(&scenario).entity.name.clone();
+    let entry = fixture::entry(
+        &name,
+        "Synthetic timed reading",
+        vec![fixture::capability(
+            &format!("{name}/capabilities/reading"),
+            value,
+        )],
+    );
+    let view = view(&scenario, vec![entry]);
+    let store = DeviceStore::default();
+    let projected = store.project_owner_at(CachePhase::Offline, Some(&view), &scenario, None, now);
+    assert_eq!(projected.rows.len(), 1);
+    assert_eq!(store.0.lock().unwrap().temporal.len(), 1);
+    (store, view, scenario)
+}
+fn temporal_time(seconds: i64) -> home_client_model::local_time::UtcInstant {
+    home_client_model::local_time::UtcInstant::new(seconds, 0).unwrap()
+}
+#[test]
+fn temporal_observation_checks_are_noop_until_the_displayed_age_changes_and_do_not_consume_it() {
+    let now = temporal_time(1_793_512_800);
+    let cap = wire::WeatherCapability {
+        observation: wire::WeatherObservation {
+            observed_time: buffa_types::google::protobuf::Timestamp::from_unix_secs(
+                now.seconds() - 61,
+            )
+            .into(),
+            quality: fixture::quality().into(),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    };
+    let (store, view, scenario) =
+        temporal_fixture(wire::capability::Trait::Weather(Box::new(cap)), now);
+    let (key, context) = {
+        let state = store.0.lock().unwrap();
+        (state.temporal.clone(), state.context.clone())
+    };
+    for _ in 0..1000 {
+        assert!(!store.temporal_changed(scenario.revision, temporal_time(now.seconds() + 10)));
+    }
+    let later = temporal_time(now.seconds() + 60);
+    assert!(store.temporal_changed(scenario.revision, later));
+    assert!(
+        store.temporal_changed(scenario.revision, later),
+        "a tick cannot consume the change"
+    );
+    {
+        let state = store.0.lock().unwrap();
+        assert!(state.temporal == key && state.context == context);
+    }
+    store.project_owner_at(CachePhase::Offline, Some(&view), &scenario, None, later);
+    assert!(!store.temporal_changed(scenario.revision, later));
+    assert!(!store.temporal_changed(scenario.revision + 1, temporal_time(later.seconds() + 60)));
+    store.clear_private();
+    assert!(!store.temporal_changed(scenario.revision, later));
+    assert!(store.0.lock().unwrap().temporal.is_empty());
+}
+#[test]
+fn temporal_forecast_expiry_is_detected_offline_without_a_new_observation() {
+    use buffa_types::google::protobuf::Timestamp;
+    let now = temporal_time(1_793_512_800);
+    let forecast = wire::Forecast {
+        issue_time: Timestamp::from_unix_secs(now.seconds() - 7200).into(),
+        expire_time: Timestamp::from_unix_secs(now.seconds() + 10).into(),
+        periods: vec![wire::ForecastPeriod {
+            start_time: Timestamp::from_unix_secs(now.seconds()).into(),
+            end_time: Timestamp::from_unix_secs(now.seconds() + 3600).into(),
+            kind: wire::ForecastKind::Hourly.into(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let cap = wire::WeatherCapability {
+        observation: wire::WeatherObservation {
+            value: wire::WeatherValue {
+                forecast: forecast.into(),
+                ..Default::default()
+            }
+            .into(),
+            quality: fixture::quality().into(),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    };
+    let (store, view, scenario) =
+        temporal_fixture(wire::capability::Trait::Weather(Box::new(cap)), now);
+    assert!(!store.temporal_changed(scenario.revision, temporal_time(now.seconds() + 9)));
+    let expired = temporal_time(now.seconds() + 10);
+    assert!(store.temporal_changed(scenario.revision, expired));
+    store.project_owner_at(CachePhase::Offline, Some(&view), &scenario, None, expired);
+    assert!(!store.temporal_changed(scenario.revision, expired));
+}
+#[test]
+fn temporal_solar_clock_preserves_date_and_dst_offset_without_replacing_identity() {
+    let before = chrono::DateTime::parse_from_rfc3339("2026-11-01T05:59:50Z")
+        .unwrap()
+        .timestamp();
+    let (store, view, scenario) = temporal_fixture(
+        wire::capability::Trait::Solar(Box::default()),
+        temporal_time(before),
+    );
+    let generations = store
+        .0
+        .lock()
+        .unwrap()
+        .context
+        .as_ref()
+        .unwrap()
+        .slots
+        .iter()
+        .map(|s| s.generation)
+        .collect::<Vec<_>>();
+    assert!(!store.temporal_changed(scenario.revision, temporal_time(before + 9)));
+    let after = temporal_time(before + 10);
+    assert!(store.temporal_changed(scenario.revision, after));
+    store.project_owner_at(CachePhase::Offline, Some(&view), &scenario, None, after);
+    assert!(!store.temporal_changed(scenario.revision, after));
+    assert!(store.temporal_changed(scenario.revision, temporal_time(before + 86400)));
+    let first_fold = temporal_time(
+        chrono::DateTime::parse_from_rfc3339("2026-11-01T05:30:00Z")
+            .unwrap()
+            .timestamp(),
+    );
+    let second_fold = temporal_time(first_fold.seconds() + 3600);
+    store.project_owner_at(
+        CachePhase::Offline,
+        Some(&view),
+        &scenario,
+        None,
+        first_fold,
+    );
+    assert!(
+        store.temporal_changed(scenario.revision, second_fold),
+        "identical wall clock/date still has a different DST offset"
+    );
+    assert!(
+        store
+            .0
+            .lock()
+            .unwrap()
+            .context
+            .as_ref()
+            .unwrap()
+            .slots
+            .iter()
+            .map(|s| s.generation)
+            .collect::<Vec<_>>()
+            == generations
+    );
+}
+#[test]
+fn temporal_checks_ignore_devices_without_clock_dependent_fields() {
+    let scenario = request();
+    let view = view(&scenario, vec![light(&scenario)]);
+    let store = DeviceStore::default();
+    let now = temporal_time(1_793_512_800);
+    store.project_owner_at(CachePhase::Live, Some(&view), &scenario, None, now);
+    assert!(store.0.lock().unwrap().temporal.is_empty());
+    assert!(!store.temporal_changed(scenario.revision, temporal_time(now.seconds() + 86400)));
+}
+
+#[test]
+fn temporal_hidden_freshness_is_not_a_reason_to_reproject_native_or_detail_presence() {
+    let now = temporal_time(1_793_512_800);
+    let cap = wire::PresenceCapability {
+        observation: wire::PresenceObservation {
+            observed_time: buffa_types::google::protobuf::Timestamp::from_unix_secs(
+                now.seconds() - 61,
+            )
+            .into(),
+            quality: fixture::quality().into(),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    };
+    let (store, view, mut scenario) =
+        temporal_fixture(wire::capability::Trait::Presence(Box::new(cap)), now);
+    let later = temporal_time(now.seconds() + 60);
+    assert!(
+        store.temporal_changed(scenario.revision, later),
+        "legacy card displays the changing age"
+    );
+    let entity = view.entities().next().unwrap().0.clone();
+    scenario.detail = Some(entity.clone());
+    scenario.revision += 1;
+    store.project_owner_at(CachePhase::Offline, Some(&view), &scenario, None, now);
+    assert!(
+        !store.temporal_changed(scenario.revision, later),
+        "detail entity tile does not display observed_age"
+    );
+    assert!(
+        store
+            .0
+            .lock()
+            .unwrap()
+            .temporal
+            .iter()
+            .all(|(_, _, age)| age.is_none())
+    );
+    let mut native = fixture::Scenario::new()
+        .dashboard
+        .layout()
+        .unwrap()
+        .native
+        .clone()
+        .unwrap();
+    let capability =
+        CapabilityName::try_from(format!("{}/capabilities/reading", entity.as_str()).as_str())
+            .unwrap();
+    for node in native
+        .nodes
+        .values_mut()
+        .filter(|node| node.entity.is_some())
+    {
+        node.entity = Some(entity.clone());
+        node.capability = Some(capability.clone());
+        node.features.clear();
+    }
+    let mut layout = scenario.dashboard.layout().unwrap().clone();
+    layout.native = Some(native);
+    scenario.dashboard = LayoutState::Ready(Arc::new(layout));
+    scenario.detail = None;
+    scenario.revision += 1;
+    let projected = store.project_owner_at(CachePhase::Offline, Some(&view), &scenario, None, now);
+    assert!(!projected.native_devices.is_empty());
+    assert!(!store.0.lock().unwrap().temporal.is_empty());
+    assert!(
+        store
+            .0
+            .lock()
+            .unwrap()
+            .temporal
+            .iter()
+            .all(|(_, _, age)| age.is_none())
+    );
+    assert!(
+        !store.temporal_changed(scenario.revision, later),
+        "native entity tiles do not display observed_age"
+    );
+}
