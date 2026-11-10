@@ -44,11 +44,13 @@ pub(super) struct State {
     pub interactive: bool,
     pub active: bool,
     pub status: Status,
+    pub read_retry: bool,
     pub source: Option<Generation>,
     pub catalog: Vec<wire::CalendarSource>,
     pub catalog_needed: bool,
     pub selected: Option<CalendarId>,
     pub snapshot: Option<Arc<CalendarReadSnapshot>>,
+    pub snapshot_expired: std::cell::Cell<bool>,
     pub ready: bool,
     pub start: String,
     pub end: String,
@@ -76,11 +78,13 @@ impl Default for State {
             interactive: false,
             active: false,
             status: Status::Loading,
+            read_retry: false,
             source: None,
             catalog: Vec::new(),
             catalog_needed: true,
             selected: None,
             snapshot: None,
+            snapshot_expired: std::cell::Cell::new(false),
             ready: false,
             start: String::new(),
             end: String::new(),
@@ -124,6 +128,7 @@ impl State {
         self.profile_received = true;
         self.zone = name.into();
         self.snapshot = None;
+        self.snapshot_expired.set(false);
         self.draft = None;
         self.occurrence = None;
         self.active_index = None;
@@ -188,6 +193,7 @@ impl State {
     pub fn clear_private(&mut self) {
         self.privacy_generation = self.privacy_generation.checked_add(1).unwrap_or(0);
         self.reset_reads();
+        self.read_retry = false;
         self.catalog.clear();
         self.zone.clear();
         self.profile_received = false;
@@ -196,6 +202,7 @@ impl State {
         self.start.clear();
         self.end.clear();
         self.snapshot = None;
+        self.snapshot_expired.set(false);
         self.draft = None;
         self.occurrence = None;
         self.active_index = None;
@@ -206,6 +213,41 @@ impl State {
         self.activity = Activity::Idle;
         self.catalog_needed = true;
         self.uncertain = false;
+    }
+    pub fn not_materialized(&mut self, source: Generation) {
+        let disappeared = self.snapshot.is_some()
+            || self
+                .selected_source()
+                .is_some_and(|calendar| calendar.materialized);
+        self.snapshot = None;
+        self.snapshot_expired.set(false);
+        self.draft = None;
+        self.occurrence = None;
+        self.active_index = None;
+        self.draft_token = 0;
+        self.read_retry = false;
+        if disappeared {
+            // Absence is not permission to recreate a removed identity. Re-admit
+            // lifecycle capabilities from the catalogue before exposing actions.
+            let interrupted_write = self.activity == Activity::Write && self.job.is_none();
+            self.uncertain |= interrupted_write;
+            self.job = None;
+            self.activity = Activity::Idle;
+            if interrupted_write {
+                self.notice =
+                    "Calendar operation interrupted · refresh explicitly before another change."
+                        .into();
+            }
+            self.catalog_needed = true;
+            self.status = Status::Loading;
+            self.reset_reads();
+        } else {
+            // A freshly admitted, never-created source is a valid empty state.
+            // It must not trigger an endless catalogue/query cycle.
+            self.ready = true;
+            self.source = Some(source);
+            self.status = Status::Ready;
+        }
     }
     pub fn selected_source(&self) -> Option<&wire::CalendarSource> {
         self.catalog.iter().find(|source| {
@@ -225,11 +267,29 @@ impl State {
     pub fn current(&self) -> Option<admit::Admitted<wire::Calendar>> {
         admit::admit_calendar(self.calendar()?, &self.selected_name()?).ok()
     }
+    /// An observed expiry stays expired until a newly admitted snapshot arrives.
+    /// Moving the wall clock backwards cannot silently restore write authority.
+    pub fn fresh_at(&self, now: SystemTime) -> bool {
+        let fresh = !self.snapshot_expired.get()
+            && self.snapshot.as_ref().is_some_and(|snapshot| {
+                snapshot.freshness() == home_client_cache::calendars::CalendarFreshness::Fresh
+                    && snapshot.expiry_bounds().all(|until| {
+                        chrono::DateTime::parse_from_rfc3339(until).is_ok_and(|until| {
+                            SystemTime::from(until.with_timezone(&chrono::Utc)) > now
+                        })
+                    })
+            });
+        if self.snapshot.is_some() && !fresh {
+            self.snapshot_expired.set(true);
+        }
+        fresh
+    }
     pub fn editable(&self) -> bool {
         if !self.active
             || !self.interactive
             || !self.ready
             || self.uncertain
+            || self.snapshot_expired.get()
             || self.status != Status::Ready
         {
             return false;
@@ -245,17 +305,11 @@ impl State {
         if !self.present() {
             return !source.materialized;
         }
-        self.snapshot.as_ref().is_some_and(|snapshot| {
-            snapshot.freshness() == home_client_cache::calendars::CalendarFreshness::Fresh
-                && snapshot.expiry_bounds().all(|until| {
-                    chrono::DateTime::parse_from_rfc3339(until).is_ok_and(|until| {
-                        SystemTime::from(until.with_timezone(&chrono::Utc)) > SystemTime::now()
-                    })
-                })
-        }) && self.current().is_some_and(|calendar| {
-            admit::calendar_editable(&calendar)
-                && calendar.wire().freshness == wire::CalendarFreshness::Fresh
-        })
+        self.fresh_at(SystemTime::now())
+            && self.current().is_some_and(|calendar| {
+                admit::calendar_editable(&calendar)
+                    && calendar.wire().freshness == wire::CalendarFreshness::Fresh
+            })
     }
     pub fn present(&self) -> bool {
         self.snapshot.is_some()
@@ -366,10 +420,17 @@ impl State {
                 .unwrap_or(0);
             self.occurrence = matched.map(|(_, row)| row.clone());
         }
+        let replay_expired = self.snapshot_expired.get()
+            && self
+                .snapshot
+                .as_ref()
+                .is_some_and(|previous| Arc::ptr_eq(previous, &snapshot));
         self.snapshot = Some(snapshot);
+        self.snapshot_expired.set(replay_expired);
         self.source = Some(source);
         self.ready = true;
         self.status = Status::Ready;
+        self.read_retry = false;
     }
     pub fn row_indices(&self) -> Vec<usize> {
         self.snapshot.as_ref().map_or_else(Vec::new, |snapshot| {
@@ -400,6 +461,7 @@ impl State {
         self.start = start.to_string();
         self.end = end.to_string();
         self.snapshot = None;
+        self.snapshot_expired.set(false);
         self.draft = None;
         self.occurrence = None;
         self.active_index = None;

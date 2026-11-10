@@ -931,3 +931,393 @@ async fn invalid_calendar_reload_retains_only_the_current_server_profile() {
         assert!(owner.0.state.lock().unwrap().query().is_none());
     }
 }
+
+#[test]
+fn idle_publications_are_noops_but_mailbox_invalidation_is_never_swallowed() {
+    let owner = Calendars::detached();
+    let session = session();
+    *owner.0.session.lock().unwrap() = Some(session.clone());
+    let mut state = owner.0.state.lock().unwrap();
+    ready(&mut state, &session);
+    owner.publish(&state);
+    let before = owner.0.mailbox.metrics();
+    for _ in 0..1000 {
+        owner.publish(&state);
+    }
+    assert_eq!(owner.0.mailbox.metrics(), before);
+    owner.0.mailbox.invalidate().unwrap();
+    owner.publish(&state);
+    assert!(owner.0.mailbox.metrics().scheduled > before.scheduled);
+}
+
+#[derive(Default)]
+struct Notifications(std::cell::Cell<usize>);
+impl i_slint_core::model::ModelChangeListener for Notifications {
+    fn row_changed(self: std::pin::Pin<&Self>, _: usize) {
+        self.0.set(self.0.get() + 1);
+    }
+    fn row_added(self: std::pin::Pin<&Self>, _: usize, _: usize) {
+        self.0.set(self.0.get() + 1);
+    }
+    fn row_removed(self: std::pin::Pin<&Self>, _: usize, _: usize) {
+        self.0.set(self.0.get() + 1);
+    }
+    fn reset(self: std::pin::Pin<&Self>) {
+        self.0.set(self.0.get() + 1);
+    }
+}
+#[test]
+fn repeated_projection_keeps_calendar_models_and_equal_rows_of_new_admissions() {
+    i_slint_backend_testing::init_no_event_loop();
+    for count in [0, 1, 250] {
+        let window = crate::create_window().unwrap();
+        let session = session();
+        let mut state = State::default();
+        ready(&mut state, &session);
+        let calendar = state.calendar().unwrap().clone();
+        let occurrences = (0..count)
+            .map(|index| wire::Occurrence {
+                calendar_event: format!(
+                    "{}/events/id-{}",
+                    calendar.name,
+                    format!("synthetic-{index}")
+                        .bytes()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>()
+                ),
+                recurrence_point: wire::CalendarRecurrencePoint {
+                    value: Some(wire::calendar_recurrence_point::Value::Date(Box::new(
+                        admit::date_wire("2026-11-02".parse().unwrap()),
+                    ))),
+                    ..Default::default()
+                }
+                .into(),
+                summary: format!("Synthetic event {index}"),
+                time_zone: state.zone.clone(),
+                span: wire::CalendarSpan {
+                    value: Some(wire::calendar_span::Value::Dates(Box::new(
+                        wire::CalendarDateSpan {
+                            start_date: admit::date_wire("2026-11-02".parse().unwrap()).into(),
+                            end_date: admit::date_wire("2026-11-03".parse().unwrap()).into(),
+                            ..Default::default()
+                        },
+                    ))),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        let page = wire::QueryOccurrencesResponse {
+            calendar_etag: calendar.etag.clone(),
+            freshness: wire::CalendarFreshness::Fresh.into(),
+            provenance: wire::CalendarProvenance::Synthetic.into(),
+            occurrences,
+            ..Default::default()
+        };
+        let mut capture = CalendarCapture::new(&calendar, &state.query().unwrap()).unwrap();
+        capture.push(&page).unwrap();
+        state.snapshot(
+            Arc::new(capture.finish(&calendar).unwrap()),
+            session.generation(),
+        );
+        render::render(
+            &window,
+            render::Projection::new(&state, Some(session.clone())),
+        );
+        let first = window.get_calendars();
+        let children = first
+            .columns
+            .iter()
+            .map(|column| column.rows)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            children.iter().map(|rows| rows.row_count()).sum::<usize>(),
+            count
+        );
+        let notifications = Box::pin(i_slint_core::model::ModelChangeListenerContainer::<
+            Notifications,
+        >::default());
+        first
+            .columns
+            .model_tracker()
+            .attach_peer(notifications.as_ref().model_peer());
+        for _ in 0..10 {
+            render::render(
+                &window,
+                render::Projection::new(&state, Some(session.clone())),
+            );
+            let next = window.get_calendars();
+            assert!(first.columns == next.columns);
+            assert!(first.rows == next.rows);
+            assert!(first.days == next.days);
+            assert!(first.catalog == next.catalog);
+            assert!(first.calendar_days == next.calendar_days);
+            for (index, child) in children.iter().enumerate() {
+                assert!(*child == next.columns.row_data(index).unwrap().rows);
+            }
+        }
+        // A distinct admitted capture retains authority even when its rows match.
+        let old = state.snapshot.clone().unwrap();
+        let mut capture = CalendarCapture::new(old.calendar(), old.query()).unwrap();
+        capture.push(&page).unwrap();
+        state.snapshot(
+            Arc::new(capture.finish(old.calendar()).unwrap()),
+            session.generation(),
+        );
+        assert!(!Arc::ptr_eq(&old, state.snapshot.as_ref().unwrap()));
+        render::render(
+            &window,
+            render::Projection::new(&state, Some(session.clone())),
+        );
+        assert!(first.columns == window.get_calendars().columns);
+        assert!(first.rows == window.get_calendars().rows);
+        assert_eq!(
+            notifications.0.get(),
+            0,
+            "unchanged data must not notify column delegates"
+        );
+        if count > 0 {
+            state.active_index = Some(0);
+            render::render(
+                &window,
+                render::Projection::new(&state, Some(session.clone())),
+            );
+            assert_eq!(
+                notifications.0.get(),
+                1,
+                "only the newly active column changes"
+            );
+            for (index, rows) in children.iter().enumerate() {
+                assert!(*rows == window.get_calendars().columns.row_data(index).unwrap().rows);
+            }
+        }
+    }
+}
+
+#[test]
+fn deadlines_use_all_expiry_bounds_latch_replays_and_retry_reads_only() {
+    use super::deadlines::{Kind, Scheduler};
+    use std::time::{Duration, SystemTime};
+    let session = session();
+    let mut state = State::default();
+    ready(&mut state, &session);
+    let at = |value: &str| -> SystemTime {
+        chrono::DateTime::parse_from_rfc3339(value)
+            .unwrap()
+            .with_timezone(&chrono::Utc)
+            .into()
+    };
+    let mut calendar = state.calendar().unwrap().clone();
+    calendar.fresh_until_time = admit::parse_timestamp("2026-11-09T17:02:00Z", true)
+        .unwrap()
+        .into();
+    let capture = || {
+        let mut capture = CalendarCapture::new(&calendar, &state.query().unwrap()).unwrap();
+        capture
+            .push(&wire::QueryOccurrencesResponse {
+                calendar_etag: calendar.etag.clone(),
+                freshness: wire::CalendarFreshness::Fresh.into(),
+                provenance: wire::CalendarProvenance::Synthetic.into(),
+                fresh_until_time: admit::parse_timestamp("2026-11-09T17:00:30Z", true)
+                    .unwrap()
+                    .into(),
+                ..Default::default()
+            })
+            .unwrap();
+        Arc::new(capture.finish(&calendar).unwrap())
+    };
+    let old = capture();
+    let renewed = capture();
+    state.snapshot(old.clone(), session.generation());
+    let mut scheduler = Scheduler::default();
+    let monotonic = tokio::time::Instant::now();
+    let wall = at("2026-11-09T17:00:00Z");
+    let deadline = scheduler.next(&state, false, wall, monotonic).unwrap();
+    assert_eq!(deadline.kind, Kind::Expiry);
+    assert_eq!(deadline.at - monotonic, Duration::from_secs(30));
+    assert_eq!(
+        scheduler
+            .next(
+                &state,
+                false,
+                wall - Duration::from_secs(3600),
+                monotonic + Duration::from_secs(1)
+            )
+            .unwrap()
+            .at,
+        deadline.at,
+        "clockback plus an event cannot postpone this admission"
+    );
+    assert!(!state.fresh_at(wall + Duration::from_secs(30)));
+    assert!(!state.fresh_at(wall));
+    state.snapshot(old, session.generation());
+    assert!(
+        !state.fresh_at(wall),
+        "replaying the same admission cannot undo expiration"
+    );
+    assert_eq!(
+        scheduler.next(&state, false, wall, monotonic).unwrap().kind,
+        Kind::CivilDate
+    );
+    state.snapshot(renewed, session.generation());
+    assert!(
+        state.fresh_at(wall),
+        "a new backend admission may restore freshness"
+    );
+    state.status = Status::Offline;
+    state.read_retry = true;
+    let retry = scheduler.next(&state, false, wall, monotonic).unwrap();
+    assert_eq!(retry.kind, Kind::ReadRetry);
+    assert_eq!(retry.at - monotonic, Duration::from_secs(2));
+    assert_eq!(
+        scheduler
+            .next(&state, false, wall, monotonic + Duration::from_secs(1))
+            .unwrap()
+            .at,
+        retry.at
+    );
+    state.activity = Activity::Write;
+    assert_eq!(
+        scheduler.next(&state, false, wall, monotonic).unwrap().kind,
+        Kind::Expiry
+    );
+    state.active = false;
+    assert!(scheduler.next(&state, false, wall, monotonic).is_none());
+}
+
+#[tokio::test]
+async fn open_watch_publication_wakes_the_owner_and_rearms_its_expiry_without_stream_completion() {
+    use super::deadlines::{Kind, Scheduler};
+    use home_client_cache::calendars::CalendarReadEvent;
+    use std::time::{Duration, SystemTime};
+    let owner = Calendars::detached();
+    let session = session();
+    let mut scheduler = Scheduler::default();
+    let monotonic = tokio::time::Instant::now();
+    let wall: SystemTime = chrono::DateTime::parse_from_rfc3339("2090-11-09T17:00:00Z")
+        .unwrap()
+        .with_timezone(&chrono::Utc)
+        .into();
+    let (context, snapshot) = {
+        let mut state = owner.0.state.lock().unwrap();
+        ready(&mut state, &session);
+        assert_eq!(
+            scheduler.next(&state, false, wall, monotonic).unwrap().kind,
+            Kind::CivilDate
+        );
+        let mut calendar = state.calendar().unwrap().clone();
+        calendar.fresh_until_time = admit::parse_timestamp("2090-11-09T17:00:30Z", true)
+            .unwrap()
+            .into();
+        let mut capture = CalendarCapture::new(&calendar, &state.query().unwrap()).unwrap();
+        capture
+            .push(&wire::QueryOccurrencesResponse {
+                calendar_etag: calendar.etag.clone(),
+                freshness: wire::CalendarFreshness::Fresh.into(),
+                provenance: wire::CalendarProvenance::Synthetic.into(),
+                ..Default::default()
+            })
+            .unwrap();
+        (state.context, Arc::new(capture.finish(&calendar).unwrap()))
+    };
+    let cancel = CancellationToken::new();
+    let (sender, mut stream) = tokio::sync::mpsc::channel(1);
+    sender
+        .send(CalendarReadEvent::Published(snapshot.clone()))
+        .await
+        .unwrap();
+    let event = stream.recv().await.unwrap();
+    owner.read_event(
+        context,
+        &session,
+        session.generation(),
+        (&cancel, &cancel),
+        event,
+    );
+    tokio::time::timeout(Duration::from_millis(100), owner.0.changed.notified())
+        .await
+        .unwrap();
+    assert!(!stream.is_closed(), "the Watch task has not completed");
+    {
+        let state = owner.0.state.lock().unwrap();
+        let deadline = scheduler.next(&state, false, wall, monotonic).unwrap();
+        assert_eq!(deadline.kind, Kind::Expiry);
+        assert_eq!(deadline.at - monotonic, Duration::from_secs(30));
+    }
+    // An unrelated unary read fails while this stream remains open: the owner
+    // still schedules read recovery without preparing or replaying a write.
+    owner.failed(context, Status::Offline);
+    {
+        let state = owner.0.state.lock().unwrap();
+        assert_eq!(
+            scheduler.next(&state, false, wall, monotonic).unwrap().kind,
+            Kind::ReadRetry
+        );
+        assert!(state.job.is_none());
+    }
+    cancel.cancel();
+    let before = owner.0.mailbox.metrics();
+    owner.read_event(
+        context,
+        &session,
+        session.generation(),
+        (&cancel, &cancel),
+        CalendarReadEvent::Invalidated,
+    );
+    assert_eq!(owner.0.mailbox.metrics(), before);
+}
+
+#[test]
+fn a_disappeared_calendar_readmits_lifecycle_capabilities_without_resurrection_or_replay() {
+    for activity in [Activity::Idle, Activity::Read, Activity::Write] {
+        let session = session();
+        let mut state = State::default();
+        ready(&mut state, &session);
+        state.catalog_needed = false;
+        state.activity = activity;
+        let old_context = state.context;
+        state.not_materialized(session.generation());
+        assert!(!state.editable());
+        assert!(!state.ready);
+        assert!(state.catalog_needed);
+        assert_ne!(state.context, old_context);
+        assert!(state.snapshot.is_none() && state.draft.is_none() && state.occurrence.is_none());
+        assert!(state.job.is_none());
+        assert!(!state.busy());
+        assert_eq!(state.uncertain, activity == Activity::Write);
+        assert!(!state.owns_write(old_context));
+        // Only the server's new catalogue may change materialization/capability.
+        assert!(state.catalog[0].materialized);
+        state.catalog[0].materialized = false;
+        state.catalog[0].mutation_access = wire::CalendarMutationAccess::Denied.into();
+        state.catalog_needed = false;
+        let readmitted_context = state.context;
+        state.not_materialized(session.generation());
+        assert!(state.ready);
+        assert_eq!(
+            state.context, readmitted_context,
+            "no empty-source retry loop"
+        );
+        assert!(!state.catalog_needed);
+        assert!(!state.editable());
+        assert_eq!(state.uncertain, activity == Activity::Write);
+        if activity == Activity::Write {
+            assert!(!state.notice.is_empty());
+        }
+    }
+    let session = session();
+    let mut empty = State::default();
+    ready(&mut empty, &session);
+    empty.snapshot = None;
+    empty.catalog[0].materialized = false;
+    empty.catalog_needed = false;
+    let context = empty.context;
+    empty.not_materialized(session.generation());
+    assert!(
+        empty.editable(),
+        "server-admitted new source remains creatable"
+    );
+    assert_eq!(empty.context, context);
+    assert!(!empty.catalog_needed);
+}

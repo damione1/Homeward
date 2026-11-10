@@ -106,7 +106,7 @@ def qualify(proof, server_binary, client_binary):
             if server.wait(timeout=30) != 0:
                 raise RuntimeError('Isolated list server did not stop cleanly')
             if not (report['pass'] and report['seeded_items'] == 10000
-                    and report['mutation_requests'] == 15 and report['cas_conflict']
+                    and report['mutation_requests'] == 17 and report['cas_conflict']
                     and report['explicit_resolution'] and report['offline_no_replay']
                     and report['read_write_independent'] and report['read_revocation_purge']
                     and report['owners_joined'] and report['active_streams'] == 0
@@ -114,7 +114,7 @@ def qualify(proof, server_binary, client_binary):
                     and report['controls'] == len(controls) and tuple(changes) == EXPECTED_CHANGES):
                 raise RuntimeError('Incomplete actual list host evidence')
             if not snapshots or snapshots[-1] != dict(
-                    mutation_requests=15, active_streams=0, action_rpc_requests=0,
+                    mutation_requests=17, active_streams=0, action_rpc_requests=0,
                     device_drivers=0, seeded_items=10000):
                 raise RuntimeError('Server mutation/stream/safety counts differ from the client proof')
             return dict(client=report, server=snapshots[-1], controls=controls, snapshots=snapshots,

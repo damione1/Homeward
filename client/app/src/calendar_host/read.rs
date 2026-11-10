@@ -87,6 +87,7 @@ impl Calendars {
                 let _ = self.0.mailbox.invalidate();
             }
             Status::Offline => {
+                state.read_retry = true;
                 state.ready = false;
                 state.bump();
             }
@@ -245,6 +246,7 @@ impl Calendars {
         state.source = Some(lease.generation);
         state.catalog_needed = false;
         state.status = Status::Ready;
+        state.read_retry = false;
         if state.selected_source().is_none() {
             state.selected = if let Some(target) = &self.0.widget {
                 Some(target.calendar.native_id().clone())
@@ -267,6 +269,38 @@ impl Calendars {
         self.publish(&state);
         self.0.changed.notify_one();
     }
+    pub(super) fn read_event(
+        &self,
+        context: u64,
+        session: &SessionCoordinator,
+        generation: home_client_session::Generation,
+        cancellation: (&CancellationToken, &CancellationToken),
+        event: CalendarReadEvent,
+    ) {
+        let mut state = self.0.state.lock().expect("calendar state");
+        if state.context != context
+            || cancellation.0.is_cancelled()
+            || cancellation.1.is_cancelled()
+            || !session.is_current(generation)
+        {
+            return;
+        }
+        match event {
+            CalendarReadEvent::Invalidated => {
+                state.ready = false;
+            }
+            CalendarReadEvent::NotMaterialized(name) => {
+                if state.selected_name().as_ref() == Some(&name) {
+                    state.not_materialized(generation);
+                }
+            }
+            CalendarReadEvent::Published(snapshot) => state.snapshot(snapshot, generation),
+        }
+        self.publish(&state);
+        // A live stream does not complete a JoinSet task. Rearm freshness
+        // and window deadlines immediately for this newly admitted event.
+        self.0.changed.notify_one();
+    }
     async fn watch(
         &self,
         session: SessionCoordinator,
@@ -283,36 +317,13 @@ impl Calendars {
             }
         };
         let exit = read_calendar_once(&api, &lease, query, &cancel, |event| {
-            let mut state = self.0.state.lock().expect("calendar state");
-            if state.context != context
-                || cancel.is_cancelled()
-                || lease.cancellation.is_cancelled()
-                || !session.is_current(lease.generation)
-            {
-                return;
-            }
-            match event {
-                CalendarReadEvent::Invalidated => {
-                    state.ready = false;
-                }
-                CalendarReadEvent::NotMaterialized(name) => {
-                    if state.selected_name().as_ref() == Some(&name) {
-                        state.snapshot = None;
-                        state.ready = true;
-                        state.source = Some(lease.generation);
-                        state.status = Status::Ready;
-                        for source in &mut state.catalog {
-                            if source.calendar == name.as_str() {
-                                source.materialized = false;
-                            }
-                        }
-                    }
-                }
-                CalendarReadEvent::Published(snapshot) => {
-                    state.snapshot(snapshot, lease.generation)
-                }
-            }
-            self.publish(&state);
+            self.read_event(
+                context,
+                &session,
+                lease.generation,
+                (&cancel, &lease.cancellation),
+                event,
+            );
         })
         .await;
         if cancel.is_cancelled()
@@ -589,8 +600,7 @@ impl Calendars {
         let mut context: Option<(Generation, u64, Option<CalendarId>)> = None;
         let mut tasks = JoinSet::new();
         let mut attempt = cancel.child_token();
-        let mut clock = tokio::time::interval(Duration::from_secs(2));
-        clock.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut scheduler = super::deadlines::Scheduler::default();
         loop {
             if self.0.retry.swap(false, Ordering::SeqCst) {
                 let _ = session.allow_new_view_attempt().await;
@@ -628,7 +638,7 @@ impl Calendars {
                 state.active = active;
                 let next = active.then(|| (view.generation, state.context, state.selected.clone()));
                 let catalog = state.catalog_needed;
-                let query = state.query();
+                let query = (!catalog).then(|| state.query()).flatten();
                 let job = if active {
                     state
                         .job
@@ -681,17 +691,50 @@ impl Calendars {
                         .await;
                 });
             }
+            let deadline = {
+                let state = self.0.state.lock().expect("calendar state");
+                scheduler.next(
+                    &state,
+                    self.0.widget.is_some(),
+                    std::time::SystemTime::now(),
+                    tokio::time::Instant::now(),
+                )
+            };
             tokio::select! {biased;
                 ()=cancel.cancelled()=>break,
                 change=phases.changed()=>{if change.is_err(){break;}},
                 ()=self.0.changed.notified()=>{},
                 _=tasks.join_next(),if !tasks.is_empty()=>{},
-                _=clock.tick()=>{let mut state=self.0.state.lock().expect("calendar state");if state.active&&state.status==Status::Offline{state.reset_reads();}
-                    if state.active&&let Some(target)=&self.0.widget {
-                        let expired=state.query_override.as_ref().and_then(|query|query.window.as_option()).and_then(|window|match &window.bounds{Some(wire::calendar_window::Bounds::Times(span))=>admit::timestamp_text(&span.start_time).ok().and_then(|value|chrono::DateTime::parse_from_rfc3339(&value).ok()),Some(wire::calendar_window::Bounds::Dates(_))|None=>None}).is_none_or(|start|chrono::Utc::now().signed_duration_since(start).num_seconds()>=60);
-                        if expired {state.query_override=state.selected_name().as_ref().and_then(|name|state::widget_query(target,name,chrono::Utc::now()));state.reset_reads();}
+                ()=super::deadlines::wait(deadline.as_ref())=>{
+                    let deadline = deadline.expect("only a scheduled deadline completes");
+                    let kind = deadline.kind;
+                    scheduler.fired(kind);
+                    let mut state = self.0.state.lock().expect("calendar state");
+                    if state.active && state.context == deadline.context {
+                        match kind {
+                            super::deadlines::Kind::ReadRetry if state.status == Status::Offline && !state.busy() => {
+                                state.read_retry = false;
+                                state.reset_reads();
+                            }
+                            super::deadlines::Kind::Expiry => {
+                                if state.context == deadline.context && state.snapshot.as_ref().zip(deadline.snapshot.as_ref())
+                                    .is_some_and(|(current, scheduled)| Arc::ptr_eq(current, scheduled)) {
+                                    state.snapshot_expired.set(true);
+                                }
+                            }
+                            super::deadlines::Kind::WidgetWindow => {
+                                if let Some(target) = &self.0.widget {
+                                    state.query_override = state.selected_name().as_ref()
+                                        .and_then(|name| state::widget_query(target, name, chrono::Utc::now()));
+                                    state.reset_reads();
+                                }
+                            }
+                            super::deadlines::Kind::CivilDate | super::deadlines::Kind::ReadRetry => {}
+                        }
                     }
-                    self.publish(&state);},
+                    // The next iteration observes the date/freshness edge and
+                    // publishes once only if the presentation actually changed.
+                },
             }
         }
         attempt.cancel();

@@ -29,6 +29,14 @@ pub(crate) struct Draft {
     pub base: ItemTarget,
     pub phase: DraftPhase,
 }
+impl PartialEq for Draft {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+            && self.phase == other.phase
+            && self.base.list_revision() == other.base.list_revision()
+            && self.base.item_revision() == other.base.item_revision()
+    }
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Refusal {
     Stale,
@@ -78,6 +86,7 @@ pub(crate) struct State {
     pub privacy_generation: i32,
     pub active: bool,
     pub foreground: bool,
+    pub interactive: bool,
     pub blocked: bool,
     pub catalog: Option<Arc<ListReadSnapshot>>,
     pub catalog_phase: Freshness,
@@ -108,6 +117,7 @@ impl Default for State {
             privacy_generation: 1,
             active: false,
             foreground: true,
+            interactive: true,
             blocked: false,
             catalog: None,
             catalog_phase: Freshness::Empty,
@@ -208,7 +218,12 @@ impl State {
             })
     }
     fn ready(&self, generation: i32) -> Result<(), Refusal> {
-        if self.context == 0 || generation != self.generation || !self.active || !self.foreground {
+        if self.context == 0
+            || generation != self.generation
+            || !self.active
+            || !self.foreground
+            || !self.interactive
+        {
             return Err(Refusal::Stale);
         }
         if self.pending.is_some() {

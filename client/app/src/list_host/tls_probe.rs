@@ -174,20 +174,34 @@ fn choose_item(owner: &Lists, index: usize) -> Result<(ItemKey, i32)> {
         token,
     ))
 }
-async fn write(owner: &Lists, intent: Write, confirmed: bool) -> Result<()> {
+enum ExpectedWrite {
+    Committed,
+    AuthorityRemoved,
+    HasChildren,
+}
+async fn write(owner: &Lists, intent: Write, expected: ExpectedWrite) -> Result<()> {
     until(owner, "write admission", online).await?;
-    let (generation, context) = {
+    let (generation, context, privacy) = {
         let state = owner.0.state.lock().unwrap();
-        (state.generation, state.context)
+        (state.generation, state.context, state.privacy_generation)
     };
     owner.write(generation, intent);
     until(owner, "write receipt and new capture", |state| {
         online(state)
             && state.context != context
-            && if confirmed {
-                state.notice.starts_with("Modification confirmée")
-            } else {
-                state.notice.starts_with("Modification refusée")
+            && match expected {
+                ExpectedWrite::Committed => state.notice.is_empty(),
+                ExpectedWrite::AuthorityRemoved => {
+                    state.privacy_generation != privacy
+                        && state.items.is_none()
+                        && state.drafts.is_empty()
+                        && state.selected_list.is_none()
+                        && state.selected_item.is_none()
+                }
+                ExpectedWrite::HasChildren => {
+                    state.notice
+                        == "This list contains tasks. Delete its tasks before deleting the list."
+                }
             }
     })
     .await
@@ -230,7 +244,9 @@ async fn run(fixture: Fixture) -> Result<()> {
         return Err("explicit loopback TLS fixture required".into());
     }
     assert_eq!(fixture.seed_item_count, 10000);
-    let seed: ListId = admit(fixture.seed_list_id.parse())?;
+    let seed = admit(TaskListName::try_from(fixture.seed_list_id.as_str()))?
+        .native_id()
+        .clone();
     let connection = Connection::new(&fixture.origin, fixture.ca_pem.as_bytes())?;
     let admin = login(&connection, fixture.admin).await?;
     let reader = login(&connection, fixture.reader).await?;
@@ -250,7 +266,46 @@ async fn run(fixture: Fixture) -> Result<()> {
         assert_eq!(state.items.as_ref().unwrap().count, 10000);
         assert_eq!(rows(&state)[9999].key().uid().as_str(), "synthetic-10000");
     }
-    write(&owner, Write::Create("Qualification TLS".into()), true).await?;
+    // Hiding both pages closes their streams, while retaining snapshots and
+    // drafts. Re-entry admits fresh reads; no mutation is queued by visibility.
+    let (hidden_key, hidden_token) = choose_item(&owner, 0)?;
+    {
+        let mut state = owner.0.state.lock().unwrap();
+        let generation = state.generation;
+        admit(state.edit(hidden_token, generation, "Synthetic retained draft".into()))?;
+    }
+    let before_visibility = controls.stats().await?.mutation_requests;
+    owner.interactive(false);
+    reader_owner.interactive(false);
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if controls.stats().await?.active_streams == 0 {
+                break Ok::<(), Box<dyn std::error::Error + Send + Sync>>(());
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await??;
+    assert_eq!(
+        owner.0.state.lock().unwrap().drafts[&hidden_key].text,
+        "Synthetic retained draft"
+    );
+    assert_eq!(rows(&owner.0.state.lock().unwrap()).len(), 10000);
+    owner.interactive(true);
+    reader_owner.interactive(true);
+    until(&owner, "readmission after page return", online).await?;
+    until(&reader_owner, "reader page return", online).await?;
+    assert_eq!(
+        owner.0.state.lock().unwrap().drafts[&hidden_key].text,
+        "Synthetic retained draft"
+    );
+    assert_eq!(controls.stats().await?.mutation_requests, before_visibility);
+    write(
+        &owner,
+        Write::Create("Qualification TLS".into()),
+        ExpectedWrite::Committed,
+    )
+    .await?;
     let created: ListId = {
         let state = owner.0.state.lock().unwrap();
         catalog(&state)
@@ -261,29 +316,44 @@ async fn run(fixture: Fixture) -> Result<()> {
             .clone()
     };
     choose_list(&owner, &created).await?;
-    write(&owner, Write::Rename("Qualification renommée".into()), true).await?;
+    write(
+        &owner,
+        Write::Rename("Qualification renommée".into()),
+        ExpectedWrite::Committed,
+    )
+    .await?;
     assert!(
         catalog(&owner.0.state.lock().unwrap())
             .iter()
             .any(|row| row.native_id() == &created
                 && row.display_name().as_str() == "Qualification renommée")
     );
-    write(&owner, Write::Add("Premier élément".into()), true).await?;
-    write(&owner, Write::Add("Deuxième élément".into()), true).await?;
+    write(
+        &owner,
+        Write::Add("Premier élément".into()),
+        ExpectedWrite::Committed,
+    )
+    .await?;
+    write(
+        &owner,
+        Write::Add("Deuxième élément".into()),
+        ExpectedWrite::Committed,
+    )
+    .await?;
     let (first, first_token) = choose_item(&owner, 0)?;
     {
         let mut state = owner.0.state.lock().unwrap();
         let generation = state.generation;
         admit(state.edit(first_token, generation, "Édition explicite".into()))?;
     }
-    write(&owner, Write::Save, true).await?;
-    write(&owner, Write::Complete(true), true).await?;
+    write(&owner, Write::Save, ExpectedWrite::Committed).await?;
+    write(&owner, Write::Complete(true), ExpectedWrite::Committed).await?;
     assert!(
         rows(&owner.0.state.lock().unwrap())[0]
             .content()
             .completed()
     );
-    write(&owner, Write::Complete(false), true).await?;
+    write(&owner, Write::Complete(false), ExpectedWrite::Committed).await?;
     let lease = admit(admin.access(&cancel).await)?;
     let task_name = {
         let state = owner.0.state.lock().unwrap();
@@ -311,14 +381,14 @@ async fn run(fixture: Fixture) -> Result<()> {
     )?;
     assert!(!fetched.completed);
     assert_eq!(fetched.summary, "Édition explicite");
-    write(&owner, Write::MoveDown, true).await?;
+    write(&owner, Write::MoveDown, ExpectedWrite::Committed).await?;
     {
         let state = owner.0.state.lock().unwrap();
         assert_eq!(rows(&state)[1].key().uid().as_str(), first.uid().as_str());
         assert_eq!(state.item_tokens[1], first_token);
         assert_eq!(state.selected_item.as_ref(), Some(&first));
     }
-    write(&owner, Write::MoveFirst, true).await?;
+    write(&owner, Write::MoveFirst, ExpectedWrite::Committed).await?;
     assert_eq!(
         rows(&owner.0.state.lock().unwrap())[0].key().uid().as_str(),
         first.uid().as_str()
@@ -380,7 +450,7 @@ async fn run(fixture: Fixture) -> Result<()> {
         before_resolution,
         "conflict/save refusal and resolution must send nothing"
     );
-    write(&owner, Write::Save, true).await?;
+    write(&owner, Write::Save, ExpectedWrite::Committed).await?;
     assert_eq!(
         rows(&owner.0.state.lock().unwrap())[0]
             .content()
@@ -389,7 +459,16 @@ async fn run(fixture: Fixture) -> Result<()> {
         "Mon brouillon conservé"
     );
     // READ never implies WRITE. Denial is observed through the actual owner.
-    write(&reader_owner, Write::Add("Interdit".into()), false).await?;
+    write(
+        &reader_owner,
+        Write::Add("Interdit".into()),
+        ExpectedWrite::AuthorityRemoved,
+    )
+    .await?;
+    // Authority failure purges the old presentation. A separate authorized
+    // read of the selected list restores it; no rejected write is replayed.
+    assert!(reader_owner.0.state.lock().unwrap().items.is_none());
+    choose_list(&reader_owner, &seed).await?;
     assert_eq!(rows(&reader_owner.0.state.lock().unwrap()).len(), 10000);
     assert_eq!(catalog(&reader_owner.0.state.lock().unwrap()).len(), 1);
     let lease = admit(reader.access(&cancel).await)?;
@@ -512,7 +591,7 @@ async fn run(fixture: Fixture) -> Result<()> {
         online(state) && !state.drafts.contains_key(&first)
     })
     .await?;
-    write(&owner, Write::DeleteItem, true).await?;
+    write(&owner, Write::DeleteItem, ExpectedWrite::Committed).await?;
     {
         let state = owner.0.state.lock().unwrap();
         assert_eq!(rows(&state).len(), 1);
@@ -520,10 +599,10 @@ async fn run(fixture: Fixture) -> Result<()> {
         assert!(!state.item_tokens.contains(&first_token));
         assert!(!state.drafts.contains_key(&first));
     }
-    write(&owner, Write::DeleteList, false).await?;
+    write(&owner, Write::DeleteList, ExpectedWrite::HasChildren).await?;
     choose_item(&owner, 0)?;
-    write(&owner, Write::DeleteItem, true).await?;
-    write(&owner, Write::DeleteList, true).await?;
+    write(&owner, Write::DeleteItem, ExpectedWrite::Committed).await?;
+    write(&owner, Write::DeleteList, ExpectedWrite::Committed).await?;
     assert!(
         !catalog(&owner.0.state.lock().unwrap())
             .iter()
@@ -554,7 +633,7 @@ async fn run(fixture: Fixture) -> Result<()> {
         final_stats = controls.stats().await?;
     }
     assert_eq!(final_stats.active_streams, 0);
-    assert_eq!(final_stats.mutation_requests, 15);
+    assert_eq!(final_stats.mutation_requests, 17);
     assert_eq!(final_stats.action_rpc_requests, 0);
     assert_eq!(final_stats.device_drivers, 0);
     assert_eq!(final_stats.seeded_items, 10000);
