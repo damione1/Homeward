@@ -709,7 +709,10 @@ mod tests {
         request.dashboard = LayoutState::Ready(Arc::new(layout));
         (request, entity)
     }
-    fn prepared_target(store: &DeviceStore, row: &super::super::presentation::CardRow) -> CapabilityName {
+    fn prepared_target(
+        store: &DeviceStore,
+        row: &super::super::presentation::CardRow,
+    ) -> CapabilityName {
         let state = store.0.lock().unwrap();
         state
             .context
@@ -827,7 +830,10 @@ mod tests {
         ] {
             snapshot.submission = submission;
             snapshot.tracking = tracking;
-            assert!(!resolved_step(&snapshot), "{submission:?} is still in flight");
+            assert!(
+                !resolved_step(&snapshot),
+                "{submission:?} is still in flight"
+            );
         }
         snapshot.tracking = CapabilityTracking::Waiting;
         snapshot.submission = CapabilitySubmission::NotSent;
@@ -917,7 +923,11 @@ mod tests {
         );
         {
             let mut state = store.0.lock().unwrap();
-            attach_step(&mut state, &prepared_target(&store, &row), &pending.request_id);
+            attach_step(
+                &mut state,
+                &prepared_target(&store, &row),
+                &pending.request_id,
+            );
         }
         let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
         let (phase, notice, _) = crate::device_view::progress::presentation(Some(&terminal));
@@ -992,7 +1002,9 @@ mod tests {
             .edit(row.token, row.generation, 0, 0, step())
             .unwrap()
             .expect("a sent step is the base of the next explicit gesture");
-        let prepared = store.prepare(row.token, row.generation, 0, stacked).unwrap();
+        let prepared = store
+            .prepare(row.token, row.generation, 0, stacked)
+            .unwrap();
         {
             let mut state = store.0.lock().unwrap();
             attach_step(

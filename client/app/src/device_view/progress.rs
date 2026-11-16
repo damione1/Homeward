@@ -61,8 +61,12 @@ pub(crate) fn display(snapshot: Option<&CapabilitySnapshot>) -> ControlDisplay {
             | PendingStage::Deferred
             | PendingStage::Tracking,
         ) => ControlDisplay::Pending,
-        JobState::Terminal(TerminalCause::NotSent) => ControlDisplay::Reverted(RevertCause::NotSent),
-        JobState::Terminal(TerminalCause::Rejected) => ControlDisplay::Reverted(RevertCause::Refused),
+        JobState::Terminal(TerminalCause::NotSent) => {
+            ControlDisplay::Reverted(RevertCause::NotSent)
+        }
+        JobState::Terminal(TerminalCause::Rejected) => {
+            ControlDisplay::Reverted(RevertCause::Refused)
+        }
         JobState::Terminal(
             TerminalCause::Uncertain | TerminalCause::Interrupted | TerminalCause::Unavailable,
         ) => ControlDisplay::Reverted(RevertCause::Unverified),
@@ -112,9 +116,11 @@ pub(crate) fn presentation(snapshot: Option<&CapabilitySnapshot>) -> Presentatio
         ControlDisplay::Reverted(RevertCause::Refused) => {
             (Phase::Refused, "Change refused", "Refresh and try again.")
         }
-        ControlDisplay::Reverted(RevertCause::Failed) => {
-            (Phase::Failed, "Change failed", "Check the device and try again.")
-        }
+        ControlDisplay::Reverted(RevertCause::Failed) => (
+            Phase::Failed,
+            "Change failed",
+            "Check the device and try again.",
+        ),
         ControlDisplay::Reverted(RevertCause::Cancelled) => (
             Phase::Cancelled,
             "Change cancelled",
@@ -127,8 +133,8 @@ pub(crate) fn presentation(snapshot: Option<&CapabilitySnapshot>) -> Presentatio
 pub(crate) mod tests {
     use super::*;
     use buffa::Message;
-    use home_client_actions::capabilities::{CapabilitySubmission, CapabilityTracking};
     use buffa_types::google::protobuf::{Any, Timestamp};
+    use home_client_actions::capabilities::{CapabilitySubmission, CapabilityTracking};
     use home_client_model::api::{CapabilityName, Command, Deadline, Intent, Power, RequestId};
     use home_wire_contract::{
         api_command_operations::admit_command_operation, google::longrunning, home::api::v2 as wire,
@@ -219,23 +225,72 @@ pub(crate) mod tests {
         let mut progress = snapshot(None);
         progress.operation = None;
         let cases = [
-            (S::Prepared, T::Waiting, ControlDisplay::Pending, Phase::Idle),
+            (
+                S::Prepared,
+                T::Waiting,
+                ControlDisplay::Pending,
+                Phase::Idle,
+            ),
             (S::Sending, T::Waiting, ControlDisplay::Pending, Phase::Idle),
-            (S::Deferred, T::Waiting, ControlDisplay::Pending, Phase::Idle),
+            (
+                S::Deferred,
+                T::Waiting,
+                ControlDisplay::Pending,
+                Phase::Idle,
+            ),
             (S::Accepted, T::Live, ControlDisplay::Pending, Phase::Idle),
-            (S::Uncertain, T::Unavailable, ControlDisplay::Reverted(RevertCause::Unverified), Phase::Idle),
-            (S::Accepted, T::Interrupted, ControlDisplay::Reverted(RevertCause::Unverified), Phase::Idle),
-            (S::Accepted, T::Unavailable, ControlDisplay::Reverted(RevertCause::Unverified), Phase::Idle),
-            (S::Rejected, T::Unavailable, ControlDisplay::Reverted(RevertCause::Refused), Phase::Refused),
-            (S::NotSent, T::Stopped, ControlDisplay::Reverted(RevertCause::NotSent), Phase::Refused),
-            (S::Superseded, T::Stopped, ControlDisplay::Observed, Phase::Idle),
+            (
+                S::Uncertain,
+                T::Unavailable,
+                ControlDisplay::Reverted(RevertCause::Unverified),
+                Phase::Idle,
+            ),
+            (
+                S::Accepted,
+                T::Interrupted,
+                ControlDisplay::Reverted(RevertCause::Unverified),
+                Phase::Idle,
+            ),
+            (
+                S::Accepted,
+                T::Unavailable,
+                ControlDisplay::Reverted(RevertCause::Unverified),
+                Phase::Idle,
+            ),
+            (
+                S::Rejected,
+                T::Unavailable,
+                ControlDisplay::Reverted(RevertCause::Refused),
+                Phase::Refused,
+            ),
+            (
+                S::NotSent,
+                T::Stopped,
+                ControlDisplay::Reverted(RevertCause::NotSent),
+                Phase::Refused,
+            ),
+            (
+                S::Superseded,
+                T::Stopped,
+                ControlDisplay::Observed,
+                Phase::Idle,
+            ),
             (S::Closed, T::Stopped, ControlDisplay::Observed, Phase::Idle),
-            (S::Accepted, T::Stopped, ControlDisplay::Observed, Phase::Idle),
+            (
+                S::Accepted,
+                T::Stopped,
+                ControlDisplay::Observed,
+                Phase::Idle,
+            ),
         ];
         for (submission, tracking, expected, phase) in cases {
             progress.submission = submission;
             progress.tracking = tracking;
-            assert_eq!(display(Some(&progress)), expected, "{submission:?} {tracking:?}");
+            assert_eq!(
+                display(Some(&progress)),
+                expected,
+                "{submission:?} {tracking:?}"
+            );
             let (actual, label, _) = presentation(Some(&progress));
             assert_eq!(actual, phase, "{submission:?} {tracking:?}");
             assert_eq!(label.is_empty(), phase == Phase::Idle);
@@ -328,7 +383,11 @@ pub(crate) mod tests {
         assert_eq!(slider().accessible_value().as_deref(), Some("80%"));
         render("pending-optimistic");
         slider().invoke_accessible_increment_action();
-        assert_eq!(&*calls.borrow(), &[(0, 1, 81.)], "a pending gesture never blocks input");
+        assert_eq!(
+            &*calls.borrow(),
+            &[(0, 1, 81.)],
+            "a pending gesture never blocks input"
+        );
         // An unverified terminal snaps back to the observed value, silently.
         let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
         publish(&terminal, None, crate::ProControlAccess::Allowed);
