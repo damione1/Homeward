@@ -1,185 +1,123 @@
 use crate::ProActionPhase as Phase;
 use home_client_actions::capabilities::{
-    CapabilitySnapshot, CapabilitySubmission, CapabilityTracking,
+    CapabilitySnapshot, JobState, PendingStage, TerminalCause, job_state,
 };
-use home_wire_contract::api_command_operations::{CommandCompletion, CommandOutcome, CommandPhase};
+use home_wire_contract::api_command_operations::{CommandCompletion, CommandOutcome};
 use home_wire_contract::home::api::v2::ApiErrorReason;
 
 type Presentation = (Phase, &'static str, &'static str);
 
-// Keep command facts and admission phases intact. Normal progress is shown by
-// the control's busy state; observed values are the only successful visual result.
-pub(crate) fn quiet(
-    presentation: Presentation,
-    snapshot: Option<&CapabilitySnapshot>,
-) -> Presentation {
-    let routine = match presentation.0 {
-        Phase::Preparing
-        | Phase::Sending
-        | Phase::Accepted
-        | Phase::Dispatched
-        | Phase::Confirmed => true,
-        Phase::Acknowledged => snapshot
-            .and_then(|snapshot| snapshot.operation.as_ref())
-            .is_some_and(|operation| !operation.done()),
-        Phase::Idle
-        | Phase::AcknowledgedUnverified
-        | Phase::Refused
-        | Phase::Uncertain
-        | Phase::Stopped
-        | Phase::Unavailable
-        | Phase::Interrupted
-        | Phase::Failed
-        | Phase::Cancelled
-        | Phase::Indeterminate => false,
-    };
-    if routine {
-        (presentation.0, "", "")
-    } else {
-        presentation
-    }
+/// How a control shows its value around one gesture. The control is always
+/// editable: a pending gesture shows the intended value, the observed state
+/// wins as soon as it arrives, and an unconfirmed gesture snaps back silently.
+/// Only a real refusal or failure leaves a notice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ControlDisplay {
+    Observed,
+    Pending,
+    Reverted(RevertCause),
 }
-pub(crate) fn presentation(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
-    quiet(facts(snapshot), snapshot)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RevertCause {
+    /// Dispatched or acknowledged without a qualified observation, or the
+    /// outcome is unknown. The observed value is shown without a notice.
+    Unverified,
+    NotSent,
+    Refused,
+    Failed,
+    Cancelled,
 }
-// An unavailable live feed does not finish an accepted operation. Keep its
-// control closed until the same operation supplies a terminal result; a
-// standalone unavailable status without a pending operation adds no lock.
-pub(super) fn blocks_input(snapshot: Option<&CapabilitySnapshot>) -> bool {
-    snapshot.is_some_and(|snapshot| {
-        snapshot.tracking == CapabilityTracking::Unavailable
-            && snapshot
-                .operation
-                .as_ref()
-                .is_some_and(|operation| !operation.done())
-    })
-}
-fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
+
+pub(crate) fn display(snapshot: Option<&CapabilitySnapshot>) -> ControlDisplay {
     let Some(action) = snapshot else {
-        return (Phase::Idle, "", "");
+        return ControlDisplay::Observed;
     };
     if let Some(operation) = &action.operation {
         match operation.completion() {
             CommandCompletion::Success {
                 outcome: CommandOutcome::Confirmed,
                 ..
-            } => {
-                return (
-                    Phase::Confirmed,
-                    "Change confirmed",
-                    "The device confirmed the change.",
-                );
-            }
+            } => return ControlDisplay::Observed,
             CommandCompletion::Success {
-                outcome: CommandOutcome::SentUnverified,
+                outcome: CommandOutcome::SentUnverified | CommandOutcome::AcknowledgedUnverified,
                 ..
-            } => {
-                // Dispatch completion is terminal for input, never a physical ACK.
-                return (Phase::Idle, "", "");
-            }
-            CommandCompletion::Success {
-                outcome: CommandOutcome::AcknowledgedUnverified,
-                ..
-            } => {
-                return (
-                    Phase::AcknowledgedUnverified,
-                    "Change not confirmed",
-                    "Check the device before trying again.",
-                );
-            }
+            } => return ControlDisplay::Reverted(RevertCause::Unverified),
             CommandCompletion::Failure(failure) => {
                 if failure.uncertainty().is_some() {
-                    return (
-                        Phase::Indeterminate,
-                        "Change not confirmed",
-                        "Check the device before trying again.",
-                    );
+                    return ControlDisplay::Reverted(RevertCause::Unverified);
                 }
                 if failure.reason() == ApiErrorReason::RequestCancelled {
-                    return (
-                        Phase::Cancelled,
-                        "Change cancelled",
-                        "Check the device before trying again.",
-                    );
+                    return ControlDisplay::Reverted(RevertCause::Cancelled);
                 }
-                return (
-                    Phase::Failed,
-                    "Change failed",
-                    "Check the device and try again.",
-                );
+                return ControlDisplay::Reverted(RevertCause::Failed);
             }
             CommandCompletion::Pending => {}
         }
     }
-    match action.tracking {
-        CapabilityTracking::Stopped => {
-            return (
-                Phase::Stopped,
-                "Command tracking stopped",
-                "Check the device before trying again.",
-            );
-        }
-        CapabilityTracking::Unavailable => {
-            return (
-                Phase::Unavailable,
-                "Command status unavailable",
-                "The change has not been confirmed yet.",
-            );
-        }
-        CapabilityTracking::Interrupted => {
-            return (
-                Phase::Interrupted,
-                "Connection interrupted",
-                "Check the device before trying again.",
-            );
-        }
-        CapabilityTracking::Waiting | CapabilityTracking::Live | CapabilityTracking::Complete => {}
+    match job_state(action) {
+        JobState::Pending(
+            PendingStage::Preparing
+            | PendingStage::Sending
+            | PendingStage::Deferred
+            | PendingStage::Tracking,
+        ) => ControlDisplay::Pending,
+        JobState::Terminal(TerminalCause::NotSent) => ControlDisplay::Reverted(RevertCause::NotSent),
+        JobState::Terminal(TerminalCause::Rejected) => ControlDisplay::Reverted(RevertCause::Refused),
+        JobState::Terminal(
+            TerminalCause::Uncertain | TerminalCause::Interrupted | TerminalCause::Unavailable,
+        ) => ControlDisplay::Reverted(RevertCause::Unverified),
+        // A replaced, stopped or closed job is not this control's story any more;
+        // a completed one without an operation has nothing to show.
+        JobState::Terminal(
+            TerminalCause::Superseded
+            | TerminalCause::Closed
+            | TerminalCause::Stopped
+            | TerminalCause::Complete,
+        ) => ControlDisplay::Observed,
     }
-    if let Some(operation) = &action.operation {
-        return match operation.phase() {
-            CommandPhase::Accepted => (
-                Phase::Accepted,
-                "Change requested",
-                "Waiting for the device.",
-            ),
-            CommandPhase::Dispatched => {
-                (Phase::Dispatched, "Change sent", "Waiting for the device.")
+}
+
+pub(crate) fn pending(snapshot: Option<&CapabilitySnapshot>) -> bool {
+    display(snapshot) == ControlDisplay::Pending
+}
+
+// Tracking phases stay internal. The row carries a phase and a notice only for
+// a confirmed result (silent, success tone) or a real refusal/failure.
+pub(crate) fn presentation(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
+    let confirmed = snapshot
+        .and_then(|action| action.operation.as_ref())
+        .is_some_and(|operation| {
+            matches!(
+                operation.completion(),
+                CommandCompletion::Success {
+                    outcome: CommandOutcome::Confirmed,
+                    ..
+                }
+            )
+        });
+    match display(snapshot) {
+        ControlDisplay::Observed => {
+            if confirmed {
+                (Phase::Confirmed, "", "")
+            } else {
+                (Phase::Idle, "", "")
             }
-            CommandPhase::Acknowledged => (
-                Phase::Acknowledged,
-                "Waiting for the device",
-                "The change has not been confirmed yet.",
-            ),
-            CommandPhase::Confirmed
-            | CommandPhase::Failed
-            | CommandPhase::Cancelled
-            | CommandPhase::Indeterminate => (
-                Phase::Unavailable,
-                "Command status unavailable",
-                "Check the device before trying again.",
-            ),
-        };
-    }
-    match action.submission {
-        CapabilitySubmission::Prepared => (Phase::Preparing, "Preparing change", ""),
-        CapabilitySubmission::Sending => (Phase::Sending, "Sending change", ""),
-        CapabilitySubmission::Accepted => (
-            Phase::Accepted,
-            "Change requested",
-            "Waiting for the device.",
-        ),
-        CapabilitySubmission::Rejected => {
+        }
+        ControlDisplay::Pending | ControlDisplay::Reverted(RevertCause::Unverified) => {
+            (Phase::Idle, "", "")
+        }
+        ControlDisplay::Reverted(RevertCause::NotSent) => {
+            (Phase::Refused, "Change not sent", "Please try again.")
+        }
+        ControlDisplay::Reverted(RevertCause::Refused) => {
             (Phase::Refused, "Change refused", "Refresh and try again.")
         }
-        CapabilitySubmission::Uncertain => (
-            Phase::Uncertain,
-            "Change not confirmed",
-            "Check the device before trying again.",
-        ),
-        CapabilitySubmission::NotSent => (Phase::Refused, "Change not sent", "Please try again."),
-        CapabilitySubmission::Closed => (
-            Phase::Stopped,
-            "Command tracking stopped",
+        ControlDisplay::Reverted(RevertCause::Failed) => {
+            (Phase::Failed, "Change failed", "Check the device and try again.")
+        }
+        ControlDisplay::Reverted(RevertCause::Cancelled) => (
+            Phase::Cancelled,
+            "Change cancelled",
             "Check the device before trying again.",
         ),
     }
@@ -189,6 +127,7 @@ fn facts(snapshot: Option<&CapabilitySnapshot>) -> Presentation {
 pub(crate) mod tests {
     use super::*;
     use buffa::Message;
+    use home_client_actions::capabilities::{CapabilitySubmission, CapabilityTracking};
     use buffa_types::google::protobuf::{Any, Timestamp};
     use home_client_model::api::{CapabilityName, Command, Deadline, Intent, Power, RequestId};
     use home_wire_contract::{
@@ -254,21 +193,56 @@ pub(crate) mod tests {
         }
     }
     #[test]
-    fn pending_and_terminal_ack_never_render_confirmation() {
+    fn pending_and_unverified_results_are_silent_and_only_confirmation_or_failure_speak() {
         let pending = snapshot(None);
-        assert_eq!(presentation(Some(&pending)).0, Phase::Acknowledged);
-        assert_eq!(presentation(Some(&pending)), (Phase::Acknowledged, "", ""));
+        assert_eq!(display(Some(&pending)), ControlDisplay::Pending);
+        assert_eq!(presentation(Some(&pending)), (Phase::Idle, "", ""));
         let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
         assert_eq!(
-            presentation(Some(&terminal)).0,
-            Phase::AcknowledgedUnverified
+            display(Some(&terminal)),
+            ControlDisplay::Reverted(RevertCause::Unverified)
         );
-        assert!(presentation(Some(&terminal)).1.contains("not confirmed"));
+        assert_eq!(
+            presentation(Some(&terminal)),
+            (Phase::Idle, "", ""),
+            "an unverified acknowledgement snaps back without a notice"
+        );
         let confirmed = snapshot(Some(wire::CommandOutcome::Confirmed));
+        assert_eq!(display(Some(&confirmed)), ControlDisplay::Observed);
         assert_eq!(presentation(Some(&confirmed)), (Phase::Confirmed, "", ""));
+        assert_eq!(presentation(None), (Phase::Idle, "", ""));
     }
     #[test]
-    fn terminal_ack_releases_the_real_detail_slider_but_keeps_uncertainty_visible() {
+    fn every_admission_outcome_maps_to_a_display_without_locking() {
+        use CapabilitySubmission as S;
+        use CapabilityTracking as T;
+        let mut progress = snapshot(None);
+        progress.operation = None;
+        let cases = [
+            (S::Prepared, T::Waiting, ControlDisplay::Pending, Phase::Idle),
+            (S::Sending, T::Waiting, ControlDisplay::Pending, Phase::Idle),
+            (S::Deferred, T::Waiting, ControlDisplay::Pending, Phase::Idle),
+            (S::Accepted, T::Live, ControlDisplay::Pending, Phase::Idle),
+            (S::Uncertain, T::Unavailable, ControlDisplay::Reverted(RevertCause::Unverified), Phase::Idle),
+            (S::Accepted, T::Interrupted, ControlDisplay::Reverted(RevertCause::Unverified), Phase::Idle),
+            (S::Accepted, T::Unavailable, ControlDisplay::Reverted(RevertCause::Unverified), Phase::Idle),
+            (S::Rejected, T::Unavailable, ControlDisplay::Reverted(RevertCause::Refused), Phase::Refused),
+            (S::NotSent, T::Stopped, ControlDisplay::Reverted(RevertCause::NotSent), Phase::Refused),
+            (S::Superseded, T::Stopped, ControlDisplay::Observed, Phase::Idle),
+            (S::Closed, T::Stopped, ControlDisplay::Observed, Phase::Idle),
+            (S::Accepted, T::Stopped, ControlDisplay::Observed, Phase::Idle),
+        ];
+        for (submission, tracking, expected, phase) in cases {
+            progress.submission = submission;
+            progress.tracking = tracking;
+            assert_eq!(display(Some(&progress)), expected, "{submission:?} {tracking:?}");
+            let (actual, label, _) = presentation(Some(&progress));
+            assert_eq!(actual, phase, "{submission:?} {tracking:?}");
+            assert_eq!(label.is_empty(), phase == Phase::Idle);
+        }
+    }
+    #[test]
+    fn a_pending_gesture_never_blocks_the_real_detail_slider_and_the_observed_value_returns() {
         use i_slint_backend_testing::ElementQuery;
         use slint::{ComponentHandle, Model, ModelRc};
         use std::{cell::RefCell, rc::Rc};
@@ -310,7 +284,7 @@ pub(crate) mod tests {
         let calls = Rc::new(RefCell::new(Vec::new()));
         let output = calls.clone();
         window.on_device_brightness(move |t, g, v| output.borrow_mut().push((t, g, v)));
-        let publish = |snapshot: &CapabilitySnapshot, access| {
+        let publish = |snapshot: &CapabilitySnapshot, intended: Option<f32>, access| {
             let (phase, label, description) = presentation(Some(snapshot));
             let mut row = super::super::presentation::CardRow {
                 token: 0,
@@ -320,12 +294,12 @@ pub(crate) mod tests {
                 power_known: true,
                 power_on: true,
                 brightness_known: true,
-                brightness_percent: 62.037033,
+                brightness_percent: intended.unwrap_or(62.037033),
                 access,
                 phase,
                 action_label: label.into(),
                 action_detail: description.into(),
-                command_unavailable: blocks_input(Some(snapshot)),
+                pending: pending(Some(snapshot)),
                 ..Default::default()
             };
             super::super::brightness_bounds(
@@ -349,33 +323,17 @@ pub(crate) mod tests {
                 .find_first()
                 .expect("real detail slider")
         };
-        publish(&snapshot(None), crate::ProControlAccess::Allowed);
-        assert_eq!(slider().accessible_value().as_deref(), Some("62%"));
-        render("ack-pending");
+        // The pending gesture shows its intended value and stays editable.
+        publish(&snapshot(None), Some(80.), crate::ProControlAccess::Allowed);
+        assert_eq!(slider().accessible_value().as_deref(), Some("80%"));
+        render("pending-optimistic");
         slider().invoke_accessible_increment_action();
-        assert!(calls.borrow().is_empty(), "pending ACK blocks input");
-        let mut unavailable = snapshot(None);
-        unavailable.tracking = CapabilityTracking::Unavailable;
-        publish(&unavailable, crate::ProControlAccess::Allowed);
-        assert_eq!(presentation(Some(&unavailable)).0, Phase::Unavailable);
-        assert!(blocks_input(Some(&unavailable)));
-        slider().invoke_accessible_increment_action();
-        assert!(
-            calls.borrow().is_empty(),
-            "unavailable progress is still pending"
-        );
-        render("ack-pending-unavailable");
+        assert_eq!(&*calls.borrow(), &[(0, 1, 81.)], "a pending gesture never blocks input");
+        // An unverified terminal snaps back to the observed value, silently.
         let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
-        let mut terminal_unavailable = terminal.clone();
-        terminal_unavailable.tracking = CapabilityTracking::Unavailable;
-        assert!(!blocks_input(Some(&terminal_unavailable)));
-        let mut no_operation = unavailable.clone();
-        no_operation.operation = None;
-        assert!(!blocks_input(Some(&no_operation)));
-        publish(&terminal, crate::ProControlAccess::Allowed);
-        render("ack-terminal");
-        slider().invoke_accessible_increment_action();
-        assert_eq!(&*calls.borrow(), &[(0, 1, 63.)]);
+        publish(&terminal, None, crate::ProControlAccess::Allowed);
+        render("unverified-reverted");
+        assert_eq!(slider().accessible_value().as_deref(), Some("62%"));
         assert_eq!(
             window
                 .get_detail_panels()
@@ -384,25 +342,20 @@ pub(crate) mod tests {
                 .light
                 .brightness,
             62.037033,
-            "no optimistic observation"
+            "the observed value wins once the gesture is settled"
         );
-        ElementQuery::from_root(&window)
-            .match_predicate(|e| e.accessible_label().as_deref() == Some("Last command"))
-            .find_first()
-            .expect("historical command remains consultable")
-            .invoke_accessible_default_action();
-        slint::platform::update_timers_and_animations();
         assert!(
             ElementQuery::from_root(&window)
                 .match_predicate(|e| e
                     .accessible_label()
-                    .is_some_and(|s| s.contains("Change not confirmed")))
+                    .is_some_and(|s| s.contains("not confirmed") || s.contains("Stop Tracking")))
                 .find_first()
-                .is_some(),
-            "uncertainty remains visible"
+                .is_none(),
+            "no tracking notice and no stop control"
         );
-        // Exercise actual pointer gestures, including a second gesture after
-        // a pending/terminal transition. Accessibility alone missed this path.
+        slider().invoke_accessible_increment_action();
+        assert_eq!(calls.borrow().len(), 2);
+        // Exercise actual pointer gestures across pending and settled states.
         use slint::platform::{PointerEventButton, WindowEvent};
         let tap = |fraction: f32| {
             let element = slider();
@@ -428,13 +381,10 @@ pub(crate) mod tests {
             slint::platform::update_timers_and_animations();
         };
         tap(0.213);
-        assert_eq!(calls.borrow().len(), 2);
-        publish(&snapshot(None), crate::ProControlAccess::Allowed);
-        tap(0.743);
-        assert_eq!(calls.borrow().len(), 2, "pending blocks pointer input");
-        publish(&terminal, crate::ProControlAccess::Allowed);
-        tap(0.743);
         assert_eq!(calls.borrow().len(), 3);
+        publish(&snapshot(None), Some(40.), crate::ProControlAccess::Allowed);
+        tap(0.743);
+        assert_eq!(calls.borrow().len(), 4, "pending keeps pointer input open");
         for (_, _, value) in calls.borrow().iter() {
             assert_eq!(
                 value.fract(),
@@ -443,49 +393,38 @@ pub(crate) mod tests {
             );
             assert!((0.0..=100.0).contains(value));
         }
-        assert_ne!(calls.borrow()[1].2, calls.borrow()[2].2);
-        render("ack-terminal-second-pointer");
-        publish(&terminal, crate::ProControlAccess::Denied);
+        render("pending-second-pointer");
+        let mut refused = snapshot(None);
+        refused.operation = None;
+        refused.submission = CapabilitySubmission::Rejected;
+        refused.tracking = CapabilityTracking::Unavailable;
+        publish(&refused, None, crate::ProControlAccess::Allowed);
+        assert!(
+            ElementQuery::from_root(&window)
+                .match_predicate(|e| e
+                    .accessible_label()
+                    .is_some_and(|s| s.contains("Change refused")))
+                .find_first()
+                .is_some(),
+            "a real refusal is noticed"
+        );
+        publish(&terminal, None, crate::ProControlAccess::Denied);
         tap(0.421);
         slider().invoke_accessible_increment_action();
         assert_eq!(
             calls.borrow().len(),
-            3,
-            "terminal ACK does not grant authority"
+            4,
+            "a settled gesture does not grant authority"
         );
     }
     #[test]
     fn stopping_tracking_cannot_cancel_an_effect_or_erase_a_recorded_confirmation() {
         let mut pending = snapshot(None);
         pending.tracking = CapabilityTracking::Stopped;
-        assert_eq!(presentation(Some(&pending)).0, Phase::Stopped);
+        assert_eq!(display(Some(&pending)), ControlDisplay::Observed);
         let mut confirmed = snapshot(Some(wire::CommandOutcome::Confirmed));
         confirmed.tracking = CapabilityTracking::Stopped;
         assert_eq!(presentation(Some(&confirmed)), (Phase::Confirmed, "", ""));
-    }
-    #[test]
-    fn routine_progress_is_silent_but_problems_keep_their_feedback() {
-        let mut progress = snapshot(None);
-        progress.operation = None;
-        for submission in [
-            CapabilitySubmission::Prepared,
-            CapabilitySubmission::Sending,
-            CapabilitySubmission::Accepted,
-        ] {
-            progress.submission = submission;
-            let (_, label, detail) = presentation(Some(&progress));
-            assert!(label.is_empty() && detail.is_empty());
-        }
-        for submission in [
-            CapabilitySubmission::Rejected,
-            CapabilitySubmission::NotSent,
-            CapabilitySubmission::Uncertain,
-            CapabilitySubmission::Closed,
-        ] {
-            progress.submission = submission;
-            let (_, label, detail) = presentation(Some(&progress));
-            assert!(!label.is_empty() && !detail.is_empty());
-        }
     }
 }
 
@@ -498,6 +437,10 @@ mod dispatch_only_tests {
             home_wire_contract::home::api::v2::CommandOutcome::SentUnverified,
         ));
         assert_eq!(presentation(Some(&snapshot)), (Phase::Idle, "", ""));
-        assert!(!blocks_input(Some(&snapshot)));
+        assert_eq!(
+            display(Some(&snapshot)),
+            ControlDisplay::Reverted(RevertCause::Unverified)
+        );
+        assert!(!pending(Some(&snapshot)));
     }
 }

@@ -308,7 +308,6 @@ export component HomewardWindow inherits Window {
     callback device-power(int,int,ProPowerIntent);
     callback device-module(ProModuleIntent);
     callback device-brightness(int,int,float);
-    callback device-stop-tracking(int,int);
     callback device-details(int,int);
     in property <FocusRequest> home-focus;
     in property <int> projection-version;
@@ -766,7 +765,6 @@ export component HomewardWindow inherits Window {
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
                     brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
-                    stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
                     details(token,generation) => { root.device-details(token,generation); }
                     gesture(token,generation,gesture) => { root.recipe-gesture(token,generation,gesture); }
                 }
@@ -835,7 +833,6 @@ export component HomewardWindow inherits Window {
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
                     brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
-                    stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
                     details(token,generation) => { root.device-details(token,generation); }
                     gesture(token,generation,gesture) => { root.recipe-gesture(token,generation,gesture); }
                 }
@@ -847,7 +844,6 @@ export component HomewardWindow inherits Window {
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
                     brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
-                    stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
                     details(token,generation) => { root.device-details(token,generation); }
                 }
                 KitButton { disabled: !root.content-interactive; visible: !root.native-page && root.page != ViewPage.detail; theme: root.theme; text: "All Items"; control-size: comfortable; activated => { root.room-view = RoomView.list; root.content-focus(); } }
@@ -985,7 +981,6 @@ export component HomewardWindow inherits Window {
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
                     brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
-                    stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
                 }
                 if root.media-visible && (root.media-has-data || root.media-notice != "" || root.show-detail-history): HomewardMedia {
                     width: min(detail-scroll.visible-width,480px);
@@ -1062,7 +1057,6 @@ export component HomewardWindow inherits Window {
         edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
         choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
         brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
-        stop-tracking(token,generation) => { root.device-stop-tracking(token,generation); }
         details(token,generation) => { root.device-details(token,generation); }
         gesture(token,generation,gesture) => { root.recipe-gesture(token,generation,gesture); }
     }

@@ -34,6 +34,9 @@ macro_rules! card_row {
         pub(crate) struct CardRow {
             $(pub $field: $ty,)*
             pub modular: bool,
+            /// A gesture is in flight and the row shows its intended value.
+            /// Host-only: the Pro row keeps tracking phases internal.
+            pub pending: bool,
             pub control_family: crate::ProControlFamily,
             pub modules: Vec<super::modules::Row>,
             pub cover_operations: Vec<ProCoverChoice>,

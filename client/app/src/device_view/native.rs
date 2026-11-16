@@ -135,8 +135,8 @@ pub(super) fn observe_step(
         let pending = &state.native_steps.pending[&pending_key];
         let release = pending.life.load(std::sync::atomic::Ordering::SeqCst) == 2
             || pending.action.as_ref().is_some_and(|id| {
-                state.actions.iter().any(|(_, action)| {
-                    &action.request_id() == id && resolved_step(&action.snapshot())
+                state.actions.iter().any(|action| {
+                    &action.handle.request_id() == id && resolved_step(&action.handle.snapshot())
                 })
             });
         reconcile_step(state, key, pending_key, initial, release);
@@ -163,26 +163,15 @@ fn reconcile_step(
         state.drafts.insert(key, locked);
     }
 }
+// A step is released by any terminal admission state: a confirmed, refused,
+// failed, unverified or unknown outcome all hand the editor back to the
+// fresh observation. Only a job still in flight keeps the proposed value.
 fn resolved_step(snapshot: &home_client_actions::capabilities::CapabilitySnapshot) -> bool {
-    if snapshot.operation.as_ref().is_some_and(|operation| {
-        matches!(
-            operation.completion(),
-            home_wire_contract::api_command_operations::CommandCompletion::Success {
-                outcome: home_wire_contract::api_command_operations::CommandOutcome::SentUnverified,
-                ..
-            }
-        )
-    }) {
-        return true;
+    use home_client_actions::capabilities::{JobState, job_state};
+    match job_state(snapshot) {
+        JobState::Pending(_) => false,
+        JobState::Terminal(_) => true,
     }
-    matches!(
-        super::progress::presentation(Some(snapshot)).0,
-        crate::ProActionPhase::Confirmed
-            | crate::ProActionPhase::AcknowledgedUnverified
-            | crate::ProActionPhase::Refused
-            | crate::ProActionPhase::Failed
-            | crate::ProActionPhase::Cancelled
-    )
 }
 pub(super) fn edit_step(
     state: &mut super::State,
@@ -203,10 +192,18 @@ pub(super) fn edit_step(
         .get(&key)
         .cloned()
         .ok_or(Refusal::Unavailable)?;
-    if let Some(pending) = state.native_steps.pending.get(&key) {
-        if pending.life.load(std::sync::atomic::Ordering::SeqCst) != 2 {
-            return Err(Refusal::Capacity);
-        }
+    // A sent step still awaiting its outcome is the base of the next step:
+    // repeated taps accumulate (latest wins) instead of being refused. A step
+    // whose preparation is still in progress keeps its short exclusive window.
+    let stacked = match state.native_steps.pending.get(&key) {
+        Some(pending) => match pending.life.load(std::sync::atomic::Ordering::SeqCst) {
+            0 => return Err(Refusal::Capacity),
+            1 => Some(pending.proposed.clone()),
+            _ => None,
+        },
+        None => None,
+    };
+    if stacked.is_none() {
         state.native_steps.pending.remove(&key);
         reset_draft(state, key, &observed);
     }
@@ -217,26 +214,37 @@ pub(super) fn edit_step(
         .ok_or(Refusal::Stale)?
         .target
         .clone();
-    if state.native_steps.pending.values().any(|pending| {
-        pending.target == target && pending.life.load(std::sync::atomic::Ordering::SeqCst) != 2
-    }) || state
-        .actions
-        .iter()
-        .any(|(other, action)| other == &target && !action.is_finished())
-    {
+    if state.native_steps.pending.iter().any(|(other, pending)| {
+        other != &key
+            && pending.target == target
+            && pending.life.load(std::sync::atomic::Ordering::SeqCst) != 2
+    }) {
         return Err(Refusal::Capacity);
     }
     if state.native_steps.pending.len() >= super::MAX_ACTION_HISTORY {
         return Err(Refusal::Capacity);
     }
     let draft = state.drafts.get(&key).ok_or(Refusal::Stale)?;
-    if draft.dirty || !draft.error.is_empty() || draft.lower != observed || !draft.upper.is_empty()
-    {
-        return Err(Refusal::Stale);
-    }
+    let base = match &stacked {
+        Some(proposed) => proposed.clone(),
+        None => {
+            if draft.dirty
+                || !draft.error.is_empty()
+                || draft.lower != observed
+                || !draft.upper.is_empty()
+            {
+                return Err(Refusal::Stale);
+            }
+            observed.clone()
+        }
+    };
     let mut candidate = draft.clone();
+    candidate.lower = base.clone();
+    candidate.upper.clear();
+    candidate.error.clear();
+    candidate.dirty = false;
     editor.edit(&mut candidate, intent, control)?;
-    if candidate.lower == observed {
+    if candidate.lower == base {
         return Ok(None);
     }
     let submit = crate::ProValueIntent {
@@ -701,6 +709,19 @@ mod tests {
         request.dashboard = LayoutState::Ready(Arc::new(layout));
         (request, entity)
     }
+    fn prepared_target(store: &DeviceStore, row: &super::super::presentation::CardRow) -> CapabilityName {
+        let state = store.0.lock().unwrap();
+        state
+            .context
+            .as_ref()
+            .unwrap()
+            .slots
+            .iter()
+            .find(|slot| slot.generation == super::super::CardGeneration(row.generation))
+            .unwrap()
+            .target
+            .clone()
+    }
     fn step() -> crate::ProValueIntent {
         crate::ProValueIntent {
             event: crate::ProValueEvent::Step,
@@ -739,10 +760,13 @@ mod tests {
         assert!(
             matches!(home_wire_contract::api_contract::encode_command(&prepared.request).command, Some(wire::execute_capability_request::Command::TemperatureControl(value)) if matches!(value.setpoint, Some(wire::set_temperature_control_command::Setpoint::SetpointCelsius(20.5))))
         );
-        assert!(matches!(
-            store.edit(row.token, row.generation, 0, 0, step()),
-            Err(Refusal::Capacity)
-        ));
+        assert!(
+            matches!(
+                store.edit(row.token, row.generation, 0, 0, step()),
+                Err(Refusal::Capacity)
+            ),
+            "a step whose preparation is still in progress keeps its window"
+        );
         let updated = store.project(CachePhase::Live, Some(&capture), &request);
         let updated = &updated.native_devices[&NodeId::parse("tile").unwrap()];
         assert!(updated.readings.contains("20 °C"));
@@ -767,7 +791,7 @@ mod tests {
         store.abandon_native_step(row.token, row.generation);
     }
     #[test]
-    fn thermostat_step_does_not_release_uncertain_timeout_or_stopped_tracking() {
+    fn thermostat_step_is_released_by_every_terminal_outcome_and_held_only_in_flight() {
         use home_client_actions::capabilities::{
             CapabilitySnapshot, CapabilitySubmission, CapabilityTracking,
         };
@@ -782,20 +806,70 @@ mod tests {
             failure: None,
             issue: None,
         };
-        assert!(!resolved_step(&snapshot));
+        assert!(
+            resolved_step(&snapshot),
+            "an unknown outcome never keeps the editor locked"
+        );
+        snapshot.submission = CapabilitySubmission::Accepted;
         for tracking in [
             CapabilityTracking::Unavailable,
             CapabilityTracking::Interrupted,
             CapabilityTracking::Stopped,
         ] {
             snapshot.tracking = tracking;
-            assert!(!resolved_step(&snapshot));
+            assert!(resolved_step(&snapshot));
+        }
+        for (submission, tracking) in [
+            (CapabilitySubmission::Prepared, CapabilityTracking::Waiting),
+            (CapabilitySubmission::Sending, CapabilityTracking::Waiting),
+            (CapabilitySubmission::Deferred, CapabilityTracking::Waiting),
+            (CapabilitySubmission::Accepted, CapabilityTracking::Live),
+        ] {
+            snapshot.submission = submission;
+            snapshot.tracking = tracking;
+            assert!(!resolved_step(&snapshot), "{submission:?} is still in flight");
         }
         snapshot.tracking = CapabilityTracking::Waiting;
         snapshot.submission = CapabilitySubmission::NotSent;
         assert!(resolved_step(&snapshot));
         snapshot.submission = CapabilitySubmission::Rejected;
         assert!(resolved_step(&snapshot));
+    }
+    #[test]
+    fn thermostat_steps_stack_on_a_sent_step_instead_of_being_refused() {
+        use crate::device_view::progress::tests::snapshot;
+        let (request, entity) = thermostat_fixture();
+        let store = DeviceStore::default();
+        let capture = view(&request, vec![entity]);
+        let projected = store.project(CachePhase::Live, Some(&capture), &request);
+        let row = projected.native_devices[&NodeId::parse("tile").unwrap()].clone();
+        let first = store
+            .edit(row.token, row.generation, 0, 0, step())
+            .unwrap()
+            .unwrap();
+        let prepared = store.prepare(row.token, row.generation, 0, first).unwrap();
+        let pending = snapshot(None);
+        {
+            let mut state = store.0.lock().unwrap();
+            attach_step(&mut state, &prepared.target, &pending.request_id);
+        }
+        drop(prepared);
+        store.project(CachePhase::Live, Some(&capture), &request);
+        // The sent step is still in flight: the next tap builds on 20.5.
+        let second = store
+            .edit(row.token, row.generation, 0, 0, step())
+            .unwrap()
+            .expect("a later gesture is queued, not refused");
+        let command = store.prepare(row.token, row.generation, 0, second).unwrap();
+        assert!(
+            matches!(home_wire_contract::api_contract::encode_command(&command.request).command,
+            Some(wire::execute_capability_request::Command::TemperatureControl(value))
+            if matches!(value.setpoint,Some(wire::set_temperature_control_command::Setpoint::SetpointCelsius(21.0))))
+        );
+        let key = (super::super::CardGeneration(row.generation), 0);
+        let state = store.0.lock().unwrap();
+        assert_eq!(state.native_steps.pending[&key].proposed, "21");
+        assert_eq!(state.native_steps.pending[&key].original, "20");
     }
     #[test]
     fn terminal_unverified_step_releases_the_lease_and_uses_fresh_observation() {
@@ -834,10 +908,17 @@ mod tests {
             assert_eq!(state.native_steps.pending.len(), 1);
             assert_eq!(state.drafts[&key].lower, "20.5");
         }
-        assert!(matches!(
-            store.edit(row.token, row.generation, 0, 0, step()),
-            Err(Refusal::Capacity)
-        ));
+        assert!(
+            store
+                .edit(row.token, row.generation, 0, 0, step())
+                .unwrap()
+                .is_some(),
+            "a sent step still in flight is the base of the next gesture"
+        );
+        {
+            let mut state = store.0.lock().unwrap();
+            attach_step(&mut state, &prepared_target(&store, &row), &pending.request_id);
+        }
         let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
         let (phase, notice, _) = crate::device_view::progress::presentation(Some(&terminal));
         assert_eq!(phase, crate::ProActionPhase::AcknowledgedUnverified);
@@ -907,10 +988,23 @@ mod tests {
                 .dirty,
             "accepted or ambiguous delivery cannot be reset by dropping the guard or cancelling preparation"
         );
-        assert!(matches!(
-            store.edit(row.token, row.generation, 0, 0, step()),
-            Err(Refusal::Capacity)
-        ));
+        let stacked = store
+            .edit(row.token, row.generation, 0, 0, step())
+            .unwrap()
+            .expect("a sent step is the base of the next explicit gesture");
+        let prepared = store.prepare(row.token, row.generation, 0, stacked).unwrap();
+        {
+            let mut state = store.0.lock().unwrap();
+            attach_step(
+                &mut state,
+                &prepared.target,
+                &home_client_model::api::RequestId::try_from(
+                    "22345678-1234-4123-8123-123456789abc",
+                )
+                .unwrap(),
+            );
+        }
+        drop(prepared);
         api_fixture::temperature_mut(&mut entity)
             .observation
             .get_or_insert_default()

@@ -395,7 +395,7 @@ async fn run(fixture: Fixture) -> Result<()> {
         let observed = observed_capability(&view, &selected)?.r#trait;
         let intention = prepared.request.clone();
         let handle = admit(controller.submit(prepared.request, prepared.guard))?;
-        store.remember(prepared.target, handle.clone());
+        store.remember(prepared.target, handle.clone(), &intention.intent());
         until(&handle, |snapshot| {
             snapshot.operation.as_ref().is_some_and(|p| {
                 p.phase() == CommandPhase::Acknowledged

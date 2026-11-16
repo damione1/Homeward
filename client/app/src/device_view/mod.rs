@@ -191,7 +191,7 @@ struct State {
     temporal: Vec<(usize, crate::environment_view::Presentation, Option<String>)>,
     serial: CardGeneration,
     context: Option<Context>,
-    actions: VecDeque<(CapabilityName, CapabilityHandle)>,
+    actions: VecDeque<Action>,
     drafts: BTreeMap<(CardGeneration, i32), panel::Draft>,
     draft_basis: Option<draft_retention::Basis>,
     retained_drafts: Option<draft_retention::Saved>,
@@ -201,6 +201,104 @@ struct State {
     recipe_bindings: recipes::Bindings,
     native_steps: native::Steps,
     module_drafts: BTreeMap<CardGeneration, modules::Draft>,
+}
+/// One submitted gesture and what its control shows while it is pending.
+struct Action {
+    target: CapabilityName,
+    handle: CapabilityHandle,
+    intended: Intended,
+    /// Observed values when the gesture was first projected. A later delta
+    /// that differs from them is a fresh observation: it wins over the intent.
+    basis: Option<ObservedBasis>,
+}
+/// The value a gesture asks for, as the row can show it. Values edited through
+/// their own editor (thermostat steps, numeric fields) keep their draft.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Intended {
+    Power(bool),
+    Brightness(f32),
+    Light {
+        on: Option<bool>,
+        brightness: Option<f32>,
+    },
+    Unrepresented,
+}
+impl Intended {
+    fn from_intent(intent: &home_client_model::api::Intent) -> Self {
+        use home_client_model::api::Intent;
+        match intent {
+            Intent::Power(power) => Self::Power(match power {
+                home_client_model::api::Power::On => true,
+                home_client_model::api::Power::Off => false,
+            }),
+            Intent::Level(level) => Self::Brightness(level.value() as f32),
+            Intent::Light(light) => Self::Light {
+                on: light.on(),
+                brightness: light.brightness().map(|value| value.value() as f32),
+            },
+            Intent::Fan(_)
+            | Intent::Thermal(_)
+            | Intent::Cover(_)
+            | Intent::Lock(_)
+            | Intent::Alarm(_)
+            | Intent::Helper(_)
+            | Intent::Media(_) => Self::Unrepresented,
+        }
+    }
+    fn overlay(self, row: &mut CardRow) {
+        match self {
+            Self::Power(on) => {
+                row.power_known = true;
+                row.power_on = on;
+            }
+            Self::Brightness(percent) => {
+                row.brightness_known = true;
+                row.brightness_percent = percent;
+            }
+            Self::Light { on, brightness } => {
+                if let Some(on) = on {
+                    row.power_known = true;
+                    row.power_on = on;
+                }
+                if let Some(percent) = brightness {
+                    row.brightness_known = true;
+                    row.brightness_percent = percent;
+                }
+            }
+            Self::Unrepresented => {}
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ObservedBasis {
+    power_known: bool,
+    power_on: bool,
+    brightness_known: bool,
+    brightness_percent: f32,
+}
+impl ObservedBasis {
+    fn of(row: &CardRow) -> Self {
+        Self {
+            power_known: row.power_known,
+            power_on: row.power_on,
+            brightness_known: row.brightness_known,
+            brightness_percent: row.brightness_percent,
+        }
+    }
+}
+impl Action {
+    /// Shows the intended value while the gesture is pending, unless a fresh
+    /// observation already arrived: then the observed state wins.
+    fn present(&mut self, row: &mut CardRow) {
+        let observed = ObservedBasis::of(row);
+        match self.basis {
+            None => self.basis = Some(observed),
+            Some(basis) if basis != observed => return,
+            Some(_) => {}
+        }
+        row.pending = true;
+        self.intended.overlay(row);
+    }
 }
 #[derive(Clone)]
 pub(crate) struct DeviceStore(Arc<Mutex<State>>, Option<tokio::runtime::Handle>);
@@ -390,8 +488,8 @@ impl DeviceStore {
         state.native_steps = native::Steps::default();
         state.selections.clear();
         state.serial = CardGeneration(state.serial.0.saturating_add(1));
-        for (_, handle) in state.actions.drain(..) {
-            handle.stop_tracking();
+        for action in state.actions.drain(..) {
+            action.handle.stop_tracking();
         }
     }
     #[cfg(test)]
@@ -698,7 +796,7 @@ impl DeviceStore {
                 incarnation: view.incarnation().clone(),
                 expires: view.expires().clone(),
                 slots,
-                live: phase == CachePhase::Live,
+                live: matches!(phase, CachePhase::Live | CachePhase::Degraded),
                 native_nodes: native_nodes
                     .iter()
                     .map(|node| (node.id.clone(), node.kind))
@@ -909,16 +1007,23 @@ impl DeviceStore {
                     }
                 }
             }
-            let snapshot = state
+            let action = state
                 .actions
-                .iter()
-                .find(|(target, _)| target == &slot.target)
-                .map(|(_, handle)| handle.snapshot());
+                .iter_mut()
+                .find(|action| action.target == slot.target);
+            let snapshot = action.as_ref().map(|action| action.handle.snapshot());
             let (phase, label, detail) = progress::presentation(snapshot.as_deref());
-            row.command_unavailable |= progress::blocks_input(snapshot.as_deref());
             row.phase = phase;
             row.action_label = label.into();
             row.action_detail = detail.into();
+            match progress::display(snapshot.as_deref()) {
+                progress::ControlDisplay::Pending => {
+                    if let Some(action) = action {
+                        action.present(row);
+                    }
+                }
+                progress::ControlDisplay::Observed | progress::ControlDisplay::Reverted(_) => {}
+            }
         }
         if let Some((source, lock)) = associated {
             let lock_row = state
@@ -1202,50 +1307,36 @@ impl DeviceStore {
             })
             .ok_or(Refusal::Unsupported)
     }
-    pub fn stop(&self, token: i32, generation: i32, revision: i32) {
-        let handle = {
-            let state = self.0.lock().expect("device store mutex");
-            let Some(context) = state.context.as_ref() else {
-                return;
-            };
-            if !context.source_current() || context.revision != revision {
-                return;
-            }
-            let Some(slot) = usize::try_from(token)
-                .ok()
-                .and_then(|index| context.slots.get(index))
-                .filter(|slot| slot.generation == CardGeneration(generation))
-            else {
-                return;
-            };
-            state
-                .actions
-                .iter()
-                .find(|(target, _)| target == &slot.target)
-                .map(|(_, handle)| handle.clone())
-        };
-        if let Some(handle) = handle {
-            handle.stop_tracking();
-        }
-    }
-    pub fn remember(&self, target: CapabilityName, handle: CapabilityHandle) {
+    pub fn remember(
+        &self,
+        target: CapabilityName,
+        handle: CapabilityHandle,
+        intent: &home_client_model::api::Intent,
+    ) {
         let mut state = self.0.lock().expect("device store mutex");
         native::attach_step(&mut state, &target, &handle.request_id());
-        state.actions.retain(|(old, _)| old != &target);
+        // The latest gesture is the control's story; its predecessor's
+        // outcome no longer drives the row.
+        state.actions.retain(|old| old.target != target);
         // At most 32 controller records can still be active. Retaining 64
         // presentation records permits eviction of a finished older record.
         if state.actions.len() == MAX_ACTION_HISTORY {
             let retired = state
                 .actions
                 .iter()
-                .position(|(_, action)| action.is_finished());
+                .position(|action| action.handle.is_finished());
             if let Some(index) = retired {
                 state.actions.remove(index);
             } else {
                 state.actions.pop_front();
             }
         }
-        state.actions.push_back((target, handle));
+        state.actions.push_back(Action {
+            target,
+            handle,
+            intended: Intended::from_intent(intent),
+            basis: None,
+        });
     }
     pub fn prepare(
         &self,
@@ -1277,14 +1368,7 @@ impl DeviceStore {
             None
         };
         let arguments = match intent {
-            DeviceIntent::Module(command) => {
-                if state.actions.iter().any(|(target, handle)| {
-                    target == &slot.target && progress::blocks_input(Some(&handle.snapshot()))
-                }) {
-                    return Err(Refusal::Capacity);
-                }
-                modules::arguments(slot, command)?
-            }
+            DeviceIntent::Module(command) => modules::arguments(slot, command)?,
             intent @ DeviceIntent::Power(_)
             | intent @ DeviceIntent::Brightness(_)
             | intent @ DeviceIntent::ColorTemperature(_)

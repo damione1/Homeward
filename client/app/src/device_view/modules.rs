@@ -202,13 +202,6 @@ impl DeviceStore {
         {
             return Err(Refusal::Stale);
         }
-        if !local
-            && state.actions.iter().any(|(target, handle)| {
-                target == &slot.target && super::progress::blocks_input(Some(&handle.snapshot()))
-            })
-        {
-            return Err(Refusal::Capacity);
-        }
         let draft = state.module_drafts.entry(slot.generation).or_default();
         if event.event == ProModuleEvent::Numeric && event.value.event == ProValueEvent::Cancel {
             draft.text = None;
