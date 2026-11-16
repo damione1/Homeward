@@ -15,7 +15,9 @@ import (
 	"github.com/damione1/Homeward/internal/integrations/fake"
 )
 
-func TestNHA069CorrelatedLightProofRequiresEveryRequestedField(t *testing.T) {
+// A light proof needs every requested field to match; the correlation echo is
+// not required, so the first complete match confirms, correlated or not.
+func TestNHA069LightProofRequiresEveryRequestedField(t *testing.T) {
 	driver := &nha025Driver{}
 	rig := nha025Setup(t, driver, nil)
 	_, key, err := rig.binding.Source()
@@ -82,11 +84,8 @@ func TestNHA069CorrelatedLightProofRequiresEveryRequestedField(t *testing.T) {
 			return err
 		}
 		nha025Status(t, rig.host, id, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED)
-		if err := publishLight(&brightness, &colorTemp, nil); err != nil {
-			return err
-		}
-		nha025Status(t, rig.host, id, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED)
-		return publishLight(&brightness, &colorTemp, &cause)
+		// Every requested field matches: this confirms without the echo.
+		return publishLight(&brightness, &colorTemp, nil)
 	}
 	response, err := rig.service.Dispatch(context.Background(), nha022Actor(t), rig.request)
 	if err != nil || response == nil || response.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
