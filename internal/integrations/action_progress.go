@@ -13,6 +13,7 @@ import (
 
 	"github.com/damione1/Homeward/contracts"
 	actions "github.com/damione1/Homeward/gen/home/actions/v1"
+	wireregistry "github.com/damione1/Homeward/gen/home/registry/v1"
 	"github.com/damione1/Homeward/internal/domain"
 	"github.com/damione1/Homeward/internal/observability"
 )
@@ -119,6 +120,47 @@ const (
 	proofFan
 )
 
+// Tolerance is the admitted distance between a requested continuous value and
+// a confirming observation. A declared step admits half a step either side, so
+// a device that quantizes or fades to the nearest level still confirms. Without
+// a declared step the comparison is exact.
+type Tolerance struct{ value float64 }
+
+func HalfStepTolerance(bounds *wireregistry.NumberBounds) Tolerance {
+	if bounds == nil || bounds.Step == nil {
+		return Tolerance{}
+	}
+	step := *bounds.Step
+	if !(step > 0) || math.IsInf(step, 0) {
+		return Tolerance{}
+	}
+	return Tolerance{value: step / 2}
+}
+
+func (t Tolerance) Admits(observed, requested float64) bool {
+	return math.Abs(observed-requested) <= t.value+1e-6
+}
+
+// RouteTolerances are derived once from the admitted capability description.
+type RouteTolerances struct {
+	brightness Tolerance
+	colorTemp  Tolerance
+	fanLevel   Tolerance
+}
+
+func tolerancesFor(description *wireregistry.CapabilityDescription) RouteTolerances {
+	// The constraints branch is an evolving external oneof: unknown branches
+	// carry no continuous value and keep exact comparison.
+	switch constraints := description.GetConstraints().(type) {
+	case *wireregistry.CapabilityDescription_Light:
+		return RouteTolerances{brightness: HalfStepTolerance(constraints.Light.GetBrightnessPercent()), colorTemp: HalfStepTolerance(constraints.Light.GetColorTempMireds())}
+	case *wireregistry.CapabilityDescription_Fan:
+		return RouteTolerances{fanLevel: HalfStepTolerance(constraints.Fan.GetLevel())}
+	default:
+		return RouteTolerances{}
+	}
+}
+
 type actionPredicate struct {
 	kind          actionProofKind
 	on            bool
@@ -132,6 +174,70 @@ type actionPredicate struct {
 	fanSpeed      string
 	fanLevel      *float64
 	hasFanSpeed   bool
+	tolerances    RouteTolerances
+}
+
+// matches reports whether a fresh critical observation satisfies every
+// requested field of the predicate. A light schema may report a switch value.
+func (p actionPredicate) matches(value domain.StateValue, schema string) bool {
+	switch p.kind {
+	case proofSwitch:
+		on, isSwitch := value.Switch()
+		if !isSwitch && schema == contracts.LightSchema {
+			if light, isLight := value.Light(); isLight {
+				lightParts, err := light.Components()
+				on, isSwitch = lightParts.On, err == nil
+			}
+		}
+		return isSwitch && on == p.on
+	case proofLight:
+		light, isLight := value.Light()
+		if !isLight {
+			return false
+		}
+		lightParts, err := light.Components()
+		if err != nil {
+			return false
+		}
+		if p.hasOn && lightParts.On != p.on {
+			return false
+		}
+		if p.hasBrightness && (lightParts.Brightness == nil || !p.tolerances.brightness.Admits(*lightParts.Brightness, p.brightness)) {
+			return false
+		}
+		if p.hasColorTemp && (lightParts.ColorTemperatureMireds == nil || !p.tolerances.colorTemp.Admits(float64(*lightParts.ColorTemperatureMireds), float64(p.colorTemp))) {
+			return false
+		}
+		if p.rgb != nil && (lightParts.RGB == nil || *lightParts.RGB != *p.rgb) {
+			return false
+		}
+		if p.preset != nil && (lightParts.Preset == nil || *lightParts.Preset != *p.preset) {
+			return false
+		}
+		return true
+	case proofFan:
+		speed, isFan := value.Fan()
+		if !isFan {
+			return false
+		}
+		parts, err := speed.Components()
+		if err != nil {
+			return false
+		}
+		if p.hasFanSpeed && (parts.Speed == nil || *parts.Speed != p.fanSpeed) {
+			return false
+		}
+		if p.fanLevel != nil && (parts.Level == nil || !p.tolerances.fanLevel.Admits(*parts.Level, *p.fanLevel)) {
+			return false
+		}
+		if p.hasOn && (parts.On == nil || *parts.On != p.on) {
+			return false
+		}
+		return true
+	case proofUnavailable:
+		return false
+	}
+	return false
 }
 
 func predicateFor(request *actions.CommandRequest) actionPredicate {
@@ -208,8 +314,9 @@ func predicateFor(request *actions.CommandRequest) actionPredicate {
 	return actionPredicate{}
 }
 
-func predicateForTarget(request *actions.CommandRequest, target lightTarget) actionPredicate {
+func predicateForTarget(request *actions.CommandRequest, target lightTarget, tolerances RouteTolerances) actionPredicate {
 	predicate := predicateFor(request)
+	predicate.tolerances = tolerances
 	if target.profile == nil || !target.hasBrightness {
 		return predicate
 	}
@@ -246,18 +353,29 @@ type actionEntry struct {
 	light            *lightEncodingSnapshot
 	subs             map[*ActionSubscription]struct{}
 }
+
+// actionRoute is the exact observed slot a command targets. Every fresh
+// observation of that slot admitted after the command entered its driver is
+// evidence for the command, whether or not the driver echoed the correlation.
+type actionRoute struct {
+	entity           domain.EntityID
+	instance         domain.IntegrationInstanceID
+	session          string
+	endpoint, schema string
+}
 type actionTracker struct {
 	observation   *observability.Cells
 	mu            sync.Mutex
 	clock         ActionClock
 	entries       map[domain.CommandID]*actionEntry
 	byCorrelation map[domain.CorrelationID]*actionEntry
+	byRoute       map[actionRoute][]*actionEntry
 	retained      int
 	subCount      int
 }
 
 func newActionTracker(clock ActionClock) *actionTracker {
-	return &actionTracker{clock: clock, entries: make(map[domain.CommandID]*actionEntry), byCorrelation: make(map[domain.CorrelationID]*actionEntry)}
+	return &actionTracker{clock: clock, entries: make(map[domain.CommandID]*actionEntry), byCorrelation: make(map[domain.CorrelationID]*actionEntry), byRoute: make(map[actionRoute][]*actionEntry)}
 }
 
 // SetActionClock is a trusted test/composition seam, usable before any lease.
@@ -285,10 +403,10 @@ func newActionCorrelation() (domain.CorrelationID, error) {
 }
 
 func (t *actionTracker) accept(id domain.CommandID, entity domain.EntityID, binding Binding, request *actions.CommandRequest, point ActionPoint, correlation domain.CorrelationID, remaining time.Duration) (*actionEntry, error) {
-	return t.acceptTarget(id, entity, binding, request, lightTarget{}, point, correlation, remaining)
+	return t.acceptTarget(id, entity, binding, request, lightTarget{}, RouteTolerances{}, point, correlation, remaining)
 }
 
-func (t *actionTracker) acceptTarget(id domain.CommandID, entity domain.EntityID, binding Binding, request *actions.CommandRequest, target lightTarget, point ActionPoint, correlation domain.CorrelationID, remaining time.Duration) (*actionEntry, error) {
+func (t *actionTracker) acceptTarget(id domain.CommandID, entity domain.EntityID, binding Binding, request *actions.CommandRequest, target lightTarget, tolerances RouteTolerances, point ActionPoint, correlation domain.CorrelationID, remaining time.Duration) (*actionEntry, error) {
 	if t == nil || request == nil || !point.valid || remaining <= 0 || request.Endpoint == "" || request.CapabilitySchemaId == "" {
 		return nil, ErrInvalidInput
 	}
@@ -322,9 +440,11 @@ func (t *actionTracker) acceptTarget(id domain.CommandID, entity domain.EntityID
 	if len(t.entries) >= maxVolatileEntries || cost > 128<<20-t.retained {
 		return nil, ErrActionProgressFull
 	}
-	entry := &actionEntry{snapshot: ActionSnapshot{Command: id, Status: actions.ActionStatus_ACTION_STATUS_ACCEPTED, Sequence: 1, ConfigRevision: request.ConfigRevision}, entity: entity, instance: binding.instance, session: binding.session, endpoint: request.Endpoint, schema: request.CapabilitySchemaId, correlation: correlation, point: point, deadline: t.clock.MonoNow() + remaining, predicate: predicateForTarget(request, target), light: target.profile, subs: make(map[*ActionSubscription]struct{})}
+	entry := &actionEntry{snapshot: ActionSnapshot{Command: id, Status: actions.ActionStatus_ACTION_STATUS_ACCEPTED, Sequence: 1, ConfigRevision: request.ConfigRevision}, entity: entity, instance: binding.instance, session: binding.session, endpoint: request.Endpoint, schema: request.CapabilitySchemaId, correlation: correlation, point: point, deadline: t.clock.MonoNow() + remaining, predicate: predicateForTarget(request, target, tolerances), light: target.profile, subs: make(map[*ActionSubscription]struct{})}
 	t.entries[id] = entry
 	t.byCorrelation[correlation] = entry
+	route := actionRoute{entity: entity, instance: binding.instance, session: binding.session, endpoint: request.Endpoint, schema: request.CapabilitySchemaId}
+	t.byRoute[route] = append(t.byRoute[route], entry)
 	t.retained += cost
 	return entry, nil
 }
@@ -462,18 +582,17 @@ func (t *actionTracker) protocol(e *actionEntry) error {
 	return nil
 }
 
+// observe confirms every entered, non-terminal command on the observed slot
+// whose predicate the fresh critical value satisfies. The sequencer point
+// orders the observation strictly after the command's route admission, so a
+// read taken before the command cannot confirm it. A correlated echo is not
+// required: drivers that never echo the correlation, or whose single echo is
+// read mid-transition, are confirmed by the next matching observation.
 func (t *actionTracker) observe(binding Binding, endpoint, schema string, currentLight *lightEncodingSnapshot, receipt ActionReceipt) {
-	if !receipt.valid || endpoint == "" || schema == "" {
+	if !receipt.valid || endpoint == "" || schema == "" || receipt.instance != binding.instance {
 		return
 	}
-	_, correlation, err := receipt.causality.Components()
-	if err != nil || correlation == nil {
-		return
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	e := t.byCorrelation[*correlation]
-	if e == nil || !e.entered || terminalAction(e.snapshot.Status) || e.entity != binding.entity || e.instance != binding.instance || e.session != binding.session || e.endpoint != endpoint || e.schema != schema || schema == contracts.LightSchema && e.light != currentLight || e.point.sequence >= receipt.point.sequence || e.point.revision >= receipt.point.revision || e.point.tick > receipt.point.tick || receipt.instance != binding.instance {
+	if _, _, err := receipt.causality.Components(); err != nil {
 		return
 	}
 	stateEntity, _, _, _, _, stateErr := receipt.state.Components()
@@ -488,49 +607,18 @@ func (t *actionTracker) observe(binding Binding, endpoint, schema string, curren
 	if !ok {
 		return
 	}
-	switch e.predicate.kind {
-	case proofSwitch:
-		on, isSwitch := value.Switch()
-		if !isSwitch && e.schema == contracts.LightSchema {
-			if light, isLight := value.Light(); isLight {
-				lightParts, lightPartsErr := light.Components()
-				on, err = lightParts.On, lightPartsErr
-				isSwitch = err == nil
-			}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	route := actionRoute{entity: binding.entity, instance: binding.instance, session: binding.session, endpoint: endpoint, schema: schema}
+	for _, e := range t.byRoute[route] {
+		if !e.entered || terminalAction(e.snapshot.Status) || schema == contracts.LightSchema && e.light != currentLight || e.point.sequence >= receipt.point.sequence || e.point.revision >= receipt.point.revision || e.point.tick > receipt.point.tick {
+			continue
 		}
-		if isSwitch && on == e.predicate.on {
-			t.expire(e)
-			t.advance(e, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
-		}
-	case proofLight:
-		light, isLight := value.Light()
-		if !isLight {
-			return
-		}
-		lightParts, lightPartsErr := light.Components()
-		on, brightness, colorTemp, err := lightParts.On, lightParts.Brightness, lightParts.ColorTemperatureMireds, lightPartsErr
-		if err != nil || (e.predicate.hasOn && on != e.predicate.on) ||
-			(e.predicate.hasBrightness && (brightness == nil || math.Abs(*brightness-e.predicate.brightness) > 1e-6)) ||
-			(e.predicate.hasColorTemp && (colorTemp == nil || *colorTemp != e.predicate.colorTemp)) ||
-			(e.predicate.rgb != nil && (lightParts.RGB == nil || *lightParts.RGB != *e.predicate.rgb)) ||
-			(e.predicate.preset != nil && (lightParts.Preset == nil || *lightParts.Preset != *e.predicate.preset)) {
-			return
+		if !e.predicate.matches(value, e.schema) {
+			continue
 		}
 		t.expire(e)
 		t.advance(e, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
-	case proofFan:
-		speed, isFan := value.Fan()
-		parts, err := speed.Components()
-		if !isFan || err != nil || (e.predicate.hasFanSpeed && (parts.Speed == nil || *parts.Speed != e.predicate.fanSpeed)) ||
-			(e.predicate.fanLevel != nil && (parts.Level == nil || *parts.Level != *e.predicate.fanLevel)) ||
-			(e.predicate.hasOn && (parts.On == nil || *parts.On != e.predicate.on)) {
-			return
-		}
-
-		t.expire(e)
-		t.advance(e, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
-	case proofUnavailable:
-	default:
 	}
 }
 
