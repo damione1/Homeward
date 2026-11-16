@@ -517,7 +517,7 @@ impl CacheRows {
             );
         }
         let mut changed = Vec::new();
-        let offline = projection.phase != CachePhase::Live;
+        let offline = !matches!(projection.phase, CachePhase::Live | CachePhase::Degraded);
         let mut rows = BTreeMap::new();
         for row in projection.rows {
             let index = row.index;
@@ -1561,6 +1561,7 @@ fn connection_status(phase: CachePhase) -> ConnectionStatus {
             ConnectionStatus::Connecting
         }
         CachePhase::Live => ConnectionStatus::Live,
+        CachePhase::Degraded => ConnectionStatus::Connecting,
         CachePhase::Offline => ConnectionStatus::Offline,
         CachePhase::Blocked | CachePhase::Invalid => ConnectionStatus::Blocked,
     }
@@ -1576,6 +1577,7 @@ fn cache_status(phase: CachePhase, total: usize) -> String {
                 "States up to date"
             }
         }
+        CachePhase::Degraded => "Reconnecting · latest received data",
         CachePhase::Offline => "Offline · latest received data",
         CachePhase::Resyncing => "Refreshing the authorized view…",
         CachePhase::Suspended => "Reading suspended",

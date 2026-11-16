@@ -5,23 +5,49 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{AccessToken, EntityViewTransport, EntityViewWatch, Failure};
 
-/// Unlimited outage recovery: Fibonacci seconds, capped at one hour. Each
+/// Longest single wait of a Fibonacci backoff, in whole seconds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BackoffCeiling(u64);
+
+impl BackoffCeiling {
+    /// Background polling may sleep up to one hour between attempts.
+    pub const HOUR: Self = Self(3600);
+    /// A read stream that keeps a retained view reconnects within 30 s so a
+    /// short network hiccup never leaves controls stale for minutes.
+    pub const READ_STREAM: Self = Self(30);
+}
+
+/// Unlimited outage recovery: Fibonacci seconds, capped at the ceiling. Each
 /// successful connection starts a fresh sequence. Manual retry skips a wait.
-#[derive(Default)]
 pub struct FibonacciBackoff {
     previous: u64,
     next: u64,
+    ceiling: BackoffCeiling,
+}
+
+impl Default for FibonacciBackoff {
+    fn default() -> Self {
+        Self::with_ceiling(BackoffCeiling::HOUR)
+    }
 }
 
 impl FibonacciBackoff {
+    pub fn with_ceiling(ceiling: BackoffCeiling) -> Self {
+        Self {
+            previous: 0,
+            next: 0,
+            ceiling,
+        }
+    }
+
     pub fn next_delay(&mut self) -> Duration {
         let delay = self.next.max(1);
-        (self.previous, self.next) = (delay, (self.previous + delay).min(3600));
+        (self.previous, self.next) = (delay, (self.previous + delay).min(self.ceiling.0));
         Duration::from_secs(delay)
     }
 
     pub fn reset(&mut self) {
-        *self = Self::default();
+        *self = Self::with_ceiling(self.ceiling);
     }
 }
 
@@ -129,6 +155,18 @@ mod tests {
         backoff.reset();
         assert_eq!(backoff.next_delay(), Duration::from_secs(1));
         assert_eq!(backoff.next_delay(), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn read_stream_backoff_caps_at_thirty_seconds_and_keeps_its_ceiling_after_reset() {
+        let mut backoff = FibonacciBackoff::with_ceiling(BackoffCeiling::READ_STREAM);
+        for seconds in [1, 1, 2, 3, 5, 8, 13, 21, 30, 30, 30] {
+            assert_eq!(backoff.next_delay(), Duration::from_secs(seconds));
+        }
+        backoff.reset();
+        for seconds in [1, 1, 2, 3, 5, 8, 13, 21, 30, 30] {
+            assert_eq!(backoff.next_delay(), Duration::from_secs(seconds));
+        }
     }
 
     #[test]

@@ -326,7 +326,12 @@ pub(super) fn project(
         .context
         .as_ref()
         .zip(view)
-        .filter(|_| matches!(phase, CachePhase::Live | CachePhase::Offline))
+        .filter(|_| {
+            matches!(
+                phase,
+                CachePhase::Live | CachePhase::Degraded | CachePhase::Offline
+            )
+        })
     else {
         state.recipe_bindings.snapshot = None;
         return BTreeMap::new();

@@ -53,7 +53,10 @@ impl Basis {
         let deadline = layout
             .binding_expires?
             .min((view.expires().seconds, view.expires().nanos));
-        (phase == CachePhase::Live && layout.compatible(view) && deadline > now()).then_some(Self {
+        (matches!(phase, CachePhase::Live | CachePhase::Degraded)
+            && layout.compatible(view)
+            && deadline > now())
+        .then_some(Self {
             source: view.source_proof().cloned(),
             scope: Scope::from(request),
             layout,
@@ -71,7 +74,7 @@ impl Basis {
         let (Some(view), Some(layout)) = (view, request.dashboard.layout()) else {
             return false;
         };
-        phase == CachePhase::Live
+        matches!(phase, CachePhase::Live | CachePhase::Degraded)
             && self.source.as_ref().is_none_or(|old| {
                 view.source_proof()
                     .is_some_and(|new| old.same_presentation(new) && new.is_current())
