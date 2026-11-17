@@ -993,6 +993,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                 token: row.token,
                 selected: value.selected.as_ref() == Some(&row.target),
                 cells: ModelRc::new(VecModel::from(vec![row.title.into(), row.detail.into()])),
+                content: ModelRc::default(),
                 disabled: false,
             })
             .collect::<Vec<_>>(),

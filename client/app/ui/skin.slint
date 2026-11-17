@@ -20,13 +20,17 @@ export global HomewardSkin {
             selection: dark ? #4d437c : #dedaf8,
             on-selection: dark ? #ffffff : #2f2690,
             danger: dark ? #ffadb4 : #b42332,
-            danger-hover: base.danger-hover, danger-pressed: base.danger-pressed,
+            on-danger: base.on-danger, danger-hover: base.danger-hover, danger-pressed: base.danger-pressed,
             danger-subtle: dark ? #492b34 : #fce5e8,
             success: dark ? #8dddb6 : #1d6b49,
+            on-success: base.on-success, success-hover: base.success-hover, success-pressed: base.success-pressed,
             success-subtle: dark ? #263e35 : #dff3e9,
             warning: dark ? #f2d98d : #7a5600,
+            on-warning: base.on-warning, warning-hover: base.warning-hover, warning-pressed: base.warning-pressed,
             warning-subtle: dark ? #413b29 : #fcf1cf,
             information: dark ? #9dc9f5 : #1f5e99,
+            on-information: base.on-information, information-hover: base.information-hover,
+            information-pressed: base.information-pressed,
             information-subtle: dark ? #28394b : #e0eefa,
             border-subtle: dark ? #383c47 : #f0f1f4,
             border-strong: dark ? #818797 : #89909b,
@@ -46,8 +50,8 @@ export global HomewardSkin {
             spacing: { unit: 4px, compact: base.spacing.compact,
                 medium: base.spacing.medium,
                 comfortable: { height: 48px, padding-inline: 16px, padding-block: 12px } },
-            motion: base.motion, icons: base.icons,
-            reduced-motion: reduced, text-scale: scale
+            motion: base.motion, icons: base.icons, geometry: base.geometry,
+            reduced-motion: reduced, text-scale: scale, direction: base.direction
         };
     }
 }

@@ -747,8 +747,9 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                                     accessible_label: day.to_string().into(),
                                     enabled: true,
                                     selected: Some(day) == start,
-                                    in_range: day.month() == first.month(),
+                                    in_range: false,
                                     today: value.today == Some(day),
+                                    outside_month: day.month() != first.month(),
                                 })
                         })
                         .collect()

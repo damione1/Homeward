@@ -471,6 +471,7 @@ fn table_row(row: &Row, _offline: bool) -> TableRow {
     TableRow {
         token: row.index as i32,
         cells: ModelRc::from(row.cells.clone().map(SharedString::from)),
+        content: ModelRc::default(),
         selected: false,
         disabled: row.id.is_none(),
     }

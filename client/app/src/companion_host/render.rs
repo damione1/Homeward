@@ -423,6 +423,7 @@ pub(super) fn apply(window: &HomewardWindow, p: Projection) {
                 token: (index + 1) as i32,
                 selected: index as i32 == p.selected,
                 cells: ModelRc::new(VecModel::from(vec![a.into(), b.into()])),
+                content: ModelRc::default(),
                 disabled: false,
             })
             .collect::<Vec<_>>(),
