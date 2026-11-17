@@ -1,6 +1,6 @@
 use super::state::{State, Status};
 use crate::{
-    CalendarDay, CalendarDraftView, CalendarPresentation, CivilDateView, ContentItem,
+    CalendarDay, CalendarDraftView, CalendarMarker, CalendarPresentation, CivilDateView, ContentItem,
     HomewardWindow, LocalDateTimeView, LocalTimeView, ProAgendaAccess, ProAgendaColumn,
     ProAgendaDay, ProAgendaMode, ProAgendaPhase, ProAgendaRow, ProAgendaTemporalKind,
     ZonedTimePresentation,
@@ -750,6 +750,8 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
                                     in_range: false,
                                     today: value.today == Some(day),
                                     outside_month: day.month() != first.month(),
+                                    marker: CalendarMarker::None,
+                                    caption: slint::SharedString::new(),
                                 })
                         })
                         .collect()

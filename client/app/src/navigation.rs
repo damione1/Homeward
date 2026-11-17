@@ -661,6 +661,7 @@ fn reason(reason: CloseReason) -> DismissReason {
         CloseReason::OutsidePress => DismissReason::OutsidePress,
         CloseReason::SystemBack => DismissReason::SystemBack,
         CloseReason::TriggerToggle => DismissReason::TriggerToggle,
+        CloseReason::CloseButton => DismissReason::CloseButton,
         CloseReason::Programmatic => DismissReason::Programmatic,
         CloseReason::HostClosed => DismissReason::HostClosed,
     }

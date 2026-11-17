@@ -115,6 +115,7 @@ impl Selection {
                     CloseReason::OutsidePress => slint_kit::DismissReason::OutsidePress,
                     CloseReason::SystemBack => slint_kit::DismissReason::SystemBack,
                     CloseReason::TriggerToggle => slint_kit::DismissReason::TriggerToggle,
+                    CloseReason::CloseButton => slint_kit::DismissReason::CloseButton,
                     CloseReason::Programmatic => slint_kit::DismissReason::Programmatic,
                     CloseReason::HostClosed => slint_kit::DismissReason::HostClosed,
                 };
