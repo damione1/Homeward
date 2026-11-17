@@ -3108,6 +3108,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "mime"
+version = "0.3.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5848f5a9e8117cf94f2f90faac24a87ff81600ff8628c1e3deaab572e76bfa1"
+
+[[package]]
+name = "mime_guess"
+version = "2.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7c44f8e672c00fe5308fa235f821cb4198414e1c77935c1ab6948d3fd78550e"
+dependencies = [
+ "mime",
+ "unicase",
+]
+
+[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3818,6 +3834,12 @@ checksum = "1567535334d6ba2d3cde19221ba9a7bd0fabb3cbd99046ddfb10ae061cfcc889"
 dependencies = [
  "icu_properties",
 ]
+
+[[package]]
+name = "paste"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "percent-encoding"
@@ -4880,7 +4902,7 @@ dependencies = [
 
 [[package]]
 name = "slint-kit"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "slint",
  "slint-kit-core",
@@ -4889,7 +4911,7 @@ dependencies = [
 
 [[package]]
 name = "slint-kit-build"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "slint-build",
  "slint-kit-core",
@@ -4898,10 +4920,11 @@ dependencies = [
 
 [[package]]
 name = "slint-kit-core"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "chrono",
  "chrono-tz",
+ "mime_guess",
  "num-bigint",
  "num-rational",
  "num-traits",
@@ -4932,8 +4955,9 @@ dependencies = [
 
 [[package]]
 name = "slint-kit-slint"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
+ "paste",
  "slint",
  "slint-build",
  "slint-kit-core",
