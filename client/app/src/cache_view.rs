@@ -1150,6 +1150,7 @@ pub(crate) fn render(
             ),
             available: item.id.is_some(),
             active: false,
+            tone: crate::dashboard_widget_reading::observation_tone(item.icon),
         })
         .collect::<Vec<_>>();
     let total = projection.total;
@@ -1190,7 +1191,9 @@ pub(crate) fn render(
                 })
                 .collect(),
         );
-        let board = std::mem::take(&mut projection.board);
+        let board = std::mem::take(&mut projection.board).with_appearance(
+            crate::dashboard_presentation::Appearance::from_dark(window.get_dark_mode()),
+        );
         let before_generation = model.serial.get();
         model.apply(generation, projection);
         if !matches!(

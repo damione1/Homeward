@@ -3089,3 +3089,68 @@ fn temporal_hidden_freshness_is_not_a_reason_to_reproject_native_or_detail_prese
         "native entity tiles do not display observed_age"
     );
 }
+
+#[test]
+fn a_compact_fan_tap_cycles_to_the_speed_after_the_observed_one() {
+    let request = request();
+    let mut entity = light(&request);
+    let fan = |speed: Option<&str>| {
+        Some(wire::capability::Trait::FanControl(Box::new(
+            wire::FanControlCapability {
+                level: wire::ControlLevelDefinition {
+                    definition: Some(wire::control_level_definition::Definition::Steps(Box::new(
+                        wire::ControlChoices {
+                            choices: ["Low", "High"]
+                                .into_iter()
+                                .map(|key| wire::ControlChoice {
+                                    display_name: key.into(),
+                                    key: key.into(),
+                                    ..Default::default()
+                                })
+                                .collect(),
+                            ..Default::default()
+                        },
+                    ))),
+                    ..Default::default()
+                }
+                .into(),
+                observation: speed
+                    .map(|speed| wire::FanControlObservation {
+                        quality: fixture::quality().into(),
+                        speed: Some(speed.into()),
+                        ..Default::default()
+                    })
+                    .into(),
+                ..Default::default()
+            },
+        )))
+    };
+    let store = DeviceStore::default();
+    let mut next = |speed: Option<&str>| {
+        entity.capabilities[0].r#trait = fan(speed);
+        let row = store
+            .project(
+                CachePhase::Live,
+                Some(&view(&request, vec![entity.clone()])),
+                &request,
+            )
+            .rows
+            .remove(0);
+        let DeviceIntent::FanSpeed(key) = store.next_choice(row.token, row.generation, 0).unwrap()
+        else {
+            panic!("a fan tap cycles its speed");
+        };
+        key.as_str().to_owned()
+    };
+    assert_eq!(next(Some("Low")), "High");
+    assert_eq!(
+        next(Some("High")),
+        "Low",
+        "the last speed wraps to the first"
+    );
+    assert_eq!(
+        next(None),
+        "Low",
+        "without an observed speed the tap starts the cycle"
+    );
+}

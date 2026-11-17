@@ -6,11 +6,18 @@ use std::{
     path::Path,
 };
 
+/// The theme the window is painted under.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-enum Appearance {
+pub(crate) enum Appearance {
     #[default]
     Light,
     Dark,
+}
+impl Appearance {
+    /// The appearance behind the window's `dark-mode` switch.
+    pub(crate) fn from_dark(dark: bool) -> Self {
+        if dark { Self::Dark } else { Self::Light }
+    }
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 enum Surfaces {
@@ -49,11 +56,7 @@ enum Saved {
 impl Preferences {
     pub fn from_ui(dark: bool, opaque: bool, large: bool, reduced: bool) -> Self {
         Self {
-            appearance: if dark {
-                Appearance::Dark
-            } else {
-                Appearance::Light
-            },
+            appearance: Appearance::from_dark(dark),
             surfaces: if opaque {
                 Surfaces::Opaque
             } else {

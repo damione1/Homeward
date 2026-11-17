@@ -117,6 +117,31 @@ impl Field {
         }
     }
 }
+// The tone an observation chip wears, from the icon the configuration admits
+// for it: security and water read as calm success, time and sky as
+// information, supplies as warning, running equipment as accent, places as
+// neutral. The chip's own `active` state still decides whether it is filled.
+pub(crate) fn observation_tone(icon: wire::DashboardIcon) -> crate::Tone {
+    use crate::Tone;
+    use wire::DashboardIcon as I;
+    match icon {
+        I::Shield | I::Lock | I::Water => Tone::Success,
+        I::Sun | I::Information | I::Clock => Tone::Information,
+        I::Shopping | I::Battery => Tone::Warning,
+        I::Power | I::Music | I::Fan | I::Light | I::Thermostat | I::Scene => Tone::Accent,
+        I::Unspecified
+        | I::Home
+        | I::Grid
+        | I::Sofa
+        | I::Kitchen
+        | I::Bed
+        | I::Garage
+        | I::Tree
+        | I::Office
+        | I::Bath
+        | I::Child => Tone::Neutral,
+    }
+}
 #[derive(Clone, Default)]
 pub(crate) struct ObservationReading {
     pub title: String,
@@ -263,6 +288,9 @@ impl Reading {
                             .get(index)
                             .map(|item| crate::dashboard_icons::glyph(item.icon, icon))
                             .unwrap_or_else(|| icon.clone()),
+                        tone: items
+                            .get(index)
+                            .map_or(crate::Tone::Neutral, |item| observation_tone(item.icon)),
                         ..Default::default()
                     })
                     .collect::<Vec<_>>();

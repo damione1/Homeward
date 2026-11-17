@@ -1307,6 +1307,50 @@ impl DeviceStore {
             })
             .ok_or(Refusal::Unsupported)
     }
+    /// The compact fan tile's tap: the speed after the observed one, wrapping
+    /// to the first. Other controls have no ordered levels to cycle.
+    pub fn next_choice(
+        &self,
+        token: i32,
+        generation: i32,
+        revision: i32,
+    ) -> Result<DeviceIntent, Refusal> {
+        let state = self.0.lock().expect("device store mutex");
+        let slot = active_slot(&state, token, generation, revision)?;
+        match &slot.control {
+            Control::Fan(fan) => {
+                use wire::capability::Trait as T;
+                let speeds = fan.speeds();
+                let observed = match slot.capability.r#trait.as_ref() {
+                    Some(T::FanControl(value))
+                        if observation::evidence(&slot.capability).is_some() =>
+                    {
+                        value.observation.speed.as_deref()
+                    }
+                    Some(_) | None => None,
+                };
+                let current = observed
+                    .and_then(|speed| speeds.iter().position(|(key, _)| key.as_str() == speed));
+                let next = current.map_or(0, |index| (index + 1) % speeds.len().max(1));
+                speeds
+                    .get(next)
+                    .map(|(key, _)| DeviceIntent::FanSpeed(key.clone()))
+                    .ok_or(Refusal::Unsupported)
+            }
+            Control::Switch { .. }
+            | Control::Light { .. }
+            | Control::Level { .. }
+            | Control::Climate(_)
+            | Control::Helper(_)
+            | Control::Cover(_)
+            | Control::Lock(_)
+            | Control::Alarm(_)
+            | Control::Binary
+            | Control::Measurement
+            | Control::ReadOnly(_)
+            | Control::Unsupported => Err(Refusal::Unsupported),
+        }
+    }
     pub fn remember(
         &self,
         target: CapabilityName,
