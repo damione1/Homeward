@@ -96,14 +96,18 @@ export component HomewardLists inherits Rectangle {
         if (root.editor-open) { root.close-editor(); return true; }
         return false;
     }
-    function selector-step(step: NavigationStep) {
+    // page-rows is the select's measured popup capacity; the kit rejects page
+    // keys while it is 0, so a page step always moves by a measured page.
+    function selector-step(step: NavigationStep, page-rows: int) {
         if (!root.selector-open) { root.selector-query = ""; root.selector-index = max(0,root.option-index); root.selector-open = true; }
         root.selector-prefix = "";
         if (root.selector-options.length > 0) {
             if (step == NavigationStep.first) { root.selector-index = 0; }
             else if (step == NavigationStep.last) { root.selector-index = root.selector-options.length - 1; }
-            else if (step == NavigationStep.next || step == NavigationStep.page-next) { root.selector-index = min(root.selector-options.length - 1,root.selector-index + 1); }
-            else { root.selector-index = max(0,root.selector-index - 1); }
+            else if (step == NavigationStep.next) { root.selector-index = min(root.selector-options.length - 1,root.selector-index + 1); }
+            else if (step == NavigationStep.page-next) { root.selector-index = min(root.selector-options.length - 1,root.selector-index + max(1,page-rows)); }
+            else if (step == NavigationStep.previous) { root.selector-index = max(0,root.selector-index - 1); }
+            else if (step == NavigationStep.page-previous) { root.selector-index = max(0,root.selector-index - max(1,page-rows)); }
         }
     }
     function selector-typeahead(text: string) {
@@ -144,12 +148,15 @@ export component HomewardLists inherits Rectangle {
                         spacing: 8px;
                         list-selector := KitSelect {
                             theme: root.theme; rows: root.selector-options; state: root.selector-state;
-                            placeholder: root.option-index >= 0 && root.option-index < root.options.length && root.options[root.option-index].token == root.list-token ? root.options[root.option-index].label : "Choose a list"; unavailable-label: "Selected list unavailable";
+                            label: "List"; placeholder: "Choose a list"; searchable: true;
+                            // Search filters the rows, so the selected list keeps its label from the full catalogue.
+                            selected-label: root.option-index >= 0 && root.option-index < root.options.length && root.options[root.option-index].token == root.list-token ? root.options[root.option-index].label : "";
+                            unavailable-label: "Selected list unavailable";
                             control-size: ControlSize.comfortable; access: root.catalog-ready && root.list-visible ? FieldAccess.editable : FieldAccess.disabled;
                             preferred-width: min(360px,max(160px,list-pane.width - 32px));
                             open-requested => { root.selector-index = max(0,root.option-index); root.selector-open = !root.selector-open; }
                             activate(token,generation) => { root.selector-open = false; root.choose(token,generation); }
-                            navigate(step) => { root.selector-step(step); }
+                            navigate(step) => { root.selector-step(step,self.page-rows); }
                             query-edited(text) => { root.selector-query = text; root.selector-prefix = ""; root.selector-index = 0; }
                             typeahead(text) => { root.selector-typeahead(text); }
                             dismiss(reason) => { root.selector-open = false; }

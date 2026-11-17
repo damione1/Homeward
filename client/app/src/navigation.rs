@@ -11,9 +11,16 @@ use slint_kit::{
     DismissReason, FocusDirection, FocusHandle, FocusId, FocusRegistry, FocusScopeId, OverlayId,
     OverlaySpec, OverlayStack, Ownership, SelectBinding, SelectOption, SelectionIntent,
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, num::NonZeroUsize, rc::Rc};
 
 const DRAWER: OverlayId = OverlayId(1);
+
+/// A view's measured page capacity, parsed once at the Slint boundary.
+/// Zero or a negative value means the viewport is not measured yet; the kit
+/// then rejects page steps instead of guessing a page size.
+pub(crate) fn measured_page_rows(rows: i32) -> Option<NonZeroUsize> {
+    usize::try_from(rows).ok().and_then(NonZeroUsize::new)
+}
 const MODAL: FocusScopeId = FocusScopeId(1);
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Section {
@@ -824,15 +831,18 @@ pub(crate) fn bind_devices(
     let target = selection.clone();
     window.on_navigation_typeahead(move |text| target.typeahead(text.as_str()));
     let target = selection.clone();
-    window.on_navigation_step(move |step| {
-        target.navigate(match step {
-            NavigationStep::Next => slint_kit::NavigationStep::Next,
-            NavigationStep::Previous => slint_kit::NavigationStep::Previous,
-            NavigationStep::First => slint_kit::NavigationStep::First,
-            NavigationStep::Last => slint_kit::NavigationStep::Last,
-            NavigationStep::PageNext => slint_kit::NavigationStep::PageNext,
-            NavigationStep::PagePrevious => slint_kit::NavigationStep::PagePrevious,
-        })
+    window.on_navigation_step(move |step, page_rows| {
+        target.navigate(
+            match step {
+                NavigationStep::Next => slint_kit::NavigationStep::Next,
+                NavigationStep::Previous => slint_kit::NavigationStep::Previous,
+                NavigationStep::First => slint_kit::NavigationStep::First,
+                NavigationStep::Last => slint_kit::NavigationStep::Last,
+                NavigationStep::PageNext => slint_kit::NavigationStep::PageNext,
+                NavigationStep::PagePrevious => slint_kit::NavigationStep::PagePrevious,
+            },
+            measured_page_rows(page_rows),
+        )
     });
     let (state, weak) = (shared.clone(), window.as_weak());
     window.on_content_focus(move || {
@@ -2102,7 +2112,11 @@ mod back_tests {
         window.show().unwrap();
         let trigger = ElementQuery::from_root(&window)
             .match_inherits("KitSelectTrigger")
-            .match_predicate(|item| item.accessible_label().as_deref() == Some("Choose a list"))
+            // Kit 0.8.0: the label names the select; no list is selected yet.
+            .match_predicate(|item| {
+                item.accessible_label().as_deref() == Some("List")
+                    && item.accessible_value().as_deref() == Some("")
+            })
             .find_first()
             .unwrap();
         trigger.mock_single_click(PointerEventButton::Left);

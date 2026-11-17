@@ -236,7 +236,8 @@ export component HomewardWindow inherits Window {
     callback dashboard-catalogue-cleared();
     callback dashboard-choice-open();
     callback dashboard-choice-activate(int,int);
-    callback dashboard-choice-step(NavigationStep);
+    // The int is the select's measured page-rows (0 until its popup is measured).
+    callback dashboard-choice-step(NavigationStep,int);
     callback dashboard-choice-dismiss(CloseReason);
     callback dashboard-choice-typeahead(string);
     in property <string> greeting: "Welcome";
@@ -421,7 +422,8 @@ export component HomewardWindow inherits Window {
     callback navigation-reopen();
     callback navigation-dismiss(CloseReason);
     callback navigation-activate(int,int);
-    callback navigation-step(NavigationStep);
+    // The int is the shell's measured navigation-page-rows (0 when unmeasured).
+    callback navigation-step(NavigationStep,int);
     callback navigation-typeahead(string);
     callback modal-next(bool);
     callback shell-observed(ProShellFocus,bool);
@@ -625,7 +627,7 @@ export component HomewardWindow inherits Window {
         navigation-open => { root.navigation-open(); }
         navigation-dismiss(reason) => { root.navigation-dismiss(reason); }
         navigation-activate(token,generation) => { root.navigation-activate(token,generation); }
-        navigation-step(step) => { root.navigation-step(step); }
+        navigation-step(step) => { root.navigation-step(step,self.navigation-page-rows); }
         navigation-typeahead(text) => { root.navigation-typeahead(text); }
         query-edited(text) => { root.query-edited(text); }
         workspace-requested => { root.choose-room(); }
@@ -731,11 +733,11 @@ export component HomewardWindow inherits Window {
                 }
                 if root.dashboard-choices.length > 1: KitSelect {
                     theme: root.theme; rows: root.dashboard-choices; state: root.dashboard-choice-state;
-                    placeholder: "Choose Dashboard"; control-size: comfortable;
+                    label: "Dashboard"; placeholder: "Choose Dashboard"; control-size: comfortable;
                     access: root.content-interactive ? FieldAccess.editable : FieldAccess.disabled;
                     open-requested => { root.dashboard-choice-open(); }
                     activate(token,generation) => { root.dashboard-choice-activate(token,generation); }
-                    navigate(step) => { root.dashboard-choice-step(step); }
+                    navigate(step) => { root.dashboard-choice-step(step,self.page-rows); }
                     dismiss(reason) => { root.dashboard-choice-dismiss(reason); }
                     typeahead(text) => { root.dashboard-choice-typeahead(text); }
                 }

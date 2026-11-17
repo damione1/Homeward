@@ -227,15 +227,18 @@ pub(crate) fn bind(window: &HomewardWindow, choices: Choices, changed: impl Fn()
     window
         .on_dashboard_choice_activate(move |token, generation| target.activate(token, generation));
     let target = binding.clone();
-    window.on_dashboard_choice_step(move |step| {
-        target.navigate(match step {
-            crate::NavigationStep::Next => slint_kit::NavigationStep::Next,
-            crate::NavigationStep::Previous => slint_kit::NavigationStep::Previous,
-            crate::NavigationStep::First => slint_kit::NavigationStep::First,
-            crate::NavigationStep::Last => slint_kit::NavigationStep::Last,
-            crate::NavigationStep::PageNext => slint_kit::NavigationStep::PageNext,
-            crate::NavigationStep::PagePrevious => slint_kit::NavigationStep::PagePrevious,
-        })
+    window.on_dashboard_choice_step(move |step, page_rows| {
+        target.navigate(
+            match step {
+                crate::NavigationStep::Next => slint_kit::NavigationStep::Next,
+                crate::NavigationStep::Previous => slint_kit::NavigationStep::Previous,
+                crate::NavigationStep::First => slint_kit::NavigationStep::First,
+                crate::NavigationStep::Last => slint_kit::NavigationStep::Last,
+                crate::NavigationStep::PageNext => slint_kit::NavigationStep::PageNext,
+                crate::NavigationStep::PagePrevious => slint_kit::NavigationStep::PagePrevious,
+            },
+            crate::navigation::measured_page_rows(page_rows),
+        )
     });
     let target = binding.clone();
     window.on_dashboard_choice_dismiss(move |_| target.dismiss(DismissReason::Programmatic));

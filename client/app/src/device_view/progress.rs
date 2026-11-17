@@ -350,7 +350,8 @@ pub(crate) mod tests {
                 .expect("real detail slider")
         };
         publish(&snapshot(None), crate::ProControlAccess::Allowed);
-        assert_eq!(slider().accessible_value().as_deref(), Some("62%"));
+        // Kit 0.8.0: the accessible value is numeric; the readout is the description.
+        assert_eq!(slider().accessible_value().as_deref(), Some("62"));
         render("ack-pending");
         slider().invoke_accessible_increment_action();
         assert!(calls.borrow().is_empty(), "pending ACK blocks input");

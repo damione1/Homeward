@@ -801,13 +801,23 @@ mod tests {
             .row_data(window.get_lists_option_index() as usize)
             .unwrap()
             .label;
-        assert!(ElementQuery::from_root(&window).match_inherits("KitSelectTrigger").match_predicate(move |e|e.accessible_label().as_deref()==Some(expected.as_str())).find_first().is_some());
+        // Kit 0.8.0: the select's label is its accessible name; the
+        // selected list is its accessible value.
+        assert!(
+            ElementQuery::from_root(&window)
+                .match_inherits("KitSelectTrigger")
+                .match_predicate(move |e| e.accessible_label().as_deref() == Some("List")
+                    && e.accessible_value().as_deref() == Some(expected.as_str()))
+                .find_first()
+                .is_some()
+        );
         state.clear();
         render(&window, Projection::new(&state));
         assert!(
             ElementQuery::from_root(&window)
                 .match_inherits("KitSelectTrigger")
-                .match_predicate(|e| e.accessible_label().as_deref() == Some("Choose a list"))
+                .match_predicate(|e| e.accessible_label().as_deref() == Some("List")
+                    && e.accessible_value().as_deref() == Some(""))
                 .find_first()
                 .is_some()
         );
@@ -861,7 +871,10 @@ mod tests {
         let trigger = || {
             ElementQuery::from_root(&window)
                 .match_inherits("KitSelectTrigger")
-                .match_predicate(|e| e.accessible_label().as_deref() == Some("Beta store"))
+                .match_predicate(|e| {
+                    e.accessible_label().as_deref() == Some("List")
+                        && e.accessible_value().as_deref() == Some("Beta store")
+                })
                 .find_first()
                 .unwrap()
         };
