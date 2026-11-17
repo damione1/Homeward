@@ -55,6 +55,11 @@ pub(crate) enum Write {
     MoveFirst,
     MoveUp,
     MoveDown,
+    /// Mark the selected item as a sub-item of the row above it: the summary
+    /// gains the nesting marker; the position does not change.
+    Nest,
+    /// Return the selected sub-item to the top level by removing the marker.
+    Unnest,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WriteKind {
@@ -66,6 +71,8 @@ enum WriteKind {
     Complete,
     DeleteItem,
     Move,
+    /// A summary rewrite that keeps the item's keyed draft untouched.
+    Nesting,
 }
 struct Pending {
     id: u64,
@@ -489,6 +496,8 @@ impl State {
                 | Write::MoveFirst
                 | Write::MoveUp
                 | Write::MoveDown
+                | Write::Nest
+                | Write::Unnest
         ) && self
             .selected_item
             .as_ref()
@@ -522,7 +531,9 @@ impl State {
             | Write::DeleteItem
             | Write::MoveFirst
             | Write::MoveUp
-            | Write::MoveDown => None,
+            | Write::MoveDown
+            | Write::Nest
+            | Write::Unnest => None,
         };
         let (kind, intent) = match write {
             Write::Create(name) if self.catalog_phase == Freshness::Online => (
@@ -620,7 +631,9 @@ impl State {
                     | Write::Add(_)
                     | Write::Save
                     | Write::Complete(_)
-                    | Write::DeleteItem => unreachable!(),
+                    | Write::DeleteItem
+                    | Write::Nest
+                    | Write::Unnest => unreachable!(),
                 };
                 (
                     WriteKind::Move,
@@ -628,6 +641,41 @@ impl State {
                         target,
                         destination: after.map_or(MoveDestination::AtStart, MoveDestination::After),
                     },
+                )
+            }
+            Write::Nest | Write::Unnest => {
+                use crate::list_host::item_text;
+                let selected = self.selected_item.as_ref().ok_or(Refusal::Stale)?;
+                // The raw summary is rewritten; a keyed draft would be
+                // silently rebased, so the item must carry none.
+                if self.drafts.contains_key(selected) {
+                    return Err(Refusal::Invalid);
+                }
+                let (row, target) = self.current_item(selected).ok_or(Refusal::Stale)?;
+                let summary = row.content().summary().as_str();
+                let text = match write {
+                    Write::Nest => item_text::nested(summary),
+                    Write::Unnest => item_text::top_level(summary),
+                    Write::Create(_)
+                    | Write::Rename(_)
+                    | Write::DeleteList
+                    | Write::Add(_)
+                    | Write::Save
+                    | Write::Complete(_)
+                    | Write::DeleteItem
+                    | Write::MoveFirst
+                    | Write::MoveUp
+                    | Write::MoveDown => unreachable!(),
+                };
+                if text == summary {
+                    return Err(Refusal::Invalid);
+                }
+                let payload = row
+                    .content()
+                    .with_summary(TaskText::try_from(text.as_str()).map_err(|_| Refusal::Invalid)?);
+                (
+                    WriteKind::Nesting,
+                    ListWriteIntent::Edit { target, payload },
                 )
             }
         };

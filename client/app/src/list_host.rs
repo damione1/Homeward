@@ -1,6 +1,7 @@
 //! Joined TaskService owner for either the page catalogue/selected list or one
 //! exact dashboard source. Both use the same revision fences, single in-flight
 //! write and coalesced visual publication.
+pub(crate) mod item_text;
 mod projection;
 mod recovery;
 #[cfg(test)]
@@ -63,6 +64,15 @@ fn deferred_publication(
     }
 }
 
+// "Clear completed" removes the checked rows one write at a time: the owner
+// admits a single in-flight write, so the sweep issues the next deletion after
+// each committed one is read back. It ends on the first refusal, on any
+// outcome other than a commit, or when the list or context changes.
+#[derive(Clone, PartialEq, Eq)]
+struct Sweep {
+    list: home_client_model::lists::ListId,
+    context: u64,
+}
 #[derive(Clone)]
 pub(crate) struct Lists(Arc<Inner>);
 struct Inner {
@@ -75,6 +85,10 @@ struct Inner {
     commands: Mutex<Option<mpsc::Sender<Prepared>>>,
     widget: Option<crate::dashboard_widget_host::TaskTarget>,
     session: Mutex<Option<(SessionCoordinator, Option<Generation>)>>,
+    sweep: Mutex<Option<Sweep>>,
+    // Set when fresh rows arrived while a sweep is pending; the run loop then
+    // issues the next deletion outside the read callback's lock.
+    sweep_due: AtomicBool,
 }
 impl Lists {
     fn new(window: Option<slint::Weak<HomewardWindow>>) -> Self {
@@ -96,6 +110,8 @@ impl Lists {
             commands: Mutex::new(None),
             widget,
             session: Mutex::new(None),
+            sweep: Mutex::new(None),
+            sweep_due: AtomicBool::new(false),
         }))
     }
     #[cfg(test)]
@@ -219,9 +235,13 @@ impl Lists {
             ProTaskAction::MoveFirst => owner.select_and_write(token, generation, Write::MoveFirst),
             ProTaskAction::MoveUp => owner.select_and_write(token, generation, Write::MoveUp),
             ProTaskAction::MoveDown => owner.select_and_write(token, generation, Write::MoveDown),
+            ProTaskAction::Nest => owner.select_and_write(token, generation, Write::Nest),
+            ProTaskAction::Unnest => owner.select_and_write(token, generation, Write::Unnest),
             ProTaskAction::Resolve => owner.update(|state| state.resolve(generation)),
             ProTaskAction::Reload => owner.refresh(generation, true),
         });
+        let owner = this.clone();
+        window.on_lists_clear_completed(move |lt, lg| owner.clear_completed(lt, lg));
         let owner = this.clone();
         window.on_lists_create(move |generation, name| {
             owner.write(generation, Write::Create(name.into()))
@@ -247,6 +267,68 @@ impl Lists {
             .lock()
             .expect("list state mutex")
             .matches_list_scope(token, generation)
+    }
+    /// Starts removing every checked row of the list named by the page scope.
+    pub(crate) fn clear_completed(&self, token: i32, generation: i32) {
+        {
+            let state = self.0.state.lock().expect("list state mutex");
+            if !state.matches_list_scope(token, generation) {
+                return;
+            }
+            let Some(list) = state.selected_list.clone() else {
+                return;
+            };
+            *self.0.sweep.lock().expect("list sweep") = Some(Sweep {
+                list,
+                context: state.context,
+            });
+        }
+        self.sweep_next();
+    }
+    fn cancel_sweep(&self) {
+        *self.0.sweep.lock().expect("list sweep") = None;
+    }
+    /// Issues the next deletion of a pending sweep, or ends the sweep when
+    /// nothing checked remains or its scope is gone. A busy owner waits for
+    /// the read-back that follows the in-flight write.
+    fn sweep_next(&self) {
+        let next = {
+            let state = self.0.state.lock().expect("list state mutex");
+            let mut sweep = self.0.sweep.lock().expect("list sweep");
+            let Some(pending) = sweep.as_ref() else {
+                return;
+            };
+            let in_scope = state.context == pending.context
+                && state.selected_list.as_ref() == Some(&pending.list)
+                && state.active
+                && state.foreground
+                && state.catalog_phase == Freshness::Online
+                && state.item_phase == Freshness::Online;
+            if !in_scope {
+                *sweep = None;
+                return;
+            }
+            if state.busy() {
+                return;
+            }
+            let checked = state.items.as_ref().and_then(|snapshot| {
+                let CapturedRows::Items { rows, .. } = &snapshot.rows else {
+                    return None;
+                };
+                rows.iter()
+                    .zip(state.item_tokens.iter())
+                    .find(|(row, _)| row.content().completed())
+                    .map(|(_, token)| *token)
+            });
+            match checked {
+                Some(token) => (token, state.generation),
+                None => {
+                    *sweep = None;
+                    return;
+                }
+            }
+        };
+        self.select_and_write(next.0, next.1, Write::DeleteItem);
     }
     fn publish(&self, state: &State) {
         let value = projection::Projection::new(state);
@@ -287,6 +369,7 @@ impl Lists {
         self.publish(&state);
     }
     pub fn clear(&self) {
+        self.cancel_sweep();
         let mut state = self.0.state.lock().expect("list state mutex");
         state.clear();
         let _ = self.0.mailbox.invalidate();
@@ -334,6 +417,7 @@ impl Lists {
         let id = prepared.id;
         let sender = self.0.commands.lock().expect("list commands mutex").clone();
         if sender.is_none_or(|sender| sender.try_send(prepared).is_err()) {
+            self.cancel_sweep();
             state.finish(
                 context,
                 id,
@@ -444,6 +528,9 @@ impl Lists {
             if self.0.retry.swap(false, Ordering::SeqCst) {
                 let _ = session.allow_new_view_attempt().await;
             }
+            if self.0.sweep_due.swap(false, Ordering::SeqCst) {
+                self.sweep_next();
+            }
             let (active, reading, next, selected, generation) = {
                 let mut state = self.0.state.lock().expect("list state mutex");
                 if source != phases.borrow().generation {
@@ -530,6 +617,9 @@ impl Lists {
                         let (context,id) = (prepared.context,prepared.id);
                         let admission = owner.clone();
                         let result = prepared.mutation.submit(&api,&credential,&stop,Arc::new(move || admission.0.state.lock().expect("list state mutex").admits(context,id)&&admission.widget_source_current())).await;
+                        if !matches!(result, home_client_actions::lists::ListWriteOutcome::Committed(_)) {
+                            owner.cancel_sweep();
+                        }
                         owner.update(|state| { state.finish(context,id,result); Ok(()) });
                         let generation = owner.0.state.lock().expect("list state mutex").generation;
                         owner.refresh(generation,false);
@@ -634,6 +724,11 @@ impl Lists {
                         Scope::Catalog => state.publish_catalog(snapshot),
                         Scope::Items(_) => {
                             let result = state.publish_items(snapshot);
+                            if result.is_ok() && self.0.sweep.lock().expect("list sweep").is_some()
+                            {
+                                self.0.sweep_due.store(true, Ordering::SeqCst);
+                                self.0.changed.notify_one();
+                            }
                             if result.is_ok() && self.0.widget.is_some() {
                                 state.catalog_phase = Freshness::Online;
                                 if let Some((_, source)) =

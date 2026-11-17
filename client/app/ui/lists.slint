@@ -1,5 +1,131 @@
-import { KitTheme, KitTextField, KitWrap, KitScrollArea, KitSelect, OptionRow, SelectState, SelectionAvailability, FieldAccess, NavigationStep, ControlSize, ContentItem } from "@kit";
-import { ProTaskList, ProTaskRow, ProTaskAccess, ProTaskAction, ProIdentityButton, ProGroceries, ProGroceryMode, ProGroceryLayout, ProGrocerySuggestion } from "@kit-pro";
+import { KitTheme, KitThemes, KitTextField, KitWrap, KitScrollArea, KitMenu, MenuItem, MenuItemKind, KitPressable, KitIcon, KitToastHost, ToastEntry, AlertSeverity, OptionRow, SelectState, SelectionAvailability, FieldAccess, NavigationStep, ControlSize, ButtonIntent, ContentItem, ElevationLevel, ShadowLayer, TypographyRole } from "@kit";
+import { LucideIcons } from "@kit/icons/lucide/all.slint";
+import { ProTaskList, ProTaskRow, ProTaskAccess, ProTaskAction, ProTaskRowActions, ProIdentityButton, ProIdentityIconButton, ProGroceries, ProGroceryMode, ProGroceryLayout, ProGrocerySuggestion, ProGroceryComposerPlacement, ProGrocerySuggestionLayout } from "@kit-pro";
+
+// Which management form the page shows above the list; the options menu opens one.
+enum ListManagement { closed, rename, create }
+
+// The rows of the options menu. The menu reports a row token, so each action
+// is named once here and compared by name, never by a bare literal.
+global ListMenuToken {
+    out property <int> rename: 1;
+    out property <int> create: 2;
+    out property <int> refresh: 3;
+    out property <int> delete: 4;
+}
+
+// One list tab: a pill with the list's colour dot, its name and, when known,
+// its open-item count. Identity is fenced like a kit chip: the press reports
+// the token and generation it started on and is cancelled when either changes.
+component ListChip inherits KitPressable {
+    in property <string> label;
+    // Open items of the list; empty draws no badge.
+    in property <string> count;
+    in property <color> dot;
+    in property <bool> selected;
+    in property <bool> compact;
+    in property <int> token;
+    in property <int> generation;
+    // The host raises this serial to move keyboard focus to the selected tab.
+    in property <int> focus-serial;
+    callback activate(int, int);
+    private property <int> press-token;
+    private property <int> press-generation;
+    private property <float> scale: root.theme.text-scale;
+    private property <length> gap: root.theme.spacing.unit * 2;
+    private property <length> dot-size: root.theme.spacing.unit * 2;
+    private property <length> badge-size: (root.compact ? 24px : 26px) * root.scale;
+    private property <length> badge-width: root.count == "" ? 0px : max(root.badge-size, count-text.preferred-width + root.theme.spacing.unit * 2);
+    private property <color> ink: root.disabled ? root.theme.disabled-text : root.selected ? root.theme.success : root.theme.text-primary;
+    private property <ShadowLayer> shadow: KitThemes.shadow(root.theme, ElevationLevel.xs);
+    private property <length> natural-width: 2 * root.padding-inline + root.dot-size + root.gap + label-text.preferred-width + (root.count == "" ? 0px : root.gap + root.badge-width);
+    changed focus-serial => { if (root.selected) { root.take-focus(); } }
+    control-size: ControlSize.comfortable; intent: ButtonIntent.quiet;
+    padding-inline: root.theme.spacing.unit * (root.compact ? 3 : 3.5); padding-block: 0px;
+    min-width: root.natural-width; preferred-width: root.natural-width;
+    corner-radius: min(root.theme.shape.radius-pill, root.height / 2);
+    background: root.disabled ? root.theme.disabled-fill
+        : root.selected ? root.theme.success-subtle
+        : root.pressed ? root.theme.pressed
+        : root.hovered ? root.theme.hover
+        : root.theme.surface;
+    border-width: 0px;
+    drop-shadow-offset-y: root.selected || root.disabled ? 0px : root.shadow.offset-y;
+    drop-shadow-blur: root.selected || root.disabled ? 0px : root.shadow.blur;
+    drop-shadow-color: root.selected || root.disabled ? transparent : root.shadow.color;
+    accessible-name: root.label;
+    // The pressable announces `description`; an empty count announces nothing.
+    description: root.count == "" ? "" : root.count + " to buy";
+    accessible-checkable: true;
+    accessible-checked: root.selected;
+    activation-started => { root.press-token = root.token; root.press-generation = root.generation; }
+    changed token => { root.cancel-press(); }
+    changed generation => { root.cancel-press(); }
+    activated => { root.activate(root.press-token, root.press-generation); }
+    HorizontalLayout {
+        spacing: root.gap; alignment: center;
+        Rectangle {
+            width: root.dot-size; horizontal-stretch: 0;
+            Rectangle { y: (parent.height - self.height) / 2; width: root.dot-size; height: root.dot-size; border-radius: root.dot-size / 2; background: root.disabled ? root.theme.disabled-text : root.dot; }
+        }
+        label-text := Text {
+            text: root.label; color: root.ink; vertical-alignment: center; overflow: elide;
+            font-family: root.theme.typography.family; font-size: 14px * root.scale; font-weight: root.theme.typography.weight-semibold;
+        }
+        if root.count != "": Rectangle {
+            width: root.badge-width; horizontal-stretch: 0;
+            Rectangle {
+                y: (parent.height - self.height) / 2; width: root.badge-width; height: root.badge-size; border-radius: root.badge-size / 2;
+                background: root.selected ? root.theme.surface : root.theme.canvas;
+            }
+        }
+        // Measured outside the badge so the badge width never depends on its own child.
+    }
+    count-text := Text {
+        // A child sits inside the pressable's padded area, so the trailing edge is the parent's.
+        visible: root.count != ""; accessible-role: none;
+        x: parent.width - root.badge-width; y: (parent.height - self.height) / 2; width: root.badge-width; height: root.badge-size;
+        text: root.count; color: root.selected ? root.theme.success : root.theme.text-secondary;
+        horizontal-alignment: center; vertical-alignment: center;
+        font-family: root.theme.typography.family; font-size: 12px * root.scale; font-weight: root.theme.typography.weight-semibold;
+    }
+}
+
+// The trailing "new list" affordance of the tab row: an outlined pill (a round
+// plus on a phone). Slint draws no dashed edges, so the outline is a hairline.
+component NewListChip inherits KitPressable {
+    in property <string> label;
+    in property <bool> compact;
+    in property <int> focus-serial;
+    // Takes the keyboard focus request when no list tab is selected.
+    in property <bool> focus-fallback;
+    private property <float> scale: root.theme.text-scale;
+    private property <length> icon-size: root.theme.spacing.unit * 5;
+    private property <length> natural-width: root.compact ? root.preferred-height : 2 * root.padding-inline + root.icon-size + root.theme.spacing.unit * 2 + measure.preferred-width;
+    changed focus-serial => { if (root.focus-fallback) { root.take-focus(); } }
+    control-size: ControlSize.comfortable; intent: ButtonIntent.quiet;
+    padding-inline: root.compact ? 0px : root.theme.spacing.unit * 3.5; padding-block: 0px;
+    min-width: root.natural-width; preferred-width: root.natural-width;
+    corner-radius: min(root.theme.shape.radius-pill, root.height / 2);
+    background: root.pressed ? root.theme.pressed : root.hovered ? root.theme.hover : transparent;
+    border-width: root.theme.shape.border-width; border-color: root.disabled ? root.theme.border-subtle : root.theme.border-strong;
+    accessible-name: root.label;
+    // Measured outside the layout: a hidden element in a layout would still take space.
+    measure := Text { visible: false; accessible-role: none; text: root.label; font-family: root.theme.typography.family; font-size: 14px * root.scale; font-weight: root.theme.typography.weight-semibold; }
+    HorizontalLayout {
+        spacing: root.theme.spacing.unit * 2; alignment: center;
+        Rectangle {
+            width: root.icon-size; horizontal-stretch: 0;
+            KitIcon { theme: root.theme; y: (parent.height - self.height) / 2; width: root.icon-size; height: root.icon-size; glyph: LucideIcons.plus(); ink: root.disabled ? root.theme.disabled-text : root.theme.text-secondary; }
+        }
+        if !root.compact: Text {
+            text: root.label; color: root.disabled ? root.theme.disabled-text : root.theme.text-secondary;
+            vertical-alignment: center; overflow: elide;
+            font-family: root.theme.typography.family; font-size: 14px * root.scale; font-weight: root.theme.typography.weight-semibold;
+        }
+    }
+}
+
 export component HomewardLists inherits Rectangle {
     horizontal-stretch: 1; vertical-stretch: 1;
     min-width: 0px; preferred-width: 680px; max-width: 100000px;
@@ -10,9 +136,13 @@ export component HomewardLists inherits Rectangle {
     in property <int> list-token;
     in property <int> option-index: -1;
     in property <[ContentItem]> catalog;
+    // One row per list, in catalogue order. `description` carries the open-item
+    // count of the selected list (the only list whose items are read).
     in property <[OptionRow]> options;
     in property <[ProTaskRow]> tasks;
+    // The open rows and the checked rows of the selected list, partitioned by the host.
     in property <[ProTaskRow]> grocery-rows;
+    in property <[ProTaskRow]> completed-rows;
     in property <[ProGrocerySuggestion]> suggestions;
     in property <bool> catalog-ready;
     in property <bool> write-ready;
@@ -33,6 +163,7 @@ export component HomewardLists inherits Rectangle {
     in-out property <string> add-draft;
     out property <bool> editor-focused: task-list.editor-focused;
     out property <length> scroll-y: page.content-y;
+    // Kept for the window's catalogue search bindings; the tab row needs no filter.
     pure callback filter-options([OptionRow],string) -> [OptionRow];
     pure callback find-option([OptionRow],string) -> int;
     callback choose(int,int);
@@ -44,6 +175,8 @@ export component HomewardLists inherits Rectangle {
     callback grocery-remove(int,int,int,int);
     callback grocery-quick-add(int,int,int,int);
     callback grocery-add(int,int,string);
+    // Remove every checked row of the list named by the scope (token, generation).
+    callback clear-completed(int,int);
     callback action(int,int,ProTaskAction);
     callback create(int,string);
     callback rename(int,string);
@@ -51,24 +184,61 @@ export component HomewardLists inherits Rectangle {
     callback add(int,string);
     callback reload(int);
     callback navigate(NavigationStep);
-    private property <bool> selector-open;
-    private property <int> selector-index;
-    private property <string> selector-query;
-    private property <string> selector-prefix;
-    private property <[OptionRow]> selector-options: root.filter-options(root.options,root.selector-query);
-    changed selector-open => { root.selector-query = ""; root.selector-prefix = ""; }
-    private property <bool> management-open;
+    private property <float> scale: root.theme.text-scale;
+    // The phone layout: a tighter tab row and a round "new list" button.
+    private property <bool> compact: root.width < 600px * root.scale;
+    private property <ListManagement> management: ListManagement.closed;
+    private property <bool> menu-open;
+    private property <int> menu-index;
+    private property <int> chip-focus-serial;
     private property <bool> editor-open;
+    private property <bool> completed-expanded;
+    // The last row the user checked here; the toast offers to uncheck it.
+    private property <bool> undo-visible;
+    private property <int> undo-token;
     // A selection intention is acknowledged by identity, not its old generation:
     // the owner advances generation when it accepts the selection.
     private property <int> pending-editor-item;
     private property <int> pending-editor-list;
     private property <bool> inspector-visible: root.editor-open && root.task-selected
         && (root.pending-editor-item == 0 || (root.pending-editor-list == root.list-token && root.pending-editor-item == root.task-selection.token));
-    private property <bool> wide: root.width >= 1040px * root.theme.text-scale;
-    private property <length> inspector-width: root.wide ? min(root.width * 0.42, 480px * root.theme.text-scale) : root.width;
+    private property <bool> wide: root.width >= 1040px * root.scale;
+    private property <length> inspector-width: root.wide ? min(root.width * 0.42, 480px * root.scale) : root.width;
     private property <bool> list-visible: !root.inspector-visible || root.wide;
     private property <int> editor-item-token: root.task-selected ? root.task-selection.token : 0;
+    private property <bool> has-selection: root.list-token != 0 && root.option-index >= 0 && root.option-index < root.options.length;
+    private property <[OptionRow]> menu-rows: [
+        { token: ListMenuToken.rename, generation: root.generation, label: "Rename list", description: "", disabled: !root.write-ready },
+        { token: ListMenuToken.create, generation: root.generation, label: "New list", description: "", disabled: !root.catalog-ready },
+        { token: ListMenuToken.refresh, generation: root.generation, label: "Refresh", description: "", disabled: root.busy },
+        { token: ListMenuToken.delete, generation: root.generation, label: "Delete list", description: "", disabled: !root.write-ready },
+    ];
+    private property <[MenuItem]> menu-items: [
+        { kind: MenuItemKind.action, leading-icon: LucideIcons.pencil(), shortcut: "", destructive: false, checked: false },
+        { kind: MenuItemKind.action, leading-icon: LucideIcons.list-plus(), shortcut: "", destructive: false, checked: false },
+        { kind: MenuItemKind.action, leading-icon: LucideIcons.refresh-cw(), shortcut: "", destructive: false, checked: false },
+        { kind: MenuItemKind.action, leading-icon: LucideIcons.trash(), shortcut: "", destructive: true, checked: false },
+    ];
+    private property <int> menu-last: root.menu-rows.length - 1;
+    private property <SelectState> menu-state: {
+        open: root.menu-open, generation: root.generation,
+        selected: { present: false, token: 0 },
+        selection-availability: SelectionAvailability.absent,
+        active: { present: root.menu-open, token: root.menu-rows[clamp(root.menu-index, 0, root.menu-last)].token },
+        active-index: root.menu-open ? clamp(root.menu-index, 0, root.menu-last) : -1,
+    };
+    // The toast host only exists while `undo-visible`, so this is its one entry.
+    private property <[ToastEntry]> toasts: [{ token: 1, title: "Item checked", message: "", action-label: "Undo", severity: AlertSeverity.success, dismissible: true, dismiss-label: "Dismiss" }];
+    // Lists take their colour from their place in the catalogue, which keeps
+    // resource-name order; five theme tones cycle.
+    pure function list-color(index: int) -> color {
+        let slot = Math.mod(index, 5);
+        return slot == 0 ? root.theme.information
+            : slot == 1 ? root.theme.danger
+            : slot == 2 ? root.theme.warning
+            : slot == 3 ? root.theme.accent
+            : root.theme.success;
+    }
     function acknowledge-editor() {
         if (root.inspector-visible) {
             root.pending-editor-item = 0; root.pending-editor-list = 0;
@@ -78,59 +248,52 @@ export component HomewardLists inherits Rectangle {
     changed inspector-visible => { root.acknowledge-editor(); }
     changed editor-item-token => { root.acknowledge-editor(); }
     function reset-editor() { root.editor-open = false; root.pending-editor-item = 0; root.pending-editor-list = 0; }
-    function close-editor() { root.reset-editor(); list-selector.take-focus(); }
+    function close-editor() { root.reset-editor(); root.take-focus(); }
+    // The menu takes focus itself when it appears (see its `init`).
+    function open-menu() { root.menu-index = 0; root.menu-open = true; page.content-y = 0px; }
+    function close-menu() { if (root.menu-open) { root.menu-open = false; root.take-focus(); } }
+    function open-management(form: ListManagement) { root.management = form; page.content-y = 0px; }
+    function menu-step(step: NavigationStep) {
+        if (step == NavigationStep.first) { root.menu-index = 0; }
+        else if (step == NavigationStep.last) { root.menu-index = root.menu-last; }
+        else if (step == NavigationStep.next) { root.menu-index = min(root.menu-last, root.menu-index + 1); }
+        else if (step == NavigationStep.page-next) { root.menu-index = root.menu-last; }
+        else if (step == NavigationStep.previous) { root.menu-index = max(0, root.menu-index - 1); }
+        else if (step == NavigationStep.page-previous) { root.menu-index = 0; }
+    }
+    function menu-activate(token: int, generation: int) {
+        root.menu-open = false;
+        if (generation != root.generation) { return; }
+        if (token == ListMenuToken.rename) { root.open-management(ListManagement.rename); }
+        else if (token == ListMenuToken.create) { root.open-management(ListManagement.create); }
+        else if (token == ListMenuToken.refresh) { root.reload(generation); }
+        else if (token == ListMenuToken.delete) { root.delete(generation); }
+        root.take-focus();
+    }
+    function submit-add(text: string) {
+        if (root.write-ready && !root.busy && root.list-visible && text != "") { root.grocery-add(root.list-token, root.generation, text); }
+    }
 
-    changed generation => { root.selector-open = false; root.selector-query = ""; root.selector-prefix = ""; root.selector-index = 0; }
-    changed list-token => { root.reset-editor(); root.management-open = false; page.content-y = 0px; }
-    changed privacy-generation => { root.reset-editor(); }
+    changed generation => { root.menu-index = 0; }
+    changed list-token => { root.reset-editor(); root.management = ListManagement.closed; root.menu-open = false; root.completed-expanded = false; root.undo-visible = false; page.content-y = 0px; }
+    changed privacy-generation => { root.reset-editor(); root.management = ListManagement.closed; root.menu-open = false; root.undo-visible = false; }
     changed task-selected => { if (!root.task-selected && root.editor-open) { root.close-editor(); } }
     public function focus-editor() { if (root.inspector-visible) { task-list.focus-editor(); } }
     public function scroll-to(y: length) { page.content-y = y; }
-    public function take-focus() { list-selector.take-focus(); }
+    public function take-focus() { root.chip-focus-serial += 1; }
     public function dismiss-selection-popover() -> bool {
-        if (root.selector-open) {
-            root.selector-open = false;
-            list-selector.take-focus();
-            return true;
-        }
+        if (root.menu-open) { root.close-menu(); return true; }
         if (root.editor-open) { root.close-editor(); return true; }
         return false;
     }
-    // page-rows is the select's measured popup capacity; the kit rejects page
-    // keys while it is 0, so a page step always moves by a measured page.
-    function selector-step(step: NavigationStep, page-rows: int) {
-        if (!root.selector-open) { root.selector-query = ""; root.selector-index = max(0,root.option-index); root.selector-open = true; }
-        root.selector-prefix = "";
-        if (root.selector-options.length > 0) {
-            if (step == NavigationStep.first) { root.selector-index = 0; }
-            else if (step == NavigationStep.last) { root.selector-index = root.selector-options.length - 1; }
-            else if (step == NavigationStep.next) { root.selector-index = min(root.selector-options.length - 1,root.selector-index + 1); }
-            else if (step == NavigationStep.page-next) { root.selector-index = min(root.selector-options.length - 1,root.selector-index + max(1,page-rows)); }
-            else if (step == NavigationStep.previous) { root.selector-index = max(0,root.selector-index - 1); }
-            else if (step == NavigationStep.page-previous) { root.selector-index = max(0,root.selector-index - max(1,page-rows)); }
-        }
+    Timer {
+        interval: 4s; running: root.undo-visible;
+        triggered => { root.undo-visible = false; }
     }
-    function selector-typeahead(text: string) {
-        if (!root.selector-open) { root.selector-query = ""; root.selector-open = true; }
-        let prefix = root.selector-prefix +text;
-        let index = root.find-option(root.selector-options,prefix);
-        if (index >= 0) { root.selector-prefix = prefix; root.selector-index = index; }
-        else {
-            root.selector-prefix = text;
-            let fallback = root.find-option(root.selector-options,text);
-            if (fallback >= 0) { root.selector-index = fallback; }
-        }
-    }
-    private property <SelectState> selector-state: {
-        open: root.selector-open, generation: root.generation,
-        selected: { present: root.list-token != 0, token: root.list-token },
-        selection-availability: root.list-token == 0 ? SelectionAvailability.absent : SelectionAvailability.available,
-        active: { present: root.selector-options.length > 0, token: root.selector-options.length > 0 ? root.selector-options[min(root.selector-options.length - 1,max(0,root.selector-index))].token : 0 },
-        active-index: root.selector-options.length > 0 ? min(root.selector-options.length - 1,max(0,root.selector-index)) : -1,
-    };
     FocusScope {
         capture-key-pressed(event) => {
-            if (event.text == Key.Escape && root.editor-open && !root.selector-open) {
+            if (event.text == Key.Escape && root.menu-open) { root.close-menu(); return accept; }
+            if (event.text == Key.Escape && root.editor-open && !root.menu-open) {
                 root.close-editor(); return accept;
             }
             return reject;
@@ -141,73 +304,120 @@ export component HomewardLists inherits Rectangle {
             width: root.wide && root.inspector-visible ? root.width - root.inspector-width - 16px : root.width;
             height: root.height;
             VerticalLayout {
-                spacing: 8px;
+                spacing: 0px;
                 header := VerticalLayout {
-                    spacing: 8px; padding: 16px;
-                    KitWrap {
-                        spacing: 8px;
-                        list-selector := KitSelect {
-                            theme: root.theme; rows: root.selector-options; state: root.selector-state;
-                            label: "List"; placeholder: "Choose a list"; searchable: true;
-                            // Search filters the rows, so the selected list keeps its label from the full catalogue.
-                            selected-label: root.option-index >= 0 && root.option-index < root.options.length && root.options[root.option-index].token == root.list-token ? root.options[root.option-index].label : "";
-                            unavailable-label: "Selected list unavailable";
-                            control-size: ControlSize.comfortable; access: root.catalog-ready && root.list-visible ? FieldAccess.editable : FieldAccess.disabled;
-                            preferred-width: min(360px,max(160px,list-pane.width - 32px));
-                            open-requested => { root.selector-index = max(0,root.option-index); root.selector-open = !root.selector-open; }
-                            activate(token,generation) => { root.selector-open = false; root.choose(token,generation); }
-                            navigate(step) => { root.selector-step(step,self.page-rows); }
-                            query-edited(text) => { root.selector-query = text; root.selector-prefix = ""; root.selector-index = 0; }
-                            typeahead(text) => { root.selector-typeahead(text); }
-                            dismiss(reason) => { root.selector-open = false; }
-                        }
-                        ProIdentityButton {
-                            theme: root.theme; control-size: ControlSize.comfortable;
-                            text: "List Options"; generation: root.generation; disabled: !root.catalog-ready || !root.list-visible;
-                            trigger(t,g) => { root.management-open = !root.management-open; if (root.management-open) { page.content-y = 0px; } }
-                        }
-                        ProIdentityButton {
-                            theme: root.theme; control-size: ControlSize.comfortable;
-                            text: "Refresh"; generation: root.generation; disabled: root.busy || !root.list-visible;
-                            trigger(t,g) => { root.reload(g); }
+                    spacing: 8px; padding-left: 16px; padding-right: 16px; padding-top: root.compact ? 8px : 16px; padding-bottom: 8px;
+                    // One pill per list, scrolling sideways past the edge; the
+                    // outlined "new list" pill closes the row.
+                    tabs := Rectangle {
+                        height: max(44px * root.scale, tab-row.preferred-height);
+                        tab-strip := Flickable {
+                            width: parent.width; height: parent.height; content-width: tab-row.preferred-width; content-height: self.height;
+                            tab-row := HorizontalLayout {
+                                spacing: 8px; alignment: start;
+                                for option[index] in root.options: ListChip {
+                                    theme: root.theme; compact: root.compact; focus-serial: root.chip-focus-serial;
+                                    label: option.label; count: option.description; dot: root.list-color(index);
+                                    token: option.token; generation: option.generation;
+                                    selected: option.token == root.list-token && root.list-token != 0;
+                                    disabled: option.disabled || !root.catalog-ready || !root.list-visible;
+                                    activate(token, generation) => { if (token != root.list-token) { root.choose(token, generation); } }
+                                }
+                                NewListChip {
+                                    theme: root.theme; compact: root.compact; label: "New list";
+                                    focus-serial: root.chip-focus-serial; focus-fallback: !root.has-selection;
+                                    disabled: !root.catalog-ready || !root.list-visible;
+                                    activated => { root.open-management(root.management == ListManagement.create ? ListManagement.closed : ListManagement.create); }
+                                }
+                            }
                         }
                     }
-                    if !root.selected: Text { text: root.notice == "" ? "Choose a list to view items and common items." : root.notice; color: root.theme.text-secondary; font-size: 14px * root.theme.text-scale; wrap: word-wrap; }
+                    if !root.selected: Text { text: root.notice == "" ? "Choose a list to see its items." : root.notice; color: root.theme.text-secondary; font-family: root.theme.typography.family; font-size: 14px * root.scale; wrap: word-wrap; }
                 }
                 page := KitScrollArea {
                     vertical-stretch: 1;
                     VerticalLayout {
-                        padding: 16px; alignment: start;
-                        if root.management-open: management := VerticalLayout {
+                        padding: 16px; padding-top: 8px; spacing: 12px; alignment: start;
+                        if root.management == ListManagement.create: KitWrap {
                             spacing: 8px;
-                            KitWrap {
-                                spacing: 8px;
-                                KitTextField { theme: root.theme; label: "New List"; text <=> root.create-draft; access: root.catalog-ready && root.list-visible ? FieldAccess.editable : FieldAccess.disabled; preferred-width: 240px; }
-                                ProIdentityButton { theme: root.theme; text: "Create List"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.catalog-ready || !root.list-visible; trigger(t,g) => { root.create(g,root.create-draft); } }
-                            }
-                            if root.selected: KitWrap {
-                                spacing: 8px;
-                                KitTextField { theme: root.theme; label: "Rename List"; placeholder: root.title; text <=> root.rename-draft; access: root.write-ready && root.list-visible ? FieldAccess.editable : FieldAccess.disabled; preferred-width: 240px; }
-                                ProIdentityButton { theme: root.theme; text: "Rename"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.write-ready || !root.list-visible; trigger(t,g) => { root.rename(g,root.rename-draft); } }
-                                ProIdentityButton { theme: root.theme; text: "Delete List"; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.write-ready || !root.list-visible; trigger(t,g) => { root.delete(g); } }
-                            }
+                            KitTextField { theme: root.theme; label: "New List"; text <=> root.create-draft; control-size: ControlSize.comfortable; access: root.catalog-ready && root.list-visible ? FieldAccess.editable : FieldAccess.disabled; preferred-width: 240px; commit-requested(text) => { if (root.catalog-ready && text != "") { root.create(root.generation, text); } } }
+                            ProIdentityButton { theme: root.theme; text: "Create List"; intent: ButtonIntent.primary; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.catalog-ready || !root.list-visible || root.create-draft == ""; trigger(t,g) => { root.create(g,root.create-draft); } }
+                            ProIdentityButton { theme: root.theme; text: "Cancel"; intent: ButtonIntent.quiet; control-size: ControlSize.comfortable; generation: root.generation; trigger(t,g) => { root.management = ListManagement.closed; } }
                         }
-                        if root.selected: ProGroceries {
+                        if root.management == ListManagement.rename && root.selected: KitWrap {
+                            spacing: 8px;
+                            KitTextField { theme: root.theme; label: "Rename List"; placeholder: root.title; text <=> root.rename-draft; control-size: ControlSize.comfortable; access: root.write-ready && root.list-visible ? FieldAccess.editable : FieldAccess.disabled; preferred-width: 240px; commit-requested(text) => { if (root.write-ready && text != "") { root.rename(root.generation, text); } } }
+                            ProIdentityButton { theme: root.theme; text: "Rename"; intent: ButtonIntent.primary; control-size: ControlSize.comfortable; generation: root.generation; disabled: !root.write-ready || !root.list-visible || root.rename-draft == ""; trigger(t,g) => { root.rename(g,root.rename-draft); } }
+                            ProIdentityButton { theme: root.theme; text: "Cancel"; intent: ButtonIntent.quiet; control-size: ControlSize.comfortable; generation: root.generation; trigger(t,g) => { root.management = ListManagement.closed; } }
+                        }
+                        if root.selected: groceries := ProGroceries {
                             theme: root.theme; context: { token: root.list-token, generation: root.generation };
                             mode: ProGroceryMode.editor; layout: ProGroceryLayout.page;
                             page-viewport-top: page.absolute-position.y;
                             page-viewport-bottom: page.absolute-position.y + page.visible-height;
-                            rows: root.grocery-rows; suggestions: root.suggestions;
+                            rows: root.grocery-rows; completed-rows: root.completed-rows; suggestions: root.suggestions;
                             access: root.access; interactive: root.selected && root.list-visible; adding: root.busy;
-                            title: ""; count-label: root.item-count; notice: root.notice;
+                            title: root.title; count-label: root.item-count; count-inline: !root.compact;
+                            dot-color: root.has-selection ? root.list-color(root.option-index) : transparent;
+                            header-action-glyph: LucideIcons.ellipsis(); header-action-label: "List options";
+                            notice: root.notice;
+                            items-title: ""; common-title: "Add again"; common-empty-label: "Checked items wait here for a quick re-add.";
+                            add-label: "Add again"; reorder-label: "Reorder";
+                            completed-label: "Completed · " + root.completed-rows.length; clear-completed-label: "Clear all";
+                            completed-expanded <=> root.completed-expanded;
+                            // The composer is the page footer below; the kit's own field stays hidden.
+                            composer-placement: ProGroceryComposerPlacement.hidden;
+                            // A 360 px tile card beside the items where it fits; one chip strip under them where it does not.
+                            suggestion-layout: page.visible-width - 32px < 720px * root.scale ? ProGrocerySuggestionLayout.chips : ProGrocerySuggestionLayout.tiles;
+                            tile-columns: 3; common-width: 360px * root.scale;
+                            row-actions: ProTaskRowActions.handle; title-role: TypographyRole.body; strike-completed: true;
                             viewport-width: max(0px,page.visible-width - 32px);
                             viewport-height: max(360px,page.visible-height - 32px);
                             draft <=> root.add-draft;
-                            complete(lt,lg,t,g,v) => { root.grocery-complete(lt,lg,t,g,v); }
+                            complete(lt,lg,t,g,v) => {
+                                if (v && lt == root.list-token) { root.undo-token = t; root.undo-visible = true; }
+                                root.grocery-complete(lt,lg,t,g,v);
+                            }
                             select(lt,lg,t,g) => { root.pending-editor-list = lt; root.pending-editor-item = t; root.editor-open = true; root.grocery-select(lt,lg,t,g); }
+                            // A suggestion the list already holds opens that row's editor.
+                            reveal(lt,lg,t,g) => { root.pending-editor-list = lt; root.pending-editor-item = t; root.editor-open = true; root.grocery-select(lt,lg,t,g); }
                             remove(lt,lg,t,g) => { root.grocery-remove(lt,lg,t,g); }
                             quick-add(lt,lg,t,g) => { root.grocery-quick-add(lt,lg,t,g); }
+                            action(lt,lg,t,g,step) => { if (lt == root.list-token) { root.action(t,g,step); } }
                             add(lt,lg,v) => { root.grocery-add(lt,lg,v); }
+                            clear-completed(lt,lg) => { root.clear-completed(lt,lg); }
+                            header-action-requested(lt,lg) => { if (root.menu-open) { root.close-menu(); } else { root.open-menu(); } }
+                        }
+                    }
+                }
+                // The composer stays put under the scrolling page: a borderless
+                // field with the list's name in its placeholder and an accent add button.
+                footer := Rectangle {
+                    visible: root.selected;
+                    height: root.selected ? composer-row.preferred-height + root.theme.shape.border-width : 0px;
+                    background: root.theme.surface;
+                    Rectangle { x: 0px; y: 0px; width: parent.width; height: root.theme.shape.border-width; background: root.theme.border-subtle; }
+                    composer-row := HorizontalLayout {
+                        y: root.theme.shape.border-width; width: parent.width;
+                        padding-left: 16px; padding-right: 16px; padding-top: 12px; padding-bottom: 12px; spacing: 8px;
+                        composer := KitTextField {
+                            theme: root.theme; control-size: ControlSize.comfortable; horizontal-stretch: 1;
+                            label: ""; accessible-name: "Add item"; placeholder: "Add to " + root.title + "…";
+                            corner-radius: 16px * root.scale;
+                            text <=> root.add-draft;
+                            access: root.write-ready && root.list-visible && !root.busy ? FieldAccess.editable : FieldAccess.read-only;
+                            commit-requested(text) => { root.submit-add(text); }
+                        }
+                        VerticalLayout {
+                            alignment: center; horizontal-stretch: 0;
+                            add-button := ProIdentityIconButton {
+                                theme: root.theme; glyph: LucideIcons.plus(); intent: ButtonIntent.primary; control-size: ControlSize.comfortable;
+                                accessible-name: "Add"; token: root.list-token; generation: root.generation;
+                                property <string> armed-draft;
+                                disabled: !root.write-ready || root.busy || !root.list-visible || root.add-draft == "";
+                                starting => { self.armed-draft = root.add-draft; }
+                                trigger(t,g) => { if (self.armed-draft != "") { root.grocery-add(t, g, self.armed-draft); } }
+                            }
                         }
                     }
                 }
@@ -227,7 +437,7 @@ export component HomewardLists inherits Rectangle {
                 }
                 Text {
                     text: root.title; color: root.theme.text-secondary;
-                    font-size: 14px * root.theme.text-scale; wrap: word-wrap;
+                    font-family: root.theme.typography.family; font-size: 14px * root.scale; wrap: word-wrap;
                 }
                 editor-page := KitScrollArea {
                     vertical-stretch: 1;
@@ -240,8 +450,10 @@ export component HomewardLists inherits Rectangle {
                             offline-label: "Offline · cached on";
                             selected: root.inspector-visible; selection: root.task-selection;
                             active-index: root.task-selected ? 0 : -1; draft <=> root.draft;
+                            // The grip on the list row reorders and nests; the editor keeps the text and removal.
+                            row-actions: ProTaskRowActions.handle;
                             empty-label: "No item selected"; edit-label: "Edit"; summary-label: "Item";
-                            save-label: "Save"; remove-label: "Delete"; first-label: "Move First"; up-label: "Move Up"; down-label: "Move Down";
+                            save-label: "Save"; remove-label: "Delete"; reorder-label: "Reorder";
                             reload-label: "Server Version"; resolve-label: "Keep My Draft";
                             select(t,g) => { root.select-task(t,g); }
                             complete(t,g,v) => { root.complete(t,g,v); }
@@ -252,6 +464,40 @@ export component HomewardLists inherits Rectangle {
                     }
                 }
             }
+        }
+        // The options menu floats under the list header; a press anywhere else closes it.
+        if root.menu-open: Rectangle {
+            x: 0px; y: 0px; width: root.width; height: root.height;
+            TouchArea { clicked => { root.close-menu(); } }
+            Rectangle {
+                x: max(16px, list-pane.width - self.width - 32px); y: page.y + 84px * root.scale;
+                width: min(240px * root.scale, list-pane.width - 32px); height: list-menu.preferred-height + root.theme.spacing.unit * 2;
+                background: root.theme.surface; border-width: root.theme.shape.border-width; border-color: root.theme.border-subtle;
+                border-radius: root.theme.shape.radius-control;
+                property <ShadowLayer> shadow: KitThemes.shadow(root.theme, ElevationLevel.lg);
+                drop-shadow-offset-y: self.shadow.offset-y; drop-shadow-blur: self.shadow.blur; drop-shadow-color: self.shadow.color;
+                TouchArea { }
+                list-menu := KitMenu {
+                    x: root.theme.spacing.unit; y: root.theme.spacing.unit; width: parent.width - root.theme.spacing.unit * 2; height: self.preferred-height;
+                    theme: root.theme; control-size: ControlSize.comfortable; accessible-name: "List options";
+                    rows: root.menu-rows; items: root.menu-items; state: root.menu-state;
+                    init => { self.take-focus(); }
+                    navigate(step) => { root.menu-step(step); }
+                    activate(token, generation) => { root.menu-activate(token, generation); }
+                    dismiss(reason) => { root.close-menu(); }
+                    typeahead(text) => { }
+                }
+            }
+        }
+        // The undo toast sits above the composer; it is the user's own undo of
+        // a check, not a report on the write.
+        if root.undo-visible: KitToastHost {
+            x: (root.width - self.width) / 2; y: max(0px, list-pane.height - footer.height - self.preferred-height - 12px);
+            width: min(420px * root.scale, root.width - 32px); height: self.preferred-height;
+            theme: root.theme; entries: root.toasts;
+            action(token) => { root.undo-visible = false; root.grocery-complete(root.list-token, root.generation, root.undo-token, root.generation, false); }
+            dismiss(token) => { root.undo-visible = false; }
+            interaction(token, source, engaged) => { }
         }
     }
 }

@@ -1,6 +1,7 @@
 use crate::{
     ContentItem, HomewardWindow, OptionRow, ProGrocerySuggestion, ProTaskAccess, ProTaskPhase,
     ProTaskRow,
+    list_host::item_text,
     list_state::{Draft, DraftPhase, Freshness, State},
 };
 use home_client_cache::lists::{CapturedRows, ListReadMetadata, ListReadSnapshot};
@@ -97,6 +98,37 @@ impl Projection {
                 CapturedRows::Catalog(_) => &[],
             })
     }
+    /// The raw summary of a row, for the editor draft; the title shown in
+    /// rows is the parsed one.
+    fn summary(&self, index: usize) -> Option<&str> {
+        Some(self.rows().get(index)?.content().summary().as_str())
+    }
+    /// The nearest top-level row above `index`, which a sub-item there nests under.
+    fn parent_token(&self, index: usize) -> Option<i32> {
+        (0..index).rev().find_map(|above| {
+            let summary = self.summary(above)?;
+            (!item_text::parse(summary).nested)
+                .then(|| self.item_tokens.get(above).copied())
+                .flatten()
+        })
+    }
+    /// "done/total" over the sub-items right under a top-level row; empty without any.
+    fn progress(&self, index: usize) -> String {
+        let (done, total) = self
+            .rows()
+            .iter()
+            .skip(index + 1)
+            .map(|row| row.content())
+            .take_while(|content| item_text::parse(content.summary().as_str()).nested)
+            .fold((0usize, 0usize), |(done, total), content| {
+                (done + usize::from(content.completed()), total + 1)
+            });
+        if total == 0 {
+            String::new()
+        } else {
+            format!("{done}/{total}")
+        }
+    }
     fn row(&self, index: usize) -> Option<ProTaskRow> {
         let row = self.rows().get(index)?;
         let key = ItemKey::new(row.key().list().clone(), row.key().uid().clone());
@@ -110,10 +142,16 @@ impl Projection {
                 Some(DraftPhase::Unknown) => ProTaskPhase::CommitUnknown,
             }
         };
+        let summary = item_text::parse(row.content().summary().as_str());
+        let parent = if summary.nested {
+            self.parent_token(index)
+        } else {
+            None
+        };
         Some(ProTaskRow {
             token: *self.item_tokens.get(index)?,
             generation: self.generation,
-            title: row.content().summary().as_str().to_owned().into(),
+            title: summary.title.to_owned().into(),
             completed: row.content().completed(),
             writable: true,
             detail: row
@@ -123,6 +161,21 @@ impl Projection {
                 .unwrap_or_default()
                 .to_owned()
                 .into(),
+            // A sub-item with no top-level row above it is drawn indented but
+            // belongs to no parent: `parent` is read only while `nested`.
+            nested: summary.nested,
+            parent: parent.unwrap_or_default(),
+            quantity: summary
+                .quantity
+                .map(item_text::quantity_badge)
+                .unwrap_or_default()
+                .into(),
+            progress: if summary.nested {
+                String::new()
+            } else {
+                self.progress(index)
+            }
+            .into(),
             phase,
             status: match phase {
                 ProTaskPhase::Ready => {
@@ -191,17 +244,20 @@ impl Model for GroceryRows {
         self
     }
 }
+// The items checked off earlier, offered for a quick re-add: activating one
+// asks the owner to uncheck it. Nothing here is a frequency model.
 struct CommonRows {
     view: Arc<Projection>,
+    indices: Vec<usize>,
     notify: ModelNotify,
 }
 impl Model for CommonRows {
     type Data = ProGrocerySuggestion;
     fn row_count(&self) -> usize {
-        self.view.rows().len()
+        self.indices.len()
     }
     fn row_data(&self, index: usize) -> Option<Self::Data> {
-        let row = self.view.row(index)?;
+        let row = self.view.row(*self.indices.get(index)?)?;
         Some(ProGrocerySuggestion {
             token: row.token,
             generation: row.generation,
@@ -210,15 +266,12 @@ impl Model for CommonRows {
             phase: row.phase,
             enabled: row.completed && row.writable && !self.view.busy && self.view.active,
             status: if row.status.is_empty() {
-                if row.completed {
-                    "Add again"
-                } else {
-                    "Already on this list"
-                }
-                .into()
+                "Add again".into()
             } else {
                 row.status
             },
+            glyph: Default::default(),
+            present: !row.completed,
         })
     }
     fn model_tracker(&self) -> &dyn ModelTracker {
@@ -236,6 +289,21 @@ fn visible_indices(view: &Projection, shopping_only: bool, limit: usize) -> Vec<
         .take(limit)
         .map(|(index, _)| index)
         .collect()
+}
+/// The rows checked off, in list order: the page's completed group.
+fn completed_indices(view: &Projection) -> Vec<usize> {
+    view.rows()
+        .iter()
+        .enumerate()
+        .filter(|(_, row)| row.content().completed())
+        .map(|(index, _)| index)
+        .collect()
+}
+fn open_count(view: &Projection) -> usize {
+    view.rows()
+        .iter()
+        .filter(|row| !row.content().completed())
+        .count()
 }
 impl Model for Catalog {
     type Data = ContentItem;
@@ -323,18 +391,14 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
             .map_or_else(String::new, |snapshot| format!("{} lists", snapshot.count))
             .into(),
     );
+    let open = open_count(&view);
     window.set_lists_item_count(
         view.items
             .as_ref()
-            .map_or_else(String::new, |snapshot| {
-                format!(
-                    "Remaining: {} · Saved: {}",
-                    view.rows()
-                        .iter()
-                        .filter(|row| !row.content().completed())
-                        .count(),
-                    snapshot.count
-                )
+            .map_or_else(String::new, |_| match open {
+                0 => "Nothing to buy".to_owned(),
+                1 => "1 to buy".to_owned(),
+                count => format!("{count} to buy"),
             })
             .into(),
     );
@@ -393,11 +457,19 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
                 .iter()
                 .enumerate()
                 .filter_map(|(index, row)| {
+                    let token = *view.catalog_tokens.get(index)?;
                     Some(OptionRow {
-                        token: *view.catalog_tokens.get(index)?,
+                        token,
                         generation: view.generation,
                         label: row.display_name().as_str().to_owned().into(),
-                        description: "".into(),
+                        // The list tab's count badge: only the selected list's
+                        // items are read, so the other tabs carry none.
+                        description: if token == view.list_token && view.items.is_some() {
+                            open.to_string()
+                        } else {
+                            String::new()
+                        }
+                        .into(),
                         disabled: !view.active
                             || view.busy
                             || view.catalog_phase != Freshness::Online,
@@ -428,6 +500,18 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
             notify: ModelNotify::default(),
         }));
     }
+    let completed = window.get_lists_completed_rows();
+    if !completed
+        .as_any()
+        .downcast_ref::<GroceryRows>()
+        .is_some_and(|old| old.view.same_tasks(&view))
+    {
+        window.set_lists_completed_rows(ModelRc::new(GroceryRows {
+            indices: completed_indices(&view),
+            view: view.clone(),
+            notify: ModelNotify::default(),
+        }));
+    }
     let suggestions = window.get_lists_suggestions();
     if !suggestions
         .as_any()
@@ -435,6 +519,7 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
         .is_some_and(|old| old.view.active == view.active && old.view.same_tasks(&view))
     {
         window.set_lists_suggestions(ModelRc::new(CommonRows {
+            indices: completed_indices(&view),
             view: view.clone(),
             notify: ModelNotify::default(),
         }));
@@ -453,12 +538,15 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
     window.set_lists_task_selected(selected.is_some());
     window.set_lists_active_index(selected.map_or(-1, |index| index as i32));
     window.set_lists_task_selection(selection.clone());
+    // The editor edits the raw summary, so a saved draft keeps the nesting
+    // marker and the quantity word that the row's title leaves out.
     let draft = view
         .selected
         .as_ref()
         .and_then(|key| view.drafts.get(key))
         .map(|draft| draft.text.clone())
-        .unwrap_or_else(|| selection.title.to_string());
+        .or_else(|| selected.and_then(|index| view.summary(index).map(str::to_owned)))
+        .unwrap_or_default();
     window.set_lists_draft(draft.into());
     // A newly selected or moved row must be revealed by the task component.
     // Preserve the viewport only when the presentation target stayed put.
@@ -477,6 +565,23 @@ pub(super) fn render(window: &HomewardWindow, projection: Projection) {
 mod tests {
     use super::*;
     use slint::ComponentHandle;
+
+    /// The list tab that announces itself checked under the selected list's name.
+    fn selected_tab(window: &HomewardWindow) -> Option<i_slint_backend_testing::ElementHandle> {
+        use i_slint_backend_testing::ElementQuery;
+        let index = window.get_lists_option_index();
+        let label = usize::try_from(index)
+            .ok()
+            .and_then(|index| window.get_lists_options().row_data(index))?
+            .label;
+        ElementQuery::from_root(window)
+            .match_predicate(move |e| {
+                e.accessible_checkable() == Some(true)
+                    && e.accessible_checked() == Some(true)
+                    && e.accessible_label().as_deref() == Some(label.as_str())
+            })
+            .find_first()
+    }
 
     #[test]
     fn grocery_inspector_preserves_list_context_and_drafts_across_sizes() {
@@ -590,10 +695,7 @@ mod tests {
                     }
                     if close_label == "Back to List" {
                         assert!(
-                            ElementQuery::from_root(&window)
-                                .match_inherits("KitSelectTrigger")
-                                .find_first()
-                                .is_none(),
+                            selected_tab(&window).is_none(),
                             "narrow background must be inaccessible"
                         );
                     }
@@ -641,23 +743,44 @@ mod tests {
                         "list position survives editing and resizing"
                     );
                     assert!(
-                        ElementQuery::from_root(&window)
-                            .match_inherits("KitSelectTrigger")
-                            .find_first()
-                            .is_some()
+                        selected_tab(&window).is_some(),
+                        "the list tabs return with the list"
                     );
-                    if large && width == 390. {
+                    // At 200 % text the header's longest title word already
+                    // fills a phone-wide list card and pushes the trailing
+                    // options action past the card edge (ProGroceries wraps
+                    // neither its title nor that action onto a second row),
+                    // so the menu flow is exercised at 100 % text.
+                    if !large && width == 390. {
                         window.window().set_size(LogicalSize::new(390., 700.));
+                        // The options action lives in the list card header, at the top of the page.
+                        window.invoke_lists_scroll_to(0.);
                         slint::platform::update_timers_and_animations();
                         let options = ElementQuery::from_root(&window)
-                            .match_inherits("IdentityButton")
+                            .match_accessible_role(i_slint_backend_testing::AccessibleRole::Button)
                             .match_predicate(|e| {
-                                e.accessible_label().as_deref() == Some("List Options")
+                                e.accessible_label().as_deref() == Some("List options")
                             })
                             .find_first()
-                            .unwrap();
+                            .expect("the list header exposes its options action");
                         options.mock_single_click(PointerEventButton::Left);
                         slint::platform::update_timers_and_animations();
+                        let create = ElementQuery::from_root(&window)
+                            .match_inherits("KitOption")
+                            .match_predicate(|e| {
+                                e.accessible_label().as_deref() == Some("New list")
+                            })
+                            .find_first()
+                            .expect("the options menu lists the new-list action");
+                        create.mock_single_click(PointerEventButton::Left);
+                        slint::platform::update_timers_and_animations();
+                        assert!(
+                            ElementQuery::from_root(&window)
+                                .match_inherits("KitOption")
+                                .find_first()
+                                .is_none(),
+                            "an activated menu closes"
+                        );
                         let management = ElementQuery::from_root(&window)
                             .match_inherits("TextInput")
                             .match_predicate(|e| {
@@ -666,7 +789,7 @@ mod tests {
                             .find_first()
                             .unwrap();
                         let manager_top = management.absolute_position().y;
-                        let toolbar_top = options.absolute_position().y;
+                        let tabs_top = selected_tab(&window).unwrap().absolute_position().y;
                         assert!(manager_top >= page.absolute_position().y);
                         window.invoke_lists_scroll_to(-200.);
                         slint::platform::update_timers_and_animations();
@@ -675,9 +798,9 @@ mod tests {
                             "management fields belong to the page scroll"
                         );
                         assert_eq!(
-                            options.absolute_position().y,
-                            toolbar_top,
-                            "list toolbar stays available"
+                            selected_tab(&window).unwrap().absolute_position().y,
+                            tabs_top,
+                            "the list tabs stay available"
                         );
                     }
                     window.hide().unwrap();
@@ -785,7 +908,7 @@ mod tests {
     }
 
     #[test]
-    fn selected_catalogue_identity_is_the_visible_list_selector_label() {
+    fn the_selected_list_is_the_checked_tab_and_clearing_removes_every_tab() {
         use i_slint_backend_testing::ElementQuery;
         i_slint_backend_testing::init_no_event_loop();
         let window = crate::create_window().unwrap();
@@ -801,38 +924,36 @@ mod tests {
             .row_data(window.get_lists_option_index() as usize)
             .unwrap()
             .label;
-        // Kit 0.8.0: the select's label is its accessible name; the
-        // selected list is its accessible value.
-        assert!(
-            ElementQuery::from_root(&window)
-                .match_inherits("KitSelectTrigger")
-                .match_predicate(move |e| e.accessible_label().as_deref() == Some("List")
-                    && e.accessible_value().as_deref() == Some(expected.as_str()))
-                .find_first()
-                .is_some()
+        let tab = selected_tab(&window).expect("the selected list is the checked tab");
+        assert_eq!(tab.accessible_label().as_deref(), Some(expected.as_str()));
+        assert_eq!(
+            tab.accessible_description().as_deref(),
+            Some("2 to buy"),
+            "only the read list carries its open count"
         );
+        assert_eq!(window.get_lists_item_count().as_str(), "2 to buy");
         state.clear();
         render(&window, Projection::new(&state));
+        assert!(selected_tab(&window).is_none());
         assert!(
             ElementQuery::from_root(&window)
-                .match_inherits("KitSelectTrigger")
-                .match_predicate(|e| e.accessible_label().as_deref() == Some("List")
-                    && e.accessible_value().as_deref() == Some(""))
+                .match_predicate(|e| e.accessible_checkable() == Some(true)
+                    && e.accessible_label()
+                        .is_some_and(|label| label.starts_with("Synthetic")))
                 .find_first()
-                .is_some()
+                .is_none(),
+            "no catalogue, no tabs"
         );
         window.hide().unwrap();
     }
 
     #[test]
-    fn picker_search_filters_real_rows_preserves_selection_and_resets_visible_query() {
-        use i_slint_backend_testing::{ElementHandle, ElementQuery};
-        use slint::platform::{Key, PointerEventButton, WindowEvent};
+    fn list_tabs_activate_by_fenced_identity_and_disabled_tabs_stay_inert() {
+        use i_slint_backend_testing::ElementQuery;
+        use slint::platform::PointerEventButton;
         use std::{cell::RefCell, rc::Rc};
         i_slint_backend_testing::init_no_event_loop();
         let window = crate::create_window().unwrap();
-        window.on_lists_filter_options(crate::list_host::filter_options);
-        window.on_lists_find_option(crate::list_host::find_option);
         window.set_access_stage(crate::ProAccessStage::Connected);
         window.set_endpoint_ready(true);
         window.set_show_endpoint(false);
@@ -841,7 +962,7 @@ mod tests {
         window.set_lists_generation(7);
         window.set_lists_list_token(22);
         window.set_lists_option_index(1);
-        let rows = |generation| {
+        let rows = |generation, gamma_disabled| {
             ModelRc::from([
                 OptionRow {
                     token: 11,
@@ -853,86 +974,67 @@ mod tests {
                     token: 22,
                     generation,
                     label: "Beta store".into(),
+                    description: "4".into(),
                     ..Default::default()
                 },
                 OptionRow {
                     token: 33,
                     generation,
                     label: "Gamma store".into(),
+                    disabled: gamma_disabled,
                     ..Default::default()
                 },
             ])
         };
-        window.set_lists_options(rows(7));
+        window.set_lists_options(rows(7, true));
         let calls = Rc::new(RefCell::new(Vec::new()));
         let out = calls.clone();
         window.on_lists_choose(move |t, g| out.borrow_mut().push((t, g)));
         window.show().unwrap();
-        let trigger = || {
+        let tab = |label: &str| {
+            let label = label.to_owned();
             ElementQuery::from_root(&window)
-                .match_inherits("KitSelectTrigger")
-                .match_predicate(|e| {
-                    e.accessible_label().as_deref() == Some("List")
-                        && e.accessible_value().as_deref() == Some("Beta store")
+                .match_predicate(move |e| {
+                    e.accessible_checkable() == Some(true)
+                        && e.accessible_label().as_deref() == Some(label.as_str())
                 })
                 .find_first()
                 .unwrap()
         };
-        let search = || {
-            ElementQuery::from_root(&window)
-                .match_inherits("TextInput")
-                .match_predicate(|e| e.accessible_label().as_deref() == Some("Search options"))
-                .find_first()
-                .unwrap()
-        };
-        let options = || {
-            ElementQuery::from_root(&window)
-                .match_inherits("KitOption")
-                .find_all()
-        };
-        let key = |text: slint::SharedString| {
-            window
-                .window()
-                .dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
-            window
-                .window()
-                .dispatch_event(WindowEvent::KeyReleased { text });
-        };
-        let open = || {
-            trigger().mock_single_click(PointerEventButton::Left);
+        let press = |label: &str| {
+            tab(label).mock_single_click(PointerEventButton::Left);
             slint::platform::update_timers_and_animations();
         };
-        let type_query = |field: ElementHandle, text: &str| {
-            field.mock_single_click(PointerEventButton::Left);
-            key(text.into());
-        };
-        open();
-        assert_eq!(options().len(), 3);
-        type_query(search(), "ALP");
-        assert_eq!(options().len(), 1);
-        assert!(trigger().is_valid());
-        key(Key::DownArrow.into());
-        key(Key::Return.into());
+        assert_eq!(tab("Beta store").accessible_checked(), Some(true));
+        assert_eq!(
+            tab("Beta store").accessible_description().as_deref(),
+            Some("4 to buy")
+        );
+        assert_eq!(tab("Alpha store").accessible_checked(), Some(false));
+        press("Alpha store");
         assert_eq!(*calls.borrow(), [(11, 7)]);
         assert_eq!(
             window.get_lists_list_token(),
             22,
-            "view filtering cannot select a list itself"
+            "a tab asks the owner; it cannot select a list itself"
         );
-        open();
-        assert_eq!(options().len(), 3);
-        assert_eq!(search().accessible_value().as_deref(), Some(""));
-        type_query(search(), "no match");
-        assert!(options().is_empty());
-        key(Key::Return.into());
-        assert_eq!(calls.borrow().len(), 1);
+        press("Beta store");
+        assert_eq!(
+            calls.borrow().len(),
+            1,
+            "the selected tab does not request its own list again"
+        );
+        press("Gamma store");
+        assert_eq!(calls.borrow().len(), 1, "a disabled tab is inert");
         window.set_lists_generation(8);
-        window.set_lists_options(rows(8));
+        window.set_lists_options(rows(8, false));
         slint::platform::update_timers_and_animations();
-        open();
-        assert_eq!(options().len(), 3);
-        assert_eq!(search().accessible_value().as_deref(), Some(""));
-        key(Key::Escape.into());
+        press("Gamma store");
+        assert_eq!(
+            *calls.borrow(),
+            [(11, 7), (33, 8)],
+            "a press reports the identity it started on"
+        );
         window.hide().unwrap();
     }
 
@@ -1171,21 +1273,83 @@ mod widget_tests {
         };
         assert_eq!(tasks.row_data(0).unwrap().token, state.item_tokens[1]);
         assert_eq!(tasks.row_data(0).unwrap().title.as_str(), "Active B");
+        assert_eq!(completed_indices(&view), vec![0, 2]);
+        assert_eq!(open_count(&view), 2);
         let common = CommonRows {
+            indices: completed_indices(&view),
             view,
             notify: ModelNotify::default(),
         };
+        assert_eq!(common.row_count(), 2, "only checked rows are offered again");
         assert_eq!(common.row_data(0).unwrap().token, state.item_tokens[0]);
         assert!(common.row_data(0).unwrap().enabled);
-        assert!(!common.row_data(1).unwrap().enabled);
-        assert_eq!(
-            common.row_data(1).unwrap().status.as_str(),
-            "Already on this list"
-        );
+        assert!(!common.row_data(0).unwrap().present);
+        assert_eq!(common.row_data(0).unwrap().status.as_str(), "Add again");
+        assert_eq!(common.row_data(1).unwrap().token, state.item_tokens[2]);
         assert_eq!(
             state.items.as_ref().unwrap().count,
             4,
             "filtering never rewrites server count"
+        );
+    }
+
+    #[test]
+    fn sub_items_quantities_and_progress_are_parsed_from_the_summary_once() {
+        use home_client_cache::lists::CapturedRows;
+        let mut state = crate::list_state::tests::ready();
+        let snapshot = crate::list_state::tests::items(
+            crate::list_state::tests::LIST,
+            11,
+            &[
+                ("flour", 1, "Flour x2"),
+                ("yeast", 1, "- Instant yeast"),
+                ("sugar", 1, "- Sugar ×3"),
+                ("eggs", 1, "Eggs"),
+                ("orphan", 1, "- Orphan"),
+            ],
+        );
+        let mut snapshot = Arc::try_unwrap(snapshot).ok().unwrap();
+        if let CapturedRows::Items { rows, .. } = &mut snapshot.rows {
+            rows[2] = Arc::new(
+                rows[2]
+                    .with_content(rows[2].content().with_completed(true))
+                    .unwrap(),
+            );
+        }
+        // The orphan sits first so no top-level row precedes it.
+        if let CapturedRows::Items { rows, .. } = &mut snapshot.rows {
+            rows.rotate_right(1);
+        }
+        state.publish_items(Arc::new(snapshot)).unwrap();
+        let view = Projection::new(&state);
+        let orphan = view.row(0).unwrap();
+        assert!(orphan.nested);
+        assert_eq!(
+            orphan.parent, 0,
+            "a sub-item without a row above has no parent"
+        );
+        assert_eq!(orphan.title.as_str(), "Orphan");
+        let flour = view.row(1).unwrap();
+        assert!(!flour.nested);
+        assert_eq!(flour.title.as_str(), "Flour");
+        assert_eq!(flour.quantity.as_str(), "×2");
+        assert_eq!(flour.progress.as_str(), "1/2");
+        let yeast = view.row(2).unwrap();
+        assert!(yeast.nested);
+        assert_eq!(yeast.parent, flour.token);
+        assert_eq!(yeast.quantity.as_str(), "");
+        assert_eq!(yeast.progress.as_str(), "");
+        let sugar = view.row(3).unwrap();
+        assert_eq!(sugar.parent, flour.token);
+        assert_eq!(sugar.quantity.as_str(), "×3");
+        assert!(sugar.completed);
+        let eggs = view.row(4).unwrap();
+        assert!(!eggs.nested);
+        assert_eq!(eggs.progress.as_str(), "");
+        assert_eq!(
+            view.summary(1),
+            Some("Flour x2"),
+            "the editor keeps the raw text"
         );
     }
 }
