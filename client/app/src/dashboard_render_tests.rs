@@ -402,28 +402,43 @@ fn current_refusals_are_visible_and_history_stays_below_controls() {
                 assert_current(device_view::Refusal::Capacity.message(), width, height);
                 render(&format!("{screen}-detail-refusal"));
                 window.set_action_feedback("".into());
-                let snapshot = device_view::progress::tests::snapshot(Some(
+                // An unverified acknowledgement is silent: no notice, no
+                // disclosure control. Only a refusal leaves a notice, and it
+                // never moves the control.
+                let unverified = device_view::progress::tests::snapshot(Some(
                     home_wire_contract::home::api::v2::CommandOutcome::AcknowledgedUnverified,
                 ));
-                let (phase, title, detail) = device_view::progress::presentation(Some(&snapshot));
+                let (phase, title, detail) = device_view::progress::presentation(Some(&unverified));
+                assert_eq!(phase, crate::ProActionPhase::Idle);
+                assert!(title.is_empty() && detail.is_empty());
+                let mut refused = device_view::progress::tests::snapshot(None);
+                refused.operation = None;
+                refused.submission =
+                    home_client_actions::capabilities::CapabilitySubmission::Rejected;
+                refused.tracking =
+                    home_client_actions::capabilities::CapabilityTracking::Unavailable;
+                let (phase, title, detail) = device_view::progress::presentation(Some(&refused));
                 panel.device.phase = phase;
                 panel.device.action_label = title.into();
                 panel.device.action_detail = detail.into();
                 window.set_detail_panels(ModelRc::from([panel]));
                 scroll("Synthetic light", true);
-                ElementQuery::from_root(&window)
-                    .match_inherits("KitPressable")
-                    .match_predicate(|item| {
-                        item.accessible_label().as_deref() == Some("Last command")
-                    })
-                    .find_first()
-                    .expect("historical command disclosure")
-                    .invoke_accessible_default_action();
+                assert!(
+                    ElementQuery::from_root(&window)
+                        .match_inherits("KitPressable")
+                        .match_predicate(|item| {
+                            item.accessible_label().as_deref() == Some("Last command")
+                                || item.accessible_label().as_deref() == Some("Stop Tracking")
+                        })
+                        .find_first()
+                        .is_none(),
+                    "no tracking controls"
+                );
                 scroll("Synthetic light", false);
-                render(&format!("{screen}-detail-unconfirmed-before-assert"));
-                assert_notice("Synthetic light", "Change not confirmed", before);
+                render(&format!("{screen}-detail-refused-before-assert"));
+                assert_notice("Synthetic light", "Change refused", before);
                 scroll("Synthetic light", true);
-                render(&format!("{screen}-detail-unconfirmed"));
+                render(&format!("{screen}-detail-refused"));
 
                 window.set_page(ViewPage::Home);
                 window.set_native_popup_title("Synthetic room".into());

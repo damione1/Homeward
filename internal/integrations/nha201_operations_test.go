@@ -155,6 +155,11 @@ CREATE TRIGGER nha201_reject_ack BEFORE UPDATE ON public.command_intents FOR EAC
 	if err != nil {
 		t.Fatal(err)
 	}
+	// This case exercises a late qualified proof; keep the window open.
+	window, _ := integrations.NewConfirmationWindow(30 * time.Second)
+	if err := service.SetConfirmationWindow(window); err != nil {
+		t.Fatal(err)
+	}
 	continuation, cancelContinuation := context.WithCancel(fixture.ctx)
 	closeService := func(service *integrations.DurableCommandService) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -212,9 +217,9 @@ CREATE TRIGGER nha201_reject_ack BEFORE UPDATE ON public.command_intents FOR EAC
 		}
 		time.Sleep(time.Millisecond)
 	}
-	// Equal observed power without a command's qualified native causality cannot
-	// confirm the public operation. Only the native owner may append evidence.
-	fixture.publish(t, 0, true)
+	// A non-matching observation of the slot is not evidence for the public
+	// operation. Only the native owner may append evidence.
+	fixture.publish(t, 0, false)
 	nha025Status(t, fixture.host, id, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED)
 	select {
 	case <-complete:
@@ -274,6 +279,113 @@ CREATE TRIGGER nha201_reject_ack BEFORE UPDATE ON public.command_intents FOR EAC
 	}
 	if driver.Count() != 1 || restartedDriver.count() != 0 {
 		t.Fatal("restart repeated physical command")
+	}
+}
+
+// An acknowledged command whose confirmation window elapses becomes a durable
+// terminal acknowledgement. The live tracker may still confirm later, but the
+// immutable proof is never rewritten and no effect is repeated.
+func TestNHA201AcknowledgementBecomesTerminalAfterConfirmationWindow(t *testing.T) {
+	store, _ := nha024Store(t)
+	commands := make(chan integrations.AdmittedCommand, 1)
+	driver := &nha025Driver{call: func(_ context.Context, command integrations.AdmittedCommand) error {
+		if err := command.Acknowledge(); err != nil {
+			return err
+		}
+		commands <- command
+		return nil
+	}}
+	fixture := nha050Setup(t, driver)
+	service, err := integrations.NewDurableCommandService(fixture.ctx, fixture.host, fixture.gen, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := integrations.NewConfirmationWindow(time.Millisecond); err == nil {
+		t.Fatal("window below the floor admitted")
+	}
+	window, err := integrations.NewConfirmationWindow(200 * time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.SetConfirmationWindow(window); err != nil {
+		t.Fatal(err)
+	}
+	continuation, cancelContinuation := context.WithCancel(fixture.ctx)
+	defer func() {
+		cancelContinuation()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := service.Close(ctx); err != nil {
+			t.Error(err)
+		}
+	}()
+	request, err := fixture.prepared(t, service, "c123456789abcdef0123456789abcdef").Request()
+	if err != nil {
+		t.Fatal(err)
+	}
+	capability, _ := apitypes.ParseCapabilityName("homes/synthetic/entities/relay/capabilities/power")
+	key, _ := apitypes.ParseRequestID("32345678-1234-4123-8123-123456789abc")
+	metadata, err := storage.NewCommandAPIMetadata(capability, &key, sha256.Sum256([]byte("windowed power intention")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	complete := make(chan struct{})
+	started := time.Now()
+	if _, err := service.Admit(fixture.ctx, continuation, fixture.actor, request, metadata, func() { close(complete) }); err != nil {
+		t.Fatal(err)
+	}
+	var command integrations.AdmittedCommand
+	select {
+	case command = <-commands:
+	case <-time.After(5 * time.Second):
+		t.Fatal("native ACK did not arrive")
+	}
+	select {
+	case <-complete:
+	case <-time.After(5 * time.Second):
+		t.Fatal("acknowledgement never became terminal")
+	}
+	if elapsed := time.Since(started); elapsed > 3*time.Second {
+		t.Fatalf("window did not bound the wait: %v", elapsed)
+	}
+	id, _ := domain.ParseCommandID(request.CommandId)
+	record, found, err := store.CommandIntent(fixture.ctx, id)
+	if err != nil || !found {
+		t.Fatal(err)
+	}
+	terminal := &actions.CommandResponse{}
+	if proto.Unmarshal(record.APITerminalResponse(), terminal) != nil || terminal.Status != actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED {
+		t.Fatal("acknowledgement was not the terminal proof", terminal)
+	}
+	status, found, err := service.Status(fixture.ctx, id)
+	if err != nil || !found || status.APITerminal == nil || status.APITerminal.Status != actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED {
+		t.Fatal("terminal acknowledgement not readable", status, err)
+	}
+	cause, err := command.Causality()
+	if err != nil {
+		t.Fatal(err)
+	}
+	quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
+	value := domain.NewSwitchValue(true)
+	at := time.Now()
+	observation, err := integrations.NewStateObservation("relay", quality, &value, &at, at, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observation, err = observation.WithCausality(cause)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.session.Publish(fixture.ctx, fixture.bindings[0], observation); err != nil {
+		t.Fatal(err)
+	}
+	nha025Status(t, fixture.host, id, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
+	status, found, err = service.Status(fixture.ctx, id)
+	if err != nil || !found || status.APITerminal == nil || status.APITerminal.Status != actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED {
+		t.Fatal("terminal proof was rewritten by a late confirmation", status, err)
+	}
+	if driver.Count() != 1 {
+		t.Fatal("window repeated the physical command")
 	}
 }
 

@@ -1421,10 +1421,11 @@ async fn worker(
                 Some(Intent::Device { epoch, prepared }) => {
                     if let Some(profile)=&profile && profile.epoch==epoch && ui.epoch.load(Ordering::SeqCst)==epoch.0 {
                         let Prepared{target,request,guard,layout:_,alarm_code}=*prepared;
+                        let intent = request.intent();
                         match profile.actions.submit_with_alarm_code(request,guard.clone(),alarm_code) {
                             Ok(handle)=>{
                                 let mut updates = handle.subscribe();
-                                profile.devices.remember(target,handle.clone());
+                                profile.devices.remember(target,handle.clone(),&intent);
                                 let (action_ui, action_cancel, action_cache) =
                                     (ui.clone(), profile.cancel.clone(), profile.cache.handle());
                                 tasks.spawn(async move {
@@ -1446,7 +1447,7 @@ async fn worker(
                                 ui.post(epoch,|window|window.set_action_feedback("".into()));
                             }
                             Err(error)=>ui.refuse(epoch,match error {
-                                CapabilityControllerError::Busy|CapabilityControllerError::Capacity=>Refusal::Capacity,
+                                CapabilityControllerError::Capacity=>Refusal::Capacity,
                                 CapabilityControllerError::Closed|CapabilityControllerError::NotReady=>Refusal::Stale,
                                 CapabilityControllerError::InvalidCommand=>Refusal::InvalidValue,
                             }),
@@ -2117,25 +2118,6 @@ pub(crate) fn run_with_lifecycle(
                 ProfileEpoch(choice_ui.epoch.load(Ordering::SeqCst)),
                 refusal,
             ),
-        }
-    });
-    let stop_ui = ui.clone();
-    window.on_device_stop_tracking(move |token, generation| {
-        let epoch = ProfileEpoch(stop_ui.epoch.load(Ordering::SeqCst));
-        let binding = stop_ui
-            .devices
-            .lock()
-            .expect("device binding mutex")
-            .clone();
-        if let Some(binding) = binding
-            && binding.epoch == epoch
-        {
-            let revision = stop_ui
-                .projection_request
-                .lock()
-                .expect("presentation request mutex poisoned")
-                .revision;
-            binding.store.stop(token, generation, revision);
         }
     });
     let logout = send.clone();

@@ -7,7 +7,38 @@ use home_wire_contract::api_command_operations::{CommandCompletion, CommandOutco
 pub(super) fn presentation(
     value: Option<&CapabilitySnapshot>,
 ) -> (ProActionPhase, &'static str, &'static str) {
-    crate::device_view::progress::quiet(facts(value), value)
+    quiet(facts(value), value)
+}
+// Routine media progress is silent; problems keep their feedback.
+fn quiet(
+    presentation: (ProActionPhase, &'static str, &'static str),
+    snapshot: Option<&CapabilitySnapshot>,
+) -> (ProActionPhase, &'static str, &'static str) {
+    let routine = match presentation.0 {
+        ProActionPhase::Preparing
+        | ProActionPhase::Sending
+        | ProActionPhase::Accepted
+        | ProActionPhase::Dispatched
+        | ProActionPhase::Confirmed => true,
+        ProActionPhase::Acknowledged => snapshot
+            .and_then(|snapshot| snapshot.operation.as_ref())
+            .is_some_and(|operation| !operation.done()),
+        ProActionPhase::Idle
+        | ProActionPhase::AcknowledgedUnverified
+        | ProActionPhase::Refused
+        | ProActionPhase::Uncertain
+        | ProActionPhase::Stopped
+        | ProActionPhase::Unavailable
+        | ProActionPhase::Interrupted
+        | ProActionPhase::Failed
+        | ProActionPhase::Cancelled
+        | ProActionPhase::Indeterminate => false,
+    };
+    if routine {
+        (presentation.0, "", "")
+    } else {
+        presentation
+    }
 }
 fn facts(value: Option<&CapabilitySnapshot>) -> (ProActionPhase, &'static str, &'static str) {
     let Some(value) = value else {
@@ -32,6 +63,16 @@ fn facts(value: Option<&CapabilitySnapshot>) -> (ProActionPhase, &'static str, &
             ProActionPhase::Uncertain,
             "Outcome unknown",
             "No replay; reconcile the server state",
+        ),
+        CapabilitySubmission::Superseded => (
+            ProActionPhase::Refused,
+            "Replaced",
+            "A later intention took its place before it was sent",
+        ),
+        CapabilitySubmission::Deferred => (
+            ProActionPhase::Sending,
+            "Sending intention",
+            "The route was busy; one more attempt is queued",
         ),
         CapabilitySubmission::Closed => (
             ProActionPhase::Unavailable,

@@ -99,14 +99,15 @@ func TestNHA180CapturedLightTargetAndDedupFence(t *testing.T) {
 		t.Fatalf("first dispatch: %v %v", first, err)
 	}
 	id := nha025ID(t, rig.request)
+	// The captured quantized target is the match criterion, correlated or not:
+	// neighbouring levels are not evidence even with the correlation echo, and
+	// the effective level confirms without one.
 	effective := float64(76) * 100 / 254
-	publish(effective, false)
-	nha025Status(t, rig.host, id, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED)
 	for _, neighbor := range []float64{75 * 100.0 / 254, 77 * 100.0 / 254} {
 		publish(neighbor, true)
 		nha025Status(t, rig.host, id, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED)
 	}
-	publish(effective, true)
+	publish(effective, false)
 	nha025Status(t, rig.host, id, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
 	secondRequest := proto.Clone(rig.request).(*actions.CommandRequest)
 	secondRequest.CommandId = "nha180-second"

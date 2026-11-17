@@ -56,18 +56,7 @@ impl Metadata {
             title: title.into(),
             label: row.value.clone(),
             state: row.detail.lock_state,
-            enabled: row.access == crate::ProControlAccess::Allowed
-                && !row.command_unavailable
-                && !matches!(
-                    row.phase,
-                    crate::ProActionPhase::Preparing
-                        | crate::ProActionPhase::Sending
-                        | crate::ProActionPhase::Accepted
-                        | crate::ProActionPhase::Dispatched
-                        | crate::ProActionPhase::Acknowledged
-                        | crate::ProActionPhase::Uncertain
-                        | crate::ProActionPhase::Interrupted
-                ),
+            enabled: row.access == crate::ProControlAccess::Allowed && !row.command_unavailable,
             can_lock: row
                 .lock_operations
                 .iter()
@@ -361,6 +350,7 @@ pub(crate) fn project(
         .get("color_temperature_mireds")
         .and_then(|token| device.values.iter().find(|field| field.token == *token));
     HomewardDetailRow {
+        pending: row.pending,
         has_temperature: temperature.is_some(),
         temperature_field: temperature.unwrap_or_default(),
         has_climate_editor: primary.is_some(),
@@ -381,14 +371,9 @@ pub(crate) fn project(
             state: power,
             state_label: state,
             since: device.freshness.clone(),
-            pending: matches!(
-                device.phase,
-                crate::ProActionPhase::Preparing
-                    | crate::ProActionPhase::Sending
-                    | crate::ProActionPhase::Accepted
-                    | crate::ProActionPhase::Dispatched
-                    | crate::ProActionPhase::Acknowledged
-            ),
+            // The Pro pending glyph would hold input; the switch shows the
+            // intended state instead and stays editable.
+            pending: false,
         },
         fan: ProFan {
             token: device.token,

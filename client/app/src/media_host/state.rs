@@ -1,6 +1,6 @@
 use crate::media::{Artwork, Data, Field, Quantity};
 use home_client_actions::capabilities::{
-    CapabilityHandle, CapabilitySnapshot, CapabilitySubmission, CapabilityTracking,
+    CapabilityHandle, CapabilitySnapshot, JobState, PendingStage, TerminalCause, job_state,
 };
 use home_client_cache::ProjectionGeneration;
 use home_client_model::api::EntityName;
@@ -242,26 +242,30 @@ impl State {
         if self.pending.is_some() {
             return true;
         }
-        self.progress.as_ref().is_some_and(|snapshot| {
-            if matches!(
-                snapshot.tracking,
-                CapabilityTracking::Complete | CapabilityTracking::Stopped
-            ) {
-                return false;
-            }
-            match snapshot.submission {
-                CapabilitySubmission::Prepared
-                | CapabilitySubmission::Sending
-                | CapabilitySubmission::Uncertain => true,
-                CapabilitySubmission::Accepted => snapshot
+        // Admission decides: a terminal job never holds the controls, even
+        // when its physical outcome is unknown.
+        self.progress
+            .as_ref()
+            .is_some_and(|snapshot| match job_state(snapshot) {
+                JobState::Pending(
+                    PendingStage::Preparing | PendingStage::Sending | PendingStage::Deferred,
+                ) => true,
+                JobState::Pending(PendingStage::Tracking) => snapshot
                     .operation
                     .as_ref()
                     .is_none_or(|operation| !operation.done()),
-                CapabilitySubmission::NotSent
-                | CapabilitySubmission::Rejected
-                | CapabilitySubmission::Closed => false,
-            }
-        })
+                JobState::Terminal(
+                    TerminalCause::NotSent
+                    | TerminalCause::Rejected
+                    | TerminalCause::Superseded
+                    | TerminalCause::Closed
+                    | TerminalCause::Complete
+                    | TerminalCause::Stopped
+                    | TerminalCause::Uncertain
+                    | TerminalCause::Interrupted
+                    | TerminalCause::Unavailable,
+                ) => false,
+            })
     }
 
     pub fn authorized(&self) -> bool {

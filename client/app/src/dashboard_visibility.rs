@@ -150,7 +150,7 @@ pub(crate) fn project(
         .filter_map(|recipes| recipes.visibility.as_ref())
         .flat_map(|predicate| predicate.dependencies())
         .collect::<BTreeSet<_>>();
-    let states = if phase == CachePhase::Live {
+    let states = if matches!(phase, CachePhase::Live | CachePhase::Degraded) {
         dependencies
             .into_iter()
             .filter_map(|id| Some((id.clone(), literal(view, id)?)))

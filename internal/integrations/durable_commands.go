@@ -41,6 +41,47 @@ type DurableCommandService struct {
 	// Lifecycle signal only: never used to dispatch or authorize an effect.
 	proofDrain     context.Context
 	stopProofDrain context.CancelFunc
+	window         ConfirmationWindow
+}
+
+// ConfirmationWindow bounds how long an acknowledged command waits for a
+// qualified observation. When it elapses, the acknowledgement itself becomes
+// the durable terminal fact (ACKNOWLEDGED_UNVERIFIED for API readers). This
+// never invents a confirmation and never resends.
+type ConfirmationWindow struct{ duration time.Duration }
+
+const (
+	minConfirmationWindow = 100 * time.Millisecond
+	maxConfirmationWindow = 30 * time.Second
+)
+
+var defaultConfirmationWindow = ConfirmationWindow{duration: 3 * time.Second}
+
+func NewConfirmationWindow(duration time.Duration) (ConfirmationWindow, error) {
+	if duration < minConfirmationWindow || duration > maxConfirmationWindow {
+		return ConfirmationWindow{}, ErrInvalidInput
+	}
+	return ConfirmationWindow{duration: duration}, nil
+}
+
+// SetConfirmationWindow is a trusted composition/test seam.
+func (s *DurableCommandService) SetConfirmationWindow(window ConfirmationWindow) error {
+	if s == nil || window.duration == 0 {
+		return ErrInvalidInput
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.window = window
+	return nil
+}
+
+func (s *DurableCommandService) confirmationWindow() ConfirmationWindow {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.window.duration == 0 {
+		return defaultConfirmationWindow
+	}
+	return s.window
 }
 
 func NewDurableCommandService(ctx context.Context, host *Manager, generation GenerationAuthority, store *storage.Store) (*DurableCommandService, error) {
@@ -885,9 +926,16 @@ func (s *DurableCommandService) awaitAPICommandProof(ctx context.Context, id dom
 	}
 	defer subscription.Close()
 	ackAttempted := false
+	waitCtx := ctx
 	for {
-		snapshot, err := subscription.Next(ctx)
+		snapshot, err := subscription.Next(waitCtx)
 		if err != nil {
+			if ackAttempted && ctx.Err() == nil && errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
+				// The confirmation window elapsed after a device acknowledgement:
+				// the acknowledgement is the terminal fact. A later observation
+				// still refines the live tracker but not this immutable proof.
+				return acknowledged
+			}
 			return stoppedAPICommandProof(acknowledged)
 		}
 		if snapshot.Command != id {
@@ -910,6 +958,11 @@ func (s *DurableCommandService) awaitAPICommandProof(ctx context.Context, id dom
 			// fact is not durable status: only a committed ACK or terminal SQL
 			// append can expose durable evidence. No ACK retry is scheduled.
 			acknowledged = proof
+			// Only the first acknowledgement opens the window; one deferred
+			// cancel per wait.
+			var endWindow context.CancelFunc
+			waitCtx, endWindow = context.WithTimeout(ctx, s.confirmationWindow().duration)
+			defer endWindow()
 		}
 		if terminalAction(snapshot.Status) {
 			return &actions.CommandResponse{CommandId: acknowledged.CommandId, Status: snapshot.Status}

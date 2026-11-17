@@ -422,6 +422,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 	var driver CommandDriver
 	var managed *taskGroup
 	var leased commandEndpointSlot
+	var tolerances RouteTolerances
 	defer func() {
 		if leased.device == (domain.DeviceID{}) {
 			return
@@ -529,6 +530,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 					return ErrCommandRouteUnavailable
 				}
 				admitted = AdmittedCommand{id: id, actor: actor, internal: internal, entity: entity, request: resolved, tracker: h.actions, host: h, binding: binding, light: target, fan: fan, permission: permit}
+				tolerances = tolerancesFor(description)
 				// Slot lease is reserved before the Host lock is released.
 				h.inflight[endpointSlot] = true
 				leased = endpointSlot
@@ -583,7 +585,7 @@ func (r *CommandRouter) dispatchOnce(ctx context.Context, actor domain.ActorID, 
 	if !wire.ExpiresAt.AsTime().After(r.clock.Now()) {
 		return commandFailure(actions.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "expires_at"), nil
 	}
-	progress, err := r.host.actions.acceptTarget(id, entity, admitted.binding, wire, admitted.light, actionPoint, correlation, wire.ExpiresAt.AsTime().Sub(r.clock.Now()))
+	progress, err := r.host.actions.acceptTarget(id, entity, admitted.binding, wire, admitted.light, tolerances, actionPoint, correlation, wire.ExpiresAt.AsTime().Sub(r.clock.Now()))
 	if err != nil {
 		return nil, err
 	}

@@ -134,7 +134,10 @@ func nha025Publish(t *testing.T, rig nha025Rig, on bool, causality *domain.Causa
 	return rig.session.Publish(context.Background(), rig.binding, observation)
 }
 
-func TestNHA025AckRequiresCorrelatedFreshCompatibleState(t *testing.T) {
+// Every fresh compatible observation of the commanded slot admitted after the
+// command entered its driver is evidence: the correlation echo is no longer
+// required. A stale, foreign-endpoint or non-matching observation still is not.
+func TestNHA025AckRequiresFreshCompatibleSlotState(t *testing.T) {
 	driver := &nha025Driver{}
 	rig := nha025Setup(t, driver, nil)
 	id := nha025ID(t, rig.request)
@@ -148,17 +151,18 @@ func TestNHA025AckRequiresCorrelatedFreshCompatibleState(t *testing.T) {
 		if err != nil {
 			return err
 		}
+		// A correlated read taken mid-transition does not match and cannot confirm.
 		if err := nha025Publish(t, rig, false, &causality, quality); err != nil {
 			return err
 		}
 		nha025Status(t, rig.host, id, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED)
-		if err := nha025Publish(t, rig, true, nil, quality); err != nil {
+		if err := nha025Publish(t, rig, false, nil, quality); err != nil {
 			return err
 		}
 		nha025Status(t, rig.host, id, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED)
 		foreign, _ := domain.ParseCorrelationID("other-command-token")
 		wrongCause, _ := domain.NewCausality(nil, &foreign)
-		if err := nha025Publish(t, rig, true, &wrongCause, quality); err != nil {
+		if err := nha025Publish(t, rig, false, &wrongCause, quality); err != nil {
 			return err
 		}
 		nha025Status(t, rig.host, id, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED)
@@ -179,7 +183,8 @@ func TestNHA025AckRequiresCorrelatedFreshCompatibleState(t *testing.T) {
 			return err
 		}
 		nha025Status(t, rig.host, id, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED)
-		return nha025Publish(t, rig, true, &causality, quality)
+		// The next matching observation confirms without any correlation.
+		return nha025Publish(t, rig, true, nil, quality)
 	}
 	response, err := rig.service.Dispatch(context.Background(), nha022Actor(t), rig.request)
 	if err != nil || response.Status != actions.ActionStatus_ACTION_STATUS_DISPATCHED {
@@ -192,7 +197,32 @@ func TestNHA025AckRequiresCorrelatedFreshCompatibleState(t *testing.T) {
 	}
 }
 
-func TestNHA025OtherCommandProofCannotConfirmFirst(t *testing.T) {
+// An observation admitted before a command entered its driver can never
+// confirm it, whatever its value: the sequencer point orders the evidence.
+func TestNHA025ObservationBeforeEntryCannotConfirm(t *testing.T) {
+	driver := &nha025Driver{}
+	rig := nha025Setup(t, driver, nil)
+	id := nha025ID(t, rig.request)
+	quality, _ := domain.NewQuality(domain.AvailabilityAvailable, domain.FreshnessFresh, domain.ProvenanceObserved)
+	if err := nha025Publish(t, rig, true, nil, quality); err != nil {
+		t.Fatal(err)
+	}
+	driver.call = func(context.Context, integrations.AdmittedCommand) error { return nil }
+	if _, err := rig.service.Dispatch(context.Background(), nha022Actor(t), rig.request); err != nil {
+		t.Fatal(err)
+	}
+	// Dispatch without acknowledgement or sent completion stays DISPATCHED;
+	// the earlier matching state was not evidence for it.
+	nha025Status(t, rig.host, id, actions.ActionStatus_ACTION_STATUS_DISPATCHED)
+	if err := nha025Publish(t, rig, true, nil, quality); err != nil {
+		t.Fatal(err)
+	}
+	nha025Status(t, rig.host, id, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
+}
+
+// A later observation of the slot is evidence for every entered command whose
+// request it satisfies, including an earlier one still awaiting confirmation.
+func TestNHA025LaterSlotObservationConfirmsEachEnteredCommand(t *testing.T) {
 	driver := &nha025Driver{}
 	rig := nha025Setup(t, driver, nil)
 	firstID := nha025ID(t, rig.request)
@@ -224,7 +254,7 @@ func TestNHA025OtherCommandProofCannotConfirmFirst(t *testing.T) {
 	if _, err := rig.service.Dispatch(context.Background(), nha022Actor(t), second); err != nil {
 		t.Fatal(err)
 	}
-	nha025Status(t, rig.host, firstID, actions.ActionStatus_ACTION_STATUS_ACKNOWLEDGED)
+	nha025Status(t, rig.host, firstID, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
 	nha025Status(t, rig.host, secondID, actions.ActionStatus_ACTION_STATUS_CONFIRMED)
 }
 

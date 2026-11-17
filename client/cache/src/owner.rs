@@ -30,6 +30,11 @@ pub enum CachePhase {
     /// Explicit local credential renewal; no old capture is published.
     Renewing,
     Live,
+    /// The read stream is reconnecting while a retained authorized view stays
+    /// visible and the session is current. Commands stay enabled; observed
+    /// values resume with the next capture or delta.
+    Degraded,
+    /// No usable view, or the session itself is offline.
     Offline,
     Resyncing,
     Suspended,
@@ -615,6 +620,14 @@ struct DisplayState {
     view: Option<CachedView>,
     renewal: Option<PresentationSource>,
 }
+/// The phase of a read interruption under a current session: a retained
+/// authorized view keeps the owner degraded, never offline.
+fn retained_phase(view: Option<&CachedView>) -> CachePhase {
+    match view {
+        Some(_) => CachePhase::Degraded,
+        None => CachePhase::Offline,
+    }
+}
 struct Emitter<P> {
     inner: Arc<Inner<P>>,
     generation: ProjectionGeneration,
@@ -629,6 +642,7 @@ impl<P: Send + 'static> Emitter<P> {
         };
         self.inner.emit(self.generation, phase, view);
     }
+    /// A retained view under a current session is degraded, not offline.
     fn offline(&self) {
         let view = self
             .state
@@ -636,7 +650,7 @@ impl<P: Send + 'static> Emitter<P> {
             .expect("cache view mutex poisoned")
             .view
             .clone();
-        self.set(CachePhase::Offline, view.as_ref());
+        self.set(retained_phase(view.as_ref()), view.as_ref());
     }
     fn renew_or_clear(&self) {
         let renewal = {
@@ -831,9 +845,17 @@ async fn resume_read<P: Send + 'static>(
 
 // Transport outages have no total retry budget. Backoff and each network
 // operation remain bounded; protocol-invalid resync loops retain their limit.
-#[derive(Default)]
 struct NetworkRetry {
     backoff: home_client_transport::FibonacciBackoff,
+}
+impl Default for NetworkRetry {
+    fn default() -> Self {
+        Self {
+            backoff: home_client_transport::FibonacciBackoff::with_ceiling(
+                home_client_transport::BackoffCeiling::READ_STREAM,
+            ),
+        }
+    }
 }
 impl NetworkRetry {
     fn observe_watch(&mut self, elapsed: Duration, exit: &WatchExit) -> bool {
@@ -1003,7 +1025,7 @@ async fn feed<P: Send + 'static>(
         }
         match exit {
             WatchExit::Ended(view) => {
-                emitter.set(CachePhase::Offline, Some(&view));
+                emitter.set(CachePhase::Degraded, Some(&view));
                 // A fresh admitted snapshot restores Live even without deltas.
                 emitter.event(CacheEvent::StreamEnded, cancel).await;
                 if resume_network(&mut network, cancel).await {
@@ -1017,7 +1039,7 @@ async fn feed<P: Send + 'static>(
             } => {
                 emitter.set(
                     if view.is_some() {
-                        CachePhase::Offline
+                        CachePhase::Degraded
                     } else {
                         CachePhase::Blocked
                     },
@@ -1075,13 +1097,13 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[tokio::test(start_paused = true)]
-    async fn transport_outage_retries_beyond_four_attempts_with_capped_wait_and_cancellation() {
+    async fn transport_outage_retries_beyond_four_attempts_with_a_thirty_second_cap_and_cancellation()
+     {
         let cancel = CancellationToken::new();
         let mut progress = NetworkRetry::default();
-        let expected = [
-            1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 3600, 3600,
-            3600,
-        ];
+        // A retained view must not stay stale for minutes: the read stream
+        // reconnects within 30 s however long the outage lasts.
+        let expected = [1, 1, 2, 3, 5, 8, 13, 21, 30, 30, 30, 30];
         for seconds in expected {
             let started = tokio::time::Instant::now();
             assert!(resume_network(&mut progress, &cancel).await);
@@ -1283,7 +1305,7 @@ mod tests {
                 }
             };
             progress.watch_ended(Duration::from_secs(30), &exit);
-            emitter.set(CachePhase::Offline, Some(&view));
+            emitter.set(CachePhase::Degraded, Some(&view));
             assert!(resume_read(&emitter, policy, &mut progress, &cancel).await);
             assert_eq!(progress.failures, 1);
         }

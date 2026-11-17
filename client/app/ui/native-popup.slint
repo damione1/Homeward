@@ -24,7 +24,6 @@ export component HomewardPopup inherits KitDialogSurface {
     callback edit(int,int,int,ProValueIntent);
     callback choose(int,int,int);
     callback brightness(int,int,float);
-    callback stop-tracking(int,int);
     callback details(int,int);
     callback gesture(int,int,ProGesture);
     in property <FocusRequest> recipe-focus;
@@ -102,7 +101,6 @@ export component HomewardPopup inherits KitDialogSurface {
                     edit(token,generation,field,intent) => { root.edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.choose(token,generation,choice); }
                     brightness(token,generation,value) => { root.brightness(token,generation,value); }
-                    stop-tracking(token,generation) => { root.stop-tracking(token,generation); }
                     details(token,generation) => { root.details(token,generation); }
                     gesture(token,generation,gesture) => { root.gesture(token,generation,gesture); }
                 }

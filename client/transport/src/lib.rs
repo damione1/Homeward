@@ -50,7 +50,7 @@ pub use logic::LogicTransport;
 #[cfg(feature = "private-qualification")]
 pub use notifications::NotificationTransport;
 pub use operations::OperationsTransport;
-pub use reconnect::{FibonacciBackoff, ReconnectPolicy};
+pub use reconnect::{BackoffCeiling, FibonacciBackoff, ReconnectPolicy};
 pub use tasks::{TaskTransport, TaskWatch};
 
 #[allow(clippy::all)]
