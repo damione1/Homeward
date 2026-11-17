@@ -163,15 +163,13 @@ fn reconcile_step(
         state.drafts.insert(key, locked);
     }
 }
-// A step is released by any terminal admission state: a confirmed, refused,
-// failed, unverified or unknown outcome all hand the editor back to the
-// fresh observation. Only a job still in flight keeps the proposed value.
+// A step is released by any terminal outcome: a confirmed, refused, failed,
+// unverified or unknown result all hand the editor back to the fresh
+// observation. Only a job still in flight keeps the proposed value. The
+// control's own display decides what "in flight" means, so a completed
+// operation releases the step even before tracking reports completion.
 fn resolved_step(snapshot: &home_client_actions::capabilities::CapabilitySnapshot) -> bool {
-    use home_client_actions::capabilities::{JobState, job_state};
-    match job_state(snapshot) {
-        JobState::Pending(_) => false,
-        JobState::Terminal(_) => true,
-    }
+    !super::progress::pending(Some(snapshot))
 }
 pub(super) fn edit_step(
     state: &mut super::State,
@@ -1025,14 +1023,19 @@ mod tests {
             Some(&view(&request, vec![entity.clone()])),
             &request,
         );
+        // The readback matches the first step, but the stacked step to 21 is
+        // still in flight: the editor keeps the latest intended value.
         assert_eq!(
             reconciled.native_devices[&NodeId::parse("tile").unwrap()].values[0].lower,
-            "20.5"
+            "21"
         );
-        assert!(
-            store.0.lock().unwrap().drafts[&(super::super::CardGeneration(row.generation), 0)]
-                .dirty
-        );
+        {
+            let state = store.0.lock().unwrap();
+            let key = (super::super::CardGeneration(row.generation), 0);
+            assert!(state.drafts[&key].dirty);
+            assert_eq!(state.native_steps.pending[&key].proposed, "21");
+            assert_eq!(state.native_steps.observed[&key], "20.5");
+        }
         api_fixture::temperature_mut(&mut entity)
             .observation
             .get_or_insert_default()
