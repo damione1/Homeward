@@ -393,7 +393,7 @@ pub(crate) mod tests {
         let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
         publish(&terminal, None, crate::ProControlAccess::Allowed);
         render("unverified-reverted");
-        assert_eq!(slider().accessible_value().as_deref(), Some("62%"));
+        assert_eq!(slider().accessible_value().as_deref(), Some("62"));
         assert_eq!(
             window
                 .get_detail_panels()

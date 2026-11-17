@@ -922,12 +922,10 @@ mod tests {
             "a sent step still in flight is the base of the next gesture"
         );
         {
+            // prepared_target locks the store itself: resolve it first.
+            let target = prepared_target(&store, &row);
             let mut state = store.0.lock().unwrap();
-            attach_step(
-                &mut state,
-                &prepared_target(&store, &row),
-                &pending.request_id,
-            );
+            attach_step(&mut state, &target, &pending.request_id);
         }
         let terminal = snapshot(Some(wire::CommandOutcome::AcknowledgedUnverified));
         let (phase, notice, _) = crate::device_view::progress::presentation(Some(&terminal));
