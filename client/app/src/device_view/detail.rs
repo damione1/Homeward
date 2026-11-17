@@ -6,12 +6,12 @@ use super::{
     presentation::{CardRow, nested},
 };
 use crate::{
-    ChoiceIcon, ChoiceRow, HomewardDetailRow, ProAlarm, ProAlarmCondition, ProAssociatedLock,
-    ProClimate, ProClimateOptions, ProCover, ProCoverLock, ProCoverMotion, ProDeviceRow, ProFan,
-    ProLight, ProSwitch, ProSwitchState, ProValueMode,
+    ChoiceIcon, ChoiceRow, HomewardDetailRow, IconGlyph, ProAlarm, ProAlarmCondition,
+    ProAssociatedLock, ProClimate, ProClimateOptions, ProCover, ProCoverLock, ProCoverMotion,
+    ProDetailFact, ProDeviceRow, ProFan, ProLight, ProSwitch, ProSwitchState, ProValueMode, Tone,
 };
 use home_wire_contract::home::api::v2 as wire;
-use slint::{Model, SharedString};
+use slint::{Model, ModelRc, SharedString};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Metadata {
@@ -19,7 +19,15 @@ pub(crate) struct Metadata {
     associated_lock: Option<AssociatedLock>,
     lock_state: ProCoverLock,
     modes: Vec<ChoiceRow>,
+    mode_icons: Vec<ChoiceIcon>,
     climate_activity: String,
+    /// The observed activity admitted by the capability, for its glyph and tone.
+    climate_activity_value: Option<wire::TemperatureActivity>,
+    /// When the capability's observation was taken; the panels' "since" copy.
+    observed: Option<chrono::DateTime<chrono::Utc>>,
+    /// The light's observed colour and preset name, shown as facts.
+    light_color: Option<(u8, u8, u8)>,
+    light_preset: String,
     quality_notice: String,
     fan_modes: Vec<ChoiceRow>,
     speeds: Vec<ChoiceRow>,
@@ -95,6 +103,7 @@ impl Metadata {
         let mut result = Self {
             condition: ProAlarmCondition::Unknown,
             quality_notice: observation::quality_notice(capability),
+            observed: observation::observed_time(capability),
             ..Default::default()
         };
         let observed = observation::evidence(capability).is_some();
@@ -104,13 +113,24 @@ impl Metadata {
                 let Some(T::TemperatureControl(value)) = capability.r#trait.as_ref() else {
                     return result;
                 };
-                result.climate_activity = observed
+                result.climate_activity_value = observed
                     .then(|| value.observation.activity.and_then(|v| v.as_known()))
                     .flatten()
-                    .filter(|activity| climate.observes().activities.contains(activity))
+                    .filter(|activity| climate.observes().activities.contains(activity));
+                result.climate_activity = result
+                    .climate_activity_value
                     .map(super::panel::activity_label)
                     .unwrap_or_default()
                     .into();
+                result.mode_icons = climate
+                    .modes()
+                    .iter()
+                    .enumerate()
+                    .map(|(index, mode)| ChoiceIcon {
+                        token: index as i32,
+                        glyph: mode_glyph(*mode),
+                    })
+                    .collect();
                 let selected_mode = observed
                     .then(|| value.observation.mode.and_then(|v| v.as_known()))
                     .flatten();
@@ -298,8 +318,15 @@ impl Metadata {
                     };
                 }
             }
+            Control::Light { .. } => {
+                // Observed only: Homeward sends no colour or preset command yet,
+                // so the panel shows them as facts and keeps its colour view closed.
+                if observed && let Some(T::LightControl(value)) = capability.r#trait.as_ref() {
+                    result.light_color = value.observation.rgb.as_option().and_then(rgb_color);
+                    result.light_preset = value.observation.preset.clone().unwrap_or_default();
+                }
+            }
             Control::Switch { .. }
-            | Control::Light { .. }
             | Control::Level { .. }
             | Control::Helper(_)
             | Control::Binary
@@ -309,6 +336,98 @@ impl Metadata {
         }
         result
     }
+}
+// Glyphs the dashboard vocabulary lacks, from Slint Kit's bundled Lucide
+// catalog (ISC license), as dashboard_icons.rs carries the others.
+const FLAME: &str = "M 12 3 Q 13 7 16 9.5 Q 19 12 19 15 C 19 18.866 15.866 22 12 22 C 8.134 22 5 18.866 5 15 C 5 13.918 5.351 12.865 6 12 C 6 13.381 7.119 14.5 8.5 14.5 C 9.881 14.5 11 13.381 11 12 C 11 10 9.5 9 9.5 7 Q 9.5 5 12 3";
+const SNOWFLAKE: &str = "M 10 20 L 8.75 17.5 L 6 18 M 10 4 L 8.75 6.5 L 6 6 M 14 20 L 15.25 17.5 L 18 18 M 14 4 L 15.25 6.5 L 18 6 M 17 21 L 14 15 L 10 15 M 17 3 L 14 9 L 15.5 12 M 2 12 L 8.5 12 L 10 9 M 20 10 L 18.5 12 L 20 14 M 22 12 L 15.5 12 L 14 15 M 4 10 L 5.5 12 L 4 14 M 7 21 L 10 15 L 8.5 12 M 7 3 L 10 9 L 14 9";
+fn rgb_color(rgb: &wire::RgbColor) -> Option<(u8, u8, u8)> {
+    Some((
+        u8::try_from(rgb.red?).ok()?,
+        u8::try_from(rgb.green?).ok()?,
+        u8::try_from(rgb.blue?).ok()?,
+    ))
+}
+fn lucide(stroke: &str) -> IconGlyph {
+    IconGlyph {
+        stroke: stroke.into(),
+        fill: "".into(),
+        viewbox: 24.,
+    }
+}
+fn dashboard_glyph(icon: wire::DashboardIcon) -> IconGlyph {
+    crate::dashboard_icons::glyph(icon, &IconGlyph::default())
+}
+fn mode_glyph(mode: wire::TemperatureMode) -> IconGlyph {
+    match mode {
+        wire::TemperatureMode::Unspecified => IconGlyph::default(),
+        wire::TemperatureMode::Off => dashboard_glyph(wire::DashboardIcon::Power),
+        wire::TemperatureMode::Heat => lucide(FLAME),
+        wire::TemperatureMode::Cool => lucide(SNOWFLAKE),
+        wire::TemperatureMode::Auto => dashboard_glyph(wire::DashboardIcon::Thermostat),
+        wire::TemperatureMode::Dry => dashboard_glyph(wire::DashboardIcon::Water),
+        wire::TemperatureMode::FanOnly => dashboard_glyph(wire::DashboardIcon::Fan),
+    }
+}
+/// How the panel draws the observed activity: its glyph, its tone, and
+/// whether it is heating (the product paints heating in its own tint).
+struct Activity {
+    glyph: IconGlyph,
+    tone: Tone,
+    heating: bool,
+}
+fn activity_paint(value: Option<wire::TemperatureActivity>) -> Activity {
+    let (glyph, tone, heating) = match value {
+        Some(wire::TemperatureActivity::Heating) => (lucide(FLAME), Tone::Warning, true),
+        Some(wire::TemperatureActivity::Cooling) => (lucide(SNOWFLAKE), Tone::Information, false),
+        Some(wire::TemperatureActivity::Drying) => (
+            dashboard_glyph(wire::DashboardIcon::Water),
+            Tone::Information,
+            false,
+        ),
+        Some(wire::TemperatureActivity::FanOnly) => (
+            dashboard_glyph(wire::DashboardIcon::Fan),
+            Tone::Information,
+            false,
+        ),
+        Some(wire::TemperatureActivity::Idle | wire::TemperatureActivity::Unspecified) | None => {
+            (IconGlyph::default(), Tone::Neutral, false)
+        }
+    };
+    Activity {
+        glyph,
+        tone,
+        heating,
+    }
+}
+/// The observation time as a clock reading, with the date when it is not today.
+fn observed_label(time: chrono::DateTime<chrono::Utc>) -> String {
+    let local = time.with_timezone(&chrono::Local);
+    if local.date_naive() == chrono::Local::now().date_naive() {
+        local.format("%H:%M").to_string()
+    } else {
+        local.format("%-d %b %H:%M").to_string()
+    }
+}
+fn hue_degrees((red, green, blue): (u8, u8, u8)) -> i32 {
+    let (r, g, b) = (
+        f64::from(red) / 255.,
+        f64::from(green) / 255.,
+        f64::from(blue) / 255.,
+    );
+    let max = r.max(g).max(b);
+    let delta = max - r.min(g).min(b);
+    if delta <= f64::EPSILON {
+        return 0;
+    }
+    let sextant = if max == r {
+        ((g - b) / delta).rem_euclid(6.)
+    } else if max == g {
+        (b - r) / delta + 2.
+    } else {
+        (r - g) / delta + 4.
+    };
+    (sextant * 60.).round() as i32 % 360
 }
 fn selected(rows: &[ChoiceRow]) -> i32 {
     rows.iter()
@@ -349,6 +468,42 @@ pub(crate) fn project(
         .field_keys
         .get("color_temperature_mireds")
         .and_then(|token| device.values.iter().find(|field| field.token == *token));
+    let observed = metadata.observed.map(observed_label);
+    // Degraded evidence stays visible; otherwise the status names what the
+    // light does with what it can do.
+    let light_status: SharedString = if !metadata.quality_notice.is_empty() {
+        metadata.quality_notice.clone().into()
+    } else if !metadata.light_preset.is_empty() {
+        format!("Preset · {}", metadata.light_preset).into()
+    } else if power == ProSwitchState::On
+        && device.can_brightness
+        && temperature.is_none()
+        && metadata.light_color.is_none()
+    {
+        "On · dimming only".into()
+    } else {
+        SharedString::default()
+    };
+    let mut light_facts = Vec::new();
+    if let Some(observed) = &observed {
+        light_facts.push(ProDetailFact {
+            token: 1,
+            label: "Observed".into(),
+            value: observed.clone().into(),
+            glyph: dashboard_glyph(wire::DashboardIcon::Clock),
+            navigable: false,
+        });
+    }
+    if !metadata.light_preset.is_empty() {
+        light_facts.push(ProDetailFact {
+            token: 2,
+            label: "Preset".into(),
+            value: metadata.light_preset.clone().into(),
+            glyph: dashboard_glyph(wire::DashboardIcon::Scene),
+            navigable: false,
+        });
+    }
+    let activity = activity_paint(metadata.climate_activity_value);
     HomewardDetailRow {
         pending: row.pending,
         has_temperature: temperature.is_some(),
@@ -360,17 +515,41 @@ pub(crate) fn project(
             generation: device.generation,
             power,
             state_label: state.clone(),
-            status: metadata.quality_notice.clone().into(),
+            status: light_status,
             brightness: device.brightness_percent,
             brightness_known: device.brightness_known,
+            hue: metadata.light_color.map_or(0, hue_degrees),
+            hue_known: metadata.light_color.is_some(),
+            color: metadata
+                .light_color
+                .map_or_else(slint::Color::default, |(red, green, blue)| {
+                    slint::Color::from_rgb_u8(red, green, blue)
+                }),
+            color_label: if !metadata.light_preset.is_empty() {
+                metadata.light_preset.clone().into()
+            } else if metadata.light_color.is_some() {
+                "Custom colour".into()
+            } else {
+                SharedString::default()
+            },
+            color_detail: metadata
+                .light_color
+                .map(|(red, green, blue)| format!("RGB {red} {green} {blue}"))
+                .unwrap_or_default()
+                .into(),
             ..Default::default()
         },
+        light_facts: nested(&light_facts, previous.map(|v| &v.light_facts)),
         switch: ProSwitch {
             token: device.token,
             generation: device.generation,
             state: power,
             state_label: state,
-            since: device.freshness.clone(),
+            since: observed
+                .as_ref()
+                .map(|time| format!("Observed {time}"))
+                .unwrap_or_default()
+                .into(),
             // The Pro pending glyph would hold input; the switch shows the
             // intended state instead and stays editable.
             pending: false,
@@ -396,8 +575,14 @@ pub(crate) fn project(
             can_decrement: climate_field
                 .is_some_and(|field| field.can_step && field.lower_position > 0.),
             activity: metadata.climate_activity.clone().into(),
+            activity_glyph: activity.glyph,
+            activity_tone: activity.tone,
             modes: ProClimateOptions {
                 rows: nested(&metadata.modes, previous.map(|v| &v.climate.modes.rows)),
+                icons: nested(
+                    &metadata.mode_icons,
+                    previous.map(|v| &v.climate.modes.icons),
+                ),
                 focus: selected(&metadata.modes),
             },
             fan_modes: ProClimateOptions {
@@ -405,10 +590,12 @@ pub(crate) fn project(
                     &metadata.fan_modes,
                     previous.map(|v| &v.climate.fan_modes.rows),
                 ),
+                icons: ModelRc::default(),
                 focus: selected(&metadata.fan_modes),
             },
             ..Default::default()
         },
+        climate_heating: activity.heating,
         cover: ProCover {
             token: device.token,
             generation: device.generation,

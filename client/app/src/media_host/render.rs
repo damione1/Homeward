@@ -1,7 +1,8 @@
 use super::state::{ChoiceKind, ChoiceToken, Draft, Picture, State, Status};
 use crate::{
-    HomewardWindow, ProArtworkState, ProDeviceValue, ProMediaAction, ProMediaOperation,
-    ProMediaOption, ProMediaOptionKind, ProMediaPresentation, ProValueKind, ProValueMode,
+    HomewardMediaVolume, HomewardWindow, ProArtworkState, ProDeviceValue, ProMediaAction,
+    ProMediaMember, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProMediaPresentation,
+    ProValueKind, ProValueMode,
     media::{Data, Field, Refusal},
 };
 use home_client_model::{
@@ -134,6 +135,7 @@ pub(super) fn clear(window: &HomewardWindow) {
     window.set_media_actions(Default::default());
     window.set_media_options(Default::default());
     window.set_media_values(Default::default());
+    window.set_media_volume(Default::default());
     window.set_media_members(Default::default());
     window.set_media_group_title("".into());
     window.set_media_coordinator("".into());
@@ -231,6 +233,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         window.set_media_data(Default::default());
         window.set_media_actions(Default::default());
         window.set_media_values(Default::default());
+        window.set_media_volume(Default::default());
         window.set_media_options(Default::default());
         window.set_media_members(Default::default());
         window.set_media_group_title("".into());
@@ -396,14 +399,24 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         })
         .collect::<Vec<_>>();
     window.set_media_actions(rows(window.get_media_actions(), actions));
-    let fields = [
-        (Field::Volume, &value.volume),
-        (Field::Position, &value.position),
-    ]
-    .into_iter()
-    .filter_map(|(kind, draft)| field(&data, kind, draft))
-    .collect::<Vec<_>>();
+    // The volume is the panel's own slider; the position keeps the exact editor.
+    let fields = field(&data, Field::Position, &value.position)
+        .into_iter()
+        .collect::<Vec<_>>();
     window.set_media_values(rows(window.get_media_values(), fields));
+    // The level is the draft's place in the player's domain, so a gesture
+    // sent back as a position lands on the same scale. The draft follows
+    // the observation whenever no edit is in progress.
+    window.set_media_volume(HomewardMediaVolume {
+        field: Field::Volume.token(),
+        offered: data
+            .limits(Field::Volume)
+            .is_some_and(|limits| limits.minimum() < limits.maximum()),
+        known: value.volume.value.is_some(),
+        level: value.volume.value.map_or(0, |quantity| {
+            (data.position(quantity) * 100.).round() as i32
+        }),
+    });
     let options = value
         .options
         .iter()
@@ -461,11 +474,29 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             .unwrap_or_else(|| "Coordinator not exposed".to_owned())
             .into(),
     );
+    // Every reported member plays in the group. The player exposes no
+    // per-member join, leave or volume command and no member volume, so the
+    // rows are read-only and carry no level.
+    let glyph = crate::dashboard_icons::glyph(
+        home_wire_contract::home::api::v2::DashboardIcon::Music,
+        &Default::default(),
+    );
     window.set_media_members(rows(
         window.get_media_members(),
         members
             .iter()
-            .map(|member| SharedString::from(member.display_name()))
+            .enumerate()
+            .map(|(index, member)| ProMediaMember {
+                token: index as i32 + 1,
+                generation: value.generation,
+                title: SharedString::from(member.display_name()),
+                glyph: glyph.clone(),
+                grouped: true,
+                can_group: false,
+                volume: 0,
+                volume_known: false,
+                can_volume: false,
+            })
             .collect::<Vec<_>>(),
     ));
     window.set_media_publishing(false);
