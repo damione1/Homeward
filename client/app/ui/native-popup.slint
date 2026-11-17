@@ -1,6 +1,6 @@
 import { ProModuleIntent } from "@kit-pro";
-import { KitDialogSurface, KitButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy, StepDirection } from "@kit";
-import { ProDetailPanel, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProValueIntent, ProGesture } from "@kit-pro";
+import { KitDialogSurface, KitButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy, StepDirection, Tone, IconGlyph } from "@kit";
+import { ProDetailPanel, ProDetailPresentation, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProValueIntent, ProGesture } from "@kit-pro";
 import { HomewardDashboard } from "native-dashboard.slint";
 
 export component HomewardPopup inherits KitDialogSurface {
@@ -8,8 +8,16 @@ export component HomewardPopup inherits KitDialogSurface {
     in property <Edges> safe-area-insets;
     private property <length> viewport-width: max(0px, root.width - root.safe-area-insets.left - root.safe-area-insets.right);
     private property <length> viewport-height: max(0px, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom);
+    // Under 600 px the room is a page: a full-screen sheet over the canvas
+    // whose single Back chevron steps back through the popup history before
+    // it closes. Wider viewports keep the centred dialog over the scrim.
+    private property <bool> phone: root.viewport-width < 600px;
     in property <int> generation;
     in property <string> title;
+    // The room's own glyph, drawn in a tinted well before the title; a
+    // detail popup (a thermostat) keeps the plain header.
+    in property <IconGlyph> glyph;
+    private property <IconGlyph> no-glyph;
     in property <bool> detail;
     in property <bool> can-back;
     callback back(int);
@@ -51,20 +59,36 @@ export component HomewardPopup inherits KitDialogSurface {
     tab-policy: DialogTabPolicy.native;
     public function take-focus() { if (root.state.open && root.state.topmost) { panel.take-focus(); } }
     changed opened => { if (root.opened) { root.take-focus(); } }
-    dismiss(reason) => { root.close(root.generation, reason); }
+    function leave(reason: CloseReason) {
+        if (root.phone && root.can-back) { root.back(root.generation); }
+        else { root.close(root.generation, reason); }
+    }
+    dismiss(reason) => { root.leave(reason); }
+    background: root.phone ? root.theme.canvas : root.theme.scrim;
     panel := ProDetailPanel {
-        theme: root.theme; title: root.title; close-label: "Close " + root.title;
+        theme: root.theme; title: root.title;
+        close-label: root.phone ? "Back" : "Close " + root.title;
+        dismiss-glyph: root.phone ? root.theme.icons.chevron-left : root.theme.icons.close;
+        presentation: root.phone ? ProDetailPresentation.sheet : ProDetailPresentation.dialog;
+        header-glyph: root.detail ? root.no-glyph : root.glyph;
+        header-glyph-tone: Tone.warning;
+        divider: !root.detail;
         notice: root.action-feedback;
         interactive: root.state.open && root.state.topmost && !root.state.busy;
-        width: root.viewport-width < 600px ? root.viewport-width : max(0px, min(root.viewport-width - 48px, root.detail ? 480px : 840px));
-        height: root.viewport-width < 600px ? root.viewport-height : min(max(0px, root.viewport-height - 48px), self.preferred-height);
+        // A room dialog keeps 100 px margins on a tablet so its body holds
+        // three layout columns; a detail popup stays a narrow 480 px column.
+        width: root.phone ? root.viewport-width
+            : root.detail ? max(0px, min(root.viewport-width - 48px, 480px))
+            : max(0px, min(root.viewport-width - 200px, 1080px));
+        height: root.phone ? root.viewport-height
+            : min(max(0px, root.viewport-height - (root.detail ? 48px : 96px)), self.preferred-height);
         x: root.safe-area-insets.left + (root.viewport-width - self.width) / 2;
         y: root.safe-area-insets.top + (root.viewport-height - self.height) / 2;
-        tools: root.can-back ? [{token: root.generation, label: "Back", glyph: root.theme.icons.chevron-left}] : [];
+        tools: root.can-back && !root.phone ? [{token: root.generation, label: "Back", glyph: root.theme.icons.chevron-left, show-label: false}] : [];
         tool-requested(token) => {
             if (root.can-back && token == root.generation) { root.back(token); }
         }
-        dismiss(reason) => { root.close(root.generation,reason); }
+        dismiss(reason) => { root.leave(reason); }
             scroll := KitScrollArea {
                 mouse-drag-pan-enabled: false;
                 vertical-stretch: 1;

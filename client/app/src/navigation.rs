@@ -1,7 +1,8 @@
 //! Window-local routes and focus. No transport or device commands.
 use crate::{
-    BodyFocus, CloseReason, DialogState, FocusRequest, HomewardWindow, NavigationStep, OptionRow,
-    ProShellFocus, SelectState, SelectionAvailability, SelectionRef, ViewPage,
+    BodyFocus, CloseReason, DialogState, FocusRequest, HomewardWindow, IconGlyph, LucideHome,
+    NavigationStep, OptionRow, ProShellFocus, SelectState, SelectionAvailability, SelectionRef,
+    ViewPage,
     cache_view::CacheRows,
     dashboard::{self, ProjectionRequest, Route, SharedRequest},
 };
@@ -592,6 +593,31 @@ fn render(window: &HomewardWindow, state: &State) {
         | Route::Calendars
         | Route::Cameras
         | Route::Settings => "".into(),
+    });
+    // The popup header well shows the room's own glyph, the rail's room
+    // glyph when the node declares none; a closed popup leaves no glyph.
+    window.set_native_popup_glyph(match &state.route {
+        Route::Native(destination) if popup => request
+            .dashboard
+            .layout()
+            .and_then(|layout| layout.native.as_ref())
+            .and_then(|native| native.nodes.get(&destination.node))
+            .map_or_else(IconGlyph::default, |node| {
+                crate::dashboard_icons::glyph(
+                    node.icon,
+                    &window.global::<LucideHome>().invoke_door_open(),
+                )
+            }),
+        Route::Home
+        | Route::Rooms
+        | Route::Inventory
+        | Route::Room(_)
+        | Route::Native(_)
+        | Route::Detail(_)
+        | Route::Lists
+        | Route::Calendars
+        | Route::Cameras
+        | Route::Settings => IconGlyph::default(),
     });
     let detail_popup = if let Route::Native(destination) = &state.route {
         request
@@ -2027,6 +2053,10 @@ mod back_tests {
             .match_inherits("HomewardPopup")
             .find_first()
             .expect("the native popup component is mounted");
+        // Under 600 px the room is a sheet with one header action: a Back
+        // chevron that steps through the popup history, and closes the sheet
+        // once there is nothing to go back to. The dialog's separate Back
+        // tool and "Close Kitchen" button are not drawn.
         let control = |name: &str| {
             let name = name.to_owned();
             popup
@@ -2034,22 +2064,22 @@ mod back_tests {
                 .match_accessible_role(i_slint_backend_testing::AccessibleRole::Button)
                 .match_predicate(move |e| e.accessible_label().as_deref() == Some(name.as_str()))
                 .find_first()
-                .expect("the open popup exposes its named header action")
         };
-        let back = control("Back");
-        let close = control("Close Kitchen");
-        for button in [&back, &close] {
-            let p = button.absolute_position();
-            let size = button.size();
-            assert!(
-                p.x >= 16. && p.x + size.width <= 344.,
-                "header action outside phone: {:?} {:?}",
-                p,
-                size
-            );
-            assert!(p.y >= 0. && p.y + size.height <= 740.);
-            assert!(size.width >= 48. && size.height >= 48.);
-        }
+        let back = control("Back").expect("the phone sheet exposes its Back chevron");
+        assert!(
+            control("Close Kitchen").is_none(),
+            "a phone sheet draws no second header action"
+        );
+        let p = back.absolute_position();
+        let size = back.size();
+        assert!(
+            p.x >= 16. && p.x + size.width <= 344.,
+            "header action outside phone: {:?} {:?}",
+            p,
+            size
+        );
+        assert!(p.y >= 0. && p.y + size.height <= 740.);
+        assert!(size.width >= 48. && size.height >= 48.);
         let panel = popup
             .query_descendants()
             .match_inherits("ProDetailPanel")
@@ -2057,7 +2087,7 @@ mod back_tests {
             .unwrap();
         assert_eq!(panel.accessible_label().as_deref(), Some("Kitchen"));
         // The panel announces its title once. Its decorative Text is hidden
-        // from accessibility, and wraps below the actions at 200%.
+        // from accessibility and stays inside the sheet at 200%.
         let title = panel
             .query_descendants()
             .match_type_name("Text")
@@ -2069,9 +2099,26 @@ mod back_tests {
             title.absolute_position().x + title.size().width
                 <= panel.absolute_position().x + panel.size().width + 1.
         );
-        assert!(title.absolute_position().y >= close.absolute_position().y + close.size().height);
+        assert!(title.absolute_position().y >= panel.absolute_position().y);
+        assert!(
+            title.absolute_position().y + title.size().height
+                <= panel.absolute_position().y + panel.size().height + 1.
+        );
         back.mock_single_click(PointerEventButton::Left);
         assert_eq!(backs.get(), 1);
+        // Without history the same chevron closes the sheet.
+        let closes = Rc::new(std::cell::Cell::new(0));
+        let closed = closes.clone();
+        window.on_native_popup_dismiss(move |generation, _reason| {
+            assert_eq!(generation, 7);
+            closed.set(closed.get() + 1);
+        });
+        window.set_native_popup_can_back(false);
+        slint::platform::update_timers_and_animations();
+        let back = control("Back").expect("the chevron stays once history is empty");
+        back.mock_single_click(PointerEventButton::Left);
+        assert_eq!(backs.get(), 1, "an empty history is not stepped back");
+        assert_eq!(closes.get(), 1, "the chevron closes the sheet instead");
     }
 
     #[test]
@@ -2097,10 +2144,8 @@ mod back_tests {
     }
 
     #[test]
-    fn native_back_fallback_closes_list_picker_before_leaving_lists() {
+    fn native_back_fallback_closes_list_menu_before_leaving_lists() {
         let window = window();
-        window.on_lists_filter_options(crate::list_host::filter_options);
-        window.on_lists_find_option(crate::list_host::find_option);
         window.set_lists_generation(7);
         window.set_lists_catalog_ready(true);
         window.set_lists_options(ModelRc::from([OptionRow {
@@ -2109,38 +2154,34 @@ mod back_tests {
             label: "Synthetic groceries".into(),
             ..Default::default()
         }]));
+        window.set_lists_selected(true);
+        window.set_lists_list_token(18);
+        window.set_lists_option_index(0);
         window.invoke_quick_navigation(ViewPage::Lists);
         window.show().unwrap();
-        let trigger = ElementQuery::from_root(&window)
-            .match_inherits("KitSelectTrigger")
-            // Kit 0.8.0: the label names the select; no list is selected yet.
-            .match_predicate(|item| {
-                item.accessible_label().as_deref() == Some("List")
-                    && item.accessible_value().as_deref() == Some("")
-            })
+        let options = ElementQuery::from_root(&window)
+            .match_predicate(|item| item.accessible_label().as_deref() == Some("List options"))
             .find_first()
             .unwrap();
-        trigger.mock_single_click(PointerEventButton::Left);
+        options.mock_single_click(PointerEventButton::Left);
         slint::platform::update_timers_and_animations();
-        let search_present = || {
+        let menu_present = || {
             ElementQuery::from_root(&window)
-                .match_inherits("TextInput")
-                .match_predicate(|item| {
-                    item.accessible_label().as_deref() == Some("Search options")
-                })
+                .match_inherits("KitOption")
+                .match_predicate(|item| item.accessible_label().as_deref() == Some("Rename list"))
                 .find_first()
                 .is_some()
         };
-        assert!(search_present(), "the real list selection popup is mounted");
+        assert!(menu_present(), "the inline list menu is mounted");
         assert!(
             window.invoke_system_back(),
-            "fallback is consumed by the popup owner"
+            "fallback is consumed by the menu owner"
         );
         slint::platform::update_timers_and_animations();
         assert_eq!(window.get_page(), ViewPage::Lists);
         assert!(
-            !search_present(),
-            "Back closed the popup without replaying a key"
+            !menu_present(),
+            "Back closed the menu without replaying a key"
         );
         assert!(window.invoke_system_back());
         assert_eq!(window.get_page(), ViewPage::Home);

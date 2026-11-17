@@ -3,7 +3,8 @@ import { LucideIcons } from "@kit/icons/lucide/all.slint";
 import { KitDialogSurface, KitDialogPanel, KitIconButton, KitButton, KitSelect, KitTheme, KitThemes, KitThemeContext, KitCard, KitCardHeader, KitUrlField,
     KitTextArea, KitTextField, KitScrollArea, KitStack, KitWrap, KitAlert, AlertSeverity, ControlWidth, TextPurpose, FieldAccess, KitCheckbox, CheckState,
     KitDataTable, TableColumn, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
-    KitMetrics, ControlSize, OptionRow, SelectState, DialogState, CloseReason, StepDirection, FocusRequest } from "@kit";
+    KitMetrics, ControlSize, OptionRow, SelectState, DialogState, DialogTabPolicy, CloseReason, StepDirection, FocusRequest, NotificationRow, IconGlyph } from "@kit";
+import { InterFont } from "@kit/fonts/inter.slint";
 import { ProLockOperation, ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProDeviceKind, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro";
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
@@ -11,14 +12,16 @@ import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.
 import { HomewardAdministration } from "administration.slint";
 import { ProAdminStage, ProAdminAction, ProAdminSection, ProAdminActionRow, ProAdminField, ProAdminChoice } from "@kit-pro";
 export { ProAdminFieldKind } from "@kit-pro";
-export { IconGlyph, KitGlyphs, TableColumn, ChoiceIcon } from "@kit";
+export { IconGlyph, KitGlyphs, TableColumn, ChoiceIcon, NotificationRow } from "@kit";
+import { HomewardNotifications, NotificationPresentation, NotificationAction, NotificationRowAction } from "notifications.slint";
+export { NotificationPresentation, NotificationAction, NotificationRowAction } from "notifications.slint";
 import { ProVideoAction } from "@kit-pro";
 import { ProCameraPresentation, ProCameraEventRow, ProCameraState } from "@kit-pro";
 import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaColumn, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro";
 import { CivilDateView, LocalDateTimeView, LocalTimeView, ZonedTimePresentation, ZonedDateTimeDraft, AmbiguousTimeChoice, CalendarDay, CalendarNavigation } from "@kit";
 import { HomewardHistory, HistoryPresentation, HistoryStatistic } from "history.slint";
-import { HomewardMedia } from "media.slint";
-import { ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue } from "@kit-pro";
+import { HomewardMedia, HomewardMediaVolume } from "media.slint";
+import { ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue, ProMediaMember } from "@kit-pro";
 import { ProChartPhase, ProChartSeries, ProChartRangeGesture } from "@kit-pro";
 import { KitGlyphs } from "@kit";
 import { LucideTime } from "@kit/icons/lucide/time.slint";
@@ -47,6 +50,7 @@ export component HomewardWindow inherits Window {
     preferred-width: 1280px; preferred-height: 800px;
     min-width: 320px; min-height: 400px;
     background: root.theme.canvas;
+    default-font-family: InterFont.family;
     in-out property <bool> dark-mode;
     in property <KitTheme> theme: HomewardSkin.theme(root.dark-mode, root.opaque-surfaces, max(root.large-text ? 2 : 1, 1rem / 14px), root.reduced-motion);
     // The 0.5 context supplies defaults to application-composed children too.
@@ -186,6 +190,7 @@ export component HomewardWindow inherits Window {
     in property <[OptionRow]> lists-options;
     in property <int> lists-option-index: -1;
     in property <[ProTaskRow]> lists-grocery-rows;
+    in property <[ProTaskRow]> lists-completed-rows;
     in property <[ProGrocerySuggestion]> lists-suggestions;
     in property <bool> lists-catalog-ready;
     in property <bool> lists-write-ready;
@@ -214,6 +219,7 @@ export component HomewardWindow inherits Window {
     callback lists-grocery-remove(int,int,int,int);
     callback lists-grocery-quick-add(int,int,int,int);
     callback lists-grocery-add(int,int,string);
+    callback lists-clear-completed(int,int);
     callback lists-action(int,int,ProTaskAction);
     callback lists-create(int,string);
     callback lists-rename(int,string);
@@ -261,6 +267,8 @@ export component HomewardWindow inherits Window {
     in property <string> native-popup-title;
     in property <bool> native-popup-detail;
     in property <bool> native-popup-can-back;
+    // The glyph of the room a popup shows, for its header well.
+    in property <IconGlyph> native-popup-glyph;
     callback native-popup-back(int);
     in property <bool> native-page;
     callback native-popup-dismiss(int,CloseReason);
@@ -306,6 +314,7 @@ export component HomewardWindow inherits Window {
     callback alarm-confirm(int,int);
     callback lock-operation(int,int,ProLockOperation);
     callback device-step(int,int,StepDirection);
+    callback device-next-level(int,int);
     callback device-power(int,int,ProPowerIntent);
     callback device-module(ProModuleIntent);
     callback device-brightness(int,int,float);
@@ -354,7 +363,8 @@ export component HomewardWindow inherits Window {
     in property <[ProDeviceValue]> media-values;
     in property <string> media-group-title;
     in property <string> media-coordinator;
-    in property <[string]> media-members;
+    in property <[ProMediaMember]> media-members;
+    in property <HomewardMediaVolume> media-volume;
     in property <string> media-notice;
     in property <int> media-artwork-remaining-ms;
     in-out property <int> media-artwork-id;
@@ -410,7 +420,20 @@ export component HomewardWindow inherits Window {
     callback admin-choose(int,int,int,int);
     callback admin-editor-action(int,int,ProAdminAction);
     private property <bool> connected: root.access-stage == ProAccessStage.connected;
-    private property <bool> background-interactive: root.connected && !root.native-popup.open && !root.recipe-confirmation.open;
+    private property <bool> background-interactive: root.connected && !root.native-popup.open && !root.recipe-confirmation.open && !root.notifications-open;
+    // The notification centre: a dialog the shell's bell opens. The host
+    // learns when it is on screen and supplies its rows and unread mark.
+    in property <NotificationPresentation> notification-view;
+    in property <[NotificationRow]> notification-rows;
+    in property <bool> notification-has-unread;
+    in-out property <bool> notifications-open;
+    callback notification-visible(bool);
+    callback notification-action(int,NotificationAction);
+    callback notification-row-action(int,int,NotificationRowAction);
+    // The signed-in account's mark at the foot of the navigation rail; no
+    // initials hide the mark.
+    in property <string> account-initials;
+    in property <string> account-label: "Account";
     private property <bool> content-interactive: root.background-interactive && !root.navigation-drawer.open;
     // A capture gap closes admission, not the foreground view's focus scope.
     private property <bool> dashboard-interactive: root.content-interactive;
@@ -614,10 +637,18 @@ export component HomewardWindow inherits Window {
         theme: root.theme; product-name: "Homeward"; brand-glyph: LucideNavigation.compass(); workspace-label: root.dashboard-title;
         header-visible: root.page != ViewPage.calendars;
         floating-navigation: true; compact-breakpoint: 600px;
-        subtitle: root.page == ViewPage.home ? "" : root.local-date;
+        subtitle: root.local-date;
         navigation-glyphs: [KitGlyphs.home(), LucideHome.door-open(), KitGlyphs.cart(), LucideTime.calendar-days(), LucideDevices.video(), KitGlyphs.settings()];
+        // Settings is the trailing navigation row, pinned to the rail foot.
+        footer-rows: 1;
+        avatar-visible: root.account-initials != "";
+        avatar-initials: root.account-initials; avatar-label: root.account-label;
+        avatar-requested => { root.quick-navigation(ViewPage.settings); }
+        // No inbox host feeds the centre yet (the native host left in NHF-033).
         notifications-visible: false;
-        page-title: root.page == ViewPage.home ? root.dashboard-title : root.page-title;
+        notification-unread: root.notification-has-unread;
+        notifications-requested => { root.notifications-open = true; }
+        page-title: root.page == ViewPage.home ? root.greeting : root.page-title;
         status: root.view-loaded ? "" : (root.read-status == "" ? root.session-title : root.read-status);
         navigation-label: "Navigation"; close-label: "Close Navigation";
         search-label: "Search My Home"; search-placeholder: "Search for an item…"; clear-search-label: "Clear Search";
@@ -691,7 +722,7 @@ export component HomewardWindow inherits Window {
             lists-pane := HomewardLists {
                 list-token: root.lists-list-token; options: root.lists-options;
                 option-index: root.lists-option-index;
-                grocery-rows: root.lists-grocery-rows; suggestions: root.lists-suggestions;
+                grocery-rows: root.lists-grocery-rows; completed-rows: root.lists-completed-rows; suggestions: root.lists-suggestions;
                 width: viewport.width; height: viewport.height; visible: root.page == ViewPage.lists;
                 create-draft <=> root.lists-create-draft; rename-draft <=> root.lists-rename-draft; add-draft <=> root.lists-add-draft;
                 theme: root.theme; generation: root.lists-generation; privacy-generation: root.lists-privacy-generation; catalog: root.lists-catalog; tasks: root.lists-tasks;
@@ -710,6 +741,7 @@ export component HomewardWindow inherits Window {
                 grocery-remove(lt,lg,t,g) => { root.lists-grocery-remove(lt,lg,t,g); }
                 grocery-quick-add(lt,lg,t,g) => { root.lists-grocery-quick-add(lt,lg,t,g); }
                 grocery-add(lt,lg,v) => { root.lists-grocery-add(lt,lg,v); }
+                clear-completed(lt,lg) => { root.lists-clear-completed(lt,lg); }
                 action(t,g,a) => { root.lists-action(t,g,a); }
                 create(g,v) => { root.lists-create(g,v); }
                 rename(g,v) => { root.lists-rename(g,v); }
@@ -744,6 +776,7 @@ export component HomewardWindow inherits Window {
                 if root.dashboard-status != "": KitAlert { theme: root.theme; title: "Dashboard"; message: root.dashboard-status; severity: information; }
                 if root.home-layout-nodes.length > 0: HomewardDashboard {
                     step(t,g,d) => { root.device-step(t,g,d); }
+                    next-level(t,g) => { root.device-next-level(t,g); }
                     recipe-focus: root.recipe-focus; tile-focus: root.tile-focus;
                     tile-focus-revealed(t,g,top,bottom) => { if (root.tile-focus.present && root.tile-focus.token == t && root.tile-focus.generation == g && !root.cohort-pending) { root.reveal-recipe(top,bottom); } }
                     widget-focus: root.widget-focus; widget-item-focus: root.widget-item-focus;
@@ -779,6 +812,7 @@ export component HomewardWindow inherits Window {
                 scrolled => { root.native-focus-cancelled(); }
                 if root.rooms-layout-nodes.length > 0: HomewardDashboard {
                     step(t,g,d) => { root.device-step(t,g,d); }
+                    next-level(t,g) => { root.device-next-level(t,g); }
                     theme: root.theme; viewport-width: rooms-area.visible-width; screen-width: root.width;
                     nodes: root.rooms-layout-nodes; node-index: 0;
                     interactive: root.dashboard-interactive && root.page == ViewPage.rooms;
@@ -812,6 +846,7 @@ export component HomewardWindow inherits Window {
                 if root.action-feedback != "" && root.page != ViewPage.detail && !root.native-popup.open: KitAlert { theme: root.theme; title: "Update"; message: root.action-feedback; severity: information; }
                 if root.room-layout-nodes.length > 0: HomewardDashboard {
                     step(t,g,d) => { root.device-step(t,g,d); }
+                    next-level(t,g) => { root.device-next-level(t,g); }
                     recipe-focus: root.recipe-focus; tile-focus: root.tile-focus;
                     tile-focus-revealed(t,g,top,bottom) => { if (root.tile-focus.present && root.tile-focus.token == t && root.tile-focus.generation == g && !root.cohort-pending) { root.reveal-recipe(top,bottom); } }
                     widget-focus: root.widget-focus; widget-item-focus: root.widget-item-focus;
@@ -996,7 +1031,7 @@ export component HomewardWindow inherits Window {
                     media: root.media-data; actions: root.media-actions; options: root.media-options; values: root.media-values;
                     progress-known: root.media-progress-known; progress: root.media-progress;
                     position-label: root.media-position-label; duration-label: root.media-duration-label;
-                    group-title: root.media-group-title; coordinator: root.media-coordinator; members: root.media-members;
+                    group-title: root.media-group-title; coordinator: root.media-coordinator; members: root.media-members; volume: root.media-volume;
                     notice: root.media-notice; artwork-remaining-ms: root.media-artwork-remaining-ms;
                     operation(token,generation,operation) => { root.media-operation(token,generation,operation); }
                     option(token,generation,kind,option) => { root.media-option(token,generation,kind,option); }
@@ -1027,8 +1062,38 @@ export component HomewardWindow inherits Window {
         }
     }
     }
+    notifications-dialog := KitDialogSurface {
+        width: root.width; height: root.height; theme: root.theme;
+        state: { open: root.notifications-open, topmost: root.notifications-open && !root.native-popup.open && !root.recipe-confirmation.open, busy: false };
+        tab-policy: DialogTabPolicy.native;
+        private property <bool> opened: root.notifications-open;
+        changed opened => { root.notification-visible(self.opened); if (self.opened) { notifications-close.take-focus(); } }
+        dismiss(reason) => { root.notifications-open = false; }
+        KitDialogPanel {
+            theme: root.theme; accessible-name: "Notifications";
+            width: max(0px, min(root.width - 32px, 560px * root.theme.text-scale));
+            height: max(0px, min(root.height - 32px, 640px * root.theme.text-scale));
+            x: (root.width - self.width) / 2; y: (root.height - self.height) / 2;
+            VerticalLayout {
+                padding: 16px; spacing: 16px;
+                KitScrollArea {
+                    vertical-stretch: 1; overlay-scrollbars: true;
+                    HomewardNotifications {
+                        theme: root.theme; view: root.notification-view; rows: root.notification-rows;
+                        interactive: root.notifications-open && !root.native-popup.open && !root.recipe-confirmation.open;
+                        action(generation,action) => { root.notification-action(generation,action); }
+                        row-action(token,generation,action) => { root.notification-row-action(token,generation,action); }
+                    }
+                }
+                notifications-close := KitButton { theme: root.theme; text: "Close"; control-size: ControlSize.comfortable;
+                    disabled: !root.notifications-open || root.native-popup.open || root.recipe-confirmation.open;
+                    activated => { root.notifications-open = false; } }
+            }
+        }
+    }
     popup-dialog := HomewardPopup {
         safe-area-insets: root.safe-area-insets;
+        glyph: root.native-popup-glyph;
                     step(t,g,d) => { root.device-step(t,g,d); }
         width: root.width; height: root.height; theme: root.theme;
         state: { open: root.native-popup.open, topmost: root.native-popup.topmost && !root.recipe-confirmation.open, busy: root.native-popup.busy };

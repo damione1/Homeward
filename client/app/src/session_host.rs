@@ -2108,16 +2108,30 @@ pub(crate) fn run_with_lifecycle(
         alarm_ui.refresh_device_presentation();
     });
     let choice_ui = ui.clone();
+    let submit_choice = submit_device.clone();
     window.on_device_choice(move |token, generation, choice| {
         let result = choice_ui.current_devices().and_then(|(binding, revision)| {
             binding.store.choose(token, generation, revision, choice)
         });
         match result {
-            Ok(intent) => submit_device(token, generation, intent),
+            Ok(intent) => submit_choice(token, generation, intent),
             Err(refusal) => choice_ui.refuse(
                 ProfileEpoch(choice_ui.epoch.load(Ordering::SeqCst)),
                 refusal,
             ),
+        }
+    });
+    let next_ui = ui.clone();
+    let submit_next = submit_device;
+    window.on_device_next_level(move |token, generation| {
+        let result = next_ui
+            .current_devices()
+            .and_then(|(binding, revision)| binding.store.next_choice(token, generation, revision));
+        match result {
+            Ok(intent) => submit_next(token, generation, intent),
+            Err(refusal) => {
+                next_ui.refuse(ProfileEpoch(next_ui.epoch.load(Ordering::SeqCst)), refusal)
+            }
         }
     });
     let logout = send.clone();

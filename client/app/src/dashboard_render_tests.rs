@@ -1303,12 +1303,20 @@ fn modal_content_respects_dynamic_system_insets_without_shrinking_scrims() {
                             && origin.y + size.height <= height - insets.bottom + 1.,
                         "content extent: {context} {origin:?} {size:?}"
                     );
+                    // A phone room is a sheet whose single Back chevron
+                    // dismisses it; every other modal keeps a Close button.
+                    let sheet = room && screen == "phone";
                     let close = surface
                         .query_descendants()
                         .match_inherits("KitPressable")
-                        .match_predicate(|item| {
-                            item.accessible_label()
-                                .is_some_and(|label| label.starts_with("Close"))
+                        .match_predicate(move |item| {
+                            item.accessible_label().is_some_and(|label| {
+                                if sheet {
+                                    label == "Back"
+                                } else {
+                                    label.starts_with("Close")
+                                }
+                            })
                         })
                         .find_first()
                         .expect("modal Close");
