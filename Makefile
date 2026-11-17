@@ -10,6 +10,12 @@ smoke-compose:
 	python3 scripts/smoke-compose.py
 
 check: export PYTHONDONTWRITEBYTECODE=1
+# A debug build of the generated `HomewardWindow::new` keeps two copies of the
+# window struct on the stack (about 1 MB of frame), more than the 2 MB a test
+# thread gets by default; every homeward-app test that builds the window needs
+# the larger stack. A direct `cargo test` needs the same variable (or a local
+# .cargo/config.toml `[env]` entry).
+check: export RUST_MIN_STACK ?= 8388608
 check:
 	sh scripts/ensure-worker-python.sh
 	PYTHONDONTWRITEBYTECODE=1 "$$(cat .tools/worker-python/python-path)" -m unittest -q testworker.caseta_worker_test testworker.esphome_worker_test
