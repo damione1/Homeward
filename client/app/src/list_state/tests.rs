@@ -33,27 +33,55 @@ pub(crate) fn catalog(ids: &[&str]) -> Arc<ListReadSnapshot> {
         fetched_at: SystemTime::UNIX_EPOCH,
     })
 }
+/// One synthetic row: the server fields a capture or a test varies. The
+/// summary keeps the host conventions (a `- ` prefix nests, a trailing `xN`
+/// is a quantity); the description is the row's note.
+pub(crate) struct ItemFixture<'a> {
+    pub uid: &'a str,
+    pub revision: u64,
+    pub summary: &'a str,
+    pub completed: bool,
+    pub description: &'a str,
+}
+/// Open, note-less rows: the shorthand of most tests.
 pub(crate) fn items(
     id: &str,
     revision: u64,
     values: &[(&str, u64, &str)],
+) -> Arc<ListReadSnapshot> {
+    let rows = values
+        .iter()
+        .map(|(uid, revision, summary)| ItemFixture {
+            uid,
+            revision: *revision,
+            summary,
+            completed: false,
+            description: "",
+        })
+        .collect::<Vec<_>>();
+    detailed_items(id, revision, &rows)
+}
+pub(crate) fn detailed_items(
+    id: &str,
+    revision: u64,
+    values: &[ItemFixture<'_>],
 ) -> Arc<ListReadSnapshot> {
     use home_client_model::api_tasks::*;
     let list = list(id, revision);
     let rows = values
         .iter()
         .enumerate()
-        .map(|(position, (uid, revision, summary))| {
+        .map(|(position, item)| {
             Arc::new(
                 TaskResource::new(
                     TaskRevision::new(
-                        TaskName::new(list.name().clone(), uid.parse().unwrap()),
-                        etag(*revision),
+                        TaskName::new(list.name().clone(), item.uid.parse().unwrap()),
+                        etag(item.revision),
                     ),
                     TaskContent::new(
-                        TaskText::try_from(*summary).unwrap(),
-                        false,
-                        Some(TaskDescription::try_from("").unwrap()),
+                        TaskText::try_from(item.summary).unwrap(),
+                        item.completed,
+                        Some(TaskDescription::try_from(item.description).unwrap()),
                         TaskDue::None,
                     ),
                     position as i64,

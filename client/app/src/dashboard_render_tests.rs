@@ -773,7 +773,8 @@ mod parity {
     pub(super) fn fan(token: i32, title: &str, speed: &str) -> CardRow {
         let on = speed != "Off";
         let mut row = card(token, ProDeviceKind::Fan, title, speed, on);
-        row.choices = ["Low", "Medium", "High"]
+        // Fastest first, as the panel stacks the speed columns top-down.
+        row.choices = ["High", "Medium", "Low"]
             .into_iter()
             .enumerate()
             .map(|(index, label)| ProDeviceChoice {
@@ -783,9 +784,9 @@ mod parity {
             })
             .collect();
         row.detail = Metadata::default().with_speeds(&[
-            ("Low", speed == "Low"),
-            ("Medium", speed == "Medium"),
             ("High", speed == "High"),
+            ("Medium", speed == "Medium"),
+            ("Low", speed == "Low"),
         ]);
         row
     }
@@ -898,7 +899,8 @@ mod parity {
         row
     }
     pub(super) fn scene(token: i32, title: &str, place: &str, active: bool) -> CardRow {
-        let mut row = card(token, ProDeviceKind::Scene, title, "Scene", active);
+        // A scene reports no value of its own; the place is its only subtitle.
+        let mut row = card(token, ProDeviceKind::Scene, title, "", active);
         row.quality = place.into();
         row
     }
@@ -1312,7 +1314,7 @@ mod parity {
             kind: ProDashboardWidgetKind::Thermostat,
             field: device.values.row_data(0).unwrap_or_default(),
             thermostat: device,
-            detailed: true,
+            detailed: false,
             active: true,
             tint: paint.tint,
             ink: paint.ink,
@@ -1414,7 +1416,7 @@ mod parity {
         let heating = thermostat(10, "Thermostat", "21.5", "21.0");
         let thermostat = board.widget("Thermostat", thermostat_widget(&heating, appearance));
         let off = board.tile(
-            &scene(11, "Turn off the ground floor", "Scene", false),
+            &scene(11, "Turn off the ground floor", "", false),
             I::Power,
             ProTileTemplate::Rectangle,
             1,
@@ -1494,7 +1496,6 @@ mod parity {
                 kind: ProDashboardWidgetKind::Agenda,
                 agenda: ModelRc::from(agenda_rows.as_slice()),
                 item_limit: 3,
-                action_label: "Open".into(),
                 data_ready: true,
                 can_open: true,
                 ..Default::default()
@@ -1515,7 +1516,6 @@ mod parity {
                 tasks: ModelRc::from(tasks.as_slice()),
                 task_access: ProTaskAccess::Editable,
                 item_limit: 5,
-                action_label: "Open".into(),
                 status: "8 to buy".into(),
                 data_ready: true,
                 can_open: true,
@@ -1674,8 +1674,18 @@ mod parity {
         );
         board
     }
+    /// Which page of the tile gallery a capture shows.
+    #[derive(Clone, Copy)]
+    pub(super) enum GalleryPage {
+        /// Lights, switch, fan and garage door.
+        A,
+        /// Thermostat, media player and the two alarm states.
+        B1,
+        /// Sensor and scene.
+        B2,
+    }
     /// The tile gallery: every kind in its compact, rectangle and large template.
-    pub(super) fn gallery(appearance: Appearance, second: bool) -> Board {
+    pub(super) fn gallery(appearance: Appearance, page: GalleryPage) -> Board {
         use wire::DashboardIcon as I;
         let mut board = Board::new(appearance);
         let mut sections = Vec::new();
@@ -1696,69 +1706,74 @@ mod parity {
             );
             sections.push((section, 12, 12, 3));
         };
-        if second {
-            row(
-                &mut board,
-                "Thermostat",
-                thermostat(100, "Home thermostat", "21.5", "21.0"),
-                I::Thermostat,
-            );
-            row(
-                &mut board,
-                "Media player",
-                player(101, "ICI Musique", "Kitchen · Sonos", true),
-                I::Music,
-            );
-            row(
-                &mut board,
-                "Alarm",
-                alarm(102, ProAlarmCondition::Disarmed),
-                I::Shield,
-            );
-            row(
-                &mut board,
-                "Alarm · triggered",
-                alarm(103, ProAlarmCondition::Triggered),
-                I::Shield,
-            );
-            row(
-                &mut board,
-                "Sensor",
-                sensor(104, "Living room temperature", "21.0", "°C"),
-                I::Thermostat,
-            );
-            row(
-                &mut board,
-                "Scene",
-                scene(105, "Cosy", "Living room", true),
-                I::Scene,
-            );
-        } else {
-            row(
-                &mut board,
-                "Dimmable light",
-                lamp(100, "Living room ceiling light", 70., None),
-                I::Light,
-            );
-            row(
-                &mut board,
-                "RGB light",
-                lamp(101, "Desk strip", 60., Some((124, 108, 240))),
-                I::Light,
-            );
-            row(
-                &mut board,
-                "Switch",
-                switch(102, "Design lamp", true),
-                I::Power,
-            );
-            row(&mut board, "Fan", fan(103, "Ceiling fan", "Medium"), I::Fan);
-            row(
-                &mut board,
-                "Garage door",
-                garage(104, "Garage door"),
-                I::Garage,
-            );
+        match page {
+            GalleryPage::A => {
+                row(
+                    &mut board,
+                    "Dimmable light",
+                    lamp(100, "Living room ceiling light", 70., None),
+                    I::Light,
+                );
+                row(
+                    &mut board,
+                    "RGB light",
+                    lamp(101, "Desk strip", 60., Some((124, 108, 240))),
+                    I::Light,
+                );
+                row(
+                    &mut board,
+                    "Switch",
+                    switch(102, "Design lamp", true),
+                    I::Power,
+                );
+                row(&mut board, "Fan", fan(103, "Ceiling fan", "Medium"), I::Fan);
+                row(
+                    &mut board,
+                    "Garage door",
+                    garage(104, "Garage door"),
+                    I::Garage,
+                );
+            }
+            GalleryPage::B1 => {
+                row(
+                    &mut board,
+                    "Thermostat",
+                    thermostat(100, "Home thermostat", "21.5", "21.0"),
+                    I::Thermostat,
+                );
+                row(
+                    &mut board,
+                    "Media player",
+                    player(101, "ICI Musique", "Kitchen · Sonos", true),
+                    I::Music,
+                );
+                row(
+                    &mut board,
+                    "Alarm",
+                    alarm(102, ProAlarmCondition::Disarmed),
+                    I::Shield,
+                );
+                row(
+                    &mut board,
+                    "Alarm · triggered",
+                    alarm(103, ProAlarmCondition::Triggered),
+                    I::Shield,
+                );
+            }
+            GalleryPage::B2 => {
+                row(
+                    &mut board,
+                    "Sensor",
+                    sensor(104, "Living room temperature", "21.0", "°C"),
+                    I::Thermostat,
+                );
+                row(
+                    &mut board,
+                    "Scene",
+                    scene(105, "Cosy", "Living room", true),
+                    I::Scene,
+                );
+            }
         }
         board.root(24., &sections);
         board
@@ -1899,12 +1914,19 @@ fn mockup_parity_captures() {
     window.set_dark_mode(false);
     window.set_page(ViewPage::Home);
     window.set_page_title("Tiles · catalogue A".into());
-    window.set_home_layout_nodes(parity::gallery(Appearance::Light, false).model());
+    window
+        .set_home_layout_nodes(parity::gallery(Appearance::Light, parity::GalleryPage::A).model());
     size(1440., 1400.);
     capture("TilesA");
-    window.set_page_title("Tiles · catalogue B".into());
-    window.set_home_layout_nodes(parity::gallery(Appearance::Light, true).model());
-    capture("TilesB");
+    window.set_page_title("Tiles · catalogue B1".into());
+    window
+        .set_home_layout_nodes(parity::gallery(Appearance::Light, parity::GalleryPage::B1).model());
+    capture("TilesB1");
+    window.set_page_title("Tiles · catalogue B2".into());
+    window
+        .set_home_layout_nodes(parity::gallery(Appearance::Light, parity::GalleryPage::B2).model());
+    size(1440., 800.);
+    capture("TilesB2");
     window.set_page_title("Home".into());
     window.set_home_layout_nodes(parity::list_tiles(Appearance::Light).model());
     size(880., 520.);
@@ -1936,8 +1958,8 @@ fn mockup_parity_captures() {
     let switch = parity::detail(&parity::switch(7, "Design lamp", true), I::Power);
     size(480., 760.);
     for (name, panel) in [
-        ("ModalLight", lamp.clone()),
-        ("ModalLightColor", strip),
+        ("ModalLight", lamp),
+        ("ModalLightColor", strip.clone()),
         ("ModalThermostat", heating.clone()),
         ("ModalFan", fan),
         ("ModalGarage", garage),
@@ -1948,8 +1970,9 @@ fn mockup_parity_captures() {
         capture(name);
     }
     size(390., 844.);
+    // The phone light sheet shows the colour strip: its wheel is the taller panel.
     for (name, panel) in [
-        ("MobileLight", lamp),
+        ("MobileLight", strip),
         ("MobileThermostat", heating),
         ("MobileAlarm", alarm),
     ] {
@@ -1960,7 +1983,8 @@ fn mockup_parity_captures() {
     // Media detail.
     clear();
     window.set_page(ViewPage::Detail);
-    window.set_detail_title("ICI Musique".into());
+    // The sheet is titled by the player; what it plays is the panel's own title.
+    window.set_detail_title("Kitchen".into());
     window.set_media_visible(true);
     window.set_media_has_data(true);
     window.set_media_editable(true);
@@ -1991,18 +2015,15 @@ fn mockup_parity_captures() {
         ]
         .as_slice(),
     ));
-    window.set_media_values(ModelRc::from([ProDeviceValue {
-        token: 0,
-        kind: ProValueKind::Numeric,
-        mode: ProValueMode::Single,
-        label: "Volume".into(),
-        lower: "35".into(),
-        suffix: "%".into(),
-        lower_position: 0.35,
-        slider_enabled: true,
-        can_step: true,
-        ..Default::default()
-    }]));
+    // The volume is the panel's own slider, not a value field; a live stream
+    // has no position field either.
+    window.set_media_values(ModelRc::default());
+    window.set_media_volume(HomewardMediaVolume {
+        field: 0,
+        offered: true,
+        known: true,
+        level: 35,
+    });
     window.set_media_members(ModelRc::from(
         [
             ("Kitchen", true, false, 35),
@@ -2036,20 +2057,34 @@ fn mockup_parity_captures() {
     window.set_page(ViewPage::Lists);
     window.set_page_title("Lists".into());
     let mut state = crate::list_state::tests::ready();
+    // The host conventions in the summaries: "- " nests a row under the one
+    // above, a trailing "xN" is its quantity; the description is the note
+    // line. Three checked top-level rows feed the completed group and the
+    // suggestions; the checked sub-item shows the strike and the "1/3" progress.
     let items = [
-        ("milk", "Milk 2 %"),
-        ("eggs", "Eggs"),
-        ("flour", "Flour"),
-        ("yeast", "Instant yeast"),
-        ("tacos", "Taco dinner"),
-        ("tortillas", "Tortillas"),
-        ("salsa", "Mild salsa"),
-        ("avocados", "Avocados"),
-        ("coffee", "Coffee beans"),
+        ("milk", "Milk 2 %", false, "2 L"),
+        ("eggs", "Eggs x2", false, "Large"),
+        ("flour", "Flour", false, ""),
+        ("yeast", "- Instant yeast", false, ""),
+        ("tacos", "Taco dinner", false, ""),
+        ("tortillas", "- Tortillas", false, ""),
+        ("salsa", "- Mild salsa", true, ""),
+        ("avocados", "- Avocados x3", false, ""),
+        ("coffee", "Coffee beans", true, ""),
+        ("bananas", "Bananas", true, ""),
+        ("bread", "Sandwich bread", true, ""),
     ]
-    .map(|(id, name)| (id, 1, name));
+    .map(
+        |(uid, summary, completed, description)| crate::list_state::tests::ItemFixture {
+            uid,
+            revision: 1,
+            summary,
+            completed,
+            description,
+        },
+    );
     state
-        .publish_items(crate::list_state::tests::items(
+        .publish_items(crate::list_state::tests::detailed_items(
             crate::list_state::tests::LIST,
             11,
             &items,

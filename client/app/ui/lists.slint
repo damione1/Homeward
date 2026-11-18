@@ -1,6 +1,6 @@
 import { KitTheme, KitThemes, KitTextField, KitWrap, KitScrollArea, KitMenu, MenuItem, MenuItemKind, KitPressable, KitIcon, KitToastHost, ToastEntry, AlertSeverity, OptionRow, SelectState, SelectionAvailability, FieldAccess, NavigationStep, ControlSize, ButtonIntent, ContentItem, ElevationLevel, ShadowLayer, TypographyRole } from "@kit";
 import { LucideIcons } from "@kit-icons/all.slint";
-import { ProTaskList, ProTaskRow, ProTaskAccess, ProTaskAction, ProTaskRowActions, ProIdentityButton, ProIdentityIconButton, ProGroceries, ProGroceryMode, ProGroceryLayout, ProGrocerySuggestion, ProGroceryComposerPlacement, ProGrocerySuggestionLayout } from "@kit-pro";
+import { ProTaskList, ProTaskRow, ProTaskAccess, ProTaskAction, ProTaskRowActions, ProIdentityButton, ProIdentityIconButton, ProGroceries, ProGroceryMode, ProGroceryLayout, ProGrocerySuggestion, ProGroceryComposerPlacement, ProGrocerySuggestionLayout, ProGroceryCommonPresentation } from "@kit-pro";
 
 // Which management form the page shows above the list; the options menu opens one.
 enum ListManagement { closed, rename, create }
@@ -38,10 +38,13 @@ component ListChip inherits KitPressable {
     private property <length> badge-width: root.count == "" ? 0px : max(root.badge-size, count-text.preferred-width + root.theme.spacing.unit * 2);
     private property <color> ink: root.disabled ? root.theme.disabled-text : root.selected ? root.theme.success : root.theme.text-primary;
     private property <ShadowLayer> shadow: KitThemes.shadow(root.theme, ElevationLevel.xs);
-    private property <length> natural-width: 2 * root.padding-inline + root.dot-size + root.gap + label-text.preferred-width + (root.count == "" ? 0px : root.gap + root.badge-width);
+    // The leading inset; a pill with a badge keeps a shorter trailing inset
+    // (the badge is round, so it reads as the pill's end).
+    private property <length> lead-pad: root.theme.spacing.unit * (root.compact ? 3 : 3.5);
+    private property <length> natural-width: root.lead-pad + root.padding-inline + root.dot-size + root.gap + label-text.preferred-width + (root.count == "" ? 0px : root.gap + root.badge-width);
     changed focus-serial => { if (root.selected) { root.take-focus(); } }
     control-size: ControlSize.comfortable; intent: ButtonIntent.quiet;
-    padding-inline: root.theme.spacing.unit * (root.compact ? 3 : 3.5); padding-block: 0px;
+    padding-inline: root.count == "" ? root.lead-pad : root.theme.spacing.unit * 2; padding-block: 0px;
     min-width: root.natural-width; preferred-width: root.natural-width;
     corner-radius: min(root.theme.shape.radius-pill, root.height / 2);
     background: root.disabled ? root.theme.disabled-fill
@@ -64,6 +67,7 @@ component ListChip inherits KitPressable {
     activated => { root.activate(root.press-token, root.press-generation); }
     HorizontalLayout {
         spacing: root.gap; alignment: center;
+        padding-left: root.lead-pad - root.padding-inline;
         Rectangle {
             width: root.dot-size; horizontal-stretch: 0;
             Rectangle { y: (parent.height - self.height) / 2; width: root.dot-size; height: root.dot-size; border-radius: root.dot-size / 2; background: root.disabled ? root.theme.disabled-text : root.dot; }
@@ -82,9 +86,10 @@ component ListChip inherits KitPressable {
         // Measured outside the badge so the badge width never depends on its own child.
     }
     count-text := Text {
-        // A child sits inside the pressable's padded area, so the trailing edge is the parent's.
+        // A direct child spans the whole pressable, so the badge's trailing
+        // edge sits one trailing inset before the parent's.
         visible: root.count != ""; accessible-role: none;
-        x: parent.width - root.badge-width; y: (parent.height - self.height) / 2; width: root.badge-width; height: root.badge-size;
+        x: parent.width - root.padding-inline - root.badge-width; y: (parent.height - self.height) / 2; width: root.badge-width; height: root.badge-size;
         text: root.count; color: root.selected ? root.theme.success : root.theme.text-secondary;
         horizontal-alignment: center; vertical-alignment: center;
         font-family: root.theme.typography.family; font-size: 12px * root.scale; font-weight: root.theme.typography.weight-semibold;
@@ -187,6 +192,13 @@ export component HomewardLists inherits Rectangle {
     private property <float> scale: root.theme.text-scale;
     // The phone layout: a tighter tab row and a round "new list" button.
     private property <bool> compact: root.width < 600px * root.scale;
+    // The suggestions card beside the items: the kit stacks the panes under
+    // this width, so the composer footer follows the same break.
+    private property <length> common-gap: root.theme.spacing.unit * 4;
+    private property <length> common-width: 360px * root.scale;
+    private property <bool> side-card: page.visible-width >= 720px * root.scale;
+    // Width of the items card alone: the composer closes that card, not the page.
+    private property <length> card-width: root.side-card ? max(0px, page.visible-width - root.common-gap - root.common-width) : page.visible-width;
     private property <ListManagement> management: ListManagement.closed;
     private property <bool> menu-open;
     private property <int> menu-index;
@@ -305,8 +317,10 @@ export component HomewardLists inherits Rectangle {
             height: root.height;
             VerticalLayout {
                 spacing: 0px;
+                // The shell pads the content sideways; the page adds no gutter
+                // of its own, so the tabs and the card align with the title.
                 header := VerticalLayout {
-                    spacing: 8px; padding-left: 16px; padding-right: 16px; padding-top: root.compact ? 8px : 16px; padding-bottom: 8px;
+                    spacing: 8px; padding-top: root.compact ? 8px : 16px; padding-bottom: 8px;
                     // One pill per list, scrolling sideways past the edge; the
                     // outlined "new list" pill closes the row.
                     tabs := Rectangle {
@@ -336,8 +350,11 @@ export component HomewardLists inherits Rectangle {
                 }
                 page := KitScrollArea {
                     vertical-stretch: 1;
+                    // A phone scrolls by touch; the rail of the scrollbar only takes width there.
+                    vertical-scrollbar-policy: root.compact ? ScrollBarPolicy.always-off : ScrollBarPolicy.as-needed;
                     VerticalLayout {
-                        padding: 16px; padding-top: 8px; spacing: 12px; alignment: start;
+                        // No bottom padding while the composer closes the card below.
+                        padding-top: 8px; padding-bottom: root.selected ? 0px : 16px; spacing: 12px; alignment: start;
                         if root.management == ListManagement.create: KitWrap {
                             spacing: 8px;
                             KitTextField { theme: root.theme; label: "New List"; text <=> root.create-draft; control-size: ControlSize.comfortable; access: root.catalog-ready && root.list-visible ? FieldAccess.editable : FieldAccess.disabled; preferred-width: 240px; commit-requested(text) => { if (root.catalog-ready && text != "") { root.create(root.generation, text); } } }
@@ -357,21 +374,29 @@ export component HomewardLists inherits Rectangle {
                             page-viewport-bottom: page.absolute-position.y + page.visible-height;
                             rows: root.grocery-rows; completed-rows: root.completed-rows; suggestions: root.suggestions;
                             access: root.access; interactive: root.selected && root.list-visible; adding: root.busy;
-                            title: root.title; count-label: root.item-count; count-inline: !root.compact;
+                            // The count hugs the title on every width; the kit moves it
+                            // under the title only when the two cannot share a line.
+                            title: root.title; title-size: root.compact ? 18px : 20px; count-label: root.item-count; count-inline: true;
                             dot-color: root.has-selection ? root.list-color(root.option-index) : transparent;
                             header-action-glyph: LucideIcons.ellipsis(); header-action-label: "List options";
                             notice: root.notice;
-                            items-title: ""; common-title: "Add again"; common-empty-label: "Checked items wait here for a quick re-add.";
+                            // The rows start right under the header; the mockup keeps no band there.
+                            section-gap: 0px; page-row-height: 56px * root.scale;
+                            // The card reaches the composer below even when the list is short.
+                            page-min-height: max(0px, page.visible-height - 8px);
+                            items-title: ""; common-title: "Suggestions"; common-hint: "Checked items, ready to add again";
+                            common-empty-label: "Checked items wait here for a quick re-add.";
                             add-label: "Add again"; reorder-label: "Reorder";
                             completed-label: "Completed · " + root.completed-rows.length; clear-completed-label: "Clear all";
                             completed-expanded <=> root.completed-expanded;
                             // The composer is the page footer below; the kit's own field stays hidden.
                             composer-placement: ProGroceryComposerPlacement.hidden;
                             // A 360 px tile card beside the items where it fits; one chip strip under them where it does not.
-                            suggestion-layout: page.visible-width - 32px < 720px * root.scale ? ProGrocerySuggestionLayout.chips : ProGrocerySuggestionLayout.tiles;
-                            tile-columns: 3; common-width: 360px * root.scale;
+                            suggestion-layout: page.visible-width < 720px * root.scale ? ProGrocerySuggestionLayout.chips : ProGrocerySuggestionLayout.tiles;
+                            common-presentation: ProGroceryCommonPresentation.card;
+                            tile-columns: 3; common-width: root.common-width; common-gap: root.common-gap;
                             row-actions: ProTaskRowActions.handle; title-role: TypographyRole.body; strike-completed: true;
-                            viewport-width: max(0px,page.visible-width - 32px);
+                            viewport-width: max(0px,page.visible-width);
                             viewport-height: max(360px,page.visible-height - 32px);
                             draft <=> root.add-draft;
                             complete(lt,lg,t,g,v) => {
@@ -390,35 +415,61 @@ export component HomewardLists inherits Rectangle {
                         }
                     }
                 }
-                // The composer stays put under the scrolling page: a borderless
-                // field with the list's name in its placeholder and an accent add button.
+                // The composer closes the list card under the scrolling page: on
+                // a tablet it is the card's own footer (a hairline, the field and
+                // an accent plus inside the field's trailing edge); on a phone a
+                // floating white pill above the tab bar with a round accent plus
+                // beside it. The field's text is the only thing it keeps.
                 footer := Rectangle {
                     visible: root.selected;
-                    height: root.selected ? composer-row.preferred-height + root.theme.shape.border-width : 0px;
-                    background: root.theme.surface;
-                    Rectangle { x: 0px; y: 0px; width: parent.width; height: root.theme.shape.border-width; background: root.theme.border-subtle; }
-                    composer-row := HorizontalLayout {
-                        y: root.theme.shape.border-width; width: parent.width;
-                        padding-left: 16px; padding-right: 16px; padding-top: 12px; padding-bottom: 12px; spacing: 8px;
-                        composer := KitTextField {
-                            theme: root.theme; control-size: ControlSize.comfortable; horizontal-stretch: 1;
-                            label: ""; accessible-name: "Add item"; placeholder: "Add to " + root.title + "…";
-                            corner-radius: 16px * root.scale;
-                            text <=> root.add-draft;
-                            access: root.write-ready && root.list-visible && !root.busy ? FieldAccess.editable : FieldAccess.read-only;
-                            commit-requested(text) => { root.submit-add(text); }
-                        }
-                        VerticalLayout {
-                            alignment: center; horizontal-stretch: 0;
-                            add-button := ProIdentityIconButton {
-                                theme: root.theme; glyph: LucideIcons.plus(); intent: ButtonIntent.primary; control-size: ControlSize.comfortable;
-                                accessible-name: "Add"; token: root.list-token; generation: root.generation;
-                                property <string> armed-draft;
-                                disabled: !root.write-ready || root.busy || !root.list-visible || root.add-draft == "";
-                                starting => { self.armed-draft = root.add-draft; }
-                                trigger(t,g) => { if (self.armed-draft != "") { root.grocery-add(t, g, self.armed-draft); } }
-                            }
-                        }
+                    property <length> inset: 12px * root.scale;
+                    property <length> hairline: root.compact ? 0px : root.theme.shape.border-width;
+                    property <length> button-size: 44px * root.scale;
+                    property <length> field-x: root.compact ? 0px : 16px * root.scale;
+                    property <length> field-width: root.compact ? max(0px, self.width - self.button-size - 8px * root.scale) : max(0px, root.card-width - 32px * root.scale);
+                    property <ShadowLayer> pill-shadow: KitThemes.shadow(root.theme, ElevationLevel.xs);
+                    height: root.selected ? composer.preferred-height + 2 * self.inset + self.hairline : 0px;
+                    // The band is the card's footer: it squares the card's bottom
+                    // corners above it and takes the card's bottom radius itself.
+                    if !root.compact: Rectangle {
+                        x: 0px; y: -root.theme.shape.radius-container; width: root.card-width; height: footer.height + root.theme.shape.radius-container;
+                        background: root.theme.surface; border-radius: root.theme.shape.radius-container;
+                    }
+                    if !root.compact: Rectangle {
+                        x: 0px; y: -root.theme.shape.radius-container; width: root.card-width; height: 2 * root.theme.shape.radius-container;
+                        background: root.theme.surface;
+                    }
+                    if !root.compact: Rectangle { x: 0px; y: 0px; width: root.card-width; height: footer.hairline; background: root.theme.border-subtle; }
+                    // The phone pill's shadow, under the field's own white surface.
+                    if root.compact: Rectangle {
+                        x: footer.field-x; y: footer.inset; width: footer.field-width; height: composer.preferred-height;
+                        background: root.theme.surface; border-radius: 16px * root.scale;
+                        drop-shadow-offset-y: footer.pill-shadow.offset-y; drop-shadow-blur: footer.pill-shadow.blur; drop-shadow-color: footer.pill-shadow.color;
+                    }
+                    composer := KitTextField {
+                        x: footer.field-x; y: footer.inset + footer.hairline; width: footer.field-width; height: self.preferred-height;
+                        theme: root.theme; control-size: ControlSize.comfortable;
+                        label: ""; accessible-name: "Add item"; placeholder: "Add to " + root.title + "…";
+                        corner-radius: 16px * root.scale;
+                        // On a tablet the plus sits inside the field: the trailing
+                        // icon keeps the text clear of it and the button covers it.
+                        trailing-icon: root.compact ? { stroke: "", fill: "", viewbox: 24 } : LucideIcons.plus();
+                        text <=> root.add-draft;
+                        access: root.write-ready && root.list-visible && !root.busy ? FieldAccess.editable : FieldAccess.read-only;
+                        commit-requested(text) => { root.submit-add(text); }
+                    }
+                    add-button := ProIdentityIconButton {
+                        x: root.compact ? footer.width - footer.button-size : footer.field-x + footer.field-width - 4px * root.scale - footer.button-size;
+                        y: composer.y + (composer.preferred-height - footer.button-size) / 2;
+                        width: footer.button-size; height: footer.button-size;
+                        corner-radius: root.compact ? footer.button-size / 2 : 13px * root.scale;
+                        theme: root.theme; glyph: LucideIcons.plus(); intent: ButtonIntent.primary; control-size: ControlSize.comfortable; border-width: 0px;
+                        accessible-name: "Add"; token: root.list-token; generation: root.generation;
+                        property <string> armed-draft;
+                        // Always armed while the list is writable: an empty draft adds nothing.
+                        disabled: !root.write-ready || root.busy || !root.list-visible;
+                        starting => { self.armed-draft = root.add-draft; }
+                        trigger(t,g) => { if (self.armed-draft != "") { root.grocery-add(t, g, self.armed-draft); } }
                     }
                 }
             }
