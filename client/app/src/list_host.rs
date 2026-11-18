@@ -2,7 +2,7 @@
 //! exact dashboard source. Both use the same revision fences, single in-flight
 //! write and coalesced visual publication.
 pub(crate) mod item_text;
-mod projection;
+pub(crate) mod projection;
 mod recovery;
 #[cfg(test)]
 mod stall_probe;

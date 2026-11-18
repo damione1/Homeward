@@ -691,15 +691,1380 @@ fn render_synthetic_dashboard_families() {
 fn save(window: &HomewardWindow, path: &std::path::Path) {
     i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(300));
     let pixels = window.window().take_snapshot().unwrap();
+    write_png(path, pixels.width(), pixels.height(), pixels.as_bytes());
+}
+fn write_png(path: &std::path::Path, width: u32, height: u32, bytes: &[u8]) {
     let output = std::fs::File::create(path).unwrap();
-    let mut encoder = png::Encoder::new(output, pixels.width(), pixels.height());
+    let mut encoder = png::Encoder::new(output, width, height);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
     encoder
         .write_header()
         .unwrap()
-        .write_image_data(pixels.as_bytes())
+        .write_image_data(bytes)
         .unwrap();
+}
+
+// ---------------------------------------------------------------------------
+// Mockup parity: one capture per design board, drawn from one synthetic home.
+// Every board is the product window at the board's pixel size; the home holds
+// only data the server projects (rooms, equipment, weather, agenda, lists).
+
+mod parity {
+    use super::*;
+    use crate::dashboard_presentation::{Appearance, synthetic_tile};
+    use crate::device_view::{detail::Metadata, presentation::CardRow};
+    use home_wire_contract::home::api::v2 as wire;
+
+    pub(super) fn glyph(icon: wire::DashboardIcon) -> IconGlyph {
+        dashboard_icons::glyph(icon, &IconGlyph::default())
+    }
+    fn card(token: i32, kind: ProDeviceKind, title: &str, value: &str, on: bool) -> CardRow {
+        CardRow {
+            token,
+            generation: 1,
+            kind,
+            title: title.into(),
+            value: value.into(),
+            quality: "Current observation".into(),
+            access: ProControlAccess::Allowed,
+            power_known: true,
+            power_on: on,
+            can_power: true,
+            brightness_minimum: 0.,
+            brightness_maximum: 100.,
+            brightness_step: 1.,
+            ..Default::default()
+        }
+    }
+    /// A dimmable lamp at `percent` (off when zero), coloured when `color` is
+    /// observed.
+    pub(super) fn lamp(
+        token: i32,
+        title: &str,
+        percent: f32,
+        color: Option<(u8, u8, u8)>,
+    ) -> CardRow {
+        let on = percent > 0.;
+        let mut row = card(
+            token,
+            ProDeviceKind::Light,
+            title,
+            if on { "On" } else { "Off" },
+            on,
+        );
+        row.can_brightness = true;
+        row.brightness_known = true;
+        row.brightness_percent = percent;
+        if let Some(color) = color {
+            row.detail = Metadata::default().with_light_color(color);
+        }
+        row
+    }
+    pub(super) fn switch(token: i32, title: &str, on: bool) -> CardRow {
+        card(
+            token,
+            ProDeviceKind::Switch,
+            title,
+            if on { "On" } else { "Off" },
+            on,
+        )
+    }
+    pub(super) fn fan(token: i32, title: &str, speed: &str) -> CardRow {
+        let on = speed != "Off";
+        let mut row = card(token, ProDeviceKind::Fan, title, speed, on);
+        row.choices = ["Low", "Medium", "High"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, label)| ProDeviceChoice {
+                token: index as i32,
+                label: label.into(),
+                selected: label == speed,
+            })
+            .collect();
+        row.detail = Metadata::default().with_speeds(&[
+            ("Low", speed == "Low"),
+            ("Medium", speed == "Medium"),
+            ("High", speed == "High"),
+        ]);
+        row
+    }
+    pub(super) fn thermostat(token: i32, title: &str, current: &str, setpoint: &str) -> CardRow {
+        let mut row = card(token, ProDeviceKind::Climate, title, current, false);
+        row.unit = "°C".into();
+        row.can_power = false;
+        row.values = vec![ProDeviceValue {
+            token: 0,
+            kind: ProValueKind::Numeric,
+            mode: ProValueMode::Single,
+            label: "Setpoint".into(),
+            lower: setpoint.into(),
+            suffix: "°C".into(),
+            lower_position: 0.55,
+            slider_enabled: true,
+            can_step: true,
+            ..Default::default()
+        }];
+        row.field_keys.insert("setpoint_celsius", 0);
+        row.detail = Metadata::default().with_climate(
+            wire::TemperatureActivity::Heating,
+            &[
+                wire::TemperatureMode::Off,
+                wire::TemperatureMode::Heat,
+                wire::TemperatureMode::Cool,
+                wire::TemperatureMode::Auto,
+            ],
+            wire::TemperatureMode::Heat,
+        );
+        row
+    }
+    pub(super) fn garage(token: i32, title: &str) -> CardRow {
+        let mut row = card(token, ProDeviceKind::Cover, title, "Closed", false);
+        row.can_power = false;
+        row.cover_operations = vec![
+            ProCoverChoice {
+                token: 0,
+                label: "Open".into(),
+                operation: ProCoverOperation::Open,
+            },
+            ProCoverChoice {
+                token: 1,
+                label: "Stop".into(),
+                operation: ProCoverOperation::Stop,
+            },
+            ProCoverChoice {
+                token: 2,
+                label: "Close".into(),
+                operation: ProCoverOperation::Close,
+            },
+        ];
+        row.detail = Metadata::default().with_cover(0., (0., 100.), ProCoverMotion::Idle);
+        row
+    }
+    pub(super) fn lock(token: i32, title: &str) -> CardRow {
+        let mut row = card(token, ProDeviceKind::Lock, title, "Locked", false);
+        row.can_power = false;
+        row.lock_operations = vec![
+            ProLockChoice {
+                token: 0,
+                label: "Lock".into(),
+                operation: ProLockOperation::Lock,
+            },
+            ProLockChoice {
+                token: 1,
+                label: "Unlock".into(),
+                operation: ProLockOperation::Unlock,
+            },
+        ];
+        row
+    }
+    pub(super) fn alarm(token: i32, condition: ProAlarmCondition) -> CardRow {
+        let label = match condition {
+            ProAlarmCondition::Disarmed => "Disarmed",
+            ProAlarmCondition::Armed => "Armed",
+            ProAlarmCondition::Arming => "Arming",
+            ProAlarmCondition::Pending => "Pending",
+            ProAlarmCondition::Triggered => "Triggered",
+            ProAlarmCondition::Unknown => "Unknown",
+        };
+        let mut row = card(token, ProDeviceKind::Alarm, "Alarm", label, false);
+        row.can_power = false;
+        row.alarm_operations = [
+            ("Arm Home", ProAlarmOperation::ArmHome),
+            ("Arm Away", ProAlarmOperation::ArmAway),
+            ("Arm Night", ProAlarmOperation::ArmNight),
+            ("Disarm", ProAlarmOperation::Disarm),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, (label, operation))| ProAlarmChoice {
+            token: index as i32,
+            label: label.into(),
+            operation,
+        })
+        .collect();
+        row.detail = Metadata::default().with_alarm(condition);
+        row
+    }
+    pub(super) fn player(token: i32, title: &str, place: &str, playing: bool) -> CardRow {
+        let mut row = card(
+            token,
+            ProDeviceKind::Media,
+            title,
+            if playing { "Playing" } else { "Paused" },
+            playing,
+        );
+        row.quality = place.into();
+        row
+    }
+    pub(super) fn scene(token: i32, title: &str, place: &str, active: bool) -> CardRow {
+        let mut row = card(token, ProDeviceKind::Scene, title, "Scene", active);
+        row.quality = place.into();
+        row
+    }
+    pub(super) fn sensor(token: i32, title: &str, value: &str, unit: &str) -> CardRow {
+        let mut row = card(token, ProDeviceKind::Measurement, title, value, false);
+        row.unit = unit.into();
+        row.power_known = false;
+        row.can_power = false;
+        row
+    }
+    pub(super) fn device(card: &CardRow, icon: wire::DashboardIcon) -> ProDeviceRow {
+        card.ui(None, &glyph(icon))
+    }
+    /// The detail panel of a synthetic card, as the product projects it.
+    pub(super) fn detail(card: &CardRow, icon: wire::DashboardIcon) -> HomewardDetailRow {
+        let mut panel = device_view::detail::project(card, device(card, icon), None);
+        match card.kind {
+            ProDeviceKind::Climate => {
+                panel.climate.current = format!("{} {}", card.value, card.unit).into();
+            }
+            ProDeviceKind::Fan => {
+                panel.fan.state_label = card.value.clone();
+            }
+            ProDeviceKind::Alarm => {
+                panel.alarm_code_required = true;
+                panel.alarm.code_length = 4;
+                panel.alarm.code_capacity = 32;
+                panel.alarm.entered_count = 0;
+                panel.alarm.code_label = "0 digits entered".into();
+                panel.alarm.prompt = "Code to arm away".into();
+                panel.alarm.confirm_label = "Arm Away".into();
+                panel.alarm.can_confirm = false;
+                panel.alarm.state_label = card.value.clone();
+                panel.alarm.modes = ModelRc::from(
+                    [
+                        ("Disarm", true),
+                        ("Arm Home", false),
+                        ("Arm Away", false),
+                        ("Arm Night", false),
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, (label, selected))| ChoiceRow {
+                        token: index as i32,
+                        label: label.into(),
+                        selected,
+                        disabled: false,
+                    })
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+                );
+                panel.alarm.mode_icons = ModelRc::from(
+                    [
+                        wire::DashboardIcon::Power,
+                        wire::DashboardIcon::Home,
+                        wire::DashboardIcon::Shield,
+                        wire::DashboardIcon::Bed,
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, icon)| ChoiceIcon {
+                        token: index as i32,
+                        glyph: glyph(icon),
+                    })
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+                );
+            }
+            ProDeviceKind::Cover => {
+                panel.cover.state_label = "Closed".into();
+                panel.associated_lock = ProAssociatedLock {
+                    token: card.token + 1,
+                    generation: 1,
+                    title: "Remote controls".into(),
+                    state_label: "Locked".into(),
+                    state: ProCoverLock::Locked,
+                    can_lock: true,
+                    can_unlock: true,
+                };
+                panel.lock_commands_enabled = true;
+            }
+            ProDeviceKind::Light
+            | ProDeviceKind::Switch
+            | ProDeviceKind::Binary
+            | ProDeviceKind::Measurement
+            | ProDeviceKind::Helper
+            | ProDeviceKind::Lock
+            | ProDeviceKind::Observation
+            | ProDeviceKind::Unsupported
+            | ProDeviceKind::Media
+            | ProDeviceKind::Scene => {}
+        }
+        panel
+    }
+
+    /// A flat layout model under construction; children refer to indices.
+    pub(super) struct Board {
+        pub nodes: Vec<ProLayoutNode>,
+        pub appearance: Appearance,
+    }
+    /// One child placement: the node, its span in twelfths, and its grid rows.
+    pub(super) struct Place {
+        pub index: i32,
+        pub span: i32,
+        pub rows: i32,
+    }
+    pub(super) fn place(index: i32, span: i32, rows: i32) -> Place {
+        Place { index, span, rows }
+    }
+    fn input(place: &Place) -> ProLayoutInput {
+        ProLayoutInput {
+            index: place.index,
+            column_span: if place.span > 0 {
+                ProLayoutSpan::Count
+            } else {
+                ProLayoutSpan::Automatic
+            },
+            columns: place.span.max(0),
+            rows: place.rows.max(1),
+            ..Default::default()
+        }
+    }
+    impl Board {
+        pub fn new(appearance: Appearance) -> Self {
+            Self {
+                nodes: Vec::new(),
+                appearance,
+            }
+        }
+        fn push(&mut self, mut node: ProLayoutNode) -> i32 {
+            let index = self.nodes.len() as i32;
+            node.token = 100_000 + index;
+            node.generation = 1;
+            self.nodes.push(node);
+            index
+        }
+        pub fn tile(
+            &mut self,
+            card: &CardRow,
+            icon: wire::DashboardIcon,
+            template: ProTileTemplate,
+            rows: i32,
+        ) -> i32 {
+            let device = device(card, icon);
+            let tile = synthetic_tile(card, &device, template, self.appearance);
+            self.push(ProLayoutNode {
+                kind: ProLayoutKind::Tile,
+                flow: ProLayoutFlow::Vertical,
+                device,
+                tile,
+                tile_template: template,
+                tile_rows: rows,
+                ..Default::default()
+            })
+        }
+        pub fn widget(&mut self, title: &str, widget: ProDashboardWidget) -> i32 {
+            self.push(ProLayoutNode {
+                kind: ProLayoutKind::Widget,
+                flow: ProLayoutFlow::Vertical,
+                title: title.into(),
+                widget,
+                ..Default::default()
+            })
+        }
+        /// A twelve-column section: titled with a section heading, or untitled.
+        /// A child spanning half the section or more takes the whole width on
+        /// a phone (under 600 px); narrower children keep their span.
+        pub fn section(
+            &mut self,
+            title: &str,
+            action: &str,
+            columns: i32,
+            minimum_column_width: f32,
+            children: &[Place],
+        ) -> i32 {
+            let titled = !title.is_empty();
+            let children = children
+                .iter()
+                .flat_map(|child| {
+                    [
+                        ProLayoutInput {
+                            viewport_min_width: 600,
+                            ..input(child)
+                        },
+                        ProLayoutInput {
+                            viewport_max_width: 599,
+                            ..input(&place(
+                                child.index,
+                                if child.span >= 6 { 12 } else { child.span },
+                                child.rows,
+                            ))
+                        },
+                    ]
+                })
+                .collect::<Vec<_>>();
+            self.push(ProLayoutNode {
+                kind: ProLayoutKind::Container,
+                flow: ProLayoutFlow::Grid,
+                title: title.into(),
+                heading: if titled {
+                    ProLayoutHeading::Section
+                } else {
+                    ProLayoutHeading::Normal
+                },
+                heading_action: action.into(),
+                columns,
+                column_policy: ProLayoutColumns::Fixed,
+                span_base: 12,
+                minimum_column_width,
+                gap: 8.,
+                section_gap: if titled { 24. } else { 0. },
+                metrics_policy: ProLayoutMetricsPolicy::Configured,
+                children: ModelRc::from(children.as_slice()),
+                ..Default::default()
+            })
+        }
+        /// The board root: sections placed with a wide span (600 px and up)
+        /// and a phone span below it.
+        pub fn root(&mut self, gap: f32, sections: &[(i32, i32, i32, i32)]) {
+            let children = sections
+                .iter()
+                .flat_map(|(index, wide, phone, rows)| {
+                    [
+                        ProLayoutInput {
+                            viewport_min_width: 600,
+                            ..input(&place(*index, *wide, *rows))
+                        },
+                        ProLayoutInput {
+                            viewport_max_width: 599,
+                            ..input(&place(*index, *phone, *rows))
+                        },
+                    ]
+                })
+                .collect::<Vec<_>>();
+            let root = ProLayoutNode {
+                kind: ProLayoutKind::Container,
+                flow: ProLayoutFlow::Grid,
+                columns: 12,
+                column_policy: ProLayoutColumns::Fixed,
+                span_base: 12,
+                minimum_column_width: 16.,
+                gap,
+                metrics_policy: ProLayoutMetricsPolicy::Configured,
+                children: ModelRc::from(children.as_slice()),
+                ..Default::default()
+            };
+            // The root must be the first node: the product reads node 0.
+            self.nodes.insert(0, root);
+            for (index, node) in self.nodes.iter_mut().enumerate() {
+                node.token = 100_000 + index as i32;
+            }
+            // Children indices shift by one once the root leads the model.
+            for node in self.nodes.iter_mut().skip(1) {
+                let shifted = node
+                    .children
+                    .iter()
+                    .map(|mut child| {
+                        child.index += 1;
+                        child
+                    })
+                    .collect::<Vec<_>>();
+                node.children = ModelRc::from(shifted.as_slice());
+            }
+            let shifted = self.nodes[0]
+                .children
+                .iter()
+                .map(|mut child| {
+                    child.index += 1;
+                    child
+                })
+                .collect::<Vec<_>>();
+            self.nodes[0].children = ModelRc::from(shifted.as_slice());
+        }
+        pub fn model(&self) -> ModelRc<ProLayoutNode> {
+            ModelRc::from(self.nodes.as_slice())
+        }
+    }
+
+    fn room(
+        token: i32,
+        title: &str,
+        subtitle: &str,
+        icon: wire::DashboardIcon,
+        value: &str,
+        active: bool,
+    ) -> ProDashboardWidget {
+        ProDashboardWidget {
+            kind: ProDashboardWidgetKind::Room,
+            room: ProRoomRow {
+                token,
+                generation: 1,
+                title: title.into(),
+                subtitle: subtitle.into(),
+                glyph: glyph(icon),
+                value: value.into(),
+                active,
+                tone: Tone::Warning,
+            },
+            value: value.into(),
+            active,
+            data_ready: true,
+            can_open: true,
+            ..Default::default()
+        }
+    }
+    fn observation(
+        token: i32,
+        title: &str,
+        value: &str,
+        icon: wire::DashboardIcon,
+        active: bool,
+        tone: Tone,
+    ) -> ProObservationRow {
+        ProObservationRow {
+            token,
+            generation: 1,
+            title: title.into(),
+            value: value.into(),
+            description: "".into(),
+            glyph: glyph(icon),
+            available: true,
+            active,
+            tone,
+        }
+    }
+    fn task(token: i32, title: &str, detail: &str, quantity: &str, completed: bool) -> ProTaskRow {
+        ProTaskRow {
+            token,
+            generation: 1,
+            title: title.into(),
+            detail: detail.into(),
+            completed,
+            writable: true,
+            phase: ProTaskPhase::Ready,
+            quantity: quantity.into(),
+            ..Default::default()
+        }
+    }
+    fn agenda(
+        token: i32,
+        day: i32,
+        day_label: &str,
+        time_label: &str,
+        title: &str,
+        detail: &str,
+        kind: ProAgendaTemporalKind,
+    ) -> ProAgendaRow {
+        ProAgendaRow {
+            token,
+            generation: 1,
+            date: CivilDateView {
+                year: 2026,
+                month: if day > 20 { 10 } else { 11 },
+                day,
+            },
+            day_label: day_label.into(),
+            time_label: time_label.into(),
+            title: title.into(),
+            detail: detail.into(),
+            status: "".into(),
+            kind,
+            phase: ProAgendaPhase::Ready,
+        }
+    }
+    fn weather() -> ProDashboardWidget {
+        let forecast = [
+            ("Sun", "Sunny", "8° / 1°"),
+            ("Mon", "Cloudy", "5° / -1°"),
+            ("Tue", "Rain", "7° / 2°"),
+            ("Wed", "Sunny", "10° / 3°"),
+            ("Thu", "Cloudy", "3° / -3°"),
+        ]
+        .into_iter()
+        .map(|(period, condition, temperature)| ProForecastRow {
+            period: period.into(),
+            condition: condition.into(),
+            temperature: temperature.into(),
+            precipitation: "".into(),
+        })
+        .collect::<Vec<_>>();
+        let facts = [("Feels like", "3°"), ("Max", "9°"), ("Min", "2°")]
+            .into_iter()
+            .map(|(label, value)| ProEnvironmentFact {
+                label: label.into(),
+                value: value.into(),
+                detail: "".into(),
+            })
+            .collect::<Vec<_>>();
+        ProDashboardWidget {
+            kind: ProDashboardWidgetKind::ClockWeather,
+            clock: "19:42".into(),
+            date: "Saturday 31 October".into(),
+            has_weather: true,
+            weather: ProWeatherData {
+                temperature: "6°".into(),
+                condition: "Cloudy".into(),
+                facts: ModelRc::from(facts.as_slice()),
+                forecast_heading: "Next days".into(),
+                forecast: ModelRc::from(forecast.as_slice()),
+                freshness: "Observed 19:40".into(),
+                ..Default::default()
+            },
+            data_ready: true,
+            ..Default::default()
+        }
+    }
+    fn thermostat_widget(card: &CardRow, appearance: Appearance) -> ProDashboardWidget {
+        let device = device(card, wire::DashboardIcon::Thermostat);
+        let paint = appearance.heating();
+        ProDashboardWidget {
+            kind: ProDashboardWidgetKind::Thermostat,
+            field: device.values.row_data(0).unwrap_or_default(),
+            thermostat: device,
+            detailed: true,
+            active: true,
+            tint: paint.tint,
+            ink: paint.ink,
+            status: "Heating".into(),
+            data_ready: true,
+            can_open: true,
+            ..Default::default()
+        }
+    }
+    fn groceries(token_base: i32) -> ProDashboardWidget {
+        let sections = [
+            (
+                "Walmart",
+                (0x3b, 0x82, 0xf6),
+                "4",
+                vec![
+                    ("Milk 2 %", "2 L", ""),
+                    ("Eggs", "", "×2"),
+                    ("Flour", "", "1/1"),
+                ],
+            ),
+            (
+                "Costco",
+                (0xef, 0x44, 0x44),
+                "5",
+                vec![("Whole chicken", "", "×2"), ("Ground beef", "2 kg", "")],
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(
+            |(section, (label, (r, g, b), count, rows))| ProGrocerySection {
+                label: label.into(),
+                color: slint::Color::from_rgb_u8(r, g, b),
+                count_label: count.into(),
+                rows: ModelRc::from(
+                    rows.into_iter()
+                        .enumerate()
+                        .map(|(index, (title, detail, quantity))| {
+                            task(
+                                token_base + section as i32 * 10 + index as i32,
+                                title,
+                                detail,
+                                quantity,
+                                false,
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                ),
+            },
+        )
+        .collect::<Vec<_>>();
+        ProDashboardWidget {
+            kind: ProDashboardWidgetKind::Tasks,
+            shopping_only: true,
+            sections: ModelRc::from(sections.as_slice()),
+            task_access: ProTaskAccess::Editable,
+            status: "Walmart + Costco".into(),
+            action_label: "Set up".into(),
+            action_glyph: glyph(wire::DashboardIcon::Shopping),
+            overflow_label: "+4 more".into(),
+            data_ready: true,
+            can_open: true,
+            ..Default::default()
+        }
+    }
+
+    /// The home board: overview, rooms, agenda, lists, security and media.
+    pub(super) fn home(appearance: Appearance) -> Board {
+        use wire::DashboardIcon as I;
+        let mut board = Board::new(appearance);
+        let chips = board.widget(
+            "",
+            ProDashboardWidget {
+                kind: ProDashboardWidgetKind::Observations,
+                observations: ModelRc::from(
+                    [
+                        observation(1, "Alarm", "Disarmed", I::Shield, true, Tone::Success),
+                        observation(
+                            2,
+                            "Weather",
+                            "6° · Cloudy",
+                            I::Sun,
+                            false,
+                            Tone::Information,
+                        ),
+                        observation(3, "Garage", "Closed", I::Garage, false, Tone::Neutral),
+                        observation(4, "Leak", "None", I::Water, false, Tone::Success),
+                    ]
+                    .as_slice(),
+                ),
+                item_limit: 6,
+                data_ready: true,
+                ..Default::default()
+            },
+        );
+        let clock = board.widget("", weather());
+        let heating = thermostat(10, "Thermostat", "21.5", "21.0");
+        let thermostat = board.widget("Thermostat", thermostat_widget(&heating, appearance));
+        let off = board.tile(
+            &scene(11, "Turn off the ground floor", "Scene", false),
+            I::Power,
+            ProTileTemplate::Rectangle,
+            1,
+        );
+        let fan = board.tile(
+            &fan(12, "Living room fan", "Medium"),
+            I::Fan,
+            ProTileTemplate::Rectangle,
+            1,
+        );
+        let overview = board.section(
+            "Overview",
+            "",
+            12,
+            16.,
+            &[
+                place(clock, 12, 3),
+                place(thermostat, 6, 3),
+                place(off, 6, 1),
+                place(fan, 6, 1),
+            ],
+        );
+        let rooms = [
+            ("Living room", "3 lights · TV", I::Sofa, "21.0°", true),
+            ("Kitchen", "2 lights", I::Kitchen, "22.5°", true),
+            ("Dining room", "Off", I::Kitchen, "20.5°", false),
+            ("Main bedroom", "1 lamp", I::Bed, "19.0°", true),
+            ("Eugenie's bedroom", "Off", I::Bed, "20.0°", false),
+            ("Bathroom", "Off", I::Bath, "22.0°", false),
+            ("Basement", "Desk lamp on", I::Office, "18.5°", true),
+            ("Guest bedroom", "Off", I::Bed, "17.0°", false),
+            ("Outside", "Porch light on", I::Tree, "6°", true),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, (title, subtitle, icon, value, active))| {
+            let node = board.widget(
+                "",
+                room(20 + index as i32, title, subtitle, icon, value, active),
+            );
+            place(node, 4, 2)
+        })
+        .collect::<Vec<_>>();
+        let rooms = board.section("Rooms", "All rooms", 3, 136., &rooms);
+        let agenda_rows = [
+            agenda(
+                1,
+                31,
+                "Today",
+                "17:30",
+                "Halloween — neighbourhood round",
+                "Family",
+                ProAgendaTemporalKind::Timed,
+            ),
+            agenda(
+                2,
+                1,
+                "Tomorrow · Sun 1 Nov",
+                "All day",
+                "Back to standard time",
+                "Family",
+                ProAgendaTemporalKind::AllDay,
+            ),
+            agenda(
+                3,
+                2,
+                "Mon 2 Nov",
+                "Tonight",
+                "Blue bin collection",
+                "Collections",
+                ProAgendaTemporalKind::AllDay,
+            ),
+        ];
+        let agenda = board.widget(
+            "",
+            ProDashboardWidget {
+                kind: ProDashboardWidgetKind::Agenda,
+                agenda: ModelRc::from(agenda_rows.as_slice()),
+                item_limit: 3,
+                action_label: "Open".into(),
+                data_ready: true,
+                can_open: true,
+                ..Default::default()
+            },
+        );
+        let agenda = board.section("Agenda", "Open", 12, 16., &[place(agenda, 12, 5)]);
+        let tasks = [
+            task(1, "Milk 2 %", "", "", false),
+            task(2, "Bananas", "", "", false),
+            task(3, "Sandwich bread", "", "", false),
+            task(4, "Eggs", "", "×12", false),
+            task(5, "Coffee beans", "", "", true),
+        ];
+        let lists = board.widget(
+            "Groceries",
+            ProDashboardWidget {
+                kind: ProDashboardWidgetKind::Tasks,
+                tasks: ModelRc::from(tasks.as_slice()),
+                task_access: ProTaskAccess::Editable,
+                item_limit: 5,
+                action_label: "Open".into(),
+                status: "8 to buy".into(),
+                data_ready: true,
+                can_open: true,
+                ..Default::default()
+            },
+        );
+        let lists = board.section("Lists", "Open", 12, 16., &[place(lists, 12, 5)]);
+        let security = board.widget(
+            "",
+            ProDashboardWidget {
+                kind: ProDashboardWidgetKind::Security,
+                security: ModelRc::from(
+                    [
+                        device(&alarm(30, ProAlarmCondition::Disarmed), I::Shield),
+                        device(&garage(31, "Garage"), I::Garage),
+                        device(&lock(32, "Front door"), I::Lock),
+                    ]
+                    .as_slice(),
+                ),
+                action_label: "Details".into(),
+                data_ready: true,
+                can_open: true,
+                ..Default::default()
+            },
+        );
+        let security = board.section("Security", "", 12, 16., &[place(security, 12, 5)]);
+        let media = board.tile(
+            &player(40, "ICI Musique", "Kitchen · Sonos", true),
+            I::Music,
+            ProTileTemplate::Rectangle,
+            2,
+        );
+        let power = board.tile(
+            &sensor(41, "Current power", "2.4", "kW"),
+            I::Power,
+            ProTileTemplate::Rectangle,
+            2,
+        );
+        let media = board.section(
+            "Media & energy",
+            "",
+            12,
+            16.,
+            &[place(media, 12, 2), place(power, 12, 2)],
+        );
+        board.root(
+            24.,
+            &[
+                (chips, 12, 12, 1),
+                (overview, 6, 12, 7),
+                (rooms, 6, 12, 7),
+                (agenda, 3, 12, 5),
+                (lists, 3, 12, 5),
+                (security, 3, 12, 5),
+                (media, 3, 12, 5),
+            ],
+        );
+        board
+    }
+    /// The living room board shown in the room popup.
+    pub(super) fn living_room(appearance: Appearance) -> Board {
+        use wire::DashboardIcon as I;
+        let mut board = Board::new(appearance);
+        let scenes = [
+            ("Day", false),
+            ("In between", false),
+            ("Cosy", true),
+            ("Off", false),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, (title, active))| {
+            let node = board.tile(
+                &scene(50 + index as i32, title, "Living room", active),
+                I::Scene,
+                ProTileTemplate::Rectangle,
+                1,
+            );
+            place(node, 6, 1)
+        })
+        .collect::<Vec<_>>();
+        let scenes = board.section("Scenes", "", 12, 16., &scenes);
+        let heater = thermostat(60, "Living room baseboard", "21.0", "21.5");
+        let heater = board.widget(
+            "Living room baseboard",
+            thermostat_widget(&heater, appearance),
+        );
+        let ceiling = board.tile(
+            &fan(61, "Ceiling fan", "Medium"),
+            I::Fan,
+            ProTileTemplate::Rectangle,
+            2,
+        );
+        let climate = board.section(
+            "Climate",
+            "",
+            12,
+            16.,
+            &[place(heater, 12, 3), place(ceiling, 12, 2)],
+        );
+        let lamps = [
+            ("Living room ceiling light", 70.),
+            ("Stairs", 35.),
+            ("Bookshelf lamp", 55.),
+            ("Table lamp", 0.),
+            ("Design lamp", 0.),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, (title, percent))| {
+            let node = board.tile(
+                &lamp(70 + index as i32, title, percent, None),
+                I::Light,
+                ProTileTemplate::Rectangle,
+                1,
+            );
+            place(node, 12, 1)
+        })
+        .collect::<Vec<_>>();
+        let lights = board.section("Lights", "", 12, 16., &lamps);
+        let temperature = board.tile(
+            &sensor(80, "Temperature", "21.0", "°C"),
+            I::Thermostat,
+            ProTileTemplate::Compact,
+            1,
+        );
+        let sensors = board.section("Sensors", "", 12, 16., &[place(temperature, 6, 1)]);
+        let bar = board.tile(
+            &player(90, "Audio TV", "Sound bar · Sonos", true),
+            I::Music,
+            ProTileTemplate::Large,
+            3,
+        );
+        let shield = board.tile(
+            &player(91, "Shield TV", "On · Plex", false),
+            I::Music,
+            ProTileTemplate::Rectangle,
+            1,
+        );
+        let media = board.section(
+            "Media",
+            "",
+            12,
+            16.,
+            &[place(bar, 12, 3), place(shield, 12, 1)],
+        );
+        board.root(
+            24.,
+            &[
+                (scenes, 4, 12, 3),
+                (lights, 4, 12, 6),
+                (media, 4, 12, 5),
+                (climate, 4, 12, 6),
+                (sensors, 4, 12, 2),
+            ],
+        );
+        board
+    }
+    /// The tile gallery: every kind in its compact, rectangle and large template.
+    pub(super) fn gallery(appearance: Appearance, second: bool) -> Board {
+        use wire::DashboardIcon as I;
+        let mut board = Board::new(appearance);
+        let mut sections = Vec::new();
+        let mut row = |board: &mut Board, title: &str, card: CardRow, icon: I| {
+            let compact = board.tile(&card, icon, ProTileTemplate::Compact, 2);
+            let rectangle = board.tile(&card, icon, ProTileTemplate::Rectangle, 2);
+            let large = board.tile(&card, icon, ProTileTemplate::Large, 3);
+            let section = board.section(
+                title,
+                "",
+                12,
+                16.,
+                &[
+                    place(compact, 1, 2),
+                    place(rectangle, 4, 2),
+                    place(large, 2, 3),
+                ],
+            );
+            sections.push((section, 12, 12, 3));
+        };
+        if second {
+            row(
+                &mut board,
+                "Thermostat",
+                thermostat(100, "Home thermostat", "21.5", "21.0"),
+                I::Thermostat,
+            );
+            row(
+                &mut board,
+                "Media player",
+                player(101, "ICI Musique", "Kitchen · Sonos", true),
+                I::Music,
+            );
+            row(
+                &mut board,
+                "Alarm",
+                alarm(102, ProAlarmCondition::Disarmed),
+                I::Shield,
+            );
+            row(
+                &mut board,
+                "Alarm · triggered",
+                alarm(103, ProAlarmCondition::Triggered),
+                I::Shield,
+            );
+            row(
+                &mut board,
+                "Sensor",
+                sensor(104, "Living room temperature", "21.0", "°C"),
+                I::Thermostat,
+            );
+            row(
+                &mut board,
+                "Scene",
+                scene(105, "Cosy", "Living room", true),
+                I::Scene,
+            );
+        } else {
+            row(
+                &mut board,
+                "Dimmable light",
+                lamp(100, "Living room ceiling light", 70., None),
+                I::Light,
+            );
+            row(
+                &mut board,
+                "RGB light",
+                lamp(101, "Desk strip", 60., Some((124, 108, 240))),
+                I::Light,
+            );
+            row(
+                &mut board,
+                "Switch",
+                switch(102, "Design lamp", true),
+                I::Power,
+            );
+            row(&mut board, "Fan", fan(103, "Ceiling fan", "Medium"), I::Fan);
+            row(
+                &mut board,
+                "Garage door",
+                garage(104, "Garage door"),
+                I::Garage,
+            );
+        }
+        board.root(24., &sections);
+        board
+    }
+    /// Two grocery widgets side by side, the tablet and phone tile widths.
+    pub(super) fn list_tiles(appearance: Appearance) -> Board {
+        let mut board = Board::new(appearance);
+        let wide = board.widget("Groceries", groceries(200));
+        let narrow = board.widget("Groceries", groceries(300));
+        let section = board.section("", "", 12, 16., &[place(wide, 6, 6), place(narrow, 6, 6)]);
+        board.root(24., &[(section, 12, 12, 6)]);
+        board
+    }
+}
+
+#[test]
+#[ignore = "writes mockup parity captures outside the repository"]
+fn mockup_parity_captures() {
+    use crate::dashboard_presentation::Appearance;
+    use home_wire_contract::home::api::v2::DashboardIcon as I;
+    use i_slint_backend_testing::{TestingBackend, TestingBackendOptions};
+    let directory = std::path::PathBuf::from(
+        std::env::var_os("HOMEWARD_SYNTHETIC_RENDER_DIR").expect("explicit artifact directory"),
+    );
+    std::fs::create_dir_all(&directory).unwrap();
+    slint::platform::set_platform(Box::new(TestingBackend::new(TestingBackendOptions {
+        mock_time: true,
+        renderer_name: Some("software".into()),
+        ..Default::default()
+    })))
+    .unwrap();
+    let window = setup();
+    window.set_greeting("Good evening, Damien".into());
+    window.set_local_date("Saturday 31 October".into());
+    window.set_account_initials("D".into());
+    window.set_account_label("Damien".into());
+    window.set_navigation_rows(ModelRc::from(
+        ["Home", "Rooms", "Lists", "Calendar", "Cameras", "Settings"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, label)| OptionRow {
+                token: index as i32,
+                generation: 1,
+                label: label.into(),
+                description: "".into(),
+                disabled: false,
+            })
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ));
+    window.set_navigation_state(SelectState {
+        selected: SelectionRef {
+            present: true,
+            token: 0,
+        },
+        active: SelectionRef {
+            present: true,
+            token: 0,
+        },
+        ..Default::default()
+    });
+    window.show().unwrap();
+    let size = |width: f32, height: f32| {
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(width, height));
+    };
+    let capture = |name: &str| save(&window, &directory.join(format!("{name}.png")));
+    let clear = || {
+        window.set_native_popup(DialogState::default());
+        window.set_media_visible(false);
+        window.set_media_has_data(false);
+        window.set_detail_panels(Default::default());
+        window.set_device_cards(Default::default());
+        window.set_home_layout_nodes(Default::default());
+        window.set_popup_layout_nodes(Default::default());
+    };
+    let home = |appearance: Appearance| {
+        clear();
+        window.set_dark_mode(appearance == Appearance::Dark);
+        window.set_page(ViewPage::Home);
+        window.set_page_title("Home".into());
+        window.set_home_layout_nodes(parity::home(appearance).model());
+    };
+    let room = || {
+        clear();
+        window.set_dark_mode(false);
+        window.set_page(ViewPage::Home);
+        window.set_home_layout_nodes(parity::home(Appearance::Light).model());
+        window.set_native_popup_title("Living room".into());
+        window.set_native_popup_glyph(parity::glyph(I::Sofa));
+        window.set_native_popup_generation(5);
+        window.set_native_popup_detail(false);
+        window.set_native_popup_can_back(false);
+        window.set_popup_layout_nodes(parity::living_room(Appearance::Light).model());
+        window.set_native_popup(DialogState {
+            open: true,
+            topmost: true,
+            ..Default::default()
+        });
+    };
+    let detail = |panel: HomewardDetailRow| {
+        clear();
+        window.set_dark_mode(false);
+        window.set_page(ViewPage::Detail);
+        window.set_detail_title(panel.device.title.clone());
+        window.set_device_cards(ModelRc::from([panel.device.clone()].as_slice()));
+        window.set_detail_panels(ModelRc::from([panel].as_slice()));
+    };
+
+    // Home boards.
+    home(Appearance::Light);
+    size(1440., 1000.);
+    capture("Main");
+    size(1280., 800.);
+    capture("Tablet");
+    size(390., 844.);
+    capture("Mobile");
+    // The System board shows the light and dark token sets: the home board
+    // under each theme, stacked.
+    size(1440., 740.);
+    i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(300));
+    let light = window.window().take_snapshot().unwrap();
+    home(Appearance::Dark);
+    i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(300));
+    let dark = window.window().take_snapshot().unwrap();
+    let mut stacked = light.as_bytes().to_vec();
+    stacked.extend_from_slice(dark.as_bytes());
+    write_png(
+        &directory.join("System.png"),
+        light.width(),
+        light.height() + dark.height(),
+        &stacked,
+    );
+
+    // Tile galleries.
+    clear();
+    window.set_dark_mode(false);
+    window.set_page(ViewPage::Home);
+    window.set_page_title("Tiles · catalogue A".into());
+    window.set_home_layout_nodes(parity::gallery(Appearance::Light, false).model());
+    size(1440., 1400.);
+    capture("TilesA");
+    window.set_page_title("Tiles · catalogue B".into());
+    window.set_home_layout_nodes(parity::gallery(Appearance::Light, true).model());
+    capture("TilesB");
+    window.set_page_title("Home".into());
+    window.set_home_layout_nodes(parity::list_tiles(Appearance::Light).model());
+    size(880., 520.);
+    capture("ListTile");
+
+    // Room popup.
+    room();
+    size(1280., 800.);
+    capture("Room");
+    size(390., 844.);
+    capture("MobileRoom");
+
+    // Device detail panels.
+    let lamp = parity::detail(
+        &parity::lamp(1, "Living room ceiling light", 70., None),
+        I::Light,
+    );
+    let strip = parity::detail(
+        &parity::lamp(2, "Desk strip", 60., Some((124, 108, 240))),
+        I::Light,
+    );
+    let heating = parity::detail(
+        &parity::thermostat(3, "Home thermostat", "21.5", "21.0"),
+        I::Thermostat,
+    );
+    let fan = parity::detail(&parity::fan(4, "Ceiling fan", "Medium"), I::Fan);
+    let garage = parity::detail(&parity::garage(5, "Garage door"), I::Garage);
+    let alarm = parity::detail(&parity::alarm(6, ProAlarmCondition::Disarmed), I::Shield);
+    let switch = parity::detail(&parity::switch(7, "Design lamp", true), I::Power);
+    size(480., 760.);
+    for (name, panel) in [
+        ("ModalLight", lamp.clone()),
+        ("ModalLightColor", strip),
+        ("ModalThermostat", heating.clone()),
+        ("ModalFan", fan),
+        ("ModalGarage", garage),
+        ("ModalAlarm", alarm.clone()),
+        ("ModalSwitch", switch),
+    ] {
+        detail(panel);
+        capture(name);
+    }
+    size(390., 844.);
+    for (name, panel) in [
+        ("MobileLight", lamp),
+        ("MobileThermostat", heating),
+        ("MobileAlarm", alarm),
+    ] {
+        detail(panel);
+        capture(name);
+    }
+
+    // Media detail.
+    clear();
+    window.set_page(ViewPage::Detail);
+    window.set_detail_title("ICI Musique".into());
+    window.set_media_visible(true);
+    window.set_media_has_data(true);
+    window.set_media_editable(true);
+    window.set_media_data(ProMediaPresentation {
+        token: 0,
+        generation: 1,
+        title: "ICI Musique".into(),
+        subtitle: "Kitchen · Sonos".into(),
+        collection: "Live radio".into(),
+        playback: "Playing".into(),
+        artwork_state: ProArtworkState::Absent,
+        ..Default::default()
+    });
+    window.set_media_actions(ModelRc::from(
+        [
+            ProMediaAction {
+                operation: ProMediaOperation::Previous,
+                label: "Previous".into(),
+            },
+            ProMediaAction {
+                operation: ProMediaOperation::Pause,
+                label: "Pause".into(),
+            },
+            ProMediaAction {
+                operation: ProMediaOperation::Next,
+                label: "Next".into(),
+            },
+        ]
+        .as_slice(),
+    ));
+    window.set_media_values(ModelRc::from([ProDeviceValue {
+        token: 0,
+        kind: ProValueKind::Numeric,
+        mode: ProValueMode::Single,
+        label: "Volume".into(),
+        lower: "35".into(),
+        suffix: "%".into(),
+        lower_position: 0.35,
+        slider_enabled: true,
+        can_step: true,
+        ..Default::default()
+    }]));
+    window.set_media_members(ModelRc::from(
+        [
+            ("Kitchen", true, false, 35),
+            ("Living room", true, true, 20),
+            ("Bedroom", false, true, 10),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(
+            |(index, (title, grouped, can_group, volume))| ProMediaMember {
+                token: index as i32,
+                generation: 1,
+                title: title.into(),
+                glyph: parity::glyph(I::Music),
+                grouped,
+                can_group,
+                volume,
+                volume_known: true,
+                can_volume: true,
+            },
+        )
+        .collect::<Vec<_>>()
+        .as_slice(),
+    ));
+    window.set_media_progress_known(false);
+    size(480., 760.);
+    capture("ModalMedia");
+
+    // Lists.
+    clear();
+    window.set_page(ViewPage::Lists);
+    window.set_page_title("Lists".into());
+    let mut state = crate::list_state::tests::ready();
+    let items = [
+        ("milk", "Milk 2 %"),
+        ("eggs", "Eggs"),
+        ("flour", "Flour"),
+        ("yeast", "Instant yeast"),
+        ("tacos", "Taco dinner"),
+        ("tortillas", "Tortillas"),
+        ("salsa", "Mild salsa"),
+        ("avocados", "Avocados"),
+        ("coffee", "Coffee beans"),
+    ]
+    .map(|(id, name)| (id, 1, name));
+    state
+        .publish_items(crate::list_state::tests::items(
+            crate::list_state::tests::LIST,
+            11,
+            &items,
+        ))
+        .unwrap();
+    crate::list_host::projection::render(
+        &window,
+        crate::list_host::projection::Projection::new(&state),
+    );
+    size(1440., 1000.);
+    capture("Lists");
+    size(1280., 800.);
+    capture("TabletLists");
+    size(390., 844.);
+    capture("MobileLists");
 }
 
 #[test]

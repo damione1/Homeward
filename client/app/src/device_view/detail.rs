@@ -56,6 +56,78 @@ struct AssociatedLock {
     can_lock: bool,
     can_unlock: bool,
 }
+/// Synthetic observations for the render tests: what a capability would have
+/// reported, stated directly so a board can be drawn without a server.
+#[cfg(test)]
+impl Metadata {
+    /// A lamp observed in `color`.
+    pub(crate) fn with_light_color(mut self, color: (u8, u8, u8)) -> Self {
+        self.light_color = Some(color);
+        self
+    }
+    /// A thermostat observed in `activity`, offering `modes` with `selected`
+    /// chosen.
+    pub(crate) fn with_climate(
+        mut self,
+        activity: wire::TemperatureActivity,
+        modes: &[wire::TemperatureMode],
+        selected: wire::TemperatureMode,
+    ) -> Self {
+        self.climate_activity_value = Some(activity);
+        self.climate_activity = super::panel::activity_label(activity).into();
+        self.modes = modes
+            .iter()
+            .enumerate()
+            .map(|(index, mode)| ChoiceRow {
+                token: index as i32,
+                label: super::panel::mode_label(*mode).into(),
+                selected: *mode == selected,
+                disabled: false,
+            })
+            .collect();
+        self.mode_icons = modes
+            .iter()
+            .enumerate()
+            .map(|(index, mode)| ChoiceIcon {
+                token: index as i32,
+                glyph: mode_glyph(*mode),
+            })
+            .collect();
+        self
+    }
+    /// A fan offering `speeds`, the selected one flagged.
+    pub(crate) fn with_speeds(mut self, speeds: &[(&str, bool)]) -> Self {
+        self.speeds = speeds
+            .iter()
+            .enumerate()
+            .map(|(index, (label, selected))| ChoiceRow {
+                token: index as i32,
+                label: (*label).into(),
+                selected: *selected,
+                disabled: false,
+            })
+            .collect();
+        self
+    }
+    /// A covering observed at `position` within `bounds`, `motion` under way.
+    pub(crate) fn with_cover(
+        mut self,
+        position: f64,
+        bounds: (f64, f64),
+        motion: ProCoverMotion,
+    ) -> Self {
+        self.position = Some(position);
+        self.position_bounds = Some(bounds);
+        self.position_step = Some(1.);
+        self.motion = motion;
+        self
+    }
+    /// An alarm observed in `condition`.
+    pub(crate) fn with_alarm(mut self, condition: ProAlarmCondition) -> Self {
+        self.condition = condition;
+        self
+    }
+}
 impl Metadata {
     pub(super) fn associate_lock(&mut self, row: &CardRow, title: &str) {
         self.associated_lock = Some(AssociatedLock {

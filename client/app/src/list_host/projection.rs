@@ -10,7 +10,7 @@ use slint::{Model, ModelNotify, ModelRc, ModelTracker};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone)]
-pub(super) struct Projection {
+pub(crate) struct Projection {
     generation: i32,
     privacy_generation: i32,
     list_token: i32,
@@ -338,7 +338,7 @@ impl Model for Catalog {
         self
     }
 }
-pub(super) fn render(window: &HomewardWindow, projection: Projection) {
+pub(crate) fn render(window: &HomewardWindow, projection: Projection) {
     let view = Arc::new(projection);
     let same_list = window.get_lists_list_token() == view.list_token;
     if window.get_lists_privacy_generation() != view.privacy_generation {

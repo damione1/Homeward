@@ -1062,6 +1062,22 @@ fn tile_tap(
         }
     }
 }
+/// The tile a synthetic card projects to, for the render tests' boards.
+#[cfg(test)]
+pub(crate) fn synthetic_tile(
+    card: &CardRow,
+    device: &ProDeviceRow,
+    template: ProTileTemplate,
+    appearance: Appearance,
+) -> ProTileRow {
+    tile_row(
+        device,
+        &tile_state(Some(card), device),
+        template,
+        appearance,
+        None,
+    )
+}
 fn tile_row(
     device: &ProDeviceRow,
     state: &TileState,
