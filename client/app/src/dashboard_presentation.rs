@@ -480,7 +480,22 @@ impl Board {
                     previous_children,
                 );
                 let device_ui = device.ui(previous.as_ref().map(|node| &node.device), icon);
-                let tile_template = tile_template(data, node.square, parent_columns[index]);
+                // A scene is a compact chip on one row unless the layout
+                // configures its rows; its tap runs it.
+                let scene_tile = kind == ProLayoutKind::Tile
+                    && node
+                        .device
+                        .as_ref()
+                        .is_some_and(|device| device.kind == crate::ProDeviceKind::Scene);
+                let tile_template = if scene_tile {
+                    ProTileTemplate::Compact
+                } else {
+                    tile_template(data, node.square, parent_columns[index])
+                };
+                let rows = match tile_rows(data) {
+                    0 if scene_tile => 1,
+                    rows => rows,
+                };
                 // Only a tile reads the detail projection for its typed state.
                 let state = if kind == ProLayoutKind::Tile {
                     tile_state(node.device.as_ref(), &device_ui)
@@ -491,6 +506,7 @@ impl Board {
                     &device_ui,
                     &state,
                     tile_template,
+                    rows,
                     self.appearance,
                     previous.as_ref().map(|node| &node.tile),
                 );
@@ -590,7 +606,7 @@ impl Board {
                     device: device_ui,
                     tile,
                     tile_template,
-                    tile_rows: tile_rows(data),
+                    tile_rows: rows,
                     recipe,
                     ..Default::default()
                 }
@@ -712,6 +728,38 @@ mod glyph {
             "M 2 2 L 22 22 M 5 5 C 4.448 5 4 5.448 4 6 L 4 13 C 4 18 7.5 20.5 11.67 21.94 C 11.886 22.02 12.122 22.024 12.34 21.95 C 14.69 21.13 16.82 19.98 18.24 18.24 M 9.309 3.652 C 9.995 3.258 10.642 2.799 11.24 2.28 C 11.678 1.906 12.322 1.906 12.76 2.28 C 14.51 3.81 17 5 19 5 C 19.552 5 20 5.448 20 6 L 20 13 C 20.001 13.423 19.974 13.845 19.92 14.264",
         )
     }
+    pub(super) fn signal_low() -> IconGlyph {
+        stroke("M 2 20 L 2.01 20 M 7 20 L 7 16")
+    }
+    pub(super) fn signal_medium() -> IconGlyph {
+        stroke("M 2 20 L 2.01 20 M 7 20 L 7 16 M 12 20 L 12 12")
+    }
+    pub(super) fn signal_high() -> IconGlyph {
+        stroke("M 2 20 L 2.01 20 M 7 20 L 7 16 M 12 20 L 12 12 M 17 20 L 17 8")
+    }
+    pub(super) fn sun() -> IconGlyph {
+        stroke(
+            "M 16 12 C 16 14.209 14.209 16 12 16 C 9.791 16 8 14.209 8 12 C 8 9.791 9.791 8 12 8 C 14.209 8 16 9.791 16 12 Z M 12 2 L 12 4 M 12 20 L 12 22 M 4.93 4.93 L 6.34 6.34 M 17.66 17.66 L 19.07 19.07 M 2 12 L 4 12 M 20 12 L 22 12 M 6.34 17.66 L 4.93 19.07 M 19.07 4.93 L 17.66 6.34",
+        )
+    }
+}
+
+/// A fan speed's glyph by its rank among the admitted speeds: the lowest
+/// third low, the middle medium, the rest high (one speed alone is high,
+/// two are low and high).
+fn speed_glyph(index: usize, count: usize) -> IconGlyph {
+    let count = count.max(1);
+    let rank = (index * 3) / count;
+    match rank {
+        0 if count > 1 => glyph::signal_low(),
+        1 if count > 2 => glyph::signal_medium(),
+        _ => glyph::signal_high(),
+    }
+}
+/// A level as a whole percentage of its domain; none without a domain.
+fn level_percent(level: f32, minimum: f32, maximum: f32) -> Option<i32> {
+    (maximum > minimum)
+        .then(|| (((level - minimum) / (maximum - minimum)).clamp(0., 1.) * 100.).round() as i32)
 }
 
 /// What the equipment does now, as the detail projection reports it.
@@ -741,6 +789,9 @@ enum TileState {
     Plain,
     Light {
         color: Option<slint::Color>,
+        /// The observed colour's name ("Custom colour", a preset); empty
+        /// without an observed colour.
+        color_label: slint::SharedString,
     },
     Fan {
         speeds: Vec<ChoiceRow>,
@@ -751,7 +802,12 @@ enum TileState {
         modes: Vec<ChoiceRow>,
         icons: Vec<ChoiceIcon>,
     },
-    Cover(CoverState),
+    Cover {
+        state: CoverState,
+        /// The associated lock's observed state label; empty while the lock
+        /// is absent or unknown.
+        lock: slint::SharedString,
+    },
     Alarm {
         condition: ProAlarmCondition,
     },
@@ -780,8 +836,14 @@ fn tile_state(card: Option<&CardRow>, device: &ProDeviceRow) -> TileState {
         K::Light => {
             let detail = detail();
             let light = &detail.light;
+            let color = (light.hue_known && light.color.alpha() > 0).then_some(light.color);
             TileState::Light {
-                color: (light.hue_known && light.color.alpha() > 0).then_some(light.color),
+                color,
+                color_label: if color.is_some() {
+                    light.color_label.clone()
+                } else {
+                    slint::SharedString::default()
+                },
             }
         }
         K::Fan => TileState::Fan {
@@ -808,10 +870,21 @@ fn tile_state(card: Option<&CardRow>, device: &ProDeviceRow) -> TileState {
             } else {
                 CoverPosition::Between
             };
-            TileState::Cover(CoverState {
-                motion: cover.motion,
-                position,
-            })
+            let lock = &detail.associated_lock;
+            TileState::Cover {
+                state: CoverState {
+                    motion: cover.motion,
+                    position,
+                },
+                lock: match lock.state {
+                    crate::ProCoverLock::Locked | crate::ProCoverLock::Unlocked => {
+                        lock.state_label.clone()
+                    }
+                    crate::ProCoverLock::Absent | crate::ProCoverLock::Unknown => {
+                        slint::SharedString::default()
+                    }
+                },
+            }
         }
         K::Alarm => TileState::Alarm {
             condition: detail().alarm.condition,
@@ -891,8 +964,9 @@ fn lock_action(row: &crate::ProLockChoice) -> ProTileAction {
         disabled: false,
     }
 }
-// Disarming is the emphasised action while the alarm is triggered and has
-// nothing to do while it is disarmed; arming stays offered in every state.
+// Disarming is the destructive, emphasised action while the alarm is
+// triggered and has nothing to do while it is disarmed; arming stays offered
+// in every state but triggered, where disarming is the only shortcut.
 fn alarm_action(
     row: &crate::ProAlarmChoice,
     condition: Option<ProAlarmCondition>,
@@ -909,7 +983,7 @@ fn alarm_action(
         Some(condition) => match row.operation {
             ProAlarmOperation::Disarm => match condition {
                 ProAlarmCondition::Disarmed => (true, ButtonIntent::Secondary),
-                ProAlarmCondition::Triggered => (false, ButtonIntent::Primary),
+                ProAlarmCondition::Triggered => (false, ButtonIntent::Destructive),
                 ProAlarmCondition::Arming
                 | ProAlarmCondition::Armed
                 | ProAlarmCondition::Pending
@@ -931,7 +1005,7 @@ fn alarm_action(
 }
 fn tile_actions(device: &ProDeviceRow, state: &TileState) -> Vec<ProTileAction> {
     let cover = match state {
-        TileState::Cover(cover) => Some(*cover),
+        TileState::Cover { state, .. } => Some(*state),
         TileState::Plain
         | TileState::Light { .. }
         | TileState::Fan { .. }
@@ -944,8 +1018,9 @@ fn tile_actions(device: &ProDeviceRow, state: &TileState) -> Vec<ProTileAction> 
         | TileState::Light { .. }
         | TileState::Fan { .. }
         | TileState::Climate { .. }
-        | TileState::Cover(_) => None,
+        | TileState::Cover { .. } => None,
     };
+    let triggered = alarm == Some(ProAlarmCondition::Triggered);
     device
         .cover_operations
         .iter()
@@ -955,6 +1030,7 @@ fn tile_actions(device: &ProDeviceRow, state: &TileState) -> Vec<ProTileAction> 
             device
                 .alarm_operations
                 .iter()
+                .filter(|row| !triggered || row.operation == ProAlarmOperation::Disarm)
                 .map(|row| alarm_action(&row, alarm)),
         )
         .collect()
@@ -972,7 +1048,7 @@ fn tile_look(device: &ProDeviceRow, state: &TileState, appearance: Appearance) -
     use crate::ProDeviceKind as K;
     let on = device.power_known && device.power_on;
     let (tone, paint, active) = match state {
-        TileState::Light { color } => {
+        TileState::Light { color, .. } => {
             (Tone::Warning, color.map(|color| appearance.lamp(color)), on)
         }
         TileState::Fan { .. } => (Tone::Information, None, on),
@@ -981,7 +1057,7 @@ fn tile_look(device: &ProDeviceRow, state: &TileState, appearance: Appearance) -
             ClimateActivity::Cooling => (Tone::Information, None, true),
             ClimateActivity::Idle => (Tone::Neutral, None, false),
         },
-        TileState::Cover(_) => (Tone::Neutral, None, false),
+        TileState::Cover { .. } => (Tone::Neutral, None, false),
         TileState::Alarm { condition } => match condition {
             ProAlarmCondition::Disarmed => (Tone::Success, None, true),
             ProAlarmCondition::Armed => (Tone::Accent, None, true),
@@ -1014,15 +1090,21 @@ fn tile_look(device: &ProDeviceRow, state: &TileState, appearance: Appearance) -
 // default command: lamps and switches toggle, a fan with speeds moves to the
 // next one, a player plays or pauses, a scene runs. Equipment whose change
 // needs a choice opens its detail, as does every wider tile, which shows its
-// own control. A scene runs from any template. The tap is a plain command: the
-// tile keeps showing the observed state.
+// own control. A scene runs from any template. A lamp drawn as a level fill
+// on one row (`toggle_row`) has no power button: its tap is the power
+// command. The tap is a plain command: the tile keeps showing the observed
+// state.
 fn tile_tap(
     device: &ProDeviceRow,
     template: ProTileTemplate,
     has_levels: bool,
+    toggle_row: bool,
 ) -> crate::ProTileTap {
     use crate::{ProControlAccess, ProDeviceKind as K, ProTileTap as T};
     let commands = device.access == ProControlAccess::Allowed && !device.summary_only;
+    if toggle_row && commands {
+        return if device.can_power { T::Toggle } else { T::Open };
+    }
     match template {
         ProTileTemplate::Compact if commands => match device.kind {
             K::Light | K::Switch => {
@@ -1062,7 +1144,8 @@ fn tile_tap(
         }
     }
 }
-/// The tile a synthetic card projects to, for the render tests' boards.
+/// The tile a synthetic card projects to, for the render tests' boards, at
+/// the template's own row count.
 #[cfg(test)]
 pub(crate) fn synthetic_tile(
     card: &CardRow,
@@ -1070,18 +1153,34 @@ pub(crate) fn synthetic_tile(
     template: ProTileTemplate,
     appearance: Appearance,
 ) -> ProTileRow {
+    synthetic_tile_rows(card, device, template, 0, appearance)
+}
+/// The tile a synthetic card projects to over `rows` grid rows (zero: the
+/// template's own), as the board projects a configured row span.
+#[cfg(test)]
+pub(crate) fn synthetic_tile_rows(
+    card: &CardRow,
+    device: &ProDeviceRow,
+    template: ProTileTemplate,
+    rows: i32,
+    appearance: Appearance,
+) -> ProTileRow {
     tile_row(
         device,
         &tile_state(Some(card), device),
         template,
+        rows,
         appearance,
         None,
     )
 }
+// `rows` is the configured grid row span, zero for the template's own: only
+// a configured single row draws a lamp as a level fill.
 fn tile_row(
     device: &ProDeviceRow,
     state: &TileState,
     template: ProTileTemplate,
+    rows: i32,
     appearance: Appearance,
     previous: Option<&ProTileRow>,
 ) -> ProTileRow {
@@ -1094,6 +1193,12 @@ fn tile_row(
             && value.token == device.primary_value_token
             && value.mode == crate::ProValueMode::Single
     });
+    let on = device.power_known && device.power_on;
+    let scene = device.kind == K::Scene;
+    let media = device.kind == K::Media;
+    let light = device.kind == K::Light;
+    let large = template == ProTileTemplate::Large;
+    let single_row = rows == 1;
     let actions = tile_actions(device, state);
     let choices: Vec<ChoiceRow> = device
         .choices
@@ -1106,21 +1211,50 @@ fn tile_row(
         })
         .collect();
     // Short labels from the detail projection where it has them (a fan's
-    // speeds, a thermostat's modes with their icons): their tokens index the
-    // same admitted choice list, so the host resolves them unchanged.
+    // speeds with a signal glyph by rank, a thermostat's modes with their
+    // icons): their tokens index the same admitted choice list, so the host
+    // resolves them unchanged.
     let (levels, level_icons): (Vec<ChoiceRow>, Vec<ChoiceIcon>) = match state {
-        TileState::Fan { speeds } if !speeds.is_empty() => (speeds.clone(), Vec::new()),
+        TileState::Fan { speeds } if !speeds.is_empty() => (
+            speeds.clone(),
+            speeds
+                .iter()
+                .enumerate()
+                .map(|(index, row)| ChoiceIcon {
+                    token: row.token,
+                    glyph: speed_glyph(index, speeds.len()),
+                })
+                .collect(),
+        ),
         TileState::Climate { modes, icons, .. } => (modes.clone(), icons.clone()),
         TileState::Fan { .. }
         | TileState::Plain
         | TileState::Light { .. }
-        | TileState::Cover(_)
+        | TileState::Cover { .. }
         | TileState::Alarm { .. } => (choices, Vec::new()),
     };
-    let media = device.kind == K::Media;
-    let playing = media && device.power_known && device.power_on;
+    // The selected speed's rank among the admitted speeds ("2 of 3").
+    let speed_rank = match state {
+        TileState::Fan { speeds } => speeds
+            .iter()
+            .position(|row| row.selected)
+            .map(|index| (index + 1, speeds.len())),
+        TileState::Plain
+        | TileState::Light { .. }
+        | TileState::Climate { .. }
+        | TileState::Cover { .. }
+        | TileState::Alarm { .. } => None,
+    };
+    let alarm_triggered = matches!(
+        state,
+        TileState::Alarm {
+            condition: ProAlarmCondition::Triggered
+        }
+    );
+    let playing = media && on;
     // A player offers the opposite of its observed playback; the observed
-    // state, not the press, flips the button.
+    // state, not the press, flips the button. The card projection carries
+    // no previous or next capability, so the tile offers neither.
     let transport = if media {
         vec![ProMediaAction {
             operation: if playing {
@@ -1133,6 +1267,10 @@ fn tile_row(
     } else {
         Vec::new()
     };
+    // A dimmable lamp on one row is a level fill behind its row: no slider,
+    // no power button, the tap is the power command.
+    let fill_level = light && device.can_brightness && single_row;
+    // A scene has no power button: its tap runs it.
     let control = if device.summary_only {
         C::None
     } else if media {
@@ -1147,7 +1285,7 @@ fn tile_row(
         C::Actions
     } else if !levels.is_empty() {
         C::Levels
-    } else if device.can_power {
+    } else if device.can_power && !scene {
         C::Toggle
     } else {
         C::None
@@ -1163,28 +1301,65 @@ fn tile_row(
             | P::Interrupted
     );
     let look = tile_look(device, state, appearance);
-    ProTileRow {
-        token: device.token,
-        generation: device.generation,
-        title: device.title.clone(),
-        value: format!(
+    // A lit lamp reads its brightness as its value ("70 %"); off, it keeps
+    // the host's state word.
+    let brightness: Option<slint::SharedString> = (light && on && device.brightness_known)
+        .then(|| {
+            level_percent(
+                device.brightness_percent,
+                device.brightness_minimum,
+                device.brightness_maximum,
+            )
+        })
+        .flatten()
+        .map(|percent| format!("{percent} %").into());
+    // A scene's value is its room, which the card does not carry: nothing.
+    let value: slint::SharedString = if scene {
+        slint::SharedString::default()
+    } else if let Some(brightness) = brightness {
+        brightness
+    } else {
+        format!(
             "{}{}{}",
             device.value,
             if device.unit.is_empty() { "" } else { " " },
             device.unit
         )
-        .into(),
-        detail: if !device.action_label.is_empty() {
-            device.action_label.clone()
-        } else if device.access == ProControlAccess::Denied {
-            "Read-only".into()
-        } else if let TileState::Climate { label, .. } = state
-            && !label.is_empty()
-        {
-            label.clone()
-        } else {
-            device.quality.clone()
-        },
+        .into()
+    };
+    // The detail is typed state, never the observation's freshness or
+    // quality (those stay in the detail panel): a thermostat's activity, a
+    // lamp's colour name, a fan's rank (its caption on a large tile), a
+    // cover's lock.
+    let detail: slint::SharedString = if !device.action_label.is_empty() {
+        device.action_label.clone()
+    } else if device.access == ProControlAccess::Denied {
+        "Read-only".into()
+    } else {
+        match state {
+            TileState::Climate { label, .. } => label.clone(),
+            TileState::Light { color_label, .. } => color_label.clone(),
+            TileState::Fan { .. } => speed_rank
+                .filter(|_| !large)
+                .map_or_else(slint::SharedString::default, |(rank, count)| {
+                    format!("{rank} of {count}").into()
+                }),
+            TileState::Cover { lock, .. } => lock.clone(),
+            TileState::Plain | TileState::Alarm { .. } => slint::SharedString::default(),
+        }
+    };
+    let caption: slint::SharedString = speed_rank
+        .filter(|_| large)
+        .map_or_else(slint::SharedString::default, |(rank, count)| {
+            format!("{rank} / {count}").into()
+        });
+    ProTileRow {
+        token: device.token,
+        generation: device.generation,
+        title: device.title.clone(),
+        value,
+        detail,
+        caption,
         // A compact thermostat leads with its reading over its activity.
         value_leads: template == ProTileTemplate::Compact && device.kind == K::Climate,
         glyph: device.glyph.clone(),
@@ -1196,6 +1371,17 @@ fn tile_row(
             .paint
             .map_or(slint::Color::default(), |paint| paint.ink),
         active: look.active,
+        // A lit rectangle over two rows keeps its resting surface and carries
+        // the tone in its badge, power button and control; compact, large,
+        // single-row and media tiles are tone-filled.
+        badge_surface: template == ProTileTemplate::Rectangle && !single_row && !media,
+        // The product's tone pairs keep caption contrast on their fills.
+        tone_value: true,
+        // A running scene is a solid accent chip; a player's badge stands in
+        // for its artwork; a large switch is one hero power button.
+        solid_active: scene,
+        badge_filled: media,
+        hero_power: device.kind == K::Switch && large && control == C::Toggle,
         power: if !device.power_known {
             crate::ProSwitchState::Unknown
         } else if device.power_on {
@@ -1208,16 +1394,22 @@ fn tile_row(
             || pending,
         // Buttons retain separate exact capability intents; opening the
         // detail generates no transport call.
-        tap: tile_tap(device, template, !levels.is_empty()),
+        tap: tile_tap(device, template, !levels.is_empty(), fill_level),
         hold_opens: true,
         control,
         // A dimmable lamp keeps its power button beside the slider.
-        power_button: device.kind == K::Light && device.can_power && control == C::Level,
+        power_button: light && device.can_power && control == C::Level && !fill_level,
         level: device.brightness_percent,
         level_known: device.brightness_known,
         level_minimum: device.brightness_minimum,
         level_maximum: device.brightness_maximum,
         level_increment: device.brightness_step,
+        level_fill: fill_level,
+        level_glyph: if light && control == C::Level && !fill_level {
+            glyph::sun()
+        } else {
+            IconGlyph::default()
+        },
         levels_active: levels
             .iter()
             .find(|row| row.selected)
@@ -1228,7 +1420,12 @@ fn tile_row(
         transport: nested(&transport, previous.map(|row| &row.transport)),
         playing,
         actions: nested(&actions, previous.map(|row| &row.actions)),
-        action_style: ProTileActionStyle::Glyphs,
+        // A triggered alarm's lone disarm is a labelled, full-width button.
+        action_style: if alarm_triggered {
+            ProTileActionStyle::Labelled
+        } else {
+            ProTileActionStyle::Glyphs
+        },
         stepper_value: primary
             .as_ref()
             .map(|value| format!("{} {}", value.lower, value.suffix).into())
@@ -1494,6 +1691,7 @@ mod tests {
             &device,
             &TileState::Plain,
             ProTileTemplate::Rectangle,
+            0,
             Appearance::Light,
             None,
         );
@@ -1514,6 +1712,7 @@ mod tests {
             &device,
             &TileState::Plain,
             ProTileTemplate::Rectangle,
+            0,
             Appearance::Light,
             Some(&tile),
         );
@@ -1538,7 +1737,14 @@ mod tests {
             ..Default::default()
         };
         let tile = |device: &ProDeviceRow, template: ProTileTemplate| {
-            tile_row(device, &TileState::Plain, template, Appearance::Light, None)
+            tile_row(
+                device,
+                &TileState::Plain,
+                template,
+                0,
+                Appearance::Light,
+                None,
+            )
         };
         let lamp = row(ProDeviceKind::Light, ProControlAccess::Allowed);
         let compact = tile(&lamp, ProTileTemplate::Compact);
@@ -1617,8 +1823,12 @@ mod tests {
         let tile = |state: CoverState| {
             tile_row(
                 &cover,
-                &TileState::Cover(state),
+                &TileState::Cover {
+                    state,
+                    lock: Default::default(),
+                },
                 ProTileTemplate::Rectangle,
+                0,
                 Appearance::Light,
                 None,
             )
@@ -1668,6 +1878,7 @@ mod tests {
             &thermostat,
             &climate(ClimateActivity::Heating, "Heating"),
             ProTileTemplate::Compact,
+            0,
             Appearance::Light,
             None,
         );
@@ -1679,6 +1890,7 @@ mod tests {
             &thermostat,
             &climate(ClimateActivity::Heating, "Heating"),
             ProTileTemplate::Compact,
+            0,
             Appearance::Dark,
             None,
         );
@@ -1687,6 +1899,7 @@ mod tests {
             &thermostat,
             &climate(ClimateActivity::Idle, ""),
             ProTileTemplate::Rectangle,
+            0,
             Appearance::Light,
             None,
         );
@@ -1706,12 +1919,185 @@ mod tests {
                 &alarm,
                 &TileState::Alarm { condition },
                 ProTileTemplate::Rectangle,
+                0,
                 Appearance::Light,
                 None,
             );
             assert_eq!(tile.tone, tone);
             assert_eq!(tile.active, lit);
         }
+    }
+    #[test]
+    fn typed_state_feeds_the_value_the_detail_and_the_shortcuts() {
+        use crate::{ProAlarmChoice, ProControlAccess, ProDeviceKind, ProTileControl, ProTileTap};
+        let lamp = ProDeviceRow {
+            kind: ProDeviceKind::Light,
+            access: ProControlAccess::Allowed,
+            can_power: true,
+            can_brightness: true,
+            power_known: true,
+            power_on: true,
+            brightness_known: true,
+            brightness_percent: 70.,
+            brightness_minimum: 0.,
+            brightness_maximum: 100.,
+            brightness_step: 1.,
+            value: "On".into(),
+            quality: "Current observation".into(),
+            ..Default::default()
+        };
+        let state = TileState::Light {
+            color: None,
+            color_label: "".into(),
+        };
+        let two_rows = tile_row(
+            &lamp,
+            &state,
+            ProTileTemplate::Rectangle,
+            2,
+            Appearance::Light,
+            None,
+        );
+        assert_eq!(two_rows.value, "70 %", "a lit lamp reads its brightness");
+        assert_eq!(
+            two_rows.detail, "",
+            "the observation quality stays off the tile"
+        );
+        assert!(two_rows.badge_surface && two_rows.tone_value && two_rows.power_button);
+        assert!(!two_rows.level_fill);
+        assert!(
+            !two_rows.level_glyph.stroke.is_empty(),
+            "a slider leads with the sun"
+        );
+        assert_eq!(two_rows.tap, ProTileTap::Open);
+        let one_row = tile_row(
+            &lamp,
+            &state,
+            ProTileTemplate::Rectangle,
+            1,
+            Appearance::Light,
+            None,
+        );
+        assert!(one_row.level_fill && !one_row.power_button && !one_row.badge_surface);
+        assert_eq!(
+            one_row.tap,
+            ProTileTap::Toggle,
+            "a level fill toggles on tap"
+        );
+        assert_eq!(one_row.control, ProTileControl::Level);
+        let fan = ProDeviceRow {
+            kind: ProDeviceKind::Fan,
+            access: ProControlAccess::Allowed,
+            value: "Medium".into(),
+            ..Default::default()
+        };
+        let speeds = ["Low", "Medium", "High"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, label)| ChoiceRow {
+                token: index as i32,
+                label: label.into(),
+                selected: index == 1,
+                disabled: false,
+            })
+            .collect::<Vec<_>>();
+        let rectangle = tile_row(
+            &fan,
+            &TileState::Fan {
+                speeds: speeds.clone(),
+            },
+            ProTileTemplate::Rectangle,
+            0,
+            Appearance::Light,
+            None,
+        );
+        assert_eq!(rectangle.detail, "2 of 3");
+        assert_eq!(rectangle.caption, "");
+        assert_eq!(
+            rectangle.level_icons.row_count(),
+            3,
+            "every speed has a glyph"
+        );
+        let large = tile_row(
+            &fan,
+            &TileState::Fan { speeds },
+            ProTileTemplate::Large,
+            0,
+            Appearance::Light,
+            None,
+        );
+        assert_eq!(large.caption, "2 / 3");
+        assert_eq!(
+            large.detail, "",
+            "the caption carries the rank on a large tile"
+        );
+        let alarm = ProDeviceRow {
+            kind: ProDeviceKind::Alarm,
+            access: ProControlAccess::Allowed,
+            alarm_operations: slint::ModelRc::from(
+                [
+                    ProAlarmChoice {
+                        token: 0,
+                        label: "Arm Away".into(),
+                        operation: ProAlarmOperation::ArmAway,
+                    },
+                    ProAlarmChoice {
+                        token: 1,
+                        label: "Disarm".into(),
+                        operation: ProAlarmOperation::Disarm,
+                    },
+                ]
+                .as_slice(),
+            ),
+            ..Default::default()
+        };
+        let triggered = tile_row(
+            &alarm,
+            &TileState::Alarm {
+                condition: ProAlarmCondition::Triggered,
+            },
+            ProTileTemplate::Large,
+            0,
+            Appearance::Light,
+            None,
+        );
+        assert_eq!(triggered.action_style, ProTileActionStyle::Labelled);
+        let actions = triggered.actions.iter().collect::<Vec<_>>();
+        assert_eq!(actions.len(), 1, "only disarm while triggered");
+        assert_eq!(actions[0].intent, ButtonIntent::Destructive);
+        let armed = tile_row(
+            &alarm,
+            &TileState::Alarm {
+                condition: ProAlarmCondition::Armed,
+            },
+            ProTileTemplate::Rectangle,
+            0,
+            Appearance::Light,
+            None,
+        );
+        assert_eq!(armed.action_style, ProTileActionStyle::Glyphs);
+        assert_eq!(armed.actions.row_count(), 2);
+        let scene = tile_row(
+            &ProDeviceRow {
+                kind: ProDeviceKind::Scene,
+                access: ProControlAccess::Allowed,
+                can_power: true,
+                value: "Scene".into(),
+                ..Default::default()
+            },
+            &TileState::Plain,
+            ProTileTemplate::Compact,
+            1,
+            Appearance::Light,
+            None,
+        );
+        assert_eq!(
+            scene.control,
+            ProTileControl::None,
+            "a scene has no power button"
+        );
+        assert_eq!(scene.value, "", "the card carries no room for a scene");
+        assert!(scene.solid_active);
     }
     #[test]
     fn a_tile_narrower_than_a_third_of_its_grid_is_compact() {

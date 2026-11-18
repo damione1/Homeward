@@ -1,8 +1,12 @@
-import { KitTheme, StepDirection } from "@kit";
-import { ProLayoutBoard, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent } from "@kit-pro";
+import { KitTheme, StepDirection, ElevationLevel, TypographyRole } from "@kit";
+import { ProLayoutBoard, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProGroceryDensity, ProGroceryDetailPlacement } from "@kit-pro";
 export component HomewardDashboard inherits ProLayoutBoard {
     callback step(int,int,StepDirection);
     callback next-level(int,int);
+    // A security widget's alarm operation key: the choice token names the
+    // admitted alarm mode (the session host's alarm route, not a device choice).
+    callback alarm-mode(int,int,int);
+    alarm-operation(t,g,c,kind) => { root.alarm-mode(t,g,c); }
     tile-open-requested(t,g) => { root.details(t,g); }
     tile-next-level-requested(t,g) => { root.next-level(t,g); }
     tile-toggle-requested(t,g,intent) => { root.power(t,g,intent); }
@@ -17,4 +21,10 @@ export component HomewardDashboard inherits ProLayoutBoard {
     details-label: "Details"; on-label: "Turn On"; off-label: "Turn Off";
     brightness-label: "Brightness";
     denied-label: "Read-only"; unknown-access-label: "Control permission unknown";
+    // The shopping checklist: compact rows, the detail trailing the title,
+    // the body type for titles, on the container elevation.
+    grocery-density: ProGroceryDensity.compact;
+    grocery-detail-placement: ProGroceryDetailPlacement.trailing;
+    grocery-elevation: root.theme.elevation.container;
+    grocery-title-role: TypographyRole.body;
 }
