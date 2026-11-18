@@ -394,7 +394,7 @@ def run_case(proof, binary, server_binary, helper, case, resources=False):
                 measurements['first_frame_observed_median_ms'] = statistics.median(row['first_frame_observed_ms'] for row in cycles)
                 measurements['first_frame_observed_max_ms'] = max(row['first_frame_observed_ms'] for row in cycles)
                 measurements['scope'] = dict(app_pid=app.pid, build='dev-unoptimized',
-                    renderer='winit-software', slint='1.18.1', decoder='VideoToolboxHardware',
+                    renderer='winit-software', slint='1.19.0', decoder='VideoToolboxHardware',
                     dimensions=[320,180], fps=10, mcp_overhead_included=True,
                     first_frame_latency='UI request until MCP observes an actual decoded image',
                     measurement_interpretation_required=True)

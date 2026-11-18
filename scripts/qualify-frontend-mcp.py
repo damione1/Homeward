@@ -145,7 +145,7 @@ def qualify():
             png = next(item for item in image['content'] if item.get('type') == 'image' and item.get('mimeType') == 'image/png')
             (proof / 'native.png').write_bytes(base64.b64decode(png['data'], validate=True))
             result = {'status': 'PASS', 'native_mcp': True, 'loopback_only': True,
-                      'slint_version': '1.18.1', 'feature': 'slint/mcp', 'tools': sorted(names),
+                      'slint_version': '1.19.0', 'feature': 'slint/mcp', 'tools': sorted(names),
                       'server': initialized['serverInfo'], 'port': port, 'pid': app.pid,
                       'network_profile': False, 'real_devices': False, 'calendar_ui_qualified': False,
                       'screenshot': str(proof / 'native.png')}

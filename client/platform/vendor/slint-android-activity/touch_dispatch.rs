@@ -2,7 +2,7 @@
 use crate::touch_guard::{Delivery, Phase, TouchGuard, TouchId};
 use i_slint_core::{
     api::Window,
-    input::TouchPhase,
+    input::{TouchHistory, TouchPhase},
     lengths::LogicalPoint,
     platform::{InternalEvent, WindowEvent},
 };
@@ -40,5 +40,9 @@ pub(crate) fn dispatch_touch(
         id,
         position,
         phase,
+        // Sampled at delivery, one sample per native event: the adapter forwards
+        // no original timestamp or coalesced history yet.
+        event_time: None,
+        history: TouchHistory::default(),
     }));
 }

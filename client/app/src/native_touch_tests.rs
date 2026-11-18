@@ -6,6 +6,8 @@ mod touch_dispatch;
 #[path = "../../platform/vendor/slint-android-activity/touch_guard.rs"]
 pub(crate) mod touch_guard;
 slint::slint! {
+    // Slint 1.19 asks every inline fixture to state the current edition.
+    #[edition = "1.19"]
     export component TouchFixture inherits Window {
         width: 200px; height: 200px;
         in-out property <bool> active;

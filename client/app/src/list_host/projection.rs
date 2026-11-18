@@ -782,7 +782,7 @@ mod tests {
                             "an activated menu closes"
                         );
                         let management = ElementQuery::from_root(&window)
-                            .match_inherits("TextInput")
+                            .match_inherits("KitTextField")
                             .match_predicate(|e| {
                                 e.accessible_label().as_deref() == Some("New List")
                             })
@@ -856,7 +856,7 @@ mod tests {
             );
             assert!(
                 ElementQuery::from_root(&window)
-                    .match_inherits("TextInput")
+                    .match_inherits("KitTextField")
                     .match_predicate(|e| e.accessible_label().as_deref() == Some("Item"))
                     .find_first()
                     .is_none()

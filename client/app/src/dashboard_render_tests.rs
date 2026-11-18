@@ -971,9 +971,15 @@ fn product_history_query_keeps_its_draft_and_focus_during_capture_pause() {
         .unwrap()
         .mock_single_click(PointerEventButton::Left);
     window.set_history_start("draft".into());
+    // Slint Kit 0.9.0 names the field once, on its root; the native editor
+    // inside it carries no accessible node of its own.
     let input = ElementQuery::from_root(&window)
-        .match_type_name("TextInput")
+        .match_inherits("KitTextField")
         .match_predicate(|e| e.accessible_label().as_deref() == Some("Start UTC (RFC3339)"))
+        .find_first()
+        .expect("actual product query field")
+        .query_descendants()
+        .match_type_name("TextInput")
         .find_first()
         .expect("actual product query editor");
     input.mock_single_click(PointerEventButton::Left);

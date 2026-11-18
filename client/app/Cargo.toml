@@ -33,14 +33,14 @@ chrono = { version = "=0.4.45", default-features = false, features = ["clock"] }
 rustls-pemfile = "2"
 url = "2"
 png = "=0.18.1"
-slint-kit = { version = "=0.8.0", path = "../../.tools/frontend-kits/slint-kit/crates/kit" }
+slint-kit = { version = "=0.9.0", path = "../../.tools/frontend-kits/slint-kit/crates/kit" }
 slint-kit-pro = { path = "../../.tools/frontend-kits/pro/crates/kit-pro" }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
-slint = { version = "=1.18.1", default-features = false, features = ["std", "compat-1-18", "backend-winit", "renderer-software", "accessibility", "unstable-winit-030"] }
+slint = { version = "~1.19.0", default-features = false, features = ["std", "compat-1-18", "backend-winit", "renderer-software", "accessibility", "unstable-winit-030"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
-slint = { version = "=1.18.1", default-features = false, features = ["std", "compat-1-18", "backend-android-activity-06", "renderer-software"] }
+slint = { version = "~1.19.0", default-features = false, features = ["std", "compat-1-18", "backend-android-activity-06", "renderer-software"] }
 
 [build-dependencies]
 slint-kit-pro-build = { path = "../../.tools/frontend-kits/pro/crates/kit-pro-build" }
@@ -50,8 +50,8 @@ home-client-session = { path = "../session", features = ["test-support"] }
 home-client-cache = { path = "../cache", features = ["test-support"] }
 async-trait = "0.1"
 connectrpc = { version = "=0.9.1", default-features = false }
-i-slint-backend-testing = { version = "=1.18.1", features = ["renderer-software"] }
-i-slint-core = "=1.18.1"
+i-slint-backend-testing = { version = "~1.19.0", features = ["renderer-software"] }
+i-slint-core = "~1.19.0"
 
 [package.metadata.android]
 package = "ca.homeward.frontend.dev"

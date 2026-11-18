@@ -1,5 +1,5 @@
 fn main() {
-    // Slint Kit 0.8.0 keeps Slint's debug metadata default. The app's unit
+    // Slint Kit 0.9.0 keeps Slint's debug metadata default. The app's unit
     // tests inspect elements by component identity, so unoptimized builds opt
     // in. Release builds keep the default, where SLINT_EMIT_DEBUG_INFO applies.
     let config = slint_kit_pro_build::config();
