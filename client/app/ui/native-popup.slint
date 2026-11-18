@@ -1,6 +1,6 @@
 import { ProModuleIntent } from "@kit-pro";
-import { KitDialogSurface, KitButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy, StepDirection, Tone, IconGlyph } from "@kit";
-import { ProDetailPanel, ProDetailPresentation, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProValueIntent, ProGesture } from "@kit-pro";
+import { KitDialogSurface, KitButton, KitScrollArea, KitAlert, ControlSize, CloseReason, FocusRequest, DialogTabPolicy, StepDirection, Tone, IconGlyph, TypographyRole } from "@kit";
+import { ProDetailPanel, ProDetailPresentation, ProDetailClosePlacement, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProPowerIntent, ProValueIntent, ProGesture } from "@kit-pro";
 import { HomewardDashboard } from "native-dashboard.slint";
 
 export component HomewardPopup inherits KitDialogSurface {
@@ -14,6 +14,9 @@ export component HomewardPopup inherits KitDialogSurface {
     private property <bool> phone: root.viewport-width < 600px;
     in property <int> generation;
     in property <string> title;
+    // The room's reading line under the title (its temperature, what is
+    // on); empty draws none. The host builds it from what the server sends.
+    in property <string> subtitle;
     // The room's own glyph, drawn in a tinted well before the title; a
     // detail popup (a thermostat) keeps the plain header.
     in property <IconGlyph> glyph;
@@ -66,13 +69,20 @@ export component HomewardPopup inherits KitDialogSurface {
     dismiss(reason) => { root.leave(reason); }
     background: root.phone ? root.theme.canvas : root.theme.scrim;
     panel := ProDetailPanel {
-        theme: root.theme; title: root.title;
+        theme: root.theme; title: root.title; subtitle: root.detail ? "" : root.subtitle;
+        // A room header: the 22 px title over its reading line, the close
+        // button trailing on the dialog; the phone sheet keeps its leading
+        // Back chevron.
+        title-role: root.detail ? TypographyRole.subtitle : TypographyRole.title;
         close-label: root.phone ? "Back" : "Close " + root.title;
         dismiss-glyph: root.phone ? root.theme.icons.chevron-left : root.theme.icons.close;
+        close-placement: root.phone ? ProDetailClosePlacement.leading : ProDetailClosePlacement.trailing;
         presentation: root.phone ? ProDetailPresentation.sheet : ProDetailPresentation.dialog;
-        header-glyph: root.detail ? root.no-glyph : root.glyph;
+        // The phone sheet draws no grab handle (nor well or divider).
+        show-handle: false;
+        header-glyph: root.detail || root.phone ? root.no-glyph : root.glyph;
         header-glyph-tone: Tone.warning;
-        divider: !root.detail;
+        divider: !root.detail && !root.phone;
         notice: root.action-feedback;
         interactive: root.state.open && root.state.topmost && !root.state.busy;
         // A room dialog keeps 100 px margins on a tablet so its body holds

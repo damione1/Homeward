@@ -5,7 +5,7 @@ import { KitDialogSurface, KitDialogPanel, KitIconButton, KitButton, KitSelect, 
     KitDataTable, TableColumn, TableRow, ContentItem, DataSortDirection, DataAlignment, NavigationStep,
     KitMetrics, ControlSize, OptionRow, SelectState, DialogState, DialogTabPolicy, CloseReason, StepDirection, FocusRequest, NotificationRow, IconGlyph } from "@kit";
 import { InterFont } from "@kit-fonts/inter.slint";
-import { ProLockOperation, ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProDeviceKind, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro";
+import { ProLockOperation, ProAccessPanel, ProAccessStage, ProAdaptiveShell, ProShellFocus, ProShellSubtitlePlacement, ProHomeOverview, ProRoomRow, ProObservationRow, ProDeviceRow, ProDeviceKind, ProPowerIntent, ProValueIntent, ProLayoutNode, ProLayoutInput, ProLayoutCell, ProRecipeRow, ProRecipeStyle, ProGestureAccess, ProGesture, ProEnvironmentKind, ProPresenceStatus, ProEnvironmentFact, ProForecastRow, ProWeatherData, ProSolarData, ProPresenceData, ProTaskRow, ProTaskAccess, ProTaskAction, ProGrocerySuggestion } from "@kit-pro";
 import { HomewardLists } from "lists.slint";
 import { HomewardCalendars, CalendarPresentation, CalendarDraftView, CalendarCommand } from "calendars.slint";
 import { HomewardCameras, CameraPresentation, VideoPresentation } from "cameras.slint";
@@ -20,7 +20,7 @@ import { ProCameraPresentation, ProCameraEventRow, ProCameraState } from "@kit-p
 import { ProAgendaMode, ProAgendaRow, ProAgendaDay, ProAgendaColumn, ProAgendaAccess, ProAgendaPhase, ProAgendaTemporalKind, ProAgendaField, ProAgendaBoundary, ProAgendaAction } from "@kit-pro";
 import { CivilDateView, LocalDateTimeView, LocalTimeView, ZonedTimePresentation, ZonedDateTimeDraft, AmbiguousTimeChoice, CalendarDay, CalendarNavigation } from "@kit";
 import { HomewardHistory, HistoryPresentation, HistoryStatistic } from "history.slint";
-import { HomewardMedia, HomewardMediaVolume } from "media.slint";
+import { HomewardMedia, HomewardMediaVolume, HomewardMediaPlayer } from "media.slint";
 import { ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue, ProMediaMember } from "@kit-pro";
 import { ProChartPhase, ProChartSeries, ProChartRangeGesture } from "@kit-pro";
 import { KitGlyphs } from "@kit";
@@ -265,6 +265,9 @@ export component HomewardWindow inherits Window {
     in property <DialogState> native-popup;
     in property <int> native-popup-generation;
     in property <string> native-popup-title;
+    // The room popup's reading line under its title; the navigation host
+    // builds it from the room's readings (empty until it does).
+    in property <string> native-popup-subtitle;
     in property <bool> native-popup-detail;
     in property <bool> native-popup-can-back;
     // The glyph of the room a popup shows, for its header well.
@@ -309,6 +312,7 @@ export component HomewardWindow inherits Window {
     callback device-edit(int,int,int,ProValueIntent);
     callback device-choice(int,int,int);
     callback alarm-mode(int,int,int);
+    callback device-light-color(int,int,color);
     callback alarm-digit(int,int,int);
     callback alarm-clear(int,int);
     callback alarm-confirm(int,int);
@@ -365,6 +369,7 @@ export component HomewardWindow inherits Window {
     in property <string> media-coordinator;
     in property <[ProMediaMember]> media-members;
     in property <HomewardMediaVolume> media-volume;
+    in property <HomewardMediaPlayer> media-player;
     in property <string> media-notice;
     in property <int> media-artwork-remaining-ms;
     in-out property <int> media-artwork-id;
@@ -634,18 +639,22 @@ export component HomewardWindow inherits Window {
         interactive: root.background-interactive;
         width: content.width; height: content.height;
         visible: root.connected && !root.show-endpoint;
-        theme: root.theme; product-name: "Homeward"; brand-glyph: LucideNavigation.compass(); workspace-label: root.dashboard-title;
+        theme: root.theme; product-name: "Homeward"; brand-glyph: KitGlyphs.home(); workspace-label: root.dashboard-title;
         header-visible: root.page != ViewPage.calendars;
         floating-navigation: true; compact-breakpoint: 600px;
         subtitle: root.local-date;
+        // Beside the rail the date stacks under the greeting; the tablet
+        // header keeps it inline after the title.
+        subtitle-placement: ProShellSubtitlePlacement.stacked;
         navigation-glyphs: [KitGlyphs.home(), LucideHome.door-open(), KitGlyphs.cart(), LucideTime.calendar-days(), LucideDevices.video(), KitGlyphs.settings()];
         // Settings is the trailing navigation row, pinned to the rail foot.
         footer-rows: 1;
         avatar-visible: root.account-initials != "";
         avatar-initials: root.account-initials; avatar-label: root.account-label;
         avatar-requested => { root.quick-navigation(ViewPage.settings); }
-        // No inbox host feeds the centre yet (the native host left in NHF-033).
-        notifications-visible: false;
+        // The bell opens the notifications dialog below; its unread dot
+        // follows the inbox host's flag.
+        notifications-visible: true;
         notification-unread: root.notification-has-unread;
         notifications-requested => { root.notifications-open = true; }
         page-title: root.page == ViewPage.home ? root.greeting : root.page-title;
@@ -797,6 +806,7 @@ export component HomewardWindow inherits Window {
                     interactive: root.dashboard-interactive && root.page == ViewPage.home; commands-enabled: root.commands-ready;
                     module-intent(intent) => { root.device-module(intent); }
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
+                    alarm-mode(token,generation,choice) => { root.alarm-mode(token,generation,choice); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
                     brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
@@ -867,6 +877,7 @@ export component HomewardWindow inherits Window {
                     interactive: root.dashboard-interactive && root.page == ViewPage.room && root.room-view == RoomView.cards; commands-enabled: root.commands-ready;
                     module-intent(intent) => { root.device-module(intent); }
                     power(token,generation,intent) => { root.device-power(token,generation,intent); }
+                    alarm-mode(token,generation,choice) => { root.alarm-mode(token,generation,choice); }
                     edit(token,generation,field,intent) => { root.device-edit(token,generation,field,intent); }
                     choose(token,generation,choice) => { root.device-choice(token,generation,choice); }
                     brightness(token,generation,value) => { root.device-brightness(token,generation,value); }
@@ -1001,6 +1012,7 @@ export component HomewardWindow inherits Window {
                 if !root.media-has-data: HomewardDeviceDetail {
                     lock-operation(t,g,operation) => { root.lock-operation(t,g,operation); }
                     alarm-mode(t,g,c) => { root.alarm-mode(t,g,c); }
+                    light-color(t,g,c) => { root.device-light-color(t,g,c); }
                     alarm-digit(t,g,d) => { root.alarm-digit(t,g,d); }
                     alarm-clear(t,g) => { root.alarm-clear(t,g); }
                     alarm-confirm(t,g) => { root.alarm-confirm(t,g); }
@@ -1031,7 +1043,7 @@ export component HomewardWindow inherits Window {
                     media: root.media-data; actions: root.media-actions; options: root.media-options; values: root.media-values;
                     progress-known: root.media-progress-known; progress: root.media-progress;
                     position-label: root.media-position-label; duration-label: root.media-duration-label;
-                    group-title: root.media-group-title; coordinator: root.media-coordinator; members: root.media-members; volume: root.media-volume;
+                    group-title: root.media-group-title; coordinator: root.media-coordinator; members: root.media-members; volume: root.media-volume; player: root.media-player;
                     notice: root.media-notice; artwork-remaining-ms: root.media-artwork-remaining-ms;
                     operation(token,generation,operation) => { root.media-operation(token,generation,operation); }
                     option(token,generation,kind,option) => { root.media-option(token,generation,kind,option); }
@@ -1097,7 +1109,7 @@ export component HomewardWindow inherits Window {
                     step(t,g,d) => { root.device-step(t,g,d); }
         width: root.width; height: root.height; theme: root.theme;
         state: { open: root.native-popup.open, topmost: root.native-popup.topmost && !root.recipe-confirmation.open, busy: root.native-popup.busy };
-        generation: root.native-popup-generation; title: root.native-popup-title;
+        generation: root.native-popup-generation; title: root.native-popup-title; subtitle: root.native-popup-subtitle;
         detail: root.native-popup-detail; can-back: root.native-popup-can-back;
         back(generation) => { root.native-popup-back(generation); }
         nodes: root.popup-layout-nodes; commands-enabled: root.commands-ready;

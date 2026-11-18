@@ -162,6 +162,35 @@ pub(crate) struct Reading {
     pub security: Vec<CardRow>,
     pub observations: Vec<ObservationReading>,
 }
+/// The family of a security capability, for the widget's card or row
+/// shape: an alarm is the card with its operations, the others are rows.
+/// The reading never infers a state from the family.
+fn security_kind(capability: Option<&wire::Capability>) -> crate::ProDeviceKind {
+    use crate::ProDeviceKind as D;
+    use wire::capability::Trait as T;
+    match capability.and_then(|capability| capability.r#trait.as_ref()) {
+        Some(T::Alarm(_)) => D::Alarm,
+        Some(T::Lock(_)) => D::Lock,
+        Some(T::Cover(_)) => D::Cover,
+        Some(T::BinaryObservation(_)) => D::Binary,
+        Some(T::NumericMeasurement(_)) => D::Measurement,
+        Some(T::Power(_)) => D::Switch,
+        Some(T::LightControl(_)) => D::Light,
+        Some(T::FanControl(_)) => D::Fan,
+        Some(T::TemperatureControl(_)) => D::Climate,
+        Some(T::Helper(_)) => D::Helper,
+        Some(T::MediaPlayback(_)) => D::Media,
+        Some(
+            T::Level(_)
+            | T::Solar(_)
+            | T::SolarEvent(_)
+            | T::Weather(_)
+            | T::Presence(_)
+            | T::PresenceDetails(_),
+        ) => D::Observation,
+        Some(T::Opaque(_)) | None => D::Unsupported,
+    }
+}
 impl Reading {
     pub fn ui(
         &self,
@@ -211,8 +240,16 @@ impl Reading {
                 summary_only,
                 ..
             } => {
-                ui.detailed = *detailed;
+                // The arc belongs to the board that is the detail: a widget
+                // that opens a detail of its own (a home or room board)
+                // draws the compact card and leaves the arc to that detail.
+                ui.detailed = *detailed && !can_open;
                 ui.kind = K::Thermostat;
+                // The compact card's pill: the observed activity ("Heating"),
+                // empty while the capability reports none.
+                ui.status = device
+                    .map_or("", |device| device.detail.climate_activity())
+                    .into();
                 let mut thermostat = device
                     .map(|device| device.ui(previous.map(|p| &p.widget.thermostat), icon))
                     .unwrap_or_default();
@@ -378,6 +415,7 @@ impl Reading {
                         let capability = view
                             .and_then(|view| crate::dashboard_visibility::capability(view, name));
                         CardRow {
+                            kind: security_kind(capability),
                             title: entity
                                 .and_then(|entry| entry.entity.as_option())
                                 .map(|entity| crate::cache_view::bounded(&entity.display_name))
