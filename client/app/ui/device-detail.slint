@@ -1,6 +1,7 @@
 import { ProControlModules, ProModulePresentation, ProControlDensity, ProModuleIntent, ProDetailPanel, ProDetailPresentation, ProDetailFact, ProTone,
-    ProLightViewsPlacement, ProColorInput, ProClimateChoicePresentation, ProSpeedFill } from "@kit-pro";
-import { KitTheme, KitAlert, KitButton, CloseReason, StepDirection, RangeThumb, Tone, IconGlyph } from "@kit";
+    ProLightViewsPlacement, ProColorInput, ProClimateChoicePresentation, ProSpeedFill, ProPowerPlacement, ProLightSection } from "@kit-pro";
+import { KitTheme, KitMetrics, KitAlert, KitButton, CloseReason, StepDirection, RangeThumb, Tone, IconGlyph, ChoiceIcon,
+    TypographyRole, SliderHandleShape, ElevationLevel } from "@kit";
 import { LucideIcons } from "@kit-icons/all.slint";
 import { ProDeviceRow, ProDeviceValue, ProDeviceKind, ProDeviceControls, ProValueMode, ProControlAccess,
     ProLightPanel, ProLight, ProSwitchPanel, ProSwitch, ProFanPanel, ProFan, ProClimatePanel, ProClimate,
@@ -8,6 +9,8 @@ import { ProDeviceRow, ProDeviceValue, ProDeviceKind, ProDeviceControls, ProValu
 
 export struct HomewardDetailRow {
     device: ProDeviceRow, pending: bool, light: ProLight, switch: ProSwitch, fan: ProFan,
+    // One signal-strength glyph per fan level, keyed by the level's token.
+    fan-icons: [ChoiceIcon],
     // The light's facts card (last observation, preset); empty hides the card.
     light-facts: [ProDetailFact],
     associated-lock: ProAssociatedLock, lock-commands-enabled: bool,
@@ -44,6 +47,9 @@ export component HomewardDeviceDetail inherits VerticalLayout {
     callback power(int,int,ProPowerIntent);
     callback module-intent(ProModuleIntent);
     callback brightness(int,int,float);
+    // The colour the wheel chose when its gesture ended, for the light
+    // command's rgb target.
+    callback light-color(int,int,color);
     width: root.viewport-width;
     spacing: 12px;
     // A phone-width panel is a sheet from the bottom edge: centred header,
@@ -56,6 +62,14 @@ export component HomewardDeviceDetail inherits VerticalLayout {
     private property <bool> dark: root.theme.canvas.to-hsv().value < 0.5;
     private property <color> heating-tint: root.dark ? #3A261C : #FDE8DC;
     private property <color> heating-ink: root.dark ? #F4B08E : #A8431B;
+    // The thermostat's arc is a lighter peach than its heating text.
+    private property <color> heating-arc: root.dark ? #F4B08E : #E7834F;
+    // Header tools are quiet: the secondary text ink on every panel.
+    private property <color> tool-ink: root.theme.text-secondary;
+    // A scale's disc handle: a translucent surface disc under the kit's
+    // surface ring, so the track's colour shows through it on every part of
+    // either gradient.
+    private property <brush> scale-handle: root.theme.surface.with-alpha(0.6);
     // Controls always stay editable. A pending gesture shows its intended
     // value with a subtle style; the observed state wins when it arrives and
     // the host reconciles silently. Only a refusal or failure is noticed.
@@ -73,7 +87,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             min-height: index == 0 ? root.minimum-panel-height : 0px;
             presentation: root.presentation; centered-header: root.phone; dismiss-glyph: root.dismiss-glyph;
             title: device.title; subtitle: device.value;
-            notice: device.quality; tools: index == 0 ? root.tools : [];
+            notice: device.quality; tools: index == 0 ? root.tools : []; tool-ink: root.tool-ink;
             tool-requested(token) => { root.tool-requested(token); }
             dismiss(reason) => { root.dismiss(reason); }
             interactive: root.interactive;
@@ -92,28 +106,52 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             theme: root.theme; width: root.viewport-width;
             min-height: index == 0 ? root.minimum-panel-height : 0px;
             presentation: root.presentation; centered-header: root.phone; dismiss-glyph: root.dismiss-glyph;
-            tools: index == 0 ? root.tools : [];
+            tools: index == 0 ? root.tools : []; tool-ink: root.tool-ink;
             tool-requested(token) => { root.tool-requested(token); }
             title: device.title; light: panel.light;
-            // Lighting is the warm family: power, slider fill, status and
-            // the view choice all take the warning tone.
-            tone: Tone.warning; status-ink: Tone.warning;
-            power-paint: { fill: root.theme.warning-subtle, ink: root.theme.warning };
+            // A light whose colour is observed opens on its colour view; the
+            // wire carries no swatches, effects or temperature scale, so those
+            // slots stay empty.
+            private property <bool> colour: panel.light.hue-known;
+            can-color: self.colour;
+            section: self.colour ? ProLightSection.color : ProLightSection.brightness;
+            // Lighting is the warm family: power, slider fill and status take
+            // the warning tone; a colour light's power and status take the accent.
+            tone: self.colour ? Tone.accent : Tone.warning;
+            status-ink: self.colour ? Tone.accent : Tone.warning;
+            status-role: TypographyRole.control;
+            display-size: root.phone ? 36px : max(KitMetrics.font-size(root.theme, TypographyRole.title), root.theme.typography.size-display);
+            // The command row: the tinted power command, then one segment per
+            // view, kept even for a dimmer-only light; the chosen view is the
+            // neutral (pressed) segment.
+            power-placement: ProPowerPlacement.inline;
+            power-paint: { fill: self.colour ? root.theme.accent-subtle : root.theme.warning-subtle,
+                ink: self.colour ? root.theme.accent-hover : root.theme.warning };
             views-placement: ProLightViewsPlacement.below;
+            views-always: true;
+            view-tone: Tone.neutral;
             view-icons: [
                 { token: 0, glyph: LucideIcons.sun() },
                 { token: 1, glyph: LucideIcons.palette() },
                 { token: 2, glyph: LucideIcons.thermometer-sun() },
                 { token: 3, glyph: LucideIcons.sparkles() }
             ];
+            // The tall slider is a pill with no edge; the scales are low
+            // rounded bars with disc handles.
             slider-width: 140px; slider-height: 330px; slider-glyph: LucideIcons.sun();
-            brightness-paint: { track: root.theme.canvas, fill: root.theme.warning-subtle, handle: root.theme.warning };
+            slider-edge: transparent; slider-radius: 42px;
+            scale-radius: 12px; scale-height: 32px;
+            brightness-paint: { track: root.theme.control-fill, fill: root.theme.warning-subtle, handle: root.theme.warning, handle-shape: SliderHandleShape.bar };
             // Scale tracks are the quantity they set; the fill stays
             // transparent so the whole scale is visible, and the handle
-            // stands out on every part of either gradient.
+            // stands out on every part of either gradient. In the colour
+            // view the brightness scale runs from dark to the light's colour.
             color-input: ProColorInput.wheel;
-            hue-paint: { track: @linear-gradient(90deg, #ff3b30 0%, #ffcc00 17%, #34c759 33%, #00c7be 50%, #007aff 67%, #af52de 83%, #ff3b30 100%), fill: transparent, handle: root.theme.text-primary };
-            temperature-paint: { track: @linear-gradient(90deg, #ffb46b 0%, #fff1dc 50%, #cfe2ff 100%), fill: transparent, handle: root.theme.text-primary };
+            wheel-diameter: root.phone ? 250px : 200px;
+            hue-scale-with-wheel: !root.phone;
+            color-brightness-paint: { track: @linear-gradient(90deg, #17181c 0%, panel.light.color 100%), fill: transparent, handle: root.scale-handle, handle-shape: SliderHandleShape.disc };
+            hue-paint: { track: @linear-gradient(90deg, #ff3b30 0%, #ffcc00 17%, #34c759 33%, #00c7be 50%, #007aff 67%, #af52de 83%, #ff3b30 100%), fill: transparent, handle: root.scale-handle, handle-shape: SliderHandleShape.disc };
+            temperature-paint: { track: @linear-gradient(90deg, #ffb46b 0%, #fff1dc 50%, #cfe2ff 100%), fill: transparent, handle: root.scale-handle, handle-shape: SliderHandleShape.disc };
             facts: panel.light-facts;
             can-brightness: device.can-brightness; can-power: device.can-power;
             can-temperature: panel.has-temperature; canonical-temperature: panel.has-temperature;
@@ -124,6 +162,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             dismiss(reason) => { root.dismiss(reason); }
             power-requested(t,g,intent) => { root.power(t,g,intent); }
             brightness-requested(t,g,value) => { root.brightness(t,g,value); }
+            color-requested(t,g,value) => { root.light-color(t,g,value); }
         }
         if !device.modular && device.kind == ProDeviceKind.switch: ProSwitchPanel {
             private property <int> focus-request: root.focus-request;
@@ -131,10 +170,16 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             theme: root.theme; width: root.viewport-width;
             min-height: index == 0 ? root.minimum-panel-height : 0px;
             presentation: root.presentation; centered-header: root.phone; dismiss-glyph: root.dismiss-glyph;
-            tools: index == 0 ? root.tools : [];
+            tools: index == 0 ? root.tools : []; tool-ink: root.tool-ink;
             tool-requested(token) => { root.tool-requested(token); }
             title: device.title; switch: panel.switch;
-            tone: Tone.warning; since-ink: Tone.warning;
+            tone: Tone.warning; since-ink: Tone.warning; since-role: TypographyRole.control;
+            // The switch rests on the white dialog without an edge; its knob
+            // floats on the card shadow, and the action label is a muted
+            // caption of the warm tone.
+            edge-visible: false; knob-elevation: ElevationLevel.sm;
+            action-role: TypographyRole.caption;
+            action-ink: root.dark ? root.theme.warning.mix(root.theme.text-secondary, 0.5) : #b39248;
             interactive: root.interactive; commands-enabled: parent.editable && device.can-power;
             dismiss(reason) => { root.dismiss(reason); }
             power-requested(t,g,intent) => { root.power(t,g,intent); }
@@ -145,13 +190,23 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             theme: root.theme; width: root.viewport-width;
             min-height: index == 0 ? root.minimum-panel-height : 0px;
             presentation: root.presentation; centered-header: root.phone; dismiss-glyph: root.dismiss-glyph;
-            tools: index == 0 ? root.tools : [];
+            tools: index == 0 ? root.tools : []; tool-ink: root.tool-ink;
             tool-requested(token) => { root.tool-requested(token); }
             title: device.title; fan: panel.fan; can-power: device.can-power;
-            // Air is the cool family; the level column reads as a gauge.
-            tone: Tone.information; status-ink: Tone.information;
+            // Air is the cool family; the level column reads as a gauge: the
+            // fastest level on top, the current level in the strong blue, the
+            // slower levels reached in the pale one, each with a signal glyph.
+            tone: Tone.information; status-ink: Tone.information; status-role: TypographyRole.control;
+            power-placement: ProPowerPlacement.inline;
             power-paint: { fill: root.theme.information-subtle, ink: root.theme.information };
             fill-mode: ProSpeedFill.cumulative; caption-visible: false;
+            segment-gap: 4px; levels-radius: 42px;
+            speed-icons: panel.fan-icons;
+            speed-paint: {
+                current-fill: root.dark ? root.theme.information : #8cc2f0,
+                current-ink: root.dark ? root.theme.canvas : #0f3b63,
+                reached-fill: root.dark ? root.theme.information-subtle : #cfe4f7,
+                reached-ink: root.theme.information };
             interactive: root.interactive; commands-enabled: parent.editable;
             dismiss(reason) => { root.dismiss(reason); }
             power-requested(t,g,intent) => { root.power(t,g,intent); }
@@ -163,7 +218,7 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             theme: root.theme; width: root.viewport-width;
             min-height: index == 0 ? root.minimum-panel-height : 0px;
             presentation: root.presentation; centered-header: root.phone; dismiss-glyph: root.dismiss-glyph;
-            tools: index == 0 ? root.tools : [];
+            tools: index == 0 ? root.tools : []; tool-ink: root.tool-ink;
             tool-requested(token) => { root.tool-requested(token); }
             title: device.title; climate: panel.climate;
             modes-presentation: ProClimateChoicePresentation.tiles;
@@ -171,6 +226,14 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             fan-presentation: ProClimateChoicePresentation.chips;
             tint: panel.climate-heating ? root.heating-tint : ProTone.fill(root.theme, panel.climate.activity-tone);
             ink: panel.climate-heating ? root.heating-ink : ProTone.ink(root.theme, panel.climate.activity-tone);
+            arc-ink: panel.climate-heating ? root.heating-arc : ProTone.ink(root.theme, panel.climate.activity-tone);
+            // The target in display type; a phone keeps the mode glyphs only
+            // and a wider, lower stepper under a shorter tile row.
+            value-size: root.phone ? 56px : 60px;
+            mode-labels-visible: !root.phone;
+            stepper-height: root.phone ? 60px : max(48px, root.theme.spacing.unit * 14);
+            stepper-width: root.phone ? 120px : max(root.theme.spacing.unit * 18, self.stepper-height);
+            tile-height: root.theme.spacing.unit * (root.phone ? 14 : 16);
             has-editor: panel.has-climate-editor; device: family.device; field: panel.climate-field;
             value-edited(t,g,f,intent) => { root.edit(t,g,f,intent); }
             interactive: root.interactive; commands-enabled: parent.editable;
@@ -184,10 +247,17 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             theme: root.theme; width: root.viewport-width;
             min-height: index == 0 ? root.minimum-panel-height : 0px;
             presentation: root.presentation; centered-header: root.phone; dismiss-glyph: root.dismiss-glyph;
-            tools: index == 0 ? root.tools : [];
+            tools: index == 0 ? root.tools : []; tool-ink: root.tool-ink;
             tool-requested(token) => { root.tool-requested(token); }
             title: device.title; cover: panel.cover;
             paint: covering;
+            // The door is a tall grey well without an edge, hung with pale
+            // accent slats. No lock note: the product asks no confirmation
+            // off the local network.
+            curtain-width: 170px; curtain-height: 300px;
+            curtain-edge: transparent; curtain-radius: 36px;
+            curtain-brush: root.theme.accent-subtle.mix(root.theme.accent, 0.15);
+            slat-radius: 8px;
             associated-lock: panel.associated-lock;
             lock-commands-enabled: root.commands-ready && panel.lock-commands-enabled;
             lock-requested(t,g,operation) => { root.lock-operation(t,g,operation); }
@@ -211,11 +281,14 @@ export component HomewardDeviceDetail inherits VerticalLayout {
             theme: root.theme; width: root.viewport-width;
             min-height: index == 0 ? root.minimum-panel-height : 0px;
             presentation: root.presentation; centered-header: root.phone; dismiss-glyph: root.dismiss-glyph;
-            tools: index == 0 ? root.tools : [];
+            // A phone sheet keeps its header for the state alone: no tools.
+            tools: index == 0 && !root.phone ? root.tools : []; tool-ink: root.tool-ink;
             tool-requested(token) => { root.tool-requested(token); }
             title: device.title; alarm: panel.alarm; neutral-mode-selection: true; compact: root.phone; code-required: panel.alarm-code-required;
             toned-state-ink: true;
             mode-fill: true; mode-tile-height: root.theme.spacing.unit * 16;
+            digit-role: TypographyRole.subtitle; prompt-role: TypographyRole.caption;
+            keypad-fill: root.phone;
             footnote: panel.alarm-code-required ? "Code used only for this command. Not saved on this device." : "";
             interactive: root.interactive; commands-enabled: parent.editable;
             dismiss(reason) => { root.dismiss(reason); }

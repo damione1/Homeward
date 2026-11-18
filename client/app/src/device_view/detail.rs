@@ -129,6 +129,11 @@ impl Metadata {
     }
 }
 impl Metadata {
+    /// The observed climate activity's label ("Heating"); empty when the
+    /// capability reports none.
+    pub(crate) fn climate_activity(&self) -> &str {
+        &self.climate_activity
+    }
     pub(super) fn associate_lock(&mut self, row: &CardRow, title: &str) {
         self.associated_lock = Some(AssociatedLock {
             token: row.token,
@@ -391,8 +396,9 @@ impl Metadata {
                 }
             }
             Control::Light { .. } => {
-                // Observed only: Homeward sends no colour or preset command yet,
-                // so the panel shows them as facts and keeps its colour view closed.
+                // Observed colour and preset: the panel opens its colour view on
+                // an observed colour and shows the preset as a fact; the wheel's
+                // choice travels through the detail's colour callback.
                 if observed && let Some(T::LightControl(value)) = capability.r#trait.as_ref() {
                     result.light_color = value.observation.rgb.as_option().and_then(rgb_color);
                     result.light_preset = value.observation.preset.clone().unwrap_or_default();
@@ -413,6 +419,59 @@ impl Metadata {
 // catalog (ISC license), as dashboard_icons.rs carries the others.
 const FLAME: &str = "M 12 3 Q 13 7 16 9.5 Q 19 12 19 15 C 19 18.866 15.866 22 12 22 C 8.134 22 5 18.866 5 15 C 5 13.918 5.351 12.865 6 12 C 6 13.381 7.119 14.5 8.5 14.5 C 9.881 14.5 11 13.381 11 12 C 11 10 9.5 9 9.5 7 Q 9.5 5 12 3";
 const SNOWFLAKE: &str = "M 10 20 L 8.75 17.5 L 6 18 M 10 4 L 8.75 6.5 L 6 6 M 14 20 L 15.25 17.5 L 18 18 M 14 4 L 15.25 6.5 L 18 6 M 17 21 L 14 15 L 10 15 M 17 3 L 14 9 L 15.5 12 M 2 12 L 8.5 12 L 10 9 M 20 10 L 18.5 12 L 20 14 M 22 12 L 15.5 12 L 14 15 M 4 10 L 5.5 12 L 4 14 M 7 21 L 10 15 L 8.5 12 M 7 3 L 10 9 L 14 9";
+// Lucide's signal strength glyphs: a dot and one to four rising bars.
+const SIGNAL_LOW: &str = "M 2 20 L 2.01 20 M 7 20 L 7 16";
+const SIGNAL_MEDIUM: &str = "M 2 20 L 2.01 20 M 7 20 L 7 16 M 12 20 L 12 12";
+const SIGNAL_HIGH: &str = "M 2 20 L 2.01 20 M 7 20 L 7 16 M 12 20 L 12 12 M 17 20 L 17 8";
+const SIGNAL_FULL: &str =
+    "M 2 20 L 2.01 20 M 7 20 L 7 16 M 12 20 L 12 12 M 17 20 L 17 8 M 22 20 L 22 4";
+/// How many bars a fan level's glyph raises: the slowest level one, each
+/// faster level one more, up to the four the glyph family draws.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SignalBars {
+    One,
+    Two,
+    Three,
+    Four,
+}
+/// The bars for the level `rank` levels above the slowest (1 is the slowest).
+fn signal_bars(rank: usize) -> SignalBars {
+    if rank >= 4 {
+        SignalBars::Four
+    } else if rank == 3 {
+        SignalBars::Three
+    } else if rank == 2 {
+        SignalBars::Two
+    } else {
+        SignalBars::One
+    }
+}
+fn signal_glyph(bars: SignalBars) -> IconGlyph {
+    match bars {
+        SignalBars::One => lucide(SIGNAL_LOW),
+        SignalBars::Two => lucide(SIGNAL_MEDIUM),
+        SignalBars::Three => lucide(SIGNAL_HIGH),
+        SignalBars::Four => lucide(SIGNAL_FULL),
+    }
+}
+/// The target field as the product types it: a Celsius setpoint reads with
+/// the degree sign alone ("21.0°"); any other unit stays as sent.
+fn degree_field(field: &crate::ProDeviceValue) -> crate::ProDeviceValue {
+    let mut field = field.clone();
+    if field.suffix.trim() == "°C" {
+        field.suffix = "°".into();
+    }
+    field
+}
+/// The target as one string: the degree sign binds to the number, another
+/// unit keeps its space.
+fn setpoint_text(field: &crate::ProDeviceValue) -> String {
+    if field.suffix == "°" {
+        format!("{}°", field.lower)
+    } else {
+        format!("{} {}", field.lower, field.suffix)
+    }
+}
 fn rgb_color(rgb: &wire::RgbColor) -> Option<(u8, u8, u8)> {
     Some((
         u8::try_from(rgb.red?).ok()?,
@@ -532,7 +591,8 @@ pub(crate) fn project(
     let primary = device
         .values
         .iter()
-        .find(|field| device.has_primary_value && field.token == device.primary_value_token);
+        .find(|field| device.has_primary_value && field.token == device.primary_value_token)
+        .map(|field| degree_field(&field));
     let climate_field = primary
         .as_ref()
         .filter(|field| field.mode == ProValueMode::Single);
@@ -549,10 +609,41 @@ pub(crate) fn project(
         format!("Preset · {}", metadata.light_preset).into()
     } else if power == ProSwitchState::On
         && device.can_brightness
+        && device.brightness_known
+        && metadata.light_color.is_some()
+    {
+        format!("{:.0}% · colour mode", device.brightness_percent).into()
+    } else if power == ProSwitchState::On
+        && device.can_brightness
         && temperature.is_none()
         && metadata.light_color.is_none()
     {
         "On · dimming only".into()
+    } else {
+        SharedString::default()
+    };
+    // The level column lists the fastest level first, so the panel takes the
+    // catalogue in reverse server order; each row keeps its token, which
+    // `choose` still maps to the server key. The status counts from the
+    // slowest level, as the catalogue does.
+    let speeds = metadata
+        .speeds
+        .iter()
+        .rev()
+        .cloned()
+        .collect::<Vec<ChoiceRow>>();
+    let fan_icons = speeds
+        .iter()
+        .enumerate()
+        .map(|(position, row)| ChoiceIcon {
+            token: row.token,
+            glyph: signal_glyph(signal_bars(speeds.len() - position)),
+        })
+        .collect::<Vec<ChoiceIcon>>();
+    let fan_status: SharedString = if !metadata.quality_notice.is_empty() {
+        metadata.quality_notice.clone().into()
+    } else if let Some(index) = metadata.speeds.iter().position(|row| row.selected) {
+        format!("Speed {} of {}", index + 1, metadata.speeds.len()).into()
     } else {
         SharedString::default()
     };
@@ -631,16 +722,21 @@ pub(crate) fn project(
             generation: device.generation,
             power,
             state_label: device.value.clone(),
-            status: metadata.quality_notice.clone().into(),
-            speeds: nested(&metadata.speeds, previous.map(|v| &v.fan.speeds)),
-            speed_focus: selected(&metadata.speeds),
+            status: fan_status,
+            speeds: nested(&speeds, previous.map(|v| &v.fan.speeds)),
+            speed_focus: selected(&speeds),
             ..Default::default()
         },
+        fan_icons: nested(&fan_icons, previous.map(|v| &v.fan_icons)),
+        // `current` and `humidity` stay empty: the climate trait observes the
+        // setpoint, the mode, the activity and the fan only (traits.proto
+        // TemperatureControlObservation); the panel shows no reading it
+        // did not receive.
         climate: ProClimate {
             token: device.token,
             generation: device.generation,
             setpoint: climate_field
-                .map(|field| format!("{} {}", field.lower, field.suffix).into())
+                .map(|field| setpoint_text(field).into())
                 .unwrap_or_else(|| device.value.clone()),
             can_increment: climate_field
                 .is_some_and(|field| field.can_step && field.lower_position < 1.),

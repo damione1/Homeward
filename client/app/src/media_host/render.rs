@@ -1,8 +1,8 @@
 use super::state::{ChoiceKind, ChoiceToken, Draft, Picture, State, Status};
 use crate::{
-    HomewardMediaVolume, HomewardWindow, ProArtworkState, ProDeviceValue, ProMediaAction,
-    ProMediaMember, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProMediaPresentation,
-    ProValueKind, ProValueMode,
+    HomewardMediaPlayer, HomewardMediaVolume, HomewardWindow, ProArtworkState, ProDeviceValue,
+    ProMediaAction, ProMediaMember, ProMediaOperation, ProMediaOption, ProMediaOptionKind,
+    ProMediaPresentation, ProSwitchState, ProValueKind, ProValueMode,
     media::{Data, Field, Refusal},
 };
 use home_client_model::{
@@ -136,6 +136,7 @@ pub(super) fn clear(window: &HomewardWindow) {
     window.set_media_options(Default::default());
     window.set_media_values(Default::default());
     window.set_media_volume(Default::default());
+    window.set_media_player(Default::default());
     window.set_media_members(Default::default());
     window.set_media_group_title("".into());
     window.set_media_coordinator("".into());
@@ -234,6 +235,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
         window.set_media_actions(Default::default());
         window.set_media_values(Default::default());
         window.set_media_volume(Default::default());
+        window.set_media_player(Default::default());
         window.set_media_options(Default::default());
         window.set_media_members(Default::default());
         window.set_media_group_title("".into());
@@ -273,21 +275,48 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     };
     window.set_media_position_label(position.map(time_label).unwrap_or_default().into());
     window.set_media_duration_label(duration.map(time_label).unwrap_or_default().into());
-    let playback = match reading
+    let operations = definition
+        .map(|definition| definition.operations())
+        .unwrap_or_default();
+    let playback_state = reading
         .map(|reading| reading.playback())
-        .unwrap_or(PlaybackState::Unknown)
-    {
-        PlaybackState::Playing => "Playing",
-        PlaybackState::Paused => "Paused",
-        PlaybackState::Stopped => "Stopped",
-        PlaybackState::Buffering => "Buffering",
-        PlaybackState::Unknown => "Playback unknown",
+        .unwrap_or(PlaybackState::Unknown);
+    // A playing reading whose transport offers Pause already shows its state
+    // through that button: the caption then says nothing about it.
+    let pause_offered = operations
+        .iter()
+        .any(|operation| matches!(operation, MediaOperation::Pause));
+    let playback = match playback_state {
+        PlaybackState::Playing => {
+            if pause_offered {
+                None
+            } else {
+                Some("Playing")
+            }
+        }
+        PlaybackState::Paused => Some("Paused"),
+        PlaybackState::Stopped => Some("Stopped"),
+        PlaybackState::Buffering => Some("Buffering"),
+        PlaybackState::Unknown => Some("Playback unknown"),
     };
-    let playback = match reading.and_then(|reading| reading.powered_on()) {
-        Some(true) => format!("{playback} · Power ON"),
-        Some(false) => format!("{playback} · Power OFF"),
-        None => playback.to_owned(),
+    let powered_on = reading.and_then(|reading| reading.powered_on());
+    let power_label = match powered_on {
+        Some(true) => Some("Power ON"),
+        Some(false) => Some("Power OFF"),
+        None => None,
     };
+    let playback = [playback, power_label]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" · ");
+    // A live stream: playing (or filling its buffer) with no duration to
+    // report. The wire names no stream kind, so this is the only evidence.
+    let live = duration.is_none()
+        && match playback_state {
+            PlaybackState::Playing | PlaybackState::Buffering => true,
+            PlaybackState::Paused | PlaybackState::Stopped | PlaybackState::Unknown => false,
+        };
     let quality = reading
         .map(|reading| {
             let quality = reading.quality();
@@ -387,9 +416,7 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
     presentation.artwork_label = label.into();
     window.set_media_artwork_remaining_ms(remaining);
     window.set_media_data(presentation);
-    let actions = definition
-        .map(|definition| definition.operations())
-        .unwrap_or_default()
+    let actions = operations
         .iter()
         .copied()
         .map(operation)
@@ -474,6 +501,37 @@ pub(super) fn render(window: &HomewardWindow, value: Projection) {
             .unwrap_or_else(|| "Coordinator not exposed".to_owned())
             .into(),
     );
+    // The header's second line says only what the wire carries: the size of
+    // the group the player reports (it names no integration or vendor). The
+    // source playing is named from the definition's catalogue; the power
+    // state is observed only (the media contract has no power command).
+    let sources = definition
+        .map(|definition| definition.sources())
+        .unwrap_or_default();
+    let source = reading
+        .and_then(|reading| reading.source())
+        .and_then(|id| {
+            sources
+                .iter()
+                .find(|source| source.id().as_str() == id.as_str())
+        })
+        .map(|source| source.display_name())
+        .unwrap_or_default();
+    window.set_media_player(HomewardMediaPlayer {
+        live,
+        subtitle: if members.len() > 1 {
+            format!("Group of {}", members.len()).into()
+        } else {
+            SharedString::default()
+        },
+        power: match powered_on {
+            Some(true) => ProSwitchState::On,
+            Some(false) => ProSwitchState::Off,
+            None => ProSwitchState::Unknown,
+        },
+        can_choose_source: !sources.is_empty(),
+        source: source.into(),
+    });
     // Every reported member plays in the group. The player exposes no
     // per-member join, leave or volume command and no member volume, so the
     // rows are read-only and carry no level.

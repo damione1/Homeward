@@ -12,7 +12,9 @@ export global HomewardSkin {
         return {
             canvas: dark ? #0f1013 : #f3f4f6,
             surface: dark ? (opaque ? #1a1b20 : #1a1b20f5) : (opaque ? #ffffff : #fffffff5),
-            surface-raised: dark ? #22242a : #f7f7f9,
+            // Dialogs and cards are white so a control-fill track or segment
+            // keeps its shape on them; only the wells stay grey.
+            surface-raised: dark ? #22242a : #ffffff,
             surface-inset: dark ? #22242a : #f7f7f9,
             text-primary: dark ? #f2f3f5 : #17181c,
             text-secondary: dark ? #a3a7b0 : #5e626b,

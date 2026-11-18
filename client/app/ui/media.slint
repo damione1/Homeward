@@ -1,5 +1,6 @@
-import { KitTheme, CloseReason, RangeThumb } from "@kit";
-import { ProDetailTool, ProIdentityButton, ProMediaPanel, ProMediaMember, ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue, ProValueIntent, ProArtworkState } from "@kit-pro";
+import { KitTheme, CloseReason, RangeThumb, Tone, TypographyRole } from "@kit";
+import { LucideIcons } from "@kit-icons/all.slint";
+import { ProDetailTool, ProIdentityButton, ProMediaPanel, ProMediaMember, ProMediaPresentation, ProMediaAction, ProMediaOperation, ProMediaOption, ProMediaOptionKind, ProDeviceValue, ProValueIntent, ProArtworkState, ProSwitchState } from "@kit-pro";
 
 // The player's volume as the host last published it. `field` is the host's
 // value token for the volume quantity (the slider's gesture is sent back
@@ -7,6 +8,16 @@ import { ProDetailTool, ProIdentityButton, ProMediaPanel, ProMediaMember, ProMed
 // volume domain; `known`: a level is observed or drafted; `level`: that
 // level as a whole percentage of the domain.
 export struct HomewardMediaVolume { field: int, offered: bool, known: bool, level: int }
+
+// The player itself, as the host last published it. `live`: the reading is
+// a live stream (playing with no duration), shown with a badge and a radio
+// glyph; `subtitle`: the header's second line ("Group of 2"), empty when the
+// wire gives nothing to say; `power`: the observed power state (the wire
+// carries no power command, so it is shown, never commanded);
+// `can-choose-source`: the player lists sources; `source`: the one playing.
+export struct HomewardMediaPlayer {
+    live: bool, subtitle: string, power: ProSwitchState, can-choose-source: bool, source: string,
+}
 
 // Product composition only. Content, capabilities, privacy and exact action
 // targets are supplied by the native owner; the Pro owns reusable controls.
@@ -20,6 +31,7 @@ export component HomewardMedia inherits VerticalLayout {
     in property <bool> editable;
     in property <bool> has-data;
     in property <ProMediaPresentation> media;
+    in property <HomewardMediaPlayer> player;
     in property <bool> progress-known;
     in property <float> progress;
     in property <string> position-label;
@@ -46,27 +58,46 @@ export component HomewardMedia inherits VerticalLayout {
     if root.has-data: ProMediaPanel {
         theme: root.theme; media: root.media; actions: root.actions; options: root.options; values: root.values;
         min-height: root.minimum-panel-height;
-        title: root.title; tools: root.tools;
+        title: root.title; subtitle: root.player.subtitle;
+        tools: root.tools; tool-ink: root.theme.text-secondary;
         tool-requested(token) => {
             if (token == root.generation) { if (root.interactive && !root.suspended) { root.reload(root.generation); } }
             else { root.tool-requested(token); }
         }
         interactive: root.interactive; commands-enabled: root.editable;
+        // A live stream wears a danger badge and a radio glyph on an artwork
+        // tile lifted like a popover.
+        badge: root.player.live ? "Live" : "";
+        badge-tone: Tone.danger;
+        artwork-glyph: root.player.live ? LucideIcons.radio() : LucideIcons.audio-lines();
+        artwork-elevation: root.theme.elevation.popover;
         // The volume slider drafts a level and emits it once when the gesture
         // ends; the host's value codec admits the nearest step and sends it.
+        // It is a low filled bar without a handle, read out beside it.
         can-volume: root.volume.offered; volume: root.volume.level; volume-known: root.volume.known; volume-maximum: 100;
+        volume-paint: { track: root.theme.control-fill, fill: root.theme.accent-subtle, handle: transparent, edge: transparent };
+        volume-height: 40px;
+        volume-readout-role: TypographyRole.control;
         volume-requested(token,generation,level) => {
             root.edit(token,generation,root.volume.field,{event: start, thumb: RangeThumb.lower});
             root.edit(token,generation,root.volume.field,{event: position, thumb: RangeThumb.lower, position: level / 100.0});
             root.edit(token,generation,root.volume.field,{event: commit, thumb: RangeThumb.lower});
         }
-        // No mute observation or command is exposed by the player.
+        // No mute observation or command is exposed by the player, and no
+        // power command: the observed power state is shown in the playback
+        // line, not as a button. The source is chosen through the host's
+        // own picker, so the panel's source trigger stays off.
         can-mute: false;
+        can-power: false; power-state: root.player.power;
+        can-choose-source: false; source: root.player.source;
         // The members are what the player reports in its group; the host
         // offers no per-member join, leave or volume command, so each row is
-        // read-only and says so.
+        // read-only and says so. One compact row per member under a capital
+        // caption.
         members: root.members;
+        member-layout: compact;
         members-label: root.group-title == "" ? "Speakers" : root.group-title;
+        members-caption-uppercase: true;
         fixed-member-label: "Grouped by the player";
         dismiss(reason) => { root.dismiss(reason); }
         progress-known: root.progress-known; progress: root.progress;
